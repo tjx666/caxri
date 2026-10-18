@@ -143,13 +143,15 @@ including plain stdout, empty JSON, and control JSON. Failed hooks show their na
 and readable failure details in an error callout. Structured control JSON stays hidden.
 Explicit blocking reasons keep their full text and warning severity. Local mod command results
 use a separate callout with the plugin and command name, so they cannot be confused with an
-assistant reply. The same feedback survives Terminal-to-Chat switching and history restoration;
-live SDK events and persisted records have distinct envelopes. Local `--plugin-dir` launch
-arguments also carry through to the Chat SDK.
+assistant reply. Tool-scoped feedback stays with the main or subagent conversation that owns the
+tool use id. Raw Hook lifecycle responses carry no Agent identity and remain Session-level feedback
+rather than being guessed as main Agent output. The same feedback survives Terminal-to-Chat
+switching and history restoration; live SDK events and persisted records have distinct envelopes.
+Local `--plugin-dir` launch arguments also carry through to the Chat SDK.
 
 The feedback callouts follow [Paseo's notification presentation](https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/app/src/components/message.tsx):
-severity color, an icon, and a readable body. Successful command output stays neutral; blocked
-input is a warning and a failed Hook is an error.
+severity color, an icon, and a readable body. Mod command output and blocked input use the warning
+treatment; a failed Hook is an error.
 
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
 live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
@@ -690,7 +692,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   moves into the expanded view. A row shows its duration once it reaches a second, a non-zero `Exit N`, and a
   `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
   description or background state for a command, so its rows show the command line. Consecutive work collapses
-  into one summary row, and once a turn ends its work and commentary fold behind `Worked for X`
+  into one summary row. While work is active, that row shows the newest running action and target
+  ("Reading app.ts", "Running git status --short"); after all work settles it switches to the aggregate.
+  Once a turn ends its work and commentary fold behind `Worked for X`
   (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
   a transient retry in view. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
   swapping its glyph for a spinner. A thought shows the latest bold title Codex opens a reasoning

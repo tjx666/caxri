@@ -57,7 +57,7 @@ describe('Claude system output visibility', () => {
             expect.objectContaining({
                 type: 'notice',
                 kind: 'error',
-                title: 'Hook "Example" failed (exit code 1)',
+                title: 'Session Hook "Example" failed (exit code 1)',
                 message: 'Raw error diagnostic.',
             }),
         ]);

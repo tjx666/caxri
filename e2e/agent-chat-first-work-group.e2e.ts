@@ -57,7 +57,12 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await session.getByRole('textbox', { name: 'Message' }).press('Enter');
         const summary = session.locator('[data-disclosure="agent-chat-work-group"]');
         await expect(summary).toHaveCount(1);
+        await expect(session.getByText('Reading app.ts', { exact: true })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('first-tool-summary.png') });
+        await expect(
+            session.getByText('Running git status --short', { exact: true }),
+        ).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('next-tool-summary.png') });
         await expect(session.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
         const frames = await samples.evaluate((state) => {
             state.running = false;

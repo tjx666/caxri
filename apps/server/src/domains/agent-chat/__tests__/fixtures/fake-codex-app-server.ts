@@ -63,6 +63,7 @@ import {
     runQuestions,
 } from './fake-codex-approvals.ts';
 import { runTurnArtifacts, runTurnManyFiles } from './fake-codex-artifacts.ts';
+import { runExplore } from './fake-codex-explore.ts';
 import { didHandleGoalRequest } from './fake-codex-goals.ts';
 import {
     listThreadItems,
@@ -78,11 +79,7 @@ import type {
     FakeTurn,
     RpcMessage,
 } from './fake-codex-io.ts';
-import {
-    completeMcpCalls,
-    didHandleMcpStatusRequest,
-    runBrowserStep,
-} from './fake-codex-mcp-calls.ts';
+import { didHandleMcpStatusRequest, runBrowserStep } from './fake-codex-mcp-calls.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
 import {
     runBigDiff,
@@ -277,33 +274,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('browsestep')) {
         await runBrowserStep(io, turn);
     } else if (text.includes('explore')) {
-        /**
-         * Consecutive tool calls the Chat groups into one summary row, with output it can paint.
-         */
-        const ran = (command: string, output: string) =>
-            completeItem(turn, {
-                type: 'commandExecution',
-                id: crypto.randomUUID(),
-                command: `/bin/zsh -lc "${command}"`,
-                cwd: process.cwd(),
-                status: 'completed',
-                aggregatedOutput: output,
-                exitCode: 0,
-                durationMs: 5,
-            });
-        // Commentary before the work, which the Chat shows without the Copy action only the final reply carries.
-        await streamMessage(turn, 'Looking around the project.', 0);
-        ran('cat src/app.ts', 'export const answer: number = 42;\n');
-        if (text.includes('gradual')) await delay(200);
-        ran('git status --short', ' M src/app.ts\n');
-        // Enough reads that the expanded group scrolls, each shown as the file it read rather than its command line.
-        for (let start = 1; start <= 81; start += 10) {
-            ran(`sed -n '${start},${start + 9}p' src/app.ts`, '');
-            // eslint-disable-next-line no-await-in-loop -- paced tool events expose first-paint grouping.
-            if (text.includes('gradual')) await delay(200);
-        }
-        completeMcpCalls(io, turn);
-        await streamMessage(turn, 'Explored the project.', 0);
+        await runExplore(io, turn, text.includes('gradual'));
     } else if (text.includes('several questions') || text.includes('askmany')) {
         // `askmany` is the one-word form a phone can type: `adb input text` drops spaces.
         await runQuestions(io, turn);

@@ -253,6 +253,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private onSystem(message: Json): void {
         if (this.tasks.onSystem(message)) return;
+        if (this.tasks.onFeedback(message)) return;
         switch (message.subtype) {
             case 'init': {
                 const sessionId = stringField(message.session_id);

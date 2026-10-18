@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { claudeHistoryImage, claudeHistoryOperations, claudeRewindPoint } from '../claude-history';
+import {
+    claudeHistoryImage,
+    claudeHistoryOperations,
+    claudeRewindPoint,
+    claudeTaskHistoryOperations,
+} from '../claude-history';
 import { CLAUDE_DECLINED_MESSAGE } from '../claude-tool-results';
 
 function jsonl(records: unknown[]): string {
@@ -189,6 +194,77 @@ describe('Claude transcript history', () => {
                 activeTurnId: null,
             },
         });
+    });
+
+    it('keeps tool-scoped feedback with its owning conversation during history restoration', () => {
+        const main = claudeHistoryOperations(
+            jsonl([
+                { type: 'user', uuid: 'u1', message: { role: 'user', content: 'read' } },
+                {
+                    type: 'assistant',
+                    uuid: 'a1',
+                    message: {
+                        id: 'm1',
+                        content: [
+                            {
+                                type: 'tool_use',
+                                id: 'toolu_main',
+                                name: 'Read',
+                                input: { file_path: 'README.md' },
+                            },
+                        ],
+                    },
+                },
+                {
+                    type: 'system',
+                    subtype: 'informational',
+                    uuid: 'child-feedback',
+                    isSidechain: true,
+                    tool_use_id: 'toolu_child',
+                    prevent_continuation: true,
+                    level: 'warning',
+                    content: 'Child feedback.',
+                },
+                {
+                    type: 'system',
+                    subtype: 'informational',
+                    uuid: 'main-feedback',
+                    tool_use_id: 'toolu_main',
+                    prevent_continuation: true,
+                    level: 'warning',
+                    content: 'Main feedback.',
+                },
+            ]),
+            false,
+        );
+        const mainNotices = main.flatMap((operation) =>
+            operation.op === 'upsertItem' && operation.item.type === 'notice'
+                ? [operation.item.message]
+                : [],
+        );
+        expect(mainNotices).toEqual(['Main feedback.']);
+
+        const child = claudeTaskHistoryOperations(
+            jsonl([
+                {
+                    type: 'system',
+                    subtype: 'informational',
+                    uuid: 'child-feedback',
+                    isSidechain: true,
+                    tool_use_id: 'toolu_child',
+                    prevent_continuation: true,
+                    level: 'warning',
+                    content: 'Child feedback.',
+                },
+            ]),
+            false,
+        );
+        const childNotices = child.flatMap((operation) =>
+            operation.op === 'upsertItem' && operation.item.type === 'notice'
+                ? [operation.item.message]
+                : [],
+        );
+        expect(childNotices).toEqual(['Child feedback.']);
     });
 
     it('restores a tool call the user declined as declined, as the live Chat showed it', () => {

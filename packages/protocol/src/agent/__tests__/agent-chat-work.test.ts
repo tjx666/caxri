@@ -23,7 +23,7 @@ const command = (id: string, turnId?: string, text = 'git status'): AgentChatIte
     status: 'completed',
     output: '',
 });
-const read = (id: string, turnId?: string): AgentChatItem => ({
+const read = (id: string, turnId?: string): Extract<AgentChatItem, { type: 'toolCall' }> => ({
     id,
     ...(turnId && { turnId }),
     type: 'toolCall',
@@ -176,6 +176,50 @@ describe('agentChatWorkDuration', () => {
 });
 
 describe('summarizeAgentChatWork', () => {
+    it('shows the current command while running and counts work only after it settles', () => {
+        const first: AgentChatWorkItem = {
+            id: 'first',
+            type: 'command',
+            command: 'printf first',
+            output: '',
+            status: 'running',
+        };
+        const second: AgentChatWorkItem = {
+            id: 'second',
+            type: 'command',
+            command: 'printf second',
+            output: '',
+            status: 'running',
+        };
+        expect(summarizeAgentChatWork([first])).toBe('Running printf first');
+        expect(summarizeAgentChatWork([first, second])).toBe('Running printf second');
+        expect(summarizeAgentChatWork([first, { ...second, status: 'completed' }])).toBe(
+            'Running printf first',
+        );
+        expect(
+            summarizeAgentChatWork([
+                { ...first, status: 'completed' },
+                { ...second, status: 'completed' },
+            ]),
+        ).toBe('Ran 2 commands');
+    });
+
+    it('shows the active action and target for tools other than commands', () => {
+        expect(summarizeAgentChatWork([{ ...read('read'), status: 'running' }])).toBe(
+            'Reading app.ts',
+        );
+        expect(
+            summarizeAgentChatWork([
+                {
+                    id: 'edit',
+                    type: 'fileChange',
+                    status: 'running',
+                    changes: [{ path: '/work/src/app.ts', kind: 'update', diff: '' }],
+                },
+            ]),
+        ).toBe('Editing app.ts');
+    });
+
     it('counts tools by kind and only names reasoning when it is alone', () => {
         const items = [thought('r'), command('c1'), command('c2'), read('x')] as Parameters<
             typeof summarizeAgentChatWork

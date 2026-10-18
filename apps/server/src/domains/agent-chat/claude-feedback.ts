@@ -6,6 +6,21 @@ import { clip, isRecord, stringField } from './chat-items';
 
 type Json = Record<string, unknown>;
 type Notice = Extract<AgentChatItem, { type: 'notice' }>;
+type FeedbackScope = 'agent' | 'session';
+
+/**
+ * Claude's readable block feedback retains the tool id that triggered it, while raw Hook lifecycle messages do not.
+ * Persisted non-blocking Hook errors use a different attachment field, so both envelopes are normalized here.
+ */
+export function claudeFeedbackToolUseId(input: Json): string | undefined {
+    const attachment = isRecord(input.attachment) ? input.attachment : undefined;
+    const value =
+        stringField(input.tool_use_id) ??
+        stringField(input.toolUseId) ??
+        stringField(attachment?.toolUseID) ??
+        stringField(attachment?.toolUseId);
+    return value ? clip(value, 200) : undefined;
+}
 
 /**
  * Strip only the provider-owned command envelope, never arbitrary markup in a user's message.
@@ -36,7 +51,11 @@ function diagnostic(value: unknown): string {
  * 2.1.301: blocking reasons are persisted under promptSubmitEnding, and mod commands as system/local_command while live
  * delivery uses assistant/local_command_run. Share this mapping so switching from Terminal cannot lose feedback.
  */
-export function claudeFeedbackItems(input: Json, turnId?: string | null): Notice[] {
+export function claudeFeedbackItems(
+    input: Json,
+    turnId?: string | null,
+    scope: FeedbackScope = 'session',
+): Notice[] {
     const attachment = isRecord(input.attachment) ? input.attachment : undefined;
     const message: Json =
         input.type === 'attachment' && attachment?.type === 'hook_non_blocking_error'
@@ -63,6 +82,7 @@ export function claudeFeedbackItems(input: Json, turnId?: string | null): Notice
         title =
             [plugin, name ? `/${name}` : undefined].filter(Boolean).join(' · ') || 'Command output';
         content = commandText(message.local_command_source ?? message.content);
+        kind = 'warning';
     } else {
         switch (message.subtype) {
             case 'informational': {
@@ -74,9 +94,11 @@ export function claudeFeedbackItems(input: Json, turnId?: string | null): Notice
                     : undefined;
                 const outcome = live ?? (isRecord(saved) ? saved : undefined);
                 const isBlocked =
-                    outcome?.kind === 'blocked_by_hook' || outcome?.kind === 'dropped_by_hook';
+                    outcome?.kind === 'blocked_by_hook' ||
+                    outcome?.kind === 'dropped_by_hook' ||
+                    message.prevent_continuation === true;
                 content =
-                    (isBlocked ? stringField(outcome.reason) : undefined) ??
+                    (isBlocked ? stringField(outcome?.reason) : undefined) ??
                     stringField(message.content) ??
                     '';
                 kind =
@@ -114,7 +136,7 @@ export function claudeFeedbackItems(input: Json, turnId?: string | null): Notice
                     typeof message.exit_code === 'number' && Number.isSafeInteger(message.exit_code)
                         ? ` (exit code ${message.exit_code})`
                         : '';
-                title = `Hook "${name}" failed${code}`;
+                title = `${scope === 'session' ? 'Session Hook' : 'Hook'} "${name}" failed${code}`;
                 content =
                     diagnostic(message.stderr) ||
                     diagnostic(message.output) ||

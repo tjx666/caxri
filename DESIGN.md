@@ -1246,8 +1246,10 @@ and its command line moves into the expanded view. An MCP call leads with its se
 icon (radius 2, fading in over the generic MCP glyph that holds the slot while it loads, which stays
 when the server has none) and reads as the tool alone in sentence case (`Web search exa`), since the
 icon already names the server; expanded, its arguments list as muted mono names beside body-font
-values, and its result wraps. Consecutive
-work collapses into one summary row (`Ran 3 commands, read 2 files`) that leads with the glyph of
+values, and its result wraps. Consecutive work collapses into one summary row. While it runs, the
+row names the newest active action and its target ("Reading app.ts", "Running git status --short")
+and uses that tool kind's glyph. Once every item settles, it becomes an aggregate (`Ran 3 commands,
+read 2 files`) that leads with the glyph of
 the kind its phrase names first (an MCP lead shows that call's server icon), ending `, N failed` when items
 failed or were declined, whose expanded list scrolls past 240px and fades its clipped edge over
 24px. A shell command that only reads, searches, or lists files reads as that action (`sed -n

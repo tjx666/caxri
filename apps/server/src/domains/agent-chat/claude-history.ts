@@ -14,7 +14,7 @@ import {
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
-import { claudeFeedbackItems } from './claude-feedback';
+import { claudeFeedbackItems, claudeFeedbackToolUseId } from './claude-feedback';
 import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
 import { settleClaudeToolItem } from './claude-tool-results';
@@ -56,7 +56,12 @@ function applySystemRecord(state: HistoryState, record: Json): void {
         return;
     }
     if (record.subtype !== 'turn_duration') {
-        for (const item of claudeFeedbackItems(record))
+        const toolUseId = claudeFeedbackToolUseId(record);
+        // Claude also writes synthetic tool ids for session Hooks. A sidechain or known item proves Agent ownership.
+        const scope =
+            state.isSidechain || (toolUseId && state.items.has(toolUseId)) ? 'agent' : 'session';
+        const feedbackItems = claudeFeedbackItems(record, undefined, scope);
+        for (const item of feedbackItems)
             state.items.set(item.id, { ...item, ...recordTime(record) });
         return;
     }
@@ -152,9 +157,14 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
         return;
     }
     if (record.type === 'attachment') {
+        const toolUseId = claudeFeedbackToolUseId(record);
+        // An unknown id is not ownership evidence: Stop and UserPromptSubmit Hooks use generated ids too.
+        const scope =
+            state.isSidechain || (toolUseId && state.items.has(toolUseId)) ? 'agent' : 'session';
         const feedback = claudeFeedbackItems(
             record,
             record.parentUuid == null ? undefined : state.turnId,
+            scope,
         );
         for (const item of feedback) state.items.set(item.id, { ...item, ...recordTime(record) });
         return;
@@ -170,6 +180,7 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
         const feedback = claudeFeedbackItems(
             record,
             record.parentUuid == null ? undefined : state.turnId,
+            state.isSidechain ? 'agent' : 'session',
         );
         if (feedback.length > 0) {
             for (const item of feedback)

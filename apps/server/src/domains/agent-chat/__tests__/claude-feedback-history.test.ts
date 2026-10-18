@@ -47,7 +47,7 @@ describe('Claude feedback restored from Terminal history', () => {
         expect(items).toEqual([
             expect.objectContaining({
                 type: 'notice',
-                kind: 'output',
+                kind: 'warning',
                 title: 'example-mod · /display-test',
                 message: 'example-mod: First line.\nSecond line.',
             }),
@@ -70,6 +70,7 @@ it('does not attach a standalone warning or command to the previous completed tu
                 subtype: 'informational',
                 uuid: 'warning',
                 parentUuid: 'a1',
+                tool_use_id: 'hook-synthetic-id',
                 content: 'Input blocked.',
                 level: 'warning',
                 preventContinuation: true,
@@ -96,6 +97,7 @@ it('restores a standalone startup failure without attaching it to an earlier tur
                 attachment: {
                     type: 'hook_non_blocking_error',
                     hookName: 'SessionStart:startup',
+                    toolUseID: 'hook-synthetic-id',
                     exitCode: 1,
                     stderr: 'Example configuration could not be read.\nCheck the test configuration file.',
                     stdout: '',
@@ -107,7 +109,7 @@ it('restores a standalone startup failure without attaching it to an earlier tur
         expect.objectContaining({
             type: 'notice',
             kind: 'error',
-            title: 'Hook "SessionStart:startup" failed (exit code 1)',
+            title: 'Session Hook "SessionStart:startup" failed (exit code 1)',
             message: 'Example configuration could not be read.\nCheck the test configuration file.',
         }),
     ]);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { claudeFeedbackItems } from '../claude-feedback';
+import { claudeFeedbackItems, claudeFeedbackToolUseId } from '../claude-feedback';
 import { claudeChatSettings } from '../launch-settings';
 
 describe('real Claude feedback envelopes', () => {
@@ -19,7 +19,7 @@ describe('real Claude feedback envelopes', () => {
         ).toEqual([
             expect.objectContaining({
                 type: 'notice',
-                kind: 'output',
+                kind: 'warning',
                 turnId: 'turn',
                 title: 'example-mod · /display-test',
                 message: 'Example mod output.\nRead these details.',
@@ -41,6 +41,37 @@ describe('real Claude feedback envelopes', () => {
             expect.objectContaining({
                 kind: 'warning',
                 message: 'Input blocked.\nChoose another input.',
+            }),
+        ]);
+    });
+    it('normalizes live and persisted tool ownership without guessing from Hook lifecycle events', () => {
+        expect(
+            claudeFeedbackToolUseId({ subtype: 'informational', tool_use_id: 'toolu_live' }),
+        ).toBe('toolu_live');
+        expect(
+            claudeFeedbackToolUseId({
+                type: 'attachment',
+                attachment: { type: 'hook_non_blocking_error', toolUseID: 'toolu_saved' },
+            }),
+        ).toBe('toolu_saved');
+        expect(claudeFeedbackToolUseId({ subtype: 'hook_response', hook_id: 'hook-only' })).toBe(
+            undefined,
+        );
+    });
+    it('uses the SDK continuation flag when no structured outcome is present', () => {
+        expect(
+            claudeFeedbackItems({
+                subtype: 'informational',
+                tool_use_id: 'toolu_read',
+                prevent_continuation: true,
+                level: 'notice',
+                content: 'Retry with a smaller range.',
+            }),
+        ).toEqual([
+            expect.objectContaining({
+                kind: 'warning',
+                title: 'Input blocked by Hook',
+                message: 'Retry with a smaller range.',
             }),
         ]);
     });

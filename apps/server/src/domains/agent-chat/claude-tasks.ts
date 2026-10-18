@@ -11,6 +11,7 @@ import type { AgentChatSessionHost } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { claudeAssistantItems, text } from './claude-items';
 import { ClaudeStream } from './claude-stream';
+import { ClaudeTaskFeedback } from './claude-task-feedback';
 import { claudeTaskStatus, claudeTaskUsage } from './claude-task-fields';
 import { settleClaudeToolItem } from './claude-tool-results';
 
@@ -66,6 +67,8 @@ export class ClaudeTasks {
      */
     private readonly streams = new Map<string, ClaudeStream>();
 
+    private readonly feedback: ClaudeTaskFeedback;
+
     /**
      * Claude Code `task_id` to what this session knows about it.
      */
@@ -105,6 +108,7 @@ export class ClaudeTasks {
         },
     ) {
         this.list = new ChatTaskList(options.host);
+        this.feedback = new ClaudeTaskFeedback(options.host);
     }
 
     private stream(taskId: string): ClaudeStream {
@@ -510,15 +514,18 @@ export class ClaudeTasks {
                 return;
             }
             case 'assistant': {
+                if (this.feedback.onTaskMessage(taskId, message)) return;
                 const body = isRecord(message.message) ? message.message : undefined;
                 if (!body) return;
                 const stream = this.stream(taskId);
                 const { items } = claudeAssistantItems(body, undefined, stream.ids);
-                if (items.length > 0)
+                if (items.length > 0) {
+                    this.feedback.note(taskId, items);
                     this.options.host.applyTask(
                         taskId,
                         items.map((item) => ({ op: 'upsertItem', item })),
                     );
+                }
                 stream.settle(items);
                 // A subagent may spawn its own subagents.
                 this.onAssistant(body);
@@ -566,6 +573,10 @@ export class ClaudeTasks {
         return isTaskFrame;
     }
 
+    onFeedback(message: Json): boolean {
+        return this.feedback.onMessage(message);
+    }
+
     /**
      * Stops one listed task through Claude Code's `stop_task`; its `task_notification` then marks it stopped.
      */
@@ -582,5 +593,6 @@ export class ClaudeTasks {
     close(): void {
         this.isClosed = true;
         this.stopPolling();
+        this.feedback.clear();
     }
 }
