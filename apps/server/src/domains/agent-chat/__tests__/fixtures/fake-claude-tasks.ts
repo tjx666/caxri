@@ -119,9 +119,9 @@ function recordSubagent(io: FakeClaudeIo, agentId: string, meta: Json, messages:
     fs.writeFileSync(`${base}.meta.json`, JSON.stringify(meta));
     let parentUuid: string | null = null;
     const timestamp = new Date().toISOString();
-    const lines = messages.map((message) => {
+    const lines = messages.map((record) => {
         const uuid = crypto.randomUUID();
-        const type = message.role;
+        const type = typeof record.type === 'string' ? record.type : record.role;
         const line = JSON.stringify({
             parentUuid,
             isSidechain: true,
@@ -129,11 +129,25 @@ function recordSubagent(io: FakeClaudeIo, agentId: string, meta: Json, messages:
             uuid,
             timestamp,
             type,
-            // Billed like a real subagent response, so the task tab can price the subagent from this file.
-            message:
-                type === 'assistant'
-                    ? { ...message, model: SUBAGENT_MODEL, usage: SUBAGENT_RESPONSE_USAGE }
-                    : message,
+            ...('local_command_run' in record && {
+                local_command_run: record.local_command_run,
+            }),
+            ...('local_command_source' in record && {
+                local_command_source: record.local_command_source,
+            }),
+            ...(type === 'system'
+                ? record
+                : {
+                      // Billed like a real subagent response, so the task tab can price the subagent from this file.
+                      message:
+                          type === 'assistant'
+                              ? {
+                                    ...record,
+                                    model: SUBAGENT_MODEL,
+                                    usage: SUBAGENT_RESPONSE_USAGE,
+                                }
+                              : record,
+                  }),
         });
         parentUuid = uuid;
         return line;
@@ -170,10 +184,39 @@ export async function runSubagent(io: FakeClaudeIo, startedAt: number) {
     const looking = { type: 'text', text: 'Looking at the files.' };
     const read = { type: 'tool_use', id: readId, name: 'Read', input: { file_path: 'README.md' } };
     const readResult = { type: 'tool_result', tool_use_id: readId, content: '# Project' };
+    const blockedFeedback = {
+        type: 'system',
+        subtype: 'informational',
+        tool_use_id: readId,
+        prevent_continuation: true,
+        level: 'warning',
+        content: 'The subagent Hook blocked this read once. Retry with a narrower range.',
+    };
+    const moduleFeedback = {
+        id: 'msg_mod',
+        role: 'assistant',
+        content: [],
+        local_command_run: { plugin: 'review-tools', command: 'check-read' },
+        local_command_source: 'Subagent mod output.',
+    };
     const found = { type: 'text', text: 'Found a README.' };
     childStreamStart(io, toolUseId, streamed, 'Looking at ');
     childAssistant(io, toolUseId, streamed, looking);
     childAssistant(io, toolUseId, `msg_${crypto.randomUUID()}`, read);
+    io.system('informational', {
+        tool_use_id: readId,
+        prevent_continuation: true,
+        level: 'warning',
+        content: blockedFeedback.content,
+    });
+    io.send(
+        childFrame(io, toolUseId, {
+            type: 'assistant',
+            message: { id: moduleFeedback.id, role: 'assistant', content: [] },
+            local_command_run: moduleFeedback.local_command_run,
+            local_command_source: moduleFeedback.local_command_source,
+        }),
+    );
     await delay(20);
     io.send(
         childFrame(io, toolUseId, {
@@ -198,6 +241,8 @@ export async function runSubagent(io: FakeClaudeIo, startedAt: number) {
             { role: 'user', content: input.prompt },
             { id: streamed, role: 'assistant', content: [looking] },
             { id: 'msg_read', role: 'assistant', content: [read] },
+            blockedFeedback,
+            moduleFeedback,
             { role: 'user', content: [readResult] },
             { id: 'msg_found', role: 'assistant', content: [found] },
         ],

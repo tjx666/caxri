@@ -15,6 +15,11 @@ describe('Claude Code background work in Agent Chat', () => {
         expect(done.items.some((item) => 'text' in item && item.text.includes('README'))).toBe(
             false,
         );
+        expect(
+            done.items.some(
+                (item) => item.type === 'notice' && item.message?.includes('subagent Hook'),
+            ),
+        ).toBe(false);
         expect(done.items.at(-1)).toMatchObject({ text: 'The subagent finished.' });
 
         const toolUseId = row?.id ?? '';
@@ -40,6 +45,8 @@ describe('Claude Code background work in Agent Chat', () => {
             'userMessage',
             'agentMessage',
             'toolCall',
+            'notice',
+            'notice',
             'agentMessage',
         ]);
         expect(task.items[0]).toMatchObject({ text: 'List the files in the project.' });
@@ -49,7 +56,19 @@ describe('Claude Code background work in Agent Chat', () => {
             status: 'completed',
             output: '# Project',
         });
-        expect(task.items[3]).toMatchObject({ text: 'Found a README.' });
+        expect(task.items[3]).toMatchObject({
+            type: 'notice',
+            kind: 'warning',
+            title: 'Input blocked by Hook',
+            message: 'The subagent Hook blocked this read once. Retry with a narrower range.',
+        });
+        expect(task.items[4]).toMatchObject({
+            type: 'notice',
+            kind: 'warning',
+            title: 'review-tools · /check-read',
+            message: 'Subagent mod output.',
+        });
+        expect(task.items[5]).toMatchObject({ text: 'Found a README.' });
     });
 
     it('rebuilds a subagent from its transcript after a restart', async () => {
@@ -65,9 +84,22 @@ describe('Claude Code background work in Agent Chat', () => {
             'userMessage',
             'agentMessage',
             'toolCall',
+            'notice',
+            'notice',
             'agentMessage',
         ]);
         expect(task.items[2]).toMatchObject({ status: 'completed', output: '# Project' });
+        expect(task.items[3]).toMatchObject({
+            type: 'notice',
+            kind: 'warning',
+            message: 'The subagent Hook blocked this read once. Retry with a narrower range.',
+        });
+        expect(task.items[4]).toMatchObject({
+            type: 'notice',
+            kind: 'warning',
+            title: 'review-tools · /check-read',
+            message: 'Subagent mod output.',
+        });
         expect(task.items.every((item) => item.turnId === undefined)).toBe(true);
         await expect(service.readTask(terminal.id, 'toolu_unknown')).rejects.toMatchObject({
             code: 'NOT_FOUND',

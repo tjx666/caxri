@@ -7,6 +7,7 @@ import type {
     AgentToolPresentation,
 } from '@caxri/protocol';
 import {
+    agentChatActiveWork,
     agentChatFinalReplyId,
     agentChatMcpToolTitle,
     agentChatWorkSummaryTools,
@@ -309,6 +310,13 @@ export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): 
     kind: AgentToolKind;
     mcpToolName?: string;
 } {
+    const active = agentChatActiveWork(items);
+    if (active)
+        return {
+            kind: active.presentation.kind,
+            ...(active.presentation.kind === 'mcp' &&
+                active.item.type === 'toolCall' && { mcpToolName: active.item.name }),
+        };
     const tools = agentChatWorkSummaryTools(items);
     const kind = agentToolKindCounts(tools).at(0)?.kind ?? 'thought';
     const mcpToolName =

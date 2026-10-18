@@ -151,6 +151,31 @@ export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
     item.type === 'reasoning' ? item.streaming : item.status === 'running';
 
 /**
+ * A stable group still describes its current action. Prefer the newest running tool over reasoning, and keep the
+ * command itself visible rather than replacing it with the Agent's optional description.
+ */
+export function agentChatActiveWork(
+    items: readonly AgentChatWorkItem[],
+): { item: AgentChatWorkItem; presentation: AgentToolPresentation } | undefined {
+    let item: AgentChatWorkItem | undefined;
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+        const candidate = items[index];
+        if (!isAgentChatWorkRunning(candidate)) continue;
+        if (candidate.type !== 'reasoning') {
+            item = candidate;
+            break;
+        }
+        item ??= candidate;
+    }
+    if (!item) return undefined;
+    const presentation =
+        item.type === 'command'
+            ? describeAgentTool({ name: 'shell', summary: item.command })
+            : describeAgentChatWork(item);
+    return { item, presentation };
+}
+
+/**
  * The verb a work row leads with: present tense while the item runs (`Running`, `Editing`), else the settled verb
  * `describeAgentChatWork` chose (`Ran`, `Failed to edit`).
  */
@@ -243,6 +268,11 @@ export function summarizeAgentChatWork(
     items: readonly AgentChatWorkItem[],
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
+    const active = agentChatActiveWork(items);
+    if (active) {
+        const verb = agentToolActiveLabel(active.presentation, t);
+        return [verb, active.presentation.subject].filter(Boolean).join(' ');
+    }
     const tools = agentChatWorkSummaryTools(items);
     if (tools.length === 0)
         return t(
@@ -289,6 +319,8 @@ export function agentChatWorkSummaryTools(
  * The one kind a group shares, or `undefined` when it mixes kinds and shows a generic glyph.
  */
 export function agentChatWorkKind(items: readonly AgentChatWorkItem[]): AgentToolKind | undefined {
+    const active = agentChatActiveWork(items);
+    if (active) return active.presentation.kind;
     const kinds = new Set(
         items
             .filter((item) => item.type !== 'reasoning')
