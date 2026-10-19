@@ -32,6 +32,11 @@ export type AgentSignalIgnoredReason =
      */
     | 'hooksDisabled'
     /**
+     * A turn or compaction phase of a Server-initiated cache keep-alive compaction, kept out of Session state so the
+     * background work never looks like the user's; see `AgentMaintenanceTurns`.
+     */
+    | 'maintenanceTurn'
+    /**
      * A different provider's CLI ran nested inside this Terminal's launch and inherited its hook environment.
      */
     | 'providerMismatch'

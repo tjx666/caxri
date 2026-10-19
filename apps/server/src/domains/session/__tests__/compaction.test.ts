@@ -70,6 +70,7 @@ async function fixture() {
     const coordinator = {
         hasIdleProof: vi.fn(() => true),
         agentOperation: vi.fn<() => undefined>(() => {}),
+        maintenanceTurns: { begin: vi.fn(), end: vi.fn() },
         observeInput: vi.fn(() => true),
     };
     const agentChat = {
@@ -114,6 +115,8 @@ describe('batch compaction', () => {
             'maintenance',
             expect.any(Function),
         );
+        expect(f.coordinator.maintenanceTurns.begin).toHaveBeenCalledWith(f.terminal.id);
+        expect(f.coordinator.maintenanceTurns.end).not.toHaveBeenCalled();
         expect((await f.service.run()).items[0]?.outcome).toBe('unsafe_input');
         expect(f.terminals.writeAgentExact).toHaveBeenCalledTimes(1);
     });
@@ -138,6 +141,11 @@ describe('batch compaction', () => {
         expect((await f.service.run()).items[0]?.outcome).toBe('changed');
         f.agentChat.compactIdle.mockRejectedValueOnce(new CaxriError('VALIDATION', 'no compact'));
         expect((await f.service.run()).items[0]?.outcome).toBe('unsupported');
+        // A keep-alive that never reached the provider closes its maintenance window at once.
+        expect(f.coordinator.maintenanceTurns.end).toHaveBeenCalledWith(
+            f.terminal.id,
+            'undelivered',
+        );
         f.agentChat.compactIdle.mockRejectedValueOnce(new Error('crashed'));
         expect((await f.service.run()).items[0]?.outcome).toBe('failed');
     });

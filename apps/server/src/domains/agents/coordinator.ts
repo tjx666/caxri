@@ -21,12 +21,9 @@ import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract
 import { AgentIdleProof } from './idle-proof';
 import { AgentLifecycleProjection } from './lifecycle-projection';
 import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
+import { AgentMaintenanceTurns } from './maintenance-turns';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
-import {
-    isMetadataActivityBaselineMatch,
-    metadataActivityBaseline,
-    reconcileMetadataActivityBaseline,
-} from './metadata-activity-baseline';
+import { probeActivity } from './metadata-activity-baseline';
 import { detectForegroundAgentProvider } from './process-detection';
 import { ProcessIdentityProbe } from './process-identity-probe';
 // oxlint-disable-next-line react-doctor/no-barrel-import -- Provider clusters require a public barrel.
@@ -74,6 +71,7 @@ export class AgentCoordinator {
      */
     private readonly metadataActivityBaselines = new Map<string, MetadataActivityBaseline | null>();
     private readonly grokTurns = new GrokTurnTracker();
+    readonly maintenanceTurns: AgentMaintenanceTurns;
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -135,8 +133,10 @@ export class AgentCoordinator {
             (terminalId) => this.processIdentityProbe.currentPid(terminalId),
             (terminalId) => this.refreshes.schedule(terminalId),
         );
+        const compactionTimeoutMs = options.compactionTimeoutMs ?? AGENT_COMPACTION_TIMEOUT_MS;
+        this.maintenanceTurns = new AgentMaintenanceTurns(compactionTimeoutMs, logger);
         this.lifecycleWatchdogs = new AgentLifecycleWatchdogs(
-            options.compactionTimeoutMs ?? AGENT_COMPACTION_TIMEOUT_MS,
+            compactionTimeoutMs,
             options.runningWatchdogIntervalMs ?? AGENT_RUNNING_WATCHDOG_INTERVAL_MS,
             (terminalId) => this.lifecycle.emitMetadataChange(terminalId),
             async (terminalId, launchId) => {
@@ -165,6 +165,7 @@ export class AgentCoordinator {
         this.idleProof.invalidate(terminalId);
         this.attention.forget(terminalId);
         this.work.forget(terminalId);
+        this.maintenanceTurns.end(terminalId, 'retired');
     }
 
     /**
@@ -269,34 +270,26 @@ export class AgentCoordinator {
             const currentSession = this.database.getSession(terminal.sessionId);
             if (!currentSession) return;
             const launchId = this.launchIdsByTerminal.get(terminal.id);
-            const isHookOwned = this.hookLaunches.ownsProbe(
+            // A maintenance compaction's running turn is as invisible to probes as to hooks.
+            const isHookOwned =
+                this.maintenanceTurns.holds(terminal.id) ||
+                this.hookLaunches.ownsProbe(
+                    terminal.id,
+                    launchId,
+                    snapshot.status,
+                    agentTurnId === undefined &&
+                        terminal.provider === 'codex' &&
+                        snapshot.activitySource === 'latestTurn'
+                        ? snapshot.activityTurnId
+                        : undefined,
+                );
+            const { isRecordActivity, metadataSnapshot } = probeActivity(
+                this.metadataActivityBaselines,
                 terminal.id,
-                launchId,
-                snapshot.status,
-                agentTurnId === undefined &&
-                    terminal.provider === 'codex' &&
-                    snapshot.activitySource === 'latestTurn'
-                    ? snapshot.activityTurnId
-                    : undefined,
+                snapshot,
+                currentSession.lastActivityState,
+                isHookOwned,
             );
-            const hasMetadataBaseline = this.metadataActivityBaselines.has(terminal.id);
-            const activityBaseline = this.metadataActivityBaselines.get(terminal.id);
-            const isBaselineReconciliation =
-                !hasMetadataBaseline ||
-                (activityBaseline !== null &&
-                    activityBaseline !== undefined &&
-                    isMetadataActivityBaselineMatch(activityBaseline, snapshot));
-            if (!hasMetadataBaseline)
-                this.metadataActivityBaselines.set(terminal.id, metadataActivityBaseline(snapshot));
-            else if (!isBaselineReconciliation)
-                this.metadataActivityBaselines.set(terminal.id, null);
-            const activityState = currentSession.lastActivityState;
-            const metadataSnapshot = isHookOwned
-                ? { ...snapshot, attentionKind: undefined, status: activityState }
-                : isBaselineReconciliation
-                  ? reconcileMetadataActivityBaseline(snapshot, activityState)
-                  : snapshot;
-            const isRecordActivity = !isBaselineReconciliation && !isHookOwned;
             if (
                 hasSessionActivityChanged(this.database, this.logger, {
                     applyWrite: () =>
@@ -596,6 +589,7 @@ export class AgentCoordinator {
         if (!this.grokTurns.accept(signal, terminal.agentSessionId)) return 'staleProviderTurn';
         // Accepted continuation evidence must not mark the Session idle or complete.
         if (signal.agentTurnContinues) return 'accepted';
+        if (this.maintenanceTurns.absorb(signal)) return 'maintenanceTurn';
         this.idleProof.invalidate(signal.terminalId);
         const work = this.work.observe(signal);
         if (work.outcome !== 'subagentUnmatched')
@@ -761,6 +755,7 @@ export class AgentCoordinator {
         this.idleProof.clear();
         this.attention.clear();
         this.work.clear();
+        this.maintenanceTurns.clear();
         this.metadataActivityBaselines.clear();
         this.lifecycleWatchdogs.close();
     }

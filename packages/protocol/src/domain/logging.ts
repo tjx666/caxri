@@ -366,6 +366,7 @@ export const logEventCatalog = {
     },
     sessionCompaction: {
         checked: 'session.compaction_checked',
+        maintenanceEnded: 'session.compaction_maintenance_ended',
     },
     sessionContext: sessionContextLogEvents,
     sessionSearch: sessionSearchLogEvents,
