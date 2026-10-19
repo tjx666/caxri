@@ -1,5 +1,11 @@
 import type { AgentUsageReadout } from '@caxri/protocol';
-import { agentProviderCatalog, formatTokens, formatUsd } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    currentLimitWindows,
+    formatTokens,
+    formatUsd,
+    remainingLimitPercent,
+} from '@caxri/protocol';
 import { ChartColumn } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
@@ -8,19 +14,10 @@ import { useRelativeTime } from '@/hooks/use-relative-time';
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
-import {
-    localizedLimitReset,
-    localizedLimitWindowName,
-    remainingLimitPercent,
-} from '../../lib/usage-format';
+import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
-import {
-    agentUsageCostLabel,
-    agentUsageLabel,
-    agentUsageLimitTone,
-    currentLimitWindows,
-} from './agent-usage-label';
+import { agentUsageCostLabel, agentUsageLabel, agentUsageLimitTone } from './agent-usage-label';
 import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
 import { StatusItem } from './status-item';
 

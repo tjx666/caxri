@@ -14,6 +14,7 @@ import {
     agentChatModelTrigger,
     agentChatUltracodeToggle,
 } from './agent-chat-model-choice';
+import { AgentChatPlanLimitsSection } from './agent-chat-plan-limits-section';
 import {
     SheetMessages,
     SheetOptionRow,
@@ -27,9 +28,10 @@ import { useAgentChatModelSelection } from './use-agent-chat-choice';
 type ModelSelection = ReturnType<typeof useAgentChatModelSelection>;
 
 /**
- * The Desktop composer's model menu as a phone sheet: `Model` and `Reasoning effort` lists that apply on tap, and
- * Claude Code's Ultracode switch below them while the provider offers it for the model. Like the Desktop menu it stays
- * open after a model is chosen, so that model's efforts show right away.
+ * The Desktop composer's model menu as a phone sheet: `Model` and `Reasoning effort` lists that apply on tap, Claude
+ * Code's Ultracode switch below them while the provider offers it for the model, and the plan's rate limits last, which
+ * Desktop shows in its status bar. Like the Desktop menu it stays open after a model is chosen, so that model's efforts
+ * show right away.
  */
 const AgentChatModelSheet = ({
     disabledReason,
@@ -118,6 +120,12 @@ const AgentChatModelSheet = ({
                                 label={ultracode.label}
                                 onToggle={(isOn) => select({ ultracode: isOn }, false)}
                                 testID="agent-chat-ultracode"
+                                theme={theme}
+                            />
+                        ) : null}
+                        {selection.snapshot?.terminalId ? (
+                            <AgentChatPlanLimitsSection
+                                terminalId={selection.snapshot.terminalId}
                                 theme={theme}
                             />
                         ) : null}

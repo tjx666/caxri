@@ -139,4 +139,8 @@ export const agentChatContext: TranslatedNamespace<typeof source> = {
     'agentChat.contextCategory.cachedInput': '缓存输入',
     'agentChat.contextCategory.newInput': '新输入',
     'agentChat.contextCategory.output': '输出',
+    'agentChat.planPace.text': '{{window}}限额用得偏快：剩余 {{percent}}%，{{reset}}',
+    'agentChat.planPace.detail':
+        '按{{window}}周期均匀使用，此时应剩约 {{even}}%。照目前的速度，额度可能撑不到重置，注意控制用量。',
+    'agentChat.planPace.dismiss': '今天不再提示',
 };

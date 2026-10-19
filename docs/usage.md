@@ -32,7 +32,8 @@ Sessions has a filter button that narrows the page to that Session.
   days.
 - Breakdowns by Agent, model, Project (linked worktrees roll up into their owning Project), and Session, plus the
   merged pull requests.
-- The latest Codex rate-limit windows seen in a transcript.
+- The latest plan rate-limit windows: Codex's from its transcripts, Claude Code's from a running Chat (see
+  [Plan limits](#plan-limits)).
 
 In the **This Mac** scope, an Agent Session run outside Caxri belongs to the Project whose root contains its working
 directory (rolled up to the owning Project like a linked worktree), or else to an "Outside Caxri" group. It has no
@@ -107,7 +108,7 @@ tokens but not time.
 
 ## Live conversation readout
 
-An Agent Terminal's status bar shows its bound conversation's running usage (`1.2M · $3.40 · 5h 62%`) and opens this
+An Agent Terminal's status bar shows its bound conversation's running usage (`1.2M · $3.40 · 5h 62% · 7d 28% left`) and opens this
 page on click. The Renderer polls `terminal.agentUsage` every two seconds; Server Core (`LiveAgentUsage`,
 `apps/server/src/domains/usage/live-usage.ts`) keeps one `IncrementalUsageScan` per Terminal, so each poll parses only
 records appended since the last one, and prices the result with the same rules as the report. The conversation's files
@@ -122,6 +123,32 @@ up to more than the conversation. These tokens replace the `total_tokens` Claude
 only its latest request's context plus output. Codex and Grok Build keep no per-subagent transcript, so their task
 tabs show the provider's count and no cost.
 
+## Plan limits
+
+The status bar lists every live plan window shortest first, as what is left (`5h 62% · 7d 28% left`), and turns
+`--warning` once any of them has used 90%. Its hover card gives each window's reset. The figures are account-wide:
+the newest reading Server Core has from any conversation.
+
+- **Codex** writes its windows into the rollout, which the live scan already reads.
+- **Claude Code** records no limits in its transcript, so Caxri reads them the way T3 Code does. While a Claude Chat
+  is open and its provider process runs, `PlanLimitRefresh` (`apps/server/src/domains/usage/plan-limit-refresh.ts`)
+  asks the Chat on each status-bar poll, and the Chat's `ClaudePlanLimits` (`claude-plan-limits.ts`) asks the process
+  for its `/usage` answer through the Agent SDK's usage control request at most once a minute. In between, each
+  `rate_limit_event` a turn streams replaces its window (the event's utilization is a 0 to 1 fraction, unlike the
+  answer's percentage); an event before the first answer is dropped. The process uses its own credentials, so Caxri
+  never reads the Keychain. A PTY Claude Terminal or a stopped Chat is never asked and never started for it, so its
+  limits show only after a Claude Chat has run. An API-key account has no plan windows.
+
+The phone reads the same figures through `mobile.agentChat.readUsage` (every paired role) and lists them in the model
+sheet under Plan limits.
+
+**Pace reminder.** When a multi-day window (the weekly limit) has less left than an even pace would leave, both
+composers show a warning row above the input: `Weekly limit ahead of pace: 40% left, resets in 4d 2h`. An even pace
+leaves `remaining time / window length` of the limit, so 5 of 7 days to go should leave about 71%. The row appears
+only when what is left is at least `LIMIT_PACE_MARGIN_PERCENT` (5) points below that, so one long task early in the
+week does not trigger it. Hiding it lasts for the rest of the local day. The rule is `limitPaceShortfall` in
+`packages/protocol/src/domain/usage-format.ts`, shared by Desktop and the phone.
+
 ## Reuse for live readouts
 
 The pipeline is split so a per-conversation readout like the one above can reuse it without the report:
@@ -130,7 +157,8 @@ The pipeline is split so a per-conversation readout like the one above can reuse
   calling `advance` again parses only appended records.
 - `summarizeUsage` and `pricedUsageBuckets` (`apps/server/src/domains/usage/summary.ts`) total and price one aggregate,
   optionally from a start time.
-- `formatUsd`, `formatTokens`, and `formatPercent` (`packages/protocol/src/domain/usage-format.ts`) keep every
+- `formatUsd`, `formatTokens`, `formatPercent`, and the limit-window helpers (`currentLimitWindows`,
+  `remainingLimitPercent`, `limitPaceShortfall`) in `packages/protocol/src/domain/usage-format.ts` keep every
   surface rendering the same number the same way; Desktop localizes durations and limit windows in
   `apps/desktop/src/renderer/src/lib/usage-format.ts`.
 

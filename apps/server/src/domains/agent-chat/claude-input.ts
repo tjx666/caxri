@@ -76,27 +76,30 @@ export function claudeUserImageCount(content: unknown): number {
 
 /**
  * Claude Code's command list as the Chat offers it. Claude Code reports its commands at `initialize` and whenever they
- * change, and names the terminal-bound ones only on each turn's `init`, so both inputs are kept and re-combined.
+ * change, and names the terminal-bound ones only on each turn's `init`, so both inputs are kept and re-combined, and
+ * every change is published to the Chat's state.
  */
 export class ClaudeCommandList {
     private reported: unknown;
 
     private readonly terminalBound = new Set<string>();
 
-    report(commands: unknown): AgentChatCommand[] {
+    constructor(private readonly publish: (commands: AgentChatCommand[]) => void) {}
+
+    report(commands: unknown): void {
         this.reported = commands;
-        return claudeChatCommands(commands, this.terminalBound);
+        this.publish(claudeChatCommands(commands, this.terminalBound));
     }
 
     /**
-     * Records terminal-bound command names from an `init` message. Returns the filtered list when it changed.
+     * Records terminal-bound command names from an `init` message, publishing the filtered list when it changed.
      */
-    hideTerminalBound(names: unknown): AgentChatCommand[] | undefined {
-        if (!Array.isArray(names)) return undefined;
+    hideTerminalBound(names: unknown): void {
+        if (!Array.isArray(names)) return;
         const before = this.terminalBound.size;
         for (const name of names) if (typeof name === 'string') this.terminalBound.add(name);
-        if (this.terminalBound.size === before) return undefined;
-        return claudeChatCommands(this.reported, this.terminalBound);
+        if (this.terminalBound.size === before) return;
+        this.publish(claudeChatCommands(this.reported, this.terminalBound));
     }
 }
 

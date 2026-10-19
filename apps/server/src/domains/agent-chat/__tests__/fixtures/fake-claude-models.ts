@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import process from 'node:process';
 
 /**
@@ -125,10 +127,37 @@ export function fakeClaudeFastMode(session: { fastMode?: boolean }): Record<stri
         : { fast_mode_state: 'off', fast_mode_disabled_reason: 'sdk_opt_in_required' };
 }
 
+const HOUR = 3_600_000;
+
+/**
+ * The fake CLI's `/usage` answer (`get_usage`) for a Max plan: a 5-hour window at 22% and a weekly window at 10% with 5
+ * days 3 hours to go, which is on pace. A `plan-behind-pace` file under `FAKE_CLAUDE_CONTROL_DIR` raises the weekly
+ * window to 61%, below the 73% an even pace would leave, so the composers show the pace reminder.
+ */
+function fakeClaudeUsage(): Record<string, unknown> {
+    const controlDirectory = process.env.FAKE_CLAUDE_CONTROL_DIR;
+    const isBehindPace =
+        controlDirectory !== undefined &&
+        fs.existsSync(path.join(controlDirectory, 'plan-behind-pace'));
+    const now = Date.now();
+    return {
+        subscription_type: 'max',
+        rate_limits_available: true,
+        rate_limits: {
+            five_hour: { utilization: 22, resets_at: new Date(now + 3 * HOUR).toISOString() },
+            seven_day: {
+                utilization: isBehindPace ? 61 : 10,
+                resets_at: new Date(now + (5 * 24 + 3) * HOUR).toISOString(),
+            },
+        },
+    };
+}
+
 /**
  * The answer to a control request that depends only on the session's model, effort, and ultracode (`initialize`,
- * `get_context_usage`, `get_settings`); `undefined` for every other request. Like Claude Code 2.1.296, `get_settings`
- * reports `ultracodeAvailable` and the applied `ultracode`, offering it only on a model with effort control.
+ * `get_context_usage`, `get_usage`, `get_settings`); `undefined` for every other request. Like Claude Code 2.1.296,
+ * `get_settings` reports `ultracodeAvailable` and the applied `ultracode`, offering it only on a model with effort
+ * control.
  */
 export function fakeClaudeSessionAnswer(
     subtype: unknown,
@@ -169,6 +198,9 @@ export function fakeClaudeSessionAnswer(
                               : category.tokens,
                 })),
             };
+        }
+        case 'get_usage': {
+            return fakeClaudeUsage();
         }
         case 'get_settings': {
             const isUltracodeAvailable =

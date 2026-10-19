@@ -112,6 +112,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | Mobile foreground recovery             | Probe or reconnect on return to foreground                               | `docs/mobile/design.md`                                                                                                                   |
 | Streaming Markdown tests               | Prefix-equality tests                                                    | `chat-markdown-rendering.md`                                                                                                              |
 | Background wait status                 | Background shells never hold a turn's completion                         | `docs/activity-view.md`                                                                                                                   |
+| Claude plan limits                     | SDK `/usage` request plus `rate_limit_event` updates, no Keychain read   | `docs/usage.md`; `apps/server/src/domains/agent-chat/claude-plan-limits.ts`                                                               |
 
 ## Paseo (Apache-2.0)
 

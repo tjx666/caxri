@@ -73,12 +73,17 @@ export function claudeFastMode(message: unknown): AgentChatPatchOperation[] {
 }
 
 /**
- * The effort an init message reports. Only a CLI that publishes the effort it will send includes one, and the newest
- * init wins.
+ * The model, effort, and Fast mode an init message reports. Only a CLI that publishes the effort it will send includes
+ * one, and the newest init wins.
  */
-export function claudeInitEffort(message: Record<string, unknown>): AgentChatPatchOperation[] {
+export function claudeInitState(message: Record<string, unknown>): AgentChatPatchOperation[] {
+    const model = stringField(message.model);
     const effort = stringField(message.effort);
-    return effort ? [{ op: 'state', state: { effort: clip(effort, 40) } }] : [];
+    return [
+        ...(model ? [{ op: 'state' as const, state: { model: clip(model, 200) } }] : []),
+        ...(effort ? [{ op: 'state' as const, state: { effort: clip(effort, 40) } }] : []),
+        ...claudeFastMode(message),
+    ];
 }
 
 /**

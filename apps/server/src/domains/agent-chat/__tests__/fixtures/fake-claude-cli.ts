@@ -41,7 +41,8 @@
  *
  * Under `FAKE_CLAUDE_CONTROL_DIR`, a file the test creates there turns on a failure the real CLI can produce: with
  * `drop-images`, the transcript keeps no image blocks, as when the record no longer has the original; with
- * `reject-model-change`, `set_model` answers with an error.
+ * `reject-model-change`, `set_model` answers with an error; with `plan-behind-pace`, `get_usage` reports a weekly limit
+ * spent faster than an even pace.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';

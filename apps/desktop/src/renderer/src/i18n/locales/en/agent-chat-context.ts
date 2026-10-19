@@ -140,4 +140,8 @@ export const agentChatContext = {
     'agentChat.contextCategory.cachedInput': 'Cached input',
     'agentChat.contextCategory.newInput': 'New input',
     'agentChat.contextCategory.output': 'Output',
+    'agentChat.planPace.text': '{{window}} limit ahead of pace: {{percent}}% left, {{reset}}',
+    'agentChat.planPace.detail':
+        'An even pace through the {{window}} window would leave about {{even}}% now. At the rate you have been using it, the limit may run out before it resets; ease off to make it last.',
+    'agentChat.planPace.dismiss': 'Hide for today',
 } as const;

@@ -18,6 +18,7 @@ import type { AgentChatTaskSnapshot } from '../agent/agent-chat-task-contract.js
 import { agentChatTaskSnapshotSchema } from '../agent/agent-chat-task-contract.js';
 import { identifierSchema } from '../domain/identifiers.js';
 import { projectDisplayPath } from '../domain/project-path.js';
+import { usageLimitSchema } from '../domain/usage-contract.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
@@ -391,6 +392,15 @@ export const mobileAgentChatMethods = {
                 chunkCount: z.number().int().positive(),
             })
             .nullable(),
+    },
+    /**
+     * The provider's plan rate limits (`5h 62% · 7d 28%`) for the phone's model sheet, the `limit` of
+     * `terminal.agentUsage` without the conversation's tokens and cost. `null` until the provider reported a limit.
+     */
+    'mobile.agentChat.readUsage': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject(terminalTarget),
+        result: usageLimitSchema.nullable(),
     },
     'mobile.agentChat.interrupt': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
