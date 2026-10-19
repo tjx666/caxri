@@ -415,6 +415,12 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   are the same as for a PTY child, except that a turn Claude Code starts on its own after background
   work (no prompt, so no digest) continues the task when the coordinator proves it continues the
   task's deferred turn.
+- **How the pointer reads.** The user never typed the pointer, so Desktop and mobile Chat draw it as
+  a "Delegated by" bubble instead of a user message: the delegating Session as a link, or Agent
+  Commander, with the raw pointer folded behind Show instruction. The Server resolves the source
+  from the delegation record when it projects the message (`chat-delegated-task.ts` in
+  `apps/server/src/domains/agent-chat/`); a record that is gone, or one no Agent Terminal called,
+  reads as a plain "Delegated task".
 - **Answer.** Collection reads the turn's final assistant message from the Chat's projection instead
   of a native transcript. A Claude Code answer must match its reported digest; a Codex task
   completes once the projection shows its turn finished, checked every two seconds. An interrupted

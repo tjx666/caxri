@@ -34,6 +34,21 @@ future timestamps, and missing usage are skipped. See [OpenAI prompt caching](ht
 and [Claude prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
 Compaction itself may consume tokens and can change which prefix is reusable.
 
+## Session state
+
+A batch compaction is maintenance, not work the user asked for, so it leaves the Session's state
+untouched: the Desktop sidebar shows no compacting spinner, the Session stays out of the mobile
+Running group, and finishing marks nothing unread. The Chat itself still shows the provider's own
+compaction progress. Before delivery the Server opens a maintenance window on that Terminal
+(`AgentMaintenanceTurns` in `apps/server/src/domains/agents/maintenance-turns.ts`) that absorbs the
+one compaction turn's lifecycle signals. Permission prompts and provider identity changes still pass.
+
+The window closes when that turn or its compaction finishes, a second turn starts (someone else's
+work, which shows as running), the user types into the Terminal, delivery fails, the Agent retires,
+or the compaction timeout elapses. Each close logs `session.compaction_maintenance_ended` with its
+reason, duration, and absorbed signal count. A `/compact` the user types never opens a window and
+shows as running like any other turn.
+
 ## Input and process ownership
 
 The command writes to the existing managed Agent. Opening another process with `--resume` or a new
