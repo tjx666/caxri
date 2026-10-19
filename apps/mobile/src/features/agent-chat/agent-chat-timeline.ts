@@ -1,4 +1,5 @@
 import type {
+    AgentChatDelegatedTask,
     AgentChatDiffLine,
     AgentChatFileChange,
     AgentChatItem,
@@ -40,6 +41,20 @@ type AgentChatMessageEntry = Extract<
 export type AgentChatTimelineEntry =
     | { kind: 'feedback'; id: string; notice: Extract<AgentChatItem, { type: 'notice' }> }
     | { kind: 'message'; id: string; message: AgentChatMessageEntry }
+    | {
+          /**
+           * A user message that is really another Agent's delegated task pointer, captioned with who sent it and the
+           * pointer folded away, as Desktop draws it.
+           */
+          kind: 'delegated';
+          id: string;
+          /**
+           * Whether the user unfolded the raw pointer; the list owns it, like a turn's fold.
+           */
+          isExpanded: boolean;
+          text: string;
+          task: AgentChatDelegatedTask;
+      }
     | {
           kind: 'work';
           id: string;
@@ -132,6 +147,14 @@ function groupEntries(
         flush();
         if (item.type === 'notice' && (item.title || item.kind === 'warning'))
             entries.push({ kind: 'feedback', id: item.id, notice: item });
+        else if (item.type === 'userMessage' && item.delegatedTask)
+            entries.push({
+                kind: 'delegated',
+                id: item.id,
+                isExpanded: false,
+                text: item.text,
+                task: item.delegatedTask,
+            });
         else entries.push({ kind: 'message', id: item.id, message: toMessage(item, t) });
     }
     flush();
@@ -187,15 +210,15 @@ function finishedTurnEntries(
 /**
  * Builds the phone's Chat timeline from the projection. Items arrive in order and each turn's items are contiguous, so
  * a run of items sharing a `turnId` is one turn. Only a finished turn (not running and not the active one) folds and
- * gets artifacts, so a running turn stays live and never claims a result it has not reached. `expandedTurnIds` names
- * the finished turns the user unfolded; the list owns it rather than a row, so a recycled row never carries another
- * turn's state. When the window cut older items (`truncated`), the oldest turn may be missing its start, so it shows no
- * artifacts rather than an incomplete summary.
+ * gets artifacts, so a running turn stays live and never claims a result it has not reached. `expandedIds` names the
+ * finished turns and delegated task pointers the user unfolded; the list owns it rather than a row, so a recycled row
+ * never carries another turn's state. When the window cut older items (`truncated`), the oldest turn may be missing its
+ * start, so it shows no artifacts rather than an incomplete summary.
  */
 export function buildAgentChatTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> &
         Partial<Pick<AgentChatSnapshot, 'truncated' | 'tasks'>>,
-    expandedTurnIds: ReadonlySet<string> = new Set(),
+    expandedIds: ReadonlySet<string> = new Set(),
     t: Translate = translate,
 ): AgentChatTimelineEntry[] {
     const { activeTurnId, items, turns } = snapshot;
@@ -223,7 +246,7 @@ export function buildAgentChatTimeline(
                       visible,
                       turn,
                       isComplete ? collectAgentChatTurnArtifacts(turn.id, segment) : undefined,
-                      expandedTurnIds.has(turn.id),
+                      expandedIds.has(turn.id),
                       t,
                       taskItemIds,
                   )
@@ -231,17 +254,21 @@ export function buildAgentChatTimeline(
         );
         start = end;
     }
-    return entries;
+    return entries.map((entry) =>
+        entry.kind === 'delegated' && expandedIds.has(entry.id)
+            ? { ...entry, isExpanded: true }
+            : entry,
+    );
 }
 
 /**
- * The expanded-turn set after the user taps a turn's `Worked for` row.
+ * The expanded set after the user taps a turn's `Worked for` row or a delegated task's Show instruction.
  */
-export function toggleAgentChatTurn(
-    expandedTurnIds: ReadonlySet<string>,
+export function toggleAgentChatExpansion(
+    expandedIds: ReadonlySet<string>,
     turnId: string,
 ): ReadonlySet<string> {
-    const next = new Set(expandedTurnIds);
+    const next = new Set(expandedIds);
     if (!next.delete(turnId)) next.add(turnId);
     return next;
 }
@@ -330,12 +357,13 @@ export function withAgentChatPendingEntries(
 }
 
 /**
- * Whether a row starts a turn: the user's message, or one still on its way. The list keeps the latest one at the top of
- * the viewport at its end, as Desktop's Chat rests a sent message.
+ * Whether a row starts a turn: the user's message, a delegated task, or a message still on its way. The list keeps the
+ * latest one at the top of the viewport at its end, as Desktop's Chat rests a sent message.
  */
 export function isAgentChatTurnStart(entry: AgentChatTimelineEntry): boolean {
     return (
         entry.kind === 'pending' ||
+        entry.kind === 'delegated' ||
         (entry.kind === 'message' && entry.message.type === 'userMessage')
     );
 }

@@ -34,6 +34,7 @@ const AgentChatMessageItem = memo(
                 return (
                     <AgentChatUserMessage
                         createdAt={item.createdAt}
+                        delegatedTask={item.delegatedTask}
                         delivery={item.delivery}
                         id={item.id}
                         images={item.images}

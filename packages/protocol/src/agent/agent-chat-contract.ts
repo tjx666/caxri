@@ -24,6 +24,7 @@ import { agentChatMcpServerSchema, MAX_AGENT_CHAT_MCP_SERVERS } from './agent-ch
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
 import { agentChatUsageSchema } from './agent-chat-usage.js';
+import { agentChatDelegatedTaskSchema } from './agent-delegated-task.js';
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
@@ -124,6 +125,10 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * once the turn ended. Absent for a message that started a turn directly.
          */
         delivery: z.enum(['steered', 'queued']).optional(),
+        /**
+         * Set by Server Core when `text` is a delegated task pointer rather than something the user typed.
+         */
+        delegatedTask: agentChatDelegatedTaskSchema.optional(),
     }),
     z.strictObject({
         ...itemBase,

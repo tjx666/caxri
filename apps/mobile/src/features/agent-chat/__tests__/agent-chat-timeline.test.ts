@@ -6,7 +6,8 @@ import {
     agentChatChangeRows,
     agentChatTurnTone,
     buildAgentChatTimeline,
-    toggleAgentChatTurn,
+    isAgentChatTurnStart,
+    toggleAgentChatExpansion,
     withAgentChatPendingEntries,
 } from '../agent-chat-timeline';
 
@@ -29,6 +30,44 @@ const ids = (timeline: Timeline): string[] =>
     buildAgentChatTimeline(timeline).map((entry) => entry.id);
 
 describe('buildAgentChatTimeline', () => {
+    it('draws a delegated task pointer as its own turn-starting row', () => {
+        const text =
+            'Read the delegated task from "/tmp/task.md" and carry it out. Delegation ID: d1.';
+        const snapshot = {
+            items: [
+                {
+                    id: 'u1',
+                    turnId: 't1',
+                    type: 'userMessage',
+                    text,
+                    delegatedTask: {
+                        delegationId: 'd1',
+                        source: { kind: 'session', sessionId: 's1' },
+                    },
+                },
+                { id: 'u2', turnId: 't2', type: 'userMessage', text: 'Plain message' },
+            ],
+            turns: [
+                { id: 't1', status: 'completed' },
+                { id: 't2', status: 'completed' },
+            ],
+        } satisfies Parameters<typeof buildAgentChatTimeline>[0];
+        const entries = buildAgentChatTimeline(snapshot);
+        expect(entries[0]).toEqual({
+            kind: 'delegated',
+            id: 'u1',
+            isExpanded: false,
+            text,
+            task: { delegationId: 'd1', source: { kind: 'session', sessionId: 's1' } },
+        });
+        expect(isAgentChatTurnStart(entries[0])).toBe(true);
+        expect(entries.find((entry) => entry.id === 'u2')).toMatchObject({ kind: 'message' });
+        // The list owns the unfolded pointer, so FlashList re-measures the row instead of a recycled row keeping it.
+        expect(buildAgentChatTimeline(snapshot, new Set(['u1']))[0]).toMatchObject({
+            isExpanded: true,
+        });
+    });
+
     it('groups ordinary work from its first running frame', () => {
         const [work] = buildAgentChatTimeline({
             items: [
@@ -272,11 +311,11 @@ describe('buildAgentChatTimeline', () => {
     });
 });
 
-describe('toggleAgentChatTurn', () => {
+describe('toggleAgentChatExpansion', () => {
     it('opens a folded turn and folds an open one without touching the others', () => {
-        const opened = toggleAgentChatTurn(new Set(['t1']), 't2');
+        const opened = toggleAgentChatExpansion(new Set(['t1']), 't2');
         expect([...opened]).toEqual(['t1', 't2']);
-        expect([...toggleAgentChatTurn(opened, 't1')]).toEqual(['t2']);
+        expect([...toggleAgentChatExpansion(opened, 't1')]).toEqual(['t2']);
     });
 });
 

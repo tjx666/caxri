@@ -3,7 +3,7 @@ import { lstat, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, delegatedTaskPointer } from '@caxri/protocol';
 
 /**
  * Provider launch, identity, and finality stay behind the agents domain's public API.
@@ -56,7 +56,7 @@ export async function prepareDelegationFollowUp(
     await privateDirectory(directory);
     const path = join(directory, `${delegationId}.md`);
     await writeFile(path, prompt, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-    const pointer = `Read the delegated task from ${JSON.stringify(path)} and carry it out. Delegation ID: ${delegationId}.`;
+    const pointer = delegatedTaskPointer(path, delegationId);
     return { pointer, promptDigest: createHash('sha256').update(pointer).digest('hex') };
 }
 
@@ -90,7 +90,7 @@ export async function prepareDelegationLaunch(
     await privateDirectory(directory);
     const path = join(directory, 'task.md');
     await writeFile(path, prompt, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-    const pointer = `Read the delegated task from ${JSON.stringify(path)} and carry it out. Delegation ID: ${delegationId}.`;
+    const pointer = delegatedTaskPointer(path, delegationId);
     const isProviderOwnsLaunch = agentProviders[provider].prepareLaunch !== undefined;
     const freshLaunch = delegationAdapter(provider).freshLaunch;
     if (!isProviderOwnsLaunch && !freshLaunch)

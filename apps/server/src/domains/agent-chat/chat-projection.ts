@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    AgentChatDelegatedTaskSource,
     AgentChatItem,
     AgentChatPatchOperation,
     AgentChatSnapshot,
@@ -18,6 +19,7 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import { stampDelegatedTasks } from './chat-delegated-task';
 import { ChatHistoryArchive } from './chat-history-archive';
 import { ChatTaskProjections } from './chat-task-projections';
 
@@ -40,6 +42,10 @@ interface ChatProjectionOptions {
      * Runs after every change, so the follow-up queue can react to a turn ending.
      */
     onChange(): void;
+    /**
+     * Names the Session a delegated task came from; see {@link stampDelegatedTasks}.
+     */
+    delegatedTaskSource(delegationId: string): AgentChatDelegatedTaskSource | undefined;
 }
 
 /**
@@ -273,18 +279,15 @@ export class ChatProjection {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
         const isHistoryReplay = operations.some((operation) => operation.op === 'reset');
-        const stamped = stampStoppedTurns(
-            stampNewItems(
-                this.snapshot,
-                isHistoryReplay
-                    ? carryAnsweredNotices(
-                          [...this.replacedItems, ...this.snapshot.items],
-                          operations,
-                      )
-                    : operations,
-                Date.now(),
-            ),
+        const carried = isHistoryReplay
+            ? carryAnsweredNotices([...this.replacedItems, ...this.snapshot.items], operations)
+            : operations;
+        const timed = stampStoppedTurns(
+            stampNewItems(this.snapshot, carried, Date.now()),
             this.stops,
+        );
+        const stamped = stampDelegatedTasks(timed, (delegationId) =>
+            this.options.delegatedTaskSource(delegationId),
         );
         if (isHistoryReplay) this.replacedItems = [];
         const isReplacement = stamped.some((operation) => operation.op === 'reset');

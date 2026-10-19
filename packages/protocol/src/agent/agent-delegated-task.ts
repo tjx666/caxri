@@ -1,0 +1,51 @@
+import { z } from 'zod';
+
+import { identifierSchema } from '../domain/identifiers.js';
+
+const POINTER =
+    /^Read the delegated task from ("(?:[^"\\]|\\.)*") and carry it out\. Delegation ID: ([\w-]+)\.$/u;
+
+/**
+ * Where a delegated task came from: the Session whose Agent delegated it, or Agent Commander. Absent when the caller is
+ * gone or was not an Agent Terminal.
+ */
+export const agentChatDelegatedTaskSourceSchema = z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('session'), sessionId: identifierSchema }),
+    z.strictObject({ kind: z.literal('commander') }),
+]);
+
+/**
+ * A user message that is really a delegated task pointer, which Server Core recognizes so Clients can say which Session
+ * sent it instead of showing the pointer as if the user had typed it.
+ */
+export const agentChatDelegatedTaskSchema = z.strictObject({
+    delegationId: identifierSchema,
+    source: agentChatDelegatedTaskSourceSchema.optional(),
+});
+
+export type AgentChatDelegatedTask = z.infer<typeof agentChatDelegatedTaskSchema>;
+export type AgentChatDelegatedTaskSource = z.infer<typeof agentChatDelegatedTaskSourceSchema>;
+
+/**
+ * The first message of a delegated task (or a follow-up to one): only this opaque pointer reaches the Agent's argv or
+ * Chat, while the task body stays in the private profile at `taskPath`.
+ */
+export function delegatedTaskPointer(taskPath: string, delegationId: string): string {
+    return `Read the delegated task from ${JSON.stringify(taskPath)} and carry it out. Delegation ID: ${delegationId}.`;
+}
+
+/**
+ * Reads a message back as a {@link delegatedTaskPointer}; `undefined` for anything else.
+ */
+export function parseDelegatedTaskPointer(
+    text: string,
+): { taskPath: string; delegationId: string } | undefined {
+    const match = POINTER.exec(text.trim());
+    if (!match) return undefined;
+    try {
+        const taskPath: unknown = JSON.parse(match[1]);
+        return typeof taskPath === 'string' ? { taskPath, delegationId: match[2] } : undefined;
+    } catch {
+        return undefined;
+    }
+}

@@ -72,6 +72,11 @@ describe('mobile Session hooks', () => {
             'header:RUNNING',
             'session-2',
         ]);
+        expect(
+            flattenMobileSessionSections(sections).flatMap((entry) =>
+                entry.type === 'header' ? [entry.group] : [],
+            ),
+        ).toEqual(['attention', 'running']);
     });
 
     it('holds the rendered order during touch and shows the latest snapshot on release', () => {

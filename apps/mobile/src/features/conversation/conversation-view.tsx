@@ -254,18 +254,18 @@ export const ConversationList = <Entry extends { id: string }>({
         transform: [{ translateX: (1 - revealProgress.get()) * enterOffset }],
     }));
     /**
-     * Sizes the turn spacer from the latest turn's measured rows. A row FlashList has not laid out yet keeps the
-     * current spacer; the next content size change measures again.
+     * Sizes the turn spacer from the latest turn's measured rows and returns whether it changed. A row FlashList has
+     * not laid out yet keeps the current spacer; the next layout commit measures again.
      */
-    const measureSpacer = useCallback((): void => {
+    const measureSpacer = useCallback((): boolean => {
         const { entries: rows, isTurnStart: startsTurn } = latest.current;
         const reference = list.current;
-        if (!startsTurn || !reference || viewportHeight.current <= 0) return;
+        if (!startsTurn || !reference || viewportHeight.current <= 0) return false;
         const index = latestConversationTurnStart(rows, startsTurn);
         let height = 0;
         if (index !== -1) {
             const layout = reference.getLayout(index);
-            if (!layout) return;
+            if (!layout) return false;
             height = conversationTurnSpacerHeight({
                 bottomInset: CONTENT_BOTTOM_INSET,
                 contentHeight: reference.getChildContainerDimensions().height,
@@ -273,9 +273,10 @@ export const ConversationList = <Entry extends { id: string }>({
                 viewportHeight: viewportHeight.current,
             });
         }
-        if (height === appliedSpacerHeight.current) return;
+        if (height === appliedSpacerHeight.current) return false;
         appliedSpacerHeight.current = height;
         spacerHeight.set(height);
+        return true;
     }, [spacerHeight]);
     /**
      * Re-measures the spacer and, while the list follows, returns to the end on the next frame.
@@ -283,6 +284,14 @@ export const ConversationList = <Entry extends { id: string }>({
     const pin = useCallback((): void => {
         measureSpacer();
         follower.request();
+    }, [follower, measureSpacer]);
+    /**
+     * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
+     * `startRenderingFromBottom`'s top margin shrinks by the same amount, so `onContentSizeChange` stays silent and the
+     * rows slid up under the header. Every layout commit re-measures the spacer instead.
+     */
+    const onCommitLayout = useCallback((): void => {
+        if (measureSpacer()) follower.request();
     }, [follower, measureSpacer]);
     const onScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
@@ -428,6 +437,7 @@ export const ConversationList = <Entry extends { id: string }>({
                     ListFooterComponent={footer}
                     ListHeaderComponent={header}
                     maintainVisibleContentPosition={MAINTAIN_VISIBLE_CONTENT_POSITION}
+                    onCommitLayoutEffect={onCommitLayout}
                     onContentSizeChange={pin}
                     onLoad={onLoad}
                     onMomentumScrollBegin={follower.beginMomentum}

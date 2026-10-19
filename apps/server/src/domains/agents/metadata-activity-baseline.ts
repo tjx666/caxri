@@ -11,7 +11,7 @@ export interface MetadataActivityBaseline {
 /**
  * Captures only fields that can advance Session Activity; titles and provider identity remain ordinary metadata.
  */
-export function metadataActivityBaseline(snapshot: AgentProbeSnapshot): MetadataActivityBaseline {
+function metadataActivityBaseline(snapshot: AgentProbeSnapshot): MetadataActivityBaseline {
     return {
         activityTurnId: snapshot.activityTurnId,
         attentionKind: snapshot.attentionKind,
@@ -22,7 +22,7 @@ export function metadataActivityBaseline(snapshot: AgentProbeSnapshot): Metadata
 /**
  * A repeated reconciliation snapshot is not evidence that work progressed after the baseline was established.
  */
-export function isMetadataActivityBaselineMatch(
+function isMetadataActivityBaselineMatch(
     baseline: MetadataActivityBaseline,
     snapshot: AgentProbeSnapshot,
 ): boolean {
@@ -38,7 +38,7 @@ export function isMetadataActivityBaselineMatch(
  * cannot replace durable settled or attention state. Codex can retain an in-progress row after an abnormal process
  * exit; other providers' generation-validated running metadata remains reliable and must pass through.
  */
-export function reconcileMetadataActivityBaseline(
+function reconcileMetadataActivityBaseline(
     snapshot: AgentProbeSnapshot,
     currentStatus: AgentActivityState,
 ): AgentProbeSnapshot {
@@ -54,4 +54,33 @@ export function reconcileMetadataActivityBaseline(
         attentionKind: undefined,
         status: reconciledStatus,
     };
+}
+
+/**
+ * Decides what one probe may write to Session Activity. A hook-owned probe keeps the stored activity, as does a probe
+ * during a maintenance compaction. The first probe of a launch or turn records a baseline that may reconcile but never
+ * advance Session Activity; a later probe that differs from it is a real transition.
+ */
+export function probeActivity(
+    baselines: Map<string, MetadataActivityBaseline | null>,
+    terminalId: string,
+    snapshot: AgentProbeSnapshot,
+    activityState: AgentActivityState,
+    isHookOwned: boolean,
+): { isRecordActivity: boolean; metadataSnapshot: AgentProbeSnapshot } {
+    const hasMetadataBaseline = baselines.has(terminalId);
+    const activityBaseline = baselines.get(terminalId);
+    const isBaselineReconciliation =
+        !hasMetadataBaseline ||
+        (activityBaseline !== null &&
+            activityBaseline !== undefined &&
+            isMetadataActivityBaselineMatch(activityBaseline, snapshot));
+    if (!hasMetadataBaseline) baselines.set(terminalId, metadataActivityBaseline(snapshot));
+    else if (!isBaselineReconciliation) baselines.set(terminalId, null);
+    const metadataSnapshot = isHookOwned
+        ? { ...snapshot, attentionKind: undefined, status: activityState }
+        : isBaselineReconciliation
+          ? reconcileMetadataActivityBaseline(snapshot, activityState)
+          : snapshot;
+    return { isRecordActivity: !isBaselineReconciliation && !isHookOwned, metadataSnapshot };
 }

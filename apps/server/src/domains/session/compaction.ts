@@ -23,7 +23,9 @@ interface Options {
     agentChat: Pick<AgentChatService, 'compactIdle' | 'idleLaunchId' | 'isLive'>;
     database: CaxriDatabase;
     logger?: StructuredLogger;
-    coordinator: Pick<AgentCoordinator, 'agentOperation' | 'hasIdleProof' | 'observeInput'>;
+    coordinator: Pick<AgentCoordinator, 'agentOperation' | 'hasIdleProof' | 'observeInput'> & {
+        maintenanceTurns: Pick<AgentCoordinator['maintenanceTurns'], 'begin' | 'end'>;
+    };
     terminals: Pick<TerminalManager, 'agentLaunchId' | 'agentProcessId' | 'writeAgentExact'>;
     readiness: CompactionReadiness;
     environment: AgentEnvironment;
@@ -135,13 +137,17 @@ export class SessionCompaction {
             current.turnId !== target.turnId
         )
             return 'changed';
-        if (target.isChat) return this.deliverToChat(target);
-        assertE2EAgentInputFromEnvironment(target.terminal.provider);
+        if (!target.isChat) assertE2EAgentInputFromEnvironment(target.terminal.provider);
         /**
-         * Consume before sending: even an ambiguous delivery must never be automatically retried.
+         * Keep-alive is background maintenance, not the user's work: open the window before delivery so the compaction
+         * turn it starts never reaches Session state. See `AgentMaintenanceTurns`.
          */
-        this.options.readiness.forget(target.terminal.id);
-        return this.deliver(target);
+        const { maintenanceTurns } = this.options.coordinator;
+        maintenanceTurns.begin(target.terminal.id);
+        const outcome = await (target.isChat ? this.deliverToChat(target) : this.deliver(target));
+        if (outcome !== 'submitted' && outcome !== 'delivery_unknown')
+            maintenanceTurns.end(target.terminal.id, 'undelivered');
+        return outcome;
     }
 
     private async deliverToChat(target: Target): Promise<SessionCompactionOutcome> {
@@ -157,6 +163,10 @@ export class SessionCompaction {
     }
 
     private deliver(target: Target): Promise<SessionCompactionOutcome> {
+        /**
+         * Consume before sending: even an ambiguous delivery must never be automatically retried.
+         */
+        this.options.readiness.forget(target.terminal.id);
         return new Promise((resolve) => {
             const timer = setTimeout(() => resolve('delivery_unknown'), 2_000);
             const settle = (outcome: SessionCompactionOutcome): void => {

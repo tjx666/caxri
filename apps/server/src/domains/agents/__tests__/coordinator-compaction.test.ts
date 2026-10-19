@@ -106,6 +106,48 @@ describe('AgentCoordinator compaction', () => {
         }
     });
 
+    it('keeps a keep-alive compaction turn out of Session state but shows the next turn', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-maintenance-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(() => Promise.reject(new Error('not used'))),
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+        const terminalId = created.terminal!.id;
+        const signal = (
+            phase: 'compactionFinished' | 'compactionStarted' | 'turnFinished' | 'turnStarted',
+        ) =>
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase,
+                provider: 'codex',
+                terminalId,
+            });
+
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            const before = database.getSession(created.session.id);
+            coordinator.maintenanceTurns.begin(terminalId);
+            expect(signal('turnStarted')).toBe('maintenanceTurn');
+            expect(signal('compactionStarted')).toBe('maintenanceTurn');
+            expect(coordinator.agentOperation(terminalId)).toBeUndefined();
+            expect(database.getSession(created.session.id)).toEqual(before);
+            expect(signal('compactionFinished')).toBe('maintenanceTurn');
+            expect(signal('turnFinished')).toBe('maintenanceTurn');
+            expect(database.getSession(created.session.id)).toEqual(before);
+
+            expect(signal('turnStarted')).toBe('accepted');
+            expect(database.getSession(created.session.id)!.lastActivityState).toBe('running');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('clears compaction when the matching completion hook is lost', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-compaction-timeout-'));
         temporaryDirectories.push(directory);

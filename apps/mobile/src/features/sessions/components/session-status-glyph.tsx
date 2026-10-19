@@ -14,11 +14,16 @@ import { sessionStatusGlyphKind } from '../session-row-model';
  * a saved copy a running Session shows a still spinner glyph, since the phone cannot know it is still working.
  */
 export const SessionStatusGlyph = ({
+    isCompacting = false,
     isSaved = false,
     label,
     session,
     theme,
 }: {
+    /**
+     * Whether the Session's open Chat is compacting its context, which its timeline already shows.
+     */
+    isCompacting?: boolean;
     /**
      * Whether `session` comes from the copy saved on this phone rather than a live read.
      */
@@ -32,7 +37,7 @@ export const SessionStatusGlyph = ({
 }) => {
     const { t } = useTranslation();
     const stateLabel = label ?? session.stateLabel;
-    switch (sessionStatusGlyphKind(session, isSaved)) {
+    switch (sessionStatusGlyphKind(session, isSaved, isCompacting)) {
         case 'attention':
             return (
                 <View

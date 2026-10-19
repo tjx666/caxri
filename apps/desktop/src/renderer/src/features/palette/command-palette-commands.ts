@@ -9,6 +9,7 @@ import { commandDefinitions } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { commandCategory, commandDescription, commandTitle } from '../../lib/command-labels';
+import type { PaletteSearchEntry } from './palette-search';
 
 const STATIC_COMMAND_IDS: ReadonlySet<string> = new Set(commandDefinitions.map(({ id }) => id));
 
@@ -81,54 +82,42 @@ export function commanderPaletteWhenContext({
 }
 
 /**
- * The search value always carries the English catalog copy, so an English query finds a command in any language; with
- * `t`, the translated title, category, and description are appended when they differ from English.
+ * The search entry always carries the English catalog copy, so an English query finds a command in any language; with
+ * `t`, the translated title, category, and description are added beside it.
  */
-export function getStaticCommandPaletteValue(
+export function staticCommandSearchEntry(
     command: CommandDefinition,
     t?: Translate,
     titleContext?: CommandTitleContext,
-): string {
-    const translated = t
-        ? [
-              commandCategory(command.category, t),
-              titleContext
-                  ? paletteCommandTitle(command, titleContext, t)
-                  : commandTitle(command, t),
-              commandDescription(command, t),
-          ].filter(
-              (text) =>
-                  text !== undefined &&
-                  text !== command.category &&
-                  text !== command.title &&
-                  text !== command.description,
-          )
-        : [];
-    return [
-        command.category,
-        command.title,
-        command.id,
-        command.description,
-        ...(command.keywords ?? []),
-        ...translated,
-    ].join(' ');
+): PaletteSearchEntry {
+    const title =
+        t &&
+        (titleContext ? paletteCommandTitle(command, titleContext, t) : commandTitle(command, t));
+    const description = t && commandDescription(command, t);
+    return {
+        titles: [command.title, ...(title ? [title] : [])],
+        terms: [
+            command.id,
+            command.category,
+            ...(t ? [commandCategory(command.category, t)] : []),
+            ...(command.keywords ?? []),
+        ],
+        details: [command.description, ...(description ? [description] : [])],
+    };
 }
 
 /**
- * Search value for a View catalog or extension command row: English title plus its translation when one exists.
+ * Search entry for a View catalog or extension command row: English title plus its translation when one exists.
  */
-export function getDynamicCommandPaletteValue(
+export function dynamicCommandSearchEntry(
     command: { id: string; title: string; description?: string },
     t: Translate,
-): string {
-    const title = commandTitle(command, t);
-    return [
-        'Extension',
-        command.title,
-        command.id,
-        command.description ?? '',
-        ...(title === command.title ? [] : [title]),
-    ].join(' ');
+): PaletteSearchEntry {
+    return {
+        titles: [command.title, commandTitle(command, t)],
+        terms: [command.id, 'Extension'],
+        details: command.description ? [command.description] : [],
+    };
 }
 
 /**

@@ -98,4 +98,13 @@ describe('Session status on a saved copy', () => {
             sessionStatusGlyphKind({ hasUnread: false, lastActivityState: 'completed' }, false),
         ).toBeNull();
     });
+
+    it('leaves compaction to the Chat timeline instead of spinning beside the title', () => {
+        const running = { hasUnread: false, lastActivityState: 'running' } as const;
+        expect(sessionStatusGlyphKind(running, false, true)).toBeNull();
+        expect(sessionStatusGlyphKind(running, true, true)).toBeNull();
+        expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, false, true)).toBe(
+            'attention',
+        );
+    });
 });

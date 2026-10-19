@@ -38,7 +38,7 @@ import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timel
 import {
     buildAgentChatTimeline,
     isAgentChatTurnStart,
-    toggleAgentChatTurn,
+    toggleAgentChatExpansion,
     withAgentChatPendingEntries,
 } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
@@ -83,14 +83,14 @@ const AgentChatBody = ({
     /**
      * The finished turns the user unfolded, by turn id. The list owns it so FlashList can recycle a row for any turn.
      */
-    const [expandedTurnIds, setExpandedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
-    const toggleTurn = useCallback(
-        (turnId: string) => setExpandedTurnIds((current) => toggleAgentChatTurn(current, turnId)),
+    const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+    const toggleExpansion = useCallback(
+        (turnId: string) => setExpandedIds((current) => toggleAgentChatExpansion(current, turnId)),
         [],
     );
     const built = useMemo(
-        () => (snapshot ? buildAgentChatTimeline(snapshot, expandedTurnIds, t) : []),
-        [expandedTurnIds, snapshot, t],
+        () => (snapshot ? buildAgentChatTimeline(snapshot, expandedIds, t) : []),
+        [expandedIds, snapshot, t],
     );
     /**
      * Every streamed patch rebuilds the timeline; the stabilizer hands back last render's object for each unchanged row
@@ -103,9 +103,9 @@ const AgentChatBody = ({
     );
     const renderEntry = useCallback(
         (entry: TimelineEntry) => (
-            <AgentChatTimelineEntry entry={entry} onToggleTurn={toggleTurn} theme={theme} />
+            <AgentChatTimelineEntry entry={entry} onToggle={toggleExpansion} theme={theme} />
         ),
-        [theme, toggleTurn],
+        [theme, toggleExpansion],
     );
     /**
      * Keyed on the messages that carry images, not the snapshot, so a streamed reply does not redraw every entry.

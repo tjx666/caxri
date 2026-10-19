@@ -11,6 +11,7 @@ import { CaxriError, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import { delegatedTaskSource } from './chat-delegated-task';
 import { requireChatTerminal } from './chat-launch';
 import { ChatProjection } from './chat-projection';
 import type { AgentChatProviderSession } from './chat-provider';
@@ -124,6 +125,8 @@ export class ChatStates {
                 logger: this.options.logger,
                 send: (event) => this.options.send(event),
                 onChange: () => state.followUps.dispatch(),
+                delegatedTaskSource: (delegationId) =>
+                    delegatedTaskSource(this.options.database, delegationId),
             }),
             sendQueue: Promise.resolve(),
             followUps: new ChatFollowUpQueue({

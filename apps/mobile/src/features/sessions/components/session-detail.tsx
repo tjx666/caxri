@@ -117,6 +117,7 @@ export const SessionDetail = ({
         >
             <SessionDetailHeader
                 changesCount={changes.state.snapshot?.changedFileCount ?? null}
+                isCompacting={chat?.controller.snapshot?.operation === 'compacting'}
                 isConnected={isConnected}
                 onBack={onBack}
                 onMarkRead={onMarkRead}

@@ -169,6 +169,7 @@ export async function createDomainServices(
             compactionReadiness.input(terminalId, data);
             suspensionState.service?.observeInput(terminalId, data);
             if (origin === 'human') commanderHooks.input(terminalId, data);
+            if (origin === 'human') coordinator.maintenanceTurns.end(terminalId, 'humanInput');
             delegationState.service?.interruptTerminal(terminalId, true);
         },
         onAgentStateChanged: dispatchState.observe,
@@ -316,9 +317,8 @@ export async function createDomainServices(
     ).restoreInterruptedTerminalsInBackground;
     /**
      * The one place that tells background services which Session is now current. Project Status polls only this
-     * Session, so every path that changes durable selection must go through here: a missed update either leaves the
-     * Status panel cold or keeps spending the shared delivery-CLI budget on a Session nobody is looking at. Archive and
-     * deletion must also restore their database-selected fallback because they bypass `session.select`.
+     * Session, so every durable selection change goes through here, or Status goes cold or spends the delivery-CLI
+     * budget on an unseen Session. Archive and deletion restore their fallback because they bypass `session.select`.
      */
     const observeSelectedSession = (
         sessionId: string | undefined,

@@ -165,6 +165,7 @@ const SessionSegmentTab = ({
 
 export const SessionDetailHeader = ({
     changesCount,
+    isCompacting,
     isConnected,
     onBack,
     onMarkRead,
@@ -177,6 +178,10 @@ export const SessionDetailHeader = ({
     theme,
 }: {
     changesCount: number | null;
+    /**
+     * Whether the Session's Chat is compacting its context; its timeline shows that, so the title does not spin too.
+     */
+    isCompacting: boolean;
     isConnected: boolean;
     onBack?: () => void;
     onMarkRead: () => Promise<void>;
@@ -251,6 +256,7 @@ export const SessionDetailHeader = ({
                             {sessionTitleForDisplay(session.displayTitle, t)}
                         </Text>
                         <SessionStatusGlyph
+                            isCompacting={isCompacting}
                             isSaved={savedAt !== null}
                             label={sessionStateLabel(session.stateLabel, savedAt, now, t)}
                             session={session}

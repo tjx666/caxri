@@ -76,14 +76,19 @@ export const sessionStateLabel = (
 
 /**
  * Which mark the Session status slot shows. A saved copy cannot know a Session is still running, so it never spins:
- * `running-saved` is a still glyph.
+ * `running-saved` is a still glyph. While the open Chat compacts its context (`isCompacting`), its timeline already
+ * says `Compacting context…`, so the slot stays empty instead of spinning as if the Agent were working on a task.
  */
 export const sessionStatusGlyphKind = (
     session: Pick<MobileSessionItem, 'hasUnread' | 'lastActivityState'>,
     isSaved: boolean,
+    isCompacting = false,
 ): 'attention' | 'running' | 'running-saved' | 'failed' | null => {
     if (session.hasUnread) return 'attention';
-    if (session.lastActivityState === 'running') return isSaved ? 'running-saved' : 'running';
+    if (session.lastActivityState === 'running') {
+        if (isCompacting) return null;
+        return isSaved ? 'running-saved' : 'running';
+    }
     if (session.lastActivityState === 'failed') return 'failed';
     return null;
 };
