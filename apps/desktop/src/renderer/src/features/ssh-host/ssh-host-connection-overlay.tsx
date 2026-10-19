@@ -138,17 +138,7 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
                     >
                         {t('sshHost.closeWindow')}
                     </Button>
-                    {canRetryNow(environment) && (
-                        <Button
-                            variant="secondary"
-                            disabled={isRetryAttemptRunning(environment)}
-                            // eslint-disable-next-line no-void -- retrySshHostNow reports its own failure through a toast
-                            onClick={() => void retrySshHostNow()}
-                        >
-                            {isRetryAttemptRunning(environment) && <Spinner />}
-                            {t('sshHost.retryNow')}
-                        </Button>
-                    )}
+                    <RetryNowButton environment={environment} />
                     {canCancelConnection(environment) && (
                         <Button
                             variant="secondary"
@@ -170,6 +160,26 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
                 </div>
             </div>
         </div>
+    );
+}
+
+/**
+ * Skips the reconnect backoff's remaining wait; disabled while the attempt it started is still running.
+ */
+function RetryNowButton({ environment }: { environment: SshEnvironmentState }) {
+    const { t } = useTranslation();
+    if (!canRetryNow(environment)) return null;
+    const isRunning = isRetryAttemptRunning(environment);
+    return (
+        <Button
+            variant="secondary"
+            disabled={isRunning}
+            // eslint-disable-next-line no-void -- retrySshHostNow reports its own failure through a toast
+            onClick={() => void retrySshHostNow()}
+        >
+            {isRunning && <Spinner />}
+            {t('sshHost.retryNow')}
+        </Button>
     );
 }
 

@@ -57,7 +57,7 @@ export const AgentChatAnsweredQuestions = ({
             {isExpanded ? (
                 <View style={styles.list}>
                     {answers.map(({ answer, question }, index) => (
-                        <View key={`${index}:${question}`} style={styles.item}>
+                        <View key={question} style={styles.item}>
                             <Text
                                 selectable
                                 style={[styles.text, { color: theme.muted }]}

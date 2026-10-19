@@ -230,10 +230,14 @@ export const ConversationList = <Entry extends { id: string }>({
 }) => {
     const { t } = useTranslation();
     const list = useRef<FlashListRef<Entry>>(null);
-    const [isAtBottom, setIsAtBottom] = useState(true);
-    useEffect(() => {
-        onFollowingChange?.(isAtBottom);
-    }, [isAtBottom, onFollowingChange]);
+    const [isAtBottom, setIsAtBottomState] = useState(true);
+    const setIsAtBottom = useCallback(
+        (isFollowing: boolean): void => {
+            setIsAtBottomState(isFollowing);
+            onFollowingChange?.(isFollowing);
+        },
+        [onFollowingChange],
+    );
     const viewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
     const followHoldUntil = useRef(0);
@@ -316,7 +320,7 @@ export const ConversationList = <Entry extends { id: string }>({
             );
             setIsAtBottom(follower.recordScroll(isNearEnd));
         },
-        [follower],
+        [follower, setIsAtBottom],
     );
     const onScrollBeginDrag = useCallback((): void => {
         followHoldUntil.current = 0;
@@ -363,7 +367,7 @@ export const ConversationList = <Entry extends { id: string }>({
         setIsAtBottom(true);
         measureSpacer();
         list.current?.scrollToEnd({ animated: true });
-    }, [follower, measureSpacer]);
+    }, [follower, measureSpacer, setIsAtBottom]);
     const lastFollowKey = useRef(followKey);
     useEffect(() => {
         const previous = lastFollowKey.current;

@@ -94,9 +94,11 @@ export class BenchmarkWorkspaces {
     async locateProject(
         projectRoot: string,
     ): Promise<{ head: string; repoRoot: string; subpath?: string }> {
-        const { stdout: head } = await git(projectRoot, ['rev-parse', 'HEAD']);
-        const { stdout: repoRoot } = await git(projectRoot, ['rev-parse', '--show-toplevel']);
-        const { stdout: prefix } = await git(projectRoot, ['rev-parse', '--show-prefix']);
+        const [{ stdout: head }, { stdout: repoRoot }, { stdout: prefix }] = await Promise.all([
+            git(projectRoot, ['rev-parse', 'HEAD']),
+            git(projectRoot, ['rev-parse', '--show-toplevel']),
+            git(projectRoot, ['rev-parse', '--show-prefix']),
+        ]);
         const subpath = prefix.trim().replace(/\/+$/, '');
         if (subpath) await git(projectRoot, ['cat-file', '-e', `HEAD:${subpath}`]);
         return {

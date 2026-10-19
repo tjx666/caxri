@@ -1,4 +1,7 @@
-import type { AgentChatContextComposition } from '@caxri/protocol';
+import type { AgentChatContextComposition, AgentChatUsage } from '@caxri/protocol';
+import { formatTokens } from '@caxri/protocol';
+
+import { agentChatContextLimit, agentChatContextPercent } from '../agent-chat-context';
 
 type Category = AgentChatContextComposition['categories'][number];
 
@@ -89,6 +92,28 @@ export function autoCompactAt(composition: AgentChatContextComposition): number 
     if (!composition.isAutoCompactEnabled) return undefined;
     const at = composition.autoCompactThreshold ?? composition.window;
     return at > 0 ? at : undefined;
+}
+
+/**
+ * The Context tile's figures: `used / limit` and the share of that limit, measured against the auto-compact threshold
+ * when Claude Code reports one (the same denominator the composer's meter uses), else the window. `/context` results
+ * win over the last turn's usage because they are newer.
+ */
+export function contextTileFigures(
+    composition: AgentChatContextComposition | undefined,
+    usage: AgentChatUsage | undefined,
+): { value?: string; percent?: number; threshold?: number } {
+    const total = composition?.totalTokens ?? usage?.totalTokens;
+    if (total === undefined) return {};
+    const threshold = composition ? autoCompactAt(composition) : usage?.autoCompactThreshold;
+    const baseWindow = composition?.window ?? usage?.compactWindow ?? usage?.contextWindow;
+    const limit = baseWindow ? agentChatContextLimit(baseWindow, threshold) : undefined;
+    if (!limit) return { value: formatTokens(total) };
+    return {
+        value: `${formatTokens(total)} / ${formatTokens(limit)}`,
+        percent: agentChatContextPercent(total, limit),
+        ...(threshold !== undefined && { threshold }),
+    };
 }
 
 export interface ContextSegment extends Category {

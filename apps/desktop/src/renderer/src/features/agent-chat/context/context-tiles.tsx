@@ -4,11 +4,10 @@ import { formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 import { StatTile } from '../../../components/report-card';
 import { useTranslation } from '../../../i18n';
 import { localizedDuration } from '../../../lib/usage-format';
-import { agentChatContextLimit, agentChatContextPercent } from '../agent-chat-context';
 import { useClockTick } from '../hooks/use-clock-tick';
 import type { CacheAnalysis } from './cache-analysis';
 import { cacheClock } from './cache-analysis';
-import { autoCompactAt } from './composition';
+import { contextTileFigures } from './composition';
 
 /**
  * The tab's headline figures: how full the window is, whether the prompt cache is still warm, how much of the
@@ -24,33 +23,24 @@ export function ContextTiles({
     usage: AgentChatUsage | undefined;
 }) {
     const { t } = useTranslation();
-    const total = composition?.totalTokens ?? usage?.totalTokens;
-    const threshold = composition ? autoCompactAt(composition) : usage?.autoCompactThreshold;
-    const baseWindow = composition?.window ?? usage?.compactWindow ?? usage?.contextWindow;
-    const window = baseWindow && agentChatContextLimit(baseWindow, threshold);
+    const context = contextTileFigures(composition, usage);
     return (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-2">
             <StatTile
                 label={t('agentChat.contextPage.tile.context')}
-                value={
-                    total === undefined
-                        ? undefined
-                        : window
-                          ? `${formatTokens(total)} / ${formatTokens(window)}`
-                          : formatTokens(total)
-                }
+                value={context.value}
                 detail={
-                    total !== undefined && window
-                        ? [
-                              `${agentChatContextPercent(total, window)}%`,
-                              threshold &&
+                    context.percent === undefined
+                        ? undefined
+                        : [
+                              `${context.percent}%`,
+                              context.threshold &&
                                   t('agentChat.contextPage.tile.compactsAt', {
-                                      tokens: formatTokens(threshold),
+                                      tokens: formatTokens(context.threshold),
                                   }),
                           ]
                               .filter(Boolean)
                               .join(' · ')
-                        : undefined
                 }
             />
             <CacheClockTile analysis={analysis} usage={usage} />
