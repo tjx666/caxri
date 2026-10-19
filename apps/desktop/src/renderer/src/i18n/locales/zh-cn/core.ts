@@ -23,6 +23,11 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.copy.code': '复制代码',
     'core.copy.table': '复制表格',
     'core.copy.quote': '复制引用',
+    'core.copy.diagramSource': '复制图表源码',
+
+    'core.block.fullscreen': '全屏查看',
+    'core.block.table': '表格',
+    'core.block.diagram': '图表',
 
     'core.findBar.placeholder': '查找',
     'core.findBar.previousMatch': '上一个匹配项',

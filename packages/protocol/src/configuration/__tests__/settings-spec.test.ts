@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     AGENT_CHAT_LONG_PASTE_THRESHOLD,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
-} from '../../agent/agent-chat-contract.js';
+} from '../../agent/agent-chat-limits.js';
 import { MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '../../domain/domain.js';
 import { MAX_LONG_PASTE_BYTES } from '../../domain/terminal-long-paste.js';
 import { settingsSpec } from '../settings-spec.js';

@@ -55,6 +55,15 @@ describe('agentChatTurnLabel', () => {
         );
         expect(agentChatTurnLabel({ status: 'failed', durationMs: 300 })).toBe('Failed after <1s');
     });
+
+    it('says who stopped a turn when Caxri relayed the Stop', () => {
+        expect(
+            agentChatTurnLabel({ status: 'interrupted', durationMs: 67_000, stoppedBy: 'user' }),
+        ).toBe('Stopped by you after 1m 7s');
+        expect(agentChatTurnLabel({ status: 'interrupted', stoppedBy: 'agent' })).toBe(
+            'Stopped by an Agent',
+        );
+    });
 });
 
 describe('describeAgentChatWork', () => {

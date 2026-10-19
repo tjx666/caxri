@@ -39,7 +39,7 @@ import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
 import { ChatStates } from './chat-states';
-import { isChatIdleForSuspension, suspendIdleChat } from './chat-suspension';
+import { compactIdleChat, isChatIdleForSuspension, suspendIdleChat } from './chat-suspension';
 import { readChatTask, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -301,13 +301,15 @@ export class AgentChatService {
 
     /**
      * Stops the running turn. Queued messages stay and the queue pauses, so stopping a turn never fires the next
-     * message by surprise. Background tasks keep running.
+     * message by surprise. Background tasks keep running. `by` names who asked, for the stopped turn's label: the
+     * user's Stop, or another Agent through dispatch.
      */
-    async interrupt(terminalId: string): Promise<void> {
+    async interrupt(terminalId: string, by: 'user' | 'agent' = 'user'): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
         const state = this.states.get(terminalId);
         if (!state) return;
         state.followUps.pause();
+        state.projection.noteStopRequest(by);
         await state.session?.interrupt();
     }
 
@@ -547,16 +549,9 @@ export class AgentChatService {
      * same launch is still idle when the command reaches the head of the chain. Rejects otherwise.
      */
     async compactIdle(terminalId: string, launchId: string): Promise<void> {
-        assertE2EAgentChatInput(readE2EAgentPolicy(), '/compact');
-        const state = this.states.get(terminalId);
-        if (!state || state.launchId !== launchId)
-            throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
-        await this.enqueueOn(terminalId, state, async (session) => {
-            if (state.launchId !== launchId || this.idleLaunchId(terminalId) !== launchId)
-                throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
-            if (!isAgentChatCommandListed(state.projection.snapshot, 'compact'))
-                throw new CaxriError('VALIDATION', '/compact is not available in this Chat');
-            await session.runCommand('compact', undefined);
+        await compactIdleChat(this.states.get(terminalId), launchId, {
+            enqueue: (state, deliver) => this.enqueueOn(terminalId, state, deliver),
+            idleLaunchId: () => this.idleLaunchId(terminalId),
         });
     }
 

@@ -1,7 +1,10 @@
 import type { TerminalRecord } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
-import type { ChatState, ChatStates } from './chat-states';
+import { isAgentChatCommandListed } from './chat-items';
+import type { ChatState, ChatStateDelivery, ChatStates } from './chat-states';
 
 /**
  * Whether a live Chat can be stopped without losing anything the user has not seen: its provider is ready and bound to
@@ -54,4 +57,28 @@ export async function suspendIdleChat(
     })();
     state.sendQueue = Promise.allSettled([run]);
     return run;
+}
+
+/**
+ * Runs the provider's native compaction on an idle Chat through its send chain, only while the same launch (`launchId`)
+ * is still idle when the command reaches the head of the chain; see `AgentChatService.compactIdle`. Rejects otherwise.
+ */
+export async function compactIdleChat(
+    state: ChatState | undefined,
+    launchId: string,
+    chain: {
+        enqueue: (state: ChatState, deliver: ChatStateDelivery) => Promise<void>;
+        idleLaunchId: () => string | undefined;
+    },
+): Promise<void> {
+    assertE2EAgentChatInput(readE2EAgentPolicy(), '/compact');
+    if (!state || state.launchId !== launchId)
+        throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
+    await chain.enqueue(state, async (session) => {
+        if (state.launchId !== launchId || chain.idleLaunchId() !== launchId)
+            throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
+        if (!isAgentChatCommandListed(state.projection.snapshot, 'compact'))
+            throw new CaxriError('VALIDATION', '/compact is not available in this Chat');
+        await session.runCommand('compact', undefined);
+    });
 }

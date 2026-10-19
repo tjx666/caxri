@@ -28,9 +28,10 @@ export const AgentChatTurnFold = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const tone = agentChatTurnTone(entry.status);
+    const tone = agentChatTurnTone(entry.status, entry.stoppedBy);
     const color = theme[tone];
-    const ToneIcon = tone === 'danger' ? CircleX : tone === 'warning' ? CircleStop : undefined;
+    const ToneIcon =
+        tone === 'danger' ? CircleX : entry.status === 'interrupted' ? CircleStop : undefined;
     const isExpanded = entry.fold === 'expanded';
     const content = (
         <>

@@ -10,7 +10,7 @@ import {
     MAX_AGENT_CHAT_TASK_TOTAL_TEXT_LENGTH,
     MAX_AGENT_CHAT_TEXT_LENGTH,
     MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH,
-} from './agent-chat-contract.js';
+} from './agent-chat-limits.js';
 import type {
     AgentChatTaskPatchOperation,
     AgentChatTaskSnapshot,

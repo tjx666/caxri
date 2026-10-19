@@ -17,6 +17,7 @@ import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import { claudeFeedbackItems, claudeFeedbackToolUseId } from './claude-feedback';
 import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
+import { claudeCompaction } from './claude-system-notices';
 import { settleClaudeToolItem } from './claude-tool-results';
 
 /**
@@ -52,7 +53,14 @@ function applySystemRecord(state: HistoryState, record: Json): void {
     const { turnId } = state;
     if (record.subtype === 'compact_boundary') {
         const id = clip(`compact:${text(record.uuid)}`, 200);
-        state.items.set(id, { id, ...(turnId && { turnId }), type: 'notice', kind: 'compacted' });
+        const compaction = claudeCompaction(record);
+        state.items.set(id, {
+            id,
+            ...(turnId && { turnId }),
+            type: 'notice',
+            kind: 'compacted',
+            ...(compaction && { compaction }),
+        });
         return;
     }
     if (record.subtype !== 'turn_duration') {

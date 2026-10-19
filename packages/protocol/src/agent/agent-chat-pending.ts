@@ -1,5 +1,5 @@
 import type { AgentChatItem, AgentChatSnapshot } from './agent-chat-contract.js';
-import { MAX_AGENT_CHAT_TEXT_LENGTH } from './agent-chat-contract.js';
+import { MAX_AGENT_CHAT_TEXT_LENGTH } from './agent-chat-limits.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
 
 /**

@@ -11,11 +11,13 @@ import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { AgentChatCompactedNotice } from './agent-chat-compacted-notice';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
+import { useAgentChatDiagrams } from './hooks/use-agent-chat-diagrams';
 import { useAgentChatReplyMenu } from './hooks/use-agent-chat-reply-menu';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
@@ -48,10 +50,12 @@ export function AgentChatMessage({
         [deferredText, isStreaming, repair],
     );
     const blocks = useMemo(() => parser.parse(source), [parser, source]);
+    const diagrams = useAgentChatDiagrams();
     return (
         <div className={cn('flex flex-col gap-3 text-[13px] leading-5 wrap-anywhere', className)}>
             <MarkdownBlocks
                 blocks={blocks}
+                diagrams={diagrams}
                 isStreaming={isStreaming}
                 variant="transcript"
                 onOpenFile={onOpenFile}
@@ -131,6 +135,7 @@ export function AgentChatReply({
 export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
     const { t } = useTranslation();
     if (item.title || item.kind === 'warning') return <AgentChatFeedback item={item} />;
+    if (item.kind === 'compacted') return <AgentChatCompactedNotice item={item} />;
     const isError = item.kind === 'error';
     return (
         <div

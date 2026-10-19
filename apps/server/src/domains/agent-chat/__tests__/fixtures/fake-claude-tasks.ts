@@ -203,6 +203,17 @@ export async function runSubagent(io: FakeClaudeIo, startedAt: number) {
     childStreamStart(io, toolUseId, streamed, 'Looking at ');
     childAssistant(io, toolUseId, streamed, looking);
     childAssistant(io, toolUseId, `msg_${crypto.randomUUID()}`, read);
+    // Claude Code 2.1.302's live shape: a tool Hook's failure names the tool but carries no tool or Agent id.
+    io.system('hook_response', {
+        hook_id: crypto.randomUUID(),
+        hook_name: 'PreToolUse:Read',
+        hook_event: 'PreToolUse',
+        output: 'Subagent read Hook failed.\n',
+        stdout: '',
+        stderr: 'Subagent read Hook failed.\n',
+        exit_code: 2,
+        outcome: 'error',
+    });
     io.system('informational', {
         tool_use_id: readId,
         prevent_continuation: true,

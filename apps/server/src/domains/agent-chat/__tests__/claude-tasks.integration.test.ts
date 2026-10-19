@@ -17,7 +17,8 @@ describe('Claude Code background work in Agent Chat', () => {
         );
         expect(
             done.items.some(
-                (item) => item.type === 'notice' && item.message?.includes('subagent Hook'),
+                (item) =>
+                    item.type === 'notice' && /subagent (?:read )?Hook/iu.test(item.message ?? ''),
             ),
         ).toBe(false);
         expect(done.items.at(-1)).toMatchObject({ text: 'The subagent finished.' });
@@ -47,6 +48,7 @@ describe('Claude Code background work in Agent Chat', () => {
             'toolCall',
             'notice',
             'notice',
+            'notice',
             'agentMessage',
         ]);
         expect(task.items[0]).toMatchObject({ text: 'List the files in the project.' });
@@ -56,6 +58,13 @@ describe('Claude Code background work in Agent Chat', () => {
             status: 'completed',
             output: '# Project',
         });
+        expect(task.items[3]).toMatchObject({
+            type: 'notice',
+            kind: 'error',
+            title: 'Hook "PreToolUse:Read" failed (exit code 2)',
+            message: 'Subagent read Hook failed.',
+        });
+        task.items.splice(3, 1);
         expect(task.items[3]).toMatchObject({
             type: 'notice',
             kind: 'warning',

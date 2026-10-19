@@ -92,6 +92,17 @@ export function agentChatTurnSpacerHeight(
     return Math.max(viewHeight - turnHeight - topGap, 0);
 }
 
+/**
+ * Whether a prompt id reaching the view starts a turn the user should see: any change after the first id seen. The
+ * first one is the conversation loading, which the view already shows from its end.
+ */
+export function isNewAgentChatPrompt(
+    seenPromptId: string | undefined,
+    latestPromptId: string | undefined,
+): boolean {
+    return seenPromptId !== undefined && latestPromptId !== seenPromptId;
+}
+
 function offsetInView(view: HTMLElement, element: HTMLElement): number {
     return element.getBoundingClientRect().top - view.getBoundingClientRect().top;
 }
@@ -109,12 +120,15 @@ function offsetInView(view: HTMLElement, element: HTMLElement): number {
  *
  * Expanding or collapsing a row is the user reading, not the conversation moving: `anchor` stops following and keeps
  * the clicked row where it is while the disclosure animates, instead of pinning the end and sliding the row away.
- * Following resumes once a later revision finds the view at the end, or on Jump to latest.
+ * Following resumes once a later revision finds the view at the end, on Jump to latest, or when a new prompt starts a
+ * turn (`latestPromptId` changes): a queued message delivered after the user scrolled up, or one sent from the phone,
+ * rises into view like a message sent here instead of landing below the fold behind Jump to latest.
  */
 export function useAgentChatScroll(
     revision: number | undefined,
     {
         isTurnLive = false,
+        latestPromptId,
         turnSelector,
     }: {
         /**
@@ -122,6 +136,10 @@ export function useAgentChatScroll(
          * The space below it is kept only while it is.
          */
         isTurnLive?: boolean;
+        /**
+         * The newest user message's id. A change after the first one seen resumes following.
+         */
+        latestPromptId?: string;
         turnSelector?: string;
     } = {},
 ): {
@@ -250,13 +268,19 @@ export function useAgentChatScroll(
         },
         [syncLatestInView],
     );
+    const seenPromptIdReference = useRef(latestPromptId);
     useLayoutEffect(() => {
         const element = scrollReference.current;
         if (element && !isFollowingReference.current && isScrolledToEnd(element))
             isFollowingReference.current = true;
+        if (isNewAgentChatPrompt(seenPromptIdReference.current, latestPromptId)) {
+            anchorReference.current = undefined;
+            isFollowingReference.current = true;
+        }
+        if (latestPromptId !== undefined) seenPromptIdReference.current = latestPromptId;
         pin();
         syncLatestInView();
-    }, [pin, revision, syncLatestInView]);
+    }, [latestPromptId, pin, revision, syncLatestInView]);
     useEffect(() => {
         const content = contentReference.current;
         const view = scrollReference.current;

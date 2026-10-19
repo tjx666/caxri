@@ -43,6 +43,11 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
 
     // Timeline notices (`agentChatNoticeMessage`)
     'agentChat.message.contextCompacted': '上下文已压缩',
+    'agentChat.message.contextCompactedSizes': '上下文已压缩 · {{before}} → {{after}}',
+    'agentChat.message.contextCompactedAuto': '上下文接近上限，已自动压缩',
+    'agentChat.message.contextCompactedManual': '已按你的要求压缩',
+    'agentChat.message.contextCompactedDetail':
+        '{{before}} tokens → {{after}} tokens，缩小 {{percent}}',
     'agentChat.message.retrying': '正在重试',
     'agentChat.message.retryingWith': '正在重试：{{message}}',
     'agentChat.message.agentError': 'Agent 报告了错误',
@@ -60,6 +65,10 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.fold.worked': '已完成工作',
     'agentChat.fold.stopped': '已停止',
     'agentChat.fold.failed': '失败',
+    'agentChat.fold.stoppedByYouAfter': '你在 {{duration}} 后手动停止',
+    'agentChat.fold.stoppedByYou': '你已手动停止',
+    'agentChat.fold.stoppedByAgentAfter': '{{duration}} 后被 Agent 停止',
+    'agentChat.fold.stoppedByAgent': '已被 Agent 停止',
 
     // A work summary that counts unsuccessful items
     'agentChat.workGroup.withFailures': '{{summary}}，{{count}} 个失败',

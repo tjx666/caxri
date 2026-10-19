@@ -191,6 +191,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         await service.interrupt(terminal.id);
         const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
         expect(done.activeTurnId).toBeUndefined();
+        expect(done.turns.at(-1)?.stoppedBy).toBe('user');
         expect(done.items.at(-1)).toMatchObject({ type: 'agentMessage', streaming: false });
     });
 

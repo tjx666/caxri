@@ -11,8 +11,8 @@ import {
     agentChatHistoryPageSchema,
     agentChatImageMediaTypeSchema,
     agentChatSnapshotSchema,
-    MAX_AGENT_CHAT_IMAGES,
 } from '../agent/agent-chat-contract.js';
+import { MAX_AGENT_CHAT_IMAGES } from '../agent/agent-chat-limits.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import type { AgentChatTaskSnapshot } from '../agent/agent-chat-task-contract.js';
 import { agentChatTaskSnapshotSchema } from '../agent/agent-chat-task-contract.js';

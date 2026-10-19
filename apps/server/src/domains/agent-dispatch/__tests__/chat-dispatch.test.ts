@@ -134,7 +134,7 @@ describe('Agent dispatch to a Chat', () => {
         await expect(
             handlers['agent.control.interruptInternal']({ endpoint: ENDPOINT }),
         ).resolves.toEqual({ endpoint: ENDPOINT, outcome: 'signaled', terminalId: f.terminal.id });
-        expect(f.chats.interrupt).toHaveBeenCalledExactlyOnceWith(f.terminal.id);
+        expect(f.chats.interrupt).toHaveBeenCalledExactlyOnceWith(f.terminal.id, 'agent');
         expect(observeInterrupt).toHaveBeenCalledExactlyOnceWith(f.terminal.id, 'launch-1');
 
         await handlers['agent.control.stopInternal']({ endpoint: ENDPOINT });

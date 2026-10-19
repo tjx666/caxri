@@ -253,6 +253,28 @@
     max-width: 60ch;
 }
 
+/*
+ * A diagram in a Chat reply sits inside its block's `--elevated` frame under the header, so it drops the preview's own
+ * panel and keeps only the inner padding.
+ */
+.caxri-chat-diagram {
+    padding: 4px 12px 12px;
+    border-radius: 0;
+    background: transparent;
+}
+
+/*
+ * Mermaid paints edge labels with the preview panel's `--surface`, which reads as a dark patch on the Chat block's
+ * `--elevated` fill. Its rules are scoped by the SVG's id, so only `!important` outranks them without rewriting them.
+ */
+.caxri-chat-diagram :is(.edgeLabel, .edgeLabel p, .labelBkg) {
+    background-color: var(--elevated) !important;
+}
+
+.caxri-chat-diagram .edgeLabel rect {
+    fill: var(--elevated) !important;
+}
+
 /* The last diagram that rendered, kept while the source does not parse; the error below it says why it is stale. */
 .caxri-markdown-diagram.is-stale > svg {
     opacity: 0.4;

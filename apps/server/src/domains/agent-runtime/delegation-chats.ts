@@ -61,7 +61,7 @@ export function didAcceptDelegationChatWrite(
     const deliver = async () => {
         try {
             await (text === undefined
-                ? chats.interrupt(terminalId)
+                ? chats.interrupt(terminalId, 'agent')
                 : chats.delegation.sendToLaunch(terminalId, launchId, text));
             onDelivered?.(true);
         } catch {

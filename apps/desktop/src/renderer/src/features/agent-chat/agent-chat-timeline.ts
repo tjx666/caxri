@@ -1,5 +1,6 @@
 import type {
     AgentChatItem,
+    AgentChatSnapshot,
     AgentChatTurn,
     AgentChatTurnArtifacts,
     AgentChatWorkItem,
@@ -63,12 +64,16 @@ export type AgentChatTimelineEntry =
            * How the turn ended, so a failed or stopped turn's fold row carries its tone, not only its words.
            */
           status: AgentChatTurn['status'];
+          stoppedBy?: AgentChatTurn['stoppedBy'];
           /**
            * When the turn started and ended (epoch ms), for the fold row's tooltip; absent when the provider did not
            * say.
            */
           startedAt?: number;
           endedAt?: number;
+          /**
+           * The folded work. Empty for a stopped turn that did no work: its row then only says how it ended.
+           */
           entries: ReadonlyArray<Exclude<AgentChatTimelineEntry, { kind: 'turn' }>>;
       };
 
@@ -124,19 +129,42 @@ export function agentChatTurnTimeTooltip(
 }
 
 /**
- * The semantic tone of a finished turn's fold row: a failed turn is `danger`, a stopped one `warning`, and a turn that
- * completed stays quiet (`undefined`), because a column of green fold rows would be noise.
+ * The semantic tone of a finished turn's fold row: a failed turn is `danger`, a turn that stopped without the user
+ * asking `warning`, and a turn the user stopped `stopped`, which keeps the stop glyph in muted ink because nothing went
+ * wrong. A turn that completed stays quiet (`undefined`), because a column of green fold rows would be noise.
  */
 export function agentChatTurnTone(
-    status: AgentChatTurn['status'],
-): 'danger' | 'warning' | undefined {
-    if (status === 'failed') return 'danger';
-    return status === 'interrupted' ? 'warning' : undefined;
+    turn: Pick<AgentChatTurn, 'status' | 'stoppedBy'>,
+): 'danger' | 'stopped' | 'warning' | undefined {
+    if (turn.status === 'failed') return 'danger';
+    if (turn.status !== 'interrupted') return undefined;
+    return turn.stoppedBy === 'user' ? 'stopped' : 'warning';
+}
+
+function turnEntry(
+    turn: AgentChatTurn,
+    entries: Extract<AgentChatTimelineEntry, { kind: 'turn' }>['entries'],
+): AgentChatTimelineEntry {
+    return {
+        kind: 'turn',
+        id: `turn:${turn.id}`,
+        status: turn.status,
+        ...(turn.stoppedBy && { stoppedBy: turn.stoppedBy }),
+        ...(turn.durationMs !== undefined && { durationMs: turn.durationMs }),
+        ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
+        ...(turn.startedAt !== undefined &&
+            turn.durationMs !== undefined && {
+                endedAt: turn.startedAt + turn.durationMs,
+            }),
+        entries,
+    };
 }
 
 /**
  * A finished turn's work and commentary before the reply fold into one `turn` entry where `foldAgentChatTurn` (shared
- * with the phone) puts the fold; the prompt, the final reply, and its notices stay in view.
+ * with the phone) puts the fold; the prompt, the final reply, and its notices stay in view. A stopped turn with nothing
+ * to fold (a plain reply cut off, or no reply yet) still gets an empty `turn` entry before its reply, so the transcript
+ * says it was stopped and by whom instead of reading as a reply that simply ended there.
  */
 function foldTurn(
     items: readonly AgentChatItem[],
@@ -145,24 +173,16 @@ function foldTurn(
 ): AgentChatTimelineEntry[] {
     const visible = items.filter((item) => isAgentChatItemVisible(item));
     const parts = foldAgentChatTurn(visible, finalReplyId);
-    if (parts.every((part) => part.kind === 'kept')) return groupWork(visible, finalReplyId);
+    if (parts.every((part) => part.kind === 'kept')) {
+        const kept: AgentChatTimelineEntry[] = groupWork(visible, finalReplyId);
+        if (turn.status !== 'interrupted') return kept;
+        const replyIndex = kept.findIndex((entry) => entry.kind === 'item' && entry.isFinalReply);
+        return kept.toSpliced(replyIndex === -1 ? kept.length : replyIndex, 0, turnEntry(turn, []));
+    }
     return parts.flatMap((part): AgentChatTimelineEntry[] =>
         part.kind === 'kept'
             ? groupWork([part.item], finalReplyId)
-            : [
-                  {
-                      kind: 'turn',
-                      id: `turn:${turn.id}`,
-                      status: turn.status,
-                      ...(turn.durationMs !== undefined && { durationMs: turn.durationMs }),
-                      ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
-                      ...(turn.startedAt !== undefined &&
-                          turn.durationMs !== undefined && {
-                              endedAt: turn.startedAt + turn.durationMs,
-                          }),
-                      entries: groupWork(part.items),
-                  },
-              ],
+            : [turnEntry(turn, groupWork(part.items))],
     );
 }
 
@@ -324,4 +344,19 @@ export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): 
             ? tools.find((tool) => describeAgentTool(tool).kind === 'mcp')?.name
             : undefined;
     return { kind, ...(mcpToolName && { mcpToolName }) };
+}
+
+/**
+ * Whether a running turn has shown nothing yet after the user's message: no reply, no work, and nothing it waits on.
+ * Reasoning a provider keeps hidden can leave that stretch empty for many seconds, so the reply's place holds a quiet
+ * placeholder instead of a blank page under the prompt.
+ */
+export function isAgentChatAwaitingReply(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'operation' | 'requests'> | undefined,
+    timeline: readonly AgentChatTimelineEntry[],
+): boolean {
+    if (!snapshot?.activeTurnId || snapshot.requests.length > 0) return false;
+    if (snapshot.operation === 'compacting') return false;
+    const last = timeline.at(-1);
+    return last?.kind === 'item' && last.item.type === 'userMessage';
 }

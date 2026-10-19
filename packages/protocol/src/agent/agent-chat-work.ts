@@ -37,30 +37,37 @@ export function formatAgentChatFinishedDuration(
     return formatShortDuration(durationMs, t);
 }
 
+const TURN_OUTCOME_LABELS = {
+    worked: ['agentChat.fold.worked', 'agentChat.fold.workedFor'],
+    failed: ['agentChat.fold.failed', 'agentChat.fold.failedAfter'],
+    stopped: ['agentChat.fold.stopped', 'agentChat.fold.stoppedAfter'],
+    stoppedByYou: ['agentChat.fold.stoppedByYou', 'agentChat.fold.stoppedByYouAfter'],
+    stoppedByAgent: ['agentChat.fold.stoppedByAgent', 'agentChat.fold.stoppedByAgentAfter'],
+} as const;
+
 /**
  * The finished turn's outcome and elapsed time, using the same visibility rules as its work rows.
  */
 export function agentChatTurnLabel(
-    turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
+    turn: Pick<AgentChatTurn, 'durationMs' | 'status' | 'stoppedBy'>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
     const duration = formatAgentChatFinishedDuration(turn.durationMs, turn.status, t);
-    if (duration)
-        return t(
-            turn.status === 'interrupted'
-                ? 'agentChat.fold.stoppedAfter'
-                : turn.status === 'failed'
-                  ? 'agentChat.fold.failedAfter'
-                  : 'agentChat.fold.workedFor',
-            { duration },
-        );
-    return t(
-        turn.status === 'interrupted'
-            ? 'agentChat.fold.stopped'
-            : turn.status === 'failed'
-              ? 'agentChat.fold.failed'
-              : 'agentChat.fold.worked',
-    );
+    const [label, labelWithDuration] = TURN_OUTCOME_LABELS[turnOutcome(turn)];
+    return duration ? t(labelWithDuration, { duration }) : t(label);
+}
+
+/**
+ * The label family for how a turn ended. A stop names who asked for it, so a turn the user stopped on purpose does not
+ * read like one that broke off.
+ */
+function turnOutcome(
+    turn: Pick<AgentChatTurn, 'status' | 'stoppedBy'>,
+): keyof typeof TURN_OUTCOME_LABELS {
+    if (turn.status === 'failed') return 'failed';
+    if (turn.status !== 'interrupted') return 'worked';
+    if (turn.stoppedBy === 'user') return 'stoppedByYou';
+    return turn.stoppedBy === 'agent' ? 'stoppedByAgent' : 'stopped';
 }
 
 const REASONING_TITLE = /^\*\*([^*\n]+)\*\*[ \t]*$/gmu;
@@ -151,8 +158,8 @@ export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
     item.type === 'reasoning' ? item.streaming : item.status === 'running';
 
 /**
- * A stable group still describes its current action. Prefer the newest running tool over reasoning, and keep the
- * command itself visible rather than replacing it with the Agent's optional description.
+ * A stable group still describes its current action, preferring the newest running tool over reasoning. A command reads
+ * as the Agent's description of it when there is one, as its settled row does.
  */
 export function agentChatActiveWork(
     items: readonly AgentChatWorkItem[],
@@ -168,11 +175,7 @@ export function agentChatActiveWork(
         item ??= candidate;
     }
     if (!item) return undefined;
-    const presentation =
-        item.type === 'command'
-            ? describeAgentTool({ name: 'shell', summary: item.command })
-            : describeAgentChatWork(item);
-    return { item, presentation };
+    return { item, presentation: describeAgentChatWork(item) };
 }
 
 /**

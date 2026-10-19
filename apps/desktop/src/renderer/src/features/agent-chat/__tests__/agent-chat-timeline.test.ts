@@ -7,6 +7,7 @@ import {
     agentChatTurnTimeTooltip,
     agentChatTurnTone,
     buildAgentChatTimeline,
+    isAgentChatAwaitingReply,
 } from '../agent-chat-timeline';
 
 const user = (id: string, turnId?: string): AgentChatItem => ({
@@ -178,6 +179,23 @@ describe('buildAgentChatTimeline', () => {
         expect(shape(buildAgentChatTimeline(items, turns, undefined))).toEqual(['u', 'a1', ['c']]);
     });
 
+    it('says a stopped turn with nothing to fold was stopped, before its reply or after a prompt with none', () => {
+        const turns: AgentChatTurn[] = [
+            { id: 't1', status: 'interrupted', stoppedBy: 'user', durationMs: 3000 },
+            { id: 't2', status: 'interrupted', stoppedBy: 'agent' },
+        ];
+        const items = [user('u1', 't1'), reply('a1', 't1'), user('u2', 't2')];
+        const entries = buildAgentChatTimeline(items, turns, undefined);
+        expect(shape(entries)).toEqual([
+            'u1',
+            { 'Stopped by you after 3s': [] },
+            'a1',
+            'u2',
+            { 'Stopped by an Agent': [] },
+        ]);
+        expect(entries[2]).toMatchObject({ kind: 'item', isFinalReply: true });
+    });
+
     it('marks only the reply that ends a turn, and none while the turn runs', () => {
         const finalReplies = (entries: readonly AgentChatTimelineEntry[]): string[] =>
             entries.flatMap((entry) =>
@@ -269,8 +287,40 @@ describe('buildAgentChatTimeline', () => {
 
 describe('agentChatTurnTone', () => {
     it('tones a failed or stopped turn and keeps a completed one quiet', () => {
-        expect(agentChatTurnTone('failed')).toBe('danger');
-        expect(agentChatTurnTone('interrupted')).toBe('warning');
-        expect(agentChatTurnTone('completed')).toBeUndefined();
+        expect(agentChatTurnTone({ status: 'failed' })).toBe('danger');
+        expect(agentChatTurnTone({ status: 'interrupted' })).toBe('warning');
+        expect(agentChatTurnTone({ status: 'interrupted', stoppedBy: 'agent' })).toBe('warning');
+        expect(agentChatTurnTone({ status: 'interrupted', stoppedBy: 'user' })).toBe('stopped');
+        expect(agentChatTurnTone({ status: 'completed' })).toBeUndefined();
+    });
+});
+
+describe('isAgentChatAwaitingReply', () => {
+    const running = { activeTurnId: 't1', requests: [] };
+    const prompt: AgentChatTimelineEntry = {
+        kind: 'item',
+        item: { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Why?' },
+    };
+    const reply: AgentChatTimelineEntry = {
+        kind: 'item',
+        item: { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Because', streaming: true },
+    };
+
+    it('holds the reply place only while a running turn has shown nothing after the prompt', () => {
+        expect(isAgentChatAwaitingReply(running, [prompt])).toBe(true);
+        expect(isAgentChatAwaitingReply(running, [prompt, reply])).toBe(false);
+        expect(isAgentChatAwaitingReply({ requests: [] }, [prompt])).toBe(false);
+    });
+
+    it('steps aside while the turn waits on the user or compacts', () => {
+        expect(
+            isAgentChatAwaitingReply(
+                { ...running, requests: [{ id: 'r', kind: 'question', questions: [] }] } as never,
+                [prompt],
+            ),
+        ).toBe(false);
+        expect(isAgentChatAwaitingReply({ ...running, operation: 'compacting' }, [prompt])).toBe(
+            false,
+        );
     });
 });

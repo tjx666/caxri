@@ -285,6 +285,7 @@ describe('agentChatTurnTone', () => {
         expect(agentChatTurnTone('completed')).toBe('muted');
         expect(agentChatTurnTone('failed')).toBe('danger');
         expect(agentChatTurnTone('interrupted')).toBe('warning');
+        expect(agentChatTurnTone('interrupted', 'user')).toBe('muted');
     });
 });
 

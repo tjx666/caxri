@@ -1197,9 +1197,16 @@ and context high enough to read `consider compacting` in `--warning` (a suggesti
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
 the full `--accent` with no underline until hover; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
-language name such as `TypeScript`, wrap and copy) shares its fill and sets its code in the 11px
+language name such as `TypeScript`) shares its fill and sets its code in the 11px
 `meta` size every monospace preview uses; a table is set open, with row
-hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the
+hairlines and no frame or header tint. A closed `mermaid` fence renders as a diagram panel in the
+same frame (a diagram glyph and `Diagram` in the header). Each block keeps its actions (wrap and
+copy for code, copy for a table, copy source for a diagram, then View Full Screen) out of the reading
+path: they fade in on hover or keyboard focus, as a header cluster on code and diagrams and as a
+small floating pill at a table's top-right corner. View Full Screen opens the block in a dialog
+inset 32px from the window with the same actions in its header: code at 12px, a table at 13px, and
+a diagram at its natural size inside the preview zoom frame (wheel to zoom, drag to pan). All follow
+the Codex app's Dracula transcript; fullscreen follows ChatGPT and Claude.ai's block expansion. A path the
 Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link like a cited one;
 in the user's bubble a path or URL takes the same `--accent` with no underline until hover, so a
 link reads the same on both sides of the transcript. A user message longer than 12 lines clamps with
@@ -1218,7 +1225,10 @@ row with a 1px `--border`: a list glyph, `Plan`, the step the Agent is on trunca
 then right-aligned a 4px segment per step (`--success` done, `--muted` in progress, `--border`
 pending; omitted past ten steps), the `done/total` count (`--success` once complete), and a
 chevron. It starts collapsed and expands in place to the explanation and the step list (scrolling
-past 240px), keeping that choice while the plan updates. Reference: T3 Code's composer task badge.
+past 240px), keeping that choice while the plan updates. In the list a done step is a `--success`
+check, the current step a spinner while the turn runs (a dotted ring once it stops), and a pending
+step a dashed ring. The card is inset 12px like the composer strip so the two share edges.
+Reference: T3 Code's composer task badge.
 A pending approval titles the tool in the timeline's words (`Allow editing app.ts?`, `Allow
 create_issue from github?`), never its raw identifier, and names its buttons by outcome: Run for a
 command (Allow when it reaches a network host), Apply Changes for a file edit, Allow for any other
@@ -1256,8 +1266,15 @@ failed or were declined, whose expanded list scrolls past 240px and fades its cl
 '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is `Searched foo in src`), keeping its command
 line in the expanded view. A finished turn folds everything except the prompt, the final reply, and
 notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
-(`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. A running
-row carries no trailing spinner: its shimmer and ticking time already say it runs. The most recent
+(`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. A turn
+the user stopped names it (`Stopped by you after 1m 7s`) and keeps the stop glyph in `--muted`,
+since nothing went wrong; a stop another Agent sent reads `Stopped by an Agent`. A stopped turn
+with no work to fold keeps the same row before its reply as plain text with no chevron, so a cut-off
+answer never reads as one that simply ended. A running
+row carries no trailing spinner: its shimmer and ticking time already say it runs. While a running
+turn has shown nothing after the prompt, three 6px `--muted` dots breathe in turn where the reply
+will start (still at half strength under reduced motion), hidden from assistive technology since
+the composer's status line already announces the turn. The most recent
 turn's final reply, like every earlier one, shows Copy only on hover or keyboard focus, in a row
 that keeps its height. Replies add no Tab stops: `Option+ArrowUp`/`Option+ArrowDown` in the
 transcript focus the latest or the adjacent reply, revealing its row, and Tab reaches Copy. Between the final

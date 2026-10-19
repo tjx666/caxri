@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import type { AgentChatPlan } from '@caxri/protocol';
 import { agentChatPlanProgress } from '@caxri/protocol';
-import { Check, ChevronDown, Circle, CircleDot, ListTodo } from 'lucide-react';
+import { Check, ChevronDown, CircleDashed, CircleDot, ListTodo } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import type { Translate } from '../../i18n';
@@ -32,7 +32,7 @@ function planStepGlyph(status: PlanStepStatus, isTurnRunning: boolean, t: Transl
             );
         }
         case 'pending': {
-            return <Circle aria-label={label} className="size-3.5 text-muted" role="img" />;
+            return <CircleDashed aria-label={label} className="size-3.5 text-muted" role="img" />;
         }
     }
 }
@@ -40,9 +40,10 @@ function planStepGlyph(status: PlanStepStatus, isTurnRunning: boolean, t: Transl
 /**
  * The latest plan the Agent reported, docked above the composer. It stays one row by default (the step the Agent is on,
  * a segment per step, and the count) so a long plan never crowds the transcript, the way T3 Code's task badge and the
- * Codex app fold theirs; the row expands to the full list and keeps that choice while the plan updates. A step left in
- * progress after the turn ended (interrupted, failed, or simply never updated) is shown still, so nothing spins while
- * nothing is running.
+ * Codex app fold theirs; the row expands to the full list and keeps that choice while the plan updates. It is inset
+ * like the composer strip so the two stack as one column with matching edges. A step not started yet is a dashed ring,
+ * an outline still to be filled. A step left in progress after the turn ended (interrupted, failed, or simply never
+ * updated) is shown still, so nothing spins while nothing is running.
  */
 export function AgentChatPlanCard({
     plan,
@@ -59,7 +60,7 @@ export function AgentChatPlanCard({
     return (
         <section
             aria-label={t('agentChat.plan.label')}
-            className="shrink-0 rounded-lg border border-border bg-surface text-[12px] leading-5"
+            className="mx-3 shrink-0 rounded-lg border border-border bg-surface text-[12px] leading-5"
         >
             <button
                 aria-expanded={isExpanded}

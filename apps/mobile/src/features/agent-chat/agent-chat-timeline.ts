@@ -53,6 +53,7 @@ export type AgentChatTimelineEntry =
           turnId: string;
           label: string;
           status: AgentChatTurn['status'];
+          stoppedBy?: AgentChatTurn['stoppedBy'];
           /**
            * Whether the row toggles the turn's folded work, which then follows it as ordinary entries. Absent when the
            * turn had nothing to fold (a prompt and its reply), so the row only says how the turn went.
@@ -160,6 +161,7 @@ function finishedTurnEntries(
         turnId: turn.id,
         label: agentChatTurnLabel(turn, t),
         status: turn.status,
+        ...(turn.stoppedBy && { stoppedBy: turn.stoppedBy }),
         ...(fold && { fold }),
     });
     const artifactsEntry: AgentChatTimelineEntry[] = artifacts
@@ -245,12 +247,15 @@ export function toggleAgentChatTurn(
 }
 
 /**
- * The semantic tone of a finished turn's footer, as Desktop tones its fold row: a failed turn is `danger`, a stopped
- * one `warning`, and a completed one stays quiet.
+ * The semantic tone of a finished turn's footer, as Desktop tones its fold row: a failed turn is `danger`, one that
+ * stopped without the user asking `warning`, and a completed turn or one the user stopped stays quiet.
  */
-export function agentChatTurnTone(status: AgentChatTurn['status']): 'danger' | 'muted' | 'warning' {
+export function agentChatTurnTone(
+    status: AgentChatTurn['status'],
+    stoppedBy?: AgentChatTurn['stoppedBy'],
+): 'danger' | 'muted' | 'warning' {
     if (status === 'failed') return 'danger';
-    return status === 'interrupted' ? 'warning' : 'muted';
+    return status === 'interrupted' && stoppedBy !== 'user' ? 'warning' : 'muted';
 }
 
 const DIFF_MARKER: Record<AgentChatDiffLine['kind'], DiffLine['marker']> = {

@@ -23,6 +23,7 @@ import { TableBlock } from './table-block';
  */
 export function MarkdownBlocks({
     blocks,
+    diagrams,
     isStreaming = false,
     onOpenFile,
     onOpenUrl,
@@ -34,8 +35,8 @@ export function MarkdownBlocks({
 } & Partial<Pick<MarkdownRenderContext, 'variant'>> &
     Omit<MarkdownRenderContext, 'variant'>) {
     const context = useMemo(
-        () => ({ onOpenFile, onOpenUrl, referenceTerminalId, variant }),
-        [onOpenFile, onOpenUrl, referenceTerminalId, variant],
+        () => ({ diagrams, onOpenFile, onOpenUrl, referenceTerminalId, variant }),
+        [diagrams, onOpenFile, onOpenUrl, referenceTerminalId, variant],
     );
     return (
         <MarkdownContext value={context}>

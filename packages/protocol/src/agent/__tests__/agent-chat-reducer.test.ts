@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatSnapshot } from '../agent-chat-contract';
+import { agentChatPatchSchema, agentChatSnapshotSchema } from '../agent-chat-contract';
 import {
-    agentChatPatchSchema,
-    agentChatSnapshotSchema,
     MAX_AGENT_CHAT_ITEMS,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_TASK_ITEMS,
     MAX_AGENT_CHAT_TEXT_LENGTH,
     MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH,
-} from '../agent-chat-contract';
+} from '../agent-chat-limits';
 import {
     applyAgentChatOperation,
     applyAgentChatPatch,

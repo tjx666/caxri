@@ -1,15 +1,12 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatTask } from '@caxri/protocol';
-import {
-    CaxriError,
-    MAX_AGENT_CHAT_OUTPUT_LENGTH,
-    MAX_AGENT_CHAT_TEXT_LENGTH,
-} from '@caxri/protocol';
+import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, stringField, tail } from './chat-items';
+import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { claudeAssistantItems, text } from './claude-items';
+import { ClaudeShellOutput } from './claude-shell-output';
 import { ClaudeStream } from './claude-stream';
 import { ClaudeTaskFeedback } from './claude-task-feedback';
 import { claudeTaskStatus, claudeTaskUsage } from './claude-task-fields';
@@ -34,11 +31,6 @@ type Json = Record<string, unknown>;
 const AGENT_TOOLS = new Set(['Agent', 'Task']);
 
 /**
- * How often a running background shell's output tail is re-read while it runs.
- */
-const OUTPUT_POLL_MS = 1_000;
-
-/**
  * A Claude Code task this session has heard of. `id` is set once the task is listed in the snapshot; a foreground shell
  * stays unlisted until it moves to the background.
  */
@@ -52,12 +44,6 @@ interface KnownTask {
      */
     isWorkflow?: boolean;
 }
-
-/**
- * Claude Code's `get_task_output` control request. The SDK implements it on `Query` without declaring it, so it is
- * reached through a runtime check rather than a type.
- */
-type TaskOutputReader = (taskId: string) => Promise<unknown>;
 
 export class ClaudeTasks {
     private readonly list: ChatTaskList;
@@ -84,13 +70,7 @@ export class ClaudeTasks {
      */
     private readonly inLevel = new Set<string>();
 
-    private readonly outputs = new Map<string, string>();
-
-    private pollTimer: NodeJS.Timeout | undefined;
-
-    private isPolling = false;
-
-    private isClosed = false;
+    private readonly shellOutput: ClaudeShellOutput;
 
     constructor(
         private readonly options: {
@@ -109,6 +89,11 @@ export class ClaudeTasks {
     ) {
         this.list = new ChatTaskList(options.host);
         this.feedback = new ClaudeTaskFeedback(options.host);
+        this.shellOutput = new ClaudeShellOutput({
+            host: options.host,
+            query: options.query,
+            claudeId: (id) => this.claudeIds.get(id),
+        });
     }
 
     private stream(taskId: string): ClaudeStream {
@@ -217,7 +202,7 @@ export class ClaudeTasks {
             isBackground: true,
             canStop: true,
         });
-        this.startPolling();
+        this.shellOutput.start();
     }
 
     private onTaskStarted(message: Json): void {
@@ -323,8 +308,7 @@ export class ClaudeTasks {
         const usage = claudeTaskUsage(message.usage);
         const summary = stringField(message.summary);
         this.finish(id, status, { ...(usage && { usage }), ...(summary && { summary }) });
-        // A finished shell's output can be read once more; this is its final tail.
-        if (this.list.get(id)?.kind === 'shell') this.readFinalOutput(id);
+        if (this.list.get(id)?.kind === 'shell') this.shellOutput.readFinal(id);
     }
 
     /**
@@ -361,87 +345,6 @@ export class ClaudeTasks {
         }
     }
 
-    private outputReader(): TaskOutputReader | undefined {
-        const query = this.options.query();
-        const read = (query as { getTaskOutput?: unknown } | undefined)?.getTaskOutput;
-        if (!query || typeof read !== 'function') return undefined;
-        return async (taskId) => (await read.call(query, taskId)) as unknown;
-    }
-
-    private runningShells(): string[] {
-        return (this.options.host.read().tasks ?? [])
-            .filter(
-                (task) =>
-                    task.kind === 'shell' &&
-                    task.status === 'running' &&
-                    this.claudeIds.has(task.id),
-            )
-            .map((task) => task.id);
-    }
-
-    private startPolling(): void {
-        if (this.pollTimer || this.isClosed || !this.outputReader()) return;
-        this.pollTimer = setInterval(() => {
-            // eslint-disable-next-line no-void -- each poll reports through the task projection and swallows its errors.
-            void this.poll();
-        }, OUTPUT_POLL_MS);
-        this.pollTimer.unref();
-        // eslint-disable-next-line no-void -- see above
-        void this.poll();
-    }
-
-    private stopPolling(): void {
-        clearInterval(this.pollTimer);
-        this.pollTimer = undefined;
-    }
-
-    private async poll(): Promise<void> {
-        if (this.isPolling) return;
-        const shells = this.runningShells();
-        if (shells.length === 0) {
-            this.stopPolling();
-            return;
-        }
-        this.isPolling = true;
-        try {
-            await Promise.all(shells.map(async (id) => this.readOutput(id)));
-        } finally {
-            this.isPolling = false;
-        }
-    }
-
-    private readFinalOutput(id: string): void {
-        // eslint-disable-next-line no-void -- the read reports through the task projection and swallows its errors.
-        void this.readOutput(id);
-    }
-
-    /**
-     * Reads one shell's output tail and publishes it when it changed. A failed read (the task's file is gone, an older
-     * CLI) leaves the last tail in place.
-     */
-    private async readOutput(id: string): Promise<void> {
-        const claudeId = this.claudeIds.get(id);
-        const reader = this.outputReader();
-        if (!claudeId || !reader) return;
-        let response: unknown;
-        try {
-            response = await reader(claudeId);
-        } catch {
-            return;
-        }
-        if (this.isClosed || !isRecord(response) || typeof response.output !== 'string') return;
-        const output = tail(response.output, MAX_AGENT_CHAT_OUTPUT_LENGTH);
-        const isTruncated = response.truncated === true || output.length < response.output.length;
-        const key = `${isTruncated ? 1 : 0}${output}`;
-        if (this.outputs.get(id) === key) return;
-        this.outputs.set(id, key);
-        this.options.host.applyTask(id, [
-            { op: 'state', state: { output, truncated: isTruncated } },
-        ]);
-        // The final read of an ended shell needs no change detection afterwards.
-        if (this.list.get(id)?.status !== 'running') this.outputs.delete(id);
-    }
-
     private onTaskFrame(message: Json): boolean {
         switch (message.subtype) {
             case 'task_started': {
@@ -473,7 +376,8 @@ export class ClaudeTasks {
     /**
      * Inspects a top-level assistant frame for subagent tool calls.
      */
-    onAssistant(message: Json): void {
+    onAssistant(message: Json, taskId?: string): void {
+        this.feedback.observeToolUses(message.content, taskId);
         const blocks = Array.isArray(message.content) ? message.content.filter(isRecord) : [];
         for (const block of blocks) if (block.type === 'tool_use') this.noteToolUse(block);
     }
@@ -482,6 +386,7 @@ export class ClaudeTasks {
      * Inspects top-level tool results for the end of a foreground subagent.
      */
     onToolResults(content: unknown): void {
+        this.feedback.observeToolResults(content);
         if (!Array.isArray(content)) return;
         for (const block of content) {
             const toolUseId =
@@ -528,12 +433,13 @@ export class ClaudeTasks {
                 }
                 stream.settle(items);
                 // A subagent may spawn its own subagents.
-                this.onAssistant(body);
+                this.onAssistant(body, taskId);
                 return;
             }
             case 'user': {
                 const body = isRecord(message.message) ? message.message : undefined;
                 const content = Array.isArray(body?.content) ? body.content : [];
+                this.feedback.observeToolResults(content);
                 const items = new Map(
                     (this.options.host.readTask(taskId)?.items ?? []).map((item) => [
                         item.id,
@@ -578,6 +484,14 @@ export class ClaudeTasks {
     }
 
     /**
+     * How the main timeline labels feedback no subagent claimed: a tool Hook matched to the main Agent's own call is
+     * that Agent's, and anything else is the session's.
+     */
+    feedbackScope(message: Json): 'agent' | 'session' {
+        return this.feedback.toolHookOwner(message) === 'main' ? 'agent' : 'session';
+    }
+
+    /**
      * Stops one listed task through Claude Code's `stop_task`; its `task_notification` then marks it stopped.
      */
     async stop(taskId: string): Promise<void> {
@@ -591,8 +505,7 @@ export class ClaudeTasks {
     }
 
     close(): void {
-        this.isClosed = true;
-        this.stopPolling();
+        this.shellOutput.close();
         this.feedback.clear();
     }
 }

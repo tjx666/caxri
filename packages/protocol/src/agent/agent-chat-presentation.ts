@@ -1,3 +1,4 @@
+import { formatTokens } from '../domain/usage-format.js';
 import { agentChatWaitingText } from './agent-chat-approval.js';
 import type {
     AgentChatFailureReason,
@@ -319,7 +320,13 @@ export function agentChatNoticeMessage(
             return item.message ?? '';
         }
         case 'compacted': {
-            return t('agentChat.message.contextCompacted');
+            const { beforeTokens, afterTokens } = item.compaction ?? {};
+            return beforeTokens !== undefined && afterTokens !== undefined
+                ? t('agentChat.message.contextCompactedSizes', {
+                      before: formatTokens(beforeTokens),
+                      after: formatTokens(afterTokens),
+                  })
+                : t('agentChat.message.contextCompacted');
         }
         case 'retrying': {
             return item.message

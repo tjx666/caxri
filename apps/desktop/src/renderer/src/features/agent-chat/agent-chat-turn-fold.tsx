@@ -103,9 +103,9 @@ function TurnFoldHeader({
     onOpenSubagent,
     onRevealSubagent,
     onToggle,
-    status,
     subagents,
     timeTooltip,
+    tone,
 }: {
     detailId: string;
     isExpanded: boolean;
@@ -113,14 +113,13 @@ function TurnFoldHeader({
     onOpenSubagent: ((taskId: string) => void) | undefined;
     onRevealSubagent: ((itemId: string, element: HTMLElement) => void) | undefined;
     onToggle: (element: HTMLElement) => void;
-    status: TurnEntry['status'];
     subagents: readonly AgentChatTurnSubagent[];
     /**
      * When the turn finished, shown on hover.
      */
     timeTooltip: string | undefined;
+    tone: ReturnType<typeof agentChatTurnTone>;
 }) {
-    const tone = agentChatTurnTone(status);
     const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
     const toggleButton = (
         <button
@@ -166,6 +165,39 @@ function TurnFoldHeader({
                     onReveal={onRevealSubagent}
                 />
             ))}
+        </div>
+    );
+}
+
+/**
+ * The row of a stopped turn that did no work: the fold row's glyph, words, and hairline, but nothing to open, so it is
+ * text rather than a toggle.
+ */
+function TurnOutcomeRow({ entry }: { entry: TurnEntry }) {
+    const { t } = useTranslation();
+    const tone = agentChatTurnTone(entry);
+    const timeTooltip = agentChatTurnTimeTooltip(entry, t);
+    const row = (
+        <div
+            className={cn(
+                'flex w-fit min-w-0 items-center gap-2 py-0.5',
+                tone === 'warning' ? 'text-warning' : 'text-muted',
+            )}
+            data-agent-chat-turn-outcome=""
+        >
+            <CircleStop aria-hidden="true" className="size-3.5 shrink-0" />
+            <span>{agentChatTurnLabel(entry, t)}</span>
+        </div>
+    );
+    return (
+        <div className="border-b border-solid border-border pb-1 text-[12px] leading-5">
+            {timeTooltip ? (
+                <Tooltip anchorMode="cursor" content={timeTooltip}>
+                    {row}
+                </Tooltip>
+            ) : (
+                row
+            )}
         </div>
     );
 }
@@ -225,13 +257,14 @@ export function AgentChatTurnFold({
         () => (links ? agentChatTurnSubagents(turnItems(entry), links.tasksByItem) : []),
         [entry, links],
     );
+    if (entry.entries.length === 0) return <TurnOutcomeRow entry={entry} />;
     return (
         <div className="text-[12px] leading-5" ref={container}>
             <TurnFoldHeader
                 detailId={detailId}
                 isExpanded={isExpanded}
                 label={agentChatTurnLabel(entry, t)}
-                status={entry.status}
+                tone={agentChatTurnTone(entry)}
                 subagents={subagents}
                 timeTooltip={agentChatTurnTimeTooltip(entry, t)}
                 onOpenSubagent={links?.openTask}

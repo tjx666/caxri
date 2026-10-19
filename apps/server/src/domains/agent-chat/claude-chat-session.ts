@@ -286,6 +286,8 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'compact_boundary': {
                 onClaudeCompactBoundary(this.options, message);
+                // The breakdown described the context before the summary; ask for the rows of the new one.
+                this.context.request();
                 return;
             }
             case 'api_retry': {
@@ -293,7 +295,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             default: {
-                didApplyClaudeFeedback(this.options, message);
+                didApplyClaudeFeedback(this.options, message, this.tasks.feedbackScope(message));
             }
         }
     }

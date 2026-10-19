@@ -27,6 +27,12 @@ export const core = {
     'core.copy.code': 'Copy code',
     'core.copy.table': 'Copy table',
     'core.copy.quote': 'Copy quote',
+    'core.copy.diagramSource': 'Copy diagram source',
+
+    // components/markdown/block-fullscreen-dialog.tsx
+    'core.block.fullscreen': 'View Full Screen',
+    'core.block.table': 'Table',
+    'core.block.diagram': 'Diagram',
 
     // components/find-bar.tsx
     'core.findBar.placeholder': 'Find',
