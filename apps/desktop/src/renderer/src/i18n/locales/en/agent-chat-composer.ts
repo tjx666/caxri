@@ -47,6 +47,14 @@ export const agentChatComposer = {
     'agentChat.add.turnOffPlanMode': 'Turn off plan mode',
     'agentChat.add.turnOffGoalMode': 'Turn off goal mode',
 
+    'agentChat.skill.caxri': 'Caxri skill',
+    'agentChat.skill.kind': 'Skill',
+    'agentChat.skill.tooltip': 'The Agent loads the {{name}} skill before it works on this message',
+    'agentChat.skill.sentTooltip':
+        'The Agent was asked to load the {{name}} skill for this message',
+    'agentChat.add.caxriSkillDescription':
+        'Let the Agent drive Caxri: Sessions, Projects, and more',
+
     'agentChat.goal.status.active': 'Pursuing goal',
     'agentChat.goal.status.paused': 'Goal paused',
     'agentChat.goal.status.blocked': 'Goal stalled',

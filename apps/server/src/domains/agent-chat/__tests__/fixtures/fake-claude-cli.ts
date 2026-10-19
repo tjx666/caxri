@@ -42,7 +42,7 @@
  * Under `FAKE_CLAUDE_CONTROL_DIR`, a file the test creates there turns on a failure the real CLI can produce: with
  * `drop-images`, the transcript keeps no image blocks, as when the record no longer has the original; with
  * `reject-model-change`, `set_model` answers with an error; with `plan-behind-pace`, `get_usage` reports a weekly limit
- * spent faster than an even pace.
+ * spent faster than an even pace; with `hold-reply`, a `think quietly` turn shows nothing until the file is removed.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -63,7 +63,7 @@ import {
     hookCallbackIds,
     hookCallbackRequest,
 } from './fake-claude-models.ts';
-import { streamBrowserSteps, streamPlannedReply } from './fake-claude-replies.ts';
+import { streamBrowserSteps, streamPacedReply, streamPlannedReply } from './fake-claude-replies.ts';
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 
@@ -448,17 +448,9 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         result(startedAt, 'done');
         return;
     }
-    if (text.includes('pause')) {
-        await didStreamFully('Thinking it over before answering.', 200);
-        result(startedAt, 'done');
-        return;
-    }
-    if (text.includes('slow')) {
-        const isComplete = await didStreamFully(
-            Array.from({ length: 400 }, (_, index) => `word${index} `).join(''),
-            25,
-        );
-        result(startedAt, isComplete ? 'done' : 'interrupted', !isComplete);
+    const paced = await streamPacedReply(scenarioIo, text, () => isControlled('hold-reply'));
+    if (paced) {
+        result(startedAt, paced.isComplete ? 'done' : 'interrupted', !paced.isComplete);
         return;
     }
     await streamPlannedReply(

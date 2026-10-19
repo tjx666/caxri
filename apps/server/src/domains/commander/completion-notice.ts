@@ -1,113 +1,22 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import { isMidTurnSignal, isStandaloneEscape } from '../agents';
-import type {
-    AgentCommanderRowReader,
-    CaxriDatabase,
-    CommanderPendingNoticesModel,
-    DeliveredNotice,
-} from '../db';
+import type { DeliveredNotice } from '../db';
 import { agentCommanderTerminal } from '../db';
 import type {
-    CommanderCompletionNoticeStatus,
+    CommanderCompletionNoticeDeferral,
+    CommanderCompletionNoticeDeliveryFailure,
+    CommanderCompletionNotifierOptions,
+} from './completion-notice-contract';
+import { classifyCommanderCompletionNotice } from './completion-notice-contract';
+import type {
     CommanderHandoverNoticeEntry,
     CommanderInboxNoticeEntry,
     CommanderInboxNoticeEvent,
 } from './notice-text';
 import { formatCommanderCompletionNotice, formatCommanderResumePrompt } from './notice-text';
-
-/**
- * Why a consumed notice batch's PTY write did not provably land. Both are rare: the Commander Terminal was just
- * confirmed idle and on its current generation a moment earlier in the same synchronous call.
- */
-export type CommanderCompletionNoticeDeliveryFailure = 'rejected' | 'unconfirmed';
-
-/**
- * Which delivery gate is holding the pending notices back. Logged once per change for the current batch, so a report
- * that the Commander "never heard back" names the gate without logging every lifecycle signal.
- */
-export type CommanderCompletionNoticeDeferral =
-    /**
-     * The Terminal the notice would go to is not the recorded Commander Terminal.
-     */
-    | 'not_commander_terminal'
-    /**
-     * No finished turn is proven idle yet: the Commander is mid-turn, or its last turn was already used by a notice.
-     */
-    | 'commander_busy'
-    /**
-     * The finished turn has no recorded start, or started on another launch.
-     */
-    | 'turn_baseline_missing'
-    /**
-     * Someone typed into the Commander since its turn started and did not submit it; delivering would press Enter on
-     * their draft.
-     */
-    | 'draft_input'
-    /**
-     * The Commander is waiting on a permission prompt.
-     */
-    | 'awaiting_permission';
-
-/**
- * Classifies a delegation receipt into the notice it should raise, or `undefined` when the transition is not one the
- * Commander needs pushed to it (an in-flight status, a human takeover, or an interrupted/stopped task the Commander
- * itself did not ask to stop through a follow-up).
- */
-export function classifyCommanderCompletionNotice(
-    receipt: Pick<AgentDelegationReceipt, 'failure' | 'status'>,
-): CommanderCompletionNoticeStatus | undefined {
-    if (receipt.status === 'completed') return 'completed';
-    if (receipt.status === 'failed' || receipt.status === 'answer_unavailable') return 'failed';
-    if (
-        receipt.status === 'blocked' &&
-        (receipt.failure === 'startup_waiting' || receipt.failure === 'permission_required')
-    )
-        return 'needsInput';
-    return undefined;
-}
-
-export interface CommanderCompletionNotifierOptions {
-    /**
-     * `agentCommanderRows` filters every created Session and is reserved for receipts that need that list; every other
-     * path identifies the Commander Terminal through the constant-time `agentCommanderTerminal` reader.
-     */
-    database: Pick<CaxriDatabase, 'agentCommanderRows' | 'getSession'> &
-        AgentCommanderRowReader & {
-            commanderPendingNotices: Pick<
-                CommanderPendingNoticesModel,
-                'clearTurn' | 'list' | 'markTurnStarted' | 'putDelegation' | 'removeDelegations'
-            >;
-        };
-    /**
-     * The same idle proof delegation follow-ups fence resume against (`AgentCoordinator.hasIdleProof`,
-     * `apps/server/src/domains/agent-delegation/service.ts`). Proves the exact launch and turn actually finished; it
-     * says nothing about a later draft, which the input-epoch check below covers.
-     */
-    hasIdleProof(terminalId: string, launchId: string, turnId: string): boolean;
-    /**
-     * `TerminalManager.inputEpoch`: bumps once per human keystroke written to the Terminal, but not for this module's
-     * own injected write (see `write` below). Comparing it to the value captured at the finished turn's start is the
-     * same fence `AgentDelegationService` uses before a follow-up resumes (`service.ts` ~260-300).
-     */
-    inputEpoch(terminalId: string): number;
-    logger?: StructuredLogger;
-    now?: () => number;
-    /**
-     * Delivers and submits one notice line, given without a line terminator. A PTY Commander gets a paste and an Enter,
-     * as fenced exact-launch writes with `origin: 'delegation'` (`TerminalManager.writeAgentExact`) so the line never
-     * bumps the input epoch a later notice's fence reads; a Chat Commander gets a Chat message.
-     */
-    write(
-        terminalId: string,
-        data: string,
-        launchId: string,
-        onDelivered?: (wasAccepted: boolean) => void,
-    ): boolean;
-}
 
 /**
  * What the launch prompt built for one Commander launch carried, settled once that launch is running.
@@ -188,6 +97,20 @@ export class CommanderCompletionNotifier {
      */
     private lastFinishedTurn: { launchId: string; turnId: string } | undefined;
     /**
+     * A launch that is idle at its first prompt and has never run a turn, so it has no finished turn to prove idle
+     * against: a Commander started with nothing owed (no launch prompt), once its Chat reported ready or its Agent's
+     * SessionStart arrived. Without it, a notice queued right after such a launch (the hand-over that just ran
+     * `commander.ensure` to start it) waited until the user happened to talk to the Commander. The input epoch is
+     * recorded so a keystroke since then means a draft, and one delivery or a started turn spends it.
+     */
+    private freshLaunch: { epoch: number; launchId: string } | undefined;
+    /**
+     * The input epoch of a launch that started with no prompt and has not reported its SessionStart yet. Only that
+     * first signal marks a Terminal Commander idle, and only if nobody typed since the launch: SessionStart also fires
+     * on `/clear` and compaction, and a provider that fires it lazily fires it as the user's first prompt goes in.
+     */
+    private promptlessLaunchEpoch: number | undefined;
+    /**
      * The deferral last logged for the current batch, so each gate change is logged once rather than per signal.
      */
     private loggedDeferral: CommanderCompletionNoticeDeferral | undefined;
@@ -243,16 +166,36 @@ export class CommanderCompletionNotifier {
         return agentCommanderTerminal(this.options.database);
     }
 
-    private deferral(terminalId: string): CommanderCompletionNoticeDeferral | undefined {
+    /**
+     * The launch a notice may be written to now, or why not yet: a finished turn proven idle with no draft typed since,
+     * or else a fresh launch nobody typed into.
+     */
+    private idleLaunch(
+        terminalId: string,
+    ): { launchId: string } | { deferral: CommanderCompletionNoticeDeferral } {
+        const finished = this.lastFinishedTurn;
+        const fresh = this.freshLaunch;
+        const epoch = this.options.inputEpoch(terminalId);
+        if (
+            !finished ||
+            !this.options.hasIdleProof(terminalId, finished.launchId, finished.turnId)
+        ) {
+            if (!fresh) return { deferral: 'commander_busy' };
+            return epoch === fresh.epoch ? fresh : { deferral: 'draft_input' };
+        }
+        const baseline = this.turnStartBaseline;
+        if (!baseline || baseline.launchId !== finished.launchId)
+            return { deferral: 'turn_baseline_missing' };
+        if (epoch !== baseline.epoch && epoch !== this.submittedEpoch)
+            return { deferral: 'draft_input' };
+        return finished;
+    }
+
+    private deferral(terminalId: string): CommanderCompletionNoticeDeferral | { launchId: string } {
         const commander = this.commander();
         if (commander?.terminalId !== terminalId) return 'not_commander_terminal';
-        const finished = this.lastFinishedTurn;
-        if (!finished || !this.options.hasIdleProof(terminalId, finished.launchId, finished.turnId))
-            return 'commander_busy';
-        const baseline = this.turnStartBaseline;
-        if (!baseline || baseline.launchId !== finished.launchId) return 'turn_baseline_missing';
-        const epoch = this.options.inputEpoch(terminalId);
-        if (epoch !== baseline.epoch && epoch !== this.submittedEpoch) return 'draft_input';
+        const idle = this.idleLaunch(terminalId);
+        if ('deferral' in idle) return idle.deferral;
         const session = this.options.database.getSession(commander.sessionId);
         /**
          * Only a pending permission/attention prompt blocks delivery. `hasUnread` is deliberately not a gate: every
@@ -261,7 +204,7 @@ export class CommanderCompletionNotifier {
          * Commander's first turn.
          */
         if (!session || session.lastActivityState === 'waiting') return 'awaiting_permission';
-        return undefined;
+        return { launchId: idle.launchId };
     }
 
     private resetBatch(): void {
@@ -289,7 +232,7 @@ export class CommanderCompletionNotifier {
         const pendingCount = pending.length + inbox.length + handovers.length;
         if (pendingCount === 0) return;
         const deferral = this.deferral(terminalId);
-        if (deferral) {
+        if (typeof deferral === 'string') {
             if (isTurnFinished) this.blockedTurns += 1;
             if (deferral !== this.loggedDeferral) {
                 this.loggedDeferral = deferral;
@@ -310,7 +253,7 @@ export class CommanderCompletionNotifier {
             }
             return;
         }
-        const finished = this.lastFinishedTurn!;
+        const { launchId } = deferral;
         /**
          * Consume before sending: even a write whose outcome is never confirmed must not be retried, so at-most-once
          * delivery holds regardless of what happens after this point. Mirrors `SessionCompaction.compact`'s own
@@ -332,8 +275,9 @@ export class CommanderCompletionNotifier {
          * pair, so at most one write happens per proven-idle turn.
          */
         this.lastFinishedTurn = undefined;
+        this.freshLaunch = undefined;
         const text = formatCommanderCompletionNotice(pending, inbox, handovers);
-        const accepted = this.options.write(terminalId, text, finished.launchId, (wasAccepted) => {
+        const accepted = this.options.write(terminalId, text, launchId, (wasAccepted) => {
             if (!wasAccepted) this.reportDeliveryFailed('unconfirmed');
         });
         if (!accepted) this.reportDeliveryFailed('rejected');
@@ -409,7 +353,18 @@ export class CommanderCompletionNotifier {
          * A subagent's turn is part of the Commander's own; only the main thread's turns mark or clear the marker.
          */
         const isMainThread = !signal.agentId;
+        if (isMainThread && signal.phase === 'sessionIdentified') {
+            const launchEpoch = this.promptlessLaunchEpoch;
+            this.promptlessLaunchEpoch = undefined;
+            const epoch = this.options.inputEpoch(signal.terminalId);
+            if (launchEpoch === undefined || epoch !== launchEpoch) return;
+            this.freshLaunch = { epoch, launchId: signal.launchId };
+            this.tryFlush(signal.terminalId);
+            return;
+        }
         if (signal.phase === 'turnStarted') {
+            this.promptlessLaunchEpoch = undefined;
+            this.freshLaunch = undefined;
             if (isMainThread)
                 this.options.database.commanderPendingNotices.markTurnStarted(this.now());
             this.turnStartBaseline = {
@@ -466,6 +421,11 @@ export class CommanderCompletionNotifier {
      */
     onLaunched(terminalId: string, didLaunchAgent: boolean): void {
         const claim = this.launchClaim;
+        if (didLaunchAgent && this.commander()?.terminalId === terminalId) {
+            this.freshLaunch = undefined;
+            this.promptlessLaunchEpoch =
+                claim?.terminalId === terminalId ? undefined : this.options.inputEpoch(terminalId);
+        }
         if (!didLaunchAgent || !claim || claim.terminalId !== terminalId) return;
         this.launchClaim = undefined;
         const store = this.options.database.commanderPendingNotices;
@@ -497,7 +457,14 @@ export class CommanderCompletionNotifier {
      */
     onChatReady(terminalId: string): void {
         const prompt = this.launchPrompt(terminalId);
-        if (prompt === undefined) return;
+        if (prompt === undefined) {
+            if (this.commander()?.terminalId !== terminalId) return;
+            this.promptlessLaunchEpoch = undefined;
+            // The Chat path of `write` ignores the launch ID.
+            this.freshLaunch = { epoch: this.options.inputEpoch(terminalId), launchId: '' };
+            this.tryFlush(terminalId);
+            return;
+        }
         this.options.write(terminalId, prompt, '', (wasAccepted) => {
             if (wasAccepted) this.onLaunched(terminalId, true);
         });

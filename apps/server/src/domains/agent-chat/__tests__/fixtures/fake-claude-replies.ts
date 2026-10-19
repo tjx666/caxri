@@ -178,3 +178,29 @@ export async function streamBrowserSteps(io: FakeClaudeIo) {
     }
     await io.didStreamFully('Checked the settings page.', 0);
 }
+
+/**
+ * The paced replies. `pause` streams a short reply slowly and `slow` a long one word by word; `think quietly` sends
+ * nothing at all while `isHeld` (a `hold-reply` control file), as a turn spent in hidden reasoning does, then answers.
+ * Returns whether the reply streamed to its end, or `undefined` when `text` asked for none; the caller ends the turn.
+ */
+export async function streamPacedReply(
+    io: FakeClaudeIo,
+    text: string,
+    isHeld: () => boolean,
+): Promise<{ isComplete: boolean } | undefined> {
+    if (text.includes('pause'))
+        return { isComplete: await io.didStreamFully('Thinking it over before answering.', 200) };
+    if (text.includes('slow')) {
+        const words = Array.from({ length: 400 }, (_, index) => `word${index} `).join('');
+        return { isComplete: await io.didStreamFully(words, 25) };
+    }
+    if (!text.includes('think quietly')) return undefined;
+    const waitWhileHeld = async (): Promise<void> => {
+        if (!isHeld() || io.isInterrupted()) return;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        await waitWhileHeld();
+    };
+    await waitWhileHeld();
+    return { isComplete: await io.didStreamFully('Done thinking.', 20) };
+}

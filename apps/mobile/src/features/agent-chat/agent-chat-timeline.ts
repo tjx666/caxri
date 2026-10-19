@@ -15,6 +15,7 @@ import {
     agentChatTurnLabel,
     collectAgentChatTurnArtifacts,
     foldAgentChatTurn,
+    isAgentChatAwaitingReply,
     isAgentChatItemVisible,
     splitAgentChatWork,
 } from '@caxri/protocol';
@@ -84,6 +85,13 @@ export type AgentChatTimelineEntry =
           id: string;
           text: string;
           imageUris: readonly string[];
+      }
+    | {
+          /**
+           * The reply's place while the running turn has shown nothing yet (`isAgentChatAwaitingReply`).
+           */
+          kind: 'awaiting';
+          id: string;
       };
 
 const WORK_TYPES: ReadonlySet<AgentChatItem['type']> = new Set([
@@ -361,6 +369,23 @@ export function withAgentChatPendingEntries(
             imageUris: message.imageUris,
         })),
     ];
+}
+
+/**
+ * `entries` with the reply placeholder after the user's message while the running turn has shown nothing yet (a
+ * delegated task is the user's message too). Messages still on their way follow it, as on Desktop.
+ */
+export function withAgentChatAwaitingReply(
+    entries: readonly AgentChatTimelineEntry[],
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'operation' | 'requests'> | undefined,
+): readonly AgentChatTimelineEntry[] {
+    const last = entries.at(-1);
+    const isAfterUserMessage =
+        last?.kind === 'delegated' ||
+        (last?.kind === 'message' && last.message.type === 'userMessage');
+    return isAgentChatAwaitingReply(snapshot, isAfterUserMessage)
+        ? [...entries, { kind: 'awaiting', id: 'awaiting-reply' }]
+        : entries;
 }
 
 /**

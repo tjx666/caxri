@@ -7,6 +7,7 @@ import type {
     AgentChatQueuedMessage,
     AgentChatSnapshot,
 } from '@caxri/protocol';
+import { CAXRI_SKILL_NAME } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -18,6 +19,7 @@ import { AgentChatComposerActions } from './agent-chat-composer-actions';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import { AgentChatComposerTextarea } from './agent-chat-composer-textarea';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
+import { isAgentChatSkillAttachment } from './agent-chat-drafts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
@@ -183,8 +185,20 @@ export function AgentChatComposer({
     const { t } = useTranslation();
     const focusInput = (): void => inputReference.current?.focus();
     const images = useAgentChatAttachments(terminalId);
+    const caxriSkillCard = images.attachments.find(
+        (attachment) =>
+            isAgentChatSkillAttachment(attachment) && attachment.skill === CAXRI_SKILL_NAME,
+    );
+    const caxriSkill = {
+        isAttached: caxriSkillCard !== undefined,
+        onChange: (isAttached: boolean): void => {
+            if (isAttached) images.addSkill(CAXRI_SKILL_NAME);
+            else if (caxriSkillCard) images.remove(caxriSkillCard.id);
+            focusInput();
+        },
+    };
     const { clearDraft, draft, restoreQueued, setDraft } = useAgentChatDraft({
-        addPaths: images.addPaths,
+        addCards: images.addCards,
         inputReference,
         terminalId,
     });
@@ -409,6 +423,7 @@ export function AgentChatComposer({
                         canAttachImages={supportsImages}
                         canOpenContext={canOpenContext}
                         canSaveProjectDefault={canSaveProjectDefault}
+                        caxriSkill={caxriSkill}
                         isAttaching={isAttaching || sessionMenu.isPreparing}
                         isQueueing={!edit.isEditing && (isTurnRunning || isBusy)}
                         isSendable={isSendable}

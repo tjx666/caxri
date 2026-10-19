@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
-    agentChatAttachmentsWithPaths,
+    agentChatAttachmentsWithReferences,
+    agentChatReferenceAttachments,
     appendToAgentChatDraft,
     attachmentsWithReturned,
     didDeliverAgentChatComposerInput,
@@ -163,11 +164,11 @@ describe('returning an unsent message', () => {
     });
 });
 
-describe('agentChatAttachmentsWithPaths', () => {
+describe('agentChatAttachmentsWithReferences', () => {
     it('adds a card per new path after the attachments already there', () => {
         const folder = { id: 'a', path: '/work/app', isDirectory: true };
         expect(
-            agentChatAttachmentsWithPaths(
+            agentChatAttachmentsWithReferences(
                 [folder],
                 [
                     { id: 'b', path: '/work/app', isDirectory: true },
@@ -176,6 +177,24 @@ describe('agentChatAttachmentsWithPaths', () => {
                 ],
             ),
         ).toEqual([folder, { id: 'c', path: '/work/notes.txt', isDirectory: false }]);
+    });
+
+    it('keeps one card per skill', () => {
+        const skill = { id: 'a', skill: 'caxri-cli' };
+        expect(
+            agentChatAttachmentsWithReferences([skill], [{ id: 'b', skill: 'caxri-cli' }]),
+        ).toEqual([skill]);
+    });
+
+    it('turns a returned message back into skill cards ahead of file cards', () => {
+        const cards = agentChatReferenceAttachments({
+            references: [{ path: '/work/app', isDirectory: true }],
+            skills: [{ name: 'caxri-cli' }],
+        });
+        expect(cards).toMatchObject([
+            { skill: 'caxri-cli' },
+            { path: '/work/app', isDirectory: true },
+        ]);
     });
 });
 

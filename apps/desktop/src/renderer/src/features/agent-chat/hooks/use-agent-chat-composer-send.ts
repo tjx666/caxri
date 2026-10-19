@@ -60,7 +60,7 @@ export function useAgentChatComposerSend({
     focusInput: () => void;
     images: Pick<
         ReturnType<typeof useAgentChatAttachments>,
-        'addPaths' | 'attachments' | 'clearSent' | 'removePaths' | 'restoreUnsent'
+        'addCards' | 'attachments' | 'clearSent' | 'removeCards' | 'restoreUnsent'
     >;
     /**
      * Whether picked images are still being read or a long paste saved (`useAgentChatComposerInput`), which holds Send.

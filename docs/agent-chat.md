@@ -1089,6 +1089,14 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
   Editor tab, or a Project dragged from inside Caxri is still inserted at the caret as its path,
   relative to the Agent's directory and quoted the way a Terminal drop is.
+- **Caxri skill.** Caxri skill in `+` attaches a skill card to the tray (an icon tile, `Caxri
+skill`, and `Skill`), so a request such as "open a Session for this" needs no prompt about the
+  CLI. The row is a checkbox: choosing it again removes the card, and one message carries the card
+  once. On send the composer puts `# Skills the user asked you to use:` ahead of any file block,
+  one ``## caxri-cli: run `"$CAXRI_CLI" skills get caxri-cli --full` and follow it`` line, so the
+  Agent loads the version-matched guide the CLI serves rather than a copy that could drift. The
+  block parses back like path references: a sent message shows a `Caxri skill` pill instead of the
+  instruction, and Edit, Fork, and a queued or failed message bring the card back.
 - **Long paste.** Pasted text longer than the `agentChat.longPasteThreshold` setting (default
   32 KiB, `AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's pasted-text attachment size), or any paste
   the 100,000-character message limit would otherwise cut, never enters the input. Raising the

@@ -387,6 +387,15 @@ as a bracketed paste, and Enter follows as its own write once the paste is ackno
 an Enter inside it as a new draft line, so a line and its Enter written together would sit unsent in
 a Claude Code Commander's composer. The idle-proof fence above applies to both.
 
+A Commander launched with nothing owed (for example by `commander.ensure` when the first Session is
+handed over from the Workbench) carries no launch prompt and runs no first turn, so it has no
+finished turn to prove idle. Its fresh launch counts as one idle point instead: a Chat Commander
+proves it when its Chat reports ready with no prompt due, and a PTY Commander when the main thread's
+first `sessionIdentified` (SessionStart) arrives with no input since the launch. Input or a started
+turn before that point withdraws it, since some providers fire SessionStart only after the first
+submit. Claude Code in a Terminal binds no SessionStart hook, so a Claude Terminal Commander still
+waits for its first turn to end before it hears a notice queued at launch.
+
 A transition that arrives while any of these fails stays queued and is retried the next time the
 Commander reaches a clean idle point; several transitions queued at once coalesce into one line. A
 successful delivery also consumes the settled-turn identity it just proved idle against, so at most

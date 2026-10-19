@@ -1,5 +1,5 @@
 import type { AgentChatSnapshot, ProcessState } from '@caxri/protocol';
-import { agentChatFailureMessage, projectRelativePath } from '@caxri/protocol';
+import { agentChatFailureMessage, CAXRI_SKILL_NAME, projectRelativePath } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
@@ -476,4 +476,11 @@ export function withOccurrenceKeys<T>(
         seen.set(value, occurrence + 1);
         return { item, key: `${value}\0${occurrence}` };
     });
+}
+
+/**
+ * What a skill card is called: the product skill by its product name, any other skill by its own name.
+ */
+export function agentChatSkillLabel(name: string, t: Translate = translate): string {
+    return name === CAXRI_SKILL_NAME ? t('agentChat.skill.caxri') : name;
 }

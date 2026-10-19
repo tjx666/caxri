@@ -39,6 +39,7 @@ import {
     buildAgentChatTimeline,
     isAgentChatTurnStart,
     toggleAgentChatExpansion,
+    withAgentChatAwaitingReply,
     withAgentChatPendingEntries,
 } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
@@ -98,8 +99,15 @@ const AgentChatBody = ({
      */
     const [stabilizeEntries] = useState(() => createAgentChatEntryStabilizer<TimelineEntry>());
     const entries = useMemo(
-        () => stabilizeEntries(withAgentChatPendingEntries(built, pending, t)),
-        [built, pending, stabilizeEntries, t],
+        () =>
+            stabilizeEntries(
+                withAgentChatPendingEntries(
+                    withAgentChatAwaitingReply(built, snapshot),
+                    pending,
+                    t,
+                ),
+            ),
+        [built, pending, snapshot, stabilizeEntries, t],
     );
     const renderEntry = useCallback(
         (entry: TimelineEntry) => (

@@ -47,7 +47,10 @@ import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import { agentChatTimelineEntryKey, isAgentChatAwaitingReply } from './agent-chat-timeline';
+import {
+    agentChatTimelineEntryKey,
+    isAgentChatAwaitingReplyInTimeline,
+} from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
@@ -277,7 +280,7 @@ export function AgentChatPane({
                                         editActions={editActions}
                                         isAwaitingReply={
                                             pending.timeline.length === 0 &&
-                                            isAgentChatAwaitingReply(snapshot, timeline)
+                                            isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
                                         }
                                         mcpServers={snapshot?.mcpServers}
                                         pending={pending}

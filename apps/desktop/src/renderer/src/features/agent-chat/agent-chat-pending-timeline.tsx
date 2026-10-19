@@ -21,7 +21,7 @@ function AgentChatPendingUserMessage({
     onOpenFile: (target: string) => void;
 }) {
     const { t } = useTranslation();
-    const { references, text } = parseAgentChatPathReferences(message.text);
+    const { references, skills, text } = parseAgentChatPathReferences(message.text);
     return (
         <div
             aria-busy="true"
@@ -31,7 +31,7 @@ function AgentChatPendingUserMessage({
             {message.images.length > 0 && (
                 <AgentChatMessageImages className="max-w-[85%]" images={message.images} />
             )}
-            {references.length > 0 && <AgentChatPathReferenceChips references={references} />}
+            <AgentChatPathReferenceChips references={references} skills={skills} />
             {text && (
                 <AgentChatUserMessageBubble isEditing={false} text={text} onOpenFile={onOpenFile} />
             )}

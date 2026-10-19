@@ -15,6 +15,7 @@ import {
     draftAfterSend,
     isAgentChatImageAttachment,
     isAgentChatPathAttachment,
+    isAgentChatSkillAttachment,
     returnUnsentAgentChatMessage,
 } from '../agent-chat-drafts';
 import {
@@ -24,8 +25,8 @@ import {
 } from '../agent-chat-pending';
 
 /**
- * The message `text` and `attachments` make: images ride along as images, and file and folder cards are cited ahead of
- * the text in the provider's own layout (`agentChatTextWithPathReferences`).
+ * The message `text` and `attachments` make: images ride along as images, and skill, file, and folder cards are cited
+ * ahead of the text in the provider's own layout (`agentChatTextWithPathReferences`).
  */
 function agentChatMessageInput(
     text: string,
@@ -38,6 +39,7 @@ function agentChatMessageInput(
             text,
             attachments.filter(isAgentChatPathAttachment),
             providerName,
+            attachments.filter(isAgentChatSkillAttachment).map(({ skill }) => ({ name: skill })),
         ),
         ...(images.length > 0 && { images }),
     };

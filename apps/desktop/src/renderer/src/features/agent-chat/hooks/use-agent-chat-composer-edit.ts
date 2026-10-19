@@ -5,7 +5,11 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import { draftAfterEditCancel, readAgentChatDraft } from '../agent-chat-drafts';
+import {
+    agentChatReferenceAttachments,
+    draftAfterEditCancel,
+    readAgentChatDraft,
+} from '../agent-chat-drafts';
 import type { AgentChatEdit } from '../agent-chat-edit';
 import {
     agentChatEditRemovedTurns,
@@ -63,7 +67,7 @@ export function useAgentChatComposerEdit({
     /**
      * Takes the edited message's file and folder cards back, and removes them again when the edit is cancelled.
      */
-    attachments: Pick<ReturnType<typeof useAgentChatAttachments>, 'addPaths' | 'removePaths'>;
+    attachments: Pick<ReturnType<typeof useAgentChatAttachments>, 'addCards' | 'removeCards'>;
     canSend: boolean;
     draft: string;
     focusInput: () => void;
@@ -99,9 +103,9 @@ export function useAgentChatComposerEdit({
      */
     const editPathIds = useRef<string[]>([]);
     const startEdit = (itemId: string, message: string): void => {
-        const { references, text } = parseAgentChatPathReferences(message);
-        attachments.removePaths(editPathIds.current);
-        editPathIds.current = attachments.addPaths(references);
+        const { text, ...cited } = parseAgentChatPathReferences(message);
+        attachments.removeCards(editPathIds.current);
+        editPathIds.current = attachments.addCards(agentChatReferenceAttachments(cited));
         setDraft(() => text);
         setEdit({
             itemId,
@@ -120,7 +124,7 @@ export function useAgentChatComposerEdit({
     useImperativeHandle(options.handleReference, () => ({ startEdit }));
     const cancel = (): void => {
         if (!active) return;
-        attachments.removePaths(editPathIds.current);
+        attachments.removeCards(editPathIds.current);
         editPathIds.current = [];
         setDraft(() => draftAfterEditCancel(storedEdit(active)));
         setEdit(undefined);

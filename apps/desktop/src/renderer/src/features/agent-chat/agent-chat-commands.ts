@@ -31,7 +31,11 @@ import {
     restartTerminal,
     restartTerminalWithRecovery,
 } from '../terminal/terminal-commands';
-import { writeAgentChatAttachments, writeAgentChatDraft } from './agent-chat-drafts';
+import {
+    agentChatReferenceAttachments,
+    writeAgentChatAttachments,
+    writeAgentChatDraft,
+} from './agent-chat-drafts';
 import { agentChatHandoffPrompt } from './agent-chat-handoff';
 import { agentChatConfigureFailureMessage } from './agent-chat-model-selection';
 import { addAgentChatPendingAnswer, dropAgentChatPendingAnswer } from './agent-chat-pending';
@@ -134,13 +138,10 @@ export async function forkAgentChat(
 ): Promise<void> {
     await tryCommand(translate('agentChat.commands.forkFailed'), async () => {
         const forked = await caxri.request('agentChat.fork', { terminalId, itemId });
-        const message = parseAgentChatPathReferences(text);
-        if (message.text) writeAgentChatDraft(forked.terminalId, message.text);
-        if (message.references.length > 0)
-            writeAgentChatAttachments(
-                forked.terminalId,
-                message.references.map((reference) => ({ id: crypto.randomUUID(), ...reference })),
-            );
+        const { text: words, ...cited } = parseAgentChatPathReferences(text);
+        if (words) writeAgentChatDraft(forked.terminalId, words);
+        const cards = agentChatReferenceAttachments(cited);
+        if (cards.length > 0) writeAgentChatAttachments(forked.terminalId, cards);
         await didSelectSession(forked.sessionId);
         const session = getBootstrap()?.sessions.find(
             (candidate) => candidate.id === forked.sessionId,

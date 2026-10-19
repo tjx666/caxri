@@ -7,7 +7,7 @@ import {
     agentChatTurnTimeTooltip,
     agentChatTurnTone,
     buildAgentChatTimeline,
-    isAgentChatAwaitingReply,
+    isAgentChatAwaitingReplyInTimeline,
 } from '../agent-chat-timeline';
 
 const user = (id: string, turnId?: string): AgentChatItem => ({
@@ -295,7 +295,7 @@ describe('agentChatTurnTone', () => {
     });
 });
 
-describe('isAgentChatAwaitingReply', () => {
+describe('isAgentChatAwaitingReplyInTimeline', () => {
     const running = { activeTurnId: 't1', requests: [] };
     const prompt: AgentChatTimelineEntry = {
         kind: 'item',
@@ -307,20 +307,20 @@ describe('isAgentChatAwaitingReply', () => {
     };
 
     it('holds the reply place only while a running turn has shown nothing after the prompt', () => {
-        expect(isAgentChatAwaitingReply(running, [prompt])).toBe(true);
-        expect(isAgentChatAwaitingReply(running, [prompt, reply])).toBe(false);
-        expect(isAgentChatAwaitingReply({ requests: [] }, [prompt])).toBe(false);
+        expect(isAgentChatAwaitingReplyInTimeline(running, [prompt])).toBe(true);
+        expect(isAgentChatAwaitingReplyInTimeline(running, [prompt, reply])).toBe(false);
+        expect(isAgentChatAwaitingReplyInTimeline({ requests: [] }, [prompt])).toBe(false);
     });
 
     it('steps aside while the turn waits on the user or compacts', () => {
         expect(
-            isAgentChatAwaitingReply(
+            isAgentChatAwaitingReplyInTimeline(
                 { ...running, requests: [{ id: 'r', kind: 'question', questions: [] }] } as never,
                 [prompt],
             ),
         ).toBe(false);
-        expect(isAgentChatAwaitingReply({ ...running, operation: 'compacting' }, [prompt])).toBe(
-            false,
-        );
+        expect(
+            isAgentChatAwaitingReplyInTimeline({ ...running, operation: 'compacting' }, [prompt]),
+        ).toBe(false);
     });
 });

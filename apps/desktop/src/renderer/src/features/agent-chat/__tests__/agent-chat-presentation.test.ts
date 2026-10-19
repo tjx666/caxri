@@ -19,6 +19,7 @@ import {
     agentChatSendRefusal,
     agentChatSendTooltip,
     agentChatSendTooltipShortcut,
+    agentChatSkillLabel,
     agentChatSubmitDelivery,
     canSendAgentChatMessage,
     isAgentChatBusy,
@@ -539,5 +540,12 @@ describe('agentChatCommandMenuKeyStep', () => {
         expect(agentChatCommandMenuKeyStep('dismiss', unmatched)).toEqual({ kind: 'dismiss' });
         expect(agentChatCommandMenuKeyStep('next', unmatched)).toBeUndefined();
         expect(agentChatCommandMenuKeyStep('complete', unmatched)).toBeUndefined();
+    });
+});
+
+describe('agentChatSkillLabel', () => {
+    it('names the product skill by its product name and any other skill by its own', () => {
+        expect(agentChatSkillLabel('caxri-cli')).toBe('Caxri skill');
+        expect(agentChatSkillLabel('release-notes')).toBe('release-notes');
     });
 });

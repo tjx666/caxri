@@ -4,9 +4,13 @@ import type { AgentChatPathReference } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
-import type { AgentChatAttachment } from '../agent-chat-drafts';
+import type {
+    AgentChatAttachment,
+    AgentChatPathAttachment,
+    AgentChatSkillAttachment,
+} from '../agent-chat-drafts';
 import {
-    agentChatAttachmentsWithPaths,
+    agentChatAttachmentsWithReferences,
     attachmentsAfterSend,
     attachmentsWithReturned,
     isAgentChatImageAttachment,
@@ -39,7 +43,8 @@ function reservationOf(attachments: readonly AgentChatAttachment[]): AgentChatIm
 
 /**
  * The composer's attachments: images validated and read as they are pasted, dropped, or picked, and file or folder
- * cards (`addPaths`), kept per Chat across remounts and cleared once the message that carried them was accepted.
+ * cards (`addPaths`), and skill cards (`addSkill`), kept per Chat across remounts and cleared once the message that
+ * carried them was accepted.
  */
 export function useAgentChatAttachments(terminalId: string) {
     const [attachments, setAttachments] = useState(() => readAgentChatAttachments(terminalId));
@@ -115,23 +120,31 @@ export function useAgentChatAttachments(terminalId: string) {
         ]);
     };
     /**
-     * Adds a card for each of `references`, skipping a path already attached. Returns the ids it gave the new cards; a
-     * skipped path's id matches no card.
+     * Adds file, folder, and skill cards, skipping a path or skill already attached. Returns the ids of `cards`; a
+     * skipped card's id matches no card.
      */
-    const addPaths = (references: readonly AgentChatPathReference[]): string[] => {
-        if (references.length === 0) return [];
-        const added = references.map(({ isDirectory, path }) => ({
-            id: crypto.randomUUID(),
-            path,
-            isDirectory,
-        }));
-        update((current) => agentChatAttachmentsWithPaths(current, added));
-        return added.map(({ id }) => id);
+    const addCards = (
+        cards: ReadonlyArray<AgentChatPathAttachment | AgentChatSkillAttachment>,
+    ): string[] => {
+        if (cards.length === 0) return [];
+        update((current) => agentChatAttachmentsWithReferences(current, cards));
+        return cards.map(({ id }) => id);
     };
+    /**
+     * Adds a card for each of `references`, skipping a path already attached.
+     */
+    const addPaths = (references: readonly AgentChatPathReference[]): string[] =>
+        addCards(
+            references.map(({ isDirectory, path }) => ({
+                id: crypto.randomUUID(),
+                path,
+                isDirectory,
+            })),
+        );
     /**
      * Removes the cards `ids` names, such as the ones an "Edit from here" brought back when the edit is cancelled.
      */
-    const removePaths = (ids: readonly string[]): void => {
+    const removeCards = (ids: readonly string[]): void => {
         const removed = new Set(ids);
         update((current) => current.filter((attachment) => !removed.has(attachment.id)));
     };
@@ -175,9 +188,16 @@ export function useAgentChatAttachments(terminalId: string) {
          */
         hasAttachmentRow: attachments.length > 0 || readingCount > 0,
         add,
+        addCards,
         addPaths,
+        /**
+         * Attaches a skill card for `name`; a skill already attached stays one card.
+         */
+        addSkill: (name: string): void => {
+            addCards([{ id: crypto.randomUUID(), skill: name }]);
+        },
         remove,
-        removePaths,
+        removeCards,
         clearSent,
         restoreUnsent,
     };

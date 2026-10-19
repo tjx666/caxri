@@ -18,6 +18,7 @@ import {
     describeAgentChatWork,
     describeAgentTool,
     foldAgentChatTurn,
+    isAgentChatAwaitingReply,
     isAgentChatItemVisible,
     parseAgentMcpToolName,
 } from '@caxri/protocol';
@@ -347,16 +348,15 @@ export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): 
 }
 
 /**
- * Whether a running turn has shown nothing yet after the user's message: no reply, no work, and nothing it waits on.
- * Reasoning a provider keeps hidden can leave that stretch empty for many seconds, so the reply's place holds a quiet
- * placeholder instead of a blank page under the prompt.
+ * Whether the running turn still shows nothing after the user's message (`isAgentChatAwaitingReply` in protocol).
  */
-export function isAgentChatAwaitingReply(
+export function isAgentChatAwaitingReplyInTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'operation' | 'requests'> | undefined,
     timeline: readonly AgentChatTimelineEntry[],
 ): boolean {
-    if (!snapshot?.activeTurnId || snapshot.requests.length > 0) return false;
-    if (snapshot.operation === 'compacting') return false;
     const last = timeline.at(-1);
-    return last?.kind === 'item' && last.item.type === 'userMessage';
+    return isAgentChatAwaitingReply(
+        snapshot,
+        last?.kind === 'item' && last.item.type === 'userMessage',
+    );
 }
