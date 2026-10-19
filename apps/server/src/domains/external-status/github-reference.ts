@@ -15,6 +15,12 @@ const RECORD_TTL_MS = 10 * 60_000;
  * new issue must become visible without a restart.
  */
 const MISSING_TTL_MS = 30 * 60_000;
+/**
+ * An open or draft pull request is still moving toward merged or closed, and the Renderer re-reads it when the window
+ * regains focus. A copy as long as {@link RECORD_TTL_MS} would make a pull request merged in the browser keep showing as
+ * open for ten minutes after the user came back, so it expires on the Renderer's own one-minute cadence.
+ */
+const LIVE_PULL_REQUEST_TTL_MS = 60_000;
 const MAX_RECORDS = 256;
 
 const referenceSchema = z.object({
@@ -53,6 +59,10 @@ export interface GitHubReferenceLookup {
 
 export interface GitHubReferenceStoreOptions {
     missingTtlMs?: number;
+    /**
+     * How long an open or draft pull request is served from cache. Settled references use `ttlMs`.
+     */
+    livePullRequestTtlMs?: number;
     now?: () => number;
     ttlMs?: number;
 }
@@ -133,9 +143,12 @@ export class GitHubReferenceStore {
     private cached(key: string): StoredRecord | undefined {
         const record = this.records.get(key);
         if (!record) return undefined;
-        const ttl = record.reference
-            ? (this.options.ttlMs ?? RECORD_TTL_MS)
-            : (this.options.missingTtlMs ?? MISSING_TTL_MS);
+        const { reference } = record;
+        const ttl = !reference
+            ? (this.options.missingTtlMs ?? MISSING_TTL_MS)
+            : reference.isPullRequest && !reference.isMerged && reference.state !== 'closed'
+              ? (this.options.livePullRequestTtlMs ?? LIVE_PULL_REQUEST_TTL_MS)
+              : (this.options.ttlMs ?? RECORD_TTL_MS);
         if (this.now() - record.fetchedAt >= ttl) return undefined;
         rememberBounded(this.records, key, record, MAX_RECORDS);
         return record;
@@ -175,6 +188,14 @@ export class GitHubReferenceStore {
             rememberBounded(this.records, key, { fetchedAt: this.now(), reference }, MAX_RECORDS);
             return reference;
         });
+    }
+
+    /**
+     * Drops one reference's record after Caxri changed it on GitHub (merging a pull request), so the next preview
+     * refetches instead of serving the pre-mutation state.
+     */
+    forget(owner: string, repo: string, number: number): void {
+        this.records.delete(`${owner}/${repo}#${number}`);
     }
 
     clear(): void {

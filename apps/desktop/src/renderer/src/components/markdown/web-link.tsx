@@ -6,6 +6,7 @@ import { BookMarked, CircleDot, ExternalLink, GitPullRequest, MessagesSquare } f
 import { useTranslation } from '../../i18n';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import type { LinkSummary } from '../../lib/link-summary';
+import { pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
@@ -13,6 +14,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card'
 import { CopyIconButton } from './copy-icon-button';
 import { useLinkContextMenu } from './link-context-menu';
 import { LinkFavicon } from './link-favicon';
+import { PULL_REQUEST_ICONS } from './pull-request-icons';
+import { useReferencePreview } from './reference-preview-query';
 
 const GITHUB_KIND_ICONS = {
     pull: GitPullRequest,
@@ -57,6 +60,12 @@ export function WebLink({
     const { t } = useTranslation();
     const origin = new URL(href).origin;
     const onContextMenu = useLinkContextMenu(href, onOpen);
+    // Shares the icon's query, so the text and the glyph read one state and cost one request.
+    const preview = useReferencePreview(
+        referenceTerminalId,
+        summary.kind === 'pull' ? summary.reference : undefined,
+    );
+    const pullState = pullRequestLinkState(preview.data);
     return (
         <HoverCard>
             <HoverCardTrigger
@@ -67,6 +76,8 @@ export function WebLink({
                         className={cn(
                             'cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-3 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent',
                             className,
+                            // Once the state is known the text takes the icon's tone; unknown keeps the caller's color.
+                            pullState && PULL_REQUEST_ICONS[pullState].tone,
                         )}
                         type="button"
                         onClick={() => onOpen(href)}

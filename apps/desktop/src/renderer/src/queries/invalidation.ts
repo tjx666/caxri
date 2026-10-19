@@ -14,6 +14,12 @@ import {
     isQueryMethod,
 } from './client';
 import {
+    invalidateDeliveryStatusQueries,
+    invalidateProjectStatusQuery,
+    invalidateSessionPullRequestDependentQueries,
+    PULL_REQUESTS_QUERY_KEY,
+} from './invalidation-delivery';
+import {
     invalidateCommanderInboxQuery,
     invalidateGitReviewQueries,
     invalidatePermissionAutoAllowQuery,
@@ -41,7 +47,6 @@ const BADGE_OPERATIONS = new Set<ControlledViewQueryOperation>(['badge.snapshot'
  * error here, instead of a predicate that quietly stops matching anything.
  */
 const CATALOG_QUERY_KEY: readonly [CaxriMethod] = ['viewContainers.catalog'];
-const PULL_REQUESTS_QUERY_KEY: readonly [CaxriMethod] = ['session.pullRequests'];
 const AGENT_ACTIONS_QUERY_KEY: readonly [CaxriMethod] = ['agentActions.list'];
 /**
  * The Commander's rows are excluded from Workbench records, so no record-scoped change names them; any state change may
@@ -164,12 +169,12 @@ function isControlledOperationMatch(
  * `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery CLI (e.g. `gh`), so a plain
  * file write never invalidates it. Those two queries instead follow the Server's own delivery push
  * (`projectStatus.changed`, `sessionPullRequests.changed`: see `invalidateProjectStatusQuery` and
- * `invalidateSessionPullRequestDependentQueries` below) plus a low-frequency fallback poll on the status bar's own
- * side, for the same reason `git.changed` replaces polling for Git reads below. Git status/diff/blame queries
- * (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated from here: a plain file
- * write does not always mean the working tree changed (e.g. an ignored file), so Git invalidation instead rides the
- * Server-emitted `git.changed` event, which is scoped to the repository identities that actually changed: see
- * `invalidateGitChangedQueries` below.
+ * `invalidateSessionPullRequestDependentQueries` in `invalidation-delivery.ts`) plus a low-frequency fallback poll on
+ * the status bar's own side, for the same reason `git.changed` replaces polling for Git reads below. Git
+ * status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated
+ * from here: a plain file write does not always mean the working tree changed (e.g. an ignored file), so Git
+ * invalidation instead rides the Server-emitted `git.changed` event, which is scoped to the repository identities that
+ * actually changed: see `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
     queryClient: QueryClient,
@@ -252,77 +257,6 @@ function invalidateGitChangedQueries(
                 sessionIds.includes(parameters.sessionId) &&
                 !(isQueryMethod(query.queryKey, 'git.overview') && parameters.refresh === true)
             );
-        },
-    });
-}
-
-/**
- * Invalidates both Project Status reads for one Session after `projectStatus.changed`: the Status panel's
- * `projectStatus.summary` and the status bar's `projectStatus.overview`. The two reads are computed independently, but
- * a summary refresh warms the same shared `GitHubPullRequestStore`/`LinearIssueStore`/`AcceptanceStore` records the
- * overview reads from (see `ProjectStatusService` in `apps/server/src/domains/project-status/index.ts`), so this
- * refetch normally costs no extra delivery-CLI call. This is what lets the status bar converge with the Status panel in
- * the same Server refresh instead of waiting out its own poll (issue caxri#1310).
- */
-function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: string): void {
-    // Fire-and-forget: the refreshed query surfaces any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void queryClient.invalidateQueries({
-        predicate: (query) => {
-            const [, parameters] = query.queryKey as [
-                CaxriMethod,
-                { sessionId?: string } | undefined,
-            ];
-            return (
-                isQueryMethod(query.queryKey, 'projectStatus.summary', 'projectStatus.overview') &&
-                parameters?.sessionId === sessionId
-            );
-        },
-    });
-}
-
-/**
- * Invalidates the shared `session.pullRequests` sidebar query and the affected Sessions' `projectStatus.overview` read
- * after `sessionPullRequests.changed`. `SessionPullRequestService` and `ProjectStatusService` share one
- * `GitHubPullRequestStore` (see `service-handlers.ts`), so the overview's own pull-request resolution normally answers
- * from the record this sweep just wrote rather than paying for another `gh pr view` (issue caxri#1310).
- */
-function invalidateSessionPullRequestDependentQueries(
-    queryClient: QueryClient,
-    sessionIds: readonly string[],
-): void {
-    // Fire-and-forget: the refreshed query surfaces any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
-    const sessionIdSet = new Set(sessionIds);
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void queryClient.invalidateQueries({
-        predicate: (query) => {
-            const [, parameters] = query.queryKey as [
-                CaxriMethod,
-                { sessionId?: string } | undefined,
-            ];
-            return (
-                isQueryMethod(query.queryKey, 'projectStatus.overview') &&
-                parameters?.sessionId !== undefined &&
-                sessionIdSet.has(parameters.sessionId)
-            );
-        },
-    });
-}
-
-/**
- * Re-asks the Server for delivery status after a settings write. `projectStatus.ignoredChecks` decides which checks the
- * Status panel rollup and the sidebar CI badge aggregate, and both are served from Server-side caches that survive for
- * minutes, so an edit would otherwise keep showing the pre-change rollup. The Server compares the rules before spending
- * anything, so a settings write that leaves them alone answers from cache.
- */
-function invalidateDeliveryStatusQueries(queryClient: QueryClient): void {
-    // Fire-and-forget: the refreshed queries surface any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void queryClient.invalidateQueries({
-        predicate: (query) => {
-            return isQueryMethod(query.queryKey, 'projectStatus.summary', 'session.pullRequests');
         },
     });
 }

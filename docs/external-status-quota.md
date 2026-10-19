@@ -151,7 +151,13 @@ rollup, and paying for a rollup on hover is the cost this store exists to avoid.
 - REST also draws on a **different budget** from the GraphQL points `gh pr view` and the sidebar
   sweep share, so a hover never competes with delivery status.
 - A hit is cached for 10 minutes, far longer than the pull-request store's 90s, because an issue
-  title changes rarely and a hover is an involuntary gesture. A miss is cached for 30 minutes: a
+  title changes rarely and a hover is an involuntary gesture. An **open or draft pull request** is
+  the exception: it is cached for 60 seconds, and merging through Caxri (`git.mergePullRequest`)
+  forgets the record at once. The Renderer reads the same preview for transcript link icons, link
+  text, and tracker cards with a 60 second stale window for an open or unknown pull request and
+  5 minutes once it is merged or closed, refetching when the window regains focus and when
+  `sessionPullRequests.changed` fires. A pull request merged in the browser therefore shows as
+  merged within about two minutes of returning to Caxri, with no polling. A miss is cached for 30 minutes: a
   reference that does not resolve is almost always a number that never existed, so re-asking buys
   nothing. Neither is cached forever, so a genuinely new issue becomes visible without a restart.
 - Only a recognizable "no such issue" failure is cached as absence. A transport, auth, or quota

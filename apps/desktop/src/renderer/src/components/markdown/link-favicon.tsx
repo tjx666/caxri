@@ -6,6 +6,7 @@ import { isGitHubHost, pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { PULL_REQUEST_ICONS } from './pull-request-icons';
+import { useReferencePreview } from './reference-preview-query';
 
 /**
  * A pull request link's icon, tinted by its state. The state comes from the Terminal reference preview, which reads
@@ -23,11 +24,7 @@ function PullRequestLinkIcon({
     reference: NonNullable<LinkSummary['reference']>;
     terminalId: string | undefined;
 }) {
-    const preview = useCaxriQuery(
-        'terminal.reference.preview',
-        { terminalId: terminalId ?? '', reference: { kind: 'github', ...reference } },
-        { enabled: terminalId !== undefined, retry: false, staleTime: 5 * 60_000 },
-    );
+    const preview = useReferencePreview(terminalId, reference);
     const state = pullRequestLinkState(preview.data);
     if (!state)
         return (
