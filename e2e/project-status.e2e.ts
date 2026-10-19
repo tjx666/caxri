@@ -71,7 +71,7 @@ if [ "$1 $2" = "pr list" ]; then printf '%s' '[{"number":42,"state":"MERGED","is
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
-printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-status","state":"MERGED","mergeCommit":{"oid":"c3d4e5f60718293a4b5c6d7e8f90123456789abc"},"isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
+printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-status","headRefName":"feature/status","state":"MERGED","mergeCommit":{"oid":"c3d4e5f60718293a4b5c6d7e8f90123456789abc"},"isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
 `,
         'utf8',
     );

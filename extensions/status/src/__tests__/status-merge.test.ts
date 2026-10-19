@@ -118,6 +118,40 @@ describe('Status panel merge action', () => {
     });
 
     it.each([
+        ['squash', 'Squash and merge into main.', 'Squash and Merge'],
+        [
+            'merge',
+            'Create a merge commit into main. This repository does not allow squash merging.',
+            'Create Merge Commit',
+        ],
+        [
+            'rebase',
+            'Rebase and merge into main. This repository allows neither squash merging nor merge commits.',
+            'Rebase and Merge',
+        ],
+    ] as const)(
+        'names the %s method the merge will use, before the click',
+        (mergeMethod, note, confirmLabel) => {
+            const clean = pullRequestRow({ baseBranch: 'main', mergeMethod }).actions![0];
+            expect(clean.tooltip).toBe(note);
+
+            const blocked = mergeButton(
+                pullRequestRow({ baseBranch: 'main', mergeMethod, mergeState: 'blocked' }),
+            )!;
+            expect(blocked.confirmation?.message).toContain(note);
+            expect(blocked.confirmation?.confirmLabel).toBe(confirmLabel);
+        },
+    );
+
+    it('keeps the override label when merging past failed checks, with the method in the message', () => {
+        const action = mergeButton(
+            pullRequestRow({ state: 'failure', baseBranch: 'main', mergeMethod: 'squash' }),
+        )!;
+        expect(action.confirmation?.confirmLabel).toBe('Merge Anyway');
+        expect(action.confirmation?.message).toContain('Squash and merge into main.');
+    });
+
+    it.each([
         [{ state: 'failure' }, 'Checks did not pass', 'danger'],
         // Settles by itself, so it is not a warning the user has to act on.
         [{ state: 'pending' }, 'Checks still running', 'neutral'],

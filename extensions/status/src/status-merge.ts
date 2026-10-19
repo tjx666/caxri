@@ -8,12 +8,36 @@ export const MERGE_CURRENT_PULL_REQUEST_COMMAND = 'caxri.project-status.mergeCur
 const MERGE_PULL_REQUEST_TITLE = 'Merge Pull Request';
 
 /**
- * How the merge method is picked, stated before the click. Server Core reads the repository's allowed methods only when
- * the merge runs (`chooseMergeMethod`, squash first), so the row cannot name the exact method yet; it names the policy
- * instead, and the success toast names the method actually used.
+ * Fallback when the repository's allowed methods were not read (offline, signed out, or an older projection): states
+ * the selection order Server Core applies, because the exact method is unknown. Normally {@link mergeMethodNote} names
+ * it.
  */
-const MERGE_METHOD_NOTE =
+const MERGE_METHOD_ORDER_NOTE =
     'Squash and merge when the repository allows it, otherwise a merge commit, then rebase.';
+
+const mergeMethodPhrases = {
+    squash: { action: 'Squash and merge', confirm: 'Squash and Merge' },
+    merge: { action: 'Create a merge commit', confirm: 'Create Merge Commit' },
+    rebase: { action: 'Rebase and merge', confirm: 'Rebase and Merge' },
+} as const;
+
+/**
+ * The sentence stating what the merge will do, from the method Server Core reported for this repository. A method other
+ * than squash also says why: squash is the first choice, so it is only skipped when the repository disallows it, and a
+ * rebase pick additionally means merge commits are disallowed.
+ */
+function mergeMethodNote(pullRequest: PullRequest): string {
+    const method = pullRequest.mergeMethod;
+    if (!method) return MERGE_METHOD_ORDER_NOTE;
+    const target = pullRequest.baseBranch ? ` into ${pullRequest.baseBranch}` : '';
+    const reason =
+        method === 'squash'
+            ? ''
+            : method === 'merge'
+              ? ' This repository does not allow squash merging.'
+              : ' This repository allows neither squash merging nor merge commits.';
+    return `${mergeMethodPhrases[method].action}${target}.${reason}`;
+}
 
 type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
 
@@ -138,13 +162,14 @@ const blockerTones: Record<Exclude<MergeBlocker, 'conflicting'>, TreeItemActionT
  */
 function mergeButtonPresentation(
     blocker: Exclude<MergeBlocker, 'conflicting'> | undefined,
+    pullRequest: PullRequest,
 ): Pick<TreeItemAction, 'icon' | 'label' | 'tone' | 'tooltip'> {
     if (!blocker)
         return {
             icon: new ThemeIcon('git-merge'),
             label: 'Merge',
             tone: 'success',
-            tooltip: MERGE_METHOD_NOTE,
+            tooltip: mergeMethodNote(pullRequest),
         };
     return {
         icon: new ThemeIcon('git-merge'),
@@ -184,9 +209,10 @@ function draftAction(pullRequest: PullRequest): TreeItemAction {
  * with clean checks is a single click by design, with no confirmation; every other {@link mergeBlocker} reason (failing
  * or running checks, unmet protection, a stale base) asks first.
  *
- * The merge method is chosen by Server Core from the repository's allowed methods only when the merge runs, so neither
- * the button nor the confirmation can name it yet; both state the selection order ({@link MERGE_METHOD_NOTE}). Merging
- * past failed checks is labelled `Merge Anyway`, so the button names the override rather than the ordinary action.
+ * Server Core projects the method the merge will use (`mergeMethod`, chosen by the same function the merge calls), so
+ * the button tooltip and the confirmation name it ({@link mergeMethodNote}); without it they state the selection order.
+ * Merging past failed checks is labelled `Merge Anyway`, so the button names the override rather than the ordinary
+ * action.
  */
 function mergePullRequestAction(
     repo: Pick<ProjectStatusRepository, 'branch' | 'defaultBranch' | 'id' | 'kind' | 'name'>,
@@ -213,12 +239,17 @@ function mergePullRequestAction(
             title: MERGE_PULL_REQUEST_TITLE,
             arguments: [arguments_],
         },
-        ...mergeButtonPresentation(blocker),
+        ...mergeButtonPresentation(blocker, pullRequest),
         ...(reason && {
             confirmation: {
                 title: `Merge pull request #${pullRequest.number}?`,
-                message: `${reason} ${MERGE_METHOD_NOTE} A merged pull request cannot be undone from Caxri.`,
-                confirmLabel: blocker === 'checks-failed' ? 'Merge Anyway' : 'Merge',
+                message: `${reason} ${mergeMethodNote(pullRequest)} A merged pull request cannot be undone from Caxri.`,
+                confirmLabel:
+                    blocker === 'checks-failed'
+                        ? 'Merge Anyway'
+                        : pullRequest.mergeMethod
+                          ? mergeMethodPhrases[pullRequest.mergeMethod].confirm
+                          : 'Merge',
             },
         }),
         feedback: {

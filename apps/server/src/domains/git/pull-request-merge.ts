@@ -11,6 +11,11 @@ import { z } from 'zod';
 
 import type { CliFailureKind, ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError } from '../external-status';
+import {
+    chooseMergeMethod,
+    REPO_MERGE_SETTINGS_FIELDS,
+    repoMergeSettingsSchema,
+} from '../external-status/merge-method';
 
 type MergeMethod = ServerOperationResult<'git.mergePullRequest'>['method'];
 
@@ -43,12 +48,6 @@ function mergeFailureReason(error: unknown): MergeFailureReason {
     return 'unknown';
 }
 
-const repoMergeSettingsSchema = z.object({
-    squashMergeAllowed: z.boolean().optional(),
-    mergeCommitAllowed: z.boolean().optional(),
-    rebaseMergeAllowed: z.boolean().optional(),
-});
-
 export interface GitPullRequestMergeDependencies {
     logger: StructuredLogger;
     /**
@@ -61,19 +60,6 @@ export interface GitPullRequestMergeDependencies {
      * The Server-wide external CLI runner, so a merge is governed by the same `gh` quota circuit as every status read.
      */
     run: ExternalStatusRunner;
-}
-
-/**
- * Squash first because it is what a repository that allows it almost always wants for agent-delivered branches; a
- * repository that disables it states its preference by what remains.
- */
-export function chooseMergeMethod(
-    settings: z.infer<typeof repoMergeSettingsSchema>,
-): MergeMethod | undefined {
-    if (settings.squashMergeAllowed) return 'squash';
-    if (settings.mergeCommitAllowed) return 'merge';
-    if (settings.rebaseMergeAllowed) return 'rebase';
-    return undefined;
 }
 
 /**
@@ -138,13 +124,7 @@ export async function mergeGitHubPullRequestAt(
             JSON.parse(
                 await dependencies.run(
                     'gh',
-                    [
-                        'repo',
-                        'view',
-                        slug,
-                        '--json',
-                        'squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed',
-                    ],
+                    ['repo', 'view', slug, '--json', REPO_MERGE_SETTINGS_FIELDS],
                     target.cwd,
                 ),
             ),

@@ -44,8 +44,8 @@ import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear'
 import type { ProjectStatusClock, ProjectStatusServiceOptions } from './options';
 import { projectStatusClock } from './options';
 import { parseGitHubPullRequest } from './parse';
+import { PullRequestExtras } from './pull-request-extras';
 import { refreshLogRecord } from './refresh-log';
-import { ReviewThreadStore } from './review-threads';
 import type { PullRequestTarget, SessionPullRequestResolver } from './session-pull-request';
 import {
     loadOverviewPullRequest,
@@ -91,7 +91,7 @@ export class ProjectStatusService {
     private readonly vercel: VercelDeploymentStore;
     private readonly acceptance: AcceptanceStore;
     private readonly github: GitHubPullRequestStore;
-    private readonly reviewThreads: ReviewThreadStore;
+    private readonly extras: PullRequestExtras;
     private readonly linear: LinearIssueStore;
     private readonly alerts: ProjectStatusAlertTracker;
     private polledSessionId?: string;
@@ -133,7 +133,7 @@ export class ProjectStatusService {
         }
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
-        this.reviewThreads = new ReviewThreadStore(this.commandTelemetry, this.runner);
+        this.extras = new PullRequestExtras(this.commandTelemetry, this.runner, () => this.now());
         this.vercel =
             options.vercel ?? new VercelDeploymentStore(this.runner, { now: () => this.now() });
         /**
@@ -403,7 +403,7 @@ export class ProjectStatusService {
                     isForced,
                     onParseFailure: (error) => this.logExternalParseFailure('lh', error),
                 }),
-                this.reviewThreads.attach(cwd, context, parsed.pullRequest, isForced),
+                this.extras.attach(cwd, context, parsed.pullRequest, isForced),
             ]);
             return {
                 pullRequest,

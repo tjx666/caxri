@@ -264,6 +264,16 @@ const projectStatusRepoSchema = z.object({
              */
             headBranch: z.string().min(1).optional(),
             /**
+             * The branch the pull request would merge into; absent when the provider omitted it.
+             */
+            baseBranch: z.string().min(1).optional(),
+            /**
+             * The method `git.mergePullRequest` would use right now, from the repository's allowed methods. Present
+             * only for an open pull request whose repository settings were read; absent otherwise, so a consumer states
+             * the selection order instead of guessing.
+             */
+            mergeMethod: z.enum(['merge', 'rebase', 'squash']).optional(),
+            /**
              * Absent when the provider omitted the mergeability fields.
              */
             mergeState: pullRequestMergeStateSchema.optional(),

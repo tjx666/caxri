@@ -100,6 +100,7 @@ describe('Status extension tree', () => {
                         number: 42,
                         title: 'Lifecycle fixture',
                         url: 'https://github.com/a/b/pull/42',
+                        headBranch: 'feature/status',
                         lifecycle: 'merged',
                         state,
                         hiddenCheckCount: 0,
@@ -143,6 +144,7 @@ describe('Status extension tree', () => {
                 number: 1,
                 title: 'Cancelled',
                 url: 'https://github.com/a/b/pull/1',
+                headBranch: 'feature',
                 lifecycle: 'open',
                 state: 'cancelled',
                 hiddenCheckCount: 0,
@@ -191,6 +193,7 @@ describe('Status extension tree', () => {
                     number: 42,
                     title: 'Lifecycle fixture',
                     url: 'https://github.com/a/b/pull/42',
+                    headBranch: 'feature/status',
                     lifecycle,
                     state: 'success',
                     hiddenCheckCount: 0,
@@ -712,32 +715,6 @@ describe('Status extension tree', () => {
             badge: { label: 'passed', tone: 'success' },
             rows: [{ label: 'alias', value: 'caxri.app', url: 'https://caxri.app' }],
         });
-    });
-
-    it('clamps a link long enough to breach the tooltip row bound', () => {
-        const deploymentsUrl = `https://vercel.com/tjx666/caxri/deployments?filterBranch=${'a'.repeat(4_000)}`;
-        const node = buildRepoNode({
-            id: 'repo-1',
-            kind: 'primary',
-            name: 'caxri',
-            branch: 'main',
-            defaultBranch: 'main',
-            acceptances: [],
-            linearIssues: [],
-            deployments: { url: deploymentsUrl, branchDeployments: [] },
-            errors: [],
-        });
-        const deployments = node.children?.find(({ item }) => item.label === 'Deployments');
-        const tooltip = deployments?.item.tooltip;
-
-        expect(typeof tooltip).toBe('object');
-        const project = (tooltip as TreeItemRichTooltip).rows?.at(-1);
-        // The row value is capped at 2048 characters by the process boundary, so an unclamped link would reject the
-        // whole `getChildren` batch instead of degrading this one row.
-        expect(project?.value.length).toBeLessThanOrEqual(256);
-        expect(project?.value.endsWith('…')).toBe(true);
-        // The clamp is display-only: the row still opens the complete destination.
-        expect(project?.url).toBe(deploymentsUrl);
     });
 
     /**

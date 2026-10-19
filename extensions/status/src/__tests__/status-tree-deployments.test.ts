@@ -1,3 +1,4 @@
+import type { TreeItemRichTooltip } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
 import { buildRepoNode } from '../status-tree';
@@ -227,5 +228,31 @@ describe('Status extension Deployments row', () => {
         expect(
             tree(running).find((node) => node.item.label === 'Production')?.item.actions,
         ).toBeUndefined();
+    });
+
+    it('clamps a link long enough to breach the tooltip row bound', () => {
+        const deploymentsUrl = `https://vercel.com/tjx666/caxri/deployments?filterBranch=${'a'.repeat(4_000)}`;
+        const node = buildRepoNode({
+            id: 'repo-1',
+            kind: 'primary',
+            name: 'caxri',
+            branch: 'main',
+            defaultBranch: 'main',
+            acceptances: [],
+            linearIssues: [],
+            deployments: { url: deploymentsUrl, branchDeployments: [] },
+            errors: [],
+        });
+        const deployments = node.children?.find(({ item }) => item.label === 'Deployments');
+        const tooltip = deployments?.item.tooltip;
+
+        expect(typeof tooltip).toBe('object');
+        const project = (tooltip as TreeItemRichTooltip).rows?.at(-1);
+        // The row value is capped at 2048 characters by the process boundary, so an unclamped link would reject the
+        // whole `getChildren` batch instead of degrading this one row.
+        expect(project?.value.length).toBeLessThanOrEqual(256);
+        expect(project?.value.endsWith('…')).toBe(true);
+        // The clamp is display-only: the row still opens the complete destination.
+        expect(project?.url).toBe(deploymentsUrl);
     });
 });
