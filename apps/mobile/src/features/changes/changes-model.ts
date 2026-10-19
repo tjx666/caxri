@@ -12,6 +12,25 @@ export interface DiffLine {
     marker: '+' | '−' | ' ';
 }
 
+/**
+ * The one line number a phone diff row shows: the new file's line, or the old file's for a removed line. Desktop's two
+ * number columns cost a phone about 40 points of a 390-point screen, which is the code's width, not the gutter's.
+ */
+export const diffLineNumber = (line: Pick<DiffLine, 'newLine' | 'oldLine'>): number | null =>
+    line.newLine ?? line.oldLine;
+
+/**
+ * How many digits the line-number gutter needs for `lines`, so a short file's gutter stays narrow and a long file's
+ * numbers still line up.
+ */
+export const diffLineNumberDigits = (
+    lines: ReadonlyArray<Pick<DiffLine, 'newLine' | 'oldLine'>>,
+): number => {
+    let largest = 0;
+    for (const line of lines) largest = Math.max(largest, diffLineNumber(line) ?? 0);
+    return Math.max(2, String(largest).length);
+};
+
 export interface ParsedDiff {
     additions: number;
     deletions: number;

@@ -99,6 +99,12 @@ export const mobileDashboardSessionSchema = z.strictObject({
     displayTitle: z.string().min(1).max(100),
     projectTitle: z.string().min(1).max(100),
     lastOpenedAt: sessionRecordSchema.shape.lastOpenedAt,
+    /**
+     * The Session's work clock, which orders rows inside a group on both Desktop and the phone.
+     */
+    lastSessionActivityAt: sessionRecordSchema.shape.lastSessionActivityAt,
+    pinnedAt: sessionRecordSchema.shape.pinnedAt,
+    pinnedOrder: sessionRecordSchema.shape.pinnedOrder,
     lastActivityState: sessionRecordSchema.shape.lastActivityState,
     primaryAgentTerminalId: identifierSchema.optional(),
     primaryAgentEndpoint: agentEndpointReferenceSchema.optional(),
@@ -395,6 +401,14 @@ export const mobileMethods = {
     'mobile.session.restore': {
         ...commandPolicy('server', 'write', ['sessions.write']),
         params: z.strictObject({ sessionId: identifierSchema }),
+        result: mobileSessionMutationResultSchema,
+    },
+    /**
+     * Pins or unpins a Session through Desktop's own `session.setPinned`, so the Pinned group is one list on both.
+     */
+    'mobile.session.setPinned': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.strictObject({ sessionId: identifierSchema, pinned: z.boolean() }),
         result: mobileSessionMutationResultSchema,
     },
     'mobile.session.archived': {

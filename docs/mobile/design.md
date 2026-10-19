@@ -142,19 +142,29 @@ no background of its own keeps its default dark text readable.
 │ ● MacBook Pro             ⋮   │  connection dot, host name, menu
 │ (All) (caxri) (website) …     │  Project filter chips
 ├───────────────────────────────┤
+│ PINNED                        │
+│ [✳] release-notes             │
 │ NEEDS ATTENTION               │
 │ [✳] fix-login              ●  │  Agent tile, title, status glyph
 │     caxri · 2m                │  Project (omitted when filtered) · age
-│ RUNNING                       │
+│ WORKING                       │
 │ [◎] refactor-git           ◌  │
-│ RECENT                        │
+│ IDLE                          │
 │ [>_] docs-pass                │
 │                         ( + ) │  New Session button
 └───────────────────────────────┘
 ```
 
-- Group order stays `NEEDS ATTENTION`, `RUNNING`, `RECENT`. Unread attention sorts first in its
-  group; otherwise newest first with stable identity tie-breaking.
+- Groups match Desktop's Activity view: `PINNED`, `NEEDS ATTENTION`, `WORKING`, `WAITING`,
+  `FAILED`, `RECENTLY FINISHED`, `IDLE`, each with the same heading glyph. The rules and order
+  come from `packages/protocol/src/domain/session-activity-group.ts`, shared with Desktop (see
+  [Activity view](../activity-view.md)). Pinned Sessions keep Desktop's pinned order; a pinned
+  Session that needs attention, is working, waiting, or failed is listed again in that group. Rows
+  inside a group are newest Session activity first, and the row's age reads that same clock. The
+  one difference from Desktop: a finished Session past the 15-minute window moves to `IDLE`
+  instead of leaving, because the home list is the phone's only Session list.
+- Pin and Unpin live in the row's long-press sheet beside Rename and Archive, for control devices
+  only; they write the same pin Desktop shows.
 - Rows lead with the Agent's brand glyph and carry one status glyph that mirrors Desktop's Session
   indicator: an amber dot for unread attention, a spinner while running, an alert icon for a
   failure, and nothing once settled. State labels (`Waiting for you`, `Working`, `Failed`,

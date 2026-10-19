@@ -19,6 +19,7 @@ const session: MobileSessionItem = {
     displayTitle: 'Agent work',
     projectTitle: 'Project',
     lastOpenedAt: 100,
+    lastSessionActivityAt: 100,
     lastActivityState: 'running',
     primaryAgentTerminalId: 'terminal-one',
     primaryAgentEndpoint: { hostId: 'host-one', endpointId: 'endpoint-one', generation: 2 },
@@ -31,7 +32,7 @@ const session: MobileSessionItem = {
         provider: 'codex',
         lastProcessState: 'running',
     },
-    group: 'running',
+    group: 'working',
     stateLabel: 'Working',
 };
 

@@ -13,62 +13,63 @@ import {
     shouldObserveDashboard,
     startDashboardSubscription,
 } from '../dashboard-query';
-import type { MobileSessionItem, MobileSessionSections } from '../session-model';
+import type {
+    MobileSessionItem,
+    MobileSessionListGroup,
+    MobileSessionSections,
+} from '../session-model';
+import { emptyMobileSessionGroups, MOBILE_SESSION_LIST_GROUPS } from '../session-model';
 import type { MobileDashboardSnapshot } from '../session-refresh';
 import { fetchMobileSessionDashboard } from '../session-refresh';
 import { showDashboard, useSavedDashboard } from './use-saved-dashboard';
 
 const emptySections: MobileSessionSections = {
-    needsAttention: [],
-    running: [],
-    recent: [],
+    groups: emptyMobileSessionGroups(),
+    sessions: [],
     total: 0,
     truncated: false,
 };
 
 /**
- * The Session list's sections in order, which pick each heading's icon.
+ * A row's `id` carries its group because a pinned Session can be listed twice (under Pinned and its status group), and
+ * the list needs a distinct key for each copy.
  */
-export type SessionListGroup = 'attention' | 'recent' | 'running';
-
 export type SessionListEntry =
-    | { id: string; group: SessionListGroup; label: string; type: 'header' }
-    | { id: string; session: MobileSessionItem; type: 'session' };
+    | { id: string; group: MobileSessionListGroup; label: string; type: 'header' }
+    | { id: string; group: MobileSessionListGroup; session: MobileSessionItem; type: 'session' };
 
-export const allMobileSessions = (sections: MobileSessionSections): MobileSessionItem[] => [
-    ...sections.needsAttention,
-    ...sections.running,
-    ...sections.recent,
-];
+export const allMobileSessions = (sections: MobileSessionSections): MobileSessionItem[] =>
+    sections.sessions;
+
+const GROUP_LABEL_KEYS = {
+    pinned: 'sessions.list.pinned',
+    attention: 'sessions.list.attention',
+    working: 'sessions.list.working',
+    waiting: 'sessions.list.waiting',
+    failed: 'sessions.list.failed',
+    finished: 'sessions.list.finished',
+    idle: 'sessions.list.idle',
+} as const satisfies Record<MobileSessionListGroup, string>;
 
 export const flattenMobileSessionSections = (
     sections: MobileSessionSections,
     t: Translate = translate,
 ): SessionListEntry[] => {
     const result: SessionListEntry[] = [];
-    /**
-     * `key` keeps the header ID stable across languages; only the label is translated.
-     */
-    const append = (
-        key: string,
-        group: SessionListGroup,
-        label: string,
-        sessions: MobileSessionItem[],
-    ): void => {
-        if (sessions.length === 0) return;
+    for (const group of MOBILE_SESSION_LIST_GROUPS) {
+        const sessions = sections.groups[group];
+        if (sessions.length === 0) continue;
+        // The header id is the group, so it stays stable across languages; only the label is translated.
         result.push(
-            { id: `header:${key}`, group, label, type: 'header' },
-            ...sessions.map((session) => ({ id: session.id, session, type: 'session' as const })),
+            { id: `header:${group}`, group, label: t(GROUP_LABEL_KEYS[group]), type: 'header' },
+            ...sessions.map((session) => ({
+                id: `${group}:${session.id}`,
+                group,
+                session,
+                type: 'session' as const,
+            })),
         );
-    };
-    append(
-        'NEEDS ATTENTION',
-        'attention',
-        t('sessions.list.needsAttention'),
-        sections.needsAttention,
-    );
-    append('RUNNING', 'running', t('sessions.list.running'), sections.running);
-    append('RECENT', 'recent', t('sessions.list.recent'), sections.recent);
+    }
     return result;
 };
 

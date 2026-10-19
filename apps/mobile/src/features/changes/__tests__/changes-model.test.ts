@@ -4,6 +4,8 @@ import {
     changedFilesSummary,
     changePathParts,
     changesSummaryLabel,
+    diffLineNumber,
+    diffLineNumberDigits,
     hasMultipleRepositories,
     parseUnifiedDiff,
     visibleDiffLines,
@@ -87,5 +89,24 @@ describe('visibleDiffLines', () => {
     it('keeps the preamble when it is the whole message', () => {
         const { lines } = parseUnifiedDiff('--- a/a\n+++ b/a\nBinary files a/a and b/a differ\n');
         expect(visibleDiffLines(lines)).toEqual(lines);
+    });
+});
+
+describe('diff line numbers', () => {
+    it('shows the new line, or the old one for a removed line', () => {
+        expect(diffLineNumber({ oldLine: 4, newLine: 5 })).toBe(5);
+        expect(diffLineNumber({ oldLine: 4, newLine: null })).toBe(4);
+        expect(diffLineNumber({ oldLine: null, newLine: null })).toBeNull();
+    });
+
+    it('sizes the gutter to the largest number, never below two digits', () => {
+        expect(diffLineNumberDigits([])).toBe(2);
+        expect(diffLineNumberDigits([{ oldLine: 7, newLine: null }])).toBe(2);
+        expect(
+            diffLineNumberDigits([
+                { oldLine: 998, newLine: 1_002 },
+                { oldLine: null, newLine: null },
+            ]),
+        ).toBe(4);
     });
 });

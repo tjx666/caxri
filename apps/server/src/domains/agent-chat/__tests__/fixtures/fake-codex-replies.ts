@@ -2,7 +2,8 @@
  * Deterministic Codex replies for Chat rendering coverage: `table` streams the transcript's Markdown, `codeblocks`
  * streams fenced code in several languages, `testrun` finishes a multi-step turn whose command fails with a non-zero
  * exit code, `longstream` thinks quietly and then streams a long reply at a reader's pace, and `weblink` answers with a
- * Markdown link to the web page the message names, and `bigdiff` changes one file by 6,000 lines.
+ * Markdown link to the web page the message names, `bigdiff` changes one file by 6,000 lines, and `widediff` changes
+ * one file with lines wider than a phone.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -194,4 +195,32 @@ export async function runBigDiff(io: FakeCodexIo, turn: FakeTurn) {
         ],
     });
     await io.streamMessage(turn, 'Generated a large file.', 0);
+}
+
+/**
+ * `widediff`: a short edit whose lines are wider than a phone screen, a sentence of prose and an indented call, so a
+ * narrow diff view shows whether it wraps them or makes the reader pan.
+ */
+export async function runWideDiff(io: FakeCodexIo, turn: FakeTurn) {
+    io.completeItem(turn, {
+        type: 'fileChange',
+        id: crypto.randomUUID(),
+        status: 'completed',
+        changes: [
+            {
+                path: path.join(process.cwd(), 'src', 'welcome.ts'),
+                kind: { type: 'update', move_path: null },
+                diff: [
+                    '@@ -8,4 +8,5 @@',
+                    ' export function welcome(user: User) {',
+                    '-    return formatGreeting(user.name);',
+                    '+    // Greet returning users by name and first-time visitors with the onboarding line instead.',
+                    "+    return user.isReturning ? formatGreeting(user.name, { punctuation: '!' }) : ONBOARDING_LINE;",
+                    ' }',
+                    '',
+                ].join('\n'),
+            },
+        ],
+    });
+    await io.streamMessage(turn, 'Updated the welcome line.', 0);
 }

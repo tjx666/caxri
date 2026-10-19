@@ -16,6 +16,7 @@ describe('buildMobileDashboard', () => {
             projectId: 'project-1',
             displayTitle: longTitle,
             lastOpenedAt: index,
+            lastSessionActivityAt: index,
             lastActivityState: index === 0 ? ('waiting' as const) : ('completed' as const),
             primaryAgentTerminalId: `terminal-${index}`,
             attentionEpoch: index === 0 ? 1 : 0,
@@ -55,6 +56,50 @@ describe('buildMobileDashboard', () => {
         );
     });
 
+    it('orders pinned Sessions first, then the shared status groups, then recency', () => {
+        const base = {
+            projectId: 'project-1',
+            displayTitle: 'Session',
+            lastOpenedAt: 1,
+            attentionEpoch: 0,
+            hasUnread: false,
+        };
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Workstation',
+            deviceRole: 'control',
+            now: 1_000,
+            projects: [{ id: 'project-1', displayTitle: 'Project' }],
+            sessions: [
+                { ...base, id: 'idle-new', lastSessionActivityAt: 900, lastActivityState: 'idle' },
+                { ...base, id: 'waiting', lastSessionActivityAt: 10, lastActivityState: 'waiting' },
+                { ...base, id: 'working', lastSessionActivityAt: 20, lastActivityState: 'running' },
+                {
+                    ...base,
+                    id: 'pinned',
+                    lastSessionActivityAt: 1,
+                    lastActivityState: 'idle',
+                    pinnedAt: 5,
+                },
+                {
+                    ...base,
+                    id: 'unread',
+                    lastSessionActivityAt: 5,
+                    lastActivityState: 'completed',
+                    hasUnread: true,
+                },
+            ],
+            terminals: [],
+        });
+        expect(result.sessions.map((session) => session.id)).toEqual([
+            'pinned',
+            'unread',
+            'working',
+            'waiting',
+            'idle-new',
+        ]);
+        expect(result.sessions[0]).toMatchObject({ pinnedAt: 5, lastSessionActivityAt: 1 });
+    });
+
     it('includes empty granted Projects in order and excludes Sessions without a visible Project', () => {
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
@@ -69,6 +114,7 @@ describe('buildMobileDashboard', () => {
                     projectId: 'project-1',
                     displayTitle: 'Visible',
                     lastOpenedAt: 1,
+                    lastSessionActivityAt: 1,
                     lastActivityState: 'completed',
                     attentionEpoch: 0,
                     hasUnread: false,
@@ -78,6 +124,7 @@ describe('buildMobileDashboard', () => {
                     projectId: 'project-other',
                     displayTitle: 'Hidden',
                     lastOpenedAt: 2,
+                    lastSessionActivityAt: 2,
                     lastActivityState: 'waiting',
                     attentionEpoch: 1,
                     hasUnread: true,
@@ -104,6 +151,7 @@ describe('buildMobileDashboard', () => {
                     projectId: 'project-1',
                     displayTitle: 'Shell Session',
                     lastOpenedAt: 1,
+                    lastSessionActivityAt: 1,
                     lastActivityState: 'idle',
                     attentionEpoch: 0,
                     hasUnread: false,
@@ -134,6 +182,7 @@ describe('buildMobileArchivedSessions', () => {
             projectId,
             displayTitle: id,
             lastOpenedAt: 1,
+            lastSessionActivityAt: 1,
             lastActivityState: 'completed' as const,
             primaryAgentTerminalId: `terminal-${id}`,
             attentionEpoch: 0,
@@ -189,6 +238,7 @@ describe('buildMobileArchivedSessions', () => {
                 projectId: 'project-1',
                 displayTitle: '🙂'.repeat(1_024),
                 lastOpenedAt: 1,
+                lastSessionActivityAt: 1,
                 lastActivityState: 'completed' as const,
                 attentionEpoch: 0,
                 hasUnread: false,

@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatDiffLine, AgentChatFileChange } from '@caxri/protocol';
 import {
@@ -15,7 +15,7 @@ import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffRow } from '../changes/changes-diff-row';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
-import { changePathParts } from '../changes/changes-model';
+import { changePathParts, diffLineNumberDigits } from '../changes/changes-model';
 import { agentChatChangeColor, agentChatChangeRows } from './agent-chat-timeline';
 
 /**
@@ -26,8 +26,8 @@ const EXPANDED_FILE_LIMIT = 3;
 
 /**
  * One changed file: its Git status letter in the file's Git color, the path with its directory muted as Desktop draws
- * it (clipped at its start so the file name stays), the `+N -M` stat, and a disclosure for its colored diff, which
- * scrolls sideways rather than wrapping code.
+ * it (clipped at its start so the file name stays), the `+N -M` stat, and a disclosure for its colored diff, whose long
+ * lines wrap so a narrow screen reads the change without panning.
  */
 export const AgentChatFileDiff = ({
     initiallyExpanded,
@@ -48,6 +48,7 @@ export const AgentChatFileDiff = ({
     const [isExpanded, setExpanded] = useState(initiallyExpanded);
     const stat = useMemo(() => agentChatDiffLinesStat(lines), [lines]);
     const rows = useMemo(() => (isExpanded ? agentChatChangeRows(lines) : []), [isExpanded, lines]);
+    const digits = useMemo(() => diffLineNumberDigits(rows), [rows]);
     const Chevron = isExpanded ? ChevronDown : ChevronRight;
     const { directory, filename } = changePathParts(path);
     return (
@@ -97,18 +98,16 @@ export const AgentChatFileDiff = ({
             </Pressable>
             {isExpanded ? (
                 rows.length > 0 ? (
-                    <ScrollView
-                        contentContainerStyle={styles.diff}
-                        horizontal
-                        nestedScrollEnabled
-                        style={{ borderColor: theme.border, borderTopWidth: 1 }}
-                    >
-                        <View>
-                            {rows.map((line) => (
-                                <ChangesDiffRow key={line.id} line={line} theme={theme} />
-                            ))}
-                        </View>
-                    </ScrollView>
+                    <View style={[styles.diff, { borderColor: theme.border }]}>
+                        {rows.map((line) => (
+                            <ChangesDiffRow
+                                key={line.id}
+                                line={line}
+                                lineNumberDigits={digits}
+                                theme={theme}
+                            />
+                        ))}
+                    </View>
                 ) : (
                     <Text style={[styles.empty, { color: theme.muted }]}>
                         {t('chat.changes.noDiff')}
@@ -158,7 +157,7 @@ const styles = StyleSheet.create({
     letter: { fontFamily: 'monospace', fontSize: 12, fontWeight: '700' },
     path: { flex: 1, fontFamily: 'monospace', fontSize: 12, minWidth: 0 },
     meta: { fontSize: 12, fontVariant: ['tabular-nums'] },
-    diff: { paddingVertical: 4 },
+    diff: { borderTopWidth: 1, paddingVertical: 4 },
     empty: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 8 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

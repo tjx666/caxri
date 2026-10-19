@@ -1,4 +1,12 @@
-import type { MethodResult } from '@caxri/protocol';
+import type { MethodResult, SessionActivityGroupId } from '@caxri/protocol';
+import {
+    compareSessionActivityGroupRows,
+    compareSessionPinnedOrder,
+    isPinnedSession,
+    PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS,
+    SESSION_ACTIVITY_GROUP_ORDER,
+    sessionActivityGroup,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
@@ -6,22 +14,47 @@ import { translate } from '../../i18n';
 export type MobileSession = MethodResult<'mobile.dashboard'>['sessions'][number];
 export type MobileTerminal = NonNullable<MobileSession['primaryTerminal']>;
 
-type MobileSessionGroup = 'needs-attention' | 'recent' | 'running';
+/**
+ * The home list's sections in order: Pinned, then the status groups Desktop's Activity view uses (see
+ * `session-activity-group.ts` in `@caxri/protocol`), so a Session sits under the same heading on both.
+ */
+export const MOBILE_SESSION_LIST_GROUPS = ['pinned', ...SESSION_ACTIVITY_GROUP_ORDER] as const;
+
+export type MobileSessionListGroup = (typeof MOBILE_SESSION_LIST_GROUPS)[number];
 
 export interface MobileSessionItem extends MobileSession {
-    group: MobileSessionGroup;
+    /**
+     * The Session's status group. A pinned Session also has one; it decides whether the Session is listed a second time
+     * below Pinned.
+     */
+    group: SessionActivityGroupId;
     primaryTerminal?: MobileTerminal;
     projectTitle: string;
     stateLabel: string;
 }
 
 export interface MobileSessionSections {
-    needsAttention: MobileSessionItem[];
-    recent: MobileSessionItem[];
-    running: MobileSessionItem[];
+    groups: Record<MobileSessionListGroup, MobileSessionItem[]>;
+    /**
+     * Every Session once, in list order: a pinned Session listed again in its status group is not repeated here.
+     */
+    sessions: MobileSessionItem[];
     total: number;
     truncated: boolean;
 }
+
+export const emptyMobileSessionGroups = (): Record<
+    MobileSessionListGroup,
+    MobileSessionItem[]
+> => ({
+    pinned: [],
+    attention: [],
+    working: [],
+    waiting: [],
+    failed: [],
+    finished: [],
+    idle: [],
+});
 
 const labelForState = (state: MobileSession['lastActivityState'], t: Translate): string => {
     switch (state) {
@@ -40,16 +73,20 @@ const labelForState = (state: MobileSession['lastActivityState'], t: Translate):
     }
 };
 
-const groupForSession = (session: MobileSession): MobileSessionGroup => {
-    if (
-        session.hasUnread ||
-        session.lastActivityState === 'waiting' ||
-        session.lastActivityState === 'failed'
-    )
-        return 'needs-attention';
-    if (session.lastActivityState === 'running') return 'running';
-    return 'recent';
-};
+/**
+ * The phone mirrors Desktop's status projection from the fields it receives: a running turn reads `running`, and a
+ * Terminal handed over to another client reads `detached`. The home list is the phone's only Session list, so a
+ * finished Session past the retention window moves to Idle instead of leaving it as it leaves Desktop's Activity view.
+ */
+const groupForSession = (session: MobileSession, now: number): SessionActivityGroupId =>
+    sessionActivityGroup(
+        {
+            ...session,
+            isDetached: session.primaryTerminal?.lastProcessState === 'detached',
+            isRunning: session.lastActivityState === 'running',
+        },
+        now,
+    ) ?? 'idle';
 
 export const buildMobileSessionSections = (
     input: {
@@ -58,36 +95,31 @@ export const buildMobileSessionSections = (
         truncated: boolean;
     },
     t: Translate = translate,
+    now = Date.now(),
 ): MobileSessionSections => {
-    const result: MobileSessionSections = {
-        needsAttention: [],
-        running: [],
-        recent: [],
-        total: input.total,
-        truncated: input.truncated,
-    };
-    const active = [...input.sessions];
-    active.sort(
-        (left, right) => right.lastOpenedAt - left.lastOpenedAt || left.id.localeCompare(right.id),
-    );
-    for (const session of active) {
-        const group = groupForSession(session);
+    const groups = emptyMobileSessionGroups();
+    for (const session of input.sessions) {
+        const group = groupForSession(session, now);
         const item: MobileSessionItem = {
             ...session,
             group,
             stateLabel: labelForState(session.lastActivityState, t),
         };
-        if (group === 'needs-attention') result.needsAttention.push(item);
-        else if (group === 'running') result.running.push(item);
-        else result.recent.push(item);
+        if (isPinnedSession(session)) {
+            groups.pinned.push(item);
+            if (PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS.has(group)) groups[group].push(item);
+        } else groups[group].push(item);
     }
-    result.needsAttention.sort(
-        (left, right) =>
-            Number(right.hasUnread) - Number(left.hasUnread) ||
-            right.lastOpenedAt - left.lastOpenedAt ||
-            left.id.localeCompare(right.id),
-    );
-    return result;
+    groups.pinned.sort(compareSessionPinnedOrder);
+    for (const group of SESSION_ACTIVITY_GROUP_ORDER)
+        groups[group].sort(compareSessionActivityGroupRows);
+    const seen = new Set<string>();
+    const sessions = MOBILE_SESSION_LIST_GROUPS.flatMap((group) => groups[group]).filter((item) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+    });
+    return { groups, sessions, total: input.total, truncated: input.truncated };
 };
 
 export const isMobileTerminalStopped = (session: MobileSessionItem): boolean => {

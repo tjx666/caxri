@@ -2,20 +2,24 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { LucideIcon } from 'lucide-react-native';
-import { Hand, History, Zap } from 'lucide-react-native';
+import { CheckCheck, Hand, Hourglass, Moon, Pin, TriangleAlert, Zap } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
-import type { SessionListGroup } from '../hooks/use-session-polling';
+import type { MobileSessionListGroup } from '../session-model';
 
 /**
- * A glyph before each section heading so the eye finds a group by shape, as Desktop's Activity headings do (`Hand` for
- * attention, `Zap` for working). The shapes differ from the row status glyphs on purpose: repeating a row's spinner
- * above its own rows would say the same thing twice, and a still heading never competes with a row that is working.
+ * A glyph before each section heading so the eye finds a group by shape, as Desktop's Activity headings do, with the
+ * same shape per group. The shapes differ from the row status glyphs on purpose: repeating a row's spinner above its
+ * own rows would say the same thing twice, and a still heading never competes with a row that is working.
  */
-const GROUP_ICONS: Record<SessionListGroup, LucideIcon> = {
+const GROUP_ICONS: Record<MobileSessionListGroup, LucideIcon> = {
+    pinned: Pin,
     attention: Hand,
-    running: Zap,
-    recent: History,
+    working: Zap,
+    waiting: Hourglass,
+    failed: TriangleAlert,
+    finished: CheckCheck,
+    idle: Moon,
 };
 
 export const SessionGroupHeader = ({
@@ -23,7 +27,7 @@ export const SessionGroupHeader = ({
     label,
     theme,
 }: {
-    group: SessionListGroup;
+    group: MobileSessionListGroup;
     label: string;
     theme: MobileTheme;
 }) => {

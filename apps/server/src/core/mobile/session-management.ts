@@ -6,7 +6,13 @@ import { buildMobileArchivedSessions } from './dashboard';
 
 export type MobileSessionManagementRequest = Extract<
     ServerRequest,
-    { method: 'mobile.session.archive' | 'mobile.session.rename' | 'mobile.session.restore' }
+    {
+        method:
+            | 'mobile.session.archive'
+            | 'mobile.session.rename'
+            | 'mobile.session.restore'
+            | 'mobile.session.setPinned';
+    }
 >;
 
 export const sessionForPrincipal = async (
@@ -54,8 +60,9 @@ export const readMobileArchivedSessions = async (
 };
 
 /**
- * Session management reuses Desktop's own handlers so rename, archive, and restore keep one implementation; the gateway
- * only adds the grant check in front of them. Restore lands at the top of the Project, matching Desktop's dialog.
+ * Session management reuses Desktop's own handlers so rename, archive, restore, and pinning keep one implementation;
+ * the gateway only adds the grant check in front of them. Restore lands at the top of the Project, matching Desktop's
+ * dialog.
  */
 export const applyMobileSessionManagement = async (
     domainService: ServerDomainService,
@@ -80,6 +87,13 @@ export const applyMobileSessionManagement = async (
             await domainService.requestWithSignal(
                 'session.unarchive',
                 { sessionId, placement: 'top' },
+                signal,
+            );
+            break;
+        case 'mobile.session.setPinned':
+            await domainService.requestWithSignal(
+                'session.setPinned',
+                { sessionId, pinned: request.params.pinned },
                 signal,
             );
             break;

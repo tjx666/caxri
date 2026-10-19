@@ -5,10 +5,10 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useHostSessions } from '../components/host-sessions-provider';
 import { sessionManagementErrorMessage } from '../session-management-model';
 
-type Action = 'archive' | 'rename' | 'restore';
+type Action = 'archive' | 'pin' | 'rename' | 'restore';
 
 /**
- * Rename, archive, and restore for a control device. Each call refreshes the dashboard afterwards so the home list
+ * Rename, pin, archive, and restore for a control device. Each call refreshes the dashboard afterwards so the home list
  * reflects the change without waiting for the next poll.
  */
 export const useSessionManagement = () => {
@@ -69,6 +69,16 @@ export const useSessionManagement = () => {
             ),
         [request, run, t],
     );
+    const setPinned = useCallback(
+        (sessionId: string, isPinned: boolean) =>
+            run(
+                'pin',
+                sessionId,
+                () => request('mobile.session.setPinned', { sessionId, pinned: isPinned }),
+                t('sessions.manage.pinFailed'),
+            ),
+        [request, run, t],
+    );
     const clearError = useCallback(() => setError(null), []);
-    return { archive, clearError, error, pending, rename, restore };
+    return { archive, clearError, error, pending, rename, restore, setPinned };
 };

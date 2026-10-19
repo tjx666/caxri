@@ -78,10 +78,12 @@ attachment or size.
 
 ## Mobile Session management
 
-`mobile.session.rename`, `mobile.session.archive`, and `mobile.session.restore` resolve the Session
-through the principal-scoped query first, so a Session outside the device's Project grant reports
-`NOT_FOUND`. They then call Desktop's own `session.rename`, `session.archive`, and
-`session.unarchive` handlers; restore places the Session at the top of its Project, as Desktop does.
+`mobile.session.rename`, `mobile.session.setPinned`, `mobile.session.archive`, and
+`mobile.session.restore` resolve the Session through the principal-scoped query first, so a Session
+outside the device's Project grant reports `NOT_FOUND`. They then call Desktop's own
+`session.rename`, `session.setPinned`, `session.archive`, and `session.unarchive` handlers; restore
+places the Session at the top of its Project, as Desktop does, and a pin made on the phone is the
+same pin Desktop's Pinned group shows. All four require the control role.
 Each returns only `sessionId`, and the dashboard carries the new state. `mobile.session.archived` is
 a read that lists archived Sessions of granted Projects, newest first, bounded to 64 items within
 one frame.

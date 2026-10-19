@@ -21,6 +21,7 @@ const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
     displayTitle: 'Mobile phase one',
     projectTitle: 'Caxri',
     lastOpenedAt: 100,
+    lastSessionActivityAt: 100,
     lastActivityState: 'waiting',
     primaryAgentTerminalId: 'terminal-1',
     attentionEpoch: 3,
@@ -45,7 +46,7 @@ describe('mobile Session hooks', () => {
                 id: 'session-2',
                 hasUnread: false,
                 lastActivityState: 'running',
-                lastOpenedAt: 200,
+                lastSessionActivityAt: 200,
             }),
         ],
     });
@@ -55,28 +56,25 @@ describe('mobile Session hooks', () => {
         expect(nextSelectedSessionId('missing', sections)).toBeNull();
         expect(nextSelectedSessionId(null, sections)).toBeNull();
         expect(
-            nextSelectedSessionId(null, {
-                needsAttention: [],
-                recent: [],
-                running: [],
-                total: 0,
-                truncated: false,
-            }),
+            nextSelectedSessionId(
+                null,
+                buildMobileSessionSections({ sessions: [], total: 0, truncated: false }),
+            ),
         ).toBeNull();
     });
 
     it('flattens priority groups without empty headers', () => {
         expect(flattenMobileSessionSections(sections).map(({ id }) => id)).toEqual([
-            'header:NEEDS ATTENTION',
-            'session-1',
-            'header:RUNNING',
-            'session-2',
+            'header:attention',
+            'attention:session-1',
+            'header:working',
+            'working:session-2',
         ]);
         expect(
             flattenMobileSessionSections(sections).flatMap((entry) =>
                 entry.type === 'header' ? [entry.group] : [],
             ),
-        ).toEqual(['attention', 'running']);
+        ).toEqual(['attention', 'working']);
     });
 
     it('holds the rendered order during touch and shows the latest snapshot on release', () => {
@@ -100,7 +98,7 @@ describe('mobile Session hooks', () => {
     });
 
     it('keys read acknowledgement by Session and attention generation', () => {
-        const item = sections.needsAttention[0];
+        const item = sections.groups.attention[0];
         expect(sessionReadKey(item)).toBe('session-1:3');
         expect(sessionReadKey({ ...item, attentionEpoch: 4 })).toBe('session-1:4');
     });

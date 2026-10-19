@@ -155,6 +155,6 @@ const styles = StyleSheet.create({
     title: { fontSize: 14, lineHeight: 20 },
     stat: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 17 },
     chevronOpen: { transform: [{ rotate: '180deg' }] },
-    files: { gap: 8, paddingBottom: 10, paddingHorizontal: 10 },
+    files: { gap: 8, paddingBottom: 6, paddingHorizontal: 6 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

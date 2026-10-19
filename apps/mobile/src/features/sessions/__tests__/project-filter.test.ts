@@ -7,9 +7,9 @@ describe('filterSessionEntries', () => {
     const entries = [
         { id: 'header:attention', label: 'NEEDS ATTENTION', type: 'header' },
         { id: 'one', session: { projectId: 'alpha' }, type: 'session' },
-        { id: 'header:running', label: 'RUNNING', type: 'header' },
+        { id: 'header:working', label: 'WORKING', type: 'header' },
         { id: 'two', session: { projectId: 'beta' }, type: 'session' },
-        { id: 'header:recent', label: 'RECENT', type: 'header' },
+        { id: 'header:idle', label: 'IDLE', type: 'header' },
         { id: 'three', session: { projectId: 'alpha' }, type: 'session' },
     ] as SessionListEntry[];
 
@@ -19,13 +19,13 @@ describe('filterSessionEntries', () => {
 
     it('removes empty group headers without changing the surviving group order', () => {
         expect(filterSessionEntries(entries, 'beta').map(({ id }) => id)).toEqual([
-            'header:running',
+            'header:working',
             'two',
         ]);
         expect(filterSessionEntries(entries, 'alpha').map(({ id }) => id)).toEqual([
             'header:attention',
             'one',
-            'header:recent',
+            'header:idle',
             'three',
         ]);
     });

@@ -8,6 +8,7 @@
  * - `manyfiles`: creates five notes on disk, so a turn card folds the files past its first rows.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
+ * - `widediff`: a completed file change whose lines are wider than a phone, so a narrow diff view has to wrap them.
  * - `browsestep`: a Computer Use browser step that binds a tab, then one that drives it and stays running briefly before
  *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
@@ -88,6 +89,7 @@ import {
     runMarkdownTable,
     runTestCommands,
     runWebLink,
+    runWideDiff,
 } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import {
@@ -269,6 +271,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runTurnManyFiles(io, turn);
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
+    } else if (text.includes('widediff')) {
+        await runWideDiff(io, turn);
     } else if (text.includes('bigdiff')) {
         await runBigDiff(io, turn);
     } else if (text.includes('browsestep')) {
