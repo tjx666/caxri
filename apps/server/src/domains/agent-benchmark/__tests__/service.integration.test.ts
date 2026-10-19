@@ -154,7 +154,19 @@ describe('BenchmarkService', () => {
         expect(new BenchmarkRunsModel(harness.database.database).get(runId)?.status).toBe(
             'completed',
         );
-        expect(harness.events).toContainEqual({ event: 'benchmark.changed', payload: { runId } });
+        // The final publish is a transition, so the history list re-reads it; every event states its kind.
+        expect(harness.events.at(-1)).toEqual({
+            event: 'benchmark.changed',
+            payload: { runId, kind: 'transition' },
+        });
+        expect(
+            harness.events.every(
+                (event) =>
+                    event.event !== 'benchmark.changed' ||
+                    event.payload.kind === 'progress' ||
+                    event.payload.kind === 'transition',
+            ),
+        ).toBe(true);
         expect(harness.service.list().runs).toMatchObject([
             { id: runId, title: 'Say hello', attempts: 3, completedAttempts: 3 },
         ]);
@@ -309,6 +321,47 @@ describe('BenchmarkService', () => {
         expect(attempt).toMatchObject({ status: 'completed', check: { status: 'passed' } });
         const { diff } = await harness.service.attemptDiff(runId, attempt.id);
         expect(diff).toContain('-original\n+changed');
+        expect(await readFile(join(root, 'notes.txt'), 'utf8')).toBe('original\n');
+        expect(git('status', '--porcelain')).toBe('');
+    });
+
+    it('runs a Project that is a subfolder of its repository inside that subfolder', async () => {
+        const harness = await fixture();
+        const repo = join(harness.directory, 'monorepo');
+        const root = join(repo, 'packages', 'web');
+        await mkdir(root, { recursive: true });
+        await writeFile(join(root, 'notes.txt'), 'original\n');
+        await writeFile(join(repo, 'outside.txt'), 'outside\n');
+        const git = (...arguments_: string[]) =>
+            execFileSync(
+                'git',
+                ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...arguments_],
+                { cwd: repo, encoding: 'utf8' },
+            ).trim();
+        git('init', '--quiet');
+        git('add', '--all');
+        git('commit', '--quiet', '-m', 'Start');
+        const project = harness.database.createProject(root);
+        const { runId } = await harness.service.start({
+            prompt: 'Say hello',
+            entries: [CODEX],
+            settings: harness.settings({
+                workspace: { kind: 'project', projectId: project.id },
+                // The check runs in the subfolder; the second write lands outside it and must stay out of the diff.
+                checkCommand: 'echo changed > notes.txt && echo changed > ../../outside.txt',
+            }),
+        });
+        const run = await harness.finished(runId);
+        const [attempt] = run.attempts;
+
+        expect(run.projectSubpath).toBe('packages/web');
+        expect(attempt).toMatchObject({
+            status: 'completed',
+            check: { status: 'passed' },
+        });
+        const { diff } = await harness.service.attemptDiff(runId, attempt.id);
+        expect(diff).toContain('-original\n+changed');
+        expect(diff).not.toContain('outside.txt');
         expect(await readFile(join(root, 'notes.txt'), 'utf8')).toBe('original\n');
         expect(git('status', '--porcelain')).toBe('');
     });

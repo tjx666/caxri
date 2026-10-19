@@ -189,7 +189,7 @@ export class BenchmarkService {
                 durationMs: run.finishedAt - run.createdAt,
             },
         });
-        this.publish(run.id);
+        this.publish(run.id, 'transition');
     }
 
     private observer(live: LiveRun) {
@@ -199,20 +199,24 @@ export class BenchmarkService {
                     if (!this.isShuttingDown) this.runs.save(live.run);
                     clearTimeout(live.publishTimer);
                     live.publishTimer = undefined;
-                    this.publish(live.run.id);
+                    this.publish(live.run.id, 'transition');
                     return;
                 }
                 live.publishTimer ??= setTimeout(() => {
                     live.publishTimer = undefined;
-                    this.publish(live.run.id);
+                    this.publish(live.run.id, 'progress');
                 }, PROGRESS_PUBLISH_MS);
             },
         };
     }
 
-    private publish(runId: string): void {
+    /**
+     * A `progress` event (live step counts) only refreshes the run's own view; the history list re-reads on a
+     * `transition` only, so a long run does not re-parse every stored document once a second.
+     */
+    private publish(runId: string, kind: 'progress' | 'transition'): void {
         if (this.isShuttingDown) return;
-        this.options.send({ event: 'benchmark.changed', payload: { runId } });
+        this.options.send({ event: 'benchmark.changed', payload: { runId, kind } });
     }
 
     catalog(shouldRefresh = false): Promise<BenchmarkCatalog> {
@@ -243,7 +247,12 @@ export class BenchmarkService {
         if (!isAttemptFinished(attempt))
             throw new CaxriError('CONFLICT', 'This run is still in progress');
         try {
-            return await this.workspaces.diff(runId, attemptId, attemptBase(run));
+            return await this.workspaces.diff(
+                runId,
+                attemptId,
+                attemptBase(run),
+                run.projectSubpath,
+            );
         } catch {
             throw new CaxriError('UNAVAILABLE', 'The folder this run used is no longer available');
         }
@@ -265,13 +274,17 @@ export class BenchmarkService {
         let projectRoot: string | undefined;
         let projectTitle: string | undefined;
         let baseCommit: string | undefined;
+        let projectSubpath: string | undefined;
         if (workspace.kind === 'project') {
             const project = this.options.database.getProject(workspace.projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            projectRoot = project.rootPath;
             projectTitle = project.displayTitle.slice(0, 200);
             try {
-                baseCommit = await this.workspaces.projectHead(project.rootPath);
+                const located = await this.workspaces.locateProject(project.rootPath);
+                baseCommit = located.head;
+                // Attempts clone the whole repository; a Project that is a subfolder of it is entered afterwards.
+                projectRoot = located.repoRoot;
+                projectSubpath = located.subpath;
             } catch {
                 throw new CaxriError(
                     'VALIDATION',
@@ -298,6 +311,7 @@ export class BenchmarkService {
             status: 'running',
             createdAt: Date.now(),
             ...(baseCommit && { baseCommit }),
+            ...(projectSubpath && { projectSubpath }),
             ...(projectTitle && { projectTitle }),
             ...(parameters.settings.judge && { judge: { status: 'pending' as const } }),
             attempts,
@@ -321,7 +335,7 @@ export class BenchmarkService {
                 hasJudge: Boolean(run.settings.judge),
             },
         });
-        this.publish(runId);
+        this.publish(runId, 'transition');
         return { runId };
     }
 
@@ -365,7 +379,7 @@ export class BenchmarkService {
         }
         this.runs.delete(runId);
         await this.workspaces.removeRun(runId);
-        this.publish(runId);
+        this.publish(runId, 'transition');
         return null;
     }
 

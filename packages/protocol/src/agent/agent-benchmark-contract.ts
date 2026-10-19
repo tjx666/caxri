@@ -246,6 +246,12 @@ export const benchmarkRunSchema = z.strictObject({
      * The Project commit every Attempt started from, in Project mode.
      */
     baseCommit: z.string().max(64).optional(),
+    /**
+     * In Project mode, the Project's folder relative to its Git repository's root when the Project is a subfolder of
+     * one (a monorepo package). Agents work in that folder and diffs cover only it; absent when the Project is the
+     * repository root.
+     */
+    projectSubpath: z.string().min(1).max(1_024).optional(),
     projectTitle: z.string().max(200).optional(),
     /**
      * Where API list prices came from and how fresh they were when the run finished.

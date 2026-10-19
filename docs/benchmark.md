@@ -16,7 +16,9 @@ answers "which model should I use for this kind of task" with the user's own pro
 2. Pick Entries in the model picker. Each Agent lists the models its installed CLI and signed-in account offer, and each
    model offers its efforts as chips; every pressed chip is one Entry. Refresh re-reads the providers.
 3. Choose where the Attempts run: an **empty folder** (a fresh Git repository, for greenfield prompts) or any added
-   **Project** (a clone of its current commit, so uncommitted changes are not included).
+   **Project** (a clone of its current commit, so uncommitted changes are not included). A Project that is a subfolder of
+   a Git repository (a monorepo package) works too: Attempts clone the whole repository, work in that subfolder, and
+   their diffs cover only it.
 4. Optionally adjust the judge, a check command, repeats, concurrency, and the per-Attempt timeout, then start.
 
 The board updates live: every Entry's row shows its status, elapsed time, and step count while it runs. When the run
@@ -76,7 +78,8 @@ The Server owns every run (`apps/server/src/domains/agent-benchmark/`); closing 
   ranked best.
 
 The run's prompt, settings, and results persist as one JSON document per run in the `benchmark_runs` table and publish
-`benchmark.changed` on each transition. Deleting a run removes that row and its Attempt folders. A Server that stops
+`benchmark.changed` on each transition (`kind: 'transition'`, which also refreshes the history list) and, at most once a
+second, on live step progress (`kind: 'progress'`, which refreshes only that run's own view). Deleting a run removes that row and its Attempt folders. A Server that stops
 mid-run cancels its providers first; the next Server closes any unfinished Attempt as `serverRestarted`, because a
 provider process does not survive a restart.
 
@@ -84,5 +87,6 @@ provider process does not survive a restart.
 
 The contract bounds a run (`packages/protocol/src/agent/agent-benchmark-contract.ts`): up to 24 Entries, 5 repeats, a
 concurrency of 8, and a 120-minute Attempt timeout. Stored answers and diffs are capped, and what the judge reads is
-clipped further. Logs record run and Attempt outcomes with closed reasons and durations, never the prompt, answers, or
+clipped further: each candidate's answer and diff, and the whole judge prompt to 400,000 characters shared equally by
+the candidates, so a large run is still scored. Logs record run and Attempt outcomes with closed reasons and durations, never the prompt, answers, or
 diffs.

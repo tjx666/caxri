@@ -13,8 +13,9 @@ import { refreshBenchmarkCatalog } from './benchmark-commands';
 const RUNNING_REFETCH_MS = 5_000;
 
 /**
- * Keeps the Benchmark reads current: every `benchmark.changed` refreshes the history and the run it names. The event is
- * transient and content-free, so a reader always re-reads instead of patching.
+ * Keeps the Benchmark reads current: every `benchmark.changed` refreshes the run it names, and a transition (not live
+ * progress) also refreshes the history, which shows nothing progress changes. The event is transient and content-free,
+ * so a reader always re-reads instead of patching.
  */
 export function useBenchmarkEvents(): void {
     const queryClient = useQueryClient();
@@ -22,10 +23,11 @@ export function useBenchmarkEvents(): void {
         () =>
             caxri.onEvent((event) => {
                 if (event.event !== 'benchmark.changed') return;
-                // eslint-disable-next-line no-void -- React Query owns invalidation errors
-                void queryClient.invalidateQueries({
-                    queryKey: caxriQueryKey('benchmark.list', {}),
-                });
+                if (event.payload.kind !== 'progress')
+                    // eslint-disable-next-line no-void -- React Query owns invalidation errors
+                    void queryClient.invalidateQueries({
+                        queryKey: caxriQueryKey('benchmark.list', {}),
+                    });
                 // eslint-disable-next-line no-void -- React Query owns invalidation errors
                 void queryClient.invalidateQueries({
                     queryKey: caxriQueryKey('benchmark.get', { runId: event.payload.runId }),
