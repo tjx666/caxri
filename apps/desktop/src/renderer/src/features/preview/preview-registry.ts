@@ -34,6 +34,13 @@ export interface PreviewerRegistration {
 const PREVIEWERS: readonly PreviewerRegistration[] = [
     { id: 'markdown', extensions: ['markdown', 'md', 'mdx'], defaultView: 'source' },
     { id: 'image', extensions: ['svg'], defaultView: 'source' },
+    // Raster images have no text form, so every open path lands on the preview. The list matches the image media types
+    // `files.readAsset` serves (`previewAssetMediaType`).
+    {
+        id: 'image',
+        extensions: ['apng', 'avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'webp'],
+        defaultView: 'preview',
+    },
     { id: 'table', extensions: ['csv', 'tsv'], defaultView: 'source' },
     { id: 'mermaid', extensions: ['mermaid', 'mmd'], defaultView: 'source' },
     { id: 'pdf', extensions: ['pdf'], defaultView: 'preview' },

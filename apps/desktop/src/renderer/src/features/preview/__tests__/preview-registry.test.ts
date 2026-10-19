@@ -47,6 +47,13 @@ describe('previewerForPath', () => {
         }
     });
 
+    it('opens raster images straight into the image preview because they have no text form', () => {
+        for (const path of ['/p/billing.png', '/p/photo.JPG', '/p/anim.gif', '/p/shot.webp']) {
+            expect(previewerForPath(path)?.id).toBe('image');
+            expect(shouldOpenAsPreview(path)).toBe(true);
+        }
+    });
+
     it('opens a PDF straight into its preview because it has no text form', () => {
         expect(shouldOpenAsPreview('/p/docs/Manual.PDF')).toBe(true);
         expect(shouldOpenAsPreview('/p/src/index.ts')).toBe(false);
