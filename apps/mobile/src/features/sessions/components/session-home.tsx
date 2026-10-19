@@ -22,6 +22,7 @@ import { createSessionListInteraction } from '../session-list-interaction';
 import type { MobileSessionItem } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionActionsSheet } from './session-actions-sheet';
+import { SessionGroupHeader } from './session-group-header';
 import { SessionHomeHeader } from './session-home-header';
 import { SessionHomeEmpty, SessionHomeStatus } from './session-home-status';
 import { SessionRow } from './session-row';
@@ -32,14 +33,6 @@ const styles = StyleSheet.create({
     pane: { minWidth: 0 },
     phonePane: { flex: 1 },
     tabletPane: { flexGrow: 0, flexShrink: 0, width: 320 },
-    groupHeader: {
-        fontSize: 12,
-        fontWeight: '700',
-        letterSpacing: 0.6,
-        paddingBottom: 6,
-        paddingHorizontal: 18,
-        paddingTop: 16,
-    },
     newButton: {
         alignItems: 'center',
         borderRadius: 18,
@@ -195,7 +188,7 @@ export const SessionHome = ({
     const renderEntry = useCallback(
         ({ item }: ListRenderItemInfo<SessionListEntry>) =>
             item.type === 'header' ? (
-                <Text style={[styles.groupHeader, { color: theme.muted }]}>{item.label}</Text>
+                <SessionGroupHeader group={item.group} label={item.label} theme={theme} />
             ) : (
                 <View>
                     <SessionSwipeRow

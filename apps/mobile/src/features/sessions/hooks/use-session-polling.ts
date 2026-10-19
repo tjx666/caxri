@@ -26,8 +26,13 @@ const emptySections: MobileSessionSections = {
     truncated: false,
 };
 
+/**
+ * The Session list's sections in order, which pick each heading's icon.
+ */
+export type SessionListGroup = 'attention' | 'recent' | 'running';
+
 export type SessionListEntry =
-    | { id: string; label: string; type: 'header' }
+    | { id: string; group: SessionListGroup; label: string; type: 'header' }
     | { id: string; session: MobileSessionItem; type: 'session' };
 
 export const allMobileSessions = (sections: MobileSessionSections): MobileSessionItem[] => [
@@ -42,18 +47,28 @@ export const flattenMobileSessionSections = (
 ): SessionListEntry[] => {
     const result: SessionListEntry[] = [];
     /**
-     * `group` keeps the header ID stable across languages; only the label is translated.
+     * `key` keeps the header ID stable across languages; only the label is translated.
      */
-    const append = (group: string, label: string, sessions: MobileSessionItem[]): void => {
+    const append = (
+        key: string,
+        group: SessionListGroup,
+        label: string,
+        sessions: MobileSessionItem[],
+    ): void => {
         if (sessions.length === 0) return;
         result.push(
-            { id: `header:${group}`, label, type: 'header' },
+            { id: `header:${key}`, group, label, type: 'header' },
             ...sessions.map((session) => ({ id: session.id, session, type: 'session' as const })),
         );
     };
-    append('NEEDS ATTENTION', t('sessions.list.needsAttention'), sections.needsAttention);
-    append('RUNNING', t('sessions.list.running'), sections.running);
-    append('RECENT', t('sessions.list.recent'), sections.recent);
+    append(
+        'NEEDS ATTENTION',
+        'attention',
+        t('sessions.list.needsAttention'),
+        sections.needsAttention,
+    );
+    append('RUNNING', 'running', t('sessions.list.running'), sections.running);
+    append('RECENT', 'recent', t('sessions.list.recent'), sections.recent);
     return result;
 };
 
