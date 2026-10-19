@@ -8,6 +8,10 @@ import {
 } from '../features/agent-chat/agent-chat-undo-commands';
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import {
+    commanderInboxUndoDismissUnavailableReason,
+    undoCommanderInboxDismissal,
+} from '../features/agent-commander/commander-inbox-commands';
+import {
     discardedChangesUnavailableReason,
     restoreDiscardedChanges,
 } from '../features/editor/discarded-buffers';
@@ -29,7 +33,8 @@ import { openExternalUrl } from '../lib/external-link';
 import { openSettings } from '../stores/dialogs';
 import { getBootstrap } from '../stores/selectors';
 import type { ToastActionHandlers } from '../stores/toast-actions';
-import { pushToast, tryCommand } from '../stores/toasts';
+import { copyFeedbackKey, copyWithToastFeedback } from '../stores/toast-copy-feedback';
+import { pushToast } from '../stores/toasts';
 import { undoFollowedWorkbenchRoot } from '../stores/workbench-root-notice';
 import { executeCommand } from './execute';
 
@@ -69,20 +74,21 @@ export const toastActionHandlers: ToastActionHandlers = {
                 : translate('toasts.actionUnavailable.missingSession'),
         run: ({ sessionId }) => openCommanderHandover([sessionId]),
     },
+    'agentCommander.undoDismiss': {
+        unavailable: ({ itemId }) => commanderInboxUndoDismissUnavailableReason(itemId),
+        run: ({ itemId }) => undoCommanderInboxDismissal(itemId),
+    },
     'clipboard.copyCommand': {
         run: ({ text }) => {
-            // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
-            void tryCommand(translate('toasts.copyCommandFailed'), () =>
-                navigator.clipboard.writeText(text),
-            );
+            // The button reports the outcome in place (Copied / Copy failed), so no failure toast stacks on the notice.
+            // eslint-disable-next-line no-void -- copyWithToastFeedback never rejects
+            void copyWithToastFeedback(copyFeedbackKey('clipboard.copyCommand', text), text);
         },
     },
     'diagnostics.copyFailure': {
         run: ({ text }) => {
-            // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
-            void tryCommand(translate('toasts.copyDetailsFailed'), () =>
-                navigator.clipboard.writeText(text),
-            );
+            // eslint-disable-next-line no-void -- copyWithToastFeedback never rejects
+            void copyWithToastFeedback(copyFeedbackKey('diagnostics.copyFailure', text), text);
         },
     },
     'editor.restoreDiscardedChanges': {

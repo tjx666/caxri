@@ -66,7 +66,7 @@ async function mergeArguments(path: string): Promise<string[]> {
 
 /**
  * The Agent Commander window's "Needs you" column end to end (#1758): items the Commander raised appear grouped with
- * counts, an `@` mention picks which question a typed reply answers, Dismiss asks first, Merge pins `gh` to the head
+ * counts, an `@` mention picks which question a typed reply answers, Dismiss offers Undo, Merge pins `gh` to the head
  * the Commander verified, and a narrow window turns the column into a drawer over the Terminal.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
@@ -155,12 +155,21 @@ test('the Commander Needs you column groups, replies, dismisses, merges, and bec
         );
         await expect(input).toHaveValue('');
 
-        // Dismiss asks first, then the item leaves the column and the count follows.
+        // Dismiss acts at once without asking: the item leaves the column and a toast offers Undo, which puts it back
+        // because the request is only sent once the Undo window ends.
         await card(database).locator('.commander-inbox-dismiss').click();
-        const dismissDialog = commander.getByRole('dialog', { name: 'Dismiss this item?' });
-        await expect(dismissDialog).toBeVisible();
-        await dismissDialog.getByRole('button', { name: 'Dismiss', exact: true }).click();
-        await expect(dismissDialog).toHaveCount(0);
+        await expect(commander.getByRole('dialog')).toHaveCount(0);
+        await expect(card(database)).toHaveCount(0);
+        await expect(questions.locator('h3')).toHaveText('Questions · 1');
+        const dismissedToast = commander
+            .locator('[data-sonner-toast]')
+            .filter({ hasText: 'Dismissed' });
+        await commander.screenshot({ path: testInfo.outputPath('commander-inbox-dismissed.png') });
+        await dismissedToast.getByRole('button', { name: 'Undo' }).click();
+        await expect(card(database)).toHaveCount(1);
+        await expect(questions.locator('h3')).toHaveText('Questions · 2');
+        await commander.screenshot({ path: testInfo.outputPath('commander-inbox-undone.png') });
+        await card(database).locator('.commander-inbox-dismiss').click();
         await expect(card(database)).toHaveCount(0);
         await expect(questions.locator('h3')).toHaveText('Questions · 1');
 

@@ -45,8 +45,6 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.actionUnavailable.unknown': 'Caxri 无法执行此操作。',
     'toasts.actionUnavailable.missingSession': '该会话已不存在。',
     'toasts.actionUnavailable.sessionMovedOn': '此会话在那次切换之后已发生变化。',
-    'toasts.copyDetailsFailed': '复制详细信息失败',
-    'toasts.copyCommandFailed': '复制命令失败',
 
     'toasts.type.worktreeFallback': 'Worktree 回退',
     'toasts.type.agentRecovery': 'Agent 自动恢复',

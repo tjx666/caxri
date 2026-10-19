@@ -82,8 +82,10 @@ function CommanderInboxList({
 }) {
     const { t } = useTranslation();
     const targetId = useCommanderInboxUiStore((state) => state.targetId);
-    const target = inboxReplyTarget(items, targetId);
-    const sections = commanderInboxSections(items, t);
+    const dismissingIds = useCommanderInboxUiStore((state) => state.dismissingIds);
+    const visibleItems = items.filter((item) => !Object.hasOwn(dismissingIds, item.id));
+    const target = inboxReplyTarget(visibleItems, targetId);
+    const sections = commanderInboxSections(visibleItems, t);
     const listReference = useRef<HTMLDivElement>(null);
     const isFocusRequested = useCommanderInboxUiStore((state) => state.isFocusRequested);
     useEffect(() => {

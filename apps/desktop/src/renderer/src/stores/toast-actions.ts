@@ -35,6 +35,11 @@ export interface ToastActionParameters {
      */
     'agentCommander.handBack': { sessionId: string };
     /**
+     * Takes back an Inbox dismissal that has not been sent yet. Carries only the item id; it stops applying once the
+     * request went out, because the Server cannot restore a dismissed item.
+     */
+    'agentCommander.undoDismiss': { itemId: string };
+    /**
      * Copies a shell command the notice asks the user to run elsewhere, such as raising a limit on an SSH Host.
      */
     'clipboard.copyCommand': { text: string };
@@ -128,6 +133,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'agentChat.pasteAsText': 'agentChat.composer.pasteAsText',
     'agentCommander.open': 'toasts.action.openAgentCommander',
     'agentCommander.handBack': 'agentCommander.handover.handBack',
+    'agentCommander.undoDismiss': 'toasts.action.undo',
     'clipboard.copyCommand': 'toasts.action.copyCommand',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',

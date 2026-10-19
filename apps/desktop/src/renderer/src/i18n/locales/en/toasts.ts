@@ -47,8 +47,6 @@ export const toasts = {
     'toasts.actionUnavailable.unknown': 'Caxri could not run this action.',
     'toasts.actionUnavailable.missingSession': 'That Session no longer exists.',
     'toasts.actionUnavailable.sessionMovedOn': 'This Session has moved on from that switch.',
-    'toasts.copyDetailsFailed': 'Copy details failed',
-    'toasts.copyCommandFailed': 'Copy command failed',
 
     // stores/notifications.ts: mutable notification types
     'toasts.type.worktreeFallback': 'Worktree fallback',
