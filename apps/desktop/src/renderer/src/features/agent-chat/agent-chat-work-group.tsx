@@ -249,10 +249,16 @@ const COMMAND_TITLE_LENGTH = 80;
  * paragraph on one scrolling line is unreadable.
  */
 function OutputView({
+    isPaintable,
     isWrapped,
     language,
     text,
 }: {
+    /**
+     * False while the output still grows: re-tokenizing the whole block on every append costs more than the colors
+     * show, so a running item stays plain text and is painted once when it settles (as Markdown code blocks do).
+     */
+    isPaintable?: boolean;
     isWrapped?: boolean;
     language: string | undefined;
     text: string;
@@ -265,6 +271,7 @@ function OutputView({
             className={OUTPUT_CLASS_NAME}
             code={output}
             defaultWrapped={isWrapped}
+            isPaintable={isPaintable}
             label={t('agentChat.workGroup.output')}
             language={language}
         />
@@ -279,6 +286,7 @@ function WorkDetail({
     onOpenFile?: (target: string) => void;
 }) {
     const { t } = useTranslation();
+    const isPaintable = !isAgentChatWorkRunning(item);
     switch (item.type) {
         case 'reasoning': {
             return (
@@ -305,7 +313,11 @@ function WorkDetail({
                             language="shell"
                         />
                     )}
-                    <OutputView language={agentChatOutputLanguage(item)} text={item.output} />
+                    <OutputView
+                        isPaintable={isPaintable}
+                        language={agentChatOutputLanguage(item)}
+                        text={item.output}
+                    />
                     {item.exitCode !== undefined && (
                         <p
                             className={cn(
@@ -333,6 +345,7 @@ function WorkDetail({
                 <>
                     {argumentsText && <AgentChatToolArguments text={argumentsText} />}
                     <OutputView
+                        isPaintable={isPaintable}
                         isWrapped={kind === 'mcp'}
                         language={language}
                         text={kind === 'read' ? stripLineNumberGutter(output) : output}
