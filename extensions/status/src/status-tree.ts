@@ -27,7 +27,7 @@ import {
     publicationLabel,
     REFRESH_ACTION_LABEL,
 } from './status-labels';
-import { mergePullRequestAction, mergeReadinessLabel } from './status-merge';
+import { mergeReadinessLabel, pullRequestRowActions } from './status-merge';
 import {
     acceptanceIcon,
     branchDeploymentRowDescription,
@@ -345,7 +345,6 @@ function buildRepoChildren(
          */
         const lifecycleLabel = lifecycle?.label ?? 'Not reported';
         const children = pullRequestCheckNodes(prefix, pullRequest);
-        const mergeAction = mergePullRequestAction(repo, pullRequest);
         /**
          * The row sits under the checked-out branch, so a pull request the Session's Agent opened from another worktree
          * would read as that branch's. Naming its own branch only when they differ keeps the ordinary row unchanged.
@@ -356,7 +355,7 @@ function buildRepoChildren(
                 : undefined;
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
-                actions: mergeAction ? [mergeAction] : undefined,
+                actions: pullRequestRowActions(repo, pullRequest),
                 /**
                  * The leading icon aggregates the check states shown by the child rows, rather than spending the
                  * description on a `CI failed` string that competed with the title for width. The lifecycle moved up to

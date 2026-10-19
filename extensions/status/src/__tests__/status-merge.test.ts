@@ -39,6 +39,13 @@ function pullRequestRow(pullRequest: Partial<PullRequest>) {
     return root.children!.find((node) => node.item.id?.endsWith(':pr'))!.item;
 }
 
+/**
+ * The row's merge button; failed checks put the Agent's `Fix` before it.
+ */
+function mergeButton(row: ReturnType<typeof pullRequestRow>) {
+    return row.actions?.find((action) => action.command.command === MERGE_PULL_REQUEST_COMMAND);
+}
+
 describe('Status panel merge action', () => {
     it('merges a green, clean pull request without asking, pinned to the head the row shows', () => {
         const row = pullRequestRow({});
@@ -94,8 +101,9 @@ describe('Status panel merge action', () => {
         [{ mergeState: 'behind' }, 'behind its base'],
         [{ mergeState: 'unknown' }, 'has not finished checking'],
     ] as const)('asks before merging when %o', (pullRequest, reason) => {
-        const confirmation = pullRequestRow(pullRequest as Parameters<typeof pullRequestRow>[0])
-            .actions?.[0]?.confirmation;
+        const confirmation = mergeButton(
+            pullRequestRow(pullRequest as Parameters<typeof pullRequestRow>[0]),
+        )?.confirmation;
 
         expect(confirmation).toMatchObject({
             title: 'Merge pull request #42?',
@@ -117,7 +125,7 @@ describe('Status panel merge action', () => {
         [{ mergeState: 'behind' }, 'Behind its base branch', 'warning'],
         [{ mergeState: 'unknown' }, 'Checking mergeability', 'neutral'],
     ] as const)('flags a blocked merge %o and names why', (pullRequest, reason, tone) => {
-        const action = pullRequestRow(pullRequest).actions?.[0];
+        const action = mergeButton(pullRequestRow(pullRequest));
         // A blocked merge is not the next step, so it is a colored glyph and leaves the row's width to the title.
         expect(action).toMatchObject({ tone });
         expect(action?.label).toBeUndefined();
@@ -125,6 +133,36 @@ describe('Status panel merge action', () => {
         // The reason is the tooltip, never the command title, so a failure toast cannot repeat a stale reason.
         expect(action?.command.title).toBe('Merge Pull Request');
         expect(action?.tooltip).toBe(reason);
+    });
+
+    it("puts the Agent's Fix before the merge glyph when checks failed, and only then", () => {
+        const failed = pullRequestRow({
+            state: 'failure',
+            checks: [
+                {
+                    name: 'lint',
+                    state: 'failure',
+                    url: 'https://github.com/acme/widget/actions/runs/7',
+                },
+            ],
+        });
+        expect(failed.actions?.map((action) => action.label ?? action.icon.id)).toEqual([
+            'Fix',
+            'git-merge',
+        ]);
+        expect(failed.actions?.[0]).toMatchObject({ tone: 'danger' });
+        expect(failed.actions?.[0]?.command.command).toBe('caxri.sendToAgent');
+        for (const pullRequest of [
+            {},
+            { state: 'pending' },
+            { mergeState: 'conflicting' },
+        ] as const)
+            expect(
+                pullRequestRow(pullRequest).actions?.map(
+                    (action) => action.label ?? action.icon.id,
+                ),
+            ).not.toContain('Fix');
+        expect(pullRequestRow({ state: 'failure', lifecycle: 'draft' }).actions).toHaveLength(1);
     });
 
     it('keeps an explaining button for a draft that opens GitHub instead of merging', () => {

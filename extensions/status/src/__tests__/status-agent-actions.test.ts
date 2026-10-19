@@ -2,6 +2,7 @@ import type { ProjectStatusReviewThread } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
 import {
+    fixFailedChecksPrompt,
     fixReviewCommentsAction,
     resolveConflictsAction,
     resolveConflictsPrompt,
@@ -120,5 +121,33 @@ describe('Status extension review fix prompt', () => {
             feedback: { failure: "Couldn't send #7 to the Agent" },
         });
         expect(action.icon.id).toBe('send');
+    });
+
+    it('lists each failed check with its run link and asks for a fix without merging', () => {
+        const prompt = fixFailedChecksPrompt(
+            { branch: 'feat/merge', kind: 'primary', name: 'widget' },
+            {
+                number: 42,
+                title: 'Delivery',
+                url: 'https://github.com/acme/widget/pull/42',
+                headSha: 'abcdef1234567',
+                checks: [
+                    {
+                        name: 'lint',
+                        state: 'failure',
+                        url: 'https://github.com/acme/widget/actions/runs/7',
+                    },
+                    { name: 'unit', state: 'success' },
+                    { name: 'e2e', state: 'cancelled' },
+                ],
+            },
+        );
+        expect(prompt).toContain(
+            'Checks failed on pull request #42 "Delivery" in the `widget` repository, branch `feat/merge` at commit `abcdef1`',
+        );
+        expect(prompt).toContain('- lint: https://github.com/acme/widget/actions/runs/7');
+        expect(prompt).toContain('- e2e (cancelled)');
+        expect(prompt).not.toContain('unit');
+        expect(prompt).toContain('Do not merge the pull request.');
     });
 });

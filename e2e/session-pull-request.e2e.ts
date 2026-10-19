@@ -249,6 +249,15 @@ esac
                 await expect(merge).toHaveClass(/text-danger/u);
                 await expect(merge).toHaveAccessibleName('Merge Pull Request');
                 await expect(merge).toHaveAccessibleDescription('Checks did not pass');
+                // Getting the checks green is the next step, so the Agent's labeled Fix comes before the glyph.
+                const fix = running.page.locator('[data-tree-item-action="caxri.sendToAgent"]');
+                await expect(fix).toHaveText('Fix');
+                await expect(fix).toHaveAccessibleName('Fix Failed Checks with Agent');
+                const [fixBox, mergeBox] = await Promise.all([
+                    fix.boundingBox(),
+                    merge.boundingBox(),
+                ]);
+                expect(fixBox!.x).toBeLessThan(mergeBox!.x);
                 await running.page
                     .locator('[role="tree"]', { has: merge })
                     .screenshot({ path: test.info().outputPath('status-merge-blocked.png') });
