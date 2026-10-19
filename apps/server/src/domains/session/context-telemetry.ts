@@ -9,9 +9,10 @@ import { countFields } from '../log-count-fields';
  * roughly once a minute per visible Session (the status bar's `projectStatus.overview` query, plus any Workbench Root
  * picker or pull-request sweep that joins the same in-flight read), so a per-poll record would repeat the same shape
  * `git.refresh_summary` was introduced to avoid for the sibling Git-summary path (issue #604). One aggregate per window
- * keeps the volume, worst-case duration, and approximate bytes scanned visible at a bounded cost.
+ * keeps the volume, worst-case duration, and approximate bytes scanned visible at a bounded cost. Like
+ * `git.refresh_summary`, the window has to span several polls: at one minute 75% of windows held a single scan.
  */
-const SESSION_CONTEXT_WINDOW_MS = 60_000;
+const SESSION_CONTEXT_WINDOW_MS = 10 * 60_000;
 
 interface ScanWindow {
     bytesScanned: number;
@@ -48,7 +49,7 @@ function increment(
  * Owns what `SessionContextService`'s incremental transcript scan records about itself (issue #1032). One immediate
  * record per failure and per cursor reset (the same shapes `GitSummaryTelemetry` uses for `git.summary`) keeps a
  * symlink rejection or a truncated transcript visible the moment it happens, while the per-Session, per-window
- * aggregate answers "how long did this path spend in the last minute" without a record on every poll.
+ * aggregate answers "how long did this path spend in the last window" without a record on every poll.
  *
  * Windows close lazily on the next event after the window elapsed, on Session eviction, and on Server close; there is
  * no timer, so a Session nobody is looking at costs nothing.

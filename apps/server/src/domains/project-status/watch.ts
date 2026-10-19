@@ -2,6 +2,8 @@ import type { ProjectStatusState, ProjectStatusSummary } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
+import type { SummaryCacheEntry } from './carry-over';
+
 /**
  * The states that make a snapshot worth re-asking for on the short window.
  */
@@ -46,6 +48,28 @@ export function isInFlight(summary: ProjectStatusSummary | undefined): boolean {
     );
 }
 
+/**
+ * Whether a background Session's cached summary still answers this round, given the fingerprint of its local inputs.
+ *
+ * Any entry is fresh until its TTL lapses. A round armed on the pending delay exists for the Sessions that are still
+ * running, so it also leaves a settled Session alone until the settled cadence comes round. Without that, every other
+ * Session whose 2-minute TTL had lapsed was refreshed with it, and one running build anywhere moved the whole list from
+ * the settled 3-minute cadence to every 2 minutes (production: about 21,000 `vc` calls in 11 hours). Only an entry
+ * whose fingerprint still matches qualifies, so a new HEAD or branch is never deferred; `expiresAt > 0` excludes a
+ * carried entry, whose `refreshedAt` is local while its delivery data is stale.
+ */
+export function isWatchFresh(
+    previous: SummaryCacheEntry | undefined,
+    fingerprint: string,
+    now: number,
+    isPendingRound: boolean,
+): boolean {
+    if (previous?.fingerprint !== fingerprint || previous.expiresAt <= 0) return false;
+    if (previous.expiresAt > now) return true;
+    if (!isPendingRound || !previous.value || isInFlight(previous.value)) return false;
+    return now - previous.value.refreshedAt < WATCH_SETTLED_DELAY_MS;
+}
+
 export interface DeliveryWatchOptions {
     clearTimer: (timer: NodeJS.Timeout) => void;
     isEnabled: () => boolean;
@@ -59,8 +83,14 @@ export interface DeliveryWatchOptions {
     summaryOf: (sessionId: string) => ProjectStatusSummary | undefined;
     /**
      * Refreshes one Session unless `covered` already holds its delivery keys, adding them when it does not.
+     * `isPendingRound` lets a settled Session whose local inputs did not change sit the round out (see
+     * {@link isWatchFresh}).
      */
-    watchSession: (sessionId: string, covered: Set<string>) => Promise<WatchOutcome>;
+    watchSession: (
+        sessionId: string,
+        covered: Set<string>,
+        isPendingRound: boolean,
+    ) => Promise<WatchOutcome>;
 }
 
 /**
@@ -74,6 +104,11 @@ export class DeliveryWatch {
     private timer?: NodeJS.Timeout;
     private isRunning = false;
     private isDisposed = false;
+    /**
+     * Whether the round being run was armed on the short pending delay because the previous one saw a build or check
+     * still running.
+     */
+    private isPendingRound = false;
 
     constructor(private readonly options: DeliveryWatchOptions) {}
 
@@ -119,7 +154,12 @@ export class DeliveryWatch {
                 .filter((sessionId) => sessionId !== selected);
             await mapWithConcurrency(sessionIds, WATCH_CONCURRENCY, async (sessionId) => {
                 try {
-                    outcomes[await this.options.watchSession(sessionId, covered)] += 1;
+                    const outcome = await this.options.watchSession(
+                        sessionId,
+                        covered,
+                        this.isPendingRound,
+                    );
+                    outcomes[outcome] += 1;
                     if (isInFlight(this.options.summaryOf(sessionId))) hasInFlight = true;
                 } catch {
                     outcomes.failed += 1;
@@ -131,6 +171,7 @@ export class DeliveryWatch {
                 durationMs: performance.now() - startedAt,
                 fields: { ...outcomes, inFlight: hasInFlight },
             });
+            this.isPendingRound = hasInFlight;
             this.schedule(hasInFlight ? WATCH_PENDING_DELAY_MS : WATCH_SETTLED_DELAY_MS);
         }
     }

@@ -412,6 +412,23 @@ describe('parseGitHubPullRequest', () => {
             ).pullRequest,
         ).toMatchObject({ state: 'pending', hiddenCheckCount: 0 });
     });
+
+    it.each(['MERGED', 'CLOSED'])(
+        'settles an empty rollup on a %s pull request as neutral, because no check will ever arrive',
+        (state) => {
+            expect(
+                parseGitHubPullRequest(
+                    JSON.stringify({
+                        number: 1,
+                        title: 'PR',
+                        url: 'https://github.com/a/b/pull/1',
+                        state,
+                        statusCheckRollup: [],
+                    }),
+                ).pullRequest,
+            ).toMatchObject({ state: 'neutral', checks: [], hiddenCheckCount: 0 });
+        },
+    );
 });
 
 describe('Project Status parsers', () => {

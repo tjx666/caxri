@@ -179,7 +179,7 @@ id, kind, branch, head, ahead/behind, additions/deletions, `changedFileCount`, `
 SHA-256 of the sorted `path|status` file list, compared in memory, never written, so a same-count
 change to which files are dirty still counts as a transition. `joined` and `queued` records are
 always `debug`. Volume is restored by one `git.refresh_summary` record at `info` per Session per
-60-second activity window: `refreshes`, `changed`, `repeated`, `joined`, `queued`, `commandCount`, the
+10-minute activity window (several background polls long, so it folds a steady poll into one record): `refreshes`, `changed`, `repeated`, `joined`, `queued`, `commandCount`, the
 three status counters, `totalDurationMs`, `maxDurationMs`, `durationMs` from the first to the last
 counted refresh (idle time after a burst is not included), `reason*` counts, and `requester*` counts
 of productions only. Windows close lazily on the next refresh after they elapse, on Session eviction

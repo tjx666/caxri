@@ -71,6 +71,24 @@ function createTelemetry(windowMs = 60_000) {
 }
 
 describe('GitSummaryTelemetry', () => {
+    it('folds a steady background poll into one window record by default', () => {
+        let now = 1_000;
+        const write = vi.fn<StructuredLogger['write']>();
+        const telemetry = new GitSummaryTelemetry(
+            { write } as unknown as StructuredLogger,
+            undefined,
+            () => now,
+        );
+        const { fields } = createTelemetry();
+        const unchanged = { ...fields, commandCount: 0 };
+        for (let poll = 0; poll < 9; poll += 1) {
+            telemetry.recordProduced('session-a', summary(), 2, unchanged);
+            now += 75_000;
+        }
+        const windows = write.mock.calls.filter(([, event]) => event === 'git.refresh_summary');
+        expect(windows.map((call) => call[2]?.fields?.refreshes)).toEqual([8]);
+    });
+
     it('keeps a changed result at info and drops repeats to debug', () => {
         const { fields, telemetry, writesOf } = createTelemetry();
         telemetry.recordProduced('session-a', summary(), 10, fields);

@@ -246,6 +246,7 @@ export function parseGitHubPullRequest(
     const checks = visible.map((check) => projectCheck(check));
     checks.sort((a, b) => CHECK_ORDER.indexOf(a.state) - CHECK_ORDER.indexOf(b.state));
     const mergeState = pullRequestMergeState(raw.mergeable, raw.mergeStateStatus);
+    const lifecycle = pullRequestLifecycle(raw.state, raw.isDraft);
     return {
         body: raw.body ?? '',
         mergeCommit:
@@ -257,13 +258,20 @@ export function parseGitHubPullRequest(
             number: raw.number,
             title: raw.title,
             url: raw.url,
-            lifecycle: pullRequestLifecycle(raw.state, raw.isDraft),
+            lifecycle,
             /**
-             * An empty rollup means GitHub has not reported a check yet, which is genuinely pending. A rollup that is
-             * empty only _after_ filtering means the user ignored every check this pull request has: reporting that as
-             * a permanent spinner would be wrong, so it settles as neutral instead.
+             * An empty rollup on an open pull request means GitHub has not reported a check yet, which is genuinely
+             * pending. Two empty cases settle as neutral instead of a permanent spinner: a rollup that is empty only
+             * _after_ filtering (the user ignored every check), and a merged or closed pull request, which will never
+             * receive a check. The latter matters beyond the badge: a pending state keeps the Session on the 20s cache
+             * TTL and holds the delivery watch on its 60s cadence, which production logs showed running all day for one
+             * merged pull request in a repository without CI.
              */
-            state: checks.length === 0 && rollup.length > 0 ? 'neutral' : aggregateChecks(checks),
+            state:
+                checks.length === 0 &&
+                (lifecycle === 'merged' || lifecycle === 'closed' || rollup.length > 0)
+                    ? 'neutral'
+                    : aggregateChecks(checks),
             checks,
             hiddenCheckCount: rollup.length - visible.length,
             ...(raw.headRefOid &&
