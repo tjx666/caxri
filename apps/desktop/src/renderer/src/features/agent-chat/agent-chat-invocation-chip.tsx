@@ -9,8 +9,13 @@ import { useCaxriQuery } from '../../queries/client';
 import { AgentChatMessage } from './agent-chat-message';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
+/**
+ * `align-top` instead of `align-baseline`: an inline flex box takes its baseline from its first item, here the icon,
+ * whose bottom edge would then sit on the text baseline and lift the chip above the words and links beside it. The chip
+ * is one line tall (`leading-5`, as the bubble), so aligning it to the line's top lines its text up with theirs.
+ */
 const CHIP_CLASS_NAME =
-    'inline-flex max-w-full items-center gap-1 rounded-md bg-accent/15 px-1.5 align-baseline font-medium text-accent';
+    'inline-flex max-w-full items-center gap-1 rounded-md bg-accent/15 px-1.5 align-top font-medium text-accent';
 
 /**
  * The skill or command a sent message starts with, set apart from what the user asked of it. Clicking it opens the
