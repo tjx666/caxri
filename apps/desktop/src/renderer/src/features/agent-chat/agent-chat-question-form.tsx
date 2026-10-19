@@ -121,17 +121,21 @@ function QuestionOptionRow({
 }
 
 /**
- * The `Q1 Q2 Q3` tab strip over several questions. A tab's check marks a question that already has an answer, and its
- * accessible name carries the full question so a screen reader does not hear only `Q2`.
+ * The `Q1 Q2 Q3` tab strip over several questions. A tab's check marks a question that already has an answer the user
+ * has seen, and its accessible name carries the full question so a screen reader does not hear only `Q2`. A recommended
+ * default on a question never opened earns no check: two checks on a card whose second question nobody read made the
+ * card look finished.
  */
 function QuestionTabStrip({
     answers,
+    seen,
     idPrefix,
     index,
     onIndexChange,
     request,
 }: {
     answers: Readonly<Record<string, string[]>>;
+    seen: ReadonlySet<number>;
     idPrefix: string;
     index: number;
     onIndexChange: (index: number) => void;
@@ -144,7 +148,7 @@ function QuestionTabStrip({
             className="-mx-1 flex"
             idPrefix={idPrefix}
             items={request.questions.map((item, itemIndex) => {
-                const isItemAnswered = Object.hasOwn(answers, item.id);
+                const isItemAnswered = seen.has(itemIndex) && Object.hasOwn(answers, item.id);
                 return {
                     value: String(itemIndex),
                     label: t('agentChat.request.questionTabLabel', {
@@ -296,10 +300,11 @@ function QuestionFormFooter({
  * height of one question however many are asked and every question stays one click away: a tab carries a check once its
  * question has an answer. Options are numbered rows and a free-text answer, when allowed, is the last numbered row.
  * Answering a question (a click, Enter, or its digit) moves to the next question still unanswered, and answering the
- * last one sends them all. While a question the user has not opened is still unanswered the primary button reads Next
- * and opens it, so a submission never records an unseen question as skipped; after that, Submit sends whatever is
- * answered. The recommended option starts selected, so Next through to Submit accepts every recommendation. Skip (or
- * Esc) dismisses the whole request.
+ * last one sends them all. A question the user has not opened always comes next, even when its recommended option
+ * already answers it, so a click on the first question never sends answers to questions nobody read. While any question
+ * is still unopened the primary button reads Next and opens it, so a submission never records an unseen question as
+ * skipped or accepts its default unread; after that, Submit sends whatever is answered. The recommended option starts
+ * selected, so Next through to Submit accepts every recommendation. Skip (or Esc) dismisses the whole request.
  */
 export function AgentChatQuestionForm({
     isAnswering,
@@ -346,7 +351,7 @@ export function AgentChatQuestionForm({
      * the Submit button shows the Enter hint only then.
      */
     const isEnterSends =
-        isAnswered && agentChatNextUnansweredQuestion(request, answers, index) === undefined;
+        isAnswered && agentChatNextUnansweredQuestion(request, answers, index, seen) === undefined;
     const selectedIndex = options.findIndex(
         (option) => !typedAnswer && option.label === selected[question?.id ?? ''],
     );
@@ -366,7 +371,7 @@ export function AgentChatQuestionForm({
     ): void => {
         if (isAnswering) return;
         const nextAnswers = agentChatQuestionAnswers(request, nextSelected, nextTyped).answers;
-        const nextIndex = agentChatNextUnansweredQuestion(request, nextAnswers, index);
+        const nextIndex = agentChatNextUnansweredQuestion(request, nextAnswers, index, seen);
         if (nextIndex === undefined) return respond(agentChatQuestionResponse(nextAnswers));
         shouldFocusQuestion.current =
             panelReference.current?.contains(document.activeElement) ?? false;
@@ -476,6 +481,7 @@ export function AgentChatQuestionForm({
                 <>
                     <QuestionTabStrip
                         answers={answers}
+                        seen={seen}
                         idPrefix={idPrefix}
                         index={index}
                         request={request}
@@ -492,12 +498,7 @@ export function AgentChatQuestionForm({
                 canSubmit={Object.keys(answers).length > 0}
                 isAnswering={isAnswering}
                 isEnterSends={isEnterSends}
-                primaryAction={questionFormPrimaryAction(
-                    request.questions.map((item) => item.id),
-                    answers,
-                    index,
-                    seen,
-                )}
+                primaryAction={questionFormPrimaryAction(request.questions.length, index, seen)}
                 onNext={(nextIndex) => {
                     shouldFocusQuestion.current = true;
                     openQuestion(nextIndex);

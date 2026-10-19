@@ -55,10 +55,17 @@ describe('agentChatRequestDock', () => {
     });
 });
 
+/**
+ * Every question of a three-question card opened.
+ */
+const ALL: ReadonlySet<number> = new Set([0, 1, 2]);
+
 describe('agentChatQuestionFooter', () => {
     it('drops Submit for one question with options, since a tap sends it', () => {
         const request = ask(question('a', ['Red', 'Blue']));
-        expect(agentChatQuestionFooter({ answers: {}, index: 0, request, typed: {} })).toEqual({
+        expect(
+            agentChatQuestionFooter({ answers: {}, index: 0, request, seen: ALL, typed: {} }),
+        ).toEqual({
             isBackShown: false,
             primary: undefined,
             canSubmit: false,
@@ -72,33 +79,59 @@ describe('agentChatQuestionFooter', () => {
                 answers: { a: ['Green'] },
                 index: 0,
                 request,
+                seen: ALL,
                 typed: { a: 'Green' },
             }),
         ).toMatchObject({ primary: 'submit', canSubmit: true });
         // Whitespace is not an answer.
         expect(
-            agentChatQuestionFooter({ answers: {}, index: 0, request, typed: { a: '  ' } }).primary,
+            agentChatQuestionFooter({
+                answers: {},
+                index: 0,
+                request,
+                seen: ALL,
+                typed: { a: '  ' },
+            }).primary,
         ).toBeUndefined();
         // A free-text question has no option to tap.
         const freeText = ask(question('a', []));
         expect(
-            agentChatQuestionFooter({ answers: {}, index: 0, request: freeText, typed: {} }),
+            agentChatQuestionFooter({
+                answers: {},
+                index: 0,
+                request: freeText,
+                seen: ALL,
+                typed: {},
+            }),
         ).toMatchObject({ primary: 'submit', canSubmit: false });
     });
 
     it('steps through several questions with Back and Next, then Submit', () => {
         const request = ask(question('a', ['1']), question('b', ['2']), question('c', []));
-        expect(agentChatQuestionFooter({ answers: {}, index: 0, request, typed: {} })).toEqual({
+        expect(
+            agentChatQuestionFooter({ answers: {}, index: 0, request, seen: ALL, typed: {} }),
+        ).toEqual({
             isBackShown: false,
             primary: 'next',
             canSubmit: false,
         });
         expect(
-            agentChatQuestionFooter({ answers: { a: ['1'] }, index: 1, request, typed: {} }),
+            agentChatQuestionFooter({
+                answers: { a: ['1'] },
+                index: 1,
+                request,
+                seen: ALL,
+                typed: {},
+            }),
         ).toEqual({ isBackShown: true, primary: 'next', canSubmit: true });
         expect(
-            agentChatQuestionFooter({ answers: { a: ['1'] }, index: 2, request, typed: {} })
-                .primary,
+            agentChatQuestionFooter({
+                answers: { a: ['1'] },
+                index: 2,
+                request,
+                seen: ALL,
+                typed: {},
+            }).primary,
         ).toBe('submit');
         // Every question answered: Submit is offered wherever the user is.
         expect(
@@ -106,25 +139,53 @@ describe('agentChatQuestionFooter', () => {
                 answers: { a: ['1'], b: ['2'], c: ['x'] },
                 index: 0,
                 request,
+                seen: ALL,
                 typed: {},
             }).primary,
         ).toBe('submit');
+        // A recommended default on a question the user never opened is not an answer yet.
+        expect(
+            agentChatQuestionFooter({
+                answers: { a: ['1'], b: ['2'], c: ['x'] },
+                index: 0,
+                request,
+                seen: new Set([0]),
+                typed: {},
+            }).primary,
+        ).toBe('next');
     });
 });
 
 describe('agentChatQuestionAdvance', () => {
     it('moves to the next unanswered question, wrapping, and sends when none is left', () => {
         const request = ask(question('a', ['1']), question('b', ['2']), question('c', ['3']));
-        expect(agentChatQuestionAdvance(request, { a: ['1'] }, 0)).toEqual({
+        expect(agentChatQuestionAdvance(request, { a: ['1'] }, 0, ALL)).toEqual({
             kind: 'move',
             index: 1,
         });
-        expect(agentChatQuestionAdvance(request, { b: ['2'], c: ['3'] }, 2)).toEqual({
+        expect(agentChatQuestionAdvance(request, { b: ['2'], c: ['3'] }, 2, ALL)).toEqual({
             kind: 'move',
             index: 0,
         });
-        expect(agentChatQuestionAdvance(request, { a: ['1'], b: ['2'], c: ['3'] }, 1)).toEqual({
-            kind: 'send',
+        expect(agentChatQuestionAdvance(request, { a: ['1'], b: ['2'], c: ['3'] }, 1, ALL)).toEqual(
+            {
+                kind: 'send',
+            },
+        );
+    });
+
+    it('opens an unseen question before sending, even when a default answers it', () => {
+        const request = ask(question('a', ['1']), question('b', ['2 (Recommended)']));
+        expect(
+            agentChatQuestionAdvance(
+                request,
+                { a: ['1'], b: ['2 (Recommended)'] },
+                0,
+                new Set([0]),
+            ),
+        ).toEqual({
+            kind: 'move',
+            index: 1,
         });
     });
 });
