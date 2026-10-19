@@ -39,7 +39,14 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
         expect(snapshot.usage).toEqual({ totalTokens: 1208, contextWindow: 256000 });
         const [open] = await sessionOpens();
         expect(open.method).toBe('session/new');
-        expect(open.args).toEqual(['agent', '--no-leader', 'stdio']);
+        // Ask is passed explicitly so a user's `[ui] permission_mode = "always-approve"` cannot override it (#1957).
+        expect(open.args).toEqual([
+            '--permission-mode',
+            'default',
+            'agent',
+            '--no-leader',
+            'stdio',
+        ]);
         expect(database.getTerminal(terminal.id)?.agentSessionId).toMatch(/^[\da-f-]{36}$/u);
         expect(signals.map((signal) => signal.phase)).toEqual([
             'sessionIdentified',
@@ -253,7 +260,12 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
         const { service, terminal, until } = await fixture({ provider: 'grok' });
         const ready = await until((snapshot) => snapshot.status === 'ready');
         expect(ready.models).toEqual([
-            { id: 'grok-fake', displayName: 'Grok Fake', efforts: [] },
+            {
+                id: 'grok-fake',
+                displayName: 'Grok Fake',
+                efforts: ['low', 'medium', 'high', 'xhigh'],
+                defaultEffort: 'high',
+            },
             {
                 id: 'grok-fake-fast',
                 displayName: 'Grok Fake Fast',
@@ -271,9 +283,60 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
             text: 'You said: which model (grok-fake-fast)',
         });
         expect(done.usage?.contextWindow).toBe(128_000);
+        // The model without effort control rejects an effort; the one that lists efforts takes it (#1705).
         await expect(service.configure(terminal.id, { effort: 'high' })).rejects.toMatchObject({
             code: 'VALIDATION',
         });
+    });
+
+    it('switches the reasoning effort Grok Build lists for the model', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'grok' });
+        const ready = await until((snapshot) => snapshot.status === 'ready');
+        expect(ready.effort).toBe('high');
+        await service.configure(terminal.id, { effort: 'low' });
+        expect(service.read(terminal.id).effort).toBe('low');
+        await expect(service.configure(terminal.id, { effort: 'ultra' })).rejects.toMatchObject({
+            code: 'VALIDATION',
+        });
+    });
+
+    it('keeps the queued and steered marks after the Chat restarts (#1705)', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'grok' });
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) =>
+            snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
+        );
+        await service.send(terminal.id, { text: 'and then' }, 'steer');
+        await until((snapshot) =>
+            snapshot.items.some(
+                (item) => item.type === 'agentMessage' && item.text.includes('Heard: and then'),
+            ),
+        );
+        await service.interrupt(terminal.id);
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
+        // Sent while a turn waits on an approval, it queues in Server Core and goes out once the turn ends.
+        await service.send(terminal.id, { text: 'approve it' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        await service.send(terminal.id, { text: 'later one' });
+        service.respond(terminal.id, pending.requests[0].id, {
+            kind: 'decision',
+            decision: 'accept',
+        });
+        await until((snapshot) => snapshot.turns.length === 3 && !snapshot.activeTurnId);
+        await service.restart(terminal.id);
+        const resumed = service.read(terminal.id);
+        // The interjection replays inside the first turn, not as a turn of its own.
+        expect(resumed.turns).toHaveLength(3);
+        expect(
+            resumed.items
+                .filter((item) => item.type === 'userMessage')
+                .map((item) => [item.text, item.delivery, item.turnId === resumed.turns[0].id]),
+        ).toEqual([
+            ['slow please', undefined, true],
+            ['and then', 'steered', true],
+            ['approve it', undefined, false],
+            ['later one', 'queued', false],
+        ]);
     });
 
     it('survives a second Stop for the same turn', async () => {

@@ -371,8 +371,41 @@ export function grokModelState(models: unknown): { model?: string; contextWindow
 }
 
 /**
- * The models a `models` record lists, for the Chat's model picker. Grok Build's reasoning efforts are not offered yet,
- * so each model switches without an effort.
+ * What the user typed, from a replayed `user_message_chunk` that Grok Build wrapped for the model: an `_x.ai/interject`
+ * replays with the wrapper as `text` and the original in `content._meta.displayText`. Absent for an ordinary prompt.
+ * Verified on Grok Build 1.0.62 (#1705, #1721).
+ */
+export function grokDisplayText(content: Json | undefined): string | undefined {
+    const meta = content && isRecord(content._meta) ? content._meta : undefined;
+    return meta ? stringField(meta.displayText) : undefined;
+}
+
+/**
+ * The reasoning efforts a model entry lists in `_meta.reasoningEfforts`, lowest first (Grok Build lists the highest
+ * first), with the entry's `_meta.reasoningEffort` default when it is one of them. Verified on Grok Build 1.0.62.
+ */
+function grokEfforts(entry: Json): { efforts: string[]; defaultEffort?: string } {
+    const meta = isRecord(entry._meta) ? entry._meta : undefined;
+    const listed: unknown[] =
+        meta?.supportsReasoningEffort === true && Array.isArray(meta.reasoningEfforts)
+            ? meta.reasoningEfforts
+            : [];
+    const efforts = listed
+        .flatMap((effort) => {
+            const id = isRecord(effort) ? stringField(effort.id) : undefined;
+            return id && /^[\w-]{1,40}$/u.test(id) ? [id] : [];
+        })
+        .toReversed()
+        .slice(0, 10);
+    const defaultEffort = stringField(meta?.reasoningEffort);
+    return {
+        efforts,
+        ...(defaultEffort && efforts.includes(defaultEffort) && { defaultEffort }),
+    };
+}
+
+/**
+ * The models a `models` record lists, for the Chat's model picker, each with the reasoning efforts it accepts.
  */
 export function grokModels(models: unknown): AgentChatModel[] {
     const available: unknown[] =
@@ -388,11 +421,24 @@ export function grokModels(models: unknown): AgentChatModel[] {
                     id,
                     displayName: stringField(entry.name) ?? id,
                     ...(description && { description }),
-                    efforts: [],
+                    ...grokEfforts(entry),
                 },
             ];
         }),
     );
+}
+
+/**
+ * The reasoning effort a `configOptions` list (a `session/new` or `session/load` result, a `session/set_config_option`
+ * result, or a `config_option_update`) reports as current.
+ */
+export function grokEffort(configOptions: unknown): string | undefined {
+    const options: unknown[] = Array.isArray(configOptions) ? configOptions : [];
+    const option = options.find(
+        (candidate) => isRecord(candidate) && candidate.id === 'reasoning_effort',
+    );
+    const value = isRecord(option) ? stringField(option.currentValue) : undefined;
+    return value && /^[\w-]{1,40}$/u.test(value) ? value : undefined;
 }
 
 /**

@@ -32,8 +32,19 @@ interface RewindTarget {
  */
 function promptFrameIndexes(frames: readonly RewindFrame[]): number[] {
     return frames.flatMap((frame, index) =>
-        frame.update.sessionUpdate === 'user_message_chunk' ? [index] : [],
+        frame.update.sessionUpdate === 'user_message_chunk' && !isInterjection(frame)
+            ? [index]
+            : [],
     );
+}
+
+/**
+ * An `_x.ai/interject` is recorded as a user message carrying `_meta.displayText`; Grok Build 1.0.62 gives it no rewind
+ * point of its own.
+ */
+function isInterjection(frame: RewindFrame): boolean {
+    const content = frame.update.content as { _meta?: { displayText?: unknown } } | undefined;
+    return typeof content?._meta?.displayText === 'string';
 }
 
 function promptText(frame: RewindFrame | undefined): string {

@@ -34,6 +34,7 @@ import { AgentChatStartError } from './chat-provider';
 import {
     grokCommands,
     grokContextWindow,
+    grokEffort,
     grokModels,
     grokModelState,
     grokUsage,
@@ -51,6 +52,7 @@ import {
 import { GrokUpdates, stopReasonStatus } from './grok-updates';
 import type { JsonRpcServerRequest } from './json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
+import { queuedPromptUuid } from './queued-prompt-uuid';
 
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
 /**
@@ -274,7 +276,7 @@ class GrokChatSession implements AgentChatProviderSession {
      */
     private prompt(text: string, isCompaction: boolean, options: ChatInputOptions = {}): void {
         const connection = this.requireConnection();
-        const turnId = randomUUID();
+        const turnId = queuedPromptUuid(options.delivery);
         this.beginTurn(turnId, isCompaction);
         this.options.apply([
             {
@@ -406,6 +408,7 @@ class GrokChatSession implements AgentChatProviderSession {
             : await newGrokSession(connection, this.sessionId, this.options.cwd);
         const models = isRecord(result) ? result.models : undefined;
         const { model, contextWindow } = grokModelState(models);
+        const effort = isRecord(result) ? grokEffort(result.configOptions) : undefined;
         this.listedModels = models;
         this.contextWindow = contextWindow;
         this.options.apply([
@@ -413,6 +416,7 @@ class GrokChatSession implements AgentChatProviderSession {
                 op: 'state',
                 state: {
                     ...(model && { model }),
+                    ...(effort && { effort }),
                     models: grokModels(models),
                     ...chatPermissionState('grok', permissionMode, false),
                 },
@@ -505,27 +509,19 @@ class GrokChatSession implements AgentChatProviderSession {
     }
 
     rewind(target: ChatRewindTarget): Promise<undefined> {
-        const snapshot = this.options.read();
-        return rewindGrokSession(this.requireConnection(), this.sessionId, snapshot, target);
+        return rewindGrokSession(this.requireConnection(), this.sessionId, target);
     }
 
     async fork(target: ChatForkTarget): Promise<ChatFork> {
         const source = { sessionId: this.sessionId, cwd: this.options.cwd };
         const connection = this.requireConnection();
         return {
-            agentSessionId: await forkGrokSession(connection, source, this.options.read(), target),
+            agentSessionId: await forkGrokSession(connection, source, target),
         };
     }
 
     async restoreFiles(target: ChatRewindTarget): Promise<void> {
-        const snapshot = this.options.read();
-        await rewindGrokSession(
-            this.requireConnection(),
-            this.sessionId,
-            snapshot,
-            target,
-            'files',
-        );
+        await rewindGrokSession(this.requireConnection(), this.sessionId, target, 'files');
     }
 
     async interrupt(): Promise<void> {
@@ -543,18 +539,35 @@ class GrokChatSession implements AgentChatProviderSession {
         if (!(await finished) && this.activeTurn === turn) await this.close();
     }
 
-    async configure({ model }: AgentChatModelChange): Promise<void> {
-        if (!model) return;
-        const result = await this.requireConnection().request(
-            'session/set_model',
-            { sessionId: this.sessionId, modelId: model.id },
-            TURN_REQUEST_TIMEOUT_MS,
-        );
-        const meta = isRecord(result) && isRecord(result._meta) ? result._meta : undefined;
-        if (isRecord(meta?.model) && 'Err' in meta.model)
-            throw new CaxriError('UNAVAILABLE', `Grok Build could not switch to ${model.id}`);
-        this.contextWindow = grokContextWindow(this.listedModels, model.id);
-        this.options.apply([{ op: 'state', state: { model: model.id } }]);
+    async configure({ model, effort }: AgentChatModelChange): Promise<void> {
+        const connection = this.requireConnection();
+        if (model) {
+            const result = await connection.request(
+                'session/set_model',
+                { sessionId: this.sessionId, modelId: model.id },
+                TURN_REQUEST_TIMEOUT_MS,
+            );
+            const meta = isRecord(result) && isRecord(result._meta) ? result._meta : undefined;
+            if (isRecord(meta?.model) && 'Err' in meta.model)
+                throw new CaxriError('UNAVAILABLE', `Grok Build could not switch to ${model.id}`);
+            this.contextWindow = grokContextWindow(this.listedModels, model.id);
+            this.options.apply([{ op: 'state', state: { model: model.id } }]);
+        }
+        if (!effort) return;
+        // Grok Build keeps the effort across a model switch, so it is set on its own, after the model.
+        let result: unknown;
+        try {
+            result = await connection.request(
+                'session/set_config_option',
+                { sessionId: this.sessionId, configId: 'reasoning_effort', value: effort },
+                TURN_REQUEST_TIMEOUT_MS,
+            );
+        } catch (error) {
+            if (!(error instanceof JsonRpcRequestError)) throw error;
+            throw new CaxriError('UNAVAILABLE', `Grok Build could not use ${effort} effort`);
+        }
+        const applied = isRecord(result) ? grokEffort(result.configOptions) : undefined;
+        this.options.apply([{ op: 'state', state: { effort: applied ?? effort } }]);
     }
 
     respond(requestId: string, response: AgentChatResponse): void {

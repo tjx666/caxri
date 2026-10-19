@@ -13,7 +13,8 @@
  * - `/compact`: a compaction reply.
  * - Anything else: a thought, a plan, and a streamed reply quoting the message, naming the current model once switched.
  *
- * `session/set_model` switches between the two listed models.
+ * `session/set_model` switches between the two listed models; the first lists reasoning efforts, which
+ * `session/set_config_option` (`reasoning_effort`) switches and reports back through `configOptions`.
  *
  * An `_x.ai/interject` during `slow` is quoted in the rest of the reply. Sessions persist to `FAKE_GROK_STATE_DIR` (or
  * the OS temp directory) as their update list, so `session/load` replays real history, one merged `tool_call` frame per
@@ -69,12 +70,31 @@ const state: {
     prompt?: PromptState;
     nextRequestId: number;
     model: string;
+    effort: string;
 } = {
     nextRequestId: 1,
     model: 'grok-fake',
+    effort: 'high',
+};
+/**
+ * Reasoning efforts as Grok Build 1.0.62 lists them in a model's `_meta`: highest first, with the default named apart.
+ */
+const EFFORT_META = {
+    supportsReasoningEffort: true,
+    reasoningEffort: 'high',
+    reasoningEfforts: ['xhigh', 'high', 'medium', 'low'].map((id) => ({
+        id,
+        value: id,
+        label: id,
+        default: id === 'high',
+    })),
 };
 const MODELS = [
-    { modelId: 'grok-fake', name: 'Grok Fake', _meta: { totalContextTokens: 256_000 } },
+    {
+        modelId: 'grok-fake',
+        name: 'Grok Fake',
+        _meta: { totalContextTokens: 256_000, ...EFFORT_META },
+    },
     {
         modelId: 'grok-fake-fast',
         name: 'Grok Fake Fast',
@@ -82,6 +102,32 @@ const MODELS = [
         _meta: { totalContextTokens: 128_000 },
     },
 ];
+/**
+ * The `configOptions` a session reports, as Grok Build 1.0.62 does: the model and `reasoning_effort` selects.
+ */
+function configOptions() {
+    return [
+        {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: state.model,
+            options: MODELS.map((model) => ({ value: model.modelId, name: model.name })),
+        },
+        {
+            id: 'reasoning_effort',
+            name: 'Reasoning Effort',
+            category: 'thought_level',
+            type: 'select',
+            currentValue: state.effort,
+            options: EFFORT_META.reasoningEfforts.map((effort) => ({
+                value: effort.id,
+                name: effort.label,
+            })),
+        },
+    ];
+}
 const pendingRequests = new Map<number, (result: unknown) => void>();
 
 function send(message: Record<string, unknown>) {
@@ -148,7 +194,7 @@ async function streamText(
     }
 }
 
-async function runPrompt(id: number | string | undefined, text: string) {
+async function runPrompt(id: number | string | undefined, text: string, promptId?: string) {
     const session = currentSession();
     const prompt: PromptState = { cancelled: false, interjections: [] };
     state.prompt = prompt;
@@ -166,6 +212,7 @@ async function runPrompt(id: number | string | undefined, text: string) {
             method: '_x.ai/session/update',
             update: {
                 sessionUpdate: 'turn_completed',
+                ...(promptId && { prompt_id: promptId }),
                 stop_reason: stopReason,
                 elapsed_ms: Date.now() - startedAt,
             },
@@ -268,6 +315,7 @@ function openSession(id: number | string | undefined, sessionId: string) {
     respond(id, {
         sessionId,
         models: { currentModelId: state.model, availableModels: MODELS },
+        configOptions: configOptions(),
     });
     send({
         method: 'session/update',
@@ -365,8 +413,10 @@ function handle(message: RpcMessage) {
                     block.type === 'text' ? (block.text ?? '') : '',
                 )
                 .join('');
+            const meta = (parameters._meta ?? {}) as Record<string, unknown>;
+            const promptId = typeof meta.promptId === 'string' ? meta.promptId : undefined;
             // eslint-disable-next-line no-void -- the turn streams its own updates before the prompt resolves
-            void runPrompt(message.id, text);
+            void runPrompt(message.id, text, promptId);
             return;
         }
         case '_x.ai/interject': {
@@ -375,7 +425,41 @@ function handle(message: RpcMessage) {
                 return;
             }
             state.prompt.interjections.push(String(parameters.text));
-            respond(message.id, {});
+            // Like Grok Build 1.0.62, the interjection is recorded as a user message wrapped for the model, with what the
+            // user typed in `_meta.displayText`. It is not a prompt: `_x.ai/rewind/points` does not list it.
+            currentSession().frames.push({
+                method: 'session/update',
+                update: {
+                    sessionUpdate: 'user_message_chunk',
+                    content: {
+                        type: 'text',
+                        text: `The user sent a message while you were working: ${String(parameters.text)}`,
+                        _meta: { displayText: String(parameters.text) },
+                    },
+                },
+                at: Date.now(),
+            });
+            respond(message.id, { status: 'queued' });
+            return;
+        }
+        case 'session/set_config_option': {
+            const value = String(parameters.value);
+            const efforts = EFFORT_META.reasoningEfforts.map((effort) => effort.id);
+            if (parameters.configId !== 'reasoning_effort' || !efforts.includes(value)) {
+                respondError(
+                    message.id,
+                    -32602,
+                    'Invalid params',
+                    'unknown reasoning_effort value',
+                );
+                return;
+            }
+            state.effort = value;
+            fs.appendFileSync(
+                path.join(stateDirectory, 'effort-changes.jsonl'),
+                `${JSON.stringify({ effort: value })}\n`,
+            );
+            respond(message.id, { configOptions: configOptions() });
             return;
         }
         case 'session/set_model': {

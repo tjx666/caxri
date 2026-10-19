@@ -1,4 +1,3 @@
-import type { AgentChatSnapshot } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { clip, isRecord, stringField } from './chat-items';
@@ -45,34 +44,16 @@ export function grokRewindPoint(
 /**
  * The index Grok Build gives the prompt that `target` starts, in the whole session, while the projection may hold only
  * the newest turns: it comes from `_x.ai/rewind/points` counted back from the newest prompt, and the point's preview
- * must agree with the message. `action` names the user's action in the refusal.
+ * must agree with the message. An `_x.ai/interject` adds no point of its own (verified on Grok Build 1.0.62: one
+ * interjection and two prompts list two points), so the Chat's turns map one to one onto points. `action` names the
+ * user's action in the refusal.
  */
 async function grokPromptIndex(
     connection: JsonRpcConnection,
     sessionId: string,
-    snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
     target: ChatForkTarget,
     action: 'edit' | 'fork' | 'restore',
 ): Promise<number> {
-    /**
-     * A steered message reached Grok Build as `_x.ai/interject`, which may count as a prompt of its own, so the Chat's
-     * turns no longer map one to one onto rewind points from the end.
-     */
-    const { items, turns } = snapshot;
-    const removed = new Set(turns.slice(turns.length - target.removedTurns).map((turn) => turn.id));
-    if (
-        items.some(
-            (item) =>
-                item.type === 'userMessage' &&
-                item.delivery === 'steered' &&
-                item.turnId !== undefined &&
-                removed.has(item.turnId),
-        )
-    )
-        throw new CaxriError(
-            'CONFLICT',
-            `A message was steered into a later turn; restart the Chat, then ${action === 'restore' ? 'restore code' : `${action} from here`}`,
-        );
     let listed: unknown;
     try {
         listed = await connection.request(
@@ -120,12 +101,11 @@ function failedAction(scope: 'conversation' | 'files'): string {
 export async function rewindGrokSession(
     connection: JsonRpcConnection,
     sessionId: string,
-    snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
     target: ChatRewindTarget,
     scope: 'conversation' | 'files' = 'conversation',
 ): Promise<undefined> {
     const action = scope === 'files' ? 'restore' : 'edit';
-    const point = await grokPromptIndex(connection, sessionId, snapshot, target, action);
+    const point = await grokPromptIndex(connection, sessionId, target, action);
     let result: unknown;
     try {
         result = await connection.request(
@@ -164,10 +144,9 @@ export async function rewindGrokSession(
 export async function forkGrokSession(
     connection: JsonRpcConnection,
     source: { sessionId: string; cwd: string },
-    snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
     target: ChatForkTarget,
 ): Promise<string> {
-    const point = await grokPromptIndex(connection, source.sessionId, snapshot, target, 'fork');
+    const point = await grokPromptIndex(connection, source.sessionId, target, 'fork');
     let forked: unknown;
     try {
         forked = await connection.request(
