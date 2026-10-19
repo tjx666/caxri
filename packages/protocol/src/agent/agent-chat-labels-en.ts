@@ -43,6 +43,11 @@ export const agentChatLabelsEn = {
 
     // Timeline notices (`agentChatNoticeMessage`)
     'agentChat.message.contextCompacted': 'Context compacted',
+    'agentChat.message.contextCompactedSizes': 'Context compacted · {{before}} → {{after}}',
+    'agentChat.message.contextCompactedAuto': 'Compacted automatically when the context filled up',
+    'agentChat.message.contextCompactedManual': 'Compacted on request',
+    'agentChat.message.contextCompactedDetail':
+        '{{before}} tokens → {{after}} tokens, {{percent}} smaller',
     'agentChat.message.retrying': 'Retrying',
     'agentChat.message.retryingWith': 'Retrying: {{message}}',
     'agentChat.message.agentError': 'The Agent reported an error',
@@ -60,6 +65,10 @@ export const agentChatLabelsEn = {
     'agentChat.fold.worked': 'Worked',
     'agentChat.fold.stopped': 'Stopped',
     'agentChat.fold.failed': 'Failed',
+    'agentChat.fold.stoppedByYouAfter': 'Stopped by you after {{duration}}',
+    'agentChat.fold.stoppedByYou': 'Stopped by you',
+    'agentChat.fold.stoppedByAgentAfter': 'Stopped by an Agent after {{duration}}',
+    'agentChat.fold.stoppedByAgent': 'Stopped by an Agent',
 
     // A work summary that counts unsuccessful items
     'agentChat.workGroup.withFailures': '{{summary}}, {{count}} failed',

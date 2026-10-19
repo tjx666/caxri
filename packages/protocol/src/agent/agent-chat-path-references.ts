@@ -1,9 +1,7 @@
 import { z } from 'zod';
 
-import {
-    agentChatImageMediaTypeSchema,
-    MAX_AGENT_CHAT_PICKED_IMAGES_BYTES,
-} from './agent-chat-contract.js';
+import { agentChatImageMediaTypeSchema } from './agent-chat-contract.js';
+import { MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from './agent-chat-limits.js';
 
 /**
  * A file or folder the user attached to a message by path: dropped from Finder, pasted, or picked with `+`. The Agent

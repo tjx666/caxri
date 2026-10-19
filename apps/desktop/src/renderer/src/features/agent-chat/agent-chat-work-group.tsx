@@ -524,12 +524,11 @@ function AgentChatWorkSummary({
             disclosureKind="agent-chat-work-group"
             expansionKey={agentChatSummaryExpansionKey(anchorItems)}
             glyph={<WorkGlyph kind={glyph.kind} mcpToolName={glyph.mcpToolName} />}
+            // Like a single running row, the live summary sweeps its title instead of trailing a spinner.
+            isRunning={items.some(isAgentChatWorkRunning)}
             title={<span className="min-w-0 truncate">{summary}</span>}
             trailing={
                 <>
-                    {items.some(isAgentChatWorkRunning) && (
-                        <AgentChatStatusGlyph status="running" />
-                    )}
                     {items.length === 1 && items[0] ? (
                         <AgentChatWorkTrailing item={items[0]} />
                     ) : (

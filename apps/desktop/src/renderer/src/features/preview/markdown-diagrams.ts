@@ -125,6 +125,20 @@ function showDiagram(element: HTMLElement, svg: string): void {
 }
 
 /**
+ * Sizes a rendered diagram to its natural size. Mermaid emits `width="100%"` with a `max-width` so a diagram shrinks to
+ * fit a Markdown column; in a zoomable frame (a `.mmd` file, a Chat diagram at full screen) the frame does the scaling,
+ * and a percentage width would instead collapse against the frame's content-sized box.
+ */
+export function sizeDiagramNaturally(element: HTMLElement): void {
+    const svg = element.querySelector<SVGSVGElement>(':scope > svg');
+    const box = svg?.viewBox.baseVal;
+    if (!svg || !box?.width || !box.height) return;
+    svg.style.maxWidth = 'none';
+    svg.style.width = `${box.width}px`;
+    svg.style.height = `${box.height}px`;
+}
+
+/**
  * Names a rendered diagram for assistive technology. Mermaid marks its SVG `role="graphics-document document"` without
  * a name, so the accessible name was computed from the SVG's contents, which start with its embedded `<style>` text
  * (`#caxri-mermaid-1{font-family:...}`). An `img` role with an explicit label reads as one named picture instead.

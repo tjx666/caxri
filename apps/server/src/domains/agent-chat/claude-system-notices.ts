@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { clip, stringField } from './chat-items';
+import type { AgentChatItem, AgentChatPatchOperation, AgentChatUsage } from '@caxri/protocol';
+
+import { clip, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { claudeFeedbackItems } from './claude-feedback';
 
@@ -10,14 +12,21 @@ import { claudeFeedbackItems } from './claude-feedback';
  */
 
 type Json = Record<string, unknown>;
+type AgentChatNoticeCompaction = NonNullable<
+    Extract<AgentChatItem, { type: 'notice' }>['compaction']
+>;
 
 type NoticeHost = Pick<AgentChatSessionHost, 'apply' | 'lifecycle' | 'read'>;
 
 /**
  * Only explicit feedback belongs in Chat; successful Hook diagnostics remain internal.
  */
-export function didApplyClaudeFeedback(host: NoticeHost, message: Json): boolean {
-    const items = claudeFeedbackItems(message, host.read().activeTurnId);
+export function didApplyClaudeFeedback(
+    host: NoticeHost,
+    message: Json,
+    scope: 'agent' | 'session' = 'session',
+): boolean {
+    const items = claudeFeedbackItems(message, host.read().activeTurnId, scope);
     if (items.length > 0) host.apply(items.map((item) => ({ op: 'upsertItem', item })));
     return items.length > 0;
 }
@@ -64,15 +73,69 @@ export function onClaudeStatus(host: NoticeHost, message: Json): void {
  */
 export function onClaudeCompactBoundary(host: NoticeHost, message: Json): void {
     didClearCompacting(host);
-    const turnId = host.read().activeTurnId;
+    const { activeTurnId: turnId, usage } = host.read();
     const id = clip(`compact:${stringField(message.uuid) ?? randomUUID()}`, 200);
-    host.apply([
+    const compaction = claudeCompaction(message);
+    const operations: AgentChatPatchOperation[] = [
         {
             op: 'upsertItem',
-            item: { id, ...(turnId && { turnId }), type: 'notice', kind: 'compacted' },
+            item: {
+                id,
+                ...(turnId && { turnId }),
+                type: 'notice',
+                kind: 'compacted',
+                ...(compaction && { compaction }),
+            },
         },
-    ]);
+    ];
+    if (usage)
+        operations.push({ op: 'state', state: { usage: compactedUsage(usage, compaction) } });
+    host.apply(operations);
     host.lifecycle({ phase: 'compactionFinished' });
+}
+
+/**
+ * The context sizes a compaction reports. The live SDK frame spells them `compact_metadata.pre_tokens`; the transcript
+ * Claude Code persists spells them `compactMetadata.preTokens` (verified with Claude Code 2.1.302).
+ */
+export function claudeCompaction(message: Json): AgentChatNoticeCompaction | undefined {
+    const live = isRecord(message.compact_metadata) ? message.compact_metadata : undefined;
+    const saved = isRecord(message.compactMetadata) ? message.compactMetadata : undefined;
+    const beforeTokens = tokenCount(live?.pre_tokens ?? saved?.preTokens);
+    const afterTokens = tokenCount(live?.post_tokens ?? saved?.postTokens);
+    const trigger = live?.trigger ?? saved?.trigger;
+    const compaction: AgentChatNoticeCompaction = {
+        ...(beforeTokens !== undefined && { beforeTokens }),
+        ...(afterTokens !== undefined && { afterTokens }),
+        ...((trigger === 'manual' || trigger === 'auto') && { trigger }),
+    };
+    return Object.keys(compaction).length > 0 ? compaction : undefined;
+}
+
+/**
+ * The usage right after a compaction. The context is now the summary, so the old total would keep suggesting another
+ * compaction, and the prompt cache it was written to no longer matches: both cache notices would price a re-read of a
+ * conversation that is gone. Without a reported size the total stays until the next response replaces it.
+ */
+function compactedUsage(
+    usage: AgentChatUsage,
+    compaction: AgentChatNoticeCompaction | undefined,
+): AgentChatUsage {
+    const next: AgentChatUsage = { ...usage };
+    delete next.cacheRewriteUsd;
+    delete next.lastResponseAt;
+    if (compaction?.afterTokens !== undefined) {
+        next.totalTokens = compaction.afterTokens;
+        // The rows described the context before the summary replaced it.
+        delete next.breakdown;
+    }
+    return next;
+}
+
+function tokenCount(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+        ? value
+        : undefined;
 }
 
 /**

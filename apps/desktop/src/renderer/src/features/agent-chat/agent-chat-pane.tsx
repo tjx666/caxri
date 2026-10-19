@@ -43,10 +43,11 @@ import {
     AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
     onAgentChatTranscriptKeyDown,
 } from './agent-chat-reply-navigation';
+import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import { agentChatTimelineEntryKey } from './agent-chat-timeline';
+import { agentChatTimelineEntryKey, isAgentChatAwaitingReply } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
@@ -138,6 +139,7 @@ export function AgentChatPane({
         anchor,
     } = useAgentChatScroll(snapshot?.revision, {
         isTurnLive: isAgentChatBusy(snapshot) || pending.timeline.length > 0,
+        latestPromptId: snapshot?.items.findLast((item) => item.type === 'userMessage')?.id,
         turnSelector: AGENT_CHAT_TURN_SELECTOR,
     });
     /**
@@ -273,6 +275,10 @@ export function AgentChatPane({
                                     <AgentChatTimelineBody
                                         dayBreaks={dayBreaks}
                                         editActions={editActions}
+                                        isAwaitingReply={
+                                            pending.timeline.length === 0 &&
+                                            isAgentChatAwaitingReply(snapshot, timeline)
+                                        }
                                         mcpServers={snapshot?.mcpServers}
                                         pending={pending}
                                         readBackHistory={readBackHistory}
@@ -399,6 +405,7 @@ function LiveTimelineEntries({
 function AgentChatTimelineBody({
     dayBreaks,
     editActions,
+    isAwaitingReply,
     mcpServers,
     onOpenFile,
     pending,
@@ -409,6 +416,7 @@ function AgentChatTimelineBody({
 }: {
     dayBreaks: ReadonlyMap<string, number>;
     editActions: ComponentProps<typeof AgentChatEditContext>['value'];
+    isAwaitingReply: boolean;
     mcpServers: AgentChatSnapshot['mcpServers'];
     onOpenFile: (reference: string) => void;
     pending: ComponentProps<typeof AgentChatPendingTimeline>['pending'];
@@ -435,6 +443,7 @@ function AgentChatTimelineBody({
                         timeline={timeline}
                         onOpenFile={onOpenFile}
                     />
+                    {isAwaitingReply && <AgentChatReplyPlaceholder />}
                     <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
                 </AgentChatEditContext>
             </AgentChatTerminalContext>

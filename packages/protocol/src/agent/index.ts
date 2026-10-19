@@ -12,6 +12,7 @@ export * from './agent-chat-history.js';
 export * from './agent-chat-labels.js';
 export * from './agent-chat-labels-en.js';
 export * from './agent-chat-labels-zh-cn.js';
+export * from './agent-chat-limits.js';
 export * from './agent-chat-mcp.js';
 export * from './agent-chat-methods.js';
 export * from './agent-chat-models.js';

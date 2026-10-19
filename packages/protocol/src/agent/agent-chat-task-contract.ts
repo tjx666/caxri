@@ -2,14 +2,13 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/identifiers.js';
+import { agentChatItemSchema, agentChatTaskSchema } from './agent-chat-contract.js';
 import {
-    agentChatItemSchema,
-    agentChatTaskSchema,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_PATCH_OPERATIONS,
     MAX_AGENT_CHAT_TASK_ITEMS,
     MAX_AGENT_CHAT_TEXT_LENGTH,
-} from './agent-chat-contract.js';
+} from './agent-chat-limits.js';
 
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
 

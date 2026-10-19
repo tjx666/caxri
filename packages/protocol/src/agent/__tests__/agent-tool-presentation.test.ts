@@ -6,6 +6,7 @@ import {
     describeAgentTool,
     formatNoticeableDuration,
     formatShortDuration,
+    readableShellCommand,
     summarizeAgentToolGroup,
     unwrapShellCommand,
 } from '../agent-tool-presentation';
@@ -194,6 +195,24 @@ describe('unwrapShellCommand', () => {
         );
         expect(unwrapShellCommand(`bash -c 'ls -la'`)).toBe('ls -la');
         expect(unwrapShellCommand('git status')).toBe('git status');
+    });
+});
+
+describe('readableShellCommand', () => {
+    it('drops output plumbing from every command in a chain', () => {
+        expect(
+            readableShellCommand(
+                'npm view @scope/cli version 2>&1 | tail -1; tool --help 2>&1 | head -30; which tool 2>/dev/null',
+            ),
+        ).toBe('npm view @scope/cli version; tool --help; which tool');
+    });
+    it('keeps a filter that changes what the command shows', () => {
+        expect(readableShellCommand("gh api repos/a/b | sed -n '/^## Install/,$p'")).toBe(
+            "gh api repos/a/b | sed -n '/^## Install/,$p'",
+        );
+        expect(readableShellCommand('git log | head -n 5 | wc -l')).toBe(
+            'git log | head -n 5 | wc -l',
+        );
     });
 });
 

@@ -182,6 +182,24 @@ export const unwrapShellCommand = (command: string): string => {
 };
 
 /**
+ * Plumbing an Agent appends only to keep its own output short (`2>&1`, `2>/dev/null`, a trailing `| head -30`) says
+ * nothing about what the command does, yet fills a one-line title. The title drops it at each command boundary; the
+ * expanded row keeps the exact command line.
+ */
+const SHELL_TITLE_NOISE =
+    /\s*(?:\d?>&\d|&?\d?>\s*\/dev\/null|\|\s*(?:head|tail)(?:\s+-n)?(?:\s+-?\d+)?)(?=\s*(?:;|&&|\|\||$))/gu;
+
+export const readableShellCommand = (command: string): string => {
+    let readable = command;
+    // Stripping `| tail -1` leaves the `2>&1` before it at the end of its command, so repeat until nothing changes.
+    for (let previous = ''; previous !== readable;) {
+        previous = readable;
+        readable = readable.replaceAll(SHELL_TITLE_NOISE, '');
+    }
+    return readable.trim() || command;
+};
+
+/**
  * Computer Use steps (`browserUse` and `computerUse`, named by the Server after the surface a Codex step drove) read as
  * the step's own title, the way the Codex app lists them; the generic label stands in only when the step had none.
  */
@@ -224,7 +242,13 @@ export const describeAgentTool = (
     }
     if (rawSubject && known.kind === 'command' && known.label === 'Ran') {
         const command = unwrapShellCommand(rawSubject);
-        return describeShellAction(command) ?? { ...known, subject: command, isCodeSubject: true };
+        return (
+            describeShellAction(command) ?? {
+                ...known,
+                subject: readableShellCommand(command),
+                isCodeSubject: true,
+            }
+        );
     }
     const isPath =
         rawSubject !== undefined && FILE_KINDS.has(known.kind) && /[\\/]/u.test(rawSubject);

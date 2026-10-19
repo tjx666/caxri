@@ -3,23 +3,9 @@ import { useDeferredValue, useEffect, useRef } from 'react';
 import type { ThemeTokens } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
-import { labelDiagram, renderMermaidDiagram } from './markdown-diagrams';
+import { labelDiagram, renderMermaidDiagram, sizeDiagramNaturally } from './markdown-diagrams';
 import { PreviewEmptyState } from './preview-empty-state';
 import { PreviewZoomView } from './preview-zoom-view';
-
-/**
- * Sizes a rendered diagram to its natural size. Mermaid emits `width="100%"` with a `max-width` so a diagram shrinks to
- * fit a Markdown column; in the zoomable file view the frame does the scaling, and a percentage width would instead
- * collapse against the frame's content-sized box.
- */
-function sizeDiagramNaturally(element: HTMLElement): void {
-    const svg = element.querySelector<SVGSVGElement>(':scope > svg');
-    const box = svg?.viewBox.baseVal;
-    if (!svg || !box?.width || !box.height) return;
-    svg.style.maxWidth = 'none';
-    svg.style.width = `${box.width}px`;
-    svg.style.height = `${box.height}px`;
-}
 
 /**
  * The reading view for a `.mmd` / `.mermaid` file: the whole file is one diagram.

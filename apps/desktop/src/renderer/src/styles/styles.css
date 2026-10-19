@@ -220,6 +220,39 @@
 }
 
 /*
+ * The Agent Chat reply placeholder's dots (`agent-chat-reply-placeholder.tsx`) breathe one after
+ * another on the compaction pulse's period. Reduced motion leaves them still at half strength.
+ */
+@keyframes reply-placeholder-dot {
+    0%,
+    60%,
+    100% {
+        opacity: 0.35;
+    }
+    30% {
+        opacity: 1;
+    }
+}
+
+.reply-placeholder-dot {
+    opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .reply-placeholder-dot {
+        animation: reply-placeholder-dot var(--motion-compaction-pulse) ease-in-out infinite;
+    }
+
+    .reply-placeholder-dot:nth-child(2) {
+        animation-delay: calc(var(--motion-compaction-pulse) / 6);
+    }
+
+    .reply-placeholder-dot:nth-child(3) {
+        animation-delay: calc(var(--motion-compaction-pulse) / 3);
+    }
+}
+
+/*
  * A highlight sweeping left to right across live Agent Chat text (a running tool's verb, `Thinking`,
  * the composer's working line), the way the Codex app and T3 Code mark work in progress without a
  * spinner per row. The gradient is clipped to the glyphs, so apply it only to a plain text span:

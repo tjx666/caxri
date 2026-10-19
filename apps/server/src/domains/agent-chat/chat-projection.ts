@@ -6,6 +6,7 @@ import type {
     AgentChatSnapshot,
     AgentChatTask,
     AgentChatTaskPatchOperation,
+    AgentChatTurn,
     ServerEvent,
 } from '@caxri/protocol';
 import {
@@ -68,6 +69,31 @@ export function stampNewItems(
 }
 
 /**
+ * Names who stopped each interrupted turn Caxri was asked to stop. No provider reports who interrupted a turn, so the
+ * Server Core that relayed the Stop remembers it by turn id and stamps it whenever that turn arrives `interrupted`,
+ * including in a later history replay of the same Chat.
+ */
+export function stampStoppedTurns(
+    operations: readonly AgentChatPatchOperation[],
+    stops: ReadonlyMap<string, NonNullable<AgentChatTurn['stoppedBy']>>,
+): readonly AgentChatPatchOperation[] {
+    if (stops.size === 0) return operations;
+    return operations.map((operation) => {
+        if (operation.op !== 'state' || !operation.state.turns) return operation;
+        const original = operation.state.turns;
+        const turns = original.map((turn) => {
+            const stoppedBy = stops.get(turn.id);
+            if (!stoppedBy || turn.status !== 'interrupted' || turn.stoppedBy === stoppedBy)
+                return turn;
+            return { ...turn, stoppedBy };
+        });
+        return turns.some((turn, index) => turn !== original[index])
+            ? { ...operation, state: { ...operation.state, turns } }
+            : operation;
+    });
+}
+
+/**
  * Keeps each `answered` notice through a history replay. Server Core records the notice itself when the user answers a
  * question (`agentChatAnsweredNotice`); no provider's history carries it, so the `reset` batch that rebuilds a resumed
  * Chat (Retry after a crash, or any restart of the provider process) would otherwise drop it and leave the Agent acting
@@ -123,6 +149,10 @@ export class ChatProjection {
      * `answered` notices over (see {@link carryAnsweredNotices}).
      */
     private replacedItems: readonly AgentChatItem[] = [];
+    /**
+     * Who asked to stop each turn; see {@link stampStoppedTurns}.
+     */
+    private stops = new Map<string, NonNullable<AgentChatTurn['stoppedBy']>>();
     snapshot: AgentChatSnapshot;
     /**
      * Subagent conversations and background shell output, each with its own revisions.
@@ -243,12 +273,18 @@ export class ChatProjection {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
         const isHistoryReplay = operations.some((operation) => operation.op === 'reset');
-        const stamped = stampNewItems(
-            this.snapshot,
-            isHistoryReplay
-                ? carryAnsweredNotices([...this.replacedItems, ...this.snapshot.items], operations)
-                : operations,
-            Date.now(),
+        const stamped = stampStoppedTurns(
+            stampNewItems(
+                this.snapshot,
+                isHistoryReplay
+                    ? carryAnsweredNotices(
+                          [...this.replacedItems, ...this.snapshot.items],
+                          operations,
+                      )
+                    : operations,
+                Date.now(),
+            ),
+            this.stops,
         );
         if (isHistoryReplay) this.replacedItems = [];
         const isReplacement = stamped.some((operation) => operation.op === 'reset');
@@ -320,6 +356,15 @@ export class ChatProjection {
      */
     adoptReplaced(previous: ChatProjection): void {
         this.replacedItems = previous.snapshot.items;
+        this.stops = new Map(previous.stops);
+    }
+
+    /**
+     * Records that `by` asked to stop the running turn, so it is labeled with who stopped it once it ends interrupted.
+     */
+    noteStopRequest(by: NonNullable<AgentChatTurn['stoppedBy']>): void {
+        const { activeTurnId } = this.snapshot;
+        if (activeTurnId) this.stops.set(activeTurnId, by);
     }
 
     /**

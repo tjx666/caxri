@@ -20,11 +20,13 @@ import {
     agentChatSnapshotSchema,
     agentChatTaskSchema,
     agentChatThumbnailSchema,
+} from './agent-chat-contract.js';
+import {
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
-} from './agent-chat-contract.js';
+} from './agent-chat-limits.js';
 import { agentChatDefaultSchema, agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatDecisionSchema } from './agent-chat-requests.js';
 import { agentChatTaskSnapshotSchema } from './agent-chat-task-contract.js';

@@ -31,7 +31,7 @@ export interface DispatchChats {
         delivery?: 'queue',
         origin?: 'human' | 'delegation',
     ): Promise<void>;
-    interrupt(terminalId: string): Promise<void>;
+    interrupt(terminalId: string, by: 'agent'): Promise<void>;
     stopProvider(terminalId: string): Promise<void>;
     /**
      * Binds the next start of a delegated child Chat to its task; see `ChatDelegationLinks.prepareStart`.
@@ -128,7 +128,7 @@ export async function signalChat(
 ) {
     const target = requireDispatchChats(terminal, chats);
     if (signal === 'SIGINT') {
-        await target.interrupt(terminal.id);
+        await target.interrupt(terminal.id, 'agent');
         observeInterrupt();
     } else await target.stopProvider(terminal.id);
     return { endpoint, terminalId: terminal.id, outcome: 'signaled' as const };

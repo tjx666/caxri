@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { agentChatItemSchema } from '../agent-chat-contract';
 import {
-    agentChatItemSchema,
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
-} from '../agent-chat-contract';
+} from '../agent-chat-limits';
 import { agentChatMethods } from '../agent-chat-methods';
 import { applyAgentChatOperation, emptyAgentChatSnapshot } from '../agent-chat-reducer';
 

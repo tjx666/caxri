@@ -7,6 +7,7 @@ import {
     agentChatTurnSpacerHeight,
     isFollowingAfterScroll,
     isLatestInView,
+    isNewAgentChatPrompt,
     isScrolledToEnd,
 } from '../hooks/use-agent-chat-scroll';
 
@@ -144,5 +145,13 @@ describe('agentChatTurnSpacerHeight', () => {
     it('needs no room once the turn fills the view', () => {
         expect(agentChatTurnSpacerHeight(800, 688)).toBe(0);
         expect(agentChatTurnSpacerHeight(800, 2000)).toBe(0);
+    });
+});
+
+describe('isNewAgentChatPrompt', () => {
+    it('treats the first prompt seen as the conversation loading, and any later one as a new turn', () => {
+        expect(isNewAgentChatPrompt(undefined, 'u1')).toBe(false);
+        expect(isNewAgentChatPrompt('u1', 'u1')).toBe(false);
+        expect(isNewAgentChatPrompt('u1', 'u2')).toBe(true);
     });
 });

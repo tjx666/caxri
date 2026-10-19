@@ -19,6 +19,17 @@ const COLORIZED_MARKUP =
 type Monaco = typeof MonacoModule.monaco;
 
 /**
+ * JSON dialects Agents fence often (`tsconfig.json` is JSONC) that Monaco's JSON registration does not alias. They are
+ * painted with the JSON tokenizer, which already colors comments, rather than added to that registration: the editor
+ * would then open `.jsonc` files under the JSON validator, which reports every comment as an error. Values are the
+ * header labels.
+ */
+const JSON_DIALECTS: ReadonlyMap<string, string> = new Map([
+    ['json5', 'JSON5'],
+    ['jsonc', 'JSONC'],
+]);
+
+/**
  * Maps a fence info string onto a registered Monaco language.
  *
  * Monaco is the single source of truth for what `ts`, `typescript`, and `.ts` all mean, so the fence word is matched
@@ -28,6 +39,7 @@ type Monaco = typeof MonacoModule.monaco;
 function monacoLanguageId(monaco: Monaco, fence: string): string | undefined {
     const wanted = fence.trim().toLowerCase();
     if (!wanted) return undefined;
+    if (JSON_DIALECTS.has(wanted)) return 'json';
     for (const language of monaco.languages.getLanguages()) {
         if (language.id.toLowerCase() === wanted) return language.id;
         if (language.aliases?.some((alias) => alias.toLowerCase() === wanted)) return language.id;
@@ -46,6 +58,8 @@ function monacoLanguageId(monaco: Monaco, fence: string): string | undefined {
  * from the same registration that paints the block, so the label and the colors always agree.
  */
 export async function codeLanguageName(fence: string): Promise<string | undefined> {
+    const dialect = JSON_DIALECTS.get(fence.trim().toLowerCase());
+    if (dialect) return dialect;
     const { monaco } = await import('./monaco');
     const languageId = monacoLanguageId(monaco, fence);
     if (!languageId) return undefined;

@@ -2,7 +2,7 @@ import type { AgentChatItem, AgentChatPatchOperation } from '@caxri/protocol';
 import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { carryAnsweredNotices, stampNewItems } from '../chat-projection';
+import { carryAnsweredNotices, stampNewItems, stampStoppedTurns } from '../chat-projection';
 
 const NOW = 1_700_000_000_000;
 
@@ -113,5 +113,42 @@ describe('carryAnsweredNotices', () => {
             { op: 'upsertItem', item: { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Hi' } },
         ];
         expect(carryAnsweredNotices([answered], live)).toBe(live);
+    });
+});
+
+describe('stampStoppedTurns', () => {
+    const stops = new Map([['turn-1', 'user' as const]]);
+
+    it('names who stopped a turn once it arrives interrupted, also in a replay', () => {
+        const [state] = stampStoppedTurns(
+            [
+                {
+                    op: 'state',
+                    state: {
+                        turns: [
+                            { id: 'turn-1', status: 'interrupted', durationMs: 67_000 },
+                            { id: 'turn-2', status: 'interrupted' },
+                        ],
+                    },
+                },
+            ],
+            stops,
+        );
+        expect(state).toEqual({
+            op: 'state',
+            state: {
+                turns: [
+                    { id: 'turn-1', status: 'interrupted', durationMs: 67_000, stoppedBy: 'user' },
+                    { id: 'turn-2', status: 'interrupted' },
+                ],
+            },
+        });
+    });
+
+    it('leaves a turn that finished anyway unlabeled', () => {
+        const operations: AgentChatPatchOperation[] = [
+            { op: 'state', state: { turns: [{ id: 'turn-1', status: 'completed' }] } },
+        ];
+        expect(stampStoppedTurns(operations, stops)[0]).toBe(operations[0]);
     });
 });
