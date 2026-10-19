@@ -224,7 +224,10 @@ if (process.argv.includes('app-server')) {
         await liveRow.click();
         await expect(thought).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('surface-switch-running-turn.png') });
-        await liveRow.click();
+        // The expanded list repeats the command as its own row, so collapse through the summary that is now open.
+        await session
+            .getByRole('button', { name: 'Searching slow in src', expanded: true })
+            .click();
         await expect(thought).toHaveCount(0);
         // Stop and Queue share one slot: typed content turns it into Queue message; Cmd+Enter steers instead.
         await message.fill('steer');
