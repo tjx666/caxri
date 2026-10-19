@@ -72,7 +72,13 @@ export async function executeMobilePlanLimitsScenario(
                 pageRequest<AgentUsageReadout | null>(fixture.running.page, 'terminal.agentUsage', {
                     terminalId: chat.terminalId,
                 }),
-            (current) => (current?.limit?.windows.length ?? 0) === 2,
+            // The behind-pace answer took effect: the week is 61% used, not the fake's on-pace 10%.
+            (current) =>
+                current?.limit?.windows.length === 2 &&
+                current.limit.windows.some(
+                    ({ windowMinutes, usedPercent }) =>
+                        windowMinutes === 10_080 && usedPercent === 61,
+                ),
         );
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
@@ -91,7 +97,10 @@ export async function executeMobilePlanLimitsScenario(
         await waitForNoCheck(serial, 'agent-chat-plan-pace');
         await capture(environment, 'pace-dismissed', artifacts);
         await finish(environment, artifacts, {
-            limitWindows: readout?.limit?.windows.map(({ windowMinutes }) => windowMinutes),
+            limitWindows: readout?.limit?.windows.map(({ windowMinutes, usedPercent }) => ({
+                windowMinutes,
+                usedPercent,
+            })),
             paceNotice: 'shown-then-dismissed',
             planType: readout?.limit?.planType,
         });
