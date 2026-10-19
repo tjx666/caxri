@@ -9,10 +9,13 @@ import type { GitSummaryRequester } from './summary-trace';
 
 /**
  * Steady-state window for one `git.refresh_summary` record per Session. Production evidence (#604): `git.summary` wrote
- * 3008 records in one 5MB generation, and 79% of consecutive records repeated the previous result. One aggregate per
- * minute of activity keeps the volume, the change ratio, and the slowest refresh visible at a bounded cost.
+ * 3008 records in one 5MB generation, and 79% of consecutive records repeated the previous result. The window must be
+ * several times longer than the background poll interval, or it aggregates nothing: at one minute, with each Session
+ * prepared about every 75 seconds by the delivery watch, 80% of windows held a single refresh, and this event alone was
+ * a third of a 20MB `server-core.jsonl` generation that rotated every six hours. Ten minutes still bounds how late a
+ * burst is reported while folding a steady poll into one record.
  */
-const GIT_SUMMARY_WINDOW_MS = 60_000;
+const GIT_SUMMARY_WINDOW_MS = 10 * 60_000;
 
 export interface GitSummaryProductionFields {
     readonly commandCount: number;
