@@ -620,9 +620,11 @@ when the config is a link into a dotfiles folder; the write goes through the lin
 never creates the config: a Claude Code that never ran shows its onboarding anyway, and its first run
 must not find a file Caxri invented. The outcome is a closed enum logged as
 `agent_commander.claude_trust_prepared`; anything but `granted` or `already_trusted` leaves Claude
-Code's own trust question for the user. That grant covers only the Commander workspace: a task
-delegated to Claude Code in a folder it never trusted still stops at that question, and its delegation
-reports `blocked` with `startup_waiting` for the Commander to raise in the Inbox.
+Code's own trust question for the user. A task delegated to Claude Code gets the same
+grant for its launch directory (`claudeTrustPreparer` in the dispatch domain, after the directory is validated against
+the Session's authorized roots; Chat children skip it), logged as `agent_dispatch.claude_trust_prepared`. When that
+grant fails, the task still stops at Claude Code's question and its delegation reports `blocked` with
+`startup_waiting` for the Commander to raise in the Inbox.
 
 Automatic Session naming skips the Commander's own Session (`SessionAutoNamingService`). That Session
 carries every task in turn, so a name taken from one request would mislabel the next, and Claude Code

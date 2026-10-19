@@ -1,5 +1,27 @@
 import type { AgentDispatchFailure, AgentDispatchReceipt, ProcessState } from '@caxri/protocol';
 
+import type { TerminalLifecycleCause } from '../terminal';
+
+/**
+ * Why a dispatch failed, as carried on the receipt's failure.
+ */
+export type DispatchReason = AgentDispatchFailure['reason'];
+
+/**
+ * The cause recorded with a dispatch status transition log: a Terminal lifecycle cause or a dispatch-owned step.
+ */
+export type TransitionReason =
+    | TerminalLifecycleCause
+    | 'created'
+    | 'launchStarted'
+    | 'launchReady'
+    | 'launchFailed'
+    | 'processFailed'
+    | 'agentExit'
+    | 'terminalSuspended'
+    | 'userDetached'
+    | 'processInterrupted';
+
 /**
  * Whether a dispatch receipt reached a status no later Terminal state can change.
  */

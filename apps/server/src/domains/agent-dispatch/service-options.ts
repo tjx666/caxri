@@ -30,6 +30,13 @@ export interface AgentDispatchServiceOptions {
         defaultRoot: string;
         requestedCwd?: string;
     }): Promise<string>;
+    /**
+     * Runs before a PTY Agent is created in `cwd`, which `terminalWorkingDirectory` already validated against the
+     * Session's authorized roots. The composed Server marks the folder trusted for Claude Code here, because Claude
+     * Code asks about an unfamiliar folder even under `--dangerously-skip-permissions` and the dispatched Agent would
+     * wait on that prompt. Best effort: a failure leaves the Agent's own prompt in place and never fails the dispatch.
+     */
+    prepareLaunch?(provider: AgentProvider, cwd: string): Promise<void>;
     emit(event: ServerEvent): void;
     now?: () => number;
 }

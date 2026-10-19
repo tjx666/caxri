@@ -6,7 +6,11 @@ import type { AgentDispatchServiceOptions } from '../agent-dispatch';
  * Server domain composition uses the public dispatch boundary required by the repository architecture.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
-import { AgentDispatchService, createAgentCommandHandlers } from '../agent-dispatch';
+import {
+    AgentDispatchService,
+    claudeTrustPreparer,
+    createAgentCommandHandlers,
+} from '../agent-dispatch';
 import type { AgentEnvironment } from '../agents';
 import {
     delegationAdapter,
@@ -47,7 +51,10 @@ export function createAgentCommandRuntime(
         ): void;
     },
 ) {
-    const dispatchService = new AgentDispatchService(options);
+    const dispatchService = new AgentDispatchService({
+        ...options,
+        prepareLaunch: claudeTrustPreparer(options.agentEnvironment, options.logger),
+    });
     const announce = (reason: FullStateChangeReason) =>
         options.emit({ event: 'state.changed', payload: { kind: 'full', reason } });
     const chatOf = (terminalId: string) =>
