@@ -3,6 +3,7 @@ import process from 'node:process';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
+import type { AgentChatService } from './agent-chat';
 import type {
     AgentEnvironment,
     AgentHookManager,
@@ -167,7 +168,8 @@ type ServiceHandlerMethods =
  */
 export function createServiceHandlers(services: {
     acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;
-    agentChat: PullRequestMergeNoticeOptions['agentChat'];
+    agentChat: PullRequestMergeNoticeOptions['agentChat'] &
+        Pick<AgentChatService, 'readPlanLimits'>;
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
     agentRuntime: {
@@ -273,6 +275,7 @@ export function createServiceHandlers(services: {
     });
     const usage = new UsageService({
         database,
+        readPlanLimits: (terminalId) => services.agentChat.readPlanLimits(terminalId),
         environment: agentEnvironment,
         ...(process.env.CAXRI_E2E === '1' && { fetch: offlinePriceListFetch }),
         logger,

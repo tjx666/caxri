@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type {
     AgentProvider,
     AgentUsageReadout,
+    UsageLimit,
     UsageReport,
     UsageReportParameters,
 } from '@caxri/protocol';
@@ -18,6 +19,7 @@ import type { ExternalStatusRunner } from '../external-status';
 import { SingleFlight } from '../single-flight';
 import { UsageKeyIndex } from './key-index';
 import { LiveAgentUsage } from './live-usage';
+import { PlanLimitRefresh } from './plan-limit-refresh';
 import { ModelPricing } from './pricing';
 import {
     fetchPullRequestOutcomes,
@@ -55,6 +57,11 @@ export interface UsageServiceOptions {
     userDataPath: string;
     fetch?: typeof fetch;
     now?: () => number;
+    /**
+     * Plan rate limits from an Agent Chat's running process, for a provider that writes none into its transcript
+     * (Claude Code). Undefined without a running Chat or a plan.
+     */
+    readPlanLimits?: (terminalId: string) => Promise<Omit<UsageLimit, 'provider'> | undefined>;
 }
 
 type ScanOutcome = 'scanned' | 'unchanged' | 'unavailable' | 'failed';
@@ -141,6 +148,7 @@ export class UsageService {
     private readonly staleLedgerRows = new Set<string>();
     private readonly staleOutsideRows = new Set<string>();
     private readonly live: LiveAgentUsage;
+    private readonly planLimits: PlanLimitRefresh;
 
     constructor(private readonly options: UsageServiceOptions) {
         this.pricing = new ModelPricing({
@@ -153,6 +161,9 @@ export class UsageService {
             options.environment,
             (model) => this.pricing.priceOf(model),
             () => this.now(),
+        );
+        this.planLimits = new PlanLimitRefresh(options.readPlanLimits, (limits) =>
+            this.live.observeLimits(limits),
         );
     }
 
@@ -491,7 +502,9 @@ export class UsageService {
      */
     async readTerminal(terminalId: string): Promise<AgentUsageReadout | null> {
         await this.loadPricing();
-        return this.live.read(terminalId);
+        const readout = await this.live.read(terminalId);
+        if (readout) this.planLimits.request(readout.provider, terminalId);
+        return readout;
     }
 
     /**

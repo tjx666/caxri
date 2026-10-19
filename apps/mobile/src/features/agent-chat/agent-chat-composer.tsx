@@ -43,6 +43,7 @@ import {
 import { AgentChatModelButton } from './agent-chat-model-sheet';
 import { sendAgentChatMessageOptimistically } from './agent-chat-pending';
 import { AgentChatPermissionButton } from './agent-chat-permission-sheet';
+import { AgentChatPlanPaceNotice } from './agent-chat-plan-pace-notice';
 import { sheetStyles } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatCommandRun } from './use-agent-chat-command-run';
@@ -386,6 +387,9 @@ export const AgentChatComposer = ({
             testID="agent-chat-composer"
         >
             {/* The command menu takes the model and permission row's place, so the keyboard-up screen keeps its room. */}
+            {isMenuOpen || !chat.snapshot?.terminalId ? null : (
+                <AgentChatPlanPaceNotice terminalId={chat.snapshot.terminalId} theme={theme} />
+            )}
             {isMenuOpen ? null : (
                 <View style={sheetStyles.choices}>
                     <AgentChatPermissionButton

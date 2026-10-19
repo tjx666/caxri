@@ -351,6 +351,14 @@ export class AgentChatService {
         return readChatContext(this.options, terminalId, this.states.get(terminalId)?.session);
     }
 
+    /**
+     * Plan rate limits from this Chat's running process; never starts one.
+     */
+    async readPlanLimits(terminalId: string) {
+        const session = this.states.get(terminalId)?.session;
+        return session?.isOpen ? session.readPlanLimits?.() : undefined;
+    }
+
     async stopTask(terminalId: string, taskId: string): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
         await stopChatTask(this.states.get(terminalId), taskId);
@@ -526,13 +534,10 @@ export class AgentChatService {
      * Whether idle suspension may stop this Chat now; see {@link isChatIdleForSuspension}.
      */
     isSuspendable(terminalId: string): boolean {
-        const state = this.states.get(terminalId);
         const terminal = this.options.database.getTerminal(terminalId);
-        return Boolean(
-            state &&
-            terminal &&
+        return (
             !this.starts.has(terminalId) &&
-            isChatIdleForSuspension(state, terminal),
+            isChatIdleForSuspension(this.states.get(terminalId), terminal)
         );
     }
 

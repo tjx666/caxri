@@ -37,14 +37,15 @@ export function fakeCodexChatAgentMode(directory: string, userData: string) {
 }
 
 /**
- * A fake Claude Code driven through the Claude Agent SDK. Its transcripts live under the fake agent home.
+ * A fake Claude Code driven through the Claude Agent SDK. Its transcripts live under the fake agent home;
+ * `controlDirectory` is where the spec drops the fake's control files (`FAKE_CLAUDE_CONTROL_DIR`).
  */
-export function fakeClaudeChatAgentMode(userData: string) {
+export function fakeClaudeChatAgentMode(userData: string, controlDirectory?: string) {
     return createFakeAgentMode({
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: fakeClaudeChatExecutableSource(),
+                executableSource: fakeClaudeChatExecutableSource({ controlDirectory }),
             },
         },
     });

@@ -14,6 +14,7 @@ import type {
     AgentChatTaskSnapshot,
     AgentChatTurn,
     AgentLaunchSettings,
+    UsageLimit,
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 
@@ -389,6 +390,12 @@ export interface AgentChatProviderSession {
      * What fills the context now, item by item, for the Context tab. Providers that report no composition omit it.
      */
     readContext?(): Promise<ChatContextDetails>;
+    /**
+     * The account's plan rate limits as the running provider process reports them, for the status bar's usage chip.
+     * Undefined when the plan has none (an API key) or the process does not answer. Providers that report limits only
+     * through their transcript omit it.
+     */
+    readPlanLimits?(): Promise<Omit<UsageLimit, 'provider'> | undefined>;
     /**
      * Reads what the provider knows about one MCP server (its `serverInfo` and endpoint), by the server name a tool
      * call carries, so the timeline can show the server's icon. Providers without an MCP status read omit it.

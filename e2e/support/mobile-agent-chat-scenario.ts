@@ -45,6 +45,7 @@ import {
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
+import { executeMobilePlanLimitsScenario } from './mobile-plan-limits-scenario';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
 import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
 
@@ -473,6 +474,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatFeedbackScenario(environment, artifacts);
         case 'MOB-CHAT-21':
             return executeMobileSessionPinScenario(environment, artifacts);
+        case 'MOB-CHAT-22':
+            return executeMobilePlanLimitsScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

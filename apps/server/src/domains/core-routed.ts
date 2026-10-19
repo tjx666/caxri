@@ -74,6 +74,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.agentChat.readImage',
     'mobile.agentChat.readTask',
     'mobile.agentChat.readHistory',
+    'mobile.agentChat.readUsage',
     'mobile.agentChat.send',
     'mobile.agentChat.interrupt',
     'mobile.agentChat.stopTask',

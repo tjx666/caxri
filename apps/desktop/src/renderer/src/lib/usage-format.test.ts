@@ -1,12 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { useLocaleStore } from '../i18n';
-import {
-    localizedDuration,
-    localizedLimitReset,
-    localizedLimitWindowName,
-    remainingLimitPercent,
-} from './usage-format';
+import { localizedDuration, localizedLimitReset, localizedLimitWindowName } from './usage-format';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -34,13 +29,5 @@ describe('localized usage format', () => {
         expect(localizedDuration(3 * HOUR + 20 * MINUTE)).toBe('3 小时 20 分钟');
         expect(localizedLimitWindowName(300)).toBe('5 小时');
         expect(localizedLimitReset(98 * HOUR, 0)).toBe('4 天 2 小时后重置');
-    });
-});
-
-describe('remainingLimitPercent', () => {
-    it('states the share left, rounded and clamped', () => {
-        expect(remainingLimitPercent(8)).toBe(92);
-        expect(remainingLimitPercent(61.6)).toBe(38);
-        expect(remainingLimitPercent(104)).toBe(0);
     });
 });

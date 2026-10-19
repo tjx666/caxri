@@ -52,11 +52,12 @@ import {
     claudeChatModels,
     claudeEffortHooks,
     claudeFastMode,
-    claudeInitEffort,
+    claudeInitState,
     configureClaudeModel,
     readClaudeAppliedSettings,
 } from './claude-models';
 import { ClaudePermissions } from './claude-permissions';
+import { ClaudePlanLimits } from './claude-plan-limits';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
 import { forkClaudeSession, restoreClaudeFiles, rewindClaudeSession } from './claude-rewind';
@@ -119,6 +120,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private readonly tasks: ClaudeTasks;
     private readonly toolClock = new ClaudeToolClock();
+    private readonly planLimits = new ClaudePlanLimits();
 
     private query: Query | undefined;
 
@@ -136,7 +138,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private readonly turns: ClaudeTurns;
 
-    private readonly commands = new ClaudeCommandList();
+    private readonly commands = new ClaudeCommandList((commands) =>
+        this.options.apply([{ op: 'state', state: { commands } }]),
+    );
 
     private readonly context = new ClaudeContextTracker(() =>
         this.query && this.isOpen
@@ -261,18 +265,13 @@ class ClaudeChatSession implements AgentChatProviderSession {
                     this.sessionId = sessionId;
                     if (this.isSessionBound) this.options.onSessionBound(sessionId);
                 }
-                const model = stringField(message.model);
-                if (model)
-                    this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
-                this.options.apply(claudeInitEffort(message));
-                this.options.apply(claudeFastMode(message));
+                this.options.apply(claudeInitState(message));
                 this.permissions.onReported(message.permissionMode, this.query);
-                const commands = this.commands.hideTerminalBound(message.terminal_slash_commands);
-                if (commands) this.options.apply([{ op: 'state', state: { commands } }]);
+                this.commands.hideTerminalBound(message.terminal_slash_commands);
                 return;
             }
             case 'commands_changed': {
-                this.reportCommands(message.commands);
+                this.commands.report(message.commands);
                 return;
             }
             case 'session_state_changed': {
@@ -334,7 +333,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             default: {
-                // Progress, rate-limit, and auth events are not conversation content.
+                // Progress and auth events are not conversation content; a rate-limit event updates the plan limits.
+                if (message.type === 'rate_limit_event')
+                    this.planLimits.observe(message.rate_limit_info);
             }
         }
     }
@@ -379,10 +380,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
         }
         await this.process?.exited;
         this.onEnd();
-    }
-
-    private reportCommands(commands: unknown): void {
-        this.options.apply([{ op: 'state', state: { commands: this.commands.report(commands) } }]);
     }
 
     private reportAppliedSettings(stream: Query): void {
@@ -465,7 +462,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 stream.initializationResult(),
                 INITIALIZE_TIMEOUT_MS,
             );
-            this.reportCommands(initialized.commands);
+            this.commands.report(initialized.commands);
             const models = claudeChatModels(initialized.models);
             if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
             this.options.apply(claudeFastMode(initialized));
@@ -569,6 +566,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     readContext() {
         return this.context.read(this.requireOpen());
+    }
+
+    readPlanLimits() {
+        return this.planLimits.read(this.isOpen ? this.query : undefined);
     }
 
     readMcpServer(name: string) {

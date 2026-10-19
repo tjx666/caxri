@@ -12,9 +12,10 @@ import type { ChatState, ChatStateDelivery, ChatStates } from './chat-states';
  * Chat that is not bound yet has no conversation to resume, so stopping it would only discard its draft settings.
  */
 export function isChatIdleForSuspension(
-    state: ChatState,
-    terminal: Pick<TerminalRecord, 'agentSessionId'>,
+    state: ChatState | undefined,
+    terminal: Pick<TerminalRecord, 'agentSessionId'> | undefined,
 ): boolean {
+    if (!state || !terminal) return false;
     const snapshot = state.projection.snapshot;
     return (
         state.session?.isOpen === true &&

@@ -21,6 +21,7 @@ import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
+import { AgentChatPlanPaceAlert } from './agent-chat-plan-pace-alert';
 import type { agentChatSendBlock } from './agent-chat-presentation';
 import {
     agentChatComposerPlaceholder,
@@ -300,6 +301,10 @@ export function AgentChatComposer({
         stop();
         focusInput();
     };
+    /**
+     * The notice rows give way to the activity row and the edit bar, which own the strip while they show.
+     */
+    const hasStripRoom = !activity && !edit.isEditing;
     return (
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
             <AgentChatDropOverlay
@@ -337,12 +342,13 @@ export function AgentChatComposer({
                     <AgentChatEditBar edit={edit.bar} />
                     <AgentChatContextAlerts
                         isContinuing={isContinuing}
-                        isShown={!activity && !edit.isEditing}
+                        isShown={hasStripRoom}
                         usage={snapshot?.usage}
                         onCompact={compact}
                         onContinueInNewChat={continueInNewChat}
                         terminalId={terminalId}
                     />
+                    <AgentChatPlanPaceAlert isShown={hasStripRoom} terminalId={terminalId} />
                 </AgentChatComposerStrip>
                 <form
                     className={cn(

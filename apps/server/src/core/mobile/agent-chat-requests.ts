@@ -6,6 +6,7 @@ import type {
     Principal,
     ServerOperationRequest,
     ServerRequest,
+    UsageLimit,
 } from '@caxri/protocol';
 import {
     agentChatMethods,
@@ -41,6 +42,7 @@ const mobileAgentChatReads: ReadonlySet<MobileAgentChatRequest['method']> = new 
     'mobile.agentChat.readImage',
     'mobile.agentChat.readTask',
     'mobile.agentChat.readHistory',
+    'mobile.agentChat.readUsage',
 ]);
 
 export const isMobileAgentChatRead = (request: MobileAgentChatRequest): boolean =>
@@ -206,6 +208,7 @@ export async function invokeMobileAgentChatRequest(
     | AgentChatSnapshot
     | AgentChatHistoryPage
     | AgentChatTaskSnapshot
+    | UsageLimit
     | (ImageData & { chunkIndex: number; chunkCount: number })
     | { text: string }
     | null
@@ -321,6 +324,11 @@ export async function invokeMobileAgentChatRequest(
             ]);
             reauthorize();
             return clipAgentChatTaskSnapshotForMobile(task, projectRoot);
+        }
+        case 'mobile.agentChat.readUsage': {
+            const readout = await domainService.request('terminal.agentUsage', { terminalId });
+            reauthorize();
+            return readout?.limit ?? null;
         }
         case 'mobile.agentChat.stopTask': {
             await forward({

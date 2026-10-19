@@ -1,5 +1,11 @@
 import type { UsageLimit, UsageReport } from '@caxri/protocol';
-import { formatLineCount, formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
+import {
+    formatLineCount,
+    formatPercent,
+    formatTokens,
+    formatUsd,
+    remainingLimitPercent,
+} from '@caxri/protocol';
 
 import { ReportCard, StatTile } from '../../components/report-card';
 import { Progress } from '../../components/ui/progress';
@@ -9,11 +15,7 @@ import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
 import { CHART_CURSOR_CLASS } from '../../lib/chart-cursor';
 import { formatCount } from '../../lib/locale-format';
-import {
-    localizedDuration,
-    localizedLimitWindowName,
-    remainingLimitPercent,
-} from '../../lib/usage-format';
+import { localizedDuration, localizedLimitWindowName } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
 import { UsageActivityCard } from './usage-activity-card';

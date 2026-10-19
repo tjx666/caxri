@@ -149,8 +149,8 @@ const usageLimitWindowSchema = z.object({
 const modelName = z.string().max(200);
 
 /**
- * Latest provider-reported rate-limit window, as the provider wrote it into its own transcript. Account-wide, not
- * limited to Caxri Sessions.
+ * Latest provider-reported plan rate-limit windows: Codex writes them into its own transcript, and a running Claude
+ * Code Chat answers them when asked (its `/usage`). Account-wide, not limited to Caxri Sessions.
  */
 export const usageLimitSchema = z.object({
     provider: agentProvider,
@@ -164,7 +164,8 @@ export type UsageLimit = z.infer<typeof usageLimitSchema>;
  * Running totals of the conversation bound to one Agent Terminal, for the status bar. Priced by the same rules as the
  * Usage page, but over that conversation's own transcript files only (forked or resumed history included, since the
  * conversation carries it). `limit` is the newest rate-limit observation for the provider from any conversation or
- * Usage report Server Core has read, not only this one, because a plan limit is account-wide; Codex only.
+ * Usage report Server Core has read, not only this one, because a plan limit is account-wide. Codex reports it in its
+ * transcript; Claude Code reports it only while one of its Chats is running (see `PlanLimitRefresh`).
  */
 export const agentUsageReadoutSchema = z.object({
     provider: agentProvider,
