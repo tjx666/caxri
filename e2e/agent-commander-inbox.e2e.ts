@@ -161,6 +161,9 @@ test('the Commander Needs you column groups, replies, dismisses, merges, and bec
         await expect(commander.getByRole('dialog')).toHaveCount(0);
         await expect(card(database)).toHaveCount(0);
         await expect(questions.locator('h3')).toHaveText('Questions · 1');
+        // The header badge stops counting the item with the list, not when the Undo window ends.
+        const inboxCount = commander.locator('.agent-commander-inbox-count');
+        await expect(inboxCount).toHaveText('2');
         const dismissedToast = commander
             .locator('[data-sonner-toast]')
             .filter({ hasText: 'Dismissed' });
@@ -168,6 +171,7 @@ test('the Commander Needs you column groups, replies, dismisses, merges, and bec
         await dismissedToast.getByRole('button', { name: 'Undo' }).click();
         await expect(card(database)).toHaveCount(1);
         await expect(questions.locator('h3')).toHaveText('Questions · 2');
+        await expect(inboxCount).toHaveText('3');
         await commander.screenshot({ path: testInfo.outputPath('commander-inbox-undone.png') });
         await card(database).locator('.commander-inbox-dismiss').click();
         await expect(card(database)).toHaveCount(0);

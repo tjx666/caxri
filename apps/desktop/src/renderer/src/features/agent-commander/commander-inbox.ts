@@ -38,8 +38,16 @@ export function commanderInboxSections(
     return sections;
 }
 
-export function openCommanderInboxCount(items: readonly CommanderInboxItem[]): number {
-    return items.filter((item) => item.status === 'open').length;
+/**
+ * The open items a badge counts. `dismissingIds` are items dismissed but still inside their Undo window: the list
+ * already hides them, so the count must too.
+ */
+export function openCommanderInboxCount(
+    items: readonly CommanderInboxItem[],
+    dismissingIds: Readonly<Record<string, true>> = {},
+): number {
+    return items.filter((item) => item.status === 'open' && !Object.hasOwn(dismissingIds, item.id))
+        .length;
 }
 
 export interface CommanderInboxMergeState {

@@ -9,6 +9,7 @@ import {
     inboxReplyTarget,
     inboxSendTooltip,
     insertInboxMentionTrigger,
+    openCommanderInboxCount,
     removeInboxMention,
 } from '../commander-inbox';
 
@@ -48,6 +49,18 @@ describe('commanderInboxSections', () => {
             ['questions', ['hands']],
             ['merge', ['merge']],
         ]);
+    });
+});
+
+describe('openCommanderInboxCount', () => {
+    it('counts open items except those still inside their dismissal Undo window', () => {
+        const items = [
+            item({ id: 'a' }),
+            item({ id: 'b' }),
+            item({ id: 'c', status: 'closed', closeReason: 'resolved' }),
+        ];
+        expect(openCommanderInboxCount(items)).toBe(2);
+        expect(openCommanderInboxCount(items, { a: true })).toBe(1);
     });
 });
 

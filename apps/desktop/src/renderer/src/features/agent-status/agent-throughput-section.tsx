@@ -8,6 +8,7 @@ import {
     numericHeadClass,
     tableHeadClass,
 } from '../../components/report-table-classes';
+import { HorizontalScrollArea } from '../../components/scroll-fade';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useChartKeyboardCursor } from '../../hooks/use-chart-keyboard-cursor';
@@ -201,34 +202,37 @@ function ThroughputByModel({ variants }: { variants: readonly AgentThroughputVar
             title={t('agentStatus.throughput.byModel')}
             caption={t('agentStatus.throughput.byModelCaption')}
         >
-            <table className="w-full table-fixed border-collapse">
-                <thead>
-                    <tr>
-                        {BY_MODEL_COLUMNS.map((column) => (
-                            <th
-                                key={column.key}
-                                className={cn(
-                                    column.isNumeric ? numericHeadClass : tableHeadClass,
-                                    column.width,
-                                )}
-                            >
-                                {t(`agentStatus.throughput.byModel.${column.key}`)}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {variants.map((variant) => (
-                        <tr key={`${variant.model ?? ''}:${variant.speed ?? ''}`}>
+            {/* The model column keeps at least 10rem beside the four figures; a narrower pane scrolls the table sideways. */}
+            <HorizontalScrollArea>
+                <table className="w-full min-w-[38rem] table-fixed border-collapse">
+                    <thead>
+                        <tr>
                             {BY_MODEL_COLUMNS.map((column) => (
-                                <td key={column.key} className={column.cellClassName(variant)}>
-                                    {column.value(variant, t)}
-                                </td>
+                                <th
+                                    key={column.key}
+                                    className={cn(
+                                        column.isNumeric ? numericHeadClass : tableHeadClass,
+                                        column.width,
+                                    )}
+                                >
+                                    {t(`agentStatus.throughput.byModel.${column.key}`)}
+                                </th>
                             ))}
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {variants.map((variant) => (
+                            <tr key={`${variant.model ?? ''}:${variant.speed ?? ''}`}>
+                                {BY_MODEL_COLUMNS.map((column) => (
+                                    <td key={column.key} className={column.cellClassName(variant)}>
+                                        {column.value(variant, t)}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </HorizontalScrollArea>
             {variants.some((variant) => variant.speed === undefined) && (
                 <p className="mt-3 mb-0 text-[11px] leading-snug text-muted">
                     {t('agentStatus.throughput.byModel.unknownNote')}
