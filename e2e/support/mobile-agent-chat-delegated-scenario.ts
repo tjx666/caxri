@@ -35,7 +35,8 @@ export async function executeMobileChatDelegatedTaskScenario(
             (item) => item.type === 'userMessage' && item.delegatedTask,
         )!;
         await fixture.pair();
-        await waitForCheck(environment.serial, 'session-group-recent');
+        // The finished reply leaves the Session unread, so it sits under Needs attention.
+        await waitForCheck(environment.serial, 'session-group-attention');
         await capture(environment, 'session-groups', artifacts);
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(environment.serial, `agent-chat-delegated-${pointer.id}`);
