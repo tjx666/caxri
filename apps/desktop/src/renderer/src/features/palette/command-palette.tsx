@@ -34,12 +34,14 @@ import { useActivePaneTab } from '../workbench/pane-actions';
 import type { CommandTitleContext } from './command-palette-commands';
 import {
     commanderPaletteWhenContext,
-    getDynamicCommandPaletteValue,
+    dynamicCommandSearchEntry,
     getPaletteExtensionCommands,
-    getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
     paletteCommandTitle,
+    staticCommandSearchEntry,
 } from './command-palette-commands';
+import type { PaletteSearchEntry } from './palette-search';
+import { paletteSearchScore } from './palette-search';
 
 const NO_RECORDS: never[] = [];
 
@@ -61,7 +63,7 @@ function CommandRow({
     const shortcut = useCommandShortcut(command.id);
     return (
         <CommandItem
-            value={getStaticCommandPaletteValue(command, t, titleContext)}
+            value={`command:${command.id}`}
             onSelect={() => {
                 setPaletteOpen(false);
                 executeCommand(command.id);
@@ -97,7 +99,7 @@ function DynamicCommandRow({
     const { t } = useTranslation();
     return (
         <CommandItem
-            value={getDynamicCommandPaletteValue(command, t)}
+            value={`extension:${command.id}`}
             onSelect={() => {
                 setPaletteOpen(false);
                 didExecuteViewCatalogCommand(catalog, command.id);
@@ -197,10 +199,46 @@ function CommandPaletteBody() {
         agentChatPermissionModes: isCommandAvailable('agentChat.changePermissionMode'),
         agentChatPlanMode: isCommandAvailable('agentChat.togglePlanMode'),
     };
+    const paletteCommands = commandDefinitions.filter(
+        (command) => !command.requiresArguments && isCommandVisibleInPalette(command, whenContext),
+    );
+    const extensionCommands = getPaletteExtensionCommands(catalog);
+    /**
+     * Each row's `value` is a stable `kind:id` key: cmdk tracks the selected row by `value`, so two Sessions sharing a
+     * title and Project must still differ. What the search matches lives here, keyed by that value.
+     */
+    const searchEntries = new Map<string, PaletteSearchEntry>([
+        ...projectResults.map((project): [string, PaletteSearchEntry] => [
+            `project:${project.id}`,
+            { titles: [project.displayTitle], details: [project.rootPath] },
+        ]),
+        ...sessions.map((session): [string, PaletteSearchEntry] => {
+            const project = projects.find((item) => item.id === session.projectId);
+            return [
+                `session:${session.id}`,
+                {
+                    titles: [sessionTitleForDisplay(session.displayTitle, t), session.displayTitle],
+                    details: [project?.displayTitle ?? '', project?.rootPath ?? '', session.id],
+                },
+            ];
+        }),
+        ...paletteCommands.map((command): [string, PaletteSearchEntry] => [
+            `command:${command.id}`,
+            staticCommandSearchEntry(command, t, titleContext),
+        ]),
+        ...extensionCommands.map((command): [string, PaletteSearchEntry] => [
+            `extension:${command.id}`,
+            dynamicCommandSearchEntry(command, t),
+        ]),
+    ]);
     return (
         <>
             <DialogTitle className="sr-only">{t('palette.title')}</DialogTitle>
-            <Command label={t('palette.title')} className="w-full">
+            <Command
+                label={t('palette.title')}
+                className="w-full"
+                filter={(value, search) => paletteSearchScore(searchEntries.get(value), search)}
+            >
                 <CommandInput autoFocus placeholder={t('palette.searchPlaceholder')} />
                 <CommandList>
                     <CommandEmpty>{t('palette.empty')}</CommandEmpty>
@@ -208,7 +246,7 @@ function CommandPaletteBody() {
                         {projectResults.map((project) => (
                             <CommandItem
                                 key={project.id}
-                                value={`Project ${project.displayTitle} ${project.rootPath}`}
+                                value={`project:${project.id}`}
                                 onSelect={() => {
                                     onOpenChange(false);
                                     selectProject(project.id);
@@ -227,11 +265,7 @@ function CommandPaletteBody() {
                             return (
                                 <CommandItem
                                     key={session.id}
-                                    // `cmdk` tracks the selected row by `value`, not by React key, so two
-                                    // sessions sharing a title and project (e.g. two "Untitled" sessions
-                                    // in one worktree) would both render as selected. The id keeps every
-                                    // value unique without changing what the search matches on.
-                                    value={`Session ${sessionTitleForDisplay(session.displayTitle, t)} ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
+                                    value={`session:${session.id}`}
                                     onSelect={() => {
                                         onOpenChange(false);
                                         // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
@@ -247,17 +281,14 @@ function CommandPaletteBody() {
                         })}
                     </CommandGroup>
                     <CommandGroup heading={t('palette.group.commands')}>
-                        {commandDefinitions.map((command) =>
-                            command.requiresArguments ||
-                            !isCommandVisibleInPalette(command, whenContext) ? null : (
-                                <CommandRow
-                                    key={command.id}
-                                    command={command}
-                                    titleContext={titleContext}
-                                />
-                            ),
-                        )}
-                        {getPaletteExtensionCommands(catalog).map((command) => (
+                        {paletteCommands.map((command) => (
+                            <CommandRow
+                                key={command.id}
+                                command={command}
+                                titleContext={titleContext}
+                            />
+                        ))}
+                        {extensionCommands.map((command) => (
                             <DynamicCommandRow
                                 key={command.id}
                                 catalog={catalog!}

@@ -8,10 +8,11 @@ import { terminal as enTerminal } from '../../../i18n/locales/en/terminal';
 import {
     commanderPaletteWhenContext,
     getPaletteExtensionCommands,
-    getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
     paletteCommandTitle,
+    staticCommandSearchEntry,
 } from '../command-palette-commands';
+import { paletteSearchScore } from '../palette-search';
 
 const catalog: ViewCatalogSnapshot = {
     revision: 1,
@@ -271,14 +272,14 @@ describe('commanderPaletteWhenContext', () => {
     });
 });
 
-describe('getStaticCommandPaletteValue', () => {
+describe('staticCommandSearchEntry', () => {
     it('makes Agent Commands & Skills discoverable through natural and legacy terms', () => {
         const command = commandDefinitions.find(({ id }) => id === 'agentActions.open');
         if (!command) throw new Error('agentActions.open is missing from the command catalog');
 
-        const value = getStaticCommandPaletteValue(command).toLowerCase();
+        const entry = staticCommandSearchEntry(command);
         for (const term of ['command', 'commands', 'skill', 'skills', 'slash', 'action']) {
-            expect(value).toContain(term);
+            expect(paletteSearchScore(entry, term)).toBeGreaterThan(0);
         }
     });
 });

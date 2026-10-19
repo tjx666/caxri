@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../i18n';
 import { commandCategory, commandDescription, commandTitle } from '../../../lib/command-labels';
-import { getStaticCommandPaletteValue } from '../command-palette-commands';
+import { staticCommandSearchEntry } from '../command-palette-commands';
+import { paletteSearchScore } from '../palette-search';
 
 const enKeys: ReadonlySet<string> = new Set(Object.keys(enCommands));
 const zhCN: Readonly<Record<string, string>> = zhCommands;
@@ -67,8 +68,8 @@ describe('command labels', () => {
     });
 
     it('matches palette searches in both English and the translated language', () => {
-        const value = getStaticCommandPaletteValue(create, translateZhCN);
-        expect(value).toContain('New Session');
-        expect(value).toContain('新建会话');
+        const entry = staticCommandSearchEntry(create, translateZhCN);
+        expect(paletteSearchScore(entry, 'new sess')).toBeGreaterThan(0.8);
+        expect(paletteSearchScore(entry, '新建')).toBeGreaterThan(0.8);
     });
 });
