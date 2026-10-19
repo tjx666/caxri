@@ -154,15 +154,43 @@ export interface ProseFileReference {
  * citations.
  */
 export function proseFileReferences(text: string): ProseFileReference[] {
-    const references: ProseFileReference[] = [];
+    const references = quotedPathReferences(text);
+    const isQuoted = (index: number) =>
+        references.some(
+            (quoted) => index >= quoted.index && index < quoted.index + quoted.text.length,
+        );
     for (const match of text.matchAll(PROSE_PATH)) {
         const value = match[0];
         const index = match.index;
+        if (isQuoted(index)) continue;
         if (index > 0 && INNER_BEFORE.test(text[index - 1] ?? '')) continue;
         if (INNER_AFTER.test(text.slice(index + value.length))) continue;
         if (!value.includes('/') && !/[:#]/u.test(value)) continue;
         const file = fileReferenceTarget(value);
         if (file) references.push({ index, text: value, file });
+    }
+    return references.toSorted((a, b) => a.index - b.index);
+}
+
+/**
+ * A rooted path in quotes, which may hold spaces: `"/Users/me/Library/Application Support/x.md"`. A space ends a path
+ * everywhere else, but a quoted absolute, home, or `./` path is how a shell-safe pointer (a delegated task's) or a
+ * pasted Finder path spells one, and stopping at its first space links only the tail.
+ */
+const QUOTED_PATH = /(["'`])((?:~\/|\.{1,2}\/|\/)[^"'`\n]*)\1/gu;
+
+function quotedPathReferences(text: string): ProseFileReference[] {
+    const references: ProseFileReference[] = [];
+    for (const match of text.matchAll(QUOTED_PATH)) {
+        const value = match[2] ?? '';
+        // A path without a space is the ordinary scan's.
+        if (!value.includes(' ')) continue;
+        // Spaces are what the quotes allow; the rest of the path still has to read as a file. The stand-in keeps every
+        // offset, so the spaces go back where they were in the target (whose `:10-20` may have become `#L10-L20`).
+        const target = fileReferenceTarget(value.replaceAll(' ', '_'));
+        if (!target) continue;
+        const file = [...target].map((char, at) => (value[at] === ' ' ? ' ' : char)).join('');
+        references.push({ index: match.index + 1, text: value, file });
     }
     return references;
 }

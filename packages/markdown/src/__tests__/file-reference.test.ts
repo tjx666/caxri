@@ -66,4 +66,19 @@ describe('proseFileReferences', () => {
     ])('finds nothing in %j', (text) => {
         expect(proseFileReferences(text)).toEqual([]);
     });
+
+    it('keeps a quoted rooted path whole across its spaces', () => {
+        const path = '/Users/me/Library/Application Support/Caxri/task.md';
+        expect(proseFileReferences(`Read "${path}" and then src/a.ts`)).toEqual([
+            { index: 6, text: path, file: path },
+            { index: 68, text: 'src/a.ts', file: 'src/a.ts' },
+        ]);
+        expect(proseFileReferences("open '~/My Notes/plan.md:3-5'")).toEqual([
+            { index: 6, text: '~/My Notes/plan.md:3-5', file: '~/My Notes/plan.md#L3-L5' },
+        ]);
+    });
+
+    it('leaves quoted prose and unrooted names with spaces alone', () => {
+        expect(proseFileReferences('"hello world.md" and "/a b/c" and "just words"')).toEqual([]);
+    });
 });
