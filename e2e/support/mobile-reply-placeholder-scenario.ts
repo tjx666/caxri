@@ -67,7 +67,9 @@ export async function executeMobileReplyPlaceholderScenario(
             (bounds) => bounds !== undefined,
         );
         if (!dots || dots.right - dots.left > 160 || dots.bottom - dots.top > 40)
-            throw new Error('The reply placeholder is not three dots under the message');
+            throw new Error(
+                `The reply placeholder is not three dots under the message: ${JSON.stringify(dots)}`,
+            );
         await capture(environment, 'awaiting-reply', artifacts);
 
         await rm(hold);
