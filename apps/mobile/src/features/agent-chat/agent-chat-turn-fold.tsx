@@ -13,10 +13,10 @@ type TurnEntry = Extract<AgentChatTimelineEntry, { kind: 'turn' }>;
 
 /**
  * A finished turn's `Worked for 2m 1s` row over a hairline, as Desktop folds a turn. Tapping it shows or hides the work
- * and commentary the turn folded; the list owns that state by turn id (`toggleAgentChatTurn`), so a recycled row never
- * opens another turn. A failed or stopped turn carries its tone in the glyph and the words. A turn with nothing to fold
- * draws the same row without the chevron, and it does not respond to taps. The tappable row spans the timeline's width
- * at 48dp, so the short label is never the only place a tap lands.
+ * and commentary the turn folded; the list owns that state by turn id (`toggleAgentChatExpansion`), so a recycled row
+ * never opens another turn. A failed or stopped turn carries its tone in the glyph and the words. A turn with nothing
+ * to fold draws the same row without the chevron, and it does not respond to taps. The tappable row spans the
+ * timeline's width at 48dp, so the short label is never the only place a tap lands.
  */
 export const AgentChatTurnFold = ({
     entry,

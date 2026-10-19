@@ -1,5 +1,4 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { AgentChatDelegatedTask } from '@caxri/protocol';
@@ -81,20 +80,24 @@ function DelegatedTaskSource({
 /**
  * A delegated task in place of the user's bubble, as Desktop draws it. Its text is only the pointer to a private task
  * file that the user never typed, so the bubble names who delegated it and keeps the pointer behind Show instruction.
+ * The list owns `isExpanded`, so a recycled row never carries another message's state and grows when it unfolds.
  */
 export const AgentChatDelegatedMessage = ({
     id,
+    isExpanded,
+    onToggle,
     task,
     text,
     theme,
 }: {
     id: string;
+    isExpanded: boolean;
+    onToggle: (id: string) => void;
     task: AgentChatDelegatedTask;
     text: string;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const [isExpanded, setExpanded] = useState(false);
     return (
         <View
             style={[conversationStyles.message, conversationStyles.userRow]}
@@ -109,7 +112,7 @@ export const AgentChatDelegatedMessage = ({
                     accessibilityRole="button"
                     accessibilityState={{ expanded: isExpanded }}
                     hitSlop={8}
-                    onPress={() => setExpanded((value) => !value)}
+                    onPress={() => onToggle(id)}
                     style={styles.toggle}
                     testID={`agent-chat-delegated-toggle-${id}`}
                 >

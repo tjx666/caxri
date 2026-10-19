@@ -19,11 +19,14 @@ import { AgentChatWorkGroup } from './agent-chat-work-group';
 export const AgentChatTimelineEntry = memo(
     ({
         entry,
-        onToggleTurn,
+        onToggle,
         theme,
     }: {
         entry: Entry;
-        onToggleTurn: (turnId: string) => void;
+        /**
+         * Folds or unfolds a turn (by turn id) or a delegated task's pointer (by entry id).
+         */
+        onToggle: (id: string) => void;
         theme: MobileTheme;
     }) => {
         switch (entry.kind) {
@@ -37,6 +40,8 @@ export const AgentChatTimelineEntry = memo(
                 return (
                     <AgentChatDelegatedMessage
                         id={entry.id}
+                        isExpanded={entry.isExpanded}
+                        onToggle={onToggle}
                         task={entry.task}
                         text={entry.text}
                         theme={theme}
@@ -67,7 +72,7 @@ export const AgentChatTimelineEntry = memo(
                 );
             }
             case 'turn': {
-                return <AgentChatTurnFold entry={entry} onToggle={onToggleTurn} theme={theme} />;
+                return <AgentChatTurnFold entry={entry} onToggle={onToggle} theme={theme} />;
             }
         }
     },
