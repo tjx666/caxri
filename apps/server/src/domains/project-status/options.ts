@@ -41,3 +41,27 @@ export interface ProjectStatusServiceOptions {
     setTimer?: (callback: () => void, delayMs: number) => NodeJS.Timeout;
     clearTimer?: (timer: NodeJS.Timeout) => void;
 }
+
+/**
+ * The Service's clock and timers, resolved once from the injected options so the resident poll and the delivery watch
+ * read the same test clock and fall back to the same real timers.
+ */
+export interface ProjectStatusClock {
+    clearTimer: (timer: NodeJS.Timeout) => void;
+    now: () => number;
+    setTimer: (callback: () => void, delayMs: number) => NodeJS.Timeout;
+}
+
+export function projectStatusClock(
+    options: Pick<ProjectStatusServiceOptions, 'clearTimer' | 'now' | 'setTimer'>,
+): ProjectStatusClock {
+    return {
+        clearTimer: (timer) => {
+            if (options.clearTimer) options.clearTimer(timer);
+            else clearTimeout(timer);
+        },
+        now: () => options.now?.() ?? Date.now(),
+        setTimer: (callback, delayMs) =>
+            options.setTimer?.(callback, delayMs) ?? setTimeout(callback, delayMs),
+    };
+}

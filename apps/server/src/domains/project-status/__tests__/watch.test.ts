@@ -1,8 +1,11 @@
-import type { ServerEvent } from '@caxri/protocol';
+import type { ProjectStatusSummary, ServerEvent } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectStatusService } from '..';
+import type { SummaryCacheEntry } from '../carry-over';
+import type { WatchOutcome } from '../watch';
+import { DeliveryWatch, isWatchFresh } from '../watch';
 import {
     checkPayload,
     cleanupProjectStatusFixtures,
@@ -142,5 +145,76 @@ describe('ProjectStatusService delivery watch over every Session', () => {
         await vi.waitFor(() => expect(timers).toHaveLength(2));
         expect(runner).not.toHaveBeenCalled();
         service.dispose();
+    });
+});
+
+describe('DeliveryWatch cadence', () => {
+    const settledAt = 1_000_000;
+    function entry(
+        state: 'pending' | 'success',
+        overrides: Partial<SummaryCacheEntry> = {},
+    ): SummaryCacheEntry {
+        return {
+            expiresAt: settledAt + 120_000,
+            fingerprint: 'head-a',
+            value: {
+                refreshedAt: settledAt,
+                repositories: [
+                    {
+                        branch: 'feature/status',
+                        githubUrl: 'https://github.com/example/project',
+                        pullRequest: { state },
+                    },
+                ],
+            } as unknown as ProjectStatusSummary,
+            ...overrides,
+        };
+    }
+    const afterTtl = settledAt + 150_000;
+
+    it('lets a settled Session sit out a pending round until the settled cadence comes round', () => {
+        expect(isWatchFresh(entry('success'), 'head-a', afterTtl, true)).toBe(true);
+        expect(isWatchFresh(entry('success'), 'head-a', settledAt + 180_000, true)).toBe(false);
+        expect(isWatchFresh(entry('success'), 'head-a', afterTtl, false)).toBe(false);
+    });
+
+    it('never defers a Session whose HEAD moved, which is still running, or whose entry is carried', () => {
+        expect(isWatchFresh(entry('success'), 'head-b', afterTtl, true)).toBe(false);
+        expect(isWatchFresh(entry('pending'), 'head-a', afterTtl, true)).toBe(false);
+        expect(isWatchFresh(entry('success', { expiresAt: 0 }), 'head-a', afterTtl, true)).toBe(
+            false,
+        );
+    });
+
+    it('tells the next round it was armed on the pending delay', async () => {
+        const timers: Array<{ callback: () => void; delayMs: number }> = [];
+        const rounds: boolean[] = [];
+        const watch = new DeliveryWatch({
+            clearTimer: () => {},
+            isEnabled: () => true,
+            listSessions: () => ['session-running'],
+            logger: await logger(),
+            selectedSessionId: () => {},
+            setTimer: (callback, delayMs) => {
+                timers.push({ callback, delayMs });
+                return { unref: () => {} } as unknown as NodeJS.Timeout;
+            },
+            summaryOf: () => entry('pending').value,
+            watchSession: (_sessionId, _covered, isPendingRound): Promise<WatchOutcome> => {
+                rounds.push(isPendingRound);
+                return Promise.resolve('refreshed');
+            },
+        });
+        const runRound = async (): Promise<void> => {
+            const armed = timers.length;
+            timers.at(-1)!.callback();
+            await vi.waitFor(() => expect(timers).toHaveLength(armed + 1));
+        };
+        watch.start();
+        await runRound();
+        await runRound();
+        expect(rounds).toEqual([false, true]);
+        expect(timers.at(-1)!.delayMs).toBe(60_000);
+        watch.dispose();
     });
 });

@@ -41,7 +41,8 @@ import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-o
 import { pendingSummaryEntry } from './carry-over';
 import { projectStatusCliError } from './external';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear';
-import type { ProjectStatusServiceOptions } from './options';
+import type { ProjectStatusClock, ProjectStatusServiceOptions } from './options';
+import { projectStatusClock } from './options';
 import { parseGitHubPullRequest } from './parse';
 import { refreshLogRecord } from './refresh-log';
 import { ReviewThreadStore } from './review-threads';
@@ -53,7 +54,7 @@ import {
 } from './session-pull-request';
 import { VercelDeploymentStore } from './vercel-store';
 import type { WatchOutcome } from './watch';
-import { deliveryKeys, DeliveryWatch } from './watch';
+import { deliveryKeys, DeliveryWatch, isWatchFresh } from './watch';
 
 export { extractLinearReferences } from './external';
 export type { ProjectStatusServiceOptions } from './options';
@@ -99,6 +100,7 @@ export class ProjectStatusService {
     private isPollScheduled = false;
     private readonly watch?: DeliveryWatch;
     private readonly commandTelemetry: ExternalStatusCommandTelemetry;
+    private readonly clock: ProjectStatusClock;
     private readonly remotes = new RepoRemoteCache(() => this.now());
     private readonly remoteHeads = new RemoteHeadCache(() => this.now());
     private readonly readGit = (cwd: string, arguments_: readonly string[]) =>
@@ -112,20 +114,21 @@ export class ProjectStatusService {
         private readonly runner: ExternalStatusRunner = runExternalStatusCommand,
         private readonly options: ProjectStatusServiceOptions = {},
     ) {
+        this.clock = projectStatusClock(options);
         this.alerts = new ProjectStatusAlertTracker({ now: () => this.now() });
         const { cli } = logEventCatalog.projectStatus;
         this.commandTelemetry = new ExternalStatusCommandTelemetry(logger, cli, () => this.now());
         const { listWatchedSessions } = options;
         if (listWatchedSessions) {
             this.watch = new DeliveryWatch({
-                clearTimer: (timer) => this.clearTimer(timer),
+                ...this.clock,
                 isEnabled: () => this.areAlertsEnabled(),
                 listSessions: listWatchedSessions,
                 logger,
                 selectedSessionId: () => this.polledSessionId,
-                setTimer: (callback, delayMs) => this.setTimer(callback, delayMs),
                 summaryOf: (sessionId) => this.summaries.get(sessionId)?.value,
-                watchSession: (sessionId, covered) => this.watchSession(sessionId, covered),
+                watchSession: (sessionId, covered, isPendingRound) =>
+                    this.watchSession(sessionId, covered, isPendingRound),
             });
         }
         this.github =
@@ -152,7 +155,7 @@ export class ProjectStatusService {
     }
 
     private now(): number {
-        return this.options.now?.() ?? Date.now();
+        return this.clock.now();
     }
 
     private ignoredChecks(): readonly string[] {
@@ -450,7 +453,11 @@ export class ProjectStatusService {
      * repository and branch. Deduplication runs on the local Git projection, so a Session that has since switched
      * branches is judged by the branch it is on now rather than the one it last reported.
      */
-    private async watchSession(sessionId: string, covered: Set<string>): Promise<WatchOutcome> {
+    private async watchSession(
+        sessionId: string,
+        covered: Set<string>,
+        isPendingRound: boolean,
+    ): Promise<WatchOutcome> {
         const generation = this.sessionGeneration(sessionId);
         const prepared = await this.prepareSummary(sessionId);
         if (!prepared.fingerprint || this.sessionGenerations.get(sessionId) !== generation)
@@ -460,7 +467,7 @@ export class ProjectStatusService {
         if (keys.every((key) => covered.has(key))) return 'duplicate';
         for (const key of keys) covered.add(key);
         const previous = this.summaries.get(sessionId);
-        if (previous?.fingerprint === prepared.fingerprint && previous.expiresAt > this.now())
+        if (isWatchFresh(previous, prepared.fingerprint, this.now(), isPendingRound))
             return 'fresh';
         this.rememberSummary(
             sessionId,
@@ -483,22 +490,13 @@ export class ProjectStatusService {
         return this.options.settings?.()['projectStatus.notifications.enabled'] === true;
     }
 
-    private setTimer(callback: () => void, delayMs: number): NodeJS.Timeout {
-        return this.options.setTimer?.(callback, delayMs) ?? setTimeout(callback, delayMs);
-    }
-
-    private clearTimer(timer: NodeJS.Timeout): void {
-        if (this.options.clearTimer) this.options.clearTimer(timer);
-        else clearTimeout(timer);
-    }
-
     /**
      * Arms the next resident refresh for the polled Session against its cache expiry, so a snapshot with a running job
      * is revisited sooner than a settled one and a rate-limited source is left alone.
      */
     private schedulePoll(): void {
         if (this.pollTimer) {
-            this.clearTimer(this.pollTimer);
+            this.clock.clearTimer(this.pollTimer);
             this.pollTimer = undefined;
         }
         const sessionId = this.polledSessionId;
@@ -508,7 +506,7 @@ export class ProjectStatusService {
             Math.max(expiresAt - this.now(), POLL_MIN_DELAY_MS),
             POLL_MAX_DELAY_MS,
         );
-        const timer = this.setTimer(() => {
+        const timer = this.clock.setTimer(() => {
             this.pollTimer = undefined;
             // Fire-and-forget: `runPoll` owns its own failure logging and re-arms the timer either way.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -691,7 +689,7 @@ export class ProjectStatusService {
         this.commandTelemetry.flush();
         this.polledSessionId = undefined;
         if (!this.pollTimer) return;
-        this.clearTimer(this.pollTimer);
+        this.clock.clearTimer(this.pollTimer);
         this.pollTimer = undefined;
     }
 
