@@ -656,14 +656,7 @@ several callbacks can share one item, so the transport id is never the key.
   device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
   quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
   Chats, dropping the Chats whose images changed least recently first, deleted once the message
-  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer recalls the
-  prompts this Chat sent, newest first, and ArrowDown walks forward and back to an empty input,
-  like a shell. The history is read from the user messages in the Chat's projection, so it needs
-  no storage of its own and reaches only as far back as the projection keeps (see
-  `truncated`). ArrowUp is left alone while the input holds the user's own text, an image is
-  attached, or the command menu is open for typed text; a recalled `/command` that opens the menu
-  still walks on. A recalled prompt left in the input is an ordinary draft, so it persists like
-  one and editing it ends the walk. Its action row shows how much of the
+  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer opens a list of the prompts this Chat sent, as LobeHub's chat input does: newest at the bottom nearest the input, a prompt sent again listed once at its newest place, at most 50 rows, and the highlighted prompt previewed in the input's placeholder. ArrowUp walks older without wrapping, ArrowDown past the newest closes the list, Enter or Tab (or a click) fills the input without sending, and Escape or any typed key closes it. The list is read from the user messages in the Chat's projection when it opens, so it needs no storage of its own and reaches only as far back as the projection keeps (see `truncated`). ArrowUp is left alone while the input holds text, an image is attached, a message is being edited, or another composer menu is open. A filled prompt is an ordinary draft and persists like one. Ctrl+S stashes the draft (text, caret, attachments, and Goal mode) and empties the input, as Claude Code's prompt stash does, so a quick question can go first; the placeholder says a stash is waiting, Ctrl+S in an empty input restores it, and it also returns by itself after the next send unless the user has started typing again. The stash lives in memory per Chat for the window's lifetime. Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
   the window in its popover (opened by hover, or by Enter or Space on the focused ring), and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another

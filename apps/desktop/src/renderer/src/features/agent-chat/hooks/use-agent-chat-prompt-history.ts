@@ -1,23 +1,27 @@
-import type { KeyboardEvent } from 'react';
-import { useRef } from 'react';
+import type { KeyboardEvent, RefObject } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import type { AgentChatItem } from '@caxri/protocol';
 
 import { isImeComposing } from '../../../lib/ime';
-import type { AgentChatPromptHistoryPosition } from '../agent-chat-prompt-history';
+import type { SuggestionOption } from '../../../lib/suggestion-options';
+import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
+import type { AgentChatPromptHistoryEntry } from '../agent-chat-prompt-history';
 import {
     agentChatPromptHistory,
-    agentChatPromptHistoryDirection,
+    agentChatPromptPreview,
+    shouldOpenAgentChatPromptHistory,
     stepAgentChatPromptHistory,
 } from '../agent-chat-prompt-history';
 
 /**
- * ArrowUp/ArrowDown recall of the prompts this Chat sent (see `agent-chat-prompt-history`). The position is a ref: it
- * only matters to the next keypress, and the input text the step writes is what re-renders.
+ * The composer's prompt history list (see `agent-chat-prompt-history`). The rows are read once when the list opens, so
+ * a reply arriving while the user browses never moves the highlighted row.
  */
 export function useAgentChatPromptHistory({
     draft,
     hasAttachments,
+    inputReference,
     isEditing,
     items,
     setDraft,
@@ -28,6 +32,7 @@ export function useAgentChatPromptHistory({
      * image, which is never what ArrowUp meant.
      */
     hasAttachments: boolean;
+    inputReference: RefObject<HTMLTextAreaElement | null>;
     /**
      * "Edit from here" owns the input: recalling a sent prompt would overwrite the message being edited.
      */
@@ -35,48 +40,104 @@ export function useAgentChatPromptHistory({
     items: readonly AgentChatItem[] | undefined;
     setDraft: (update: (current: string) => string) => void;
 }) {
-    const position = useRef<AgentChatPromptHistoryPosition | undefined>(undefined);
+    const listId = useId();
+    const [open, setOpen] = useState<{
+        activeIndex: number;
+        entries: readonly AgentChatPromptHistoryEntry[];
+    }>();
+    const close = (): void => setOpen(undefined);
+    const fill = (index: number): void => {
+        const entry = open?.entries[index];
+        setOpen(undefined);
+        if (!entry) return;
+        setDraft(() => entry.prompt);
+        // A controlled value change leaves the caret where it was; put it at the end, where the user continues typing.
+        const input = inputReference.current;
+        input?.focus();
+        requestAnimationFrame(() =>
+            input?.setSelectionRange(entry.prompt.length, entry.prompt.length),
+        );
+    };
     /**
-     * Runs before the command menu's keys. An open menu keeps the arrows for its own rows unless the input still shows
-     * a recalled prompt: recalling a sent `/command` opens the menu, and the next ArrowUp should keep walking back.
+     * Runs before the command and `@` menus' keys; an open menu keeps ArrowUp for its own rows. Returns whether the key
+     * was the history's, so the composer skips its own handling.
      */
     const didHandleKey = (
         event: KeyboardEvent<HTMLTextAreaElement>,
         isMenuOpen: boolean,
     ): boolean => {
-        if (hasAttachments || isEditing) return false;
-        // A typed draft with no recall in progress never steps, so skip building the history.
-        if (!position.current && draft.length > 0) return false;
-        if (isMenuOpen && position.current?.recalled !== draft) return false;
-        const direction = agentChatPromptHistoryDirection(
-            {
-                key: event.key,
-                altKey: event.altKey,
-                ctrlKey: event.ctrlKey,
-                isComposing: isImeComposing(event),
-                metaKey: event.metaKey,
-                shiftKey: event.shiftKey,
-            },
-            event.currentTarget,
+        const isComposing = isImeComposing(event);
+        if (!open) {
+            if (isMenuOpen || hasAttachments || isEditing) return false;
+            const opens = shouldOpenAgentChatPromptHistory(
+                {
+                    key: event.key,
+                    altKey: event.altKey,
+                    ctrlKey: event.ctrlKey,
+                    isComposing,
+                    metaKey: event.metaKey,
+                    shiftKey: event.shiftKey,
+                },
+                draft,
+            );
+            if (!opens) return false;
+            const entries = agentChatPromptHistory(items);
+            if (entries.length === 0) return false;
+            event.preventDefault();
+            setOpen({ activeIndex: entries.length - 1, entries });
+            return true;
+        }
+        if (isComposing) return false;
+        const step = stepAgentChatPromptHistory(
+            suggestionMenuKeyAction(event),
+            open.activeIndex,
+            open.entries.length,
         );
-        if (!direction) return false;
-        const step = stepAgentChatPromptHistory({
-            current: draft,
-            direction,
-            entries: agentChatPromptHistory(items),
-            position: position.current,
-        });
-        if (!step) return false;
+        if (step === 'close') {
+            close();
+            // Escape and ArrowDown were the list's; any other key closes it and still types.
+            if (event.key !== 'Escape' && event.key !== 'ArrowDown') return false;
+        } else if (step === 'fill') fill(open.activeIndex);
+        else setOpen({ ...open, activeIndex: step });
         event.preventDefault();
-        position.current = step.position;
-        setDraft(() => step.prompt);
-        // A controlled value change leaves the caret where it was; put it at the end the way a shell does, which is
-        // also where the next ArrowUp or ArrowDown continues from.
-        const textarea = event.currentTarget;
-        requestAnimationFrame(() =>
-            textarea.setSelectionRange(step.prompt.length, step.prompt.length),
-        );
         return true;
     };
-    return { didHandleKey };
+    const suggestions: SuggestionOption[] =
+        open?.entries.map(({ id, prompt }) => ({
+            key: id,
+            label: agentChatPromptPreview(prompt),
+            isLabelLiteral: false,
+        })) ?? [];
+    const active = open?.entries[open.activeIndex];
+    const activeOptionId = active && suggestionOptionId(listId, active.id);
+    /**
+     * The rows never take focus, so the active one is scrolled into view by hand; the list opens on its newest row at
+     * the bottom, below the oldest ones that overflow its height.
+     */
+    useEffect(() => {
+        if (!activeOptionId) return;
+        document
+            .querySelector(`#${CSS.escape(activeOptionId)}`)
+            ?.scrollIntoView({ block: 'nearest' });
+    }, [activeOptionId]);
+    return {
+        activeIndex: open?.activeIndex ?? -1,
+        chooseAt: fill,
+        close,
+        didHandleKey,
+        highlight: (index: number) =>
+            setOpen((current) => current && { ...current, activeIndex: index }),
+        inputAria: open && {
+            'aria-activedescendant': activeOptionId,
+            'aria-autocomplete': 'list' as const,
+            'aria-controls': listId,
+        },
+        isOpen: open !== undefined,
+        listId,
+        /**
+         * The highlighted prompt on one line, shown as the empty input's placeholder while the list is open.
+         */
+        preview: active && agentChatPromptPreview(active.prompt),
+        suggestions,
+    };
 }

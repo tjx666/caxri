@@ -398,6 +398,7 @@ describe('agentChatComposerPlaceholder', () => {
     it('says Enter sends the queued message while one waits, except during an edit', () => {
         const state = {
             hasNextQueued: true,
+            hasStash: false,
             isEditing: false,
             isGoalMode: false,
             isTurnRunning: true,
@@ -420,11 +421,28 @@ describe('agentChatComposerPlaceholder', () => {
         expect(
             agentChatComposerPlaceholder(sendAction, {
                 hasNextQueued: true,
+                hasStash: false,
                 isEditing: false,
                 isGoalMode: true,
                 isTurnRunning: true,
             }),
         ).toBe('Describe your goal, define measurable outcomes for best results');
+    });
+
+    it('says how to bring back a stashed draft, except during an edit', () => {
+        const state = {
+            hasNextQueued: false,
+            hasStash: true,
+            isEditing: false,
+            isGoalMode: false,
+            isTurnRunning: false,
+        };
+        expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
+            'Draft stashed · Ctrl+S to restore',
+        );
+        expect(agentChatComposerPlaceholder(sendAction, { ...state, isEditing: true })).toBe(
+            sendAction.placeholder,
+        );
     });
 });
 

@@ -264,12 +264,17 @@ export function agentChatComposerPlaceholder(
     sendAction: { placeholder: string },
     state: {
         hasNextQueued: boolean;
+        /**
+         * A Ctrl+S stash waits, so the empty input says how to bring it back.
+         */
+        hasStash: boolean;
         isEditing: boolean;
         isGoalMode: boolean;
         isTurnRunning: boolean;
     },
     t: Translate = translate,
 ): string {
+    if (state.hasStash && !state.isEditing) return t('agentChat.stash.placeholder');
     if (state.isGoalMode) return t('agentChat.goal.placeholder');
     if (!state.hasNextQueued || state.isEditing) return sendAction.placeholder;
     return t(

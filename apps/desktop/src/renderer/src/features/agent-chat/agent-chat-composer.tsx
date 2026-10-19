@@ -7,9 +7,7 @@ import type {
     AgentChatQueuedMessage,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
-import { Textarea } from '../../components/ui/textarea';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
@@ -18,6 +16,7 @@ import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
+import { AgentChatComposerTextarea } from './agent-chat-composer-textarea';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
@@ -37,6 +36,7 @@ import { useAgentChatComposerEnter } from './hooks/use-agent-chat-composer-enter
 import { useAgentChatComposerInput } from './hooks/use-agent-chat-composer-input';
 import { useAgentChatComposerSend } from './hooks/use-agent-chat-composer-send';
 import { useAgentChatDraft } from './hooks/use-agent-chat-draft';
+import { useAgentChatDraftStash } from './hooks/use-agent-chat-draft-stash';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHandoff } from './hooks/use-agent-chat-handoff';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
@@ -151,10 +151,11 @@ interface AgentChatComposerProperties {
  * attachments, the input, and its actions inside one card so they read as a single control. The action row picks the
  * model and effort for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue
  * action hands focus back to the input, since each of those controls disables or unmounts itself and would otherwise
- * drop focus to the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an
- * empty input recalls the prompts this Chat already sent. "Edit from here" on an earlier message
- * (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then rewinds the Chat to
- * before that message and sends the draft in its place, and Escape or Cancel puts the previous draft back.
+ * drop focus to the document body. The unsent text survives switching Sessions and restarting Caxri, ArrowUp on an
+ * empty input lists the prompts this Chat already sent, and Ctrl+S stashes the draft for later. "Edit from here" on an
+ * earlier message (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then
+ * rewinds the Chat to before that message and sends the draft in its place, and Escape or Cancel puts the previous
+ * draft back.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -215,6 +216,15 @@ export function AgentChatComposer({
         terminal,
     });
     const isTurnRunning = activeTurnId !== undefined;
+    const stash = useAgentChatDraftStash({
+        attachments: images.attachments,
+        clearAttachments: images.clearSent,
+        draft,
+        inputReference,
+        restoreAttachments: images.restoreUnsent,
+        setDraft,
+        terminalId,
+    });
     const { isStopping, stop } = useAgentChatStop({ activeTurnId, terminalId });
     const { fileInput, isAttaching, pastePlainText } = useAgentChatComposerInput({
         draft,
@@ -245,13 +255,17 @@ export function AgentChatComposer({
             images,
             // A Session chosen from the `@` list is not in the draft until its reference is written.
             isAttaching: isAttaching || sessionMenu.isPreparing,
-            onSent,
+            onSent: () => {
+                onSent?.();
+                stash.restoreAfterSend();
+            },
             setDraft,
             terminalId,
         });
     const history = useAgentChatPromptHistory({
         draft,
         hasAttachments: images.attachments.length > 0,
+        inputReference,
         isEditing: edit.isEditing,
         items: snapshot?.items,
         setDraft,
@@ -312,6 +326,7 @@ export function AgentChatComposer({
                         activity={activity}
                         notice={
                             composerKeys.notice ??
+                            stash.notice ??
                             (menu.confirmsSendAsText
                                 ? t('agentChat.slash.confirmSendAsText')
                                 : undefined)
@@ -344,6 +359,7 @@ export function AgentChatComposer({
                 >
                     <AgentChatSuggestionMenu
                         commandMenu={menu}
+                        historyMenu={history}
                         sessionMenu={sessionMenu}
                         onChooseCommand={(index) => choose(menu.matches[index])}
                     />
@@ -357,45 +373,30 @@ export function AgentChatComposer({
                             }}
                         />
                     )}
-                    {/* Starts three lines tall, as chat composers do, so an empty box still reads as the place to write
-                        a message rather than a one-line search field; it grows with the draft up to `max-h-48`. */}
-                    <Textarea
-                        {...(sessionMenu.inputAria ?? menu.inputAria)}
-                        aria-label={t('agentChat.composer.message')}
-                        className="field-sizing-content max-h-48 min-h-18 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
-                        maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
+                    <AgentChatComposerTextarea
+                        composerKeys={composerKeys}
+                        draft={draft}
+                        goalMode={goalMode}
+                        history={history}
+                        inputReference={inputReference}
+                        isEditing={edit.isEditing}
+                        menu={menu}
+                        menuActions={{ choose, complete }}
                         placeholder={agentChatComposerPlaceholder(
                             sendAction,
                             {
                                 hasNextQueued: nextQueuedId !== undefined,
+                                hasStash: stash.hasStash,
                                 isEditing: edit.isEditing,
                                 isGoalMode: goalMode.isOn,
                                 isTurnRunning,
                             },
                             t,
                         )}
-                        ref={inputReference}
-                        rows={1}
-                        value={draft}
-                        onChange={(event) => {
-                            const { value } = event.target;
-                            setDraft(() => value);
-                            sessionMenu.trackCaret(event.target);
-                        }}
-                        onBlur={() => setInputFocused(false)}
-                        onFocus={() => setInputFocused(true)}
-                        onClick={(event) => sessionMenu.trackCaret(event.currentTarget)}
-                        onKeyUp={sessionMenu.trackCaretKey}
-                        onSelect={(event) => sessionMenu.followSelection(event.currentTarget)}
-                        onKeyDown={(event) => {
-                            sessionMenu.notePressedKey(event);
-                            if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen))
-                                return;
-                            if (menu.didHandleKey(event, { choose, complete })) return;
-                            if (sessionMenu.didHandleKey(event)) return;
-                            if (goalMode.didHandleKey(event)) return;
-                            composerKeys.onKeyDown(event);
-                        }}
+                        sessionMenu={sessionMenu}
+                        setDraft={setDraft}
+                        setInputFocused={setInputFocused}
+                        stash={stash}
                         onPaste={fileInput.onPaste}
                     />
                     <AgentChatComposerActions

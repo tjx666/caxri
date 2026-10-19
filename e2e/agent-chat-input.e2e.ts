@@ -350,3 +350,82 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Chat recalls sent prompts from a list and stashes a draft with Ctrl+S', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-history-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        const send = async (prompt: string): Promise<void> => {
+            await message.fill(prompt);
+            await message.press('Enter');
+            await expect(message).toHaveValue('');
+        };
+        await send('first prompt');
+        await send('second prompt');
+        await send('first prompt');
+        await expect(chat.getByText('Hello from fake Codex. You said: first prompt')).toHaveCount(
+            2,
+        );
+
+        // ArrowUp in the empty input opens the list on the newest prompt; a repeat lists once, at its newest place.
+        await message.press('ArrowUp');
+        const history = chat.getByRole('listbox', { name: 'Recent prompts' });
+        await expect(history.getByRole('option')).toHaveText(['second prompt', 'first prompt']);
+        await expect(history.getByRole('option', { name: 'first prompt' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(message).toHaveAttribute('placeholder', 'first prompt');
+        await message.press('ArrowUp');
+        await expect(message).toHaveAttribute('placeholder', 'second prompt');
+        await page.screenshot({ path: testInfo.outputPath('chat-prompt-history.png') });
+        // Enter fills the input without sending.
+        await message.press('Enter');
+        await expect(history).toHaveCount(0);
+        await expect(message).toHaveValue('second prompt');
+        await expect(chat.getByText('Hello from fake Codex. You said: second prompt')).toHaveCount(
+            1,
+        );
+
+        // Escape closes the list and leaves the input empty; typing closes it and still types.
+        await message.fill('');
+        await message.press('ArrowUp');
+        await expect(history).toBeVisible();
+        await message.press('Escape');
+        await expect(history).toHaveCount(0);
+        await expect(message).toHaveValue('');
+        await message.press('ArrowUp');
+        await message.press('x');
+        await expect(history).toHaveCount(0);
+        await expect(message).toHaveValue('x');
+
+        // Ctrl+S sets a long draft aside so a quick question can go first, then brings it back after the send.
+        await message.fill('a long draft to finish later');
+        await message.press('Control+s');
+        await expect(message).toHaveValue('');
+        await expect(message).toHaveAttribute('placeholder', 'Draft stashed · Ctrl+S to restore');
+        await page.screenshot({ path: testInfo.outputPath('chat-draft-stashed.png') });
+        await message.fill('quick question');
+        await message.press('Enter');
+        await expect(message).toHaveValue('a long draft to finish later');
+        // Ctrl+S in an empty input restores a stash on demand too.
+        await message.press('Control+s');
+        await expect(message).toHaveValue('');
+        await message.press('Control+s');
+        await expect(message).toHaveValue('a long draft to finish later');
+        await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
