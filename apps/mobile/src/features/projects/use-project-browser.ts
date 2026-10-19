@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { mobileErrorMessage } from '../connection/mobile-error-message';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import type { ProjectBrowserLevel } from './project-browser-model';
 import {
@@ -43,7 +44,7 @@ export const useProjectBrowser = () => {
                 setNewSessionProjectId(project.id);
                 return true;
             } catch (error) {
-                setAddError(error instanceof Error ? error.message : t('projects.addError'));
+                setAddError(mobileErrorMessage(error, t('projects.addError'), t));
                 return false;
             } finally {
                 setAddingPath(null);
