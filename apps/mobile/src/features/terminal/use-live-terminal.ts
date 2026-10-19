@@ -4,13 +4,13 @@ import * as Clipboard from 'expo-clipboard';
 
 import { translate } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
-import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
 import type { LiveTerminalState } from './control-availability';
 import {
     canUseTerminalControls,
     shouldObserveTerminal,
     terminalViewState,
 } from './control-availability';
+import { terminalControlError } from './control-error';
 import type { TerminalControlTarget } from './control-input';
 import { chunkTerminalText, sendTerminalControlInput } from './control-input';
 import type { TerminalKey } from './key-input';
@@ -31,15 +31,6 @@ type TerminalWebviewPayload = TerminalWebviewCommand extends infer Command
     : never;
 
 const MAX_PENDING_OUTPUT_BYTES = 4 * 1_024 * 1_024;
-
-const controlError = (error: unknown): string => {
-    if (error instanceof MobileGatewayRequestError) {
-        if (error.code === 'FORBIDDEN') return translate('terminal.error.forbidden');
-        if (error.code === 'CONFLICT') return translate('terminal.error.conflict');
-        return error.message;
-    }
-    return translate('terminal.error.deliveryUnconfirmed');
-};
 
 const unsubscribeQuietly = async (handle: { unsubscribe(): Promise<void> }): Promise<void> => {
     try {
@@ -375,7 +366,7 @@ export const useLiveTerminal = ({
             setError(null);
             return 'sent';
         } catch (error_) {
-            setError(controlError(error_));
+            setError(terminalControlError(error_));
             return 'blocked';
         }
     };
@@ -453,7 +444,7 @@ export const useLiveTerminal = ({
             setHasLease(true);
             setError(null);
         } catch (error_) {
-            setError(controlError(error_));
+            setError(terminalControlError(error_));
         }
     };
     const release = async (): Promise<void> => {
@@ -469,7 +460,7 @@ export const useLiveTerminal = ({
                 setError(null);
             }
         } catch (error_) {
-            setError(controlError(error_));
+            setError(terminalControlError(error_));
         }
     };
     const onWebviewMessage = (source: string): void => {
@@ -521,7 +512,7 @@ export const useLiveTerminal = ({
             }
             case 'wheel': {
                 wheel.current ??= createTerminalWheelForwarder({
-                    onError: (error_) => setError(controlError(error_)),
+                    onError: (error_) => setError(terminalControlError(error_)),
                     request,
                     target: () => targetReference.current(),
                 });

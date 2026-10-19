@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { mobileErrorMessage } from '../connection/mobile-error-message';
 import type { AttentionAnswerDraft } from './attention-answer';
 import {
     composeAttentionAnswer,
@@ -168,9 +169,7 @@ const AttentionCard = ({
         try {
             await submit(item.id, answer);
         } catch (error_) {
-            setError(
-                error_ instanceof Error ? error_.message : t('conversation.attention.answerFailed'),
-            );
+            setError(mobileErrorMessage(error_, t('conversation.attention.answerFailed'), t));
         } finally {
             setBusy(false);
         }
