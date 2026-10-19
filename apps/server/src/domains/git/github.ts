@@ -70,6 +70,11 @@ export async function readGitHubPullRequestView(
             });
             if (failure.kind === 'not-found' || failure.code === 'ENOENT')
                 throw new CaxriError('UNAVAILABLE', 'GitHub CLI is not available on PATH');
+            if (failure.kind === 'not-logged-in')
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'GitHub CLI is not signed in; run gh auth login',
+                );
             if (failure.kind === 'rate-limited')
                 throw new CaxriError(
                     'UNAVAILABLE',
