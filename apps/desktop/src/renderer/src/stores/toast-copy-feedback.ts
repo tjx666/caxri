@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { notifyListeners } from '@caxri/utils';
+
 import type { CopyFeedbackStatus } from '../components/copy-feedback';
 import { COPY_FEEDBACK_RESET_MS, writeToClipboardWithFeedback } from '../components/copy-feedback';
 import type { ToastAction, ToastActionId } from './toast-actions';
@@ -40,12 +42,12 @@ export function copyFeedbackKeyOf(action: ToastAction): string | undefined {
 
 const statuses = new Map<string, CopyFeedbackStatus>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
-const listeners = new Set<() => void>();
+const listeners = new Set<(value: undefined) => void>();
 
 function publish(key: string, status: CopyFeedbackStatus): void {
     if (status === 'idle') statuses.delete(key);
     else statuses.set(key, status);
-    for (const listener of listeners) listener();
+    notifyListeners(listeners, undefined);
 }
 
 /**
