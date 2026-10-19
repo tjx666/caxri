@@ -33,6 +33,7 @@ function projection(): { projection: ChatProjection; events: ServerEvent[] } {
             logger,
             send: (event) => events.push(event),
             onChange: () => {},
+            delegatedTaskSource: () => {},
         }),
     };
 }

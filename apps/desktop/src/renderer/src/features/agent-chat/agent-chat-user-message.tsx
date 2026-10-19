@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 
+import type { AgentChatDelegatedTask } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
@@ -9,6 +10,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
+import { AgentChatDelegatedTaskBubble } from './agent-chat-delegated-task-bubble';
 import { AgentChatInvocationChip } from './agent-chat-invocation-chip';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageImages } from './agent-chat-message-images';
@@ -43,6 +45,7 @@ import { useIsAgentChatClamped } from './hooks/use-is-agent-chat-clamped';
  */
 export function AgentChatUserMessage({
     createdAt,
+    delegatedTask,
     delivery,
     id,
     images,
@@ -50,6 +53,10 @@ export function AgentChatUserMessage({
     onOpenFile,
 }: {
     createdAt?: number;
+    /**
+     * Set when the message is a delegated task pointer; it then shows who delegated it instead of the pointer.
+     */
+    delegatedTask?: AgentChatDelegatedTask;
     delivery?: 'queued' | 'steered';
     /**
      * The message's item id, which names it when an image without a thumbnail is read back from the provider's record,
@@ -110,12 +117,16 @@ export function AgentChatUserMessage({
                 />
             )}
             {references.length > 0 && <AgentChatPathReferenceChips references={references} />}
-            {words && (
-                <AgentChatUserMessageBubble
-                    isEditing={isEditing}
-                    text={words}
-                    onOpenFile={onOpenFile}
-                />
+            {delegatedTask ? (
+                <AgentChatDelegatedTaskBubble task={delegatedTask} text={text} />
+            ) : (
+                words && (
+                    <AgentChatUserMessageBubble
+                        isEditing={isEditing}
+                        text={words}
+                        onOpenFile={onOpenFile}
+                    />
+                )
             )}
             {caption && <span className="-mt-0.5 text-[11px] leading-4 text-muted">{caption}</span>}
         </AgentChatReplyFrame>

@@ -2,6 +2,7 @@ import { memo } from 'react';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationEntry } from '../conversation/conversation-entry';
+import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
@@ -31,6 +32,16 @@ export const AgentChatTimelineEntry = memo(
             }
             case 'message': {
                 return <ConversationEntry entry={entry.message} theme={theme} />;
+            }
+            case 'delegated': {
+                return (
+                    <AgentChatDelegatedMessage
+                        id={entry.id}
+                        task={entry.task}
+                        text={entry.text}
+                        theme={theme}
+                    />
+                );
             }
             case 'work': {
                 return (

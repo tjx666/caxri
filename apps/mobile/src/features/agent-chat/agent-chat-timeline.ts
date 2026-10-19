@@ -1,4 +1,5 @@
 import type {
+    AgentChatDelegatedTask,
     AgentChatDiffLine,
     AgentChatFileChange,
     AgentChatItem,
@@ -40,6 +41,16 @@ type AgentChatMessageEntry = Extract<
 export type AgentChatTimelineEntry =
     | { kind: 'feedback'; id: string; notice: Extract<AgentChatItem, { type: 'notice' }> }
     | { kind: 'message'; id: string; message: AgentChatMessageEntry }
+    | {
+          /**
+           * A user message that is really another Agent's delegated task pointer, captioned with who sent it and the
+           * pointer folded away, as Desktop draws it.
+           */
+          kind: 'delegated';
+          id: string;
+          text: string;
+          task: AgentChatDelegatedTask;
+      }
     | {
           kind: 'work';
           id: string;
@@ -132,6 +143,13 @@ function groupEntries(
         flush();
         if (item.type === 'notice' && (item.title || item.kind === 'warning'))
             entries.push({ kind: 'feedback', id: item.id, notice: item });
+        else if (item.type === 'userMessage' && item.delegatedTask)
+            entries.push({
+                kind: 'delegated',
+                id: item.id,
+                text: item.text,
+                task: item.delegatedTask,
+            });
         else entries.push({ kind: 'message', id: item.id, message: toMessage(item, t) });
     }
     flush();
@@ -330,12 +348,13 @@ export function withAgentChatPendingEntries(
 }
 
 /**
- * Whether a row starts a turn: the user's message, or one still on its way. The list keeps the latest one at the top of
- * the viewport at its end, as Desktop's Chat rests a sent message.
+ * Whether a row starts a turn: the user's message, a delegated task, or a message still on its way. The list keeps the
+ * latest one at the top of the viewport at its end, as Desktop's Chat rests a sent message.
  */
 export function isAgentChatTurnStart(entry: AgentChatTimelineEntry): boolean {
     return (
         entry.kind === 'pending' ||
+        entry.kind === 'delegated' ||
         (entry.kind === 'message' && entry.message.type === 'userMessage')
     );
 }

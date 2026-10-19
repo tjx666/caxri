@@ -6,6 +6,7 @@ import {
     agentChatChangeRows,
     agentChatTurnTone,
     buildAgentChatTimeline,
+    isAgentChatTurnStart,
     toggleAgentChatTurn,
     withAgentChatPendingEntries,
 } from '../agent-chat-timeline';
@@ -29,6 +30,38 @@ const ids = (timeline: Timeline): string[] =>
     buildAgentChatTimeline(timeline).map((entry) => entry.id);
 
 describe('buildAgentChatTimeline', () => {
+    it('draws a delegated task pointer as its own turn-starting row', () => {
+        const text =
+            'Read the delegated task from "/tmp/task.md" and carry it out. Delegation ID: d1.';
+        const entries = buildAgentChatTimeline({
+            items: [
+                {
+                    id: 'u1',
+                    turnId: 't1',
+                    type: 'userMessage',
+                    text,
+                    delegatedTask: {
+                        delegationId: 'd1',
+                        source: { kind: 'session', sessionId: 's1' },
+                    },
+                },
+                { id: 'u2', turnId: 't2', type: 'userMessage', text: 'Plain message' },
+            ],
+            turns: [
+                { id: 't1', status: 'completed' },
+                { id: 't2', status: 'completed' },
+            ],
+        });
+        expect(entries[0]).toEqual({
+            kind: 'delegated',
+            id: 'u1',
+            text,
+            task: { delegationId: 'd1', source: { kind: 'session', sessionId: 's1' } },
+        });
+        expect(isAgentChatTurnStart(entries[0])).toBe(true);
+        expect(entries.find((entry) => entry.id === 'u2')).toMatchObject({ kind: 'message' });
+    });
+
     it('groups ordinary work from its first running frame', () => {
         const [work] = buildAgentChatTimeline({
             items: [

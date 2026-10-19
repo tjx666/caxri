@@ -6,6 +6,7 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { executeMobileChatBrowserScenario } from './mobile-agent-chat-browser-scenario';
 import { executeMobileChatComposerScenario } from './mobile-agent-chat-composer-scenario';
+import { executeMobileChatDelegatedTaskScenario } from './mobile-agent-chat-delegated-scenario';
 import {
     executeMobileChatMissingImageScenario,
     executeMobileChatModelRefusedScenario,
@@ -465,6 +466,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatBrowserScenario(environment, artifacts);
         case 'MOB-CHAT-18':
             return executeMobileChatChineseScenario(environment, artifacts);
+        case 'MOB-CHAT-19':
+            return executeMobileChatDelegatedTaskScenario(environment, artifacts);
         case 'MOB-CHAT-20':
             return executeMobileChatFeedbackScenario(environment, artifacts);
         default:

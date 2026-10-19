@@ -284,6 +284,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-chinese-locale',
     },
+    'MOB-CHAT-19': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-delegated-task',
+    },
     'MOB-CHAT-20': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
