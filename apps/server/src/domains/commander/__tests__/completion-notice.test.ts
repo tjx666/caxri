@@ -1,10 +1,8 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-    classifyCommanderCompletionNotice,
-    CommanderCompletionNotifier,
-} from '../completion-notice';
+import { CommanderCompletionNotifier } from '../completion-notice';
+import { classifyCommanderCompletionNotice } from '../completion-notice-contract';
 import { formatCommanderResumePrompt } from '../notice-text';
 import type { Fixture } from './completion-notice.fixture';
 import {
