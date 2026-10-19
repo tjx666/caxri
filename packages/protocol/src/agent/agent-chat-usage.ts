@@ -22,6 +22,12 @@ export const agentChatUsageSchema = z.strictObject({
      */
     compactWindow: z.number().int().positive().optional(),
     /**
+     * Total past which the provider compacts on its own (Claude Code's `autoCompactThreshold`, below the window by a
+     * reserve), when it reports one and auto-compact is on. Pressure is measured against it, the figure the Context tab
+     * names, so the composer meter and the tab show one percentage.
+     */
+    autoCompactThreshold: z.number().int().positive().optional(),
+    /**
      * What fills the window, as the provider reports it. Absent when it reports none, and dropped when a newer response
      * changes the total, so it never describes an older context.
      */

@@ -43,13 +43,15 @@ export function claudeResponseUsage(
 ): AgentChatUsage | undefined {
     const totalTokens = claudeUsageTokens(message.usage);
     if (totalTokens === undefined) return undefined;
-    const { breakdown, compactWindow, cacheTtlMinutes } = snapshot.usage ?? {};
+    const { autoCompactThreshold, breakdown, compactWindow, cacheTtlMinutes } =
+        snapshot.usage ?? {};
     return withCacheRewriteEstimate(
         {
             totalTokens,
             ...(contextWindow && { contextWindow }),
             ...(breakdown && { breakdown }),
             ...(compactWindow && { compactWindow }),
+            ...(autoCompactThreshold && { autoCompactThreshold }),
             cacheTtlMinutes:
                 claudeCacheTtlMinutes(message.usage) ??
                 cacheTtlMinutes ??
@@ -71,7 +73,7 @@ export function claudeResponseUsage(
 export function claudeContextDetails(
     response: unknown,
     contextWindow: number | undefined,
-): Pick<AgentChatUsage, 'breakdown' | 'compactWindow'> {
+): Pick<AgentChatUsage, 'autoCompactThreshold' | 'breakdown' | 'compactWindow'> {
     if (!isRecord(response)) return {};
     const categories = Array.isArray(response.categories) ? response.categories : [];
     const breakdown = categories
@@ -92,9 +94,15 @@ export function claudeContextDetails(
         (contextWindow === undefined || window < contextWindow)
             ? Math.trunc(window)
             : undefined;
+    const threshold = response.autoCompactThreshold;
+    const autoCompactThreshold =
+        response.isAutoCompactEnabled !== false && isPositive(threshold)
+            ? Math.trunc(threshold)
+            : undefined;
     return {
         ...(breakdown.length > 0 && { breakdown }),
         ...(compactWindow !== undefined && { compactWindow }),
+        ...(autoCompactThreshold !== undefined && { autoCompactThreshold }),
     };
 }
 
@@ -154,8 +162,11 @@ export async function refreshClaudeContextDetails(
     const usage = host.read().usage;
     if (isEnded() || usage?.totalTokens !== before.totalTokens) return;
     // The previous rows were kept only until this answer; an answer without rows drops them.
-    const next = { ...usage, ...claudeContextDetails(response, usage.contextWindow) };
+    const details = claudeContextDetails(response, usage.contextWindow);
+    const next = { ...usage, ...details };
     if (next.breakdown === usage.breakdown) delete next.breakdown;
+    // A threshold from an earlier answer must not outlive auto-compact being turned off.
+    if (details.autoCompactThreshold === undefined) delete next.autoCompactThreshold;
     host.apply([{ op: 'state', state: { usage: next } }]);
 }
 

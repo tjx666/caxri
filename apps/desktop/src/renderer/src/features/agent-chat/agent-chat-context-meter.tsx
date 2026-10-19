@@ -42,7 +42,7 @@ function ContextCard({
                 <span className="font-medium">{t('agentChat.context.title')}</span>
                 <span className="tabular-nums">
                     {formatTokens(usage.totalTokens)}
-                    <span className="text-muted"> / {formatTokens(usage.window)}</span>
+                    <span className="text-muted"> / {formatTokens(usage.limit)}</span>
                     <span className={cn('ml-1.5', TONE_CLASS_NAMES[usage.tone])}>{percent}%</span>
                 </span>
             </span>
@@ -80,13 +80,21 @@ function ContextCard({
                     ))}
                 </span>
             )}
-            {usage.modelWindow && (
+            {usage.modelWindow ? (
                 <span className="text-[11px] leading-4 text-muted">
                     {t('agentChat.context.autoCompacts', {
-                        window: formatTokens(usage.window),
+                        window: formatTokens(usage.limit),
                         modelWindow: formatTokens(usage.modelWindow),
                     })}
                 </span>
+            ) : (
+                usage.compactAt && (
+                    <span className="text-[11px] leading-4 text-muted">
+                        {t('agentChat.contextPage.window.autoCompact', {
+                            tokens: formatTokens(usage.compactAt),
+                        })}
+                    </span>
+                )
             )}
             {(onShowDetails !== undefined || onCompact !== undefined) && (
                 <span className="flex justify-end gap-1.5">
@@ -145,11 +153,11 @@ export function AgentChatContextMeter({
     usage: AgentChatContextUsage;
 }) {
     const { t } = useTranslation();
-    const percent = agentChatContextPercent(usage.totalTokens, usage.window);
+    const percent = agentChatContextPercent(usage.totalTokens, usage.limit);
     const description = t('agentChat.context.meterLabel', {
         percent,
         tokens: formatTokens(usage.totalTokens),
-        window: formatTokens(usage.window),
+        window: formatTokens(usage.limit),
     });
     return (
         <Popover>

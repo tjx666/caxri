@@ -57,6 +57,21 @@ describe('claudeContextDetails', () => {
         expect(claudeContextDetails('not a response', 200_000)).toEqual({});
     });
 
+    it('carries the auto-compact threshold even when the window is the model window', () => {
+        expect(
+            claudeContextDetails(
+                { categories: [], rawMaxTokens: 200_000, autoCompactThreshold: 167_000.9 },
+                200_000,
+            ),
+        ).toEqual({ autoCompactThreshold: 167_000 });
+        expect(
+            claudeContextDetails(
+                { categories: [], autoCompactThreshold: 167_000, isAutoCompactEnabled: false },
+                200_000,
+            ),
+        ).toEqual({});
+    });
+
     it('names no compaction window while auto-compact is off', () => {
         expect(
             claudeContextDetails(

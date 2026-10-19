@@ -4,7 +4,7 @@ import { formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 import { StatTile } from '../../../components/report-card';
 import { useTranslation } from '../../../i18n';
 import { localizedDuration } from '../../../lib/usage-format';
-import { agentChatContextPercent } from '../agent-chat-context';
+import { agentChatContextLimit, agentChatContextPercent } from '../agent-chat-context';
 import { useClockTick } from '../hooks/use-clock-tick';
 import type { CacheAnalysis } from './cache-analysis';
 import { cacheClock } from './cache-analysis';
@@ -25,8 +25,9 @@ export function ContextTiles({
 }) {
     const { t } = useTranslation();
     const total = composition?.totalTokens ?? usage?.totalTokens;
-    const window = composition?.window ?? usage?.compactWindow ?? usage?.contextWindow;
-    const threshold = composition && autoCompactAt(composition);
+    const threshold = composition ? autoCompactAt(composition) : usage?.autoCompactThreshold;
+    const baseWindow = composition?.window ?? usage?.compactWindow ?? usage?.contextWindow;
+    const window = baseWindow && agentChatContextLimit(baseWindow, threshold);
     return (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-2">
             <StatTile
