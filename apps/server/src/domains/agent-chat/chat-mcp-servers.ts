@@ -5,7 +5,9 @@ import type {
     AgentChatSnapshot,
 } from '@caxri/protocol';
 import {
+    MAX_AGENT_CHAT_MCP_HTTPS_ICON_LENGTH,
     MAX_AGENT_CHAT_MCP_ICON_SRC_LENGTH,
+    MAX_AGENT_CHAT_MCP_INLINE_ICON_CHARS,
     MAX_AGENT_CHAT_MCP_SERVERS,
     parseAgentMcpToolName,
 } from '@caxri/protocol';
@@ -76,10 +78,39 @@ function iconSource(value: unknown): string | undefined {
         const url = new URL(source);
         if (url.protocol !== 'https:' || url.username || url.password) return undefined;
         url.hash = '';
-        return url.href;
+        return url.href.length > MAX_AGENT_CHAT_MCP_HTTPS_ICON_LENGTH ? undefined : url.href;
     } catch {
         return undefined;
     }
+}
+
+const isInlineIcon = (icon: AgentChatMcpIcon): boolean => icon.src.startsWith('data:');
+
+/**
+ * Keeps the inline icons of `servers` within `MAX_AGENT_CHAT_MCP_INLINE_ICON_CHARS` in total. Servers are taken in
+ * order, so a server already shown keeps its icon and the newest one yields; an inline icon that does not fit is
+ * dropped while the server's HTTPS icons and `siteOrigins` stay, so it falls back the way an icon that failed to load
+ * does.
+ */
+export function fitInlineIconBudget(servers: readonly AgentChatMcpServer[]): AgentChatMcpServer[] {
+    let remaining = MAX_AGENT_CHAT_MCP_INLINE_ICON_CHARS;
+    return servers.map((server) => {
+        if (!server.icons?.some((icon) => isInlineIcon(icon))) return server;
+        const icons = server.icons.filter((icon) => {
+            if (!isInlineIcon(icon)) return true;
+            if (icon.src.length > remaining) return false;
+            remaining -= icon.src.length;
+            return true;
+        });
+        if (icons.length === server.icons.length) return server;
+        const { name, title, siteOrigins } = server;
+        return {
+            name,
+            ...(title !== undefined && { title }),
+            ...(icons.length > 0 && { icons }),
+            ...(siteOrigins && { siteOrigins }),
+        };
+    });
 }
 
 /**
@@ -227,11 +258,12 @@ export function createChatMcpServerWatch(options: {
 
     const publish = (server: AgentChatMcpServer): void => {
         const current = options.read().mcpServers ?? [];
-        const existing = current.find((entry) => entry.name === server.name);
-        if (existing && JSON.stringify(existing) === JSON.stringify(server)) return;
-        const mcpServers = [...current.filter((entry) => entry.name !== server.name), server].slice(
-            -MAX_AGENT_CHAT_MCP_SERVERS,
+        const mcpServers = fitInlineIconBudget(
+            [...current.filter((entry) => entry.name !== server.name), server].slice(
+                -MAX_AGENT_CHAT_MCP_SERVERS,
+            ),
         );
+        if (JSON.stringify(mcpServers) === JSON.stringify(current)) return;
         options.apply([{ op: 'state', state: { mcpServers } }]);
     };
 

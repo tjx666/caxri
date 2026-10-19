@@ -7,6 +7,7 @@ import type { McpServerReport } from '../chat-mcp-servers';
 import {
     agentChatMcpServer,
     createChatMcpServerWatch,
+    fitInlineIconBudget,
     mcpServerSiteOrigins,
     selectMcpServerIcons,
 } from '../chat-mcp-servers';
@@ -111,6 +112,56 @@ describe('mcpServerSiteOrigins', () => {
         expect(mcpServerSiteOrigins(undefined, 'https://tools.example.co.uk/mcp')).toEqual([
             'https://tools.example.co.uk',
         ]);
+    });
+});
+
+describe('inline icon budget', () => {
+    const inline = (seed: number) => ({
+        src: `data:image/png;base64,${'A'.repeat(24 * 1024 - 30 - seed)}`,
+    });
+
+    it('keeps the serialized mcpServers within the budget however many large inline icons arrive', async () => {
+        const lookup = (name: string) =>
+            Promise.resolve<McpServerReport>({
+                icons: [
+                    { ...inline(0), sizes: ['any'] },
+                    { ...inline(1), theme: 'light' },
+                    { ...inline(2), theme: 'dark' },
+                ],
+                endpointUrl: `https://mcp.${name}.example/mcp`,
+                isConnected: true,
+            });
+        const fixture = watchFixture(lookup);
+        for (let index = 0; index < 50; index += 1)
+            fixture.observe(toolCall(`mcp__server${index}__tool`, `call-${index}`));
+        await vi.waitFor(() => expect(fixture.servers()).toHaveLength(20));
+
+        const servers = fixture.servers() ?? [];
+        // 64 KiB of inline icons plus names and site origins for the 20 servers.
+        expect(JSON.stringify(servers).length).toBeLessThanOrEqual(80 * 1024);
+        // A server without room for an inline icon still has its site origins to fall back to.
+        expect(servers.at(-1)?.icons).toBeUndefined();
+        expect(servers.at(-1)?.siteOrigins?.length).toBeGreaterThan(0);
+    });
+
+    it('drops only the inline icons that do not fit and keeps HTTPS icons in order', () => {
+        const server = (name: string, icons: Array<{ src: string }>) => ({ name, icons });
+        const fitted = fitInlineIconBudget([
+            server('a', [inline(0), inline(1)]),
+            server('b', [{ src: EXA_ICON }, inline(2)]),
+            server('c', [inline(3)]),
+        ]);
+
+        // 24 KiB each: two fit in the first server, the third (server b) and fourth (server c) do not fit.
+        expect(fitted[0]?.icons).toHaveLength(2);
+        expect(fitted[1]?.icons).toEqual([{ src: EXA_ICON }]);
+        expect(fitted[2]).toEqual({ name: 'c' });
+    });
+
+    it('drops an HTTPS icon URL that is implausibly long', () => {
+        expect(
+            selectMcpServerIcons([{ src: `https://a.example/${'x'.repeat(3_000)}.png` }]),
+        ).toEqual([]);
     });
 });
 
