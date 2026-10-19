@@ -79,9 +79,11 @@ export async function executeMobileReplyPlaceholderScenario(
                 !snapshot.activeTurnId &&
                 snapshot.items.some((item) => item.type === 'agentMessage'),
         );
+        // The muted "Worked for" label that takes the dots' place antialiases into the same gray, so the dots are gone
+        // once that gray no longer covers exactly their box.
         await waitForMobile(
             () => dotBounds(serial),
-            (bounds) => bounds === undefined,
+            (bounds) => JSON.stringify(bounds) !== JSON.stringify(dots),
         );
         await capture(environment, 'reply-arrived', artifacts);
         await finish(environment, artifacts, { placeholder: 'shown-then-replaced' });
