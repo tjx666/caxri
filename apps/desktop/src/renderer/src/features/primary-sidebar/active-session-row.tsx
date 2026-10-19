@@ -17,7 +17,6 @@ import { SessionRenameInput } from './session-rename-input';
 import { SessionRowActions } from './session-row-actions';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowTrigger } from './session-row-trigger';
-import { sessionStatus } from './session-status';
 import { SessionStatusIndicator } from './session-status-indicator';
 
 interface ActiveSessionRowProperties {
@@ -73,6 +72,13 @@ interface ActiveSessionRowProperties {
      */
     worktreeProject?: ProjectRecord;
 }
+
+/**
+ * A trailing glyph's slot collapses while the pointer is over the row, so Pin and Archive are the only things on the
+ * right edge then.
+ */
+const HIDDEN_ON_ROW_HOVER =
+    'group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden';
 
 /**
  * One active Session row, shared by the Project groups and the Pinned group. A pinned Session is rendered twice (once
@@ -137,7 +143,6 @@ export function ActiveSessionRow({
      * is open keeps one popup on screen at a time.
      */
     const [menuOpen, setMenuOpen] = useState(false);
-    const hasLifecycleGlyph = sessionStatus(session, terminal).kind !== 'default';
     const { viewportReference, textReference, setHovered, setFocused } = useSessionTitleScroll(
         title,
         renaming || menuOpen,
@@ -211,29 +216,27 @@ export function ActiveSessionRow({
              * Outside the title's span, whose overflow fade would hide a glyph after a long title. Absent for the
              * ordinary Session the Commander does not manage, so it costs no width there.
              */}
-            {!renaming && <CommanderSessionMarker sessionId={session.id} />}
+            {!renaming && (
+                <CommanderSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
+            )}
             {/*
              * Lifecycle signals take priority over the PR. The wrapper follows the rendered glyph's width, so an idle
              * Session with no PR gives the otherwise invisible 14px slot back to its title; every visible glyph still
-             * lands on the same right edge. On pointer hover only the PR fallback steps aside for Pin/Archive (~42px):
-             * its slot collapses entirely, because a 14px ghost track would still let the title paint through those
-             * glyphs, and the PR stays reachable from the hover card and menu. A running, unread, or detached glyph
-             * stays: it is the one thing the user hovers a busy row to check, so it moves left of Pin/Archive, into
-             * the space the row reserves for them, instead of disappearing under them.
+             * lands on the same right edge. On pointer hover every glyph steps aside for Pin/Archive (~42px): its slot
+             * collapses entirely, because a 14px ghost track would still let the title paint through those buttons,
+             * and a glyph squeezed in beside them read as a third, unlabeled action. What the glyph said stays in the
+             * hover card that opens on the same hover.
              */}
             <span
                 className={cn(
                     'session-indicators flex flex-none items-center justify-end',
-                    hasLifecycleGlyph
-                        ? 'group-hover/session-row:mr-0.5'
-                        : 'group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden',
+                    HIDDEN_ON_ROW_HOVER,
                 )}
             >
                 <SessionStatusIndicator
                     fallback={
                         !renaming && (
                             <SessionPullRequestIndicator
-                                className="transition-opacity group-hover/session-row:opacity-0"
                                 pullRequest={pullRequestUnavailable ? undefined : pullRequest}
                             />
                         )

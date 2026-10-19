@@ -177,6 +177,11 @@ test('a handed-over Agent Chat stays continuable until the user sends it a messa
             'aria-label',
             'Managed by Agent Commander · sending a message or stopping here takes it back',
         );
+        // Quitting the Commander leaves the Session handed over but nobody managing it, so the marker goes, while
+        // sending a message still takes the Session back.
+        await pageRequest(page, 'commander.stop');
+        await expect(marker).toHaveCount(0);
+        expect((await managed()).sessionIds).toEqual([sessionId]);
 
         // Selecting the Session's tabs again may land on its Shell; the user returns to the Chat to write.
         await chat.getByRole('tab', { name: 'Codex (Chat)' }).click();

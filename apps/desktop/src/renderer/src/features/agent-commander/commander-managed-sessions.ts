@@ -1,6 +1,7 @@
 import type {
     CommanderInputTakeBack,
     CommanderManagedSessions,
+    CommanderStatus,
     ServerEvent,
 } from '@caxri/protocol';
 
@@ -20,13 +21,20 @@ import { sessionTitleForDisplay } from '../session/session-title';
  */
 export type CommanderSessionMarker = 'none' | 'managed' | 'inputTakesBack' | 'chatInputTakesBack';
 
+/**
+ * The marker for one Session. A stopped Commander (`runState` `stopped`, or not read yet) shows none: the Sessions stay
+ * handed over so a restarted Commander picks them up again, but while nothing runs no one is managing them, and a
+ * marker that outlives quitting the Commander reads as if it were still in charge.
+ */
 export function commanderSessionMarker(
     managed: Pick<
         CommanderManagedSessions,
         'chatTakeBackSessionIds' | 'inputTakeBackSessionIds' | 'sessionIds'
     >,
     sessionId: string,
+    runState: CommanderStatus['state'] | undefined,
 ): CommanderSessionMarker {
+    if (runState === undefined || runState === 'stopped') return 'none';
     if (managed.chatTakeBackSessionIds.includes(sessionId)) return 'chatInputTakesBack';
     if (managed.inputTakeBackSessionIds.includes(sessionId)) return 'inputTakesBack';
     return managed.sessionIds.includes(sessionId) ? 'managed' : 'none';

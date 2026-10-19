@@ -459,9 +459,10 @@ regardless of its exact kind. Motion and shape carry the glance signal without c
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
 attention details. On pointer hover, Pin and Archive occupy a reserved cluster at the row's right
 edge; the title (and a Pinned row's Project name) clips with the same right-edge fade before that
-cluster. A running, unread, or detached glyph stays and moves left of Pin and Archive, because it is
-what the user hovers a busy row to check; only the pull request and deployment fallback glyph
-collapses, so it does not double-reserve. Keyboard focus keeps
+cluster. Every right-edge glyph (lifecycle, delivery, and the Commander marker) collapses while the
+pointer is over the row, so the row shows only Pin and Archive and the title keeps its width; a
+glyph that stayed beside the buttons read as a third action and crowded the title. The hover card
+still states the lifecycle, so hovering a busy row does not hide why it is busy. Keyboard focus keeps
 the track visible because Delete already owns the keyboard action; the hover buttons stay outside
 the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
