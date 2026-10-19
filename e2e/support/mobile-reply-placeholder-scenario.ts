@@ -26,10 +26,10 @@ const DOT_COLOR = `#${[1, 3, 5]
 const DOT_TOLERANCE = 8;
 
 /**
- * Where the reply starts on the 1080x2400 emulator: the timeline's left column, below the Session tabs and above the
- * composer's activity line. The user's message sits on the right, outside it.
+ * Where the reply starts on the 1080x2400 emulator: the timeline's left edge, below the Session tabs and above the
+ * composer's activity line. It stops short of the centered time label above the message, drawn in a similar gray.
  */
-const REPLY_REGION = { bottom: 1700, left: 0, right: 360, top: 560 };
+const REPLY_REGION = { bottom: 1700, left: 0, right: 170, top: 560 };
 
 const dotBounds = (serial: string) =>
     mobileColorBounds(serial, REPLY_REGION, DOT_COLOR, DOT_TOLERANCE);
