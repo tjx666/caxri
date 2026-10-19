@@ -73,6 +73,10 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.images.unsupportedProvider': '{{provider}} 对话不支持图片',
     'agentChat.images.unreadable': '无法读取图片',
 
+    'agentChat.history.label': '最近发送',
+    'agentChat.history.footer': '↑↓ 移动 · Enter 填入 · Esc 关闭',
+    'agentChat.stash.stashed': '草稿已暂存，在空输入框按 Ctrl+S 恢复。',
+    'agentChat.stash.placeholder': '草稿已暂存 · Ctrl+S 恢复',
     'agentChat.slash.label': '命令和 Skill',
     'agentChat.slash.noMatches': '没有匹配的命令或 Skill',
     'agentChat.slash.confirmSendAsText': '没有这个命令。再按一次 Enter 作为文本发送。',

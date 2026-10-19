@@ -1,57 +1,55 @@
 import type { AgentChatItem } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
+import type { SuggestionMenuKeyAction } from '../../lib/suggestion-options';
+
 /**
- * Shell-style prompt recall for the Chat composer: ArrowUp on an empty input walks back through the prompts this Chat
- * sent, ArrowDown walks forward and empties the input past the newest one. The history is derived from the Chat's own
- * `userMessage` items on every keypress, so there is nothing to persist or keep in sync, and it survives a restart
- * because the conversation does. This follows t3code's `composerPromptHistory`.
+ * Prompt recall for the Chat composer, as LobeHub's chat input does it: ArrowUp in an empty input opens a list of the
+ * prompts this Chat sent above the composer, newest at the bottom nearest the input, and previews the highlighted one
+ * in the input's placeholder. Enter or Tab puts it in the input without sending; Escape, ArrowDown past the newest, or
+ * typing closes the list. The history is derived from the Chat's own `userMessage` items when the list opens, so there
+ * is nothing to persist or keep in sync, and it survives a restart because the conversation does.
  */
 export interface AgentChatPromptHistoryEntry {
     /**
-     * The `userMessage` item id, so the position survives entries arriving while the user browses.
+     * The `userMessage` item id, a stable row key.
      */
     id: string;
     prompt: string;
 }
 
 /**
- * The prompt being shown. `recalled` is the text put into the input; once the input no longer matches it, the user has
- * edited or sent it and browsing is over.
+ * Rows the list keeps, newest first: enough to reach back through a long session without the list becoming a log.
  */
-export interface AgentChatPromptHistoryPosition {
-    entryId: string;
-    recalled: string;
-}
-
-export type AgentChatPromptHistoryDirection = 'backward' | 'forward';
+export const MAX_AGENT_CHAT_PROMPT_HISTORY = 50;
 
 /**
- * Oldest first. Consecutive identical prompts collapse into the newest one, like shell `HISTCONTROL=ignoredups`, and an
- * image-only message has no text to recall.
+ * Oldest first, at most {@link MAX_AGENT_CHAT_PROMPT_HISTORY}. A prompt sent again moves to its newest position rather
+ * than listing twice, and an image-only message has no text to recall.
  */
 export function agentChatPromptHistory(
     items: readonly AgentChatItem[] | undefined,
 ): AgentChatPromptHistoryEntry[] {
-    const entries: AgentChatPromptHistoryEntry[] = [];
-    if (!items) return entries;
-    for (const item of items) {
+    const newest = new Map<string, string>();
+    const chatItems = items ?? [];
+    for (const item of chatItems) {
         if (item.type !== 'userMessage') continue;
         // Recall brings back the user's words; the files and folders the message cited are not part of the prompt.
         const prompt = parseAgentChatPathReferences(item.text).text.trim();
         if (!prompt) continue;
-        if (entries.at(-1)?.prompt === prompt) entries.pop();
-        entries.push({ id: item.id, prompt });
+        newest.delete(prompt);
+        newest.set(prompt, item.id);
     }
-    return entries;
+    return [...newest]
+        .slice(-MAX_AGENT_CHAT_PROMPT_HISTORY)
+        .map(([prompt, id]) => ({ id, prompt }));
 }
 
 /**
- * Which way an arrow key moves through the history, or `undefined` when it should move the caret as usual. Only a bare
- * ArrowUp or ArrowDown counts, never while an IME composes, and only with the caret collapsed on the input's first line
- * (backward) or last line (forward), so a multi-line prompt can still be navigated line by line.
+ * Whether a key opens the list: a bare ArrowUp, outside IME composition, in an input holding nothing but whitespace. A
+ * draft of any length keeps ArrowUp for the caret, so a multi-line prompt is still navigated line by line.
  */
-export function agentChatPromptHistoryDirection(
+export function shouldOpenAgentChatPromptHistory(
     event: {
         key: string;
         altKey: boolean;
@@ -60,63 +58,44 @@ export function agentChatPromptHistoryDirection(
         metaKey: boolean;
         shiftKey: boolean;
     },
-    input: { selectionEnd: number; selectionStart: number; value: string },
-): AgentChatPromptHistoryDirection | undefined {
+    draft: string,
+): boolean {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing)
-        return undefined;
-    if (input.selectionStart !== input.selectionEnd) return undefined;
-    if (event.key === 'ArrowUp')
-        return input.value.slice(0, input.selectionStart).includes('\n') ? undefined : 'backward';
-    if (event.key === 'ArrowDown')
-        return input.value.includes('\n', input.selectionEnd) ? undefined : 'forward';
-    return undefined;
+        return false;
+    return event.key === 'ArrowUp' && draft.trim() === '';
 }
 
 /**
- * The next prompt to show, or `undefined` when the key should fall through. Backward starts only from an empty input
- * and stops at the oldest entry; forward past the newest entry empties the input and ends browsing. An input that no
- * longer matches the recalled prompt is a draft of the user's own, so browsing starts over.
+ * The open list's next highlighted row after a key, `'fill'` to put the highlighted prompt in the input, or `'close'`.
+ * It stops at the oldest row rather than wrapping, and ArrowDown on the newest closes the list, the way a shell returns
+ * to its blank line. Any key the list does not own closes it and still reaches the input.
  */
-export function stepAgentChatPromptHistory({
-    current,
-    direction,
-    entries,
-    position,
-}: {
-    current: string;
-    direction: AgentChatPromptHistoryDirection;
-    entries: readonly AgentChatPromptHistoryEntry[];
-    position: AgentChatPromptHistoryPosition | undefined;
-}): { position: AgentChatPromptHistoryPosition | undefined; prompt: string } | undefined {
-    const activeIndex = position?.recalled === current ? activeEntryIndex(entries, position) : -1;
-    if (direction === 'backward') {
-        if (activeIndex === -1 && current.length > 0) return undefined;
-        const index = (activeIndex === -1 ? entries.length : activeIndex) - 1;
-        return index < 0 ? undefined : recall(entries, index);
+export function stepAgentChatPromptHistory(
+    action: SuggestionMenuKeyAction | undefined,
+    activeIndex: number,
+    count: number,
+): number | 'close' | 'fill' {
+    switch (action) {
+        case 'previous': {
+            return Math.max(activeIndex - 1, 0);
+        }
+        case 'next': {
+            return activeIndex + 1 >= count ? 'close' : activeIndex + 1;
+        }
+        case 'choose':
+        case 'complete': {
+            return 'fill';
+        }
+        case 'dismiss':
+        case undefined: {
+            return 'close';
+        }
     }
-    if (activeIndex === -1) return undefined;
-    // Past the newest prompt the input empties, the way a shell returns to its blank line.
-    if (activeIndex + 1 >= entries.length) return { position: undefined, prompt: '' };
-    return recall(entries, activeIndex + 1);
-}
-
-function recall(
-    entries: readonly AgentChatPromptHistoryEntry[],
-    index: number,
-): { position: AgentChatPromptHistoryPosition; prompt: string } {
-    const { id, prompt } = entries[index];
-    return { position: { entryId: id, recalled: prompt }, prompt };
 }
 
 /**
- * The id first; a later identical prompt collapses the recalled entry into a newer id, so fall back to the newest entry
- * with the same text.
+ * A prompt on one line, for a list row and the input's placeholder preview.
  */
-function activeEntryIndex(
-    entries: readonly AgentChatPromptHistoryEntry[],
-    position: AgentChatPromptHistoryPosition,
-): number {
-    const byId = entries.findIndex((entry) => entry.id === position.entryId);
-    if (byId !== -1) return byId;
-    return entries.findLastIndex((entry) => entry.prompt === position.recalled);
+export function agentChatPromptPreview(prompt: string): string {
+    return prompt.replaceAll(/\s+/gu, ' ').trim();
 }

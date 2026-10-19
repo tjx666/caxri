@@ -16,11 +16,12 @@ interface SuggestionMenuState {
 }
 
 /**
- * The composer's two lists, of which at most one shows: the slash-command list wins while open, otherwise the `@`
- * Sessions list, or its progress row while a chosen Session's reference is written.
+ * The composer's lists, of which at most one shows: the prompt history while browsing it, then the slash-command list
+ * while open, otherwise the `@` Sessions list, or its progress row while a chosen Session's reference is written.
  */
 export function AgentChatSuggestionMenu({
     commandMenu,
+    historyMenu,
     onChooseCommand,
     sessionMenu,
 }: {
@@ -28,6 +29,10 @@ export function AgentChatSuggestionMenu({
         matches: readonly AgentAction[];
         skillNotice: { text: string; isLoading: boolean } | undefined;
     };
+    /**
+     * The prompts this Chat sent, opened by ArrowUp in an empty input; it opens only while the other two are closed.
+     */
+    historyMenu: SuggestionMenuState & { chooseAt: (index: number) => void };
     onChooseCommand: (index: number) => void;
     sessionMenu: SuggestionMenuState & {
         chooseAt: (index: number) => void;
@@ -36,6 +41,19 @@ export function AgentChatSuggestionMenu({
     };
 }) {
     const { t } = useTranslation();
+    if (historyMenu.isOpen)
+        return (
+            <SuggestionList
+                activeIndex={historyMenu.activeIndex}
+                footer={t('agentChat.history.footer')}
+                headingAt={(index) => (index === 0 ? t('agentChat.history.label') : undefined)}
+                label={t('agentChat.history.label')}
+                listId={historyMenu.listId}
+                suggestions={historyMenu.suggestions}
+                onChoose={historyMenu.chooseAt}
+                onHover={historyMenu.highlight}
+            />
+        );
     if (commandMenu.isOpen)
         return (
             <SuggestionList
