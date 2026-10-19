@@ -18,6 +18,7 @@ interface RootPackageManifest {
     'lint-staged'?: Record<string, string[]>;
     'packageManager'?: string;
     'private'?: boolean;
+    'scripts'?: Record<string, string>;
     'workspaces'?: unknown;
 }
 
@@ -173,6 +174,9 @@ describe('pnpm dependency contract', () => {
         expect(rootManifest['lint-staged']?.['*.{ts,tsx,mts,cts}']?.[0]).toBe(
             'eslint --fix --no-warn-ignored --max-warnings=0',
         );
+        // Every worktree shares one Git stash stack, so lint-staged's default stash backup can pop a sibling
+        // session's entry into this checkout. A broad revert once dropped the flag unnoticed.
+        expect(rootManifest.scripts?.['lint:staged']).toBe('lint-staged --no-stash');
         expect(
             lockfiles(root)
                 .map((path) => basename(path))

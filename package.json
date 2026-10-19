@@ -18,7 +18,7 @@
         "lint": "eslint . --max-warnings=0 --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache",
         "lint:type-aware": "oxlint -c .oxlintrc.json --type-aware .",
         "lint:markdown": "markdownlint-cli2 \"**/*.md\"",
-        "lint:staged": "lint-staged",
+        "lint:staged": "lint-staged --no-stash",
         "gitleaks": "bun run scripts/gitleaks-scan.ts",
         "docs-check": "bun run scripts/documentation-check.ts",
         "em-dash-check": "bun run scripts/em-dash-check.ts",
