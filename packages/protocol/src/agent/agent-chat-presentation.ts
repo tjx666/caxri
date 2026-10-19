@@ -370,3 +370,17 @@ export function isAgentChatItemVisible(item: AgentChatItem): boolean {
         }
     }
 }
+
+/**
+ * Whether a running turn has shown nothing yet after the user's message: no reply, no work, and nothing it waits on.
+ * Reasoning a provider keeps hidden can leave that stretch empty for many seconds, so every Client holds the reply's
+ * place with a quiet placeholder instead of a blank page under the prompt. `isAfterUserMessage` says whether the
+ * Client's timeline ends with the user's message, since each Client builds its own timeline.
+ */
+export function isAgentChatAwaitingReply(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'operation' | 'requests'> | undefined,
+    isAfterUserMessage: boolean,
+): boolean {
+    if (!snapshot?.activeTurnId || snapshot.requests.length > 0) return false;
+    return snapshot.operation !== 'compacting' && isAfterUserMessage;
+}

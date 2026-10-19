@@ -12,12 +12,14 @@ import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
     isAgentChatImageAttachment,
+    isAgentChatSkillAttachment,
 } from './agent-chat-drafts';
 import { agentChatImageResizedNote } from './agent-chat-images';
 import {
     AgentChatAttachmentRemoveButton,
     AgentChatPathAttachmentCard,
 } from './agent-chat-path-attachment-card';
+import { AgentChatSkillCard } from './agent-chat-skill-card';
 
 /**
  * Reading an image is usually instant; only one that takes longer (a large image being resized) shows a placeholder, so
@@ -91,8 +93,8 @@ function AttachmentThumbnail({
 }
 
 /**
- * Images, files, and folders attached to the message being written, each removable before it is sent, laid out as the
- * Codex app does: large image thumbnails and file or folder cards, bottom-aligned above the input. Removing one
+ * Images, files, folders, and skills attached to the message being written, each removable before it is sent, laid out
+ * as the Codex app does: large image thumbnails and file or folder cards, bottom-aligned above the input. Removing one
  * unmounts the button that had focus, so the caller hands focus back to the message input. Remove names the image the
  * way its preview does, by file name (`agentChatAttachmentName`). A resized image says so on hover and in its alt text,
  * since what is sent is not the original file. Clicking a thumbnail opens the full image in a dialog, since the
@@ -122,6 +124,14 @@ export function AgentChatAttachmentList({
                 className="m-0 flex list-none flex-wrap items-end gap-2.5 px-3 pt-3 pb-0 empty:hidden"
             >
                 {attachments.map((attachment) => {
+                    if (isAgentChatSkillAttachment(attachment))
+                        return (
+                            <AgentChatSkillCard
+                                key={attachment.id}
+                                name={attachment.skill}
+                                onRemove={() => onRemove(attachment.id)}
+                            />
+                        );
                     if (!isAgentChatImageAttachment(attachment))
                         return (
                             <AgentChatPathAttachmentCard

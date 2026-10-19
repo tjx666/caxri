@@ -13,7 +13,8 @@ import { useEnvironmentStore } from '../../stores/environment';
 
 /**
  * One attachment as stored; the composer's `AgentChatAttachment` has the same shape, thumbnail included, so a restored
- * chip shows at once without decoding the image again. A file or folder card stores only its path.
+ * chip shows at once without decoding the image again. A file or folder card stores only its path, a skill card only
+ * the skill's name.
  */
 export type PersistedAgentChatAttachment =
     | {
@@ -22,7 +23,8 @@ export type PersistedAgentChatAttachment =
           name?: string;
           isResized?: boolean;
       }
-    | { id: string; path: string; isDirectory: boolean };
+    | { id: string; path: string; isDirectory: boolean }
+    | { id: string; skill: string };
 
 export interface PersistedAgentChatAttachmentRecord {
     terminalId: string;
@@ -55,10 +57,14 @@ export function parsePersistedAgentChatAttachments(value: unknown): PersistedAge
     if (!Array.isArray(value)) return [];
     return value.flatMap((entry: unknown): PersistedAgentChatAttachment[] => {
         if (typeof entry !== 'object' || entry === null) return [];
-        const { id, image, isDirectory, isResized, name, path } = entry as Record<string, unknown>;
+        const { id, image, isDirectory, isResized, name, path, skill } = entry as Record<
+            string,
+            unknown
+        >;
         if (typeof id !== 'string' || !id) return [];
         if (typeof path === 'string' && path.startsWith('/'))
             return [{ id, path, isDirectory: isDirectory === true }];
+        if (typeof skill === 'string' && skill) return [{ id, skill }];
         const parsed = agentChatImageInputSchema.safeParse(image);
         if (!parsed.success) return [];
         return [
@@ -79,7 +85,7 @@ export function agentChatAttachmentCharacters(
         (total, attachment) =>
             'image' in attachment
                 ? total + attachment.image.data.length + attachment.image.thumbnail.length
-                : total + attachment.path.length,
+                : total + ('path' in attachment ? attachment.path : attachment.skill).length,
         0,
     );
 }

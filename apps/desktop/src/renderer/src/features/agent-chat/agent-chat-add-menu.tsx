@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 
 import type { LucideIcon } from 'lucide-react';
-import { Goal, Lightbulb, MessageCircle, Paperclip, Plus } from 'lucide-react';
+import { BookOpenText, Goal, Lightbulb, MessageCircle, Paperclip, Plus } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Button } from '../../components/ui/button';
@@ -44,10 +44,13 @@ function RowText({ description, label }: { description: string; label: string })
  * folder together with files, so it remains only in an SSH Host window, as Files, whose Agent cannot read this Mac's
  * paths anyway but can still take a picked image (each picked `File` carries its bytes, so that pick takes a drop's
  * route); Goal, only while the provider reports a goal command, puts the composer in Goal mode; Plan mode toggles the
- * provider's plan mode. Under Sessions, the most recently opened Sessions with an Agent conversation can be cited the
- * way the `@` list cites them. Every row is a capability this Chat already has; the menu only gathers them.
+ * provider's plan mode; Caxri skill attaches a card that asks the Agent to load the `caxri-cli` skill with the message,
+ * so a request to open a Session or manage a Project needs no prompt about the CLI. Under Sessions, the most recently
+ * opened Sessions with an Agent conversation can be cited the way the `@` list cites them. Every row is a capability
+ * this Chat already has; the menu only gathers them.
  */
 export function AgentChatAddMenu({
+    caxriSkill,
     canAttachImages,
     isBusy,
     onGoal,
@@ -57,6 +60,10 @@ export function AgentChatAddMenu({
     planMode,
     sessions,
 }: {
+    /**
+     * Whether the message carries the Caxri skill card, which the row toggles.
+     */
+    caxriSkill: { isAttached: boolean; onChange: (isAttached: boolean) => void };
     /**
      * Whether the provider accepts images (`capabilities.chatImages`), which decides what Files says a pick does.
      */
@@ -139,6 +146,18 @@ export function AgentChatAddMenu({
                                 />
                             </MenuItem>
                         )}
+                        <MenuCheckboxItem
+                            checked={caxriSkill.isAttached}
+                            className={ROW_CLASS_NAME}
+                            closeOnClick
+                            onCheckedChange={caxriSkill.onChange}
+                        >
+                            <BookOpenText className="size-4 shrink-0 text-muted" />
+                            <RowText
+                                description={t('agentChat.add.caxriSkillDescription')}
+                                label={t('agentChat.skill.caxri')}
+                            />
+                        </MenuCheckboxItem>
                         {planMode && (
                             <MenuCheckboxItem
                                 checked={planMode.isOn}

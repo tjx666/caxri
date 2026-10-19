@@ -308,6 +308,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-plan-limits',
     },
+    'MOB-CHAT-23': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-reply-placeholder',
+    },
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

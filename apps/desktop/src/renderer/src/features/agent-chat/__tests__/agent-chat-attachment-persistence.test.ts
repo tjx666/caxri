@@ -154,6 +154,16 @@ describe('parsePersistedAgentChatAttachments', () => {
             5,
         );
     });
+
+    it('keeps a skill card by its name', () => {
+        expect(
+            parsePersistedAgentChatAttachments([
+                { id: 's', skill: 'caxri-cli' },
+                { id: 't', skill: '' },
+            ]),
+        ).toEqual([{ id: 's', skill: 'caxri-cli' }]);
+        expect(agentChatAttachmentCharacters([{ id: 's', skill: 'caxri-cli' }])).toBe(9);
+    });
 });
 
 describe('agentChatAttachmentEvictions', () => {

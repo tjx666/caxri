@@ -1,4 +1,8 @@
-import type { AgentChatImageInput, AgentChatPathReference } from '@caxri/protocol';
+import type {
+    AgentChatImageInput,
+    AgentChatPathReference,
+    AgentChatSkillReference,
+} from '@caxri/protocol';
 import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
@@ -156,7 +160,17 @@ export interface AgentChatPathAttachment extends AgentChatPathReference {
     id: string;
 }
 
-export type AgentChatAttachment = AgentChatImageAttachment | AgentChatPathAttachment;
+/**
+ * A product skill picked from the `+` menu that the message asks the Agent to load (`agentChatTextWithPathReferences`),
+ * shown as a card beside the files rather than as an instruction in the draft.
+ */
+export interface AgentChatSkillAttachment {
+    id: string;
+    skill: string;
+}
+
+export type AgentChatAttachment =
+    AgentChatImageAttachment | AgentChatPathAttachment | AgentChatSkillAttachment;
 
 export function isAgentChatImageAttachment(
     attachment: AgentChatAttachment,
@@ -168,6 +182,12 @@ export function isAgentChatPathAttachment(
     attachment: AgentChatAttachment,
 ): attachment is AgentChatPathAttachment {
     return 'path' in attachment;
+}
+
+export function isAgentChatSkillAttachment(
+    attachment: AgentChatAttachment,
+): attachment is AgentChatSkillAttachment {
+    return 'skill' in attachment;
 }
 
 /**
@@ -362,20 +382,50 @@ export function attachmentsAfterSend(
 }
 
 /**
- * `current` followed by each of `added` whose path is not attached yet.
+ * What makes two cards the same: the path a file or folder card cites, or the skill a skill card loads.
  */
-export function agentChatAttachmentsWithPaths(
+function referenceKey(attachment: AgentChatPathAttachment | AgentChatSkillAttachment): string {
+    return 'path' in attachment ? `path:${attachment.path}` : `skill:${attachment.skill}`;
+}
+
+/**
+ * `current` followed by each of `added` whose path or skill is not attached yet.
+ */
+export function agentChatAttachmentsWithReferences(
     current: readonly AgentChatAttachment[],
-    added: readonly AgentChatPathAttachment[],
+    added: ReadonlyArray<AgentChatPathAttachment | AgentChatSkillAttachment>,
 ): AgentChatAttachment[] {
-    const attached = new Set(current.filter(isAgentChatPathAttachment).map(({ path }) => path));
+    const attached = new Set(
+        current.flatMap((attachment) =>
+            isAgentChatImageAttachment(attachment) ? [] : [referenceKey(attachment)],
+        ),
+    );
     return [
         ...current,
-        ...added.filter(({ path }) => {
-            if (attached.has(path)) return false;
-            attached.add(path);
+        ...added.filter((attachment) => {
+            const key = referenceKey(attachment);
+            if (attached.has(key)) return false;
+            attached.add(key);
             return true;
         }),
+    ];
+}
+
+/**
+ * The cards a sent message's references and skills come back as, when the message returns to a composer (a failed send,
+ * a queued message taken back, "Edit from here", "Fork from here").
+ */
+export function agentChatReferenceAttachments(message: {
+    references: readonly AgentChatPathReference[];
+    skills: readonly AgentChatSkillReference[];
+}): Array<AgentChatPathAttachment | AgentChatSkillAttachment> {
+    return [
+        ...message.skills.map(({ name }) => ({ id: crypto.randomUUID(), skill: name })),
+        ...message.references.map(({ isDirectory, path }) => ({
+            id: crypto.randomUUID(),
+            path,
+            isDirectory,
+        })),
     ];
 }
 

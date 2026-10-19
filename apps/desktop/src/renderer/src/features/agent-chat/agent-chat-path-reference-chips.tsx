@@ -1,26 +1,33 @@
-import type { AgentChatPathReference } from '@caxri/protocol';
+import type { AgentChatPathReference, AgentChatSkillReference } from '@caxri/protocol';
 import { agentChatPathReferenceName } from '@caxri/protocol';
 import { File, Folder } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { openAgentChatPathReference } from './agent-chat-commands';
+import { AgentChatSkillPill } from './agent-chat-skill-card';
 
 /**
- * The files and folders a sent message cites, as pills under its images. Clicking a folder opens it in Finder and
- * clicking a file shows it in its folder, as in the Codex app.
+ * The skills and the files and folders a sent message cites, as pills under its images; nothing when it cites none.
+ * Clicking a folder opens it in Finder and clicking a file shows it in its folder, as in the Codex app.
  */
 export function AgentChatPathReferenceChips({
     references,
+    skills,
 }: {
     references: readonly AgentChatPathReference[];
+    skills: readonly AgentChatSkillReference[];
 }) {
     const { t } = useTranslation();
+    if (references.length === 0 && skills.length === 0) return null;
     return (
         <ul
             aria-label={t('agentChat.pathReference.label')}
             className="m-0 flex max-w-[85%] list-none flex-wrap justify-end gap-1.5 p-0"
         >
+            {skills.map(({ name }) => (
+                <AgentChatSkillPill key={name} name={name} />
+            ))}
             {references.map((reference) => {
                 const Icon = reference.isDirectory ? Folder : File;
                 const name = agentChatPathReferenceName(reference);

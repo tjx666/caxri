@@ -69,6 +69,7 @@ function AgentChatSendButton({
 export function AgentChatComposerActions({
     canAttachImages,
     canOpenContext,
+    caxriSkill,
     canSaveProjectDefault,
     isAttaching,
     isQueueing,
@@ -101,6 +102,10 @@ export function AgentChatComposerActions({
      * Whether the permission menu offers "Use as Project default" (`AgentChatHostCapabilities`).
      */
     canSaveProjectDefault: boolean;
+    /**
+     * The Caxri skill card `+` toggles.
+     */
+    caxriSkill: { isAttached: boolean; onChange: (isAttached: boolean) => void };
     /**
      * Whether picked images are still being read, a long paste saved, or a Session reference written, which turns `+`
      * into a spinner.
@@ -176,6 +181,7 @@ export function AgentChatComposerActions({
             <div className="flex min-w-0 flex-1 items-center gap-0.5">
                 <AgentChatAddMenu
                     canAttachImages={canAttachImages}
+                    caxriSkill={caxriSkill}
                     isBusy={isAttaching}
                     onGoal={onGoal}
                     onPick={onPick}

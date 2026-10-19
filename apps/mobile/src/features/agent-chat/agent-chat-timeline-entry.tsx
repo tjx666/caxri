@@ -5,6 +5,7 @@ import { ConversationEntry } from '../conversation/conversation-entry';
 import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
+import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
 import { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { AgentChatTurnFold } from './agent-chat-turn-fold';
@@ -70,6 +71,9 @@ export const AgentChatTimelineEntry = memo(
                         theme={theme}
                     />
                 );
+            }
+            case 'awaiting': {
+                return <AgentChatReplyPlaceholder theme={theme} />;
             }
             case 'turn': {
                 return <AgentChatTurnFold entry={entry} onToggle={onToggle} theme={theme} />;

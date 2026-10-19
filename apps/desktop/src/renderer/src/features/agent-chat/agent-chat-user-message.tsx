@@ -74,7 +74,7 @@ export function AgentChatUserMessage({
     const isEditing = edit?.editingId === id;
     const container = useRef<HTMLDivElement>(null);
     const menu = useAgentChatUserMessageMenu({ container, id, text });
-    const { references, text: words } = parseAgentChatPathReferences(text);
+    const { references, skills, text: words } = parseAgentChatPathReferences(text);
     const hasActions =
         words !== '' ||
         createdAt !== undefined ||
@@ -116,7 +116,7 @@ export function AgentChatUserMessage({
                     message={terminalId === undefined ? undefined : { terminalId, itemId: id }}
                 />
             )}
-            {references.length > 0 && <AgentChatPathReferenceChips references={references} />}
+            <AgentChatPathReferenceChips references={references} skills={skills} />
             {delegatedTask ? (
                 <AgentChatDelegatedTaskBubble task={delegatedTask} text={text} />
             ) : (

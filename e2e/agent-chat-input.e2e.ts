@@ -231,6 +231,18 @@ test('a Codex Chat attaches picked files and folders as cards and saves a long p
         await expect(folderCard).toContainText('prettier-config');
         await expect(folderCard).toContainText('Folder');
         await expect(page.getByRole('menu')).toHaveCount(0);
+        // `+` → Caxri skill attaches a skill card, and choosing it again from the checked row takes the card away.
+        const skillCard = attached.locator('[data-agent-chat-skill-attachment="caxri-cli"]');
+        await chat.getByRole('button', { name: 'Add files and more' }).click();
+        await page.getByRole('menuitemcheckbox', { name: /Caxri skill/u }).click();
+        await expect(skillCard).toContainText('Caxri skill');
+        await chat.getByRole('button', { name: 'Add files and more' }).click();
+        await expect(page.getByRole('menuitemcheckbox', { name: /Caxri skill/u })).toBeChecked();
+        await page.getByRole('menuitemcheckbox', { name: /Caxri skill/u }).click();
+        await expect(skillCard).toHaveCount(0);
+        await chat.getByRole('button', { name: 'Add files and more' }).click();
+        await page.getByRole('menuitemcheckbox', { name: /Caxri skill/u }).click();
+        await expect(skillCard).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-attachment-cards.png') });
 
         const long = Array.from(
@@ -251,6 +263,10 @@ test('a Codex Chat attaches picked files and folders as cards and saves a long p
         // The sent message shows what it cited as chips under its images instead of the reference block Codex got.
         const sent = chat.locator('[data-agent-chat-user-message]').last();
         await expect(sent).not.toContainText('Files mentioned by the user');
+        await expect(sent).not.toContainText('Skills the user asked you to use');
+        await expect(sent.locator('[data-agent-chat-skill-reference="caxri-cli"]')).toHaveText(
+            'Caxri skill',
+        );
         const folderChip = sent.getByRole('button', { name: 'Open prettier-config in Finder' });
         await expect(folderChip).toBeVisible();
         await folderChip.click();

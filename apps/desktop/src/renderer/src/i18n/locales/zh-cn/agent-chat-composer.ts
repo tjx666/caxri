@@ -47,6 +47,12 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.add.turnOffPlanMode': '关闭计划模式',
     'agentChat.add.turnOffGoalMode': '关闭目标模式',
 
+    'agentChat.skill.caxri': 'Caxri skill',
+    'agentChat.skill.kind': 'Skill',
+    'agentChat.skill.tooltip': 'Agent 会先加载 {{name}} skill 再处理这条消息',
+    'agentChat.skill.sentTooltip': '这条消息让 Agent 加载了 {{name}} skill',
+    'agentChat.add.caxriSkillDescription': '让 Agent 操作 Caxri：Session、Project 等',
+
     'agentChat.goal.status.active': '进行中的目标',
     'agentChat.goal.status.paused': '已暂停的目标',
     'agentChat.goal.status.blocked': '目标停滞',
