@@ -188,3 +188,54 @@ export function fixDeploymentAction(
         feedback: { failure: "Couldn't send the deployment failure" },
     };
 }
+
+const failedCheckStates = new Set<PullRequest['state']>(['failure', 'cancelled']);
+
+/**
+ * The message for a pull request whose checks failed: each failed check with its run link, read from the panel's own
+ * filtered checks so an ignored check is never sent. The Agent reads the logs and fixes what the branch's code owns; a
+ * flaky test or an infrastructure failure is reported rather than papered over, and the merge stays the user's click.
+ * The head commit is named so the Agent can tell when the branch already moved past the failed run.
+ */
+export function fixFailedChecksPrompt(
+    repo: Pick<ProjectStatusRepository, 'branch' | 'kind' | 'name'>,
+    pullRequest: Pick<PullRequest, 'checks' | 'headSha' | 'number' | 'title' | 'url'>,
+): string {
+    const failed = pullRequest.checks.filter((check) => failedCheckStates.has(check.state));
+    const head = pullRequest.headSha ? ` at commit \`${pullRequest.headSha.slice(0, 7)}\`` : '';
+    return [
+        `Checks failed on pull request #${pullRequest.number} "${pullRequest.title}" in the ${repoLabel(repo)} repository, branch \`${repo.branch}\`${head}: ${pullRequest.url}`,
+        '',
+        ...(failed.length > 0
+            ? failed.map(
+                  (check) =>
+                      `- ${check.name}${check.state === 'cancelled' ? ' (cancelled)' : ''}${check.url ? `: ${check.url}` : ''}`,
+              )
+            : ["- No failed check is listed here; read the pull request's checks on GitHub."]),
+        '',
+        'Read the failed logs (for example `gh run view <run-id> --log-failed`) and find the cause of each failure. If the code is at fault, fix it, run the checks that cover your change locally, and push. If a failure is flaky or comes from outside the code (a runner, a service outage, a missing secret), explain it instead of changing code; rerun it only when you are confident it is flaky. Do not merge the pull request.',
+    ].join('\n');
+}
+
+/**
+ * The labeled `Fix` button a pull request with failed checks gets beside its red merge glyph: getting the checks green
+ * is the next step, and it is the Agent's work. The merge glyph stays for the deliberate `Merge Anyway`. Nothing on
+ * GitHub changes from here, so it needs no confirmation.
+ */
+export function fixFailedChecksAction(
+    repo: Pick<ProjectStatusRepository, 'branch' | 'kind' | 'name'>,
+    pullRequest: Pick<PullRequest, 'checks' | 'headSha' | 'number' | 'title' | 'url'>,
+): TreeItemAction {
+    return {
+        command: {
+            command: SEND_TO_AGENT_COMMAND,
+            title: 'Fix Failed Checks with Agent',
+            arguments: [fixFailedChecksPrompt(repo, pullRequest)],
+        },
+        icon: new ThemeIcon('send'),
+        label: 'Fix',
+        tone: 'danger',
+        tooltip: "Checks did not pass. Send them to this Session's Agent to investigate and fix.",
+        feedback: { failure: `Couldn't send #${pullRequest.number} to the Agent` },
+    };
+}

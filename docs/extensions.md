@@ -400,7 +400,12 @@ and its build-log link, asking the Agent to fix a code cause or explain an outsi
 redeploying by hand. A pull request
 that conflicts with its base gets a red `Resolve` button in place of the merge button GitHub would
 refuse: it asks the Agent to rebase onto the latest base, resolve the conflicts, run the covering
-checks, and push with `--force-with-lease`, leaving the merge itself to the user.
+checks, and push with `--force-with-lease`, leaving the merge itself to the user. A pull request whose
+checks failed gets a red `Fix` button before its red merge glyph: it sends each failed check with
+its run link and the head commit, asking the Agent to read the failed logs, fix a code cause and
+push, or explain a flaky or outside one, without merging. The merge glyph stays for a deliberate
+`Merge Anyway`. Like every Send-to-Agent button, it goes to the selected Session's Agent; a Chat
+queues it behind a running turn.
 
 Keyboard users reach them the way an ARIA treegrid reaches a row's cells: Right on a focused leaf or
 expanded row moves into the first action (a collapsed row still expands first, and Down still enters

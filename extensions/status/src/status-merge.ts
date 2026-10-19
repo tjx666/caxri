@@ -1,7 +1,7 @@
 import type { ProjectStatusRepository, TreeItemAction, TreeItemActionTone } from 'caxri';
 import { ThemeIcon } from 'caxri';
 
-import { resolveConflictsAction } from './status-agent-actions';
+import { fixFailedChecksAction, resolveConflictsAction } from './status-agent-actions';
 
 export const MERGE_PULL_REQUEST_COMMAND = 'caxri.project-status.mergePullRequest';
 export const MERGE_CURRENT_PULL_REQUEST_COMMAND = 'caxri.project-status.mergeCurrentPullRequest';
@@ -188,7 +188,7 @@ function draftAction(pullRequest: PullRequest): TreeItemAction {
  * the button nor the confirmation can name it yet; both state the selection order ({@link MERGE_METHOD_NOTE}). Merging
  * past failed checks is labelled `Merge Anyway`, so the button names the override rather than the ordinary action.
  */
-export function mergePullRequestAction(
+function mergePullRequestAction(
     repo: Pick<ProjectStatusRepository, 'branch' | 'defaultBranch' | 'id' | 'kind' | 'name'>,
     pullRequest: PullRequest,
 ): TreeItemAction | undefined {
@@ -228,6 +228,24 @@ export function mergePullRequestAction(
             githubUrl: pullRequest.url,
         },
     };
+}
+
+/**
+ * The PR row's inline buttons. Failed checks put the Agent's labeled `Fix` first, as the next step, and keep the red
+ * merge glyph after it for a deliberate `Merge Anyway`; every other state shows the merge button alone (a conflict's
+ * `Resolve` takes its place inside {@link mergePullRequestAction}).
+ */
+export function pullRequestRowActions(
+    repo: Pick<ProjectStatusRepository, 'branch' | 'defaultBranch' | 'id' | 'kind' | 'name'>,
+    pullRequest: PullRequest,
+): TreeItemAction[] | undefined {
+    const merge = mergePullRequestAction(repo, pullRequest);
+    const fix =
+        pullRequest.lifecycle === 'open' && mergeBlocker(pullRequest) === 'checks-failed'
+            ? fixFailedChecksAction(repo, pullRequest)
+            : undefined;
+    const actions = [fix, merge].filter((action) => action !== undefined);
+    return actions.length > 0 ? actions : undefined;
 }
 
 /**
