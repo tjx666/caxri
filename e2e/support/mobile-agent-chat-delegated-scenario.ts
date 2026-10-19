@@ -42,6 +42,8 @@ export async function executeMobileChatDelegatedTaskScenario(
         await waitForCheck(environment.serial, `agent-chat-delegated-${pointer.id}`);
         await capture(environment, 'delegated-collapsed', artifacts);
         await tapMobileCheck(environment.serial, `agent-chat-delegated-toggle-${pointer.id}`);
+        // Semantics wait for an idle screen, so the capture shows where the unfolded row settles.
+        await waitForCheck(environment.serial, `agent-chat-delegated-toggle-${pointer.id}`);
         await capture(environment, 'delegated-expanded', artifacts);
         await finish(environment, artifacts, {
             delegatedTask: 'collapsed-and-expanded-visible',
