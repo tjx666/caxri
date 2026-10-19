@@ -85,7 +85,12 @@ describe('mobile runtime browser boundaries', () => {
                 await f.client.pair('B');
                 f.delayed.A();
                 await old;
-                await new Promise(requestAnimationFrame);
+                // pair('B') resolves before React commits the new credential, and React schedules that commit on its
+                // own task queue, so a fixed animation-frame wait can read the previous (null) hostId under load.
+                // Wait for the committed state instead of the scheduler order.
+                for (let frame = 0; frame < 600 && f.client.hostId !== 'B'; frame += 1) {
+                    await new Promise(requestAnimationFrame);
+                }
                 const result = [f.client.hostId, JSON.parse(f.saved).serverId, String(f.closed.includes('A'))];
                 const pending = f.client.pair('C').catch(() => {});
                 await f.client.forgetDevice();
