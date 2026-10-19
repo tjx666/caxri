@@ -1,14 +1,17 @@
 import type { ProjectStatusRepository } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
-import type { ExternalStatusCommandTelemetry, ExternalStatusRunner } from '../external-status';
-import { parseExternalJson } from '../external-status';
-import type { PullRequestMergeMethod as MergeMethod } from '../external-status/merge-method';
+import type {
+    ExternalStatusCommandTelemetry,
+    ExternalStatusRunner,
+    PullRequestMergeMethod as MergeMethod,
+} from '../external-status';
 import {
     chooseMergeMethod,
+    parseExternalJson,
     REPO_MERGE_SETTINGS_FIELDS,
     repoMergeSettingsSchema,
-} from '../external-status/merge-method';
+} from '../external-status';
 import { SingleFlight } from '../single-flight';
 
 type PullRequest = ProjectStatusRepository['pullRequest'];

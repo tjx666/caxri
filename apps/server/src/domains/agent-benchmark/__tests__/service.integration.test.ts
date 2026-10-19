@@ -420,7 +420,7 @@ describe('BenchmarkService', () => {
         expect(byProvider.codex).toMatchObject({ status: 'ready' });
         expect(byProvider.codex.models.map((model) => model.id)).toContain('fake-codex-model');
         expect(byProvider.claude.models.map((model) => model.id)).toContain('fake-claude-model');
-        // Grok lists no efforts, so the Benchmark offers the ones its CLI accepts.
-        expect(byProvider.grok.models[0].efforts).toEqual(['low', 'medium', 'high']);
+        // Grok lists its own efforts over ACP, so the Benchmark offers them as listed.
+        expect(byProvider.grok.models[0].efforts).toEqual(['low', 'medium', 'high', 'xhigh']);
     });
 });

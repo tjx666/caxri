@@ -10,12 +10,12 @@ import { parseGitHubRemote } from '@caxri/utils';
 import { z } from 'zod';
 
 import type { CliFailureKind, ExternalStatusRunner } from '../external-status';
-import { ExternalStatusCliError } from '../external-status';
 import {
     chooseMergeMethod,
+    ExternalStatusCliError,
     REPO_MERGE_SETTINGS_FIELDS,
     repoMergeSettingsSchema,
-} from '../external-status/merge-method';
+} from '../external-status';
 
 type MergeMethod = ServerOperationResult<'git.mergePullRequest'>['method'];
 
