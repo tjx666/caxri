@@ -10,6 +10,19 @@ const zoomSpec = settingsSpecByKey['window.zoomLevel'];
 export type WindowZoomStep = 'in' | 'out' | 'reset';
 
 /**
+ * Lowest and highest `window.zoomLevel`, so a zoom control can disable the step that would do nothing.
+ */
+export const WINDOW_ZOOM_BOUNDS = { min: zoomSpec.min, max: zoomSpec.max } as const;
+
+/**
+ * The page scale a `window.zoomLevel` gives, as a whole percent: Chromium's 20% per level (`zoomFactorForLevel` in
+ * `main/window-chrome.ts`), so level -1 reads 83% and level 1 reads 120%.
+ */
+export function windowZoomPercent(level: number): number {
+    return Math.round(1.2 ** level * 100);
+}
+
+/**
  * The next `window.zoomLevel` for one step, clamped to the setting's bounds. Reset returns `undefined`, which removes
  * the key from `settings.jsonc` so the file keeps only choices the user actually made.
  */

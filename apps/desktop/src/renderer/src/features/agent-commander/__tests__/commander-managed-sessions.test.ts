@@ -16,10 +16,17 @@ describe('commanderSessionMarker', () => {
     };
 
     it('warns only where input takes the Session back, with Chat wording for a Chat', () => {
-        expect(commanderSessionMarker(managed, 'handed-over')).toBe('inputTakesBack');
-        expect(commanderSessionMarker(managed, 'handed-over-chat')).toBe('chatInputTakesBack');
-        expect(commanderSessionMarker(managed, 'created')).toBe('managed');
-        expect(commanderSessionMarker(managed, 'own')).toBe('none');
+        expect(commanderSessionMarker(managed, 'handed-over', 'idle')).toBe('inputTakesBack');
+        expect(commanderSessionMarker(managed, 'handed-over-chat', 'working')).toBe(
+            'chatInputTakesBack',
+        );
+        expect(commanderSessionMarker(managed, 'created', 'waiting')).toBe('managed');
+        expect(commanderSessionMarker(managed, 'own', 'idle')).toBe('none');
+    });
+
+    it('shows no marker once the Commander has stopped, though the Sessions stay handed over', () => {
+        expect(commanderSessionMarker(managed, 'created', 'stopped')).toBe('none');
+        expect(commanderSessionMarker(managed, 'handed-over', undefined)).toBe('none');
     });
 });
 

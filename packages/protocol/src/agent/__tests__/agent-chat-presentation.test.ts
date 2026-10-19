@@ -184,16 +184,33 @@ describe('multi-question navigation', () => {
     });
 
     it('moves to the next unanswered question, wrapping, until none remain', () => {
-        expect(agentChatNextUnansweredQuestion(request, { a: ['One'] }, 0)).toBe(1);
-        expect(agentChatNextUnansweredQuestion(request, { c: ['Left'] }, 2)).toBe(0);
-        expect(agentChatNextUnansweredQuestion(request, { a: ['One'], c: ['Left'] }, 2)).toBe(1);
+        const all = new Set([0, 1, 2]);
+        expect(agentChatNextUnansweredQuestion(request, { a: ['One'] }, 0, all)).toBe(1);
+        expect(agentChatNextUnansweredQuestion(request, { c: ['Left'] }, 2, all)).toBe(0);
+        expect(agentChatNextUnansweredQuestion(request, { a: ['One'], c: ['Left'] }, 2, all)).toBe(
+            1,
+        );
         expect(
-            agentChatNextUnansweredQuestion(request, { a: ['One'], b: ['Yes'], c: ['Left'] }, 1),
+            agentChatNextUnansweredQuestion(
+                request,
+                { a: ['One'], b: ['Yes'], c: ['Left'] },
+                1,
+                all,
+            ),
         ).toBeUndefined();
         // The question just answered is never its own next step.
-        expect(agentChatNextUnansweredQuestion(request, { b: ['Yes'], c: ['Left'] }, 0)).toBe(
-            undefined,
-        );
+        expect(
+            agentChatNextUnansweredQuestion(request, { b: ['Yes'], c: ['Left'] }, 0, all),
+        ).toBeUndefined();
+    });
+
+    it('opens a question the user has not seen even when a default already answers it', () => {
+        const answers = { a: ['One'], b: ['Yes (Recommended)'], c: ['Left'] };
+        expect(agentChatNextUnansweredQuestion(request, answers, 0, new Set([0]))).toBe(1);
+        expect(agentChatNextUnansweredQuestion(request, answers, 1, new Set([0, 1]))).toBe(2);
+        expect(
+            agentChatNextUnansweredQuestion(request, answers, 2, new Set([0, 1, 2])),
+        ).toBeUndefined();
     });
 });
 

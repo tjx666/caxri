@@ -459,9 +459,10 @@ regardless of its exact kind. Motion and shape carry the glance signal without c
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
 attention details. On pointer hover, Pin and Archive occupy a reserved cluster at the row's right
 edge; the title (and a Pinned row's Project name) clips with the same right-edge fade before that
-cluster. A running, unread, or detached glyph stays and moves left of Pin and Archive, because it is
-what the user hovers a busy row to check; only the pull request and deployment fallback glyph
-collapses, so it does not double-reserve. Keyboard focus keeps
+cluster. Every right-edge glyph (lifecycle, delivery, and the Commander marker) collapses while the
+pointer is over the row, so the row shows only Pin and Archive and the title keeps its width; a
+glyph that stayed beside the buttons read as a third action and crowded the title. The hover card
+still states the lifecycle, so hovering a busy row does not hide why it is busy. Keyboard focus keeps
 the track visible because Delete already owns the keyboard action; the hover buttons stay outside
 the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
@@ -1497,7 +1498,11 @@ popup itself hold focus until then.
   View › Zoom In (`Command+=`), Zoom Out (`Command+-`), and Reset Zoom. Main applies it as page
   zoom and re-centers the native traffic lights in the zoomed header; any title-bar clearance
   reserved for the lights uses `--traffic-light-clearance` or `--traffic-light-header-inset`, which
-  divide by the zoom factor because the lights themselves never scale.
+  divide by the zoom factor because the lights themselves never scale. Every zoom change except the
+  first settings load shows a small HUD at the window's top right (the ChatGPT desktop app's
+  pattern): the percentage, Zoom Out, Zoom In, a divider, and Reset, each disabled at its bound. It
+  fades out 1.5s after the last change; hovering it or holding keyboard focus inside keeps it up,
+  and a hidden HUD is `inert` so it never takes a click or a Tab stop.
 - Launch shows the Caxri mark over the translucent (vibrancy) window from the first frame: the
   loader is inline in `renderer/index.html`, so it needs no bundle, and `App` removes it when the
   workbench attaches. Only a startup failure adds text beneath the mark.

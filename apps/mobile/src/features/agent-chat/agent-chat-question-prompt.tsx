@@ -12,19 +12,22 @@ export type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 
 /**
  * Several questions sit behind `Q1 Q2 Q3` tabs so the card stays one question tall on a phone; a tab carries a check
- * once its question has an answer. Test IDs use positions, not provider question IDs or option labels: Android resource
- * IDs only admit lowercase identifiers, and a label is free text.
+ * once its question has an answer the user has seen (a recommended default on an unopened question earns none). Test
+ * IDs use positions, not provider question IDs or option labels: Android resource IDs only admit lowercase identifiers,
+ * and a label is free text.
  */
 const QuestionTabs = ({
     answers,
     index,
     request,
+    seen,
     setIndex,
     theme,
 }: {
     answers: Readonly<Record<string, string[]>>;
     index: number;
     request: QuestionRequest;
+    seen: ReadonlySet<number>;
     setIndex: (index: number) => void;
     theme: MobileTheme;
 }) => {
@@ -33,7 +36,7 @@ const QuestionTabs = ({
         <View accessibilityRole="tablist" style={styles.tabs}>
             {request.questions.map((question, questionIndex) => {
                 const isSelected = questionIndex === index;
-                const isAnswered = Object.hasOwn(answers, question.id);
+                const isAnswered = seen.has(questionIndex) && Object.hasOwn(answers, question.id);
                 const color = isSelected ? theme.text : theme.muted;
                 return (
                     <Pressable
@@ -81,6 +84,7 @@ export const QuestionPrompt = ({
     isKeyboardVisible,
     question,
     request,
+    seen,
     setIndex,
     theme,
 }: {
@@ -89,6 +93,7 @@ export const QuestionPrompt = ({
     isKeyboardVisible: boolean;
     question: QuestionRequest['questions'][number];
     request: QuestionRequest;
+    seen: ReadonlySet<number>;
     setIndex: (index: number) => void;
     theme: MobileTheme;
 }) => (
@@ -98,6 +103,7 @@ export const QuestionPrompt = ({
                 answers={answers}
                 index={index}
                 request={request}
+                seen={seen}
                 setIndex={setIndex}
                 theme={theme}
             />

@@ -167,7 +167,7 @@ export async function didRunApprovalScenario(
                         question: 'Add a regression test?',
                         multiSelect: false,
                         options: [
-                            { label: 'Yes', description: 'Unit test beside the fix' },
+                            { label: 'Yes (Recommended)', description: 'Unit test beside the fix' },
                             { label: 'No', description: 'Rely on existing coverage' },
                         ],
                     },

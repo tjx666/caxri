@@ -351,8 +351,23 @@ export const AgentChatQuestionForm = ({
      */
     const [typingQuestionId, setTypingQuestionId] = useState<string | undefined>();
     const [questionIndex, setQuestionIndex] = useState(0);
+    /**
+     * Questions the user has opened. A recommended default on an unopened question is not an answer the user gave, so
+     * answering and Submit open it first.
+     */
+    const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set([0]));
+    const openQuestion = (nextIndex: number): void => {
+        setQuestionIndex(nextIndex);
+        setSeen((current) => (current.has(nextIndex) ? current : new Set([...current, nextIndex])));
+    };
     const { answers } = agentChatQuestionAnswers(request, selected, typed);
-    const footer = agentChatQuestionFooter({ answers, index: questionIndex, request, typed });
+    const footer = agentChatQuestionFooter({
+        answers,
+        index: questionIndex,
+        request,
+        seen,
+        typed,
+    });
     const question = request.questions.at(questionIndex);
     if (!question) return notice;
     const hasOptions = question.options.length > 0;
@@ -366,8 +381,8 @@ export const AgentChatQuestionForm = ({
         setSelected(nextSelected);
         setTyped(nextTyped);
         const nextAnswers = agentChatQuestionAnswers(request, nextSelected, nextTyped).answers;
-        const step = agentChatQuestionAdvance(request, nextAnswers, questionIndex);
-        if (step.kind === 'move') setQuestionIndex(step.index);
+        const step = agentChatQuestionAdvance(request, nextAnswers, questionIndex, seen);
+        if (step.kind === 'move') openQuestion(step.index);
         else if (actions.isShowsActions && !actions.isDisabled)
             // eslint-disable-next-line no-void -- The card reports a failed answer itself.
             void actions.respond('agent-chat-question-submit', {
@@ -397,7 +412,8 @@ export const AgentChatQuestionForm = ({
                 isKeyboardVisible={isKeyboardVisible}
                 question={question}
                 request={request}
-                setIndex={setQuestionIndex}
+                seen={seen}
+                setIndex={openQuestion}
                 theme={theme}
             />
             {isOptionsShown ? (
@@ -428,7 +444,7 @@ export const AgentChatQuestionForm = ({
                         question={question.question}
                         questionIndex={questionIndex}
                         returnKeyType={
-                            agentChatQuestionAdvance(request, answers, questionIndex).kind ===
+                            agentChatQuestionAdvance(request, answers, questionIndex, seen).kind ===
                             'send'
                                 ? 'send'
                                 : 'next'
@@ -443,8 +459,8 @@ export const AgentChatQuestionForm = ({
                         actions={actions}
                         answers={answers}
                         footer={footer}
-                        onBack={() => setQuestionIndex(questionIndex - 1)}
-                        onNext={() => setQuestionIndex(questionIndex + 1)}
+                        onBack={() => openQuestion(questionIndex - 1)}
+                        onNext={() => openQuestion(questionIndex + 1)}
                         theme={theme}
                     />
                 ) : null}

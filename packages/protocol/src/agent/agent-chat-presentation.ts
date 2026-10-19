@@ -158,20 +158,23 @@ export function agentChatQuestionDefaults(
 }
 
 /**
- * Where a multi-question card goes after the question at `from` is answered: the next question still without an answer,
- * searching forward and wrapping around, so questions skipped earlier come back before the card submits. `undefined`
- * means every other question is answered and the card can send.
+ * Where a multi-question card goes after the question at `from` is answered: the next question still without an answer
+ * or never opened, searching forward and wrapping around, so questions skipped earlier come back before the card
+ * submits. An unopened question counts even when a recommended default already answers it, so the first click on a card
+ * never sends an answer to a question the user has not read. `undefined` means every other question is answered and has
+ * been seen, so the card can send.
  */
 export function agentChatNextUnansweredQuestion(
     request: Extract<AgentChatRequest, { kind: 'question' }>,
     answers: Readonly<Record<string, readonly string[]>>,
     from: number,
+    seen: ReadonlySet<number>,
 ): number | undefined {
     const count = request.questions.length;
     for (let step = 1; step < count; step += 1) {
         const index = (from + step) % count;
         const question = request.questions.at(index);
-        if (question && !Object.hasOwn(answers, question.id)) return index;
+        if (question && (!seen.has(index) || !Object.hasOwn(answers, question.id))) return index;
     }
     return undefined;
 }

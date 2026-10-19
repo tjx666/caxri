@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { nextWindowZoomLevel } from './window-zoom-commands';
+import { nextWindowZoomLevel, windowZoomPercent } from './window-zoom-commands';
 
 describe('nextWindowZoomLevel', () => {
     it('steps by one level within the setting bounds', () => {
@@ -12,5 +12,14 @@ describe('nextWindowZoomLevel', () => {
 
     it('resets by removing the key so settings.jsonc keeps only explicit choices', () => {
         expect(nextWindowZoomLevel(3, 'reset')).toBeUndefined();
+    });
+});
+
+describe('windowZoomPercent', () => {
+    it('shows the Chromium page scale of a level as a whole percent', () => {
+        expect(windowZoomPercent(0)).toBe(100);
+        expect(windowZoomPercent(1)).toBe(120);
+        expect(windowZoomPercent(-1)).toBe(83);
+        expect(windowZoomPercent(2)).toBe(144);
     });
 });

@@ -8,6 +8,7 @@ import { subscribeAgentChatPatches } from '../agent-chat/agent-chat-client';
 import { ConfirmationDialog } from '../confirmations/confirmation-dialog';
 import { ToastOutlet } from '../toasts/toast-outlet';
 import { useWindowZoomFactor } from '../window-zoom/use-window-zoom-factor';
+import { WindowZoomHud } from '../window-zoom/window-zoom-hud';
 import { PanelDivider } from '../workbench/panel-divider';
 import { AgentCommanderHeader } from './agent-commander-header';
 import {
@@ -86,6 +87,7 @@ export function AgentCommanderApp() {
                 <CommanderCommandPalette />
                 <CommanderClearDataDialog />
                 <ToastOutlet />
+                <WindowZoomHud />
             </div>
         </TooltipProvider>
     );

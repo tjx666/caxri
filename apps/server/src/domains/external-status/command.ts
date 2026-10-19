@@ -1,7 +1,10 @@
+import { homedir } from 'node:os';
+
 import { execFileAsync, safeProcessEnvironment } from '@caxri/system';
 
 import type { ExternalCommandDependencies } from '../executables';
 import { runExternalCommand } from '../executables';
+import { GitHubTokenCache } from './github-token';
 import { LINEAR_TEAM_KEYS_QUERY } from './linear';
 
 const CLI_TIMEOUT_MS = 8_000;
@@ -47,7 +50,12 @@ export type ExternalStatusRunner = (
     cwd: string,
 ) => Promise<string>;
 
-export type ExternalStatusCommandDependencies = ExternalCommandDependencies;
+export interface ExternalStatusCommandDependencies extends ExternalCommandDependencies {
+    /**
+     * The GitHub token source for `gh` calls; tests inject one, production shares one per process.
+     */
+    githubToken?: GitHubTokenCache;
+}
 
 export class ExternalStatusCliError extends Error {
     /**
@@ -200,6 +208,105 @@ export function externalStatusCommandOperation(
     return 'unknown';
 }
 
+function externalStatusCliError(
+    source: ExternalStatusSource,
+    error: unknown,
+): ExternalStatusCliError {
+    if (error instanceof ExternalStatusCliError) return error;
+    const failure = (error !== null && typeof error === 'object' ? error : {}) as {
+        code?: string | number;
+        killed?: boolean;
+        stderr?: string;
+        message?: string;
+    };
+    return new ExternalStatusCliError(
+        source,
+        classifyCliFailure(failure),
+        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty stderr also carries no useful detail
+        failure.stderr || failure.message || 'External status command failed',
+        typeof failure.code === 'number' && Number.isSafeInteger(failure.code) && failure.code >= 0
+            ? failure.code
+            : null,
+    );
+}
+
+async function runCli(
+    source: Exclude<ExternalStatusSource, 'git'>,
+    arguments_: readonly string[],
+    cwd: string,
+    dependencies: ExternalStatusCommandDependencies,
+    extraEnvironment: NodeJS.ProcessEnv = {},
+): Promise<string> {
+    const { stdout } = await runExternalCommand(
+        source,
+        arguments_,
+        {
+            cwd,
+            timeout: CLI_TIMEOUT_MS,
+            maxBuffer: CLI_MAX_BUFFER_BYTES,
+            env: {
+                CI: '1',
+                LC_ALL: 'C',
+                ...(source === 'linear' && {
+                    /**
+                     * `@schpet/linear-cli` 2.5.0 loads LINEAR_API_KEY from the repository's `.env` when the variable is
+                     * absent. An explicit empty value preserves dotenv's existing-own-property guard, blocking that
+                     * fallback while keeping Server's credential filter and the user's configured workspace credentials
+                     * authoritative.
+                     */
+                    LINEAR_API_KEY: '',
+                }),
+                ...extraEnvironment,
+            },
+        },
+        dependencies,
+    );
+    return stdout;
+}
+
+/**
+ * Only a failure that may have been a Keychain prompt (an unrecognized error, or a dialog left unanswered until the
+ * timeout) earns the long backoff. Every other failure raised no dialog, so `gh` is asked again a minute later.
+ */
+function isGitHubTokenQuickRecheck(error: unknown): boolean {
+    const { kind } = externalStatusCliError('gh', error);
+    return kind !== 'other' && kind !== 'timeout';
+}
+
+function gitHubTokenCacheFor(dependencies: ExternalStatusCommandDependencies): GitHubTokenCache {
+    return new GitHubTokenCache(
+        () => runCli('gh', ['auth', 'token'], homedir(), dependencies),
+        isGitHubTokenQuickRecheck,
+    );
+}
+
+/**
+ * The process-wide token cache behind every production `gh` call; see {@link GitHubTokenCache}.
+ */
+const defaultGitHubToken = gitHubTokenCacheFor({});
+
+async function runGitHubCli(
+    arguments_: readonly string[],
+    cwd: string,
+    dependencies: ExternalStatusCommandDependencies,
+): Promise<string> {
+    const tokens =
+        dependencies.githubToken ??
+        (dependencies.run || dependencies.resolveExecutable || dependencies.environment
+            ? gitHubTokenCacheFor(dependencies)
+            : defaultGitHubToken);
+    const read = await tokens.read();
+    if (read.kind === 'parked') throw externalStatusCliError('gh', read.error);
+    try {
+        return await runCli('gh', arguments_, cwd, dependencies, { GH_TOKEN: read.token });
+    } catch (error) {
+        const failure = externalStatusCliError('gh', error);
+        if (failure.kind === 'not-logged-in' || /HTTP 401|Bad credentials/i.test(failure.message))
+            tokens.invalidate(read.token);
+        throw failure;
+    }
+}
+
 export async function runExternalStatusCommand(
     source: ExternalStatusSource,
     arguments_: readonly string[],
@@ -219,47 +326,9 @@ export async function runExternalStatusCommand(
             });
             return stdout;
         }
-        const { stdout } = await runExternalCommand(
-            source,
-            arguments_,
-            {
-                cwd,
-                timeout: CLI_TIMEOUT_MS,
-                maxBuffer: CLI_MAX_BUFFER_BYTES,
-                env: {
-                    CI: '1',
-                    LC_ALL: 'C',
-                    ...(source === 'linear' && {
-                        /**
-                         * `@schpet/linear-cli` 2.5.0 loads LINEAR_API_KEY from the repository's `.env` when the
-                         * variable is absent. An explicit empty value preserves dotenv's existing-own-property guard,
-                         * blocking that fallback while keeping Server's credential filter and the user's configured
-                         * workspace credentials authoritative.
-                         */
-                        LINEAR_API_KEY: '',
-                    }),
-                },
-            },
-            dependencies,
-        );
-        return stdout;
+        if (source === 'gh') return await runGitHubCli(arguments_, cwd, dependencies);
+        return await runCli(source, arguments_, cwd, dependencies);
     } catch (error) {
-        const failure = (error !== null && typeof error === 'object' ? error : {}) as {
-            code?: string | number;
-            killed?: boolean;
-            stderr?: string;
-            message?: string;
-        };
-        throw new ExternalStatusCliError(
-            source,
-            classifyCliFailure(failure),
-            // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty stderr also carries no useful detail
-            failure.stderr || failure.message || 'External status command failed',
-            typeof failure.code === 'number' &&
-                Number.isSafeInteger(failure.code) &&
-                failure.code >= 0
-                ? failure.code
-                : null,
-        );
+        throw externalStatusCliError(source, error);
     }
 }

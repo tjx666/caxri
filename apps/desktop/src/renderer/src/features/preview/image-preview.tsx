@@ -79,13 +79,14 @@ function useImageObjectUrl(
 }
 
 /**
- * The image reading view, currently reached for SVG. It zooms and pans (see `PreviewZoomView`), opening at Fit.
+ * The image reading view for SVG and raster images (PNG, JPEG, GIF, WebP, and the rest `files.readAsset` serves). It
+ * zooms and pans (see `PreviewZoomView`), opening at Fit.
  *
- * It reads the file again when it is rewritten on disk, so an SVG an Agent regenerates shows its current state. A read
- * that fails says why and offers the recovery that fits: Retry for a read that can succeed later, the default app for a
- * file over the preview size limit.
+ * It reads the file again when it is rewritten on disk, so an image an Agent regenerates shows its current state. A
+ * read that fails says why and offers the recovery that fits: Retry for a read that can succeed later, the default app
+ * for a file over the preview size limit.
  *
- * The checkerboard is what makes transparency legible: an SVG with a transparent background is otherwise
+ * The checkerboard is what makes transparency legible: an image with a transparent background is otherwise
  * indistinguishable from an empty canvas, and guessing a fill would misrepresent the file.
  */
 export function ImagePreview({

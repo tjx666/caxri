@@ -6,6 +6,14 @@ import {
     GITHUB_RATE_LIMIT_QUERY,
     runExternalStatusCommand,
 } from '../command';
+import { GitHubTokenCache } from '../github-token';
+
+function fixedToken(token = 'gho_fixture'): GitHubTokenCache {
+    return new GitHubTokenCache(
+        () => Promise.resolve(token),
+        () => false,
+    );
+}
 
 describe('runExternalStatusCommand', () => {
     it('preserves numeric process exit codes for diagnostics', async () => {
@@ -28,6 +36,7 @@ describe('runExternalStatusCommand', () => {
 
             await expect(
                 runExternalStatusCommand(command, ['status'], '/repo', {
+                    githubToken: fixedToken(),
                     resolveExecutable,
                     environment: () =>
                         Promise.resolve({ HOME: '/home/user', PATH: '/login/bin:/usr/bin' }),
@@ -46,6 +55,7 @@ describe('runExternalStatusCommand', () => {
                     LC_ALL: 'C',
                     PATH: '/login/bin:/usr/bin',
                     ...(command === 'linear' && { LINEAR_API_KEY: '' }),
+                    ...(command === 'gh' && { GH_TOKEN: 'gho_fixture' }),
                 },
                 maxBuffer: 4 * 1024 * 1024,
                 timeout: 8_000,
@@ -88,6 +98,66 @@ describe('runExternalStatusCommand', () => {
                 run: () => Promise.reject(new Error(message)),
             }),
         ).rejects.toMatchObject({ command: 'vc', kind });
+    });
+
+    it('reads the gh token once for concurrent calls and passes it to each call', async () => {
+        const run = vi.fn<NonNullable<ExternalStatusCommandDependencies['run']>>(
+            (_file, arguments_) =>
+                Promise.resolve({
+                    stdout: arguments_[0] === 'auth' ? 'gho_once\n' : 'ok',
+                    stderr: '',
+                }),
+        );
+        const dependencies = {
+            resolveExecutable: () => Promise.resolve('/login/bin/gh'),
+            environment: () => Promise.resolve({ PATH: '/login/bin' }),
+            run,
+        };
+        const githubToken = new GitHubTokenCache(
+            () =>
+                runExternalStatusCommand('gh', ['auth', 'token'], '/home', {
+                    ...dependencies,
+                    githubToken: fixedToken('unused'),
+                }),
+            () => false,
+        );
+        await Promise.all(
+            ['a', 'b', 'c'].map((repo) =>
+                runExternalStatusCommand('gh', ['pr', 'view', repo], '/repo', {
+                    ...dependencies,
+                    githubToken,
+                }),
+            ),
+        );
+        const authReads = run.mock.calls.filter(([, arguments_]) => arguments_[0] === 'auth');
+        expect(authReads).toHaveLength(1);
+        const viewCalls = run.mock.calls.filter(([, arguments_]) => arguments_[0] === 'pr');
+        expect(viewCalls).toHaveLength(3);
+        expect(viewCalls.map((call) => call[2].env.GH_TOKEN)).toEqual([
+            'gho_once',
+            'gho_once',
+            'gho_once',
+        ]);
+    });
+
+    it('fails gh calls without running gh while its token cannot be read', async () => {
+        const run = vi.fn<NonNullable<ExternalStatusCommandDependencies['run']>>();
+        const githubToken = new GitHubTokenCache(
+            () => Promise.reject(new Error('User canceled the keychain prompt')),
+            () => false,
+        );
+        const dependencies = {
+            githubToken,
+            resolveExecutable: () => Promise.resolve('/login/bin/gh'),
+            run,
+        };
+        await expect(
+            runExternalStatusCommand('gh', ['pr', 'list'], '/repo', dependencies),
+        ).rejects.toMatchObject({ command: 'gh', kind: 'other' });
+        await expect(
+            runExternalStatusCommand('gh', ['pr', 'list'], '/repo', dependencies),
+        ).rejects.toMatchObject({ command: 'gh' });
+        expect(run).not.toHaveBeenCalled();
     });
 
     it('prevents linear-cli from loading a Project API key through dotenv', async () => {

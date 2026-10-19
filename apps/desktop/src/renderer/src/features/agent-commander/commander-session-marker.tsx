@@ -2,6 +2,7 @@ import { HandHelping } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import { useCommanderSessionMarker } from './hooks/use-commander-session-marker';
 
 /**
@@ -10,7 +11,13 @@ import { useCommanderSessionMarker } from './hooks/use-commander-session-marker'
  * (typing into a PTY Agent, sending or stopping in a Chat), which otherwise happens silently. Its own component, so a
  * hand-over re-renders this glyph rather than the whole row.
  */
-export function CommanderSessionMarker({ sessionId }: { sessionId: string }) {
+export function CommanderSessionMarker({
+    className,
+    sessionId,
+}: {
+    className?: string;
+    sessionId: string;
+}) {
     const { t } = useTranslation();
     const marker = useCommanderSessionMarker(sessionId);
     if (marker === 'none') return null;
@@ -20,7 +27,10 @@ export function CommanderSessionMarker({ sessionId }: { sessionId: string }) {
             <span
                 role="img"
                 aria-label={label}
-                className="commander-session-marker flex size-3.5 flex-none items-center justify-center text-muted"
+                className={cn(
+                    'commander-session-marker flex size-3.5 flex-none items-center justify-center text-muted',
+                    className,
+                )}
                 data-commander-marker={marker}
             >
                 <HandHelping aria-hidden="true" size={12} />
