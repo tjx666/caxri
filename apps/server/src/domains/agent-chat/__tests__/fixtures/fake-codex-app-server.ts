@@ -8,10 +8,12 @@
  * - `manyfiles`: creates five notes on disk, so a turn card folds the files past its first rows.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
+ * - `widediff`: a completed file change whose lines are wider than a phone, so a narrow diff view has to wrap them.
  * - `browsestep`: a Computer Use browser step that binds a tab, then one that drives it and stays running briefly before
  *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop.
+ * - `burststream`: a reply that arrives in a few large deltas 400ms apart, the way a busy provider delivers text.
  * - `longstream`: a titled thought, a quiet pause of a few seconds, then a reply of forty numbered paragraphs streamed
  *   over about 30 seconds, which `turn/interrupt` can stop.
  * - `weblink`: a reply that only links the message's first `http(s)` URL; matched before any keyword the URL may hold.
@@ -83,11 +85,13 @@ import { didHandleMcpStatusRequest, runBrowserStep } from './fake-codex-mcp-call
 import { FAKE_MODELS } from './fake-codex-models.ts';
 import {
     runBigDiff,
+    runBurstStream,
     runCodeBlocks,
     runLongStream,
     runMarkdownTable,
     runTestCommands,
     runWebLink,
+    runWideDiff,
 } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import {
@@ -186,10 +190,18 @@ function completeItem(turn: FakeTurn, item: FakeItem) {
     notifyTurn(turn, 'item/completed', { turnId: turn.id, item, completedAtMs: Date.now() });
 }
 
-async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number) {
+/**
+ * Streams `text` word by word, or as the given deltas when it is already split, `chunkDelayMs` apart.
+ */
+async function streamMessage(
+    turn: FakeTurn,
+    text: string | readonly string[],
+    chunkDelayMs: number,
+) {
     const item = { type: 'agentMessage', id: crypto.randomUUID(), text: '' };
     startItem(turn, { ...item });
-    for (const word of text.split(/(?<= )/u)) {
+    const deltas = typeof text === 'string' ? text.split(/(?<= )/u) : text;
+    for (const word of deltas) {
         if (turn.interrupted) return;
         item.text += word;
         notifyTurn(turn, 'item/agentMessage/delta', {
@@ -243,6 +255,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
     } else if (text.includes('weblink')) {
         await runWebLink(io, turn, text);
+    } else if (text.includes('burststream')) {
+        await runBurstStream(io, turn);
     } else if (text.includes('longstream')) {
         await runLongStream(io, turn);
     } else if (text.includes('subagent')) {
@@ -269,6 +283,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runTurnManyFiles(io, turn);
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
+    } else if (text.includes('widediff')) {
+        await runWideDiff(io, turn);
     } else if (text.includes('bigdiff')) {
         await runBigDiff(io, turn);
     } else if (text.includes('browsestep')) {

@@ -1,5 +1,17 @@
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { compareSessionPinnedOrder, isPinnedSession } from '@caxri/protocol';
+import type {
+    ProjectRecord,
+    SessionActivityGroupId,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
+import {
+    compareSessionActivityGroupRows,
+    compareSessionPinnedOrder,
+    isPinnedSession,
+    PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS,
+    SESSION_ACTIVITY_GROUP_ORDER,
+    sessionActivityGroup,
+} from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
@@ -11,29 +23,14 @@ import {
     indexedSessionAgentTerminal,
     sessionTerminalIndex,
 } from '../session/session-agent-terminal';
-import { isWithinFinishedRetention } from './agent-activity-retention';
 
 /**
  * The state-derived groups. A row always carries one of these, including a row listed under `pinned`, because the row's
  * glyph and tint are decided by the Agent's state rather than by where the row happens to sit.
  */
-type AgentActivityStatusGroupId =
-    'attention' | 'working' | 'waiting' | 'failed' | 'finished' | 'idle';
+type AgentActivityStatusGroupId = SessionActivityGroupId;
 
 export type AgentActivityGroupId = 'pinned' | AgentActivityStatusGroupId;
-
-/**
- * Status groups that keep a pinned Session even though the Pinned group already lists it. These are the rows the queue
- * exists for: the attention badge and `session.focusNextAttention` walk them, and a Session that is running, waiting,
- * or failed is news the user should see in its state group. A pinned Session that is merely finished or idle is listed
- * only under `pinned`, where repeating it would add a second copy and no information.
- */
-const PINNED_DUPLICATE_GROUPS: ReadonlySet<AgentActivityStatusGroupId> = new Set([
-    'attention',
-    'working',
-    'waiting',
-    'failed',
-]);
 
 export interface AgentActivityRow {
     groupId: AgentActivityStatusGroupId;
@@ -119,24 +116,6 @@ function isViewedSelection(
     );
 }
 
-/**
- * Attention first, then live work, then everything that is merely history.
- *
- * `attention` deliberately outranks `working`: Caxri's unread flag means "something happened that you have not looked
- * at", which is a property of the user's queue rather than of the Agent, so it belongs above any turn still in
- * progress, including the Session's own, since a Session can be both unread and running. herdr and Kero rank their
- * rollups the same way; Orca and T3 Code put running work first because their lists describe live work rather than a
- * to-do queue.
- */
-const GROUP_ORDER: readonly AgentActivityStatusGroupId[] = [
-    'attention',
-    'working',
-    'waiting',
-    'failed',
-    'finished',
-    'idle',
-];
-
 const GROUP_LABEL_KEYS: Record<AgentActivityGroupId, TranslationKey> = {
     pinned: 'agentActivity.group.pinned',
     attention: 'agentActivity.group.attention',
@@ -208,34 +187,27 @@ export function isAgentActivityActionable(groupId: AgentActivityGroupId): boolea
     return groupId === 'attention' || groupId === 'failed';
 }
 
+/**
+ * The shared rule (`sessionActivityGroup`) with Desktop's own inputs: the status projection, which folds compaction
+ * into running, and the viewed selection, which keeps a just-read row under attention until the user leaves it.
+ */
 function groupForSession(
     session: SessionRecord,
     status: SessionStatus,
     now: number,
     isViewedSelection: boolean,
 ): AgentActivityStatusGroupId | undefined {
-    if (status.kind === 'attention') return 'attention';
     if (isViewedSelection) return 'attention';
-    /**
-     * Failure survives the hand-over. Detaching stops the Terminal so another client can resume it; it does not resolve
-     * anything, and nothing else will ever clear a failed Session, so a detached failure stays in `failed` rather than
-     * quietly joining `idle` below.
-     */
-    if (session.lastActivityState === 'failed') return 'failed';
-    // `running` covers compaction too: `sessionStatus` already folds that subphase in.
-    if (status.kind === 'running') return 'working';
-    /**
-     * Everything below reads `lastActivityState`, which a detached Agent keeps frozen at whatever the last probe
-     * recorded: `suspendTerminal` only rewrites the Terminal's process state. Without this guard a Session detached
-     * mid-turn would keep sitting under "Waiting" (or age out of "Recently finished" and vanish) while its own row
-     * reads "Detached". It is not waiting on anybody: it was handed to another client on purpose.
-     */
-    if (status.kind === 'detached') return 'idle';
-    if (session.lastActivityState === 'waiting') return 'waiting';
-    if (session.lastActivityState === 'completed')
-        return isWithinFinishedRetention(session, now) ? 'finished' : undefined;
-    // `idle` and `unknown` land here: neither is asking the user for anything.
-    return 'idle';
+    return sessionActivityGroup(
+        {
+            hasUnread: status.kind === 'attention',
+            isDetached: status.kind === 'detached',
+            isRunning: status.kind === 'running',
+            lastActivityState: session.lastActivityState,
+            lastSessionActivityAt: session.lastSessionActivityAt,
+        },
+        now,
+    );
 }
 
 /**
@@ -244,8 +216,8 @@ function groupForSession(
  * Archived Sessions are excluded, and a Session whose Project is not in `projects` is dropped: the PrimarySidebar hides
  * auto-registered worktree Projects, and a row naming a Project the user never added would be unreachable from here.
  * Rows inside a status group keep Session activity recency, so the most recent event in a group is always its first
- * row. Pinned Sessions also get a leading `pinned` group (see `PINNED_DUPLICATE_GROUPS` for which ones stay in their
- * status group too), and a pinned Session is never dropped by the finished retention window.
+ * row. Pinned Sessions also get a leading `pinned` group (see `PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS` for which ones
+ * stay in their status group too), and a pinned Session is never dropped by the finished retention window.
  *
  * Terminals are grouped by Session once per call, so one projection is linear in Sessions plus Terminals. It has two
  * callers and neither runs while the queue is off screen: `AgentActivityView` exists only while the Primary Side Bar
@@ -301,21 +273,20 @@ export function agentActivityGroups({
             terminal,
         };
         if (pinned) pinnedRows.push({ ...row, rowId: agentActivityPinnedRowId(session.id) });
-        if (!groupId || (pinned && !PINNED_DUPLICATE_GROUPS.has(groupId))) continue;
+        if (!groupId || (pinned && !PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS.has(groupId)))
+            continue;
         const existing = rowsByGroup.get(groupId);
         if (existing) existing.push(row);
         else rowsByGroup.set(groupId, [row]);
     }
-    const statusGroups = GROUP_ORDER.flatMap((id) => {
+    const statusGroups = SESSION_ACTIVITY_GROUP_ORDER.flatMap((id) => {
         const rows = rowsByGroup.get(id);
         if (!rows || rows.length === 0) return [];
         return [
             {
                 id,
-                rows: rows.toSorted(
-                    (left, right) =>
-                        right.session.lastSessionActivityAt - left.session.lastSessionActivityAt ||
-                        (left.session.id < right.session.id ? -1 : 1),
+                rows: rows.toSorted((left, right) =>
+                    compareSessionActivityGroupRows(left.session, right.session),
                 ),
             },
         ];

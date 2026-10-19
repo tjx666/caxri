@@ -150,6 +150,7 @@ export const effectfulCommandRecovery = {
     'mobile.session.rename': 'durable',
     'mobile.session.archive': 'durable',
     'mobile.session.restore': 'durable',
+    'mobile.session.setPinned': 'durable',
     'mobile.agent.submit': 'none',
     'mobile.image.upload': 'memory',
     'mobile.attention.answer': 'memory',

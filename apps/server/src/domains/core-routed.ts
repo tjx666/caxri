@@ -65,6 +65,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.session.rename',
     'mobile.session.archive',
     'mobile.session.restore',
+    'mobile.session.setPinned',
     'mobile.terminal.takeOver',
     'mobile.terminal.release',
     'mobile.terminal.input',

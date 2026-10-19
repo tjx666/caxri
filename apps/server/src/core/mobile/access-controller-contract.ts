@@ -48,6 +48,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.session.rename'
             | 'mobile.session.archive'
             | 'mobile.session.restore'
+            | 'mobile.session.setPinned'
             | 'mobile.session.archived'
             | 'mobile.terminal.takeOver'
             | 'mobile.terminal.release'

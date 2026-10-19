@@ -8,7 +8,14 @@ import type {
     SessionQueryResult,
     TerminalQueryResult,
 } from '@caxri/protocol';
-import { MOBILE_ARCHIVED_SESSIONS_MAX } from '@caxri/protocol';
+import {
+    compareSessionActivityGroupRows,
+    compareSessionPinnedOrder,
+    isPinnedSession,
+    MOBILE_ARCHIVED_SESSIONS_MAX,
+    SESSION_ACTIVITY_GROUP_ORDER,
+    sessionActivityGroup,
+} from '@caxri/protocol';
 
 export const MOBILE_DASHBOARD_MAX_BYTES = 48 * 1024;
 const MAXIMUM_DASHBOARD_SESSIONS = 64;
@@ -22,19 +29,27 @@ const title = (value: string): string => {
     return result || 'Untitled';
 };
 
-const priority = (session: SessionQueryResult['sessions'][number]): number => {
-    if (
-        session.hasUnread ||
-        session.lastActivityState === 'waiting' ||
-        session.lastActivityState === 'failed'
-    )
-        return 0;
-    return session.lastActivityState === 'running' ? 1 : 2;
+type DashboardSession = SessionQueryResult['sessions'][number];
+
+/**
+ * The phone's list order, decided here because the dashboard is capped: pinned Sessions first, then the status groups
+ * Desktop's Activity view uses, then recency inside a group. Whatever the cap drops is the least urgent, least recent
+ * work, never a pinned or attention Session.
+ */
+const groupRank = (session: DashboardSession, isDetached: boolean, now: number): number => {
+    if (isPinnedSession(session)) return -1;
+    const group =
+        sessionActivityGroup(
+            { ...session, isDetached, isRunning: session.lastActivityState === 'running' },
+            now,
+        ) ?? 'idle';
+    return SESSION_ACTIVITY_GROUP_ORDER.indexOf(group);
 };
 
 /**
- * Builds one frame-safe, principal-scoped mobile projection. Attention and running Sessions are ordered before recency,
- * so the bounded companion surface preserves the work that needs action instead of inheriting Desktop-scale lists.
+ * Builds one frame-safe, principal-scoped mobile projection. Pinned, attention, and running Sessions are ordered before
+ * recency, so the bounded companion surface preserves the work that needs action instead of inheriting Desktop-scale
+ * lists.
  */
 export const buildMobileDashboard = (input: {
     hostDisplayName: string;
@@ -43,7 +58,9 @@ export const buildMobileDashboard = (input: {
     sessions: SessionQueryResult['sessions'];
     terminals: TerminalQueryResult['terminals'];
     resolveAgentEndpoint?: (terminalId: string) => AgentEndpointRef | undefined;
+    now?: number;
 }): MobileDashboardResult => {
+    const now = input.now ?? Date.now();
     const lastActivityByProject = new Map<string, number>();
     for (const session of input.sessions) {
         if (session.archivedAt !== undefined) continue;
@@ -66,21 +83,29 @@ export const buildMobileDashboard = (input: {
         if (terminal.kind === 'shell' && !shellTerminals.has(terminal.sessionId))
             shellTerminals.set(terminal.sessionId, terminal);
     }
+    const primaryTerminalOf = (session: DashboardSession) =>
+        session.primaryAgentTerminalId
+            ? terminals.get(session.primaryAgentTerminalId)
+            : shellTerminals.get(session.id);
+    const rank = new Map(
+        input.sessions.map((session) => [
+            session.id,
+            groupRank(session, primaryTerminalOf(session)?.lastProcessState === 'detached', now),
+        ]),
+    );
     const active = input.sessions
         .filter((session) => session.archivedAt === undefined && projects.has(session.projectId))
         .toSorted(
             (left, right) =>
-                priority(left) - priority(right) ||
-                Number(right.hasUnread) - Number(left.hasUnread) ||
-                right.lastOpenedAt - left.lastOpenedAt ||
-                left.id.localeCompare(right.id),
+                rank.get(left.id)! - rank.get(right.id)! ||
+                (isPinnedSession(left)
+                    ? compareSessionPinnedOrder(left, right)
+                    : compareSessionActivityGroupRows(left, right)),
         );
     const sessions: MobileDashboardResult['sessions'] = [];
     for (const session of active) {
         if (sessions.length >= MAXIMUM_DASHBOARD_SESSIONS) break;
-        const primaryTerminal = session.primaryAgentTerminalId
-            ? terminals.get(session.primaryAgentTerminalId)
-            : shellTerminals.get(session.id);
+        const primaryTerminal = primaryTerminalOf(session);
         const mobileTerminal = primaryTerminal
             ? {
                   id: primaryTerminal.id,
@@ -100,6 +125,9 @@ export const buildMobileDashboard = (input: {
             displayTitle: title(session.displayTitle),
             projectTitle: title(projects.get(session.projectId)?.displayTitle ?? 'Project'),
             lastOpenedAt: session.lastOpenedAt,
+            lastSessionActivityAt: session.lastSessionActivityAt,
+            ...(session.pinnedAt !== undefined && { pinnedAt: session.pinnedAt }),
+            ...(session.pinnedOrder !== undefined && { pinnedOrder: session.pinnedOrder }),
             lastActivityState: session.lastActivityState,
             ...(session.primaryAgentTerminalId && {
                 primaryAgentTerminalId: session.primaryAgentTerminalId,

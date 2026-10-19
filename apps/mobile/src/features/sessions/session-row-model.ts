@@ -22,14 +22,11 @@ const ageMinutes = (at: number, now: number): number =>
     Math.max(0, Math.floor((now - at) / 60_000));
 
 /**
- * The compact age a Session row shows (`now`, `5m`, `2h`, `3d`).
+ * The compact age a Session row shows (`now`, `5m`, `2h`, `3d`). A Session row passes its last activity, the same clock
+ * that orders it inside its group, so the ages read top to bottom from newest.
  */
-export const sessionAgeLabel = (
-    lastOpenedAt: number,
-    now: number,
-    t: Translate = translate,
-): string => {
-    const minutes = ageMinutes(lastOpenedAt, now);
+export const sessionAgeLabel = (at: number, now: number, t: Translate = translate): string => {
+    const minutes = ageMinutes(at, now);
     if (minutes < 1) return t('sessions.age.now');
     if (minutes < 60) return t('sessions.age.minutes', { count: minutes });
     const hours = Math.floor(minutes / 60);

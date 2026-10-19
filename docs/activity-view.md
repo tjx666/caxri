@@ -51,6 +51,12 @@ is a raised hand rather than a bell because the Status Bar's notification center
 An empty group is not rendered. Inside a group, rows keep Session activity recency, so the newest
 event in a group is always its first row.
 
+The group rules, their order, the retention window, and the in-group order live in
+`packages/protocol/src/domain/session-activity-group.ts`, which the phone's home list also uses, so
+a Session sits under the same heading on Desktop and on the phone. The phone differs in one place:
+its home list is its only Session list, so a finished Session past the window moves to **Idle**
+instead of leaving.
+
 Opening an unread Session acknowledges it immediately, but the selected row stays in its current
 place while Activity remains open and that Session is selected. This is a temporary display anchor,
 not unread state: the **Needs attention** heading and side bar badge count only actual unread
@@ -80,7 +86,7 @@ new turn ends. A `running` reading inferred only by a metadata probe does not ac
 ### Retention
 
 A finished Session stays listed for 15 minutes after its last activity
-(`AGENT_ACTIVITY_FINISHED_RETENTION_MS`), then drops out. Without a window, "Recently finished"
+(`SESSION_FINISHED_RETENTION_MS`), then drops out. Without a window, "Recently finished"
 would grow into a permanent archive of every Session that ever completed, and the queue would stop
 being readable at a glance. A **Failed** Session is deliberately exempt: nothing else will clear it,
 so ageing it out would silently lose the only place that failure is reported.
@@ -233,8 +239,8 @@ into the same trap.
 | `.../primary-sidebar/primary-sidebar-project-tree.tsx`       | The other body, split out so mode switching unmounts it      |
 | `apps/desktop/src/renderer/src/stores/chrome-layout.ts`      | `primarySidebarActivityMode` and its persistence             |
 | `.../features/agent-activity/agent-activity-rows.ts`         | Grouping, ordering, the next-attention walk, the badge tally |
+| `packages/protocol/src/domain/session-activity-group.ts`     | Group order, retention window, row order shared with mobile  |
 | `.../agent-activity-glyph.ts`                                | Which shape, which words, and the tint a row's state earns   |
-| `.../agent-activity-retention.ts`                            | The finished-row window                                      |
 | `.../agent-activity-tree.ts`                                 | Flattening and keyboard row math                             |
 | `.../use-agent-activity-clock.ts`                            | The subscription to the shared window clock                  |
 | `.../agent-activity-view.tsx`, `agent-activity-row-item.tsx` | Rendering, roving focus, and mark-read                       |

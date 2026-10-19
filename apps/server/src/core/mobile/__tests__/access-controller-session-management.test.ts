@@ -110,12 +110,21 @@ describe('MobileAccessController Session management', () => {
                 context,
                 domainService,
             );
+            await controller.invokeControl(
+                {
+                    method: 'mobile.session.setPinned',
+                    params: { sessionId: 'session-granted', pinned: true },
+                },
+                context,
+                domainService,
+            );
             expect(
                 requestWithSignal.mock.calls.map(([method, parameters]) => [method, parameters]),
             ).toEqual([
                 ['session.rename', { sessionId: 'session-granted', displayTitle: 'Renamed' }],
                 ['session.archive', { sessionId: 'session-granted' }],
                 ['session.unarchive', { sessionId: 'session-granted', placement: 'top' }],
+                ['session.setPinned', { sessionId: 'session-granted', pinned: true }],
             ]);
         } finally {
             await controller.close();

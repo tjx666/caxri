@@ -1,8 +1,8 @@
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { SESSION_FINISHED_RETENTION_MS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { sessionAgentTerminal } from '../../session/session-agent-terminal';
-import { AGENT_ACTIVITY_FINISHED_RETENTION_MS } from '../agent-activity-retention';
 import type { AgentActivitySelectionAnchor } from '../agent-activity-rows';
 import {
     agentActivityGroups,
@@ -64,7 +64,7 @@ describe('agentActivityGroups', () => {
             session('idle-pinned', { pinnedAt: 2, pinnedOrder: 1 }),
             session('expired-pinned', {
                 lastActivityState: 'completed',
-                lastSessionActivityAt: NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS - 1,
+                lastSessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS - 1,
                 pinnedAt: 1,
                 pinnedOrder: 0,
             }),
@@ -120,7 +120,7 @@ describe('agentActivityGroups', () => {
     });
 
     it('keeps the selected viewed generation in place without keeping it unread', () => {
-        const staleAt = NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS - 1;
+        const staleAt = NOW - SESSION_FINISHED_RETENTION_MS - 1;
         const unread = session('selected', {
             attentionEpoch: 1,
             hasUnread: true,
@@ -175,7 +175,7 @@ describe('agentActivityGroups', () => {
     });
 
     it('keeps a viewed completed Session in place while its Terminal resumes on selection', () => {
-        const staleAt = NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS - 1;
+        const staleAt = NOW - SESSION_FINISHED_RETENTION_MS - 1;
         const unread = session('selected', {
             attentionEpoch: 1,
             hasUnread: true,
@@ -250,11 +250,11 @@ describe('agentActivityGroups', () => {
     it('keeps a finished Session listed until its retention window closes', () => {
         const justInside = session('fresh', {
             lastActivityState: 'completed',
-            lastSessionActivityAt: NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS + 1,
+            lastSessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS + 1,
         });
         const exactlyExpired = session('stale', {
             lastActivityState: 'completed',
-            lastSessionActivityAt: NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS,
+            lastSessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS,
         });
         const groups = groupsOf([justInside, exactlyExpired]);
         expect(groups.map((group) => group.id)).toEqual(['finished']);
@@ -265,7 +265,7 @@ describe('agentActivityGroups', () => {
         const groups = groupsOf([
             session('old-failure', {
                 lastActivityState: 'failed',
-                lastSessionActivityAt: NOW - 10 * AGENT_ACTIVITY_FINISHED_RETENTION_MS,
+                lastSessionActivityAt: NOW - 10 * SESSION_FINISHED_RETENTION_MS,
             }),
         ]);
         expect(groups.map((group) => group.id)).toEqual(['failed']);

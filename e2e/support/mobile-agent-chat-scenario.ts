@@ -46,6 +46,7 @@ import {
     waitForMobile,
 } from './mobile-android';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
+import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
 
 /**
  * The on-screen height of check `id`, or `undefined` while it is not laid out.
@@ -470,6 +471,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatDelegatedTaskScenario(environment, artifacts);
         case 'MOB-CHAT-20':
             return executeMobileChatFeedbackScenario(environment, artifacts);
+        case 'MOB-CHAT-21':
+            return executeMobileSessionPinScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

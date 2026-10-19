@@ -27,7 +27,10 @@ export function isPinnedSession(session: Pick<SessionRecord, 'pinnedAt'>): boole
  * Order inside the Pinned group. `pinnedOrder` is only written by a drag, so a Session pinned and never moved falls
  * back to when it was pinned: newest last, which is where the group appended it.
  */
-export function compareSessionPinnedOrder(left: SessionRecord, right: SessionRecord): number {
+export function compareSessionPinnedOrder(
+    left: Pick<SessionRecord, 'id' | 'pinnedAt' | 'pinnedOrder'>,
+    right: Pick<SessionRecord, 'id' | 'pinnedAt' | 'pinnedOrder'>,
+): number {
     return (
         (left.pinnedOrder ?? 0) - (right.pinnedOrder ?? 0) ||
         (left.pinnedAt ?? 0) - (right.pinnedAt ?? 0) ||

@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Archive, Pencil } from 'lucide-react-native';
+import { isPinnedSession } from '@caxri/protocol';
+import { Archive, Pencil, Pin, PinOff } from 'lucide-react-native';
 
 import { BottomSheet, SheetAction, SheetCancel } from '../../../components/bottom-sheet';
 import { useTranslation } from '../../../i18n';
@@ -54,6 +55,7 @@ const SessionActionsBody = ({
     const [draft, setDraft] = useState(session.displayTitle);
     const isBusy = management.pending?.sessionId === session.id;
     const nextTitle = sessionRenameDraft(draft, session.displayTitle);
+    const isPinned = isPinnedSession(session);
     const submitRename = async (): Promise<void> => {
         if (nextTitle !== null && (await management.rename(session.id, nextTitle))) onClose();
     };
@@ -76,6 +78,23 @@ const SessionActionsBody = ({
                     </Text>
                     {mode === 'menu' ? (
                         <View style={styles.actions}>
+                            <SheetAction
+                                busy={isBusy && management.pending?.action === 'pin'}
+                                icon={isPinned ? PinOff : Pin}
+                                label={t(
+                                    isPinned ? 'sessions.actions.unpin' : 'sessions.actions.pin',
+                                )}
+                                onPress={() => {
+                                    // eslint-disable-next-line no-void -- The hook renders pin failures.
+                                    void management
+                                        .setPinned(session.id, !isPinned)
+                                        .then((done) => {
+                                            if (done) onClose();
+                                        });
+                                }}
+                                testID="session-action-pin"
+                                theme={theme}
+                            />
                             <SheetAction
                                 busy={false}
                                 icon={Pencil}

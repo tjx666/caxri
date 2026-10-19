@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { buildMobileSessionSections } from '../session-model';
 import { fetchMobileSessionDashboard } from '../session-refresh';
 
 describe('fetchMobileSessionDashboard', () => {
@@ -31,7 +32,7 @@ describe('fetchMobileSessionDashboard', () => {
             deviceRole: 'view',
             hostDisplayName: 'Test computer',
             projects: [{ id: 'project-one', displayTitle: 'Empty Project' }],
-            sections: { needsAttention: [], recent: [], running: [], total: 0, truncated: false },
+            sections: buildMobileSessionSections({ sessions: [], total: 0, truncated: false }),
         });
     });
 });

@@ -14,6 +14,7 @@ import { ConversationToolDetail } from './conversation-tool-detail';
 import { ConversationToolGroup } from './conversation-tool-group';
 import { ConversationToolRow } from './conversation-tool-row';
 import { ConversationUserAttachments } from './conversation-user-attachments';
+import { useConversationPacedText } from './use-conversation-paced-text';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
@@ -43,6 +44,16 @@ const ConversationTurnDivider = ({
  * Memoized so a streamed update redraws only the rows whose entry object changed; callers keep unchanged entries the
  * same objects across updates.
  */
+const ConversationAgentMessage = ({
+    isStreaming,
+    text,
+    theme,
+}: {
+    isStreaming: boolean;
+    text: string;
+    theme: MobileTheme;
+}) => <ConversationMarkdown text={useConversationPacedText(text, isStreaming)} theme={theme} />;
+
 export const ConversationEntry = memo(({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
     const { t } = useTranslation();
     const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
@@ -76,7 +87,11 @@ export const ConversationEntry = memo(({ entry, theme }: { entry: Entry; theme: 
     if (entry.type === 'agentMessage')
         return (
             <View style={styles.message} testID={`conversation-agent-${entry.id}`}>
-                <ConversationMarkdown text={entry.text} theme={theme} />
+                <ConversationAgentMessage
+                    isStreaming={entry.streaming === true}
+                    text={entry.text}
+                    theme={theme}
+                />
             </View>
         );
     return (

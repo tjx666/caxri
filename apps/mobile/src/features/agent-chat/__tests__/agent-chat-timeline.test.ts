@@ -273,6 +273,24 @@ describe('buildAgentChatTimeline', () => {
         ).toEqual(['work:f1', 'a1']);
     });
 
+    it('marks only a still-growing reply as streaming so the phone paces it', () => {
+        const messages = buildAgentChatTimeline({
+            items: [
+                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Done.', streaming: false },
+                { id: 'a2', turnId: 't2', type: 'agentMessage', text: 'Halfway', streaming: true },
+            ],
+            turns: [
+                { id: 't1', status: 'completed' },
+                { id: 't2', status: 'running' },
+            ],
+            activeTurnId: 't2',
+        }).flatMap((entry) => (entry.kind === 'message' ? [entry.message] : []));
+        expect(messages).toEqual([
+            { id: 'a1', type: 'agentMessage', text: 'Done.' },
+            { id: 'a2', type: 'agentMessage', text: 'Halfway', streaming: true },
+        ]);
+    });
+
     it('labels a turn under a second without a sub-second duration, and failed and stopped turns by outcome', () => {
         const footer = (status: 'completed' | 'failed' | 'interrupted', durationMs?: number) =>
             buildAgentChatTimeline({

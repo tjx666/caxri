@@ -18,6 +18,7 @@ import {
     isMobileAgentChatRequest,
 } from './agent-chat-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
+import { createMobileAuthorityQueue } from './authority-queue';
 import { invokeMobileCommanderInboxRequest } from './commander-inbox-requests';
 import { readMobileDashboard, showMobileSession } from './dashboard-requests';
 import { MobileDeviceRegistry } from './device-registry';
@@ -82,24 +83,10 @@ export const openMobileAccessController = async (options: {
     const updateRequests = createMobileUpdateRequests(options.updateDirectory);
     const accessPersistence = createMobileAccessPersistence(registry, options.logger);
     let isClosed = false;
-    let authorityTail = Promise.resolve();
-    const inFlightOperations = new Map<string, Set<AbortController>>();
     const assertOpen = (): void => {
         if (isClosed) throw new CaxriError('UNAVAILABLE', 'Mobile access is shutting down');
     };
-    const withAuthority = <T>(task: () => Promise<T> | T): Promise<T> => {
-        const previous = authorityTail;
-        const release = Promise.withResolvers<void>();
-        authorityTail = release.promise;
-        return (async () => {
-            await previous;
-            try {
-                return await task();
-            } finally {
-                release.resolve();
-            }
-        })();
-    };
+    const { abortOperations, runRevocableOperation, withAuthority } = createMobileAuthorityQueue();
     const currentPairedPrincipal = (principal: Principal, method: string) => {
         if (principal.kind !== 'paired-device')
             throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
@@ -122,32 +109,6 @@ export const openMobileAccessController = async (options: {
             currentPairedPrincipal(principal, mobileSubscriptionMethod(resource)),
             resource,
         );
-    const operationKey = (deviceId: string, generation: number): string =>
-        `${deviceId}:${generation}`;
-    const registerOperation = (principal: Extract<Principal, { kind: 'paired-device' }>) => {
-        const cancellation = new AbortController();
-        const key = operationKey(principal.deviceId, principal.generation);
-        const controllers = inFlightOperations.get(key) ?? new Set<AbortController>();
-        controllers.add(cancellation);
-        inFlightOperations.set(key, controllers);
-        return cancellation;
-    };
-    const abortOperations = (identity?: { deviceId: string; generation: number }): void => {
-        for (const [key, controllers] of inFlightOperations) {
-            if (identity && key !== operationKey(identity.deviceId, identity.generation)) continue;
-            for (const controller of controllers) controller.abort();
-        }
-    };
-    const unregisterOperation = (
-        identity: { deviceId: string; generation: number },
-        controller: AbortController,
-    ): void => {
-        const key = operationKey(identity.deviceId, identity.generation);
-        const controllers = inFlightOperations.get(key);
-        controllers?.delete(controller);
-        if (controllers?.size === 0) inFlightOperations.delete(key);
-    };
-
     return {
         authorizePairedDeviceMethod: (principal, method) => {
             currentPairedPrincipal(principal, method);
@@ -369,28 +330,25 @@ export const openMobileAccessController = async (options: {
                     });
                 }
                 case 'mobile.agent.submit': {
-                    const { principal, cancellation } = await withAuthority(() => {
-                        assertOpen();
-                        if (!activeGateway.status().enabled)
-                            throw new CaxriError('FORBIDDEN', 'Mobile access is disabled');
-                        const principal = currentPairedPrincipal(context.principal, request.method);
-                        return { principal, cancellation: registerOperation(principal) };
-                    });
-                    try {
-                        const result = await domainService.requestWithSignal(
-                            'mobile.agent.submitInternal',
-                            { ...request.params, principal },
-                            cancellation.signal,
-                        );
-                        return await withAuthority(() => {
-                            if (cancellation.signal.aborted)
+                    return runRevocableOperation(
+                        () => {
+                            assertOpen();
+                            if (!activeGateway.status().enabled)
+                                throw new CaxriError('FORBIDDEN', 'Mobile access is disabled');
+                            return currentPairedPrincipal(context.principal, request.method);
+                        },
+                        (principal, signal) =>
+                            domainService.requestWithSignal(
+                                'mobile.agent.submitInternal',
+                                { ...request.params, principal },
+                                signal,
+                            ),
+                        (principal, signal) => {
+                            if (signal.aborted)
                                 throw new CaxriError('CANCELLED', 'Mobile submission was canceled');
                             currentPairedPrincipal(principal, request.method);
-                            return result;
-                        });
-                    } finally {
-                        await withAuthority(() => unregisterOperation(principal, cancellation));
-                    }
+                        },
+                    );
                 }
                 case 'mobile.image.upload': {
                     return withAuthority(async () => {
@@ -415,32 +373,32 @@ export const openMobileAccessController = async (options: {
                      * client cannot receive a result after a durable create and must reconcile from dashboard when
                      * paired again before retrying.
                      */
-                    const { principal, cancellation } = await withAuthority(() => {
-                        assertOpen();
-                        const principal = currentPairedPrincipal(context.principal, request.method);
-                        if (!principal.projectIds.includes(request.params.projectId))
-                            throw new CaxriError('NOT_FOUND', 'Project not found');
-                        const cancellation = registerOperation(principal);
-                        return { principal, cancellation };
-                    });
-                    try {
-                        const result = await domainService.requestWithSignal(
-                            'mobile.session.createForPrincipal',
-                            { ...request.params, principal },
-                            cancellation.signal,
-                        );
-                        return await withAuthority(() => {
-                            if (cancellation.signal.aborted)
+                    return runRevocableOperation(
+                        () => {
+                            assertOpen();
+                            const principal = currentPairedPrincipal(
+                                context.principal,
+                                request.method,
+                            );
+                            if (!principal.projectIds.includes(request.params.projectId))
+                                throw new CaxriError('NOT_FOUND', 'Project not found');
+                            return principal;
+                        },
+                        (principal, signal) =>
+                            domainService.requestWithSignal(
+                                'mobile.session.createForPrincipal',
+                                { ...request.params, principal },
+                                signal,
+                            ),
+                        (principal, signal) => {
+                            if (signal.aborted)
                                 throw new CaxriError(
                                     'CANCELLED',
                                     'Mobile Session creation was canceled',
                                 );
                             currentPairedPrincipal(principal, request.method);
-                            return result;
-                        });
-                    } finally {
-                        await withAuthority(() => unregisterOperation(principal, cancellation));
-                    }
+                        },
+                    );
                 }
                 case 'mobile.session.archived': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
@@ -450,26 +408,17 @@ export const openMobileAccessController = async (options: {
                 }
                 case 'mobile.session.rename':
                 case 'mobile.session.archive':
-                case 'mobile.session.restore': {
-                    const { principal, cancellation } = await withAuthority(() => {
-                        assertOpen();
-                        const principal = currentPairedPrincipal(context.principal, request.method);
-                        return { principal, cancellation: registerOperation(principal) };
-                    });
-                    try {
-                        const result = await applyMobileSessionManagement(
-                            domainService,
-                            principal,
-                            request,
-                            cancellation.signal,
-                        );
-                        return await withAuthority(() => {
-                            currentPairedPrincipal(principal, request.method);
-                            return result;
-                        });
-                    } finally {
-                        await withAuthority(() => unregisterOperation(principal, cancellation));
-                    }
+                case 'mobile.session.restore':
+                case 'mobile.session.setPinned': {
+                    return runRevocableOperation(
+                        () => {
+                            assertOpen();
+                            return currentPairedPrincipal(context.principal, request.method);
+                        },
+                        (principal, signal) =>
+                            applyMobileSessionManagement(domainService, principal, request, signal),
+                        (principal) => currentPairedPrincipal(principal, request.method),
+                    );
                 }
                 case 'mobile.terminal.takeOver':
                 case 'mobile.terminal.release':
