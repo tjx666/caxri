@@ -217,10 +217,15 @@ if (process.argv.includes('app-server')) {
                 .filter({ hasText: 'Searching' })
                 .filter({ hasText: 'slow in src' }),
         ).toHaveCount(1);
-        await expect(
-            session.getByRole('button', { name: /^Thought Planning the reply/u }),
-        ).toBeVisible();
+        // The thought folds into the live summary with the command (`splitAgentChatWork`); expanding the summary lists
+        // it with its Codex title.
+        const thought = session.getByRole('button', { name: /^Thought Planning the reply/u });
+        await expect(thought).toHaveCount(0);
+        await liveRow.click();
+        await expect(thought).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('surface-switch-running-turn.png') });
+        await liveRow.click();
+        await expect(thought).toHaveCount(0);
         // Stop and Queue share one slot: typed content turns it into Queue message; Cmd+Enter steers instead.
         await message.fill('steer');
         await expect(session.getByRole('button', { name: 'Queue message' })).toBeEnabled();
