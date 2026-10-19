@@ -1498,7 +1498,11 @@ popup itself hold focus until then.
   View › Zoom In (`Command+=`), Zoom Out (`Command+-`), and Reset Zoom. Main applies it as page
   zoom and re-centers the native traffic lights in the zoomed header; any title-bar clearance
   reserved for the lights uses `--traffic-light-clearance` or `--traffic-light-header-inset`, which
-  divide by the zoom factor because the lights themselves never scale.
+  divide by the zoom factor because the lights themselves never scale. Every zoom change except the
+  first settings load shows a small HUD at the window's top right (the ChatGPT desktop app's
+  pattern): the percentage, Zoom Out, Zoom In, a divider, and Reset, each disabled at its bound. It
+  fades out 1.5s after the last change; hovering it or holding keyboard focus inside keeps it up,
+  and a hidden HUD is `inert` so it never takes a click or a Tab stop.
 - Launch shows the Caxri mark over the translucent (vibrancy) window from the first frame: the
   loader is inline in `renderer/index.html`, so it needs no bundle, and `App` removes it when the
   workbench attaches. Only a startup failure adds text beneath the mark.

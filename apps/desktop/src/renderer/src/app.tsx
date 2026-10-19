@@ -46,6 +46,7 @@ import { UpdateDialog } from './features/updates/update-dialog';
 import { useFileMutationReconciliation } from './features/view-containers/resource-explorer/file-operation-reconciliation';
 import { startViewEventBridge } from './features/view-containers/view-event-bridge';
 import { useWindowZoomFactor } from './features/window-zoom/use-window-zoom-factor';
+import { WindowZoomHud } from './features/window-zoom/window-zoom-hud';
 import { LoadingScreen } from './features/workbench/loading-screen';
 import { PanelDivider } from './features/workbench/panel-divider';
 import { WorkbenchColumn } from './features/workbench/workbench-column';
@@ -295,6 +296,7 @@ export function App() {
                     <SshHostFolderPickerDialog />
                     <ConfirmationDialog />
                     <ToastOutlet />
+                    <WindowZoomHud />
                     <ScreencastOverlay />
                 </main>
             </TooltipProvider>
