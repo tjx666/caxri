@@ -2,6 +2,7 @@ import { memo } from 'react';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationEntry } from '../conversation/conversation-entry';
+import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
 import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
@@ -25,7 +26,7 @@ export const AgentChatTimelineEntry = memo(
     }: {
         entry: Entry;
         /**
-         * Folds or unfolds a turn (by turn id) or a delegated task's pointer (by entry id).
+         * Folds or unfolds a turn (by turn id), a delegated task's pointer, or an answered question list (by entry id).
          */
         onToggle: (id: string) => void;
         theme: MobileTheme;
@@ -36,6 +37,11 @@ export const AgentChatTimelineEntry = memo(
             }
             case 'message': {
                 return <ConversationEntry entry={entry.message} theme={theme} />;
+            }
+            case 'answered': {
+                return (
+                    <AgentChatAnsweredQuestions entry={entry} onToggle={onToggle} theme={theme} />
+                );
             }
             case 'delegated': {
                 return (

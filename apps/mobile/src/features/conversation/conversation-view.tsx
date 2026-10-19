@@ -195,6 +195,7 @@ export const ConversationList = <Entry extends { id: string }>({
     followKey,
     isConnected,
     isTurnStart,
+    onFollowingChange,
     onRetry,
     renderEntry,
     theme,
@@ -217,6 +218,11 @@ export const ConversationList = <Entry extends { id: string }>({
      * viewport at the list's end; when unset, the list simply ends at its last row. Keep it a stable function.
      */
     isTurnStart?: (entry: Entry) => boolean;
+    /**
+     * Reports whether the list follows its end, so a caller can tell a reader parked on earlier content from one
+     * tracking the latest output. Starts as `true`.
+     */
+    onFollowingChange?: (isFollowing: boolean) => void;
     onRetry: () => void;
     renderEntry: (entry: Entry) => ReactNode;
     theme: MobileTheme;
@@ -225,6 +231,9 @@ export const ConversationList = <Entry extends { id: string }>({
     const { t } = useTranslation();
     const list = useRef<FlashListRef<Entry>>(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
+    useEffect(() => {
+        onFollowingChange?.(isAtBottom);
+    }, [isAtBottom, onFollowingChange]);
     const viewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
     const followHoldUntil = useRef(0);

@@ -44,6 +44,17 @@ export type AgentChatTimelineEntry =
     | { kind: 'message'; id: string; message: AgentChatMessageEntry }
     | {
           /**
+           * An answered question request, listed as each question over the answer given (Desktop's `Asked 3
+           * questions`). `isExpanded` starts true, since the answers are what the next reply acts on; the list owns the
+           * folded ids.
+           */
+          kind: 'answered';
+          id: string;
+          isExpanded: boolean;
+          answers: ReadonlyArray<{ question: string; answer: string }>;
+      }
+    | {
+          /**
            * A user message that is really another Agent's delegated task pointer, captioned with who sent it and the
            * pointer folded away, as Desktop draws it.
            */
@@ -135,6 +146,16 @@ const toMessage = (
 };
 
 /**
+ * An `answered` notice that recorded structured answers as a list row; one without them (an older record) stays the
+ * plain notice message.
+ */
+function answeredEntry(item: AgentChatItem): AgentChatTimelineEntry | undefined {
+    if (item.type !== 'notice' || item.kind !== 'answered' || !item.answers?.length)
+        return undefined;
+    return { kind: 'answered', id: item.id, isExpanded: true, answers: item.answers };
+}
+
+/**
  * Visible items as entries, consecutive work grouped into one `work` entry.
  */
 function groupEntries(
@@ -160,7 +181,9 @@ function groupEntries(
             continue;
         }
         flush();
-        if (item.type === 'notice' && (item.title || item.kind === 'warning'))
+        const answered = answeredEntry(item);
+        if (answered) entries.push(answered);
+        else if (item.type === 'notice' && (item.title || item.kind === 'warning'))
             entries.push({ kind: 'feedback', id: item.id, notice: item });
         else if (item.type === 'userMessage' && item.delegatedTask)
             entries.push({
@@ -226,9 +249,9 @@ function finishedTurnEntries(
  * Builds the phone's Chat timeline from the projection. Items arrive in order and each turn's items are contiguous, so
  * a run of items sharing a `turnId` is one turn. Only a finished turn (not running and not the active one) folds and
  * gets artifacts, so a running turn stays live and never claims a result it has not reached. `expandedIds` names the
- * finished turns and delegated task pointers the user unfolded; the list owns it rather than a row, so a recycled row
- * never carries another turn's state. When the window cut older items (`truncated`), the oldest turn may be missing its
- * start, so it shows no artifacts rather than an incomplete summary.
+ * finished turns and delegated task pointers the user unfolded, and the answered question lists the user folded; the
+ * list owns it rather than a row, so a recycled row never carries another turn's state. When the window cut older items
+ * (`truncated`), the oldest turn may be missing its start, so it shows no artifacts rather than an incomplete summary.
  */
 export function buildAgentChatTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> &
@@ -272,7 +295,9 @@ export function buildAgentChatTimeline(
     return entries.map((entry) =>
         entry.kind === 'delegated' && expandedIds.has(entry.id)
             ? { ...entry, isExpanded: true }
-            : entry,
+            : entry.kind === 'answered' && expandedIds.has(entry.id)
+              ? { ...entry, isExpanded: false }
+              : entry,
     );
 }
 
@@ -286,6 +311,41 @@ export function toggleAgentChatExpansion(
     const next = new Set(expandedIds);
     if (!next.delete(turnId)) next.add(turnId);
     return next;
+}
+
+/**
+ * The ids of the turns still running: the active turn and any turn the projection marks `running`.
+ */
+export function agentChatRunningTurnIds(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'turns'>,
+): ReadonlySet<string> {
+    const running = new Set(
+        snapshot.turns.filter((turn) => turn.status === 'running').map((turn) => turn.id),
+    );
+    if (snapshot.activeTurnId !== undefined) running.add(snapshot.activeTurnId);
+    return running;
+}
+
+/**
+ * The expanded set once turns that were running (`previouslyRunning`) have ended. A reader who was not following the
+ * latest output (`isFollowing` false) is reading earlier content, so a turn that ends under them stays open instead of
+ * folding the work away mid-read, as Desktop keeps open a row the user opened while the turn ran. A reader following
+ * the end sees the turn fold as usual. Returns `expandedIds` itself when nothing changes.
+ */
+export function holdEndedTurnsOpen(
+    expandedIds: ReadonlySet<string>,
+    previouslyRunning: ReadonlySet<string>,
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'turns'>,
+    isFollowing: boolean,
+): ReadonlySet<string> {
+    if (isFollowing) return expandedIds;
+    const running = agentChatRunningTurnIds(snapshot);
+    const ended = snapshot.turns.filter(
+        (turn) =>
+            previouslyRunning.has(turn.id) && !running.has(turn.id) && !expandedIds.has(turn.id),
+    );
+    if (ended.length === 0) return expandedIds;
+    return new Set([...expandedIds, ...ended.map((turn) => turn.id)]);
 }
 
 /**
@@ -359,7 +419,13 @@ export function withAgentChatPendingEntries(
         ...entries,
         ...pending.notices.flatMap((notice): AgentChatTimelineEntry[] =>
             notice.type === 'notice'
-                ? [{ kind: 'message', id: `pending:${notice.id}`, message: toMessage(notice, t) }]
+                ? [
+                      answeredEntry({ ...notice, id: `pending:${notice.id}` }) ?? {
+                          kind: 'message',
+                          id: `pending:${notice.id}`,
+                          message: toMessage(notice, t),
+                      },
+                  ]
                 : [],
         ),
         ...pending.timeline.map((message): AgentChatTimelineEntry => ({

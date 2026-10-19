@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatChangeColor,
     agentChatChangeRows,
+    agentChatRunningTurnIds,
     agentChatTurnTone,
     buildAgentChatTimeline,
+    holdEndedTurnsOpen,
     isAgentChatTurnStart,
     toggleAgentChatExpansion,
     withAgentChatAwaitingReply,
@@ -433,5 +435,84 @@ describe('withAgentChatAwaitingReply', () => {
                 requests: [{ id: 'r1' } as never],
             }),
         ).toBe(entries);
+    });
+});
+
+describe('holdEndedTurnsOpen', () => {
+    const turn = (status: 'completed' | 'running') => ({
+        id: 't1',
+        status,
+        startedAt: 1,
+    });
+    const running = { activeTurnId: 't1', turns: [turn('running')] } as Parameters<
+        typeof agentChatRunningTurnIds
+    >[0];
+    const ended = { activeTurnId: undefined, turns: [turn('completed')] } as typeof running;
+    const none = new Set<string>();
+
+    it('lists the active and running turns', () => {
+        expect([...agentChatRunningTurnIds(running)]).toEqual(['t1']);
+        expect([...agentChatRunningTurnIds(ended)]).toEqual([]);
+    });
+
+    it('keeps a turn open that ends under a reader who is not following', () => {
+        const held = holdEndedTurnsOpen(none, new Set(['t1']), ended, false);
+        expect(held.has('t1')).toBe(true);
+        // The fold row then draws expanded.
+        expect(held).not.toBe(none);
+    });
+
+    it('folds the turn as usual for a reader following the end', () => {
+        expect(holdEndedTurnsOpen(none, new Set(['t1']), ended, true)).toBe(none);
+    });
+
+    it('does nothing while the turn still runs or when it was not running before', () => {
+        expect(holdEndedTurnsOpen(none, new Set(['t1']), running, false)).toBe(none);
+        expect(holdEndedTurnsOpen(none, none, ended, false)).toBe(none);
+    });
+});
+
+describe('answered question requests', () => {
+    const notice = (answers?: Array<{ question: string; answer: string }>): AgentChatItem => ({
+        id: 'answer:r1',
+        turnId: 't1',
+        type: 'notice',
+        kind: 'answered',
+        message: 'Split: Per request',
+        ...(answers && { answers }),
+    });
+    const answers = [
+        { question: 'How should traffic split?', answer: 'Per request' },
+        { question: 'Anything else?', answer: '' },
+    ];
+    const snapshot = (item: AgentChatItem): Timeline => ({
+        items: [item],
+        turns: [{ id: 't1', status: 'running' }],
+        activeTurnId: 't1',
+    });
+
+    it('lists every question with its answer, expanded until the user folds it', () => {
+        const [entry] = buildAgentChatTimeline(snapshot(notice(answers)));
+        expect(entry).toEqual({ kind: 'answered', id: 'answer:r1', isExpanded: true, answers });
+        const [folded] = buildAgentChatTimeline(snapshot(notice(answers)), new Set(['answer:r1']));
+        expect(folded).toMatchObject({ kind: 'answered', isExpanded: false });
+    });
+
+    it('lists a single question the same way', () => {
+        const [entry] = buildAgentChatTimeline(snapshot(notice([answers[0]])));
+        expect(entry).toMatchObject({ kind: 'answered', answers: [answers[0]] });
+    });
+
+    it('keeps the plain notice for a record without structured answers', () => {
+        const [entry] = buildAgentChatTimeline(snapshot(notice()));
+        expect(entry).toMatchObject({ kind: 'message' });
+    });
+
+    it('draws an answer still on its way as the same list', () => {
+        const [entry] = withAgentChatPendingEntries([], {
+            notices: [notice(answers)],
+            timeline: [],
+        });
+        expect(entry).toMatchObject({ kind: 'answered', id: 'pending:answer:r1' });
     });
 });

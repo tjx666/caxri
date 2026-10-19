@@ -4,6 +4,11 @@ import type { chat as source } from '../en/chat';
 
 export const chat: TranslatedNamespace<typeof source> = {
     'chat.attachment': '附件 {{number}}',
+    'chat.answered.askedOne': '已询问 1 个问题',
+    'chat.answered.askedOther': '已询问 {{count}} 个问题',
+    'chat.answered.hideAnswers': '隐藏这些回答',
+    'chat.answered.showAnswers': '显示这些回答',
+    'chat.answered.skipped': '已跳过',
     'chat.changes.hideChanges': '{{title}}。隐藏更改，新增 {{additions}} 行，删除 {{deletions}} 行',
     'chat.changes.hideDiff':
         '隐藏差异：{{path}}，{{kind}}，新增 {{additions}} 行，删除 {{deletions}} 行',

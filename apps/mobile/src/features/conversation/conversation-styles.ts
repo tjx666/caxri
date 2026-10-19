@@ -1,9 +1,19 @@
 import { StyleSheet } from 'react-native';
 
+const JUMP_SIZE = 48;
+const JUMP_BOTTOM_OFFSET = 12;
+
+/**
+ * The room the jump-to-latest button takes at the viewport's bottom. The list ends with this much padding, so a reader
+ * who scrolls up just far enough to bring the button out finds the last message's final line above it instead of under
+ * it.
+ */
+const JUMP_CLEARANCE = JUMP_SIZE + JUMP_BOTTOM_OFFSET;
+
 export const conversationStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
     list: { flex: 1 },
-    listContent: { paddingBottom: 8, paddingHorizontal: 16, paddingTop: 16 },
+    listContent: { paddingBottom: JUMP_CLEARANCE, paddingHorizontal: 16, paddingTop: 16 },
     /**
      * FlashList positions cells itself and ignores `gap` on its content container, so each cell owns its spacing.
      */
@@ -88,13 +98,13 @@ export const conversationStyles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: 24,
         borderWidth: 1,
-        bottom: 12,
+        bottom: JUMP_BOTTOM_OFFSET,
         boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.35)',
-        height: 48,
+        height: JUMP_SIZE,
         justifyContent: 'center',
         position: 'absolute',
         right: 16,
-        width: 48,
+        width: JUMP_SIZE,
     },
     history: { alignItems: 'center', gap: 6, paddingBottom: 8 },
     historyText: { fontSize: 12, textAlign: 'center' },

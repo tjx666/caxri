@@ -76,6 +76,26 @@ describe('Agent Chat model choice', () => {
         expect(agentChatModelOptions({ model: 'haiku', models }).efforts).toEqual([]);
     });
 
+    it('checks the provider default and its effort while no model is reported, as the trigger reads', () => {
+        const withDefault = [
+            { id: 'default', displayName: 'Default (recommended)', efforts: ['low', 'medium'] },
+            ...models,
+        ];
+        const snapshot = { effort: 'medium', models: withDefault };
+        expect(agentChatModelTrigger(snapshot, true)).toMatchObject({
+            model: 'Default',
+            effort: 'Medium',
+        });
+        const options = agentChatModelOptions(snapshot);
+        expect(options.models.filter((model) => model.isSelected).map((model) => model.id)).toEqual(
+            ['default'],
+        );
+        expect(options.efforts.filter((effort) => effort.isSelected)).toEqual([
+            expect.objectContaining({ value: 'medium' }),
+        ]);
+        expect(agentChatEffortHint(snapshot)).toBeUndefined();
+    });
+
     it('asks for a model before offering efforts when the provider has not named one yet', () => {
         expect(agentChatEffortHint({ models })).toBe(
             'Choose a model to see its reasoning efforts.',
