@@ -90,6 +90,7 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
                         get: () => methods().get(),
                         listHosts: () => methods().listHosts(),
                         reconnect: () => methods().reconnect(),
+                        retryNow: () => methods().retryNow(),
                         replyAskpass: (requestId, response) =>
                             methods().replyAskpass(requestId, response),
                         revealSshConfig: () => methods().revealSshConfig(),

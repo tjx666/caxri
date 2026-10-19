@@ -1,3 +1,5 @@
+import { useEffect, useId } from 'react';
+
 import type { MethodResult } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import { ArrowUp, ChevronRight, Folder, House } from 'lucide-react';
@@ -7,6 +9,7 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import { useSshEnvironment } from '../../stores/environment';
 import { folderBreadcrumbs } from './folder-picker';
 import { settleSshHostFolder, useSshHostDialogsStore } from './ssh-host-dialogs-store';
@@ -44,6 +47,11 @@ function FolderPickerBody({ destination }: { destination: string }) {
     const { t } = useTranslation();
     const browser = useFolderBrowser();
     const { current } = browser;
+    const listboxId = useId();
+    const activeOptionId =
+        browser.targetIndex === undefined || browser.entries?.length === 0
+            ? undefined
+            : `${listboxId}-option-${browser.targetIndex}`;
     const crumbs = current ? folderBreadcrumbs(current.path, current.home) : [];
     return (
         <>
@@ -99,21 +107,22 @@ function FolderPickerBody({ destination }: { destination: string }) {
                 </div>
                 <Input
                     autoFocus
+                    aria-activedescendant={activeOptionId}
+                    aria-autocomplete="list"
+                    aria-controls={listboxId}
+                    aria-expanded
                     aria-describedby={
                         browser.isInputInvalid ? 'ssh-host-folder-path-error' : undefined
                     }
                     aria-invalid={browser.isInputInvalid}
                     aria-label={t('sshHost.folderPicker.pathLabel')}
                     placeholder={t('sshHost.folderPicker.pathPlaceholder')}
+                    role="combobox"
                     size="dense"
                     spellCheck={false}
                     value={browser.inputValue}
                     onChange={(event) => browser.updateInput(event.target.value)}
-                    onKeyDown={(event) => {
-                        if (event.key !== 'Enter') return;
-                        event.preventDefault();
-                        browser.submitInput();
-                    }}
+                    onKeyDown={browser.handleKeyDown}
                 />
                 {browser.isInputInvalid && (
                     <p
@@ -126,10 +135,14 @@ function FolderPickerBody({ destination }: { destination: string }) {
                 )}
             </div>
             <FolderList
-                entries={current?.entries}
+                activeIndex={browser.targetIndex}
+                entries={browser.entries}
+                hasFilter={browser.entries?.length !== current?.entries.length}
                 isLoading={browser.isLoading}
                 isNavigating={browser.isNavigating}
+                listboxId={listboxId}
                 loadError={browser.loadError}
+                onHover={browser.selectIndex}
                 onOpen={(entry) => browser.navigate(entry.path)}
             />
             <div className="flex items-center gap-2 p-4 pt-2">
@@ -152,19 +165,39 @@ function FolderPickerBody({ destination }: { destination: string }) {
 }
 
 function FolderList({
+    activeIndex,
     entries,
+    hasFilter,
     isLoading,
     isNavigating,
+    listboxId,
     loadError,
+    onHover,
     onOpen,
 }: {
+    activeIndex: number | undefined;
     entries: readonly FolderEntry[] | undefined;
+    /**
+     * True when the typed text hides some of the folder's subfolders, so an empty list says "no match" rather than "no
+     * subfolders".
+     */
+    hasFilter: boolean;
     isLoading: boolean;
     isNavigating: boolean;
+    listboxId: string;
     loadError: Error | null;
+    onHover: (index: number) => void;
     onOpen: (entry: FolderEntry) => void;
 }) {
     const { t } = useTranslation();
+    const activeOptionId =
+        activeIndex === undefined ? undefined : `${listboxId}-option-${activeIndex}`;
+    useEffect(() => {
+        if (activeOptionId)
+            document
+                .querySelector(`#${CSS.escape(activeOptionId)}`)
+                ?.scrollIntoView({ block: 'nearest' });
+    }, [activeOptionId]);
     return (
         <div className="mx-4 mt-2 h-70 overflow-auto rounded border border-border bg-background p-1">
             {loadError ? (
@@ -174,18 +207,32 @@ function FolderList({
             ) : isLoading ? (
                 <LoadingSkeleton label={t('sshHost.folderPicker.loading')} variant="list" />
             ) : entries?.length === 0 ? (
-                <p className="m-0 p-2 text-[12px] text-muted">{t('sshHost.folderPicker.empty')}</p>
+                <p className="m-0 p-2 text-[12px] text-muted" role="status">
+                    {t(hasFilter ? 'sshHost.folderPicker.noMatch' : 'sshHost.folderPicker.empty')}
+                </p>
             ) : (
-                <ul
+                <div
+                    id={listboxId}
                     aria-busy={isNavigating}
                     aria-label={t('sshHost.folderPicker.listLabel')}
-                    className="m-0 list-none p-0"
+                    role="listbox"
                 >
-                    {entries?.map((entry) => (
-                        <li key={entry.path}>
+                    {entries?.map((entry, index) => (
+                        <div key={entry.path}>
                             <button
-                                className="flex h-7 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:outline-none"
+                                id={`${listboxId}-option-${index}`}
+                                aria-selected={index === activeIndex}
+                                className={cn(
+                                    'flex h-7 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-list-hover-background hover:text-list-hover-foreground',
+                                    index === activeIndex &&
+                                        'bg-list-focus-background text-list-focus-foreground',
+                                )}
+                                role="option"
+                                tabIndex={-1}
                                 type="button"
+                                // Keep keyboard focus in the path field, which owns the listbox through aria-activedescendant.
+                                onMouseDown={(event) => event.preventDefault()}
+                                onMouseMove={() => onHover(index)}
                                 onClick={() => onOpen(entry)}
                             >
                                 <Folder
@@ -212,9 +259,9 @@ function FolderList({
                                     />
                                 )}
                             </button>
-                        </li>
+                        </div>
                     ))}
-                </ul>
+                </div>
             )}
         </div>
     );

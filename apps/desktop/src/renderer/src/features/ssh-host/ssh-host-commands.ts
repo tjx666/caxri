@@ -34,6 +34,13 @@ export async function reconnectSshHost(): Promise<void> {
 }
 
 /**
+ * Ends the wait before the next automatic reconnect attempt so it starts now.
+ */
+export async function retrySshHostNow(): Promise<void> {
+    await tryCommand(translate('sshHost.retryNow.failed'), () => caxri.request('remote.retryNow'));
+}
+
+/**
  * Stops the connect, install, or reconnect in progress; the window stays open so Reconnect can start over.
  */
 export async function cancelSshHostConnection(): Promise<void> {

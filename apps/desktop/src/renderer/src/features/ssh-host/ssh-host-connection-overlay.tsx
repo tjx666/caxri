@@ -14,6 +14,7 @@ import { useSshEnvironment } from '../../stores/environment';
 import {
     canCancelConnection,
     canReconnect,
+    canRetryNow,
     connectionFailureCopy,
     connectionFailureDetail,
     connectionFailureTone,
@@ -23,9 +24,10 @@ import {
     isConnectionBusy,
     isConnectionOverlayVisible,
     isConnectionSettled,
+    isRetryAttemptRunning,
     reconnectLabelKey,
 } from './connection-status';
-import { cancelSshHostConnection, reconnectSshHost } from './ssh-host-commands';
+import { cancelSshHostConnection, reconnectSshHost, retrySshHostNow } from './ssh-host-commands';
 import { SshHostCopyButton } from './ssh-host-copy-button';
 
 const failureToneClassNames = {
@@ -136,6 +138,17 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
                     >
                         {t('sshHost.closeWindow')}
                     </Button>
+                    {canRetryNow(environment) && (
+                        <Button
+                            variant="secondary"
+                            disabled={isRetryAttemptRunning(environment)}
+                            // eslint-disable-next-line no-void -- retrySshHostNow reports its own failure through a toast
+                            onClick={() => void retrySshHostNow()}
+                        >
+                            {isRetryAttemptRunning(environment) && <Spinner />}
+                            {t('sshHost.retryNow')}
+                        </Button>
+                    )}
                     {canCancelConnection(environment) && (
                         <Button
                             variant="secondary"

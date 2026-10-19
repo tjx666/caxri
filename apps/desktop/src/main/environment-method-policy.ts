@@ -61,6 +61,7 @@ const environmentMethodScopes = {
     'remote.hosts.list': 'any',
     'remote.connect': 'any',
     'remote.reconnect': 'ssh-only',
+    'remote.retryNow': 'ssh-only',
     'remote.cancel': 'ssh-only',
     /**
      * Reveals this Mac's own SSH config, which the Connect to SSH Host picker reads in every window.

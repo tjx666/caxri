@@ -14,6 +14,7 @@ function environmentMethods() {
         get: vi.fn(() => ({ kind: 'local' as const })),
         listHosts: vi.fn(() => Promise.resolve({ hosts: [], recent: ['dev@build-box'] })),
         reconnect: vi.fn(() => Promise.resolve()),
+        retryNow: vi.fn(() => true),
         replyAskpass,
         revealSshConfig: vi.fn(() => Promise.resolve()),
         stopServer: vi.fn(() => Promise.resolve({ canceled: false })),
@@ -54,6 +55,13 @@ describe('Main environment methods', () => {
                 environment,
             ),
         ).resolves.toEqual({ canceled: false });
+
+        await expect(
+            handleEnvironmentRequest(
+                { method: 'remote.retryNow', params: {} } as never,
+                environment,
+            ),
+        ).resolves.toBe(true);
 
         expect(connect).toHaveBeenCalledWith('dev@build-box');
         expect(replyAskpass).toHaveBeenCalledWith('r1', null);

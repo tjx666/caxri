@@ -278,6 +278,31 @@ describe('Desktop Server connection recovery', () => {
         expect(replacement.onClose).toHaveBeenCalledTimes(1);
     });
 
+    it('starts the next attempt at once when Retry Now ends a backoff wait', async () => {
+        vi.useFakeTimers();
+        const first = mockServerRound();
+        const { connection, logger } = createConnection();
+        await connection.start();
+
+        vi.mocked(ensureServer).mockRejectedValue(new Error('host is still down'));
+        first.triggerClose();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(connection.retryNow()).toBe(true);
+
+        const replacement = mockServerRound();
+        // The second backoff would last 1000 ms; waking it must not wait for the timer.
+        await vi.advanceTimersByTimeAsync(0);
+        expect(logger.write).toHaveBeenCalledWith('info', 'server_connection.reconnected', {
+            fields: { attempt: 2, downtimeMs: 500, isHostReplaced: false },
+        });
+        expect(replacement.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores Retry Now when no backoff wait is pending', () => {
+        const { connection } = createConnection();
+        expect(connection.retryNow()).toBe(false);
+    });
+
     it('keeps retrying when the replacement is lost while re-announcing readiness', async () => {
         vi.useFakeTimers();
         const first = mockServerRound();

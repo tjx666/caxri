@@ -11,6 +11,7 @@ import {
     cancelSshHostConnection,
     connectToSshHost,
     didReplySshHostPrompt,
+    retrySshHostNow,
     revealSshConfig,
     stopSshHostServer,
 } from '../ssh-host-commands';
@@ -61,6 +62,8 @@ describe('connection actions', () => {
         mocks.request.mockResolvedValue(null);
         await cancelSshHostConnection();
         expect(mocks.request).toHaveBeenCalledWith('remote.cancel');
+        await retrySshHostNow();
+        expect(mocks.request).toHaveBeenCalledWith('remote.retryNow');
         await revealSshConfig();
         expect(mocks.request).toHaveBeenCalledWith('remote.sshConfig.reveal');
     });

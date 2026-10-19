@@ -12,6 +12,10 @@ export interface MainEnvironmentMethods {
     listHosts(): Promise<{ hosts: SshHostEntry[]; recent: string[] }>;
     reconnect(): Promise<void>;
     /**
+     * Ends the calling SSH Host window's reconnect backoff wait; see `remote.retryNow`.
+     */
+    retryNow(): boolean;
+    /**
      * Stops the calling SSH Host window's in-flight connection attempt; see `remote.cancel`.
      */
     cancel(): void;
@@ -29,6 +33,9 @@ export const unconfiguredEnvironment: MainEnvironmentMethods = {
     listHosts: () => Promise.resolve({ hosts: [], recent: [] }),
     reconnect: () =>
         Promise.reject(new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window')),
+    retryNow: () => {
+        throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
+    },
     cancel: () => {
         throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
     },
@@ -63,6 +70,8 @@ export async function handleEnvironmentRequest(
         case 'remote.reconnect':
             await environment.reconnect();
             return null;
+        case 'remote.retryNow':
+            return environment.retryNow();
         case 'remote.cancel':
             environment.cancel();
             return null;

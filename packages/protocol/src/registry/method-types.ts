@@ -231,6 +231,7 @@ export const effectfulCommandRecovery = {
      */
     'remote.connect': 'memory',
     'remote.reconnect': 'none',
+    'remote.retryNow': 'none',
     'remote.cancel': 'none',
     'remote.sshConfig.reveal': 'none',
     'remote.stopServer': 'memory',

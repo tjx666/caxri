@@ -211,6 +211,15 @@ export const remoteEnvironmentDesktopMethods = {
         result: z.null(),
     },
     /**
+     * Ends the calling window's automatic reconnect backoff so the next attempt starts now. Answers `true` when a wait
+     * was ended and `false` when none was pending (an attempt is already running, or the window is not reconnecting).
+     */
+    'remote.retryNow': {
+        ...desktopControl,
+        params: noParameters,
+        result: z.boolean(),
+    },
+    /**
      * Stops the calling window's in-flight connect, install, or reconnect. The window stays open in the `failed` phase
      * with a `cancelled` failure, and `remote.reconnect` starts again.
      */
