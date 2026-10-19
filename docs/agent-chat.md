@@ -339,6 +339,14 @@ record is the source of truth.
 
 - `agentChat.read` returns the snapshot. Updates arrive as the transient `agentChat.patch` event,
   which never enters the durable journal. Deltas are coalesced into one patch per 16 ms window.
+- Providers deliver text in uneven bursts, so Clients pace a streaming reply onto the screen
+  instead of drawing each patch as it lands (`agent-chat-stream-pacing.ts` in
+  `packages/protocol/src/agent/`, adapted from LobeHub's `useSmoothStreamContent`). Each animation
+  frame reveals a share of the hidden text proportional to the backlog, so a burst eases in over
+  roughly 180 ms while a steady stream stays a few characters behind. Text already present when a
+  reply mounts shows at once, a rewrite that does not extend the shown text shows whole, and the
+  full text shows the moment the reply stops streaming (completed, failed, or interrupted). Desktop
+  paces every frame; the phone redraws at most every 32 ms because each redraw re-parses the reply.
 - Every patch carries `baseRevision` and `revision`. Server Core and every Client apply operations
   with the same reducer (`packages/protocol/src/agent/agent-chat-reducer.ts`); a Client whose
   revision does not match re-reads. Server Core flushes queued operations before each read so a

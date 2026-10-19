@@ -18,6 +18,7 @@ import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
 import { useAgentChatDiagrams } from './hooks/use-agent-chat-diagrams';
+import { useAgentChatPacedText } from './hooks/use-agent-chat-paced-text';
 import { useAgentChatReplyMenu } from './hooks/use-agent-chat-reply-menu';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
@@ -26,9 +27,10 @@ const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true
 /**
  * Agent text rendered as Markdown. A streaming reply is parsed incrementally: each delta re-parses only the constructs
  * that can still change and keeps every settled block as the same object, so the memoized renderer skips it on a
- * reference check (see `createStreamingMarkdownParser`). The deferred text lets React drop intermediate deltas under
- * load instead of queueing a render for each, and unfinished syntax at the tail is completed so `**bold` does not flash
- * as raw asterisks; the repair also remembers the reply, so it rescans only the lines a delta touched.
+ * reference check (see `createStreamingMarkdownParser`). The text is paced onto the screen a frame at a time so bursty
+ * deltas read as steady typing, the deferred text lets React drop intermediate frames under load instead of queueing a
+ * render for each, and unfinished syntax at the tail is completed so `**bold` does not flash as raw asterisks; the
+ * repair also remembers the reply, so it rescans only the lines a delta touched.
  */
 export function AgentChatMessage({
     className,
@@ -41,7 +43,7 @@ export function AgentChatMessage({
     text: string;
     onOpenFile?: (target: string) => void;
 }) {
-    const deferredText = useDeferredValue(text);
+    const deferredText = useDeferredValue(useAgentChatPacedText(text, isStreaming));
     const terminalId = useAgentChatTerminal();
     const [repair] = useState(createStreamingMarkdownRepair);
     const [parser] = useState(() => createStreamingMarkdownParser(CHAT_PARSE_OPTIONS));

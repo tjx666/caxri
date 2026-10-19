@@ -78,7 +78,11 @@ export interface FakeCodexIo {
     notifyTurn(turn: FakeTurn, method: string, parameters: Json): void;
     startItem(turn: FakeTurn, item: FakeItem): void;
     completeItem(turn: FakeTurn, item: FakeItem): void;
-    streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number): Promise<void>;
+    streamMessage(
+        turn: FakeTurn,
+        text: string | readonly string[],
+        chunkDelayMs: number,
+    ): Promise<void>;
     save(thread?: FakeThread): void;
     currentThread(): FakeThread;
     /**

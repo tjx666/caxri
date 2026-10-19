@@ -100,9 +100,16 @@ const toMessage = (
     t: Translate,
 ): AgentChatMessageEntry => {
     switch (item.type) {
-        case 'userMessage':
-        case 'agentMessage': {
+        case 'userMessage': {
             return { id: item.id, type: item.type, text: item.text };
+        }
+        case 'agentMessage': {
+            return {
+                id: item.id,
+                type: item.type,
+                text: item.text,
+                ...(item.streaming && { streaming: true }),
+            };
         }
         case 'notice': {
             return {

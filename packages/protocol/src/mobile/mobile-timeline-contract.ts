@@ -47,6 +47,11 @@ export const agentTimelineItemSchema = z.discriminatedUnion('type', [
         ...timelineItemBase,
         type: z.literal('agentMessage'),
         text: z.string().min(1).max(32_768),
+        /**
+         * True while an Agent Chat reply may still grow, so the phone paces it onto the screen; a Terminal timeline
+         * never sets it.
+         */
+        streaming: z.boolean().optional(),
     }),
     z.strictObject({
         ...timelineItemBase,

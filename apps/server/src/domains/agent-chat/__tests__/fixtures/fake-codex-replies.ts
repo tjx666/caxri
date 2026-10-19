@@ -1,9 +1,9 @@
 /**
  * Deterministic Codex replies for Chat rendering coverage: `table` streams the transcript's Markdown, `codeblocks`
  * streams fenced code in several languages, `testrun` finishes a multi-step turn whose command fails with a non-zero
- * exit code, `longstream` thinks quietly and then streams a long reply at a reader's pace, and `weblink` answers with a
- * Markdown link to the web page the message names, `bigdiff` changes one file by 6,000 lines, and `widediff` changes
- * one file with lines wider than a phone.
+ * exit code, `burststream` arrives in a few large deltas, `longstream` thinks quietly and then streams a long reply at
+ * a reader's pace, and `weblink` answers with a Markdown link to the web page the message names, `bigdiff` changes one
+ * file by 6,000 lines, and `widediff` changes one file with lines wider than a phone.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -135,6 +135,27 @@ const LONG_STREAM_REPLY = Array.from(
 
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * The `burststream` reply: three paragraphs cut into uneven deltas of 40 to 160 characters.
+ */
+const BURST_STREAM_DELTAS = [
+    'Here is how the stream pacing works. Providers deliver ',
+    'text in uneven bursts: a few words, then nothing for a while, then a whole sentence or two at once. ',
+    'Drawing each burst as it lands makes a reply stutter.\n\n',
+    'The pacer reveals what arrived a little behind it, ',
+    'a share of the hidden text on every frame, so a burst eases in over a few frames while a steady stream stays only a few characters behind. ',
+    'It never holds text back for long.\n\n',
+    'When the turn completes, fails, or is interrupted, ',
+    'everything that arrived shows at once, so the reply is never left half drawn after the Agent has stopped.',
+];
+
+/**
+ * The `burststream` turn: {@link BURST_STREAM_DELTAS} 400ms apart.
+ */
+export async function runBurstStream(io: FakeCodexIo, turn: FakeTurn) {
+    await io.streamMessage(turn, BURST_STREAM_DELTAS, 400);
 }
 
 /**

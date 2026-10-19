@@ -13,6 +13,7 @@
  *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop.
+ * - `burststream`: a reply that arrives in a few large deltas 400ms apart, the way a busy provider delivers text.
  * - `longstream`: a titled thought, a quiet pause of a few seconds, then a reply of forty numbered paragraphs streamed
  *   over about 30 seconds, which `turn/interrupt` can stop.
  * - `weblink`: a reply that only links the message's first `http(s)` URL; matched before any keyword the URL may hold.
@@ -84,6 +85,7 @@ import { didHandleMcpStatusRequest, runBrowserStep } from './fake-codex-mcp-call
 import { FAKE_MODELS } from './fake-codex-models.ts';
 import {
     runBigDiff,
+    runBurstStream,
     runCodeBlocks,
     runLongStream,
     runMarkdownTable,
@@ -188,10 +190,18 @@ function completeItem(turn: FakeTurn, item: FakeItem) {
     notifyTurn(turn, 'item/completed', { turnId: turn.id, item, completedAtMs: Date.now() });
 }
 
-async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number) {
+/**
+ * Streams `text` word by word, or as the given deltas when it is already split, `chunkDelayMs` apart.
+ */
+async function streamMessage(
+    turn: FakeTurn,
+    text: string | readonly string[],
+    chunkDelayMs: number,
+) {
     const item = { type: 'agentMessage', id: crypto.randomUUID(), text: '' };
     startItem(turn, { ...item });
-    for (const word of text.split(/(?<= )/u)) {
+    const deltas = typeof text === 'string' ? text.split(/(?<= )/u) : text;
+    for (const word of deltas) {
         if (turn.interrupted) return;
         item.text += word;
         notifyTurn(turn, 'item/agentMessage/delta', {
@@ -245,6 +255,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
     } else if (text.includes('weblink')) {
         await runWebLink(io, turn, text);
+    } else if (text.includes('burststream')) {
+        await runBurstStream(io, turn);
     } else if (text.includes('longstream')) {
         await runLongStream(io, turn);
     } else if (text.includes('subagent')) {
