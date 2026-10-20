@@ -17,6 +17,7 @@ describe('isPerformanceRelevantPath', () => {
         expect(isPerformanceRelevantPath('e2e/renderer.performance.e2e.ts')).toBe(true);
         expect(isPerformanceRelevantPath('e2e/startup.performance.e2e.ts')).toBe(true);
         expect(isPerformanceRelevantPath('e2e/editor.performance.e2e.ts')).toBe(true);
+        expect(isPerformanceRelevantPath('e2e/agent-chat-switch.performance.e2e.ts')).toBe(true);
         expect(isPerformanceRelevantPath('scripts/performance-baseline.ts')).toBe(true);
         expect(isPerformanceRelevantPath('scripts/performance-baseline-gate.ts')).toBe(true);
         expect(isPerformanceRelevantPath('scripts/performance-baseline.json')).toBe(true);

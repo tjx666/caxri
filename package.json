@@ -51,6 +51,7 @@
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts",
         "benchmark:renderer": "CAXRI_REACT_PROFILING=1 bun run build && CAXRI_RENDERER_BENCHMARK=1 CAXRI_E2E_OUTPUT_DIR=test-results/renderer-performance playwright test e2e/renderer.performance.e2e.ts",
         "benchmark:agent-probe": "bun run scripts/agent-probe-benchmark.ts",
+        "benchmark:chat-switch": "CAXRI_REACT_PROFILING=1 bun run build && CAXRI_AGENT_CHAT_SWITCH_BENCHMARK=1 CAXRI_E2E_OUTPUT_DIR=test-results/agent-chat-switch-performance playwright test e2e/agent-chat-switch.performance.e2e.ts",
         "benchmark:markdown": "pnpm --filter @caxri/markdown run benchmark",
         "benchmark:server-footprint": "bun run scripts/server-footprint.ts",
         "performance:baseline:collect": "bun run scripts/performance-baseline-collect.ts",

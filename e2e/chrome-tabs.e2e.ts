@@ -49,6 +49,34 @@ async function expectIndicatorAligned(tablist: Locator, tab: Locator): Promise<v
         .toBe(true);
 }
 
+type IndicatorTransitionWindow = typeof globalThis & { chromeTabTransitions?: string[] };
+
+/**
+ * The `transitionrun` properties the SecondarySidebar indicator recorded since the last clear.
+ */
+function indicatorTransitions(page: Page): Promise<string[]> {
+    return page.evaluate(
+        () => (globalThis as IndicatorTransitionWindow).chromeTabTransitions?.slice() ?? [],
+    );
+}
+
+async function clearIndicatorTransitions(page: Page): Promise<void> {
+    await page.evaluate(() => {
+        (globalThis as IndicatorTransitionWindow).chromeTabTransitions?.splice(0);
+    });
+}
+
+/**
+ * Resolves after `count` presented frames, long enough for a started transition to report `transitionrun`.
+ */
+async function afterFrames(page: Page, count: number): Promise<void> {
+    await page.evaluate(async (frames) => {
+        for (let index = 0; index < frames; index += 1)
+            // eslint-disable-next-line no-await-in-loop -- one frame after another is the point
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }, count);
+}
+
 async function expectPanelAssociation(page: Page, tab: Locator, isVisible: boolean): Promise<void> {
     const panelId = await tab.getAttribute('aria-controls');
     const tabId = await tab.getAttribute('id');
@@ -137,15 +165,7 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
         await expectPanelAssociation(running.page, filesTab, false);
         await expectPanelAssociation(running.page, gitTab, true);
-        await expect
-            .poll(() =>
-                running.page.evaluate(
-                    () =>
-                        (globalThis as unknown as { chromeTabTransitions?: string[] })
-                            .chromeTabTransitions ?? [],
-                ),
-            )
-            .toContain('transform');
+        await expect.poll(() => indicatorTransitions(running.page)).toContain('transform');
         await expectIndicatorAligned(secondarySidebarTabs, gitTab);
 
         await gitTab.focus();
@@ -163,8 +183,11 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await filesTab.press('ArrowLeft');
         await expect(statusTab).toBeFocused();
 
+        // A shortcut changes the tab within the same Session, so the mark still glides to it.
+        await clearIndicatorTransitions(running.page);
         await running.page.keyboard.press('Meta+2');
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
+        await expect.poll(() => indicatorTransitions(running.page)).toContain('transform');
         /**
          * The rail divides evenly and each mark is capped, so the indicator is the same size on every tab and stays put
          * when a responsive tab drops its label. A label-width indicator used to jump between an icon-plus-word and a
@@ -196,13 +219,21 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await expect.poll(indicatorWidth).toBe(cappedWidth);
         await running.page.setViewportSize(originalViewport);
 
+        /**
+         * Each Session remembers its own container, so a switch changes the selected tab without the user picking one.
+         * The mark lands on it at once: sweeping across the rail on every Session switch read as the selection
+         * changing.
+         */
         const firstSessionId = await selectedSessionId(running.page);
+        await clearIndicatorTransitions(running.page);
         await createAdditionalShellSession(running.page);
         await expect(filesTab).toHaveAttribute('aria-selected', 'true');
         await expectIndicatorAligned(secondarySidebarTabs, filesTab);
         await sessionCard(running.page, firstSessionId).click();
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
         await expectIndicatorAligned(secondarySidebarTabs, gitTab);
+        await afterFrames(running.page, 2);
+        expect(await indicatorTransitions(running.page)).not.toContain('transform');
 
         // The Panel hosts a second, independently collapsible ChromeTabs strip. It must
         // carry the same roles, panel wiring, and moving indicator as the SecondarySidebar's, and its

@@ -45,8 +45,8 @@ export function isProtectedRetryPath(path: string): boolean {
  * a pull request's changed files intersect this set, so an unrelated change (docs, an extension, a CLI-only fix) never
  * pays for a comparison that cannot regress what the baseline measures. This is deliberately broader than the
  * baseline's current single measured scenario (Renderer `session.switch`): the owning process for each performance E2E
- * spec, kept ready for `startup.performance.e2e.ts` and `editor.performance.e2e.ts` once they gain their own committed
- * baselines.
+ * spec, kept ready for `startup.performance.e2e.ts`, `editor.performance.e2e.ts`, and
+ * `agent-chat-switch.performance.e2e.ts` once they gain their own committed baselines.
  */
 const performanceRelevantPathPatterns = [
     /^apps\/desktop\/src\/(?:main|preload|renderer)\//,
@@ -54,7 +54,7 @@ const performanceRelevantPathPatterns = [
     /^packages\/client\/src\//,
     /^packages\/protocol\/src\//,
     /^packages\/system\/src\//,
-    /^e2e\/(?:editor|renderer|startup)\.performance\.e2e\.ts$/,
+    /^e2e\/(?:agent-chat-switch|editor|renderer|startup)\.performance\.e2e\.ts$/,
     /^scripts\/performance-baseline[^/]*\.(?:json|ts)$/,
 ];
 

@@ -4,6 +4,7 @@ import type { ViewCatalogSnapshot, ViewContainerId, ViewContainerLocation } from
 
 import { ChromeTabs } from '../../components/chrome-tabs';
 import { useTranslation } from '../../i18n';
+import { useSessionViewScope } from '../../stores/selectors';
 import { CatalogIcon } from './catalog-icon';
 import { ContainerBadgeChip } from './container-badge-chip';
 import { ContainerTabTooltip } from './container-tab-tooltip';
@@ -44,6 +45,7 @@ export function ViewContainerTabStrip({
 }) {
     const { t } = useTranslation();
     const badges = useViewBadges(catalog, location);
+    const { sessionId } = useSessionViewScope();
     const containersById = new Map(containers.map((container) => [container.id, container]));
     const tabs = containers.map((container) => ({
         value: container.id,
@@ -79,6 +81,7 @@ export function ViewContainerTabStrip({
                 idPrefix={idPrefix}
                 indicatorMaxWidth={location === 'secondarySidebar' ? 48 : undefined}
                 items={tabs}
+                motionScope={sessionId}
                 tabClassName={location === 'panel' ? 'h-9 gap-1.5 px-3 text-[11px]' : 'h-9 w-full'}
                 value={resolvedId ?? ''}
                 onValueChange={onSelectContainer}

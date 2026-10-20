@@ -11,6 +11,19 @@
  */
 @import 'tw-animate-css';
 
+/*
+ * A Session kept alive off screen (`features/workbench/workbench.tsx`) skips rendering through `content-visibility`
+ * instead of `display: none`, so its layout and scroll offsets survive until the user switches back. Preflight hides
+ * every `[hidden]` with an important `display: none` in `@layer base`, and an important declaration only loses to one
+ * in the same or an earlier layer, so this override sits in `base` with a more specific selector.
+ */
+@layer base {
+    .workbench-session[hidden] {
+        display: block !important;
+        content-visibility: hidden;
+    }
+}
+
 /** Sonner supplies layout and lifecycle; these overrides follow the live Caxri theme. */
 .caxri-toaster[data-sonner-toaster][data-sonner-theme] {
     --normal-bg: var(--elevated);

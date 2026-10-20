@@ -4,6 +4,7 @@ import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatActivity } from '@caxri/protocol';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
@@ -280,6 +281,9 @@ export function AgentChatPane({
                                 onLoad={history.loadOlder}
                                 onOpenAsTerminal={openAsTerminal}
                             />
+                            {/* A Chat with no Agent Session yet has nothing to load and goes straight to its empty
+                                state. */}
+                            {query.isPending && terminal?.agentSessionId && <ConversationLoading />}
                             <AgentChatExpansionContext value={expansion}>
                                 <AgentChatTaskLinksContext value={taskLinks}>
                                     <AgentChatTimelineBody
@@ -383,6 +387,21 @@ export function AgentChatPane({
                 terminalId={terminalId}
             />
         </section>
+    );
+}
+
+/**
+ * Placeholder turns while the conversation is read. They are drawn at once rather than after the usual skeleton delay:
+ * the header and composer are already on screen, so a blank transcript reads as an empty conversation, not a wait.
+ */
+function ConversationLoading() {
+    const { t } = useTranslation();
+    return (
+        <LoadingSkeleton
+            isImmediate
+            label={t('agentChat.timeline.loadingConversation')}
+            variant="transcript"
+        />
     );
 }
 

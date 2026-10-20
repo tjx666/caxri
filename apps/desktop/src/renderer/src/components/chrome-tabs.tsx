@@ -1,5 +1,5 @@
 import type { HTMLAttributes, KeyboardEvent, ReactElement, ReactNode } from 'react';
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
@@ -22,6 +22,13 @@ interface ChromeTabsProperties<Value extends string> {
      */
     indicatorMaxWidth?: number;
     items: ReadonlyArray<ChromeTabItem<Value>>;
+    /**
+     * Whose selection the strip shows, when that owner can change under it: the SecondarySidebar passes the selected
+     * Session, because each Session remembers its own container. A new value glides only while the scope stays the
+     * same; a Session switch puts the mark on that Session's tab at once instead of sweeping it across the rail, which
+     * read as the selection changing.
+     */
+    motionScope?: string;
     onValueChange: (value: Value) => void;
     renderTab?: (item: ChromeTabItem<Value>, tab: ReactElement) => ReactNode;
     tabClassName?: string;
@@ -31,6 +38,12 @@ interface ChromeTabsProperties<Value extends string> {
 interface IndicatorGeometry {
     left: number;
     width: number;
+    /**
+     * Whether reaching this position glides: only a new tab within the same `motionScope`. The first measurement, a new
+     * scope, and a resized strip put the mark in place at once, so it never trails its tab while a sidebar is dragged
+     * wider.
+     */
+    isAnimated: boolean;
 }
 
 /**
@@ -48,6 +61,7 @@ export function ChromeTabs<Value extends string>({
     idPrefix,
     indicatorMaxWidth = Infinity,
     items,
+    motionScope,
     onValueChange,
     renderTab,
     tabClassName,
@@ -57,7 +71,11 @@ export function ChromeTabs<Value extends string>({
     const listReference = useRef<HTMLDivElement>(null);
     const tabReferences = useRef(new Map<Value, HTMLButtonElement>());
     const [geometry, setGeometry] = useState<IndicatorGeometry>();
-    const [motionReady, setMotionReady] = useState(false);
+    /**
+     * The tab and scope the mark was last placed for, to tell a move to another tab (which glides) from a re-measure of
+     * the same tab or a change of scope (which do not).
+     */
+    const placedReference = useRef<{ scope: string | undefined; value: Value }>(undefined);
 
     /**
      * The indicator is measured from the tab slot, not the label inside it, then inset and capped and centred in that
@@ -78,9 +96,14 @@ export function ChromeTabs<Value extends string>({
         const slotLeft = (tabBox.left - listBox.left) / scaleX;
         const slotWidth = tabBox.width / scaleX;
         const width = Math.min(Math.max(slotWidth - INDICATOR_INSET * 2, 0), indicatorMaxWidth);
+        const placed = placedReference.current;
+        const isAnimated =
+            placed !== undefined && placed.value !== value && placed.scope === motionScope;
+        placedReference.current = { scope: motionScope, value };
         const next = {
             left: slotLeft + (slotWidth - width) / 2,
             width,
+            isAnimated,
         };
         setGeometry((current) =>
             current &&
@@ -89,7 +112,7 @@ export function ChromeTabs<Value extends string>({
                 ? current
                 : next,
         );
-    }, [indicatorMaxWidth, value]);
+    }, [indicatorMaxWidth, motionScope, value]);
 
     useLayoutEffect(() => {
         measureIndicator();
@@ -98,11 +121,6 @@ export function ChromeTabs<Value extends string>({
         for (const tab of tabReferences.current.values()) observer.observe(tab);
         return () => observer.disconnect();
     }, [items, measureIndicator]);
-
-    useEffect(() => {
-        const frame = requestAnimationFrame(() => setMotionReady(true));
-        return () => cancelAnimationFrame(frame);
-    }, []);
 
     const activateFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>, at: number): void => {
         let nextIndex: number | undefined;
@@ -186,7 +204,9 @@ export function ChromeTabs<Value extends string>({
                     opacity: geometry ? 1 : 0,
                     transform: `translate3d(${geometry?.left ?? 0}px, 0, 0)`,
                     transitionDuration:
-                        motionReady && !isReducedMotion ? 'var(--motion-chrome-switch)' : '0ms',
+                        !isReducedMotion && geometry?.isAnimated
+                            ? 'var(--motion-chrome-switch)'
+                            : '0ms',
                     transitionTimingFunction: 'var(--motion-ease-emphasized)',
                     width: geometry?.width ?? 0,
                 }}

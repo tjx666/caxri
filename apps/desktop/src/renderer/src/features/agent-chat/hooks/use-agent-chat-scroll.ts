@@ -2,6 +2,7 @@ import type { RefObject } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { motionSettleTimeoutMs } from '../../../lib/motion';
+import { scrollWithoutScrollbarFlash } from '../../../lib/quiet-scroll';
 
 /**
  * How close to the end still counts as "following" the conversation. A few pixels of slack absorbs sub-pixel layout and
@@ -103,6 +104,26 @@ export function isNewAgentChatPrompt(
     return seenPromptId !== undefined && latestPromptId !== seenPromptId;
 }
 
+/**
+ * Whether a follow scroll catches the view up rather than tracking a reply as it streams: the first move the view ever
+ * makes (a Chat opening onto its end) or a jump of more than one screen (a Chat that grew while it was off screen, a
+ * long block landing at once). The user scrolled neither, so such a move must not flash the overlay scrollbar; a
+ * streaming reply moves the view a few lines at a time, and there the scrollbar keeps showing the motion as before.
+ */
+export function isAgentChatCatchUpScroll({
+    from,
+    hasMoved,
+    to,
+    viewHeight,
+}: {
+    from: number;
+    hasMoved: boolean;
+    to: number;
+    viewHeight: number;
+}): boolean {
+    return !hasMoved || Math.abs(to - from) > viewHeight;
+}
+
 function offsetInView(view: HTMLElement, element: HTMLElement): number {
     return element.getBoundingClientRect().top - view.getBoundingClientRect().top;
 }
@@ -194,6 +215,10 @@ export function useAgentChatScroll(
      * {@link isFollowingAfterScroll}).
      */
     const lastScrollTopReference = useRef<number | undefined>(undefined);
+    /**
+     * Whether the view has ever left its top, by the user or by following; see {@link isAgentChatCatchUpScroll}.
+     */
+    const hasMovedReference = useRef(false);
     const pin = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
@@ -225,12 +250,23 @@ export function useAgentChatScroll(
         }
         const top = agentChatFollowScrollTop(element, isFollowingReference.current);
         if (top === null) return;
-        element.scrollTop = top;
+        const isCatchUp =
+            Math.abs(top - element.scrollTop) >= 1 &&
+            isAgentChatCatchUpScroll({
+                from: element.scrollTop,
+                hasMoved: hasMovedReference.current,
+                to: top,
+                viewHeight: element.clientHeight,
+            });
+        if (isCatchUp) scrollWithoutScrollbarFlash(element, top);
+        else element.scrollTop = top;
+        if (element.scrollTop > 0) hasMovedReference.current = true;
         lastScrollTopReference.current = element.scrollTop;
     }, [isTurnLive, turnSelector]);
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
+        if (element.scrollTop > 0) hasMovedReference.current = true;
         isFollowingReference.current = isFollowingAfterScroll(element, {
             isFollowing: isFollowingReference.current,
             lastScrollTop: lastScrollTopReference.current,

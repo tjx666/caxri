@@ -83,6 +83,65 @@ dedicated profiling step still runs after a successful focused repair.
 Compare only like-for-like machine, build mode, scenario, and visibility/focus state. Keep budgets
 scenario-specific; do not turn one local sample into a repository-wide threshold.
 
+## Agent Chat Session switch
+
+Switching to a Session whose Workbench shows an Agent Chat has its own profiling-build benchmark:
+
+```bash
+bun run benchmark:chat-switch
+```
+
+The fake Codex Chat answers sixteen Markdown-heavy turns (tables and highlighted code blocks), so the
+transcript is many screens tall, and the user leaves it following the latest reply. One Session-card
+click back to that Chat is then measured from each state a Session can be in:
+
+- `keptAlive`: the Chat is still among the three most recently selected Sessions (the visible one
+  included) whose Workbench stays mounted;
+- `cached`: three newer Sessions evicted it from keep-alive, while the Renderer's query cache still
+  holds its conversation;
+- `uncached`: after a Renderer reload nothing is cached, and the switch reads the conversation from
+  Server Core.
+
+The click and the sampling run inside the page, one sample per painted frame. An animation-frame
+callback runs before that frame's layout and resize observers, which is where the Chat pins its view
+to the end, so each sample is taken from a task posted from that callback instead. Each switch is
+also bracketed as a Renderer `session.switch` scenario, so the receipt carries the same per-surface
+React Profiler renders and actual duration as `benchmark:renderer`. The command prints one receipt
+prefixed by `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK` and writes the same JSON to
+`test-results/receipts/agent-chat-session-switch.json`. `agentChat.read` requests are counted by
+distinct request id from `server-core.jsonl`, because Server Core records each Renderer request twice
+(where the control relay admits it and where its domain answers it).
+
+The gates are the deterministic invariants plus React budgets. In every scenario the conversation
+appears, no painted frame shows the Session with neither placeholder turns nor real ones, and for
+thirty frames after the turns appear every frame shows the end of the conversation. A kept-alive
+Chat draws its turns in the first frame, with no placeholder, no `scroll` event, and no read. A
+cached Chat draws without a placeholder or a read. An uncached one reads exactly once. Each surface
+stays within the render and duration budget in `e2e/agent-chat-switch.performance.e2e.ts`; the
+kept-alive Workbench budget is the one that catches a switch back rendering the transcript again.
+Times and frame gaps stay diagnostic.
+
+Three local profiling runs on 2026-10-20 (Apple Silicon, hidden window) measured, in milliseconds
+from the click:
+
+| Scenario    | Session shown | Placeholder | Conversation | Longest frame gap | `agentChat.read` | Workbench renders | Workbench React |
+| ----------- | ------------: | ----------: | -----------: | ----------------: | ---------------: | ----------------: | --------------: |
+| `keptAlive` |     23.2–25.3 |        none |    23.2–25.3 |         23.2–25.3 |                0 |                 4 |         0.5–0.6 |
+| `cached`    |     52.6–55.3 |        none |    52.6–55.3 |         52.6–55.3 |                0 |                 8 |       15.0–15.6 |
+| `uncached`  |     42.7–50.6 |   42.7–50.6 |   93.2–103.4 |         44.0–49.1 |                1 |             12–13 |       27.3–29.2 |
+
+The Primary Sidebar rendered twice in every run, and the Secondary Sidebar four to six times, each
+under `1 ms` in total. Three production-build runs of this benchmark against the previous Renderer
+the same day showed what the gates now reject: every `keptAlive` switch fired one programmatic
+`scroll` event (the overlay scrollbar flashing), and every `uncached` switch painted one or two blank
+frames before the turns arrived, with no placeholder. Its conversation times were `25.9–26.6`,
+`54.6–58.3`, and `95.7–103.7`, so the repair did not trade speed for those invariants.
+
+A kept-alive Session stays laid out off screen (`content-visibility: hidden`, see
+`apps/desktop/src/renderer/src/features/workbench/workbench.tsx`), which is why it returns on the
+first frame at the line the user left. The `cached` scenario's longest frame is the remount
+rendering the whole transcript at once.
+
 ## Development investigation
 
 The small `caxriPerformance` API is available in development, E2E, and profiling builds. For an

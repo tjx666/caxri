@@ -360,9 +360,9 @@ export function useTerminalPaneRuntime({
             fitted: ({ cols, rows }) => (container.dataset.terminalGrid = `${cols}x${rows}`),
             isRunning: () => latestReference.current.processState === 'running',
             /**
-             * A pane belonging to a Session kept alive off screen is `display: none`, where the fit addon reads its
-             * parent's computed height as `auto` and proposes `NaN` columns. Sending that to the PTY would reflow a
-             * background Session's whole buffer, so an unlaid-out pane proposes nothing and re-fits when it is shown.
+             * A pane with no layout box yet has the fit addon read its parent's height as `auto` and propose `NaN`
+             * columns; sent to the PTY, that would reflow its whole buffer, so it proposes nothing until it has a size.
+             * A Session kept alive off screen keeps its box (`content-visibility: hidden`, see `workbench.tsx`).
              */
             propose: () =>
                 container.offsetWidth > 0 && container.offsetHeight > 0
@@ -655,8 +655,8 @@ export function useTerminalPaneRuntime({
      * Follows the pane off and back onto the screen while it stays mounted, which is what a Session kept alive in the
      * background does (issue #657). Suspending releases only the GPU context; the xterm buffer, scroll position, PTY
      * subscription, and Agent lifecycle are untouched, so coming back is a redraw rather than a rebuild. The re-fit is
-     * required because a `display: none` pane proposed no size while hidden, so its grid may not match the window it
-     * returns to.
+     * required because a hidden Session skips layout (`content-visibility: hidden`): a window resized meanwhile never
+     * reached this pane, so its grid may not match the window it returns to.
      */
     useEffect(() => {
         const renderer = rendererReference.current;
