@@ -7,7 +7,11 @@ import type { createRecoveringHookLaunchTracker } from './hook-launch-tracker';
 import type { AgentLifecycleSignal } from './hooks/contract';
 import type { AgentIdleProof } from './idle-proof';
 import type { AgentLifecycleWatchdogs } from './lifecycle-watchdogs';
-import type { SessionActivitySource } from './session-activity-log';
+import type {
+    SessionActivitySource,
+    SessionActivityTransition,
+    SessionActivityWrite,
+} from './session-activity-log';
 import { hasSessionActivityChanged } from './session-activity-log';
 
 interface Options {
@@ -16,6 +20,7 @@ interface Options {
     watchdogs: AgentLifecycleWatchdogs;
     hookLaunches: ReturnType<typeof createRecoveringHookLaunchTracker>;
     onApplied?: (event: AgentLifecycleSignal) => void;
+    onActivityChanged?: (transition: SessionActivityTransition) => void;
 }
 
 /**
@@ -42,6 +47,18 @@ export class AgentLifecycleProjection {
         });
     }
 
+    /**
+     * Performs one durable Session activity write, logging and reporting its transition (`hasSessionActivityChanged`).
+     */
+    recordActivity(write: SessionActivityWrite): boolean {
+        return hasSessionActivityChanged(
+            this.database,
+            this.logger,
+            write,
+            this.options.onActivityChanged,
+        );
+    }
+
     apply(event: AgentLifecycleSignal, source: SessionActivitySource = 'hook'): void {
         const { idleProof, attention, watchdogs, hookLaunches } = this.options;
         idleProof.apply(event, source === 'hook');
@@ -51,7 +68,7 @@ export class AgentLifecycleProjection {
             hookLaunches.markAuthoritative(event.terminalId, event.launchId, event.agentTurnId);
         }
         if (
-            hasSessionActivityChanged(this.database, this.logger, {
+            this.recordActivity({
                 applyWrite: () => this.database.updateAgentLifecycle(event),
                 phase: event.phase,
                 source,

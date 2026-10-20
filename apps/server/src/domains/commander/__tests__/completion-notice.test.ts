@@ -356,6 +356,7 @@ describe('CommanderCompletionNotifier', () => {
                 count: 1,
                 inboxCount: 0,
                 handoverCount: 0,
+                sessionCount: 0,
                 waitMs: fieldsOf('completion_notice_delivered')[0].waitMs,
                 blockedTurns: 1,
             },
@@ -398,7 +399,15 @@ describe('CommanderCompletionNotifier', () => {
         const prompt = f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
         expect(prompt).toBe(
             formatCommanderResumePrompt(
-                [{ delegationId: 'delegation-1', sessionId: 'session-1', status: 'completed' }],
+                {
+                    delegations: [
+                        {
+                            delegationId: 'delegation-1',
+                            sessionId: 'session-1',
+                            status: 'completed',
+                        },
+                    ],
+                },
                 true,
             ),
         );

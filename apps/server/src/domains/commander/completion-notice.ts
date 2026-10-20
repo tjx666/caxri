@@ -1,7 +1,7 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentLifecycleSignal } from '../agents';
+import type { AgentLifecycleSignal, SessionActivityTransition } from '../agents';
 import { isLateMidTurnSignalAfterInterrupt, isMidTurnSignal, isStandaloneEscape } from '../agents';
 import type { DeliveredNotice } from '../db';
 import { agentCommanderTerminal } from '../db';
@@ -11,13 +11,11 @@ import type {
     CommanderCompletionNotifierOptions,
 } from './completion-notice-contract';
 import { classifyCommanderCompletionNotice } from './completion-notice-contract';
-import type {
-    CommanderHandoverNoticeEntry,
-    CommanderInboxNoticeEntry,
-    CommanderInboxNoticeEvent,
-} from './notice-text';
+import type { CommanderHandoverNoticeEntry, CommanderInboxNoticeEvent } from './notice-text';
 import { formatCommanderCompletionNotice, formatCommanderResumePrompt } from './notice-text';
 import { rememberNotifiedRevision } from './notified-revisions';
+import type { QueuedNoticeBatch } from './queued-notices';
+import { CommanderQueuedNotices } from './queued-notices';
 
 /**
  * What the launch prompt built for one Commander launch carried, settled once that launch is running.
@@ -33,13 +31,9 @@ interface LaunchPromptClaim {
     delegations: DeliveredNotice[];
     hasInterruptedTurn: boolean;
     /**
-     * The Inbox events the prompt reported; an entry replaced by a later event before the launch runs stays owed.
+     * The in-memory notices the prompt reported; one replaced by a later event before the launch runs stays owed.
      */
-    inbox: Array<CommanderInboxNoticeEntry & { queuedAt: number }>;
-    /**
-     * The hand-over events the prompt reported, settled like `inbox`.
-     */
-    handovers: Array<CommanderHandoverNoticeEntry & { queuedAt: number }>;
+    queued: QueuedNoticeBatch;
     oldestQueuedAt: number;
     terminalId: string;
 }
@@ -65,22 +59,7 @@ interface LaunchPromptClaim {
  * between spawn and that report repeats them on the next launch rather than losing them.
  */
 export class CommanderCompletionNotifier {
-    /**
-     * Inbox events by item, in memory only: the Inbox service re-queues unacknowledged replies after a restart. A later
-     * event replaces an earlier one, since the Commander reads the item's current state with `commander inbox show`.
-     */
-    private readonly pendingInbox = new Map<
-        string,
-        CommanderInboxNoticeEntry & { queuedAt: number }
-    >();
-    /**
-     * Hand-over events by hand-over, in memory only like the Inbox ones: the hand-over service re-queues every
-     * hand-over the Commander has not continued before a launch. A later event replaces an earlier one.
-     */
-    private readonly pendingHandovers = new Map<
-        string,
-        CommanderHandoverNoticeEntry & { queuedAt: number }
-    >();
+    private readonly queued: CommanderQueuedNotices;
     /**
      * Highest receipt revision already turned into a pending or delivered notice, per delegation. Guards against a
      * duplicate `notifyReceiptChanged` call re-queuing the same transition; `AgentDelegationService.save` already
@@ -143,6 +122,14 @@ export class CommanderCompletionNotifier {
     private interruptedAt: number | undefined;
 
     constructor(private readonly options: CommanderCompletionNotifierOptions) {
+        this.queued = new CommanderQueuedNotices({
+            now: () => this.now(),
+            onSessionsSettled: () => {
+                const terminalId = this.commander()?.terminalId;
+                if (terminalId) this.tryFlush(terminalId);
+            },
+            sessionTiming: options.sessionNoticeTiming,
+        });
         for (const notice of options.database.commanderPendingNotices.list())
             if (notice.kind === 'delegation')
                 this.notifiedRevisions.set(notice.delegationId, notice.revision);
@@ -163,9 +150,7 @@ export class CommanderCompletionNotifier {
      * must not touch the created-Session list (`agentCommanderRows`), which costs one lookup per stored Session.
      */
     private pendingCount(): number {
-        return (
-            this.pendingDelegations().length + this.pendingInbox.size + this.pendingHandovers.size
-        );
+        return this.pendingDelegations().length + this.queued.size;
     }
 
     private commander() {
@@ -233,9 +218,9 @@ export class CommanderCompletionNotifier {
      */
     private tryFlush(terminalId: string, isTurnFinished = false): void {
         const pending = this.pendingDelegations();
-        const inbox = this.pendingInbox.values().toArray();
-        const handovers = this.pendingHandovers.values().toArray();
-        const pendingCount = pending.length + inbox.length + handovers.length;
+        const queued = this.queued.deliverable(pending.length > 0);
+        const { inbox, handovers, sessions } = queued;
+        const pendingCount = pending.length + inbox.length + handovers.length + sessions.length;
         if (pendingCount === 0) return;
         const deferral = this.deferral(terminalId);
         if (typeof deferral === 'string') {
@@ -266,10 +251,11 @@ export class CommanderCompletionNotifier {
          * consume-before-send comment for the identical reason.
          */
         this.options.database.commanderPendingNotices.removeDelegations(pending);
-        this.pendingInbox.clear();
-        this.pendingHandovers.clear();
-        const queuedAt = [...pending, ...inbox, ...handovers].map((notice) => notice.queuedAt);
-        const waitMs = Math.max(0, this.now() - Math.min(...queuedAt));
+        this.queued.consume(queued);
+        const waitMs = Math.max(
+            0,
+            this.now() - oldestQueuedAt([pending, inbox, handovers, sessions]),
+        );
         const { blockedTurns } = this;
         this.resetBatch();
         /**
@@ -282,7 +268,7 @@ export class CommanderCompletionNotifier {
          */
         this.lastFinishedTurn = undefined;
         this.freshLaunch = undefined;
-        const text = formatCommanderCompletionNotice(pending, inbox, handovers);
+        const text = formatCommanderCompletionNotice({ delegations: pending, ...queued });
         const accepted = this.options.write(terminalId, text, launchId, (wasAccepted) => {
             if (!wasAccepted) this.reportDeliveryFailed('unconfirmed');
         });
@@ -296,6 +282,7 @@ export class CommanderCompletionNotifier {
                         count: pendingCount,
                         inboxCount: inbox.length,
                         handoverCount: handovers.length,
+                        sessionCount: sessions.length,
                         waitMs,
                         blockedTurns,
                     },
@@ -419,23 +406,21 @@ export class CommanderCompletionNotifier {
         if (this.commander()?.terminalId !== terminalId) return undefined;
         this.launchClaim = undefined;
         const notices = this.options.database.commanderPendingNotices.list();
-        const inbox = this.pendingInbox.values().toArray();
-        const handovers = this.pendingHandovers.values().toArray();
-        if (notices.length === 0 && inbox.length === 0 && handovers.length === 0) return undefined;
+        // A launch is a natural batch boundary, so Session changes go out whether or not they settled.
+        const queued = this.queued.deliverable(true);
+        const groups = [notices, queued.inbox, queued.handovers, queued.sessions];
+        if (groups.every((group) => group.length === 0)) return undefined;
         const delegations = notices.filter((notice) => notice.kind === 'delegation');
         const hasInterruptedTurn = notices.some((notice) => notice.kind === 'interrupted_turn');
         this.launchClaim = {
             claimedAt: this.now(),
             delegations,
             hasInterruptedTurn,
-            inbox,
-            handovers,
-            oldestQueuedAt: Math.min(
-                ...[...notices, ...inbox, ...handovers].map((notice) => notice.queuedAt),
-            ),
+            queued,
+            oldestQueuedAt: oldestQueuedAt(groups),
             terminalId,
         };
-        return formatCommanderResumePrompt(delegations, hasInterruptedTurn, inbox, handovers);
+        return formatCommanderResumePrompt({ delegations, ...queued }, hasInterruptedTurn);
     }
 
     /**
@@ -454,19 +439,15 @@ export class CommanderCompletionNotifier {
         const store = this.options.database.commanderPendingNotices;
         store.removeDelegations(claim.delegations);
         if (claim.hasInterruptedTurn) store.clearTurn(claim.claimedAt);
-        for (const entry of claim.inbox)
-            if (this.pendingInbox.get(entry.itemId) === entry)
-                this.pendingInbox.delete(entry.itemId);
-        for (const entry of claim.handovers)
-            if (this.pendingHandovers.get(entry.handoverId) === entry)
-                this.pendingHandovers.delete(entry.handoverId);
+        this.queued.consume(claim.queued);
         this.lastFinishedTurn = undefined;
         this.turnStartBaseline = undefined;
         this.options.logger?.write('info', logEventCatalog.agentCommander.resumePromptDelivered, {
             fields: {
                 count: claim.delegations.length,
-                inboxCount: claim.inbox.length,
-                handoverCount: claim.handovers.length,
+                inboxCount: claim.queued.inbox.length,
+                handoverCount: claim.queued.handovers.length,
+                sessionCount: claim.queued.sessions.length,
                 interruptedTurn: claim.hasInterruptedTurn,
                 waitMs: Math.max(0, this.now() - claim.oldestQueuedAt),
             },
@@ -514,6 +495,7 @@ export class CommanderCompletionNotifier {
          */
         if (!this.options.database.agentCommanderRows()?.sessionIds.includes(receipt.sessionId))
             return;
+        this.queued.observeDelegation(receipt.sessionId, receipt.status);
         const status = classifyCommanderCompletionNotice(receipt);
         if (!status) return;
         /**
@@ -551,7 +533,7 @@ export class CommanderCompletionNotifier {
         /**
          * Queued even while no Commander Terminal exists: the next launch prompt carries it (`launchPrompt`).
          */
-        this.pendingInbox.set(itemId, { itemId, event, queuedAt: this.now() });
+        this.queued.putInbox({ itemId, event });
         this.options.logger?.write('debug', logEventCatalog.agentCommander.completionNoticeQueued, {
             fields: {
                 itemId,
@@ -567,7 +549,7 @@ export class CommanderCompletionNotifier {
      * Drops every queued Inbox event, for Clear Commander Data: the items they name no longer exist.
      */
     forgetInbox(): void {
-        this.pendingInbox.clear();
+        this.queued.forgetInbox();
     }
 
     /**
@@ -575,7 +557,7 @@ export class CommanderCompletionNotifier {
      * closed event word. The Commander reads the user's note from the task the hand-over recorded.
      */
     notifyHandover(entry: CommanderHandoverNoticeEntry): void {
-        this.pendingHandovers.set(entry.handoverId, { ...entry, queuedAt: this.now() });
+        this.queued.putHandover(entry);
         this.options.logger?.write('debug', logEventCatalog.agentCommander.completionNoticeQueued, {
             fields: {
                 handoverId: entry.handoverId,
@@ -586,4 +568,26 @@ export class CommanderCompletionNotifier {
         const terminalId = this.commander()?.terminalId;
         if (terminalId) this.tryFlush(terminalId);
     }
+
+    /**
+     * Queues a managed Session's activity change, so the Commander hears about work the user did in a Session it
+     * manages and an Agent there finishing, failing, or asking for input, not only about the tasks it dispatched. The
+     * changes are batched (`CommanderQueuedNotices`). The Commander's own Session, a Session outside its managed set,
+     * and a Session running a task it dispatched (the delegation notice covers it) are skipped.
+     */
+    notifySessionActivity({ sessionId, to }: SessionActivityTransition): void {
+        const commander = this.commander();
+        if (to === 'unknown' || !commander || commander.sessionId === sessionId) return;
+        if (this.queued.isDelegated(sessionId)) return;
+        // Only a change outside the Commander's own Session pays for the managed-Session list.
+        if (!this.options.database.agentCommanderRows()?.sessionIds.includes(sessionId)) return;
+        this.queued.putSession(sessionId, to);
+        this.options.logger?.write('debug', logEventCatalog.agentCommander.completionNoticeQueued, {
+            fields: { sessionId, sessionState: to, pendingCount: this.pendingCount() },
+        });
+    }
+}
+
+function oldestQueuedAt(groups: ReadonlyArray<ReadonlyArray<{ queuedAt: number }>>): number {
+    return Math.min(...groups.flat().map((notice) => notice.queuedAt));
 }

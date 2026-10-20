@@ -1,3 +1,4 @@
+import type { AgentActivityState } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -9,7 +10,16 @@ import type { AgentLifecyclePhase } from './hooks/contract';
  */
 export type SessionActivitySource = 'deferredHook' | 'hook' | 'probe';
 
-interface SessionActivityWrite {
+/**
+ * A Session's durable activity state changed from one value to another.
+ */
+export interface SessionActivityTransition {
+    sessionId: string;
+    from: AgentActivityState;
+    to: AgentActivityState;
+}
+
+export interface SessionActivityWrite {
     /**
      * Performs the durable write and reports whether anything changed.
      */
@@ -23,11 +33,13 @@ interface SessionActivityWrite {
  * Wraps one durable Session activity write so every transition is logged at the moment it happens, with the path that
  * caused it. Activity and attention are otherwise only visible as the current state, which cannot explain a
  * notification after the fact or show how often each path fires. Only content-free identifiers and enums are logged.
+ * `onTransition` hears every change of the activity state itself (an attention-only change is not one).
  */
 export function hasSessionActivityChanged(
     database: Pick<CaxriDatabase, 'getSession' | 'getTerminal'>,
     logger: Pick<StructuredLogger, 'write'>,
     write: SessionActivityWrite,
+    onTransition?: (transition: SessionActivityTransition) => void,
 ): boolean {
     const terminal = database.getTerminal(write.terminalId);
     const before = terminal && database.getSession(terminal.sessionId);
@@ -55,5 +67,11 @@ export function hasSessionActivityChanged(
             to: after.lastActivityState,
         },
     });
+    if (after.lastActivityState !== before.lastActivityState)
+        onTransition?.({
+            sessionId: after.id,
+            from: before.lastActivityState,
+            to: after.lastActivityState,
+        });
     return hasChanged;
 }

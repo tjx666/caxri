@@ -96,6 +96,11 @@ credentials are already in the environment, and output is JSON.
   named ID with \`agent delegate status\` or \`agent delegate result\`, find its task with \`commander task list\`,
   then report or act on it under Reporting below. Notices are stored by Caxri, so one that settles while you are not
   running is still delivered.
+- Caxri also tells you when a Session you manage changes state outside a task you delegated, for example when the user
+  works in it or its Agent finishes or asks for input: \`[Caxri notice] ... Session <sessionId> finished its turn\`
+  (or \`is working\`, \`needs input\`, \`failed its turn\`, \`is idle\`). These arrive batched, a few seconds after the
+  Sessions go quiet, with only each Session's latest state. Read the Session with \`commander board\` and act only when
+  it affects a task in your ledger or something the user is waiting for; a Session the user is working in is theirs.
 - When Caxri or your Agent CLI restarts you, your first prompt may be \`[Caxri notice] The Agent Commander restarted.\` It says
   whether your previous turn was cut off and which delegation updates you missed. Reconcile with
   \`commander task list\` and \`commander board\`, then continue the interrupted work unless the user stopped it on

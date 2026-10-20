@@ -1,6 +1,7 @@
 import type { AgentProvider } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from './hooks/contract';
+import type { SessionActivityTransition } from './session-activity-log';
 
 export interface AgentCoordinatorOptions {
     /**
@@ -9,6 +10,10 @@ export interface AgentCoordinatorOptions {
      */
     onSignalInterrupt?: (terminalId: string) => void;
     onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
+    /**
+     * A Session's durable activity state changed, from a hook or a probe.
+     */
+    onSessionActivityChanged?: (transition: SessionActivityTransition) => void;
     /**
      * Trailing delay before Agent Terminal output refreshes durable Agent metadata.
      */

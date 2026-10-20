@@ -82,6 +82,11 @@ export interface CommanderCompletionNotifierOptions {
     logger?: StructuredLogger;
     now?: () => number;
     /**
+     * How long managed-Session state changes wait before they may go out: until no Session changed for `quietMs`, and
+     * never longer than `maxWaitMs` after the first. Production uses five and thirty seconds; tests may shorten them.
+     */
+    sessionNoticeTiming?: { quietMs: number; maxWaitMs: number };
+    /**
      * Delivers and submits one notice line, given without a line terminator. A PTY Commander gets a paste and an Enter,
      * as fenced exact-launch writes with `origin: 'delegation'` (`TerminalManager.writeAgentExact`) so the line never
      * bumps the input epoch a later notice's fence reads; a Chat Commander gets a Chat message.

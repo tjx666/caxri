@@ -28,7 +28,6 @@ import { ProcessIdentityProbe } from './process-identity-probe';
 // oxlint-disable-next-line react-doctor/no-barrel-import -- Provider clusters require a public barrel.
 import { GrokTurnTracker } from './providers/grok';
 import type { AgentService } from './service';
-import { hasSessionActivityChanged } from './session-activity-log';
 import { ShellProcessProbe } from './shell-process-probe';
 import type { ShellInputState, ShellPromotionCandidate } from './shell-promotion';
 import {
@@ -155,6 +154,7 @@ export class AgentCoordinator {
             watchdogs: this.lifecycleWatchdogs,
             hookLaunches: this.hookLaunches,
             onApplied: options.onLifecycleApplied,
+            onActivityChanged: options.onSessionActivityChanged,
         });
     }
 
@@ -290,7 +290,7 @@ export class AgentCoordinator {
                 isHookOwned,
             );
             if (
-                hasSessionActivityChanged(this.database, this.logger, {
+                this.lifecycle.recordActivity({
                     applyWrite: () =>
                         this.database.updateAgentMetadata(
                             terminal.id,
