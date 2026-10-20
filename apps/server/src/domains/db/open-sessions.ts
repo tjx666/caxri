@@ -198,6 +198,13 @@ export function reconcileOpenSessions(
         let { activeSessionId } = window;
         if (activeSessionId !== null && !kept.includes(activeSessionId)) {
             isActiveRemoved = true;
+            /**
+             * A fallback must never be a Session another window lists: it would steal that window's entry below.
+             */
+            const isOwnedByOtherWindow = (id: string): boolean =>
+                orderedWindowKeys(windows).some(
+                    (key) => key !== windowKey && windows[key].openSessionIds.includes(id),
+                );
             const keptSet = new Set(kept);
             activeSessionId = neighborOf(window.openSessionIds, activeSessionId, (id) =>
                 keptSet.has(id),
@@ -205,7 +212,9 @@ export function reconcileOpenSessions(
             if (activeSessionId === null) {
                 fallback ??= { id: fallbackSessionId() };
                 activeSessionId =
-                    fallback.id !== undefined && !claimed.has(fallback.id) ? fallback.id : null;
+                    fallback.id !== undefined && !isOwnedByOtherWindow(fallback.id)
+                        ? fallback.id
+                        : null;
                 if (activeSessionId !== null && !kept.includes(activeSessionId))
                     kept.push(activeSessionId);
             }

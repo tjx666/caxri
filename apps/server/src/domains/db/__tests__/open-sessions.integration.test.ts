@@ -300,6 +300,26 @@ describe('Open Sessions per window', () => {
             });
         });
 
+        it('never gives a fallback Session another window already owns', () => {
+            let cell: Record<string, WindowOpenSessions> | undefined = {
+                'main': { openSessionIds: ['gone'], activeSessionId: 'gone' },
+                'win-1': { openSessionIds: ['b'], activeSessionId: 'b' },
+            };
+            const store = {
+                appState: {
+                    get: () => cell,
+                    set: (_key: string, value: Record<string, WindowOpenSessions>) => {
+                        cell = value;
+                    },
+                },
+            } as unknown as Parameters<typeof reconcileOpenSessions>[0];
+            reconcileOpenSessions(store, new Set(['b']), () => 'b');
+            expect(cell).toEqual({
+                'main': { openSessionIds: [], activeSessionId: null },
+                'win-1': { openSessionIds: ['b'], activeSessionId: 'b' },
+            });
+        });
+
         it('prunes an archived Session from a torn-off window', () => {
             const { b, c, database } = tornOff();
             database.archiveSession(b.id);
