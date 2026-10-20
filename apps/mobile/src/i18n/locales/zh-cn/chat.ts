@@ -213,7 +213,6 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.tasks.backgroundShell': '后台 Shell',
     'chat.tasks.backgroundWork': '后台工作',
     'chat.tasks.close': '关闭后台工作',
-    'chat.tasks.dismiss': '关闭已结束的后台工作',
     'chat.tasks.earlierMessages': '更早的消息保存在电脑上。',
     'chat.tasks.earlierOutput': '更早的输出保存在电脑上。',
     'chat.tasks.empty': '没有后台工作。',

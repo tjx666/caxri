@@ -7,7 +7,6 @@ import {
     agentChatTaskGlyphStatus,
     agentChatTaskIdentity,
     agentChatTasksByItem,
-    agentChatTasksLatestEnd,
     agentChatTaskStrip,
     agentChatTaskStripView,
     agentChatTaskSummary,
@@ -106,70 +105,20 @@ describe('agentChatTaskStrip', () => {
 });
 
 describe('agentChatTaskStripView', () => {
-    const none = { dismissedAt: undefined, latestTurnStartedAt: 100 };
-
     it('lists running work and counts every ended task while anything runs', () => {
-        const view = agentChatTaskStripView(
-            [task({ id: 'run' }), task({ id: 'old', status: 'completed', endedAt: 10 })],
-            none,
-        );
+        const view = agentChatTaskStripView([
+            task({ id: 'run' }),
+            task({ id: 'old', status: 'completed', endedAt: 10 }),
+        ]);
         expect(view?.running.map(({ id }) => id)).toEqual(['run']);
         expect(view?.ended.map(({ id }) => id)).toEqual(['old']);
-        expect(view?.isDismissible).toBe(false);
     });
 
-    it('keeps work that ended during the latest turn after the last task ends', () => {
-        const view = agentChatTaskStripView(
-            [
-                task({ id: 'before', status: 'completed', endedAt: 50 }),
-                task({ id: 'during', status: 'stopped', endedAt: 150 }),
-                task({ id: 'unknown', status: 'failed' }),
-            ],
-            none,
-        );
-        expect(view?.running).toEqual([]);
-        expect(view?.ended.map(({ id }) => id)).toEqual(['during']);
-        expect(view?.isDismissible).toBe(true);
-    });
-
-    it('hides once the next turn starts, or once dismissed until later work ends', () => {
-        const tasks = [task({ id: 'done', status: 'completed', endedAt: 150 })];
+    it('shows nothing once the last task ends', () => {
         expect(
-            agentChatTaskStripView(tasks, { dismissedAt: undefined, latestTurnStartedAt: 200 }),
+            agentChatTaskStripView([task({ id: 'done', status: 'completed', endedAt: 150 })]),
         ).toBeUndefined();
-        expect(
-            agentChatTaskStripView(tasks, { dismissedAt: 150, latestTurnStartedAt: 100 }),
-        ).toBeUndefined();
-        const later = [...tasks, task({ id: 'later', status: 'completed', endedAt: 180 })];
-        expect(
-            agentChatTaskStripView(later, {
-                dismissedAt: 150,
-                latestTurnStartedAt: 100,
-            })?.ended.map(({ id }) => id),
-        ).toEqual(['later']);
-    });
-
-    it('shows nothing when idle and the latest turn has no start time', () => {
-        expect(
-            agentChatTaskStripView([task({ id: 'done', status: 'completed', endedAt: 150 })], {
-                dismissedAt: undefined,
-                latestTurnStartedAt: undefined,
-            }),
-        ).toBeUndefined();
-        expect(agentChatTaskStripView(undefined, none)).toBeUndefined();
-    });
-});
-
-describe('agentChatTasksLatestEnd', () => {
-    it('returns the newest end time, ignoring tasks without one', () => {
-        expect(
-            agentChatTasksLatestEnd([
-                task({ id: 'a', status: 'completed', endedAt: 20 }),
-                task({ id: 'b', status: 'failed' }),
-                task({ id: 'c', status: 'stopped', endedAt: 40 }),
-            ]),
-        ).toBe(40);
-        expect(agentChatTasksLatestEnd([])).toBeUndefined();
+        expect(agentChatTaskStripView(undefined)).toBeUndefined();
     });
 });
 

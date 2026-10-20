@@ -25,34 +25,26 @@ export const AGENT_CHAT_TASK_POLL_MS = 1_500;
 
 /**
  * What the Background work pill above the phone's composer shows, by Desktop's strip rule (`agentChatTaskStripView`):
- * the running work and every ended task while anything runs, and once the last one ends the work that ended during the
- * latest turn, until the next turn starts or the user dismisses it. `undefined` hides the pill (Grok Build, which
- * reports no tasks, never shows one).
+ * the running work and every ended task while anything runs, and nothing once the last one ends. `undefined` hides the
+ * pill (Grok Build, which reports no tasks, never shows one).
  */
 export interface AgentChatTaskPill {
     running: AgentChatTask[];
     ended: AgentChatTask[];
-    isDismissible: boolean;
     /**
-     * `2 running · 1 ended`, or `3 ended` once nothing runs.
+     * `2 running`, or `2 running · 1 ended`.
      */
     label: string;
 }
 
 export function agentChatTaskPill(
-    snapshot: Pick<AgentChatSnapshot, 'tasks' | 'turns'> | undefined,
-    dismissedAt: number | undefined,
+    snapshot: Pick<AgentChatSnapshot, 'tasks'> | undefined,
     t: Translate = translate,
 ): AgentChatTaskPill | undefined {
-    const view = agentChatTaskStripView(snapshot?.tasks, {
-        dismissedAt,
-        latestTurnStartedAt: snapshot?.turns.at(-1)?.startedAt,
-    });
+    const view = agentChatTaskStripView(snapshot?.tasks);
     if (!view) return undefined;
     const parts = [
-        ...(view.running.length > 0
-            ? [t('chat.tasks.runningCount', { count: view.running.length })]
-            : []),
+        t('chat.tasks.runningCount', { count: view.running.length }),
         ...(view.ended.length > 0
             ? [t('chat.tasks.endedCount', { count: view.ended.length })]
             : []),

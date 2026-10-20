@@ -34,35 +34,24 @@ const detail = (overrides: Partial<AgentChatTaskSnapshot> = {}): AgentChatTaskSn
 
 describe('agentChatTaskPill', () => {
     it('counts running and ended work while anything runs', () => {
-        const pill = agentChatTaskPill(
-            {
-                tasks: [
-                    task({ id: 'a', startedAt: 1 }),
-                    task({ id: 'b', status: 'completed', endedAt: 5 }),
-                ],
-                turns: [{ id: 'turn-1', status: 'running', startedAt: 10 }],
-            },
-            undefined,
-        );
+        const pill = agentChatTaskPill({
+            tasks: [
+                task({ id: 'a', startedAt: 1 }),
+                task({ id: 'b', status: 'completed', endedAt: 5 }),
+            ],
+        });
         expect(pill?.label).toBe('1 running · 1 ended');
-        expect(pill?.isDismissible).toBe(false);
     });
 
-    it('keeps work that ended during the latest turn until dismissed', () => {
-        const snapshot = {
-            tasks: [task({ id: 'a', status: 'failed', endedAt: 20 })],
-            turns: [{ id: 'turn-1', status: 'completed' as const, startedAt: 10 }],
-        };
-        expect(agentChatTaskPill(snapshot, undefined)).toMatchObject({
-            label: '1 ended',
-            isDismissible: true,
-        });
-        expect(agentChatTaskPill(snapshot, 20)).toBeUndefined();
+    it('hides once the last task ends', () => {
+        expect(
+            agentChatTaskPill({ tasks: [task({ id: 'a', status: 'failed', endedAt: 20 })] }),
+        ).toBeUndefined();
     });
 
     it('shows nothing for a Chat without tasks, such as Grok Build', () => {
-        expect(agentChatTaskPill({ turns: [] }, undefined)).toBeUndefined();
-        expect(agentChatTaskPill(undefined, undefined)).toBeUndefined();
+        expect(agentChatTaskPill({})).toBeUndefined();
+        expect(agentChatTaskPill(undefined)).toBeUndefined();
     });
 });
 

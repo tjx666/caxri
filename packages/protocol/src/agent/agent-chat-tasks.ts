@@ -159,38 +159,13 @@ export function agentChatTaskStrip(tasks: readonly AgentChatTask[] | undefined):
 }
 
 /**
- * What the background work strip shows. While anything runs, it lists the running work and counts every ended task.
- * Once the last task ends, the strip stays as a collapsed `N ended` row for the work that ended since the latest turn
- * started, so a task that just finished does not vanish before the user sees how it ended; the next turn starting, or
- * the row's dismiss button (`dismissedAt`, the newest end time the user dismissed), clears it. A task without an end
- * time cannot be placed against the turn, so it never keeps an idle strip open.
+ * What the background work strip shows: the running work and every ended task, counted, while anything runs; nothing
+ * once the last task ends. The strip is live status, not a log: by then the Agent has reported the result in the
+ * conversation, and each task's timeline row still opens it.
  */
 export function agentChatTaskStripView(
     tasks: readonly AgentChatTask[] | undefined,
-    {
-        dismissedAt,
-        latestTurnStartedAt,
-    }: { dismissedAt: number | undefined; latestTurnStartedAt: number | undefined },
-): { running: AgentChatTask[]; ended: AgentChatTask[]; isDismissible: boolean } | undefined {
-    const { running, ended } = agentChatTaskStrip(tasks);
-    if (running.length > 0) return { running, ended, isDismissible: false };
-    if (latestTurnStartedAt === undefined) return undefined;
-    const recent = ended.filter(
-        (task) =>
-            task.endedAt !== undefined &&
-            task.endedAt >= latestTurnStartedAt &&
-            (dismissedAt === undefined || task.endedAt > dismissedAt),
-    );
-    return recent.length > 0 ? { running, ended: recent, isDismissible: true } : undefined;
-}
-
-/**
- * The newest end time among `tasks`, which dismissing the idle strip records so only work ending later reopens it.
- */
-export function agentChatTasksLatestEnd(tasks: readonly AgentChatTask[]): number | undefined {
-    let latest: number | undefined;
-    for (const task of tasks)
-        if (task.endedAt !== undefined && (latest === undefined || task.endedAt > latest))
-            latest = task.endedAt;
-    return latest;
+): { running: AgentChatTask[]; ended: AgentChatTask[] } | undefined {
+    const strip = agentChatTaskStrip(tasks);
+    return strip.running.length > 0 ? strip : undefined;
 }
