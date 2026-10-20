@@ -14,7 +14,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 
 | Doc                                                                | Covers                                                         |
 | ------------------------------------------------------------------ | -------------------------------------------------------------- |
-| [activity-view.md](activity-view.md)                               | The Activity view's cross-Project attention queue              |
+| [activity-view.md](activity-view.md)                               | Activity view: attention queue, excerpts, return hint          |
 | [agent-actions.md](agent-actions.md)                               | Unified Agent skills and slash-command picker                  |
 | [agent-chat.md](agent-chat.md)                                     | Chat Terminals over Codex app-server                           |
 | [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries  |

@@ -272,9 +272,13 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.projectStatus.ignoredChecks.description':
         '不计入 CI 汇总、侧边栏徽标和失败通知的检查',
 
-    'settings.projectStatus.notifyAgentOnMerge.title': '从项目状态合并后通知 Agent',
+    'settings.projectStatus.notifyAgentOnMerge.title': '拉取请求合并后通知 Agent',
     'settings.projectStatus.notifyAgentOnMerge.description':
-        '将“Pull request <link> has been merged.”作为新消息发送给会话的 Agent。在 GitHub 上进行的合并不会通知。',
+        '无论通过项目状态、GitHub 还是他人合并，都会将“Pull request <link> has been merged.”作为新消息发送给会话的 Agent，每个拉取请求只发送一次。Agent 在自己的回合内合并时不会发送。',
+
+    'settings.projectStatus.autoArchiveOnPullRequestSettled.title': '拉取请求合并或关闭后自动归档',
+    'settings.projectStatus.autoArchiveOnPullRequestSettled.description':
+        '会话的拉取请求合并或关闭、且 Agent 空闲后自动归档该会话。运行中的 Agent 永远不会被归档，也不会删除任何内容；可在已归档会话中找回。',
 
     'settings.projectStatus.notifications.enabled.title': '交付失败通知',
     'settings.projectStatus.notifications.enabled.description':

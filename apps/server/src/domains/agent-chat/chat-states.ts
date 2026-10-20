@@ -1,6 +1,7 @@
 import type {
     AgentChatFailureReason,
     AgentChatPatchOperation,
+    AgentChatRequest,
     AgentChatSnapshot,
     AgentProvider,
     ProcessState,
@@ -317,6 +318,21 @@ export class ChatStates {
             .map((terminal) => terminal.id);
         for (const terminalId of cleared) this.clearDetached(terminalId);
         return cleared;
+    }
+
+    /**
+     * Whether a live Chat is inside a turn.
+     */
+    hasActiveTurn(terminalId: string): boolean {
+        const state = this.get(terminalId);
+        return Boolean(state?.session?.isOpen && state.projection.snapshot.activeTurnId);
+    }
+
+    /**
+     * The first request a Chat is waiting on, read from its in-memory projection; never opens or starts a Chat.
+     */
+    pendingRequest(terminalId: string): AgentChatRequest | undefined {
+        return this.get(terminalId)?.projection.snapshot.requests.at(0);
     }
 
     /**

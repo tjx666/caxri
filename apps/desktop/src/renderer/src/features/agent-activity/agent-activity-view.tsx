@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
+import { useSessionExcerpts } from '../../hooks/use-session-excerpts';
 import { useTranslation } from '../../i18n';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
@@ -144,6 +145,11 @@ export function AgentActivityView() {
     );
     const rovingRowId = rovingAgentActivityRowId(rows, focusedRowId, selectedSessionId);
     const sessionRows = useMemo(() => groups.flatMap((group) => group.rows), [groups]);
+    const attentionSessions = useMemo(
+        () => sessionRows.filter((row) => row.groupId === 'attention').map((row) => row.session),
+        [sessionRows],
+    );
+    const excerpts = useSessionExcerpts(attentionSessions);
     const visibleSessions = useMemo(() => sessionRows.map((row) => row.session), [sessionRows]);
     /**
      * A command-driven rename (`session.rename`) edits the Session's first rendered copy. A Session listed only under a
@@ -295,6 +301,7 @@ export function AgentActivityView() {
                         ) : (
                             <AgentActivityRowItem
                                 key={entry.row.rowId}
+                                excerpt={excerpts[entry.row.session.id]}
                                 inPinnedGroup={entry.row.rowId !== entry.row.session.id}
                                 relativeTime={relativeTimeBySessionId.get(entry.row.session.id)}
                                 roving={rovingRowId === entry.row.rowId}

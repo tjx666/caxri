@@ -6,6 +6,7 @@ import type { ServerMethod } from '@caxri/protocol';
  * `coreRouted()` domain stub.
  */
 export const coreForwardedMethods = [
+    'agent.excerpts',
     'agentActions.list',
     'agentActions.read',
     'agentActions.recordRecent',

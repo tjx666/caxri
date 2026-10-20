@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import { commitMruSession } from './session-commands';
-import { useSessionMruSwitcherStore } from './session-mru-switcher-state';
+import { commitMruSession } from '../session-commands';
+import { useSessionMruSwitcherStore } from '../session-mru-switcher-state';
 
 const HELD_MODIFIER_KEYS: ReadonlySet<string> = new Set(['Alt', 'Control', 'Meta', 'Shift']);
 

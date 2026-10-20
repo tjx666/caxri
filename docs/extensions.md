@@ -437,11 +437,26 @@ clean without asking; it confirms first when checks are failing or still running
 reports the pull request `blocked`, `behind`, or not yet computed. GitHub's `unstable` alone does not
 ask, because the only red or running checks left may be ones the user chose to ignore.
 
-With the `projectStatus.notifyAgentOnMerge` setting on (off by default), Server Core follows every
-successful merge with a best-effort message to the Session's primary Agent naming the merged pull
-request's URL: a fenced submit pinned to the current launch for a Terminal Agent, or an ordinary turn
-for a Chat Agent. A missing or stopped Agent never fails the merge; each attempt logs
-`git.merge_agent_notice` with a closed `outcome`.
+With the `projectStatus.notifyAgentOnMerge` setting on (default on), Server Core sends a best-effort
+message to the Session's primary Agent naming the merged pull request's URL: a fenced submit pinned
+to the current launch for a Terminal Agent, or an ordinary turn for a Chat Agent. It fires once per
+pull request however the merge happened: the Project Status button, GitHub, or another person. The
+Session pull request sweep notices a pull request that it saw open turn merged, so a pull request
+that was already merged when Server Core started is never announced. The button path records its
+send first, so a sweep that sees the same merge does not send a second message. A merge whose
+`mergedAt` falls inside one of that Session's Agent turns (plus a few seconds of clock skew) is
+skipped as `self-merged`, because the Agent that merged it already knows. A missing or stopped Agent
+never fails the merge; each attempt logs `git.merge_agent_notice` with a closed `outcome`
+(including `self-merged` and `duplicate`). Server Core remembers turn windows only for its own
+lifetime, so a pull request merged while Caxri was closed is not announced.
+
+With the `projectStatus.autoArchiveOnPullRequestSettled` setting on (default on), the same sweep
+archives a Session whose pull request was seen open and then became merged or closed, using the
+sidebar's own Archive operation (metadata only; nothing on disk is deleted, and Archived Sessions
+can restore it). It waits until the Agent is idle: a running or waiting Agent defers the archive
+until its turn ends, and the merge notice's turn gets a 20 second grace window so the Agent can finish
+reacting to it first. Each decision logs `session_pull_requests.auto_archive` with a closed
+`outcome` (`archived`, `deferred`, `disabled`, `failed`, `reopened`, `session-gone`).
 
 The shared Renderer owns virtualization, the side bar scroll cue
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md)), ThemeIcon rendering, roving focus,

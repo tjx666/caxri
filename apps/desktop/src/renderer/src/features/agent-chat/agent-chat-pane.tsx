@@ -9,6 +9,7 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminal } from '../../stores/selectors';
+import { dismissReturn } from '../session/session-look-boundary';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import {
@@ -47,6 +48,7 @@ import {
     onAgentChatTranscriptKeyDown,
 } from './agent-chat-reply-navigation';
 import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
+import { AgentChatReturnHint } from './agent-chat-return-hint';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
@@ -72,6 +74,7 @@ import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPaneEscape } from './hooks/use-agent-chat-pane-escape';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
 import { AgentChatReadBackHistoryContext } from './hooks/use-agent-chat-read-back-history';
+import { useAgentChatReturnHint } from './hooks/use-agent-chat-return-hint';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { useAgentChatSkillHost } from './hooks/use-agent-chat-skill-host';
 import { AgentChatSkillsContext } from './hooks/use-agent-chat-skills';
@@ -224,6 +227,7 @@ export function AgentChatPane({
      * `detached`, while the projection only reads `stopped`.
      */
     const terminal = useTerminal(terminalId);
+    const returnHint = useAgentChatReturnHint(terminal?.sessionId, snapshot, olderItems);
     const processState = terminal?.lastProcessState;
     const openAsTerminal = openAsTerminalAction(terminal);
     const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName, t);
@@ -338,6 +342,13 @@ export function AgentChatPane({
                         </div>
                         <div aria-hidden data-agent-chat-turn-space ref={spacerReference} />
                     </div>
+                    {returnHint && terminal && (
+                        <AgentChatReturnHint
+                            hint={returnHint}
+                            onDismiss={() => dismissReturn(terminal.sessionId)}
+                            onJump={jumpToMessage}
+                        />
+                    )}
                     <AgentChatSelectionToolbar
                         contentReference={contentReference}
                         scrollReference={scrollReference}

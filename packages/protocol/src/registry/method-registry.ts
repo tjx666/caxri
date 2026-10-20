@@ -18,6 +18,7 @@ import {
     agentDispatchMethods,
 } from '../agent/agent-dispatch-contract.js';
 import { agentEndpointMethods } from '../agent/agent-endpoint-contract.js';
+import { agentExcerptMethods } from '../agent/agent-excerpt-contract.js';
 import { agentInboxMethods } from '../agent/agent-inbox-contract.js';
 import { agentNotificationInternalMethods } from '../agent/agent-notification-contract.js';
 import {
@@ -100,16 +101,9 @@ import {
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
 import { terminalRelaunchMethods } from '../domain/terminal-relaunch-contract.js';
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
-import { treeChildrenResultSchema } from '../domain/tree-item.js';
 import { updateStateSchema } from '../domain/update-state.js';
 import { usageMethods } from '../domain/usage-contract.js';
-import {
-    extensionErrorSchema,
-    extensionIdSchema,
-    extensionViewEventContextSchema,
-    viewCatalogSnapshotSchema,
-    viewIdSchema,
-} from '../domain/views.js';
+import { extensionErrorSchema, extensionIdSchema } from '../domain/views.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
 import { mobileInternalMethods, mobileMethods } from '../mobile/mobile-contract.js';
 import { eventRecoveryRequestSchema, eventRecoverySchema } from '../transport/event-journal.js';
@@ -168,6 +162,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
 export const methods = {
     ...agentActionMethods,
     ...agentChatMethods,
+    ...agentExcerptMethods,
     ...agentDispatchMethods,
     ...agentDelegationMethods,
     ...agentSessionMethods,
@@ -185,24 +180,6 @@ export const methods = {
     ...workbenchMethods,
     ...pathBrowserContractMethods,
     ...extensionViewMethods,
-    'viewContainers.catalog': {
-        ...serverRead,
-        params: noParameters,
-        result: viewCatalogSnapshotSchema,
-    },
-    'viewContainers.treeChildren': {
-        ...serverRead,
-        params: z.object({
-            viewId: viewIdSchema,
-            parentHandle: z.string().min(1).max(512).optional(),
-            requestId: identifierSchema,
-            /**
-             * Rejected with CANCELLED once no longer the active scope, like `viewContainers.viewOperation`.
-             */
-            context: extensionViewEventContextSchema,
-        }),
-        result: treeChildrenResultSchema,
-    },
     'viewContainers.cancelRequest': {
         ...serverControl,
         params: z.object({ requestId: identifierSchema }),

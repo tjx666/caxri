@@ -31,6 +31,7 @@ import {
     sessionUnreadTone,
 } from './session-activity';
 import { SessionCreatorRow } from './session-creator-row';
+import { SessionExcerpt } from './session-excerpt';
 import { sessionPullRequestPresentation } from './session-pull-request';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { sidebarDetailCardDismissal } from './sidebar-detail-card-dismissal';
@@ -259,6 +260,7 @@ export function SessionActivityCard({
                         {activity.description}
                     </p>
                 </div>
+                <SessionExcerpt isVisible={visible} session={session} />
                 <SessionPullRequestDetails
                     pullRequest={pullRequest}
                     presentation={pullRequestPresentation}

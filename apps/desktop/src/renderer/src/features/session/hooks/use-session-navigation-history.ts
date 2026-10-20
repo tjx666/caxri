@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
 
-import { runCommand } from '../../commands/execute';
-import { useSelectedSession, useSessions } from '../../stores/selectors';
-import { useSessionNavigationHistoryStore } from './session-navigation-history';
+import { runCommand } from '../../../commands/execute';
+import { useSelectedSession, useSessions } from '../../../stores/selectors';
+import { useSessionNavigationHistoryStore } from '../session-navigation-history';
 
 /**
  * Chromium reports the two extra mouse buttons as `button` 3 (back) and 4 (forward). Browsers and native apps both map

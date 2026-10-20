@@ -259,10 +259,31 @@ unmounted rather than kept alive. `session.focusNextAttention` computes its own 
 on demand instead of reading the mounted view's, so `Cmd+Shift+N` still works while the queue is
 hidden or was never opened.
 
+## Excerpts
+
+A row in the attention group, and the Session hover card everywhere, quote what the Agent last asked
+or said so the user can decide whether to open the Session. `agent.excerpts` (read-only, one batch
+per view) answers per Session and attention generation: a Chat Agent that is waiting on the user
+shows the question or approval it is asking, read from the live Chat's in-memory request without
+starting a provider; every other case shows the closing message of the latest turn from the on-disk
+transcript. A Terminal Agent has no live request to read, so it only gets the transcript's last
+reply. Rows clamp the quote to two lines and the card to three. The text is user content shown
+locally: the Server never persists or logs it, and the Renderer keeps it only in the query cache.
+
+## Returning to a Session
+
+Selecting a Session whose Chat finished turns while the user was away shows a quiet pill above the
+transcript ("N turns since you last looked") with a jump to the first of them and a close button.
+The Renderer records when the user stopped looking (Session switch, window blur, or hidden window)
+before it marks the Session read, and counts the Agent turns whose end time falls inside that
+absence, not the attention epoch, which also moves for questions inside one turn. The boundary lives
+in memory, so the first look after a restart shows nothing.
+
 ## Non-goals
 
 This view reports state; it does not schedule work. It does not create Sessions, dispatch Agents,
-summarize transcripts, or add event granularity beyond the six `AgentActivityState` values.
+summarize transcripts (an excerpt is a clipped quote of the Agent's own words, never a summary), or
+add event granularity beyond the six `AgentActivityState` values.
 [Issue #601](https://github.com/tjx666/caxri/issues/601) tracks a larger butler-window design whose
 queue board would reuse this projection.
 

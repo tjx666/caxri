@@ -13,7 +13,7 @@ const SUMMARY_TIMELINE_ITEMS = 40;
  * Flattens Markdown into one readable line: a banner renders plain text, so fences, headings, emphasis, and link syntax
  * would otherwise show up as literal punctuation.
  */
-function toPlainLine(text: string): string {
+export function toPlainLine(text: string): string {
     return text
         .replaceAll(/```[\s\S]*?(?:```|$)/gu, ' ')
         .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, '$1')
@@ -27,22 +27,32 @@ function toPlainLine(text: string): string {
  * The turn's closing Agent message, cut to a single banner line. Only a message after the latest user message counts,
  * so a turn that ended on a tool call or with no text never resurfaces the previous turn's answer.
  */
-export function summarizeLatestAgentReply(items: readonly AgentTimelineItem[]): string | undefined {
+export function summarizeLatestAgentReply(
+    items: readonly AgentTimelineItem[],
+    maxLength: number = AGENT_REPLY_SUMMARY_MAX_LENGTH,
+): string | undefined {
     for (let index = items.length - 1; index >= 0; index--) {
         const item = items[index];
         if (item.type === 'userMessage') return undefined;
         if (item.type !== 'agentMessage') continue;
         const line = toPlainLine(item.text);
         if (!line) continue;
-        const characters = [...line];
-        return characters.length <= AGENT_REPLY_SUMMARY_MAX_LENGTH
-            ? line
-            : `${characters
-                  .slice(0, AGENT_REPLY_SUMMARY_MAX_LENGTH - 1)
-                  .join('')
-                  .trimEnd()}…`;
+        return clipToLength(line, maxLength);
     }
     return undefined;
+}
+
+/**
+ * Cuts one line to `maxLength` characters (code points), ending with an ellipsis when it was shortened.
+ */
+export function clipToLength(line: string, maxLength: number): string {
+    const characters = [...line];
+    return characters.length <= maxLength
+        ? line
+        : `${characters
+              .slice(0, maxLength - 1)
+              .join('')
+              .trimEnd()}…`;
 }
 
 /**

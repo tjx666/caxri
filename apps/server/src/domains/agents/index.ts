@@ -23,6 +23,7 @@ export { delegationAdapter } from './delegation';
 export type { DelegationCompletion } from './delegation-contract';
 export { discoverExecutable, readVersion } from './discovery';
 export { resolveE2EAgentUnknownRecoveryMs } from './e2e-options';
+export { readAgentExcerpts } from './excerpts';
 export {
     type ExternalConversation,
     listExternalConversations,

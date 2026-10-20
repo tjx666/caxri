@@ -193,6 +193,9 @@ export const appSettingsSchema = z.object({
     'git.fetchGitHubAvatars': booleanField(spec['git.fetchGitHubAvatars']),
     'projectStatus.ignoredChecks': ignoredChecksSchema,
     'projectStatus.notifyAgentOnMerge': booleanField(spec['projectStatus.notifyAgentOnMerge']),
+    'projectStatus.autoArchiveOnPullRequestSettled': booleanField(
+        spec['projectStatus.autoArchiveOnPullRequestSettled'],
+    ),
     'projectStatus.notifications.enabled': booleanField(
         spec['projectStatus.notifications.enabled'],
     ),

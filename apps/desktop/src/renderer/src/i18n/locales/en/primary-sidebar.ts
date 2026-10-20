@@ -122,6 +122,8 @@ export const primarySidebar = {
     'primarySidebar.card.lastOpenedSentence': 'Last opened {{time}}.',
     'primarySidebar.card.sentence': '{{text}}.',
     'primarySidebar.card.worktree': 'Worktree',
+    'primarySidebar.card.excerptRequest': 'Waiting on you',
+    'primarySidebar.card.excerptReply': 'Last reply',
     'primarySidebar.card.createdBy': 'Created by',
     'primarySidebar.card.createdByCommander': 'Agent Commander',
     'primarySidebar.card.createdByArchived': '{{title}} (archived)',

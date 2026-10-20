@@ -10,7 +10,7 @@ import {
     pullRequestJson,
     session,
 } from '../project-status/__tests__/session-pull-requests.fixture';
-import { refreshAfterMerge } from '../pull-request-merge-refresh';
+import { refreshAfterMerge } from '../pull-request';
 
 describe('SessionPullRequestService.refreshSession', () => {
     it('re-reads a pull request whose cached state is still fresh', async () => {

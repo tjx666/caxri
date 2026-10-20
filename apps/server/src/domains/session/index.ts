@@ -14,3 +14,4 @@ export { SessionRenameService } from './rename';
 export { createSessionRuntimeForgetter } from './runtime-teardown';
 export { SessionSearchService } from './search';
 export { createSessionSelectionHandlers } from './selection-handlers';
+export { SessionTurnWindows } from './turn-windows';

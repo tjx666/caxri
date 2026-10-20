@@ -407,6 +407,7 @@ export const logEventCatalog = {
         lookupUnavailable: 'session_pull_requests.lookup_unavailable',
         refresh: 'session_pull_requests.refresh',
         refreshFailed: 'session_pull_requests.refresh_failed',
+        autoArchive: 'session_pull_requests.auto_archive',
     },
     pty: {
         attach: 'pty.attach',

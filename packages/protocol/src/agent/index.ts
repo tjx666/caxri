@@ -46,6 +46,7 @@ export * from './agent-delegation-usage.js';
 export * from './agent-dispatch-contract.js';
 export * from './agent-endpoint-contract.js';
 export * from './agent-endpoint-control.js';
+export * from './agent-excerpt-contract.js';
 export * from './agent-inbox-contract.js';
 export * from './agent-notification-contract.js';
 export * from './agent-process-environment.js';

@@ -333,6 +333,7 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('files.maxFileBytes'),
     specRow('projectStatus.ignoredChecks', { binding: { type: 'ignored-checks' } }),
     specRow('projectStatus.notifyAgentOnMerge'),
+    specRow('projectStatus.autoArchiveOnPullRequestSettled'),
     specRow('notifications.worktreeFallback'),
     specRow('notifications.agentRecovery'),
     specRow('projectStatus.notifications.enabled'),
