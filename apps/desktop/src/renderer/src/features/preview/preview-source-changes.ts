@@ -4,10 +4,13 @@ import { caxri } from '../../lib/caxri';
 
 type FilesChangedPayload = Extract<ServerEvent, { event: 'files.changed' }>['payload'];
 
-export interface PreviewSource {
-    workbenchProjectId: string;
-    path: string;
-}
+export type PreviewSource =
+    | { workbenchProjectId: string; path: string }
+    /**
+     * A file outside every Project, opened as an external document: Main's external-document watcher reports its
+     * rewrites as `externalDocument.changed` under the opaque ID it issued (issue #2211).
+     */
+    | { externalDocumentId: string };
 
 /**
  * Settle time before a binary preview re-reads its file. A save usually lands as several watcher events (truncate,
@@ -25,7 +28,7 @@ const CHANGE_SETTLE_MS = 250;
  */
 export function isPreviewSourceChange(
     payload: FilesChangedPayload,
-    source: PreviewSource,
+    source: Extract<PreviewSource, { workbenchProjectId: string }>,
 ): boolean {
     return (
         payload.workbenchProjectId === source.workbenchProjectId &&
@@ -42,8 +45,12 @@ export function subscribePreviewSourceChanges(
 ): () => void {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const unsubscribe = caxri.onEvent((event) => {
-        if (event.event !== 'files.changed' || !isPreviewSourceChange(event.payload, source))
-            return;
+        const isChange =
+            'externalDocumentId' in source
+                ? event.event === 'externalDocument.changed' &&
+                  event.payload.documentId === source.externalDocumentId
+                : event.event === 'files.changed' && isPreviewSourceChange(event.payload, source);
+        if (!isChange) return;
         clearTimeout(timer);
         timer = setTimeout(onChange, CHANGE_SETTLE_MS);
     });

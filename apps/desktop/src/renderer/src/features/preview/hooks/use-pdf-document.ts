@@ -69,7 +69,7 @@ export function usePdfDocument(
     const [request, setRequest] = useState<PdfReadRequest>({ id: 0, cause: 'open' });
     const [settled, setSettled] = useState<SettledRead>();
     // A rewrite on disk starts a `disk` read. Reset during render, so the read starts in the commit that saw the change.
-    const revision = usePreviewSourceRevision(workbenchProjectId, path);
+    const revision = usePreviewSourceRevision(workbenchProjectId, path, externalDocumentId);
     const [readRevision, setReadRevision] = useState(revision);
     if (readRevision !== revision) {
         setReadRevision(revision);
