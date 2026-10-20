@@ -359,6 +359,19 @@ interface CliOptions {
     workflow?: string;
 }
 
+const VALUE_FLAGS = new Set(['--run', '--workflow', '--pr', '--branch']);
+
+/**
+ * Returns the operand of a value flag, or throws when it is missing, blank, or another flag. Failing open here would
+ * let `--branch` with no value silently watch the current branch, so every value flag shares this one check.
+ */
+function readOperand(flag: string, value: string | undefined): string {
+    if (value === undefined || value.trim() === '' || value.startsWith('-')) {
+        throw new Error(`${flag} requires a value`);
+    }
+    return value;
+}
+
 /**
  * Applies one CLI argument and returns how many argv slots it consumed.
  */
@@ -367,26 +380,32 @@ function applyArgument(options: CliOptions, argument: string, value: string | un
         options.quiet = true;
         return 1;
     }
-    if (argument === '--run') {
-        options.run = value;
-        return 2;
+    if (!VALUE_FLAGS.has(argument)) throw new Error(`unknown argument: ${argument}`);
+    const operand = readOperand(argument, value);
+    switch (argument) {
+        case '--run': {
+            options.run = operand;
+            break;
+        }
+        case '--workflow': {
+            options.workflow = operand;
+            break;
+        }
+        case '--pr': {
+            options.pr = operand;
+            break;
+        }
+        default:
+            options.branch = operand;
     }
-    if (argument === '--workflow') {
-        options.workflow = value;
-        return 2;
-    }
-    if (argument === '--pr') {
-        options.pr = value;
-        return 2;
-    }
-    if (argument === '--branch') {
-        options.branch = value;
-        return 2;
-    }
-    throw new Error(`unknown argument: ${argument}`);
+    return 2;
 }
 
-function parseArguments(argv: string[]): CliOptions {
+/**
+ * Parses argv without touching Git, GitHub, or any process, so an invalid command line is rejected before any call.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci-arguments.test.ts
+export function parseArguments(argv: string[]): CliOptions {
     const options: CliOptions = { quiet: false };
     let index = 0;
     while (index < argv.length) {
@@ -496,9 +515,10 @@ async function didRunSucceed(runId: string, isQuiet: boolean): Promise<boolean> 
 }
 
 async function main(): Promise<void> {
-    const options = parseArguments(process.argv.slice(2));
+    let options: CliOptions;
     let runIds: string[];
     try {
+        options = parseArguments(process.argv.slice(2));
         runIds = options.pr
             ? await resolvePrRuns(options.pr, options.workflow)
             : [options.run ?? (await resolveRunId(options.branch))];
