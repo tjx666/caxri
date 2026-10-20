@@ -29,6 +29,7 @@ export function createAgentChatService({
     delegationState,
     dependencies,
     logger,
+    onObservationLeaseReady,
     send,
 }: {
     agentRuntime: Pick<
@@ -48,6 +49,11 @@ export function createAgentChatService({
     delegationState: { service?: AgentDelegationService };
     dependencies: Pick<DomainDependencies, 'agentEndpoints' | 'terminal'>;
     logger: StructuredLogger;
+    /**
+     * Runs when a provider that a read alone started becomes ready, so the suspension sweep can enforce
+     * `MAX_CHAT_OBSERVATION_LEASES` now instead of at its next poll.
+     */
+    onObservationLeaseReady: () => void;
     send: (event: ServerEvent) => void;
 }): AgentChatService {
     const { agentEnvironment, agentLaunchSettings, coordinator } = agentRuntime;
@@ -70,7 +76,10 @@ export function createAgentChatService({
                 ? settings
                 : { ...settings, args: [...settings.args, ...extra] };
         },
-        onReady: commanderHooks.chatReady,
+        onReady: (terminalId) => {
+            commanderHooks.chatReady(terminalId);
+            if (service.readLeaseAt(terminalId) !== undefined) onObservationLeaseReady();
+        },
         delegation: {
             bindLaunch: (terminalId, launchId, delegationId) =>
                 delegationState.service?.bindChatLaunch(terminalId, launchId, delegationId),

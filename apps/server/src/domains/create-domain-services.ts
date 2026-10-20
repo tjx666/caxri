@@ -196,6 +196,7 @@ export async function createDomainServices(
         delegationState,
         dependencies,
         logger,
+        onObservationLeaseReady: () => suspensionState.service?.requestSweep(),
         send,
     });
     const benchmark = createBenchmarkService({

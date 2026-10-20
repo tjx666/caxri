@@ -141,8 +141,11 @@ Conversation, so a reply sent from the phone never finds its provider stopped.
 A Chat whose provider only a read started also holds an observation lease
 (`AgentChatService.readLeaseAt`): it is parked with reason `observation` two minutes
 (`CHAT_OBSERVATION_LEASE_MS`) after its Session is left, even with idle suspension off, so browsing
-history never leaves a resident provider. Any input to the Chat ends the lease, and the park
-re-checks it when it reaches the head of the send chain. The same exemptions as the idle rule apply.
+history never leaves a resident provider. At most `MAX_CHAT_OBSERVATION_LEASES` (3) leases wait out
+that window: a read that starts one more requests an immediate sweep, which parks the oldest unexpired
+leases beyond the newest three, so browsing many Chats in a row keeps a bounded number of providers.
+Any input to the Chat ends the lease, and the park re-checks it when it reaches the head of the send
+chain. The same exemptions as the idle rule apply.
 
 Parking a Chat (`AgentChatService.suspendIdle`) runs on its send chain, so input accepted first is
 delivered first. It stops the provider process but keeps the in-memory conversation, so every

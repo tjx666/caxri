@@ -493,6 +493,20 @@ export class TerminalSuspensionService {
     }
 
     /**
+     * Runs a sweep now instead of at the next poll, for a change the poll would only catch up to later: a Chat a read
+     * just started may push the oldest observation lease over `MAX_CHAT_OBSERVATION_LEASES`.
+     */
+    async requestSweep(): Promise<void> {
+        try {
+            await this.sweep();
+        } catch (error) {
+            this.options.logger.write('warn', logEventCatalog.terminal.suspendFailed, {
+                fields: { error: errorMessage(error, 'unknown'), reason: 'observation' },
+            });
+        }
+    }
+
+    /**
      * Parks one Terminal because the user asked to stop it: the resource alert's `Stop`. It resumes through the same
      * interrupted-restore path as an idle suspension, so the Agent conversation is not lost.
      */
