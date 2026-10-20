@@ -19,7 +19,12 @@ import {
 } from './agent-chat-task-detail';
 import { publishAgentChatTaskLinks, withdrawAgentChatTaskLinks } from './agent-chat-task-links';
 import type { AgentChatTaskPill } from './agent-chat-tasks';
-import { agentChatTaskPill, agentChatTaskRow } from './agent-chat-tasks';
+import {
+    agentChatTaskPill,
+    agentChatTaskPillIds,
+    agentChatTaskRow,
+    agentChatTaskSheetPill,
+} from './agent-chat-tasks';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatTaskClock, useAgentChatTaskStop } from './use-agent-chat-task-detail';
 
@@ -294,13 +299,22 @@ export const AgentChatTaskStrip = ({
         return () => withdrawAgentChatTaskLinks(terminalId);
     }, [terminalId]);
 
+    const [listedKey, setListedKey] = useState('');
+
     const pill = agentChatTaskPill(savedAt === undefined ? snapshot : undefined, t);
+    const pillIdsKey = agentChatTaskPillIds(pill).join('\n');
+    // An open sheet remembers what it last listed, so a pill that drops to nothing leaves that list in place.
+    if (isOpen && pillIdsKey && pillIdsKey !== listedKey) setListedKey(pillIdsKey);
+    const sheetPill = isOpen
+        ? agentChatTaskSheetPill(pill, listedKey ? listedKey.split('\n') : [], tasks, t)
+        : pill;
     if (!terminalId || (!pill && !isOpen)) return null;
     // The open task follows the Chat's copy; one the phone's list no longer carries keeps its last known state.
     const shownTask = openTask && (findAgentChatTask(tasks, openTask.id) ?? openTask);
     const close = (): void => {
         setOpen(false);
         setOpenTask(undefined);
+        setListedKey('');
     };
     return (
         <>
@@ -311,7 +325,7 @@ export const AgentChatTaskStrip = ({
                     onBack={() => setOpenTask(undefined)}
                     onClose={close}
                     onOpenTask={(taskId) => setOpenTask(findAgentChatTask(tasks, taskId))}
-                    pill={pill}
+                    pill={sheetPill}
                     shownTask={shownTask}
                     stopper={stopper}
                     terminalId={terminalId}

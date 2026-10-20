@@ -9,7 +9,9 @@ import {
 import {
     agentChatTaskDetailContent,
     agentChatTaskPill,
+    agentChatTaskPillIds,
     agentChatTaskRow,
+    agentChatTaskSheetPill,
 } from '../agent-chat-tasks';
 
 function task(overrides: Partial<AgentChatTask> & Pick<AgentChatTask, 'id'>): AgentChatTask {
@@ -30,6 +32,29 @@ const detail = (overrides: Partial<AgentChatTaskSnapshot> = {}): AgentChatTaskSn
     truncated: false,
     items: [],
     ...overrides,
+});
+
+describe('agentChatTaskSheetPill', () => {
+    it('keeps listing the tasks an open sheet showed once the last one ends and the pill goes', () => {
+        const listed = agentChatTaskPillIds(
+            agentChatTaskPill({ tasks: [task({ id: 'a', startedAt: 1 })] }),
+        );
+        const finished = [task({ id: 'a', startedAt: 1, status: 'completed', endedAt: 40 })];
+        const pill = agentChatTaskPill({ tasks: finished });
+        expect(pill).toBeUndefined();
+        expect(agentChatTaskSheetPill(pill, listed, finished)).toMatchObject({
+            running: [],
+            ended: [{ id: 'a', status: 'completed' }],
+            label: '1 ended',
+        });
+    });
+
+    it('lists the pill itself while there is one, and nothing for tasks the Chat no longer has', () => {
+        const tasks = [task({ id: 'b' })];
+        const pill = agentChatTaskPill({ tasks });
+        expect(agentChatTaskSheetPill(pill, ['a'], tasks)).toBe(pill);
+        expect(agentChatTaskSheetPill(undefined, ['gone'], tasks)).toBeUndefined();
+    });
 });
 
 describe('agentChatTaskPill', () => {

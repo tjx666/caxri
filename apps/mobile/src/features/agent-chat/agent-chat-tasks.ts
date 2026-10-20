@@ -43,13 +43,49 @@ export function agentChatTaskPill(
 ): AgentChatTaskPill | undefined {
     const view = agentChatTaskStripView(snapshot?.tasks);
     if (!view) return undefined;
-    const parts = [
-        t('chat.tasks.runningCount', { count: view.running.length }),
-        ...(view.ended.length > 0
-            ? [t('chat.tasks.endedCount', { count: view.ended.length })]
-            : []),
-    ];
-    return { ...view, label: parts.join(' · ') };
+    return { ...view, label: taskCountLabel(view.running, view.ended, t) };
+}
+
+function taskCountLabel(
+    running: readonly AgentChatTask[],
+    ended: readonly AgentChatTask[],
+    t: Translate,
+): string {
+    return [
+        ...(running.length > 0 ? [t('chat.tasks.runningCount', { count: running.length })] : []),
+        ...(ended.length > 0 ? [t('chat.tasks.endedCount', { count: ended.length })] : []),
+    ].join(' · ');
+}
+
+/**
+ * The ids of the tasks a pill lists, in order, which the open Background work sheet keeps (see
+ * `agentChatTaskSheetPill`).
+ */
+export function agentChatTaskPillIds(pill: AgentChatTaskPill | undefined): string[] {
+    return pill ? [...pill.running, ...pill.ended].map((task) => task.id) : [];
+}
+
+/**
+ * What the open Background work sheet lists: the pill while there is one, else the tasks it last listed
+ * (`lastListedIds`), each in its current state. The pill disappears the moment the last task ends, so without this the
+ * list a reader just opened emptied to `No background work.` under them.
+ */
+export function agentChatTaskSheetPill(
+    pill: AgentChatTaskPill | undefined,
+    lastListedIds: readonly string[],
+    tasks: readonly AgentChatTask[] | undefined,
+    t: Translate = translate,
+): AgentChatTaskPill | undefined {
+    if (pill) return pill;
+    const current = lastListedIds.flatMap((id) => tasks?.filter((task) => task.id === id) ?? []);
+    if (current.length === 0) return undefined;
+    const running = current.filter((task) => task.status === 'running');
+    const ended = current.filter((task) => task.status !== 'running');
+    return {
+        running,
+        ended,
+        label: taskCountLabel(running, ended, t),
+    };
 }
 
 const STATUS_LABELS = {
