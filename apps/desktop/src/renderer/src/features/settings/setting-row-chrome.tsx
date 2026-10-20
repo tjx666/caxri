@@ -100,12 +100,12 @@ export function SettingRowChrome({
     return (
         <div
             data-setting-row={row.id}
-            className="group/setting relative rounded-md px-3 py-2 hover:bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)]"
+            className="group/setting relative rounded-md px-3 py-2 hover:bg-state-hover-quiet"
         >
             {modified && (
                 <span
                     aria-hidden="true"
-                    className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-[color-mix(in_srgb,var(--accent)_60%,transparent)]"
+                    className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-state-marker"
                 />
             )}
             {fullWidth ? (

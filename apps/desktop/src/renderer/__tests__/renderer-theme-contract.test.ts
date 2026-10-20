@@ -24,7 +24,30 @@ const semanticColorRoles = [
     'overlay',
     'shadow',
     'indicator',
+    'state-hover',
+    'state-hover-quiet',
+    'state-hover-ink',
+    'state-hover-ink-quiet',
+    'state-selected-quiet',
+    'state-marker',
+    'state-drop-target',
+    'state-focus-ring',
+    'state-handle-hover',
+    'state-handle-focus',
+    'state-handle-halo',
 ];
+
+async function listSources(directory: string): Promise<string[]> {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const nested = await Promise.all(
+        entries.map(async (entry) => {
+            const path = join(directory, entry.name);
+            if (entry.isDirectory()) return entry.name === '__tests__' ? [] : listSources(path);
+            return /\.(?:tsx?|css)$/.test(entry.name) && !/\.test\./.test(entry.name) ? [path] : [];
+        }),
+    );
+    return nested.flat();
+}
 
 describe('Renderer theme source contract', () => {
     it('keeps one complete semantic theme bootstrap imported by both renderer entries', async () => {
@@ -64,5 +87,19 @@ describe('Renderer theme source contract', () => {
                 css: 'apps/desktop/src/renderer/src/styles/theme.css',
             },
         });
+    });
+
+    it('keeps hover, selected, and focus washes owned by the state tokens', async () => {
+        const rendererSource = join(repoRoot, 'apps/desktop/src/renderer/src');
+        const handMixed =
+            /color-mix\(in[ _]srgb,\s*var\(--(?:elevated|foreground|selection)\)[ _]*(?:60|45|10|6)%,\s*transparent\)|color-mix\(in[ _]srgb,\s*var\(--accent\)[ _]*(?:50|60)%,\s*transparent\)|color-mix\(in[ _]srgb,\s*var\(--foreground\)[ _]*(?:40|55|25)%,\s*transparent\)|color-mix\(in[ _]srgb,\s*var\(--accent\)[ _]*18%,\s*var\(--elevated\)\)/;
+        const files = (await listSources(rendererSource)).filter(
+            (file) => !file.endsWith(sharedThemeFile),
+        );
+        const sources = await Promise.all(files.map((file) => readFile(file, 'utf8')));
+        const offenders = files
+            .filter((_file, index) => handMixed.test(sources[index] ?? ''))
+            .map((file) => file.slice(rendererSource.length + 1));
+        expect(offenders).toEqual([]);
     });
 });

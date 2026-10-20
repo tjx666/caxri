@@ -4,16 +4,16 @@ import { usePointerDragResize } from '../hooks/use-pointer-drag-resize';
 
 /**
  * Same seam vocabulary as the workbench `PanelDivider`: invisible at rest, a 6px hit band straddling the column border,
- * and a foreground-tinted hairline on hover, focus, and drag. The `color-mix` percentages are that divider's recipe
- * reused verbatim, per the DESIGN.md "State tokens" gap.
+ * and a foreground-tinted hairline on hover, focus, and drag. The washes are the shared `state-handle-*` tokens from
+ * `theme.css`, the same ones the divider uses.
  */
 const handleClassName =
     'absolute inset-y-0 -right-[3px] z-20 w-1.5 cursor-col-resize touch-none ' +
     "after:content-[''] after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:pointer-events-none " +
-    'hover:after:w-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
-    'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+    'hover:after:w-[3px] hover:after:bg-state-handle-hover ' +
+    'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-state-handle-hover ' +
     'focus-visible:outline-none focus-visible:after:w-[3px] ' +
-    'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)]';
+    'focus-visible:after:bg-state-handle-focus';
 
 /**
  * Keeps the resize cursor and suppresses text selection on the whole document while a drag is active: without it a

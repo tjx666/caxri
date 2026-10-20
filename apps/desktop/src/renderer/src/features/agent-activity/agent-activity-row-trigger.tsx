@@ -114,7 +114,7 @@ export function AgentActivityRowTrigger({
         <div
             className={cn(
                 'agent-activity-row relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground',
-                'hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
+                'hover:bg-state-hover',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
                 /*

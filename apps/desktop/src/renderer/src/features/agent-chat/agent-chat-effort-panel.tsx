@@ -257,7 +257,7 @@ function EffortSlider({
                     ),
                 )}
                 <SliderPrimitive.Thumb
-                    className="size-7 rounded-full bg-foreground shadow-[0_1px_4px_var(--shadow)] outline-none has-focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]"
+                    className="size-7 rounded-full bg-foreground shadow-[0_1px_4px_var(--shadow)] outline-none has-focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)]"
                     getAriaLabel={() => t('agentChat.model.reasoningEffort')}
                     getAriaValueText={(_, value) => agentChatEffortLabel(efforts[value] ?? '', t)}
                 />

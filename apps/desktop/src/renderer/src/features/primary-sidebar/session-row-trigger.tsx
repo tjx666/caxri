@@ -78,7 +78,7 @@ export function SessionRowTrigger({
             onDragOver={(event) => sessionOrder.dragOver(event, session.id)}
             onDrop={(event) => sessionOrder.drop(event, session.id)}
             className={cn(
-                'session-card flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
+                'session-card flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground hover:bg-state-hover',
                 // Room for the hover actions, which a renaming row does not show.
                 !renaming && 'group-hover/session-row:pr-[var(--session-hover-actions)]',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',

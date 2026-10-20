@@ -27,7 +27,7 @@ export function CommanderClearDataOption({
 }) {
     return (
         <div
-            className="commander-clear-data-option grid gap-2 rounded-md px-2 py-2 data-[checked=true]:bg-[color-mix(in_srgb,var(--selection)_45%,transparent)]"
+            className="commander-clear-data-option grid gap-2 rounded-md px-2 py-2 data-[checked=true]:bg-state-selected-quiet"
             data-checked={isChecked}
             data-clear-data={id}
         >

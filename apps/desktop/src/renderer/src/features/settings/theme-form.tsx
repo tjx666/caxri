@@ -147,7 +147,7 @@ export function ThemeForm({
                             {Object.entries(theme[section]).map(([key, value]) => (
                                 <div
                                     key={key}
-                                    className="flex min-w-0 items-center gap-2 rounded px-1 py-1 hover:bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)]"
+                                    className="flex min-w-0 items-center gap-2 rounded px-1 py-1 hover:bg-state-hover-quiet"
                                 >
                                     <input
                                         id={`theme-${section}-${key}`}

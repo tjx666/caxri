@@ -26,7 +26,7 @@ import { useCommanderInbox } from './hooks/use-commander-inbox';
  * The zoom indicator in the title bar matches the ghost `sm` buttons beside it, muted like the Hand Over button.
  */
 const HEADER_ZOOM_TRIGGER =
-    'inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[11px] text-muted outline-none hover:bg-[var(--selection)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]';
+    'inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[11px] text-muted outline-none hover:bg-[var(--selection)] focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)]';
 
 /**
  * The window's whole title bar, and its drag region. Its left padding clears the macOS `hiddenInset` traffic lights,
