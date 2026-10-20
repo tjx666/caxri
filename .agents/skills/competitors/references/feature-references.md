@@ -150,6 +150,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | Chat composer prompt history | ArrowUp in an empty input opens a list of sent prompts, newest at the bottom, deduplicated, 50 rows; Enter fills without sending; placeholder preview        | `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-prompt-history.ts` |
 | Streaming reply pacing       | `useSmoothStreamContent`: reveal received text per animation frame at a rate that grows with the backlog, show a non-prefix rewrite at once, flush on finish | `packages/protocol/src/agent/agent-chat-stream-pacing.ts`; `docs/agent-chat.md`  |
+| Translucent primary sidebar  | Frosted-glass sidebar: the desktop blurs through a tinted sidebar while the main column stays opaque; a setting turns it off                                 | `apps/desktop/src/renderer/src/features/primary-sidebar/translucent-sidebar.ts`  |
 
 ## Codex app and Claude Code (closed or product references)
 
