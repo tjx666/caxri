@@ -8,8 +8,10 @@ import { createCommanderTerminalRestorer, createInterruptedTerminalRestorer } fr
 type RestorerOptions = Parameters<typeof createCommanderTerminalRestorer>[0];
 
 /**
- * Wires the interrupted-Terminal restore paths (the user's Sessions and the Agent Commander's) to their background
- * wrappers and to the suspension service's reselect hook. Kept out of `create-domain-services.ts` for its line budget.
+ * Owns the Terminal restore slice. Create: the interrupted-Terminal restorers for the user's Sessions and the Agent
+ * Commander's, each behind its fire-and-forget background wrapper. Start: registers the suspension service's reselect
+ * hook so a reselected suspended Session restores. Close: the composition root closes the returned `commanderRestores`
+ * after `terminalRestores`, in its fixed close order.
  */
 export function createRestoreServices(options: {
     agentChat: Pick<AgentChatService, 'resumeSuspended'>;
