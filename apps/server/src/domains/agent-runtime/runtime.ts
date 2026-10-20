@@ -13,6 +13,7 @@ import type {
     AgentAttentionRequests,
     AgentLifecycleSignal,
     PermissionAutoAllowRevokeReason,
+    SessionActivityTransition,
 } from '../agents';
 import {
     AgentCoordinator,
@@ -57,6 +58,10 @@ interface CreateAgentRuntimeOptions {
      */
     onLifecycleSignal?: (signal: AgentLifecycleSignal) => void;
     onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
+    /**
+     * A Session's durable activity state changed; see `AgentCoordinatorOptions.onSessionActivityChanged`.
+     */
+    onSessionActivityChanged?: (transition: SessionActivityTransition) => void;
     /**
      * A delivered `SIGINT` interrupted a launch's turn; see `AgentCoordinatorOptions.onSignalInterrupt`.
      */
@@ -107,6 +112,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             namingState.service?.observe(signal);
             options.onLifecycleApplied?.(signal);
         },
+        onSessionActivityChanged: options.onSessionActivityChanged,
         onSignalInterrupt: options.onSignalInterrupt,
         refreshDelayMs: dependencies.agentRefreshDelayMs,
         unknownRecoveryMs: dependencies.agentUnknownRecoveryMs,

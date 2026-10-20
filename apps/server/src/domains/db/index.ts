@@ -6,6 +6,7 @@ export {
 export { CaxriDatabaseConnection } from './database-connection';
 export { AgentChatStateModel } from './models/agent-chat-state';
 export type { StoredAgentDelegation } from './models/agent-delegations';
+export { isActiveDelegationStatus } from './models/agent-delegations';
 export type {
     AgentSessionUsageRow,
     ExternalAgentUsageRow,

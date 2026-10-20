@@ -1,3 +1,4 @@
+import type { AgentActivityState } from '@caxri/protocol';
 import { normalizeTerminalTitle } from '@caxri/protocol';
 
 /**
@@ -7,7 +8,7 @@ import { normalizeTerminalTitle } from '@caxri/protocol';
  */
 export type CommanderCompletionNoticeStatus = 'completed' | 'failed' | 'needsInput';
 
-export interface CommanderCompletionNoticeEntry {
+interface CommanderCompletionNoticeEntry {
     delegationId: string;
     sessionId: string;
     status: CommanderCompletionNoticeStatus;
@@ -72,6 +73,46 @@ function handoverNoticeClause(entry: CommanderHandoverNoticeEntry): string {
     )} ${HANDOVER_EVENT_LABEL[entry.event]}`;
 }
 
+/**
+ * The activity states a Session notice reports. `unknown` is not one: it means Caxri lost track of the Agent, which
+ * tells the Commander nothing it could act on.
+ */
+export type CommanderSessionNoticeState = Exclude<AgentActivityState, 'unknown'>;
+
+/**
+ * A Session the Commander manages changed state on its own: the user worked in it, or its Agent finished, failed, or
+ * asked for input outside a task the Commander dispatched.
+ */
+export interface CommanderSessionNoticeEntry {
+    sessionId: string;
+    state: CommanderSessionNoticeState;
+}
+
+const SESSION_STATE_LABEL: Record<CommanderSessionNoticeState, string> = {
+    running: 'is working',
+    waiting: 'needs input',
+    completed: 'finished its turn',
+    failed: 'failed its turn',
+    idle: 'is idle',
+};
+
+/**
+ * One Session clause: the Session ID and its latest state word, never its title or what its Agent wrote.
+ */
+function sessionNoticeClause(entry: CommanderSessionNoticeEntry): string {
+    return `Session ${sanitizeSingleLine(entry.sessionId)} ${SESSION_STATE_LABEL[entry.state]}`;
+}
+
+/**
+ * Everything one notice line reports.
+ */
+export interface CommanderNoticeBatch {
+    delegations: readonly CommanderCompletionNoticeEntry[];
+    inbox?: readonly CommanderInboxNoticeEntry[];
+    handovers?: readonly CommanderHandoverNoticeEntry[];
+    sessions?: readonly CommanderSessionNoticeEntry[];
+}
+
 function noticeUpdateCount(count: number, noun: string): string {
     return count === 1 ? `1 ${noun}update` : `${count} ${noun}updates`;
 }
@@ -86,12 +127,19 @@ function inboxNoticeClause(entry: CommanderInboxNoticeEntry): string {
 /**
  * The count before a notice's clauses, naming the kind only when every clause shares it.
  */
-function noticeSummary(delegationCount: number, inboxCount: number, handoverCount: number): string {
-    const total = delegationCount + inboxCount + handoverCount;
-    if (total === delegationCount) return noticeUpdateCount(delegationCount, 'delegation ');
-    if (total === inboxCount) return noticeUpdateCount(inboxCount, 'inbox ');
-    if (total === handoverCount) return noticeUpdateCount(handoverCount, 'hand-over ');
-    return noticeUpdateCount(total, '');
+function noticeSummary(counts: Array<[count: number, noun: string]>): string {
+    const total = counts.reduce((sum, [count]) => sum + count, 0);
+    const [count, noun] = counts.find(([kindCount]) => kindCount === total) ?? [total, ''];
+    return noticeUpdateCount(count, noun);
+}
+
+function noticeCount(batch: CommanderNoticeBatch): number {
+    return (
+        batch.delegations.length +
+        (batch.inbox?.length ?? 0) +
+        (batch.handovers?.length ?? 0) +
+        (batch.sessions?.length ?? 0)
+    );
 }
 
 const STATUS_LABEL: Record<CommanderCompletionNoticeStatus, string> = {
@@ -106,22 +154,29 @@ const STATUS_LABEL: Record<CommanderCompletionNoticeStatus, string> = {
  * join into this one line instead of one injection per delegation, so a Commander that was busy through several
  * completions still receives exactly one line to read.
  */
-export function formatCommanderCompletionNotice(
-    entries: readonly CommanderCompletionNoticeEntry[],
-    inboxEntries: readonly CommanderInboxNoticeEntry[] = [],
-    handoverEntries: readonly CommanderHandoverNoticeEntry[] = [],
-): string {
+export function formatCommanderCompletionNotice({
+    delegations,
+    inbox = [],
+    handovers = [],
+    sessions = [],
+}: CommanderNoticeBatch): string {
     const clauses = [
-        ...entries.map(
+        ...delegations.map(
             (entry) =>
                 `delegation ${sanitizeSingleLine(entry.delegationId)} in Session ${sanitizeSingleLine(
                     entry.sessionId,
                 )} ${STATUS_LABEL[entry.status]}`,
         ),
-        ...inboxEntries.map((entry) => inboxNoticeClause(entry)),
-        ...handoverEntries.map((entry) => handoverNoticeClause(entry)),
+        ...inbox.map((entry) => inboxNoticeClause(entry)),
+        ...handovers.map((entry) => handoverNoticeClause(entry)),
+        ...sessions.map((entry) => sessionNoticeClause(entry)),
     ];
-    const summary = noticeSummary(entries.length, inboxEntries.length, handoverEntries.length);
+    const summary = noticeSummary([
+        [delegations.length, 'delegation '],
+        [inbox.length, 'inbox '],
+        [handovers.length, 'hand-over '],
+        [sessions.length, 'Session '],
+    ]);
     return `[Caxri notice] ${summary}: ${clauses.join('; ')}.`;
 }
 
@@ -131,23 +186,16 @@ export function formatCommanderCompletionNotice(
  * before acting. Server-generated only, like every notice.
  */
 export function formatCommanderResumePrompt(
-    entries: readonly CommanderCompletionNoticeEntry[],
+    batch: CommanderNoticeBatch,
     wasTurnInterrupted: boolean,
-    inboxEntries: readonly CommanderInboxNoticeEntry[] = [],
-    handoverEntries: readonly CommanderHandoverNoticeEntry[] = [],
 ): string {
     const parts = ['[Caxri notice] The Agent Commander restarted.'];
     if (wasTurnInterrupted)
         parts.push(
             'Your previous turn did not finish: Caxri or your Agent CLI restarted, or the turn was interrupted. Continue it unless the user stopped it on purpose.',
         );
-    if (entries.length + inboxEntries.length + handoverEntries.length > 0)
-        parts.push(
-            formatCommanderCompletionNotice(entries, inboxEntries, handoverEntries).replace(
-                '[Caxri notice] ',
-                'Missed ',
-            ),
-        );
+    if (noticeCount(batch) > 0)
+        parts.push(formatCommanderCompletionNotice(batch).replace('[Caxri notice] ', 'Missed '));
     parts.push(
         'Reconcile with `commander task list` and `commander board` before you act, then report under Reporting.',
     );

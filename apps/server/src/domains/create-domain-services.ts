@@ -104,9 +104,9 @@ export async function createDomainServices(
         onLifecycleApplied: (signal) => {
             delegationState.service?.observe(signal);
             suspensionState.service?.observeAppliedLifecycle(signal);
-            commanderHooks.notifier?.onLifecycleApplied(signal);
-            commanderHooks.handovers?.onLifecycleApplied(signal);
+            commanderHooks.lifecycleApplied(signal);
         },
+        onSessionActivityChanged: commanderHooks.sessionActivityChanged,
         onSignalInterrupt: (terminalId) => {
             suspensionState.service?.observeInterrupt(terminalId);
             commanderHooks.interrupted(terminalId);

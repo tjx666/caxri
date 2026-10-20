@@ -3,6 +3,7 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { AgentLifecycleSignal, SessionActivityTransition } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { CommanderCompletionNotifier } from './completion-notice';
 import type { CommanderHandoverService } from './handover';
@@ -39,6 +40,20 @@ export class CommanderTerminalHooks {
      * takes a handed-over Session back. A Chat has no Terminal draft for the notifier to fence.
      */
     readonly chatInput = (terminalId: string): void => this.handovers?.observeInput(terminalId);
+
+    /**
+     * Every lifecycle signal Server Core applied: the notifier's turn tracking and a hand-over waiting for its turn.
+     */
+    readonly lifecycleApplied = (signal: AgentLifecycleSignal): void => {
+        this.notifier?.onLifecycleApplied(signal);
+        this.handovers?.onLifecycleApplied(signal);
+    };
+
+    /**
+     * Any Session's activity state changed; the notifier keeps those of the Sessions the Commander manages.
+     */
+    readonly sessionActivityChanged = (transition: SessionActivityTransition): void =>
+        this.notifier?.notifySessionActivity(transition);
 
     readonly launchArguments = (terminal: TerminalRecord): string[] => {
         const commander = this.database.agentCommanderRows();

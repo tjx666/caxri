@@ -23,6 +23,13 @@ const activeStatuses = [
     'blocked',
 ];
 
+/**
+ * Whether a task in `status` is still in flight: not yet settled as completed, failed, or stopped.
+ */
+export function isActiveDelegationStatus(status: string): boolean {
+    return activeStatuses.includes(status);
+}
+
 const storedDelegationSchema = z.strictObject({
     receipt: agentDelegationReceiptSchema,
     principal: principalSchema,
