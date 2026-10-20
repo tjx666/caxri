@@ -1,6 +1,10 @@
 /**
  * Contract tests that scan source or config files at runtime instead of importing them, so import-based discovery in
  * `check.ts` cannot select them. Each selector maps a changed-path pattern to the contract it could break.
+ *
+ * Only whole-tree contracts belong here: ones that walk a directory's structure or react to deleted paths. A test that
+ * asserts on specific files' text imports them with `?raw` or `import.meta.glob`, which import discovery already
+ * follows.
  */
 
 /**

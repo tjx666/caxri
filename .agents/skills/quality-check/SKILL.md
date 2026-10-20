@@ -37,7 +37,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - `--test` runs changed test files, the existing bounded colocated/domain candidates, and Vitest
   suites that statically import a changed source through a relative path, tsconfig alias, or
   workspace package export. Discovery crosses at most two pure re-export barrels, including
-  package entrypoints, but does not follow ordinary imports.
+  package entrypoints, but does not follow ordinary imports. A queried import (`theme.css?raw`) or
+  an `import.meta.glob` pattern selects its test for that exact file, stylesheets included.
   Keep the checker's source roots aligned with Vitest's include patterns, including `extensions/`.
   It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
   focused check into a broad test run. Renderer source changes also run the design and theme

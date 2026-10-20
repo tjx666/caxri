@@ -562,6 +562,29 @@ export default defineConfig(
         },
     },
     /**
+     * Listener and subscription fan-outs isolate each callback through `@caxri/utils`, so one throwing listener or
+     * `dispose()` cannot starve or leak the rest. Tests and generated bundles stay out: a test may invoke its own fakes
+     * in a bare loop, and nobody edits vendored output.
+     */
+    {
+        files: [
+            '{apps,packages,extensions}/*/src/**/*.{ts,tsx}',
+            'scripts/fixtures/eslint/listener-fanout/**/*.ts',
+        ],
+        ignores: [
+            '**/__tests__/**',
+            '**/*.test.{ts,tsx}',
+            '**/*.e2e.ts',
+            '**/*.generated.{ts,tsx}',
+        ],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/listener-fanout-isolation': 'error',
+        },
+    },
+    /**
      * DESIGN.md principle 5 claimed unregistering Tailwind's palette made a literal color utility fail the build. It
      * does not: Tailwind simply emits no rule, so `bg-white` stays on the element and styles nothing. Three such class
      * names had already survived into the bundle, one of them the quiet zone around the pairing QR code. This rule is

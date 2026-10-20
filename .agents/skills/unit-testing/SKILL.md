@@ -25,6 +25,12 @@ Validate the smallest observable behavior below the Electron desktop boundary.
    For chunked or asynchronously parsed streams, preserve the original chunk boundaries and
    exercise the real encoder/parser when its buffering affects the result. Joining chunks before
    the assertion or checking enqueue alone cannot prove correct consumer output or reset ordering.
+   A coding convention that a single file's syntax can show (always notify listeners through
+   `notifyListeners`) belongs in a `scripts/eslint-rules/` rule, not a test that scans the tree;
+   lint reports it in the editor and in `check --lint`. A contract test that asserts on a
+   repository file's text imports that file (`import css from '.../theme.css?raw'`, or
+   `import.meta.glob(..., { query: '?raw', eager: true })` for a directory) instead of reading
+   it with `fs`, so `check --test` and Vitest's module graph select the test when the file changes.
 3. Do not unit-test React components by default. Extract meaningful state into a hook or pure
    function; route rendering and interaction to `e2e-testing`.
 4. Run the narrowest relevant files:
