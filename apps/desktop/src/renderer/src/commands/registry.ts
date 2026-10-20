@@ -29,6 +29,7 @@ export interface CommandContext {
     };
     session: {
         archiveSelected(): void;
+        closeTab(): void;
         compactWarm(): void;
         canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;
@@ -37,6 +38,10 @@ export interface CommandContext {
         focusNextAttention(): void;
         navigateHistory(direction: SessionNavigationDirection): void;
         openArchived(): void;
+        /**
+         * Shows the Open Session at `position` (1 to 9, 9 meaning the last).
+         */
+        openTab(position: number): void;
         openPullRequestSelected(): void;
         renameSelected(): void;
         renameSelectedWithAi(): void;

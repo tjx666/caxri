@@ -84,9 +84,8 @@ export function harness(initial: SessionRecord) {
     const activateSession = vi.fn<() => Promise<void>>(() => Promise.resolve());
     const coordinator = createAgentNotificationCoordinator({
         activateSession,
-        isSessionVisible: (sessionId, selected) => isVisible && selected === sessionId,
-        loadBootstrap: () =>
-            Promise.resolve({ ...bootstrap(current, settings), selectedSessionId }),
+        isSessionVisible: (sessionId) => isVisible && selectedSessionId === sessionId,
+        loadBootstrap: () => Promise.resolve(bootstrap(current, settings)),
         loadRecords: () =>
             Promise.resolve({
                 sessions: [current],

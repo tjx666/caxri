@@ -81,5 +81,14 @@ export interface DomainServices {
      * Releases every owned resource: schedulers, PTYs, watchers, and the database.
      */
     close(): Promise<void>;
+    /**
+     * Subscribes to a change of the Session the user is in (see `WindowPresence.currentSessionId`), which has no
+     * `state.changed` event of its own because moving window focus must not make every Renderer re-read the Workbench.
+     */
+    onActiveContextChanged?(listener: () => void): () => void;
+    /**
+     * A control connection closed; forget any per-connection memory state it reported (window presence).
+     */
+    onConnectionClosed?(connectionId: string): void;
     validateRequestContext(context: WorkbenchRequestContext): void;
 }

@@ -13,13 +13,25 @@ export * from './records';
 /**
  * Keeps the domain-service composition root small while all introspection sources remain domain-owned.
  */
-export function createIntrospectionServices(database: CaxriDatabase, logger: StructuredLogger) {
+export function createIntrospectionServices(
+    database: CaxriDatabase,
+    logger: StructuredLogger,
+    currentSessionId: () => string | undefined,
+) {
     return {
         logs: new LogQueryService(dirname(logger.path)),
         records: new RecordQueryService(
             {
-                currentProjectId: () => database.getAppState('lastSelectedProjectId') ?? undefined,
-                currentSessionId: () => database.getAppState('lastSelectedSessionId') ?? undefined,
+                currentProjectId: () => {
+                    const sessionId = currentSessionId();
+                    const session = sessionId ? database.getSession(sessionId) : undefined;
+                    return (
+                        session?.projectId ??
+                        database.getAppState('lastSelectedProjectId') ??
+                        undefined
+                    );
+                },
+                currentSessionId,
                 // Hidden Projects stay out of CLI queries exactly as they stay out of the Workbench.
                 projects: () => database.listVisibleProjects(),
                 sessions: () => database.listVisibleSessions(),

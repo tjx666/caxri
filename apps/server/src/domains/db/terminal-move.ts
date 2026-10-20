@@ -2,6 +2,7 @@ import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
+import { activateSessionInWindow } from './open-sessions';
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
@@ -18,6 +19,7 @@ import {
 export function moveTerminalToNewSession(
     database: CaxriDatabaseConnection,
     terminalId: string,
+    windowKey?: string,
 ): { session: SessionRecord; terminal: TerminalRecord } {
     const terminal = database.terminals.get(terminalId);
     if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
@@ -51,7 +53,7 @@ export function moveTerminalToNewSession(
     if (assignment) database.sessions.setPrimaryAgent(newSession.id, assignment);
     database.sessions.insertInitialState(newSession.id, movedTerminal.id);
 
-    database.appState.set('lastSelectedSessionId', newSession.id);
+    if (windowKey) activateSessionInWindow(database, windowKey, newSession.id, 'navigate');
     database.appState.set('lastSelectedProjectId', project.id);
     database.projects.touchLastOpened(project.id);
     database.sessions.touchLastOpened(newSession.id);

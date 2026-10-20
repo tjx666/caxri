@@ -35,6 +35,7 @@ import {
     openSessionPullRequest,
     setSessionPinned,
 } from '../session/session-commands';
+import { openSessionInNewTab } from '../session-tabs/session-tab-commands';
 import { agentRestartMenuEntry } from '../terminal/agent-restart-commands';
 import {
     agentResumeCommandMenuEntry,
@@ -313,6 +314,13 @@ async function sessionRowMenu({
             onSelect: () => revokePermissionAutoAllow(session.id),
         },
         CONTEXT_MENU_SEPARATOR,
+        {
+            label: translate('sessionTabs.openInNewTab'),
+            onSelect: () => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, reports its own failure
+                void openSessionInNewTab(session.id);
+            },
+        },
         // The external editor runs on this Mac and cannot open a Project on an SSH Host.
         isLocalOnlyAvailable() && {
             label: translate('primarySidebar.sessionMenu.openProjectInEditor'),

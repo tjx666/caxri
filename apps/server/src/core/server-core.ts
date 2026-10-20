@@ -7,13 +7,11 @@ import type {
     ProtocolEventEnvelope,
     ServerEvent,
     ServerIdleExitReason,
-    ServerOperationRequest,
     ServerRequest,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
-    getMethodSpec,
     isServerRequest,
     isTransientServerEvent,
     projectObservableEventRecovery,
@@ -32,7 +30,6 @@ import {
 } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
-import { retireEndpointsForOperation } from './agent-endpoints/retire-for-operation';
 import { sendAgentMessage } from './agent-message-send';
 import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
@@ -48,8 +45,9 @@ import {
     isExtensionControlRequest,
 } from './extensions/control-requests';
 import { createExtensionService } from './extensions/create-service';
-import { routeExtensionDomainEvent } from './extensions/domain-events';
+import { routeActiveContextChange, routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
+import { createDomainOperationForwarder } from './forward-domain-operation';
 import { createIdleExitConnectionTracker, createIdleExitMonitor } from './idle-exit';
 import {
     isMobileControlRequest,
@@ -71,6 +69,7 @@ import type { CommandStopFallbackReference } from './server-core-control-callbac
 import { createServerCoreControlCallbacks } from './server-core-control-callbacks';
 import { createTerminalExecution } from './terminal-host/create-execution';
 import { invokeTerminalSend } from './terminal-send';
+import { withRequestOrigin } from './with-request-origin';
 
 export type { ServerCore, ServerCoreOptions } from './server-core-contract';
 /**
@@ -150,19 +149,15 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
     const dispatchWaitIds = new Map<string, Set<string>>();
     const requestCancellations = new RequestCancellationRegistry();
-    const forwardDomainOperation = async (
-        request: ServerOperationRequest,
-        signal?: AbortSignal,
-    ): Promise<unknown> => {
-        const spec = getMethodSpec(request.method);
-        if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
-        if (spec.effect === 'read')
-            return domainService.forward(request.method, request.params, undefined, signal);
-        return mutationAdmission.run(async () => {
-            retireEndpointsForOperation(agentEndpoints, request);
-            return domainService.forward(request.method, request.params, undefined, signal);
+    const forwardDomainOperation = createDomainOperationForwarder(
+        domainService,
+        mutationAdmission,
+        agentEndpoints,
+    );
+    const logContextRefreshFailure = (error: unknown): void =>
+        logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
+            fields: { message: error instanceof Error ? error.message : String(error) },
         });
-    };
     const recoveryJournal = createServerRecoveryJournal(
         serverRecoverySnapshot(domainService),
         (observation) => logDurableRecovery(logger, observation),
@@ -188,10 +183,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         if (!stopPromise) {
             // eslint-disable-next-line unicorn/prefer-await -- event delivery cannot await a best-effort refresh
             routeExtensionDomainEvent(extensionService, domainService, event).catch(
-                (error: unknown) =>
-                    logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
-                        fields: { message: error instanceof Error ? error.message : String(error) },
-                    }),
+                logContextRefreshFailure,
             );
         }
         if (isTransientServerEvent(event)) server?.broadcast(event);
@@ -202,6 +194,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         mobileAccess.publish(event);
     };
     domainService.onEvent(deliver);
+    domainService.onActiveContextChanged(() => {
+        if (stopPromise) return;
+        // eslint-disable-next-line unicorn/prefer-await -- a listener cannot await a best-effort refresh
+        routeActiveContextChange(extensionService, domainService).catch(logContextRefreshFailure);
+    });
     const stop = (reason = 'requested'): Promise<void> => {
         mutationAdmission.close();
         resolveStopping();
@@ -232,7 +229,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         return stopPromise;
     };
 
-    const serverAdapter: CommandAdapter = {
+    const serverAdapter: CommandAdapter = withRequestOrigin({
         async invoke(request, context, invocation) {
             if (!isServerRequest(request))
                 throw new CaxriError(
@@ -537,7 +534,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 }
             }
         },
-    };
+    });
 
     try {
         await domainService.start();
@@ -618,6 +615,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             logger,
             identity: lease.identity,
             protocolIdentity,
+            onConnectionClosed: (connectionId) => domainService.onConnectionClosed(connectionId),
             onClientCountChanged: (clientCount, event) => {
                 logger.recordMetric('connection.count', clientCount, {
                     owner: 'control',

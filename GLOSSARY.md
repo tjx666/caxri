@@ -26,8 +26,9 @@ Agents live on that machine.
 _Avoid_: Remote, remote machine, Remote Server
 
 **Session View**:
-One Client's presentation of a Session, including its pane layout, open resources, selection, and
-an optional Workbench Root override. It never owns the resources it presents.
+One Client's presentation of a Session, including its pane layout, open resources, active resource, and
+an optional Workbench Root override. It never owns the resources it presents. Which Sessions a window
+keeps open is separate: see Open Session.
 _Avoid_: Session state, Desktop state
 
 ## Work
@@ -41,6 +42,12 @@ _Avoid_: Workspace, repository, directory (except for filesystem primitives)
 A durable unit of work within one owning Project that owns Terminals, the shared Workbench Root,
 document Drafts, and Agent activity and Attention.
 _Avoid_: Conversation, tab, Session View
+
+**Open Session**:
+A Session kept in one window's tab strip, ordered and persisted per window. It is a working set, not
+proof of existence: archived, deleted, and hidden Sessions drop out of every strip. The window shows
+exactly one Open Session at a time.
+_Avoid_: Open tab, selected Session
 
 **Workbench Root**:
 The currently selected authorized Project whose Files, Editor, Search, and Git surfaces a Session

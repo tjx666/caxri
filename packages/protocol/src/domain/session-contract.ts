@@ -28,6 +28,12 @@ import {
 } from './session-search.js';
 import { terminalKindSchema, terminalRecordSchema } from './terminal-record.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
+import {
+    openSessionIdsSchema,
+    sessionPlacementSchema,
+    windowKeyParameter,
+    windowOpenSessionsSchema,
+} from './window-presence-contract.js';
 
 const serverWrite = commandPolicy('server', 'write');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -41,6 +47,10 @@ const sessionIdWrite = {
     params: z.object({ sessionId: identifierSchema }),
     result: sessionRecordSchema,
 };
+/**
+ * A Session operation that also moves the requesting window's active Session.
+ */
+const windowSessionParameters = z.object({ sessionId: identifierSchema, ...windowKeyParameter });
 const sessionAttentionReadResult = z.object({
     acknowledged: z.boolean(),
     sessionId: identifierSchema,
@@ -97,6 +107,15 @@ export const sessionMethods = {
              * `capabilities.chat`. Defaults to a PTY.
              */
             surface: terminalSurfaceSchema.optional(),
+            /**
+             * The window that becomes active on the new Session. Supplied by Desktop Main.
+             */
+            ...windowKeyParameter,
+            /**
+             * `newTab` appends the new Session to the window's Open Sessions; omitted, creation replaces the active
+             * entry like a plain select.
+             */
+            placement: sessionPlacementSchema.optional(),
         }),
         result: z.object({
             session: sessionRecordSchema,
@@ -105,7 +124,7 @@ export const sessionMethods = {
     },
     'session.delete': {
         ...desktopWrite,
-        params: z.object({ sessionId: identifierSchema }),
+        params: windowSessionParameters,
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
     /**
@@ -113,13 +132,35 @@ export const sessionMethods = {
      */
     'session.deleteMany': {
         ...desktopWrite,
-        params: z.object({ sessionIds: sessionIdBatchSchema }),
+        params: z.object({
+            sessionIds: sessionIdBatchSchema,
+            ...windowKeyParameter,
+        }),
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
+    /**
+     * Makes `sessionId` the requesting window's active Session, adds it to that window's Open Sessions, and touches its
+     * recency. `windowKey` is supplied by Desktop Main from the trusted sender, never by a Renderer.
+     */
     'session.select': {
         ...serverWrite,
-        params: z.object({ sessionId: identifierSchema }),
+        params: windowSessionParameters,
         result: sessionRecordSchema,
+    },
+    /**
+     * Replaces the requesting window's Open Sessions strip with the ordered IDs. It never carries the active Session:
+     * that changes only through `session.select`, so a delayed strip save cannot overwrite a newer selection. The
+     * Server drops unknown, archived, and hidden Sessions; when the active entry is no longer listed it moves to that
+     * entry's neighbor in the previous strip. It answers with the strip and active Session it stored. Navigating to a
+     * Session goes through `session.select`; this method adds an entry without selecting it, reorders, and closes.
+     */
+    'window.openSessions.set': {
+        ...serverWrite,
+        params: z.object({
+            ...windowKeyParameter,
+            openSessionIds: openSessionIdsSchema,
+        }),
+        result: windowOpenSessionsSchema,
     },
     'session.markRead': {
         ...commandPolicy('server', 'write', ['sessions.write']),
@@ -182,7 +223,7 @@ export const sessionMethods = {
         result: z.array(sessionRecordSchema),
     },
     'session.detach': sessionIdWrite,
-    'session.resume': sessionIdWrite,
+    'session.resume': { ...sessionIdWrite, params: windowSessionParameters },
     /**
      * Desktop-visible read of the in-memory "Always allow in this Session" grant (issue caxri#1295). Never durable, so
      * this is its own command rather than a `sessionRecordSchema` field; see `permissionAutoAllowStatusSchema`.

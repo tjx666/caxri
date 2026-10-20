@@ -24,7 +24,10 @@ export function createWorkbenchSnapshots(dependencies: {
     function workbenchState(
         projects: ProjectRecord[],
         sessions: SessionRecord[],
-        selection: Pick<BootstrapState, 'selectedProjectId' | 'selectedSessionId'>,
+        selection: Pick<
+            BootstrapState,
+            'openSessionIds' | 'selectedProjectId' | 'selectedSessionId'
+        >,
     ): BootstrapState {
         const settings = configuration.getSettings();
         const keybindings = configuration.getKeybindings();
@@ -53,11 +56,34 @@ export function createWorkbenchSnapshots(dependencies: {
         };
     }
     return {
-        bootstrap: (): BootstrapState =>
-            workbenchState(database.listVisibleProjects(), database.listVisibleSessions(), {
-                selectedProjectId: database.getAppState('lastSelectedProjectId') ?? undefined,
-                selectedSessionId: database.getAppState('lastSelectedSessionId') ?? undefined,
-            }),
+        /**
+         * The Workbench for one window: `selectedSessionId` and `openSessionIds` come from that window's record, with
+         * every entry that is archived, deleted, or hidden dropped, because the stored strip is a working set and never
+         * the authority on whether a Session exists.
+         */
+        bootstrap: (windowKey?: string): BootstrapState => {
+            const sessions = database.listVisibleSessions();
+            const openable = new Set(
+                sessions.filter((session) => session.archivedAt === undefined).map(({ id }) => id),
+            );
+            // A caller without a window (CLI, internal reads) has no strip and no active Session of its own.
+            const window = windowKey
+                ? database.windowOpenSessions.get(windowKey)
+                : { openSessionIds: [], activeSessionId: null };
+            const selectedSessionId =
+                window.activeSessionId !== null && openable.has(window.activeSessionId)
+                    ? window.activeSessionId
+                    : undefined;
+            const selectedProjectId = selectedSessionId
+                ? sessions.find((session) => session.id === selectedSessionId)?.projectId
+                : undefined;
+            return workbenchState(database.listVisibleProjects(), sessions, {
+                openSessionIds: window.openSessionIds.filter((id) => openable.has(id)),
+                selectedProjectId:
+                    selectedProjectId ?? database.getAppState('lastSelectedProjectId') ?? undefined,
+                selectedSessionId,
+            });
+        },
         /**
          * Targeted refreshes append records the Workbench did not hold yet, so the Agent Commander's own Session and
          * Terminal are withheld here exactly as `bootstrap` withholds them; the Commander window reads them through
@@ -86,6 +112,7 @@ export function createWorkbenchSnapshots(dependencies: {
             const project = database.getProject(identity.projectId);
             const session = database.getSession(identity.sessionId);
             return workbenchState(project ? [project] : [], session ? [session] : [], {
+                openSessionIds: [identity.sessionId],
                 selectedProjectId: identity.projectId,
                 selectedSessionId: identity.sessionId,
             });

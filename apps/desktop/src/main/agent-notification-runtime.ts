@@ -8,6 +8,7 @@ import type { AgentNotificationDelivery } from './agent-notification-delivery';
 import type { AgentNotificationCoordinator } from './agent-notifications';
 import { createAgentNotificationCoordinator } from './agent-notifications';
 import type { DesktopServerConnection } from './server-connection';
+import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
 interface DesktopAgentNotificationOptions {
     /**
@@ -15,7 +16,10 @@ interface DesktopAgentNotificationOptions {
      */
     delivery: AgentNotificationDelivery;
     focusMainWindow: () => Promise<BrowserWindow>;
-    getWindow: () => BrowserWindow | undefined;
+    /**
+     * Whether some window is showing the Session to the user right now; see `WindowPresenceRegistry.isSessionShown`.
+     */
+    isSessionShown: (sessionId: string) => boolean;
     logger: () => StructuredLogger | undefined;
     supervisor: DesktopServerConnection;
     sendEvent: (event: ServerEvent) => void;
@@ -37,7 +41,8 @@ export async function activateAgentNotificationSession(
     const session = bootstrap.sessions.find(
         (candidate) => candidate.id === sessionId && candidate.archivedAt === undefined,
     );
-    if (session) await supervisor.request('session.select', { sessionId });
+    if (session)
+        await supervisor.request('session.select', { sessionId, windowKey: PRIMARY_WINDOW_KEY });
 }
 
 /**
@@ -47,7 +52,7 @@ export async function activateAgentNotificationSession(
 export function createDesktopAgentNotifications({
     delivery,
     focusMainWindow,
-    getWindow,
+    isSessionShown,
     logger,
     supervisor,
     sendEvent,
@@ -55,17 +60,7 @@ export function createDesktopAgentNotifications({
     return createAgentNotificationCoordinator({
         activateSession: (sessionId) =>
             activateAgentNotificationSession({ focusMainWindow, supervisor }, sessionId),
-        isSessionVisible: (sessionId, selectedSessionId) => {
-            const window = getWindow();
-            return Boolean(
-                selectedSessionId === sessionId &&
-                window &&
-                !window.isDestroyed() &&
-                window.isVisible() &&
-                !window.isMinimized() &&
-                window.isFocused(),
-            );
-        },
+        isSessionVisible: isSessionShown,
         loadBootstrap: () => supervisor.request('app.bootstrap'),
         loadRecords: (parameters) => supervisor.request('app.records', parameters),
         loadReplySummary: async (sessionId) =>

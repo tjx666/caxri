@@ -62,6 +62,10 @@ export function createHarness(
          */
         controlledSuspend?: boolean;
         onSuspendedSessionReselected?: (sessionId: string) => void;
+        /**
+         * False while Desktop Main has not reported its windows yet.
+         */
+        isPresenceSettled?: boolean;
         selected?: string;
         settings?: Partial<AppSettings>;
     } = {},
@@ -126,7 +130,8 @@ export function createHarness(
         chats: options.chats,
         now: () => now,
         onSuspendedSessionReselected: options.onSuspendedSessionReselected,
-        selectedSessionId: () => selected,
+        isPresenceSettled: () => options.isPresenceSettled ?? true,
+        visibleSessionIds: () => new Set([selected]),
         send: (event) => events.push(event),
         settings: () => ({ ...defaultAppSettings, ...options.settings }),
         remoteObservers: [
@@ -168,7 +173,7 @@ export function createHarness(
         },
         select: (sessionId: string) => {
             selected = sessionId;
-            service.observeSelection();
+            service.observeVisibility();
         },
         service,
         suspend,

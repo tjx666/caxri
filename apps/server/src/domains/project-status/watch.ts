@@ -75,7 +75,10 @@ export interface DeliveryWatchOptions {
     isEnabled: () => boolean;
     listSessions: () => readonly string[];
     logger: StructuredLogger;
-    selectedSessionId: () => string | undefined;
+    /**
+     * The Sessions the resident poll already covers (the visible ones); the background watch skips them.
+     */
+    polledSessionIds: () => ReadonlySet<string>;
     setTimer: (callback: () => void, delayMs: number) => NodeJS.Timeout;
     /**
      * The Session's latest cached summary, if any.
@@ -141,17 +144,17 @@ export class DeliveryWatch {
         let hasInFlight = false as boolean;
         try {
             if (!this.options.isEnabled()) return;
-            const selected = this.options.selectedSessionId();
+            const polled = this.options.polledSessionIds();
             /**
-             * Seeded with what the selected Session's own poll already covers, so a background Session on the same
+             * Seeded with what the polled Sessions' own polls already cover, so a background Session on the same
              * repository and branch costs nothing extra.
              */
             const covered = new Set<string>(
-                deliveryKeys(selected ? this.options.summaryOf(selected) : undefined),
+                [...polled].flatMap((sessionId) => deliveryKeys(this.options.summaryOf(sessionId))),
             );
             const sessionIds = this.options
                 .listSessions()
-                .filter((sessionId) => sessionId !== selected);
+                .filter((sessionId) => !polled.has(sessionId));
             await mapWithConcurrency(sessionIds, WATCH_CONCURRENCY, async (sessionId) => {
                 try {
                     const outcome = await this.options.watchSession(

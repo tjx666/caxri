@@ -30,3 +30,9 @@ Codex hook follow-up, 2026-09-13: [current injection implementation](https://git
 _Researched 2026-10-10._
 
 - Chat opens beside the TUI rather than replacing it; a permission prompt hands control back to the TUI. There is no in-place switch between surfaces.
+
+## Multi-tab and multi-window (2026-10-21)
+
+Each window has its own `TabManager` with its own selection. `moveWorkspaceToWindow` moves a live
+workspace between windows without restarting it. Socket commands address a single active
+`TabManager` pointer, which is the same shape as Caxri's "current" Session for CLI calls.

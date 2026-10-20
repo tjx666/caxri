@@ -47,3 +47,9 @@ _Researched 2026-10-10._
 - A persistent `CLI | Chat` segmented control sits in the pane header of both Terminal and Chat panes. Switching stops one process and resumes the same Agent session id on the other surface.
 - Switching back to CLI creates a new terminalId, so an unsent draft is lost. Caxri keeps the Terminal row (and its draft) across a switch.
 - Caxri adopted the always-visible segmented entry as the tab rail's `Terminal | Chat` toggle.
+
+## Multi-tab and multi-window (2026-10-21)
+
+A window registry gives each window a stable UUID key, with `tabsStateByWindow` holding per-window
+tab state. Terminal sizing and attention track per-client visible and focused state, so a hidden
+client does not drive a resize. Caxri adopts the stable per-window key and the visible/focused pair.

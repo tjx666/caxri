@@ -194,7 +194,7 @@ describe('DeliveryWatch cadence', () => {
             isEnabled: () => true,
             listSessions: () => ['session-running'],
             logger: await logger(),
-            selectedSessionId: () => {},
+            polledSessionIds: () => new Set(),
             setTimer: (callback, delayMs) => {
                 timers.push({ callback, delayMs });
                 return { unref: () => {} } as unknown as NodeJS.Timeout;

@@ -18,6 +18,7 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useIsLocalOnlyAvailable, useIsRemote } from '../../stores/environment';
+import { useIsSessionTabStripVisible } from '../../stores/open-sessions';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
@@ -175,6 +176,7 @@ function CommandPaletteBody() {
         {},
         { enabled: isLocalOnlyAvailable, staleTime: 0 },
     ).data?.sessionIds;
+    const isSessionTabStripVisible = useIsSessionTabStripVisible();
     const whenContext = {
         ...commanderPaletteWhenContext({
             isLocalOnlyAvailable,
@@ -182,6 +184,7 @@ function CommandPaletteBody() {
             selectedSessionId: selectedSession?.id,
         }),
         localMachine: isLocalOnlyAvailable,
+        openSessionStrip: isSessionTabStripVisible,
         sshHost: isRemote,
         sessionHasLiveAgent:
             selectedSession !== undefined && hasLiveAgentTerminal(selectedSession.id, terminals),

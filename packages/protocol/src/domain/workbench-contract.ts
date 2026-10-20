@@ -4,6 +4,7 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { sessionRecordSchema, workbenchRootOptionSchema } from './domain.js';
 import { identifierSchema, pathSchema } from './identifiers.js';
+import { windowPresenceInternalMethods } from './window-presence-contract.js';
 
 const canceled = z.object({ canceled: z.literal(true) });
 
@@ -55,6 +56,7 @@ export const workbenchMethods = {
  * Main-only authority handoff; Renderer commands cannot submit a path to authorize a candidate.
  */
 export const workbenchInternalMethods = {
+    ...windowPresenceInternalMethods,
     'session.workbenchRoot.resolve': {
         ...commandPolicy('server', 'read'),
         params: z.object({ sessionId: identifierSchema, worktreeId: identifierSchema }),

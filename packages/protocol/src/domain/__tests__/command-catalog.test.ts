@@ -41,7 +41,7 @@ describe('command registry', () => {
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+shift+a', command: 'agentActions.open' },
                 { key: 'cmd+`', command: 'session.switchMru' },
-                { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+                { key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' },
                 { key: 'cmd+t', command: 'terminal.new' },
                 { key: 'cmd+\\', command: 'terminal.newInSplit' },
                 {
@@ -64,11 +64,22 @@ describe('command registry', () => {
             defaultKeybindings.filter(
                 (binding) => binding.command === 'secondarySidebar.showStatus',
             ),
-        ).toEqual([{ key: 'cmd+3', command: 'secondarySidebar.showStatus' }]);
+        ).toEqual([{ key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' }]);
         const changes: readonly DefaultKeybindingChange[] = defaultKeybindingChanges;
-        for (const change of changes) {
+        for (const [index, change] of changes.entries()) {
             const current = change.type === 'add' ? change.binding : change.current;
-            expect(defaultKeybindings).toContainEqual(current);
+            /**
+             * A change a later `replace` moves on (Cmd+3 Status to Cmd+Alt+3) is history, not a current default.
+             */
+            const isSuperseded = changes
+                .slice(index + 1)
+                .some(
+                    (later) =>
+                        later.type === 'replace' &&
+                        later.previous.key === current.key &&
+                        later.previous.command === current.command,
+                );
+            if (!isSuperseded) expect(defaultKeybindings).toContainEqual(current);
         }
         expect(commandDefinitions).toContainEqual(
             expect.objectContaining({

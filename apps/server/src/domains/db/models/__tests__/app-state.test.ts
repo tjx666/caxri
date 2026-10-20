@@ -27,9 +27,23 @@ describe('parseAppStateValue', () => {
         ).toThrow(expect.objectContaining({ code: 'VALIDATION' }) as Error);
     });
 
+    it('rejects a window key that is not a plain identifier', () => {
+        expect(() =>
+            parseAppStateValue(
+                'openSessionsByWindow',
+                '{"bad key":{"openSessionIds":[],"activeSessionId":null}}',
+            ),
+        ).toThrow(expect.objectContaining({ code: 'VALIDATION' }) as Error);
+    });
+
     it('returns the parsed value when the cell matches the key schema', () => {
         expect(parseAppStateValue('activeThemeId', '"caxri.dark"')).toBe('caxri.dark');
-        expect(parseAppStateValue('lastSelectedSessionId', 'null')).toBeNull();
+        expect(
+            parseAppStateValue(
+                'openSessionsByWindow',
+                '{"main":{"openSessionIds":["a","b"],"activeSessionId":"b"}}',
+            ),
+        ).toEqual({ main: { openSessionIds: ['a', 'b'], activeSessionId: 'b' } });
         expect(
             parseAppStateValue('windowState', '{"isMaximized":false,"isFullScreen":true}'),
         ).toEqual({ isMaximized: false, isFullScreen: true });

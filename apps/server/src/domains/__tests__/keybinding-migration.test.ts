@@ -42,9 +42,9 @@ describe('ConfigurationService keybinding migrations', () => {
 
         expect(service.getKeybindings().value).toEqual(
             expect.arrayContaining([
-                { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
-                { key: 'cmd+2', command: 'secondarySidebar.showGit' },
-                { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+                { key: 'cmd+alt+1', command: 'secondarySidebar.showFiles' },
+                { key: 'cmd+alt+2', command: 'secondarySidebar.showGit' },
+                { key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' },
                 { key: 'cmd+shift+1', command: 'panel.showLogs' },
                 { key: 'cmd+shift+2', command: 'panel.showInfo' },
                 { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },

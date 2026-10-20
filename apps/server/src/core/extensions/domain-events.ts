@@ -27,6 +27,18 @@ export async function readActiveExtensionContext(
 }
 
 /**
+ * Pushes the current active context to the Extension Host after it moved without a `state.changed` event, for example
+ * when window focus moves between two windows showing different Sessions.
+ */
+export async function routeActiveContextChange(
+    extensionService: ExtensionService | undefined,
+    domainService: DomainContextReader,
+): Promise<void> {
+    if (!extensionService) return;
+    await extensionService.activeContextChanged(await readActiveExtensionContext(domainService));
+}
+
+/**
  * Routes domain invalidations into the Extension Host with the exact scope that produced them. Server Core does not
  * synthesize an active-root scope for an unrelated Git or Status event, which would make a hidden view refresh the
  * wrong Session after a context switch.

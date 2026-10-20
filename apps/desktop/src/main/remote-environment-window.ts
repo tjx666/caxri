@@ -18,6 +18,12 @@ import { DesktopServerConnection } from './server-connection';
 import type { SharedServerConnectionOptions } from './server-connection-options';
 import { createWorkbenchUnsavedEditors } from './unsaved-editors';
 import { defaultWindowState } from './window-placement';
+import type { WindowPresenceRegistry } from './window-presence-registry';
+import {
+    createConnectionPresence,
+    forwardAsRequestWindow,
+    PRIMARY_WINDOW_KEY,
+} from './window-presence-registry';
 import { installRendererGuards } from './workbench-renderer-guards';
 
 interface RemoteMainHandlerInput {
@@ -26,6 +32,7 @@ interface RemoteMainHandlerInput {
     onUnsavedEditorsReply: ReturnType<typeof createWorkbenchUnsavedEditors>['reply'];
     sendEvent: (event: ServerEvent) => void;
     window: () => BrowserWindow | undefined;
+    windowPresence: WindowPresenceRegistry;
 }
 
 export interface RemoteEnvironmentWindowOptions {
@@ -103,8 +110,15 @@ export function createRemoteEnvironmentParts(options: RemoteEnvironmentWindowOpt
                 sendEvent,
             }),
         );
+        /**
+         * This window's presence on its own Server. The connection exists after the registry, so the registry reaches
+         * it through `bootstrap`, the same indirection the relay uses.
+         */
+        const presence = createConnectionPresence(() => bootstrap.connection!, options.logger);
+        presence.register(PRIMARY_WINDOW_KEY, window.webContents, window);
         const connection = new DesktopServerConnection({
             ...options.connection,
+            seedAttachment: (send) => presence.seed(send),
             createServerSupervisor: () => supervisor,
             discoverDesktop: () => supervisor.discoverDesktop(),
             handleCommand: desktopOperations,
@@ -134,6 +148,7 @@ export function createRemoteEnvironmentParts(options: RemoteEnvironmentWindowOpt
                 onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
                 sendEvent,
                 window: liveWindow,
+                windowPresence: presence,
             }),
         );
         const transport = createElectronIpcCommandAdapter({
@@ -142,7 +157,12 @@ export function createRemoteEnvironmentParts(options: RemoteEnvironmentWindowOpt
                     await options.whenAttached(window);
                     return request.method === 'events.recover'
                         ? relay.recover(request.params.afterCursor)
-                        : connection.forward(request.method, request.params, invocation.requestId);
+                        : forwardAsRequestWindow(
+                              connection,
+                              request.method,
+                              request.params,
+                              invocation.requestId,
+                          );
                 },
             },
             desktop: {
@@ -197,6 +217,7 @@ export function createRemoteEnvironmentParts(options: RemoteEnvironmentWindowOpt
                         .catch(() => {});
                 },
                 transport,
+                windowKey: PRIMARY_WINDOW_KEY,
             },
             sendEvent,
             supervisor,

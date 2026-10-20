@@ -8,6 +8,7 @@ status: accepted
 - Date: 2026-08-25
 - Note: post-cutover P2 product capability; implementation pending
 - Supersedes: state-ownership portions of ADR 0001 and ADR 0002
+- Amended by: [ADR 0017](./0017-per-window-session-presence.md) (per-window selection and presence)
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
 A Server accepts concurrent capability-scoped Clients. A Session owns shared domain state, including

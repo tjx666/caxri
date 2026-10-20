@@ -17,8 +17,9 @@ export function createStatusServices({
     files,
     git,
     logger,
-    selectedSessionId,
+    primaryVisibleSessionId,
     send,
+    visibleSessionIds,
     sessionContext,
     workbenchRoots,
 }: Pick<
@@ -27,7 +28,11 @@ export function createStatusServices({
 > &
     Pick<DomainDependencies, 'logger' | 'send'> & {
         database: CaxriDatabase;
-        selectedSessionId: () => string | undefined;
+        /**
+         * The one visible Session the single-scope file watcher follows.
+         */
+        primaryVisibleSessionId: () => string | undefined;
+        visibleSessionIds: () => ReadonlySet<string>;
     }): { projectStatus: ProjectStatusService; vercel: VercelDeploymentStore } {
     const vercel = new VercelDeploymentStore(externalStatus.run);
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
@@ -50,10 +55,11 @@ export function createStatusServices({
          */
         git.evictSessions([sessionId]);
         projectStatus.evictSessions([sessionId]);
-        if (selectedSessionId() === sessionId) {
-            projectStatus.setPolledSession(sessionId);
+        if (!visibleSessionIds().has(sessionId)) return;
+        // Evicting dropped the Session from the poll set; the root change keeps it visible, so it is polled again.
+        projectStatus.setPolledSessions(visibleSessionIds());
+        if (primaryVisibleSessionId() === sessionId)
             refreshWatchSessionInBackground(files, git, logger, sessionId);
-        }
     });
     return { projectStatus, vercel };
 }

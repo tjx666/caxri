@@ -38,7 +38,7 @@ those alerts from being emitted, including their history entries.
 
 Delivery failure alerts cover every unarchived Session, not only the selected one: a failing CI
 check, a failing Vercel preview build, or a failing Vercel production build raises one
-notification. The selected Session keeps its fast Status panel poll; every other Session is
+notification. Every Session a visible window shows keeps its fast Status panel poll; every other Session is
 refreshed by a slower delivery watch in Server Core (about every three minutes; a Session whose own check or build is still running is revisited every
 minute, without pulling settled Sessions along) that queries each GitHub repository and branch once per round,
 however many Sessions point at it. The watch fetches nothing while delivery failure notifications

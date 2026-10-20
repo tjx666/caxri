@@ -222,11 +222,12 @@ Server domain state and Client presentation state are deliberately separate:
 | Server       | Project, Session, active Workbench Root, Terminal, Draft, Agent Run, Activity, Attention |
 | Session View | pane layout, open resources, active pane, view state, optional Workbench Root override   |
 | Connection   | subscriptions, attachment identity, flow control, transient focus                        |
+| Window       | Open Session strip, viewed Session, focus and visibility (see ADR 0017)                  |
 
 A Session View is persisted by the Server under `(Client ID, Session)`, but only that Client writes it.
 It does not participate in shared domain revision conflicts. A View may override the active Workbench
 Root for that Client; without an override it follows the shared Session value, including Agent-driven
-worktree changes. File and Git commands carry the selected authorized Project ID, never a root path.
+worktree changes. File and Git commands carry the active authorized Project ID, never a root path.
 Terminal records are shared, while each Session View places them independently.
 
 Draft bodies are durable Server state keyed by Session, Workbench Root, and path. They carry revisions,

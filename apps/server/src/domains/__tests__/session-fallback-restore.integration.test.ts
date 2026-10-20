@@ -37,7 +37,7 @@ describe('Fallback Session restoration', () => {
                     ? database.createProject(await realpath(selectedProjectRoot))
                     : project;
             const selected = database.createSession(selectedProject.id, null);
-            database.selectSession(selected.session.id);
+            database.selectSession(selected.session.id, 'main');
             database.close();
 
             const runtime = await createTestDomainServices({

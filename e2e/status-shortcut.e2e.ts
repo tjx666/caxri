@@ -39,12 +39,12 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         await expect(running.page.getByRole('tablist', { name: 'Secondary Side Bar' })).toHaveCount(
             0,
         );
-        await running.page.keyboard.press('Meta+3');
+        await running.page.keyboard.press('Meta+Alt+3');
         await expectSelected(running.page, 'Status');
-        await running.page.keyboard.press('Meta+3');
+        await running.page.keyboard.press('Meta+Alt+3');
         await expectSelected(running.page, 'Status');
 
-        await running.page.keyboard.press('Meta+1');
+        await running.page.keyboard.press('Meta+Alt+1');
         await expectSelected(running.page, 'Files');
         await running.page.keyboard.press('Meta+Shift+F');
         // Content is the default mode, so the shortcut lands on the content input.
@@ -73,13 +73,13 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         await running.page.keyboard.press('Escape');
         await expect(searchInput).toHaveCount(0);
         await expectSelected(running.page, 'Files');
-        await running.page.keyboard.press('Meta+3');
+        await running.page.keyboard.press('Meta+Alt+3');
         await expectSelected(running.page, 'Status');
 
-        await running.page.keyboard.press('Meta+2');
+        await running.page.keyboard.press('Meta+Alt+2');
         await expectSelected(running.page, 'Git');
         await sidebarTab(running.page, 'Git').focus();
-        await running.page.keyboard.press('Meta+3');
+        await running.page.keyboard.press('Meta+Alt+3');
         await expectSelected(running.page, 'Status');
 
         await running.page.keyboard.press('Meta+P');
@@ -93,9 +93,9 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         await expect
             .poll(() => editor.evaluate((element) => element.contains(document.activeElement)))
             .toBe(true);
-        await running.page.keyboard.press('Meta+2');
+        await running.page.keyboard.press('Meta+Alt+2');
         await expectSelected(running.page, 'Git');
-        await running.page.keyboard.press('Meta+3');
+        await running.page.keyboard.press('Meta+Alt+3');
         await expectSelected(running.page, 'Status');
 
         const statusTab = sidebarTab(running.page, 'Status');
@@ -112,7 +112,7 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         const statusTooltip = running.page
             .locator('.tooltip-popup:visible')
             .filter({ hasText: 'Status' });
-        await expect(statusTooltip.locator('[data-shortcut="cmd+3"]')).toBeVisible();
+        await expect(statusTooltip.locator('[data-shortcut="cmd+alt+3"]')).toBeVisible();
         await running.page.mouse.move(0, 0);
 
         await running.page.keyboard.press('Meta+Shift+P');
@@ -122,7 +122,7 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
             .fill('secondarySidebar.showStatus');
         const showStatus = palette.getByRole('option', { name: /Show Status/ });
         await expect(showStatus).toBeVisible();
-        await expect(showStatus.locator('[data-shortcut="cmd+3"]')).toBeVisible();
+        await expect(showStatus.locator('[data-shortcut="cmd+alt+3"]')).toBeVisible();
         await running.page.keyboard.press('Escape');
 
         const keybindings = await pageRequest<{
@@ -132,12 +132,12 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
             keybindings.value.filter(
                 (binding) => binding.command === 'secondarySidebar.showStatus',
             ),
-        ).toEqual([{ key: 'cmd+3', command: 'secondarySidebar.showStatus' }]);
+        ).toEqual([{ key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' }]);
         await pageRequest(running.page, 'keybindings.update', {
             source: JSON.stringify(
                 keybindings.value.map((binding) =>
                     binding.command === 'secondarySidebar.showStatus'
-                        ? { ...binding, key: 'cmd+alt+3' }
+                        ? { ...binding, key: 'cmd+alt+4' }
                         : binding,
                 ),
                 null,
@@ -146,25 +146,25 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         });
 
         await sidebarTab(running.page, 'Files').click();
-        await running.page.keyboard.press('Meta+3');
-        await expectSelected(running.page, 'Files');
         await running.page.keyboard.press('Meta+Alt+3');
+        await expectSelected(running.page, 'Files');
+        await running.page.keyboard.press('Meta+Alt+4');
         await expectSelected(running.page, 'Status');
         await running.page.mouse.move(0, 0);
         await statusTab.hover();
-        await expect(statusTooltip.locator('[data-shortcut="cmd+alt+3"]')).toBeVisible();
+        await expect(statusTooltip.locator('[data-shortcut="cmd+alt+4"]')).toBeVisible();
 
         await running.app.close();
         running = await launchCaxri({ userDataDir: userData, testRootPath: root });
         await sidebarTab(running.page, 'Files').click();
-        await running.page.keyboard.press('Meta+Alt+3');
+        await running.page.keyboard.press('Meta+Alt+4');
         await expectSelected(running.page, 'Status');
         await sidebarTab(running.page, 'Status').hover();
         await expect(
             running.page
                 .locator('.tooltip-popup:visible')
                 .filter({ hasText: 'Status' })
-                .locator('[data-shortcut="cmd+alt+3"]'),
+                .locator('[data-shortcut="cmd+alt+4"]'),
         ).toBeVisible();
     } finally {
         try {

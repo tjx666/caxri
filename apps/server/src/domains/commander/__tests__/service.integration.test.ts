@@ -247,11 +247,11 @@ describe('Agent Commander service', () => {
         const { database, sendFullStateChange, service, userProject, userSession } =
             await fixture();
         const commander = await service.ensure();
-        database.selectSession(userSession.id);
+        database.selectSession(userSession.id, 'main');
 
         const created = service.createSession(userProject.id);
 
-        expect(database.getAppState('lastSelectedSessionId')).toBe(userSession.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(userSession.id);
         expect(database.agentCommanderRows()?.sessionIds).toEqual([created.sessionId]);
         expect(sendFullStateChange).toHaveBeenCalledOnce();
         expect(() => service.createSession(commander.identity.projectId)).toThrow(

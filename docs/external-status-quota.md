@@ -88,7 +88,7 @@ second cache.
   so the shared record was refetched on every poll and shared nothing with itself.
 - `maxAgeMs: 0` forces a refetch. Only an explicit user refresh passes it: the Status panel's refresh
   token and Source Control's `git.pullRequestChanges` refresh, which must see a force-pushed head.
-- Window focus counts as that explicit refresh for the selected Session only. The Renderer calls
+- Window focus counts as that explicit refresh for the current Session only (the focused window's). The Renderer calls
   `session.refreshDeliveryOnFocus`, and `DeliveryFocusRefresh` (`delivery-focus-refresh.ts`) forces
   the Status panel summary and then that Session's sidebar lookup, at most once per Session every
   15 seconds. Without it, a pull request merged in the browser kept showing as open for up to the

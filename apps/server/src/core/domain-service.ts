@@ -44,6 +44,7 @@ export type ServerDomainDependencies = Omit<DomainDependencies, 'send'>;
 export type CreateDomainServices = (dependencies: DomainDependencies) => Promise<DomainServices>;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
+const ACTIVE_CONTEXT_EVENT = 'activeContext';
 
 function requestTimeout(method: ServerOperation): number | undefined {
     return isNonExpiringServerOperation(method) ? undefined : DEFAULT_REQUEST_TIMEOUT_MS;
@@ -256,6 +257,9 @@ export class ServerDomainService extends EventTarget {
                 throw new CaxriError('UNAVAILABLE', 'Server Core has been stopped');
             }
             this.services = services;
+            services.onActiveContextChanged?.(() =>
+                this.dispatchEvent(new Event(ACTIVE_CONTEXT_EVENT)),
+            );
             this.dispatch = createOperationDispatcher(
                 services.handlers,
                 this.dependencies.logger,
@@ -296,6 +300,22 @@ export class ServerDomainService extends EventTarget {
         };
         this.addEventListener('event', handler);
         return () => this.removeEventListener('event', handler);
+    }
+
+    /**
+     * Forgets per-connection memory state (window presence) once the socket that reported it closed.
+     */
+    onConnectionClosed(connectionId: string): void {
+        this.services?.onConnectionClosed?.(connectionId);
+    }
+
+    /**
+     * Fires when the Session the user is in changes without any `state.changed` event, for example when window focus
+     * moves between two windows showing different Sessions.
+     */
+    onActiveContextChanged(listener: () => void): () => void {
+        this.addEventListener(ACTIVE_CONTEXT_EVENT, listener);
+        return () => this.removeEventListener(ACTIVE_CONTEXT_EVENT, listener);
     }
 
     request<M extends ServerOperation>(

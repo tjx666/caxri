@@ -2,14 +2,8 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import type {
-    CaxriRequest,
-    CommandAdapter,
-    Keybinding,
-    PersistedWindowState,
-    ServerEvent,
-} from '@caxri/protocol';
-import { CaxriError, errorMessage, isMainRequest } from '@caxri/protocol';
+import type { Keybinding, PersistedWindowState, ServerEvent } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import type { EventLoopMonitor } from '@caxri/system';
 import {
     installProcessErrorMonitor,
@@ -51,7 +45,6 @@ import { guardEnvironmentMethods } from './environment-method-policy';
 import { createMainEventRelay } from './event-relay';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
-import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import {
     createLocalWorkbenchEnvironment,
     createRemoteWindowMenu,
@@ -84,7 +77,14 @@ import {
 import { confirmWindowClose, createWindowCloseHandler } from './window-close';
 import { bringWindowForward, resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
-import { defaultWindowState, readWindowState, showWhenPlaced } from './window-placement';
+import {
+    defaultWindowState,
+    readWindowState,
+    showWhenPlaced,
+    trackWindowState,
+} from './window-placement';
+import { createConnectionPresence, PRIMARY_WINDOW_KEY } from './window-presence-registry';
+import { createWorkbenchCommandAdapter } from './workbench-command-adapter';
 import { createWorkbenchHandOffs, workbenchCommandDispatcher } from './workbench-hand-offs';
 import { installWorkbenchIpc } from './workbench-ipc';
 import { installWorkbenchRendererGuards } from './workbench-renderer-guards';
@@ -159,6 +159,14 @@ if (ownsProfileInstance) {
     let quitIntent: AppQuitIntent = 'user';
     const grantedRoots = new ProjectRootGrants();
     const rendererReadiness = new RendererReadiness();
+    /**
+     * Presence of the local Workbench windows on the local Server; see `WindowPresenceRegistry`. `supervisor` is read
+     * lazily because the registry is built before the connection exists.
+     */
+    const localPresence = createConnectionPresence(
+        () => supervisor,
+        () => mainLogger,
+    );
     const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
     const workbenchRootAuthority = createWorkbenchRootAuthority({
         getServer: () => supervisor,
@@ -303,28 +311,12 @@ if (ownsProfileInstance) {
         window.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
             if (isMainFrame) eventRelay.rendererPending();
         });
-        let persistTimer: NodeJS.Timeout | undefined;
-        const persistWindowState = (): void => {
-            /**
-             * `before-quit` performs the final ordered write before Server shutdown.
-             */
-            if (isQuitStarted || window.isDestroyed()) return;
-            const state = readWindowState(window);
-            // `persistWindowState` is a synchronous timer callback; a failed persist is not
-            // user-actionable here, so this is deliberately fire-and-forget rather than awaited.
-            // eslint-disable-next-line unicorn/prefer-await -- see comment above
-            supervisor.request('app.windowState.update', state).catch(() => {});
-        };
-        const scheduleWindowState = (): void => {
-            if (persistTimer) clearTimeout(persistTimer);
-            persistTimer = setTimeout(persistWindowState, 250);
-        };
-        window.on('move', scheduleWindowState);
-        window.on('resize', scheduleWindowState);
-        window.on('maximize', scheduleWindowState);
-        window.on('unmaximize', scheduleWindowState);
-        window.on('enter-full-screen', scheduleWindowState);
-        window.on('leave-full-screen', scheduleWindowState);
+        const windowState = trackWindowState(window, {
+            isQuitting: () => isQuitStarted,
+            // Fire and forget: a failed persist is not user-actionable here.
+            save: (state) =>
+                void supervisor.request('app.windowState.update', state).catch(() => {}), // eslint-disable-line no-void -- see above
+        });
         publishFullScreenState(window, 'workbench', sendEvent);
         startupProfile.mark('windowCreated');
         mainLogger?.write('info', logEventCatalog.window.created);
@@ -363,9 +355,7 @@ if (ownsProfileInstance) {
         });
         window.on('close', (event) => {
             if (isForceWindowClose || isQuitStarted) return;
-            if (persistTimer) clearTimeout(persistTimer);
-            persistTimer = undefined;
-            persistWindowState();
+            windowState.flush();
             event.preventDefault();
             // `close` is a synchronous listener; the handler already resolves the window's fate
             // (confirm/terminate/close) internally, so this is deliberately fire-and-forget here.
@@ -373,7 +363,7 @@ if (ownsProfileInstance) {
             requestWindowClose().catch(() => {});
         });
         window.on('closed', () => {
-            if (persistTimer) clearTimeout(persistTimer);
+            windowState.cancel();
             /**
              * Explicit quit can close the window before its already-queued IPC reaches Main. Retain the trusted sender
              * identity until process exit without reading the destroyed window.
@@ -414,6 +404,7 @@ if (ownsProfileInstance) {
         if (mainWindow) return;
         mainWindow = createWindow(placement ?? readWindowPlacement());
         mainRenderer = mainWindow.webContents;
+        localPresence.register(PRIMARY_WINDOW_KEY, mainRenderer, mainWindow);
     }
 
     async function focusMainWindow(): Promise<BrowserWindow> {
@@ -462,6 +453,7 @@ if (ownsProfileInstance) {
             getUpdateService: () => updateService,
             getWindow: () => mainWindow,
             sendEvent,
+            windowPresence: localPresence,
             workbenchRootAuthority,
         }),
     );
@@ -475,27 +467,12 @@ if (ownsProfileInstance) {
     );
 
     function installIpc(): void {
-        const dispatchCommand = createElectronIpcCommandAdapter({
-            server: {
-                invoke: async (request, _context, invocation) => {
-                    await serverReady.promise;
-                    return request.method === 'events.recover'
-                        ? eventRelay.recover(request.params.afterCursor)
-                        : supervisor.forward(request.method, request.params, invocation.requestId);
-                },
-            },
-            desktop: {
-                isAvailable: () => Boolean(mainWindow && !mainWindow.isDestroyed()),
-                invoke: (async (request: CaxriRequest) => {
-                    if (!isMainRequest(request))
-                        throw new CaxriError(
-                            'INTERNAL',
-                            'Server command reached the Desktop adapter',
-                        );
-                    await serverReady.promise;
-                    return handleMainMethod(request);
-                }) satisfies CommandAdapter['invoke'],
-            },
+        const dispatchCommand = createWorkbenchCommandAdapter({
+            connection: () => supervisor,
+            eventRelay,
+            handleMainMethod,
+            isWindowAvailable: () => Boolean(mainWindow && !mainWindow.isDestroyed()),
+            serverReady: serverReady.promise,
         });
         const completeRendererHandshake = (): void => {
             eventRelay.rendererReady();
@@ -522,6 +499,7 @@ if (ownsProfileInstance) {
                 void serverReady.promise.then(completeRendererHandshake);
             },
             renderer: () => mainRenderer,
+            windowKey: (sender) => localPresence.keyOf(sender),
             companion: (sender) => companionWindowFor(sender, [agentCommander, benchmarkWindow]),
             transport: dispatchCommand,
         });
@@ -608,6 +586,7 @@ if (ownsProfileInstance) {
                 ...connectionOptions,
                 handleCommand: handleServerDesktopOperation,
                 logger: mainLogger,
+                seedAttachment: (send) => localPresence.seed(send),
             });
             const logger = mainLogger;
             remoteEnvironments = createSshHostEnvironments({
@@ -661,9 +640,9 @@ if (ownsProfileInstance) {
                 sendEvent,
                 currentDirectory,
                 focusMainWindow,
-                getWindow: () => mainWindow,
                 handleMainMethod,
                 isPackaged: app.isPackaged,
+                isSessionShown: (sessionId) => localPresence.isSessionShown(sessionId),
                 logger: () => mainLogger,
                 resourcesPath: process.resourcesPath,
                 supervisor,

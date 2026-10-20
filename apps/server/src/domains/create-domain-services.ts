@@ -56,6 +56,7 @@ import {
     TerminalRestoreSupervisor,
     TerminalSuspensionService,
 } from './terminal';
+import { createPresenceEffects, WindowPresence } from './window-presence';
 import { createWindowStateHandlers } from './window-state-handlers';
 import * as provenance from './workbench';
 import {
@@ -84,7 +85,7 @@ export async function createDomainServices(
         watchHub,
         workbenchRoots,
     } = await createRootServices(dependencies);
-    const selectedSessionId = () => database.getAppState('lastSelectedSessionId') ?? undefined;
+    const presence = new WindowPresence();
     const attentionRequests = new AgentAttentionRequests();
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
@@ -212,9 +213,10 @@ export async function createDomainServices(
     const terminalSuspension = new TerminalSuspensionService({
         database,
         logger,
-        selectedSessionId,
         send,
         settings: () => configuration.getSettings().value,
+        isPresenceSettled: () => presence.isSettled(),
+        visibleSessionIds: () => presence.visibleSessionIds(),
         ...dependencies.terminalSuspension,
         remoteObservers: [dependencies.terminalExecution, transcripts, agentChat],
         terminals,
@@ -236,9 +238,10 @@ export async function createDomainServices(
         files,
         git,
         logger,
-        selectedSessionId,
+        primaryVisibleSessionId: () => presence.primaryVisibleSessionId(),
         send,
         sessionContext,
+        visibleSessionIds: () => presence.visibleSessionIds(),
         workbenchRoots,
     });
     const countRunning = (sessionId?: string): number =>
@@ -253,7 +256,9 @@ export async function createDomainServices(
         startedAt,
         () => watchHub.snapshot(),
     );
-    const introspection = createIntrospectionServices(database, logger);
+    const introspection = createIntrospectionServices(database, logger, () =>
+        presence.currentSessionId(),
+    );
     const forgetSessionRuntime = createSessionRuntimeForgetter({
         agentChat,
         agentRuntime,
@@ -307,19 +312,15 @@ export async function createDomainServices(
         terminalRestores,
         terminalSuspension,
     });
-    /**
-     * The one place that tells background services which Session is now current. Project Status polls only this
-     * Session, so every durable selection change goes through here, or Status goes cold or spends the delivery-CLI
-     * budget on an unseen Session. Archive and deletion restore their fallback because they bypass `session.select`.
-     */
-    const observeSelectedSession = (
-        sessionId: string | undefined,
-        shouldRestoreFallback = false,
-    ): void => {
-        watchSessionInBackground(sessionId);
-        projectStatus.setPolledSession(sessionId);
-        if (shouldRestoreFallback && sessionId) restoreInterruptedTerminalsInBackground(sessionId);
-    };
+    const presenceEffects = createPresenceEffects({
+        coordinator,
+        database,
+        presence,
+        projectStatus,
+        restoreInterruptedTerminalsInBackground,
+        terminalSuspension,
+        watchSessionInBackground,
+    });
     /**
      * Announces that the whole workbench view has to be re-read. Twelve handlers send the identical envelope, and the
      * `reason` is the only part that carries information: it is what the Renderer's command convergence matches on.
@@ -333,7 +334,7 @@ export async function createDomainServices(
         database,
         evictSessions: evictSessionCaches,
         mobileTerminalMutations,
-        restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
+        restoreSelection: presenceEffects.restoreWindowSelections,
         sendFullStateChange,
         terminalRestores,
         terminalSuspension,
@@ -341,7 +342,7 @@ export async function createDomainServices(
     const createSessionForProject = createSessionCreator({
         coordinator,
         database,
-        observeSelectedSession,
+        noteWindowViewing: presenceEffects.noteWindowViewing,
         sendFullStateChange: () => sendFullStateChange('session.create'),
         startChat: (terminalId) => agentChat.read(terminalId),
         terminalSuspension,
@@ -386,6 +387,7 @@ export async function createDomainServices(
     async function close(): Promise<void> {
         if (isClosed) return;
         isClosed = true;
+        presenceEffects.unsubscribe();
         projectStatus.dispose();
         settlementWiring.dispose();
         terminalRestores.close();
@@ -431,8 +433,8 @@ export async function createDomainServices(
         ...coreRoutedHandlers,
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
         ...agentCommands.handlers,
-        'app.bootstrap': () => snapshots.bootstrap(),
-        'app.activeContext': () => readActiveContext(database),
+        'app.bootstrap': ({ windowKey }) => snapshots.bootstrap(windowKey),
+        'app.activeContext': () => readActiveContext(database, () => presence.currentSessionId()),
         'app.records': ({ sessionIds, terminalIds }) => snapshots.records(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
@@ -447,6 +449,7 @@ export async function createDomainServices(
         }),
         ...benchmark.handlers,
         ...createWindowStateHandlers(database),
+        ...presenceEffects.handlers,
         ...createWorkbenchRootHandlers(workbenchRoots),
         ...createTerminalMoveHandler({
             coordinator,
@@ -454,7 +457,7 @@ export async function createDomainServices(
             send,
             terminals,
             mobileTerminalMutations,
-            observeSelectedSession,
+            noteWindowViewing: presenceEffects.noteWindowViewing,
         }),
         'bugReport.context': () => diagnostics.reportContext(),
         ...createBugReportDeliveryHandler({ agentChat, database, terminals }),
@@ -486,7 +489,7 @@ export async function createDomainServices(
             coordinator,
             database,
             mobileTerminalMutations,
-            observeSelectedSession,
+            noteWindowViewing: presenceEffects.noteWindowViewing,
             restoreInterruptedTerminalsInBackground,
             sendFullStateChange,
             terminalSuspension,
@@ -503,7 +506,7 @@ export async function createDomainServices(
             forgetSessionRuntime,
             evictSessions: evictSessionCaches,
             projectDeleted: (ids) => workbenchRoots.projectDeleted(ids),
-            restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
+            restoreSelection: presenceEffects.restoreWindowSelections,
             send,
         }),
         'session.updateState': (state) => {
@@ -589,18 +592,15 @@ export async function createDomainServices(
             terminals,
         }),
     };
-    observeSelectedSession(selectedSessionId());
     terminalSuspension.start();
     terminalResourceMonitor.start();
-    // Background Terminal restore preserves the three-second startup gate.
-    const initialSessionId = selectedSessionId();
-    if (initialSessionId) {
-        restoreInterruptedTerminalsInBackground(initialSessionId);
-        coordinator.probeSessionPrimaryAgent(initialSessionId);
-    }
+    // No presence exists until Desktop Main reports its windows, so nothing is watched, polled, or restored here:
+    // `observeVisibleSessions` does that for the Sessions the first reports show.
     return {
         handlers,
         close,
+        onActiveContextChanged: (listener) => presence.onCurrentChange(listener),
+        onConnectionClosed: (connectionId) => presence.dropConnection(connectionId),
         protocolRecovery: database.protocolState,
         validateRequestContext: (context) => validateWorkbenchRequestContext(database, context),
     };

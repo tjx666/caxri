@@ -29,3 +29,8 @@ _Researched 2026-09-24 from `muxy-mobile` source `59c11e9` (2026-08-26)._
 - Expo 54 / React Native 0.81 app mirroring the Mac workspace (Projects → worktrees → tabs and panes) in an xterm WebView over plain `ws://`, with Bonjour discovery or a QR code and Mac-side approval of each pairing.
 - `takeOverPane` resizes the Mac PTY to the phone and releases it afterwards, with a short grace window (`src/state/usePaneSession.ts`). KeyBar with sticky modifiers and an arrow joystick.
 - Git screens (commit, branches, worktree, PR, diff) and a file manager; no Agent chat or approval UI.
+
+## Multi-tab and multi-window (2026-10-21)
+
+Ownership and attachment are per connection (owner versus attached client), which is the closest
+precedent for keying state below the Client by connection rather than globally.

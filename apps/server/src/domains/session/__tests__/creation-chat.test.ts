@@ -18,25 +18,25 @@ async function fixture() {
     const project = database.createProject(directory);
     const startChat = vi.fn();
     const start = vi.fn(() => Promise.resolve());
-    const observeSelectedSession = vi.fn();
+    const noteWindowViewing = vi.fn();
     const create = createSessionCreator({
         coordinator: { prepareTerminalStart: vi.fn(), probeTerminal: vi.fn() },
         database,
-        observeSelectedSession,
+        noteWindowViewing,
         sendFullStateChange: vi.fn(),
         startChat,
-        terminalSuspension: { observeSelection: vi.fn() },
+        terminalSuspension: { observeVisibility: vi.fn() },
         terminalWorkingDirectory: ({ defaultRoot }) => Promise.resolve(defaultRoot),
         terminals: { start } as never,
     });
-    return { create, database, observeSelectedSession, project, start, startChat };
+    return { create, database, noteWindowViewing, project, start, startChat };
 }
 
 describe('session.create with the chat surface', () => {
     it('creates a Session whose Codex Terminal is a Chat and starts no PTY', async () => {
         const { create, database, project, start, startChat } = await fixture();
 
-        const created = await create(project.id, 'codex', 'select', undefined, 'chat');
+        const created = await create(project.id, 'codex', { windowKey: 'main' }, undefined, 'chat');
 
         expect(created.terminal).toMatchObject({ kind: 'codex', surface: 'chat' });
         expect(startChat).toHaveBeenCalledWith(created.terminal!.id);
@@ -52,7 +52,7 @@ describe('session.create with the chat surface', () => {
             const { create, database, project, startChat } = await fixture();
 
             await expect(
-                create(project.id, kind, 'select', undefined, 'chat'),
+                create(project.id, kind, { windowKey: 'main' }, undefined, 'chat'),
             ).rejects.toMatchObject({ code: 'VALIDATION' });
             expect(database.listSessions()).toHaveLength(0);
             expect(startChat).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ describe('session.create with the chat surface', () => {
 
 describe('session creation for a forked Chat', () => {
     it('binds the forked Agent Session in the source cwd before the Chat starts', async () => {
-        const { create, database, observeSelectedSession, project, startChat } = await fixture();
+        const { create, database, noteWindowViewing, project, startChat } = await fixture();
         const { session: source } = database.createSession(project.id, null);
         const sourceTerminal = database.createTerminal(source.id, 'codex', undefined, 'chat');
         database.setChatPermission(sourceTerminal.id, {
@@ -90,7 +90,7 @@ describe('session creation for a forked Chat', () => {
             agentSessionId: 'forked-thread',
         });
         expect(startChat).toHaveBeenCalledOnce();
-        expect(observeSelectedSession).not.toHaveBeenCalled();
+        expect(noteWindowViewing).not.toHaveBeenCalled();
     });
     it('keeps the Project default when the source Chat stored no permission choice', async () => {
         const { create, database, project } = await fixture();
@@ -121,8 +121,7 @@ describe('mobile.session.createForPrincipal with the chat surface', () => {
     });
 
     it('starts a Chat without a PTY and preserves the Desktop selection', async () => {
-        const { create, database, observeSelectedSession, project, start, startChat } =
-            await fixture();
+        const { create, database, noteWindowViewing, project, start, startChat } = await fixture();
         const handler = createMobileSessionHandler(database, create);
 
         const created = await handler({
@@ -138,7 +137,7 @@ describe('mobile.session.createForPrincipal with the chat surface', () => {
         });
         expect(startChat).toHaveBeenCalledWith(created.terminalId);
         expect(start).not.toHaveBeenCalled();
-        expect(observeSelectedSession).not.toHaveBeenCalled();
+        expect(noteWindowViewing).not.toHaveBeenCalled();
     });
 
     it('refuses a Shell Chat without leaving an empty Session behind', async () => {

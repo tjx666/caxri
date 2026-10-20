@@ -565,6 +565,7 @@ export const logEventCatalog = {
         closeFailed: 'window.close_failed',
         closed: 'window.closed',
         created: 'window.created',
+        presenceReportFailed: 'window.presence_report_failed',
         readyToShow: 'window.ready_to_show',
         renderProcessCrashLoop: 'window.render_process_crash_loop',
         renderProcessGone: 'window.render_process_gone',

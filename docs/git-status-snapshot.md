@@ -228,14 +228,14 @@ Bar (`apps/desktop/src/renderer/src/features/status-bar/status-bar.tsx`) queries
 branch/count rendering never pulls the full `files[]` IPC payload into the Renderer, while staying
 on the same snapshot generation the Source Control provider reads through `git.summary`.
 
-**Reading a root nobody watches.** The Project file watcher follows only the selected Session, so a
+**Reading a root nobody watches.** The Project file watcher follows only the primary visible Session (the focused window's, see [Open Sessions](open-sessions.md)), so a
 plain working-tree write in any other Session's root never bumps that root's status generation, and
 a cached read keeps returning the snapshot from when the user switched away. `git.overview` therefore
 accepts `refresh: true`, which runs the same forced `refreshSummary` path `mobile.changes.list` uses.
 The Session hover card's `Changes` row
 (`apps/desktop/src/renderer/src/features/primary-sidebar/hooks/use-session-changes.ts`) is the
 Desktop reader: it sends `refresh: true` only for a Session whose Workbench Root differs from the
-selected Session's, reads only while its card is open, and lets one card read at a time. A forced
+visible Session's, reads only while its card is open, and lets one card read at a time. A forced
 production announces itself with `git.changed`, so the Renderer's `git.changed` sweep skips
 `refresh: true` overview keys; otherwise the open card would refetch, force, and announce again in a
 loop. Those keys rely on their 30-second `staleTime` instead ([issue #859](https://github.com/tjx666/caxri/issues/859)).

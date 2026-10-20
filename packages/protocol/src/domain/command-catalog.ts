@@ -15,6 +15,8 @@ import { terminalCommandDefinitions } from './terminal-command-definitions.js';
  * - `localMachine`: the window's Server runs on this Mac. An SSH Host window hides commands that act on this machine's
  *   disk or OS, because Main refuses them there (see docs/adr/0014-ssh-remote-server.md).
  * - `sshHost`: the window belongs to an SSH Host.
+ * - `openSessionStrip`: the Open Session tab strip is showing (two or more Open Sessions), so closing or switching its
+ *   tabs means something. Palette only: the numbered shortcuts stay bound whether or not the strip is visible.
  * - `agentChatModels`, `agentChatPermissionModes`, `agentChatPlanMode`: the active tab is a Chat whose provider offers a
  *   model list, permission levels, or plan mode, so its composer can open that menu or flip that toggle.
  * - `agentChatSideChat`: the active tab is a Chat whose provider answers side questions, so its composer can open the
@@ -35,7 +37,8 @@ export type CommandWhen =
     | 'agentChatModels'
     | 'agentChatPermissionModes'
     | 'agentChatPlanMode'
-    | 'agentChatSideChat';
+    | 'agentChatSideChat'
+    | 'openSessionStrip';
 
 export interface CommandDefinition {
     id: CommandId;

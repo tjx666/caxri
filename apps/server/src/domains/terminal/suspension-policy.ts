@@ -48,7 +48,10 @@ export interface TerminalSuspensionPolicyInput {
      * When this Server process started; a launch older than the process counts as active since then for the idle rule.
      */
     startedAt: number;
-    selectedSessionId: string | undefined;
+    /**
+     * Sessions some visible window is showing. Never suspended: a user is looking at them.
+     */
+    visibleSessionIds: ReadonlySet<string>;
     settings: IdleSuspensionSettings;
     terminals: readonly TerminalRecord[];
     deselectedAt(sessionId: string): number | undefined;
@@ -136,7 +139,7 @@ function decideTerminal(
     )
         return undefined;
     if (!LIVE_AGENT_STATES.has(terminal.lastAgentProcessState)) return undefined;
-    if (terminal.sessionId === input.selectedSessionId) return undefined;
+    if (input.visibleSessionIds.has(terminal.sessionId)) return undefined;
     if (input.isObservedRemotely(terminal.id)) return undefined;
     const session = input.session(terminal.sessionId);
     if (!session || session.archivedAt !== undefined) return undefined;

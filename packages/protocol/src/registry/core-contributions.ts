@@ -42,7 +42,7 @@ export const filesCoreCommandDefinitions = [
  * tree. Moving it would rewrite the default set's order for no behavioral gain.
  */
 export const filesCoreKeybindings = [
-    { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+    { key: 'cmd+alt+1', command: 'secondarySidebar.showFiles' },
     { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
 ] as const satisfies readonly Keybinding[];
 

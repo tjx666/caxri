@@ -185,7 +185,7 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
 
         // A shortcut changes the tab within the same Session, so the mark still glides to it.
         await clearIndicatorTransitions(running.page);
-        await running.page.keyboard.press('Meta+2');
+        await running.page.keyboard.press('Meta+Alt+2');
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
         await expect.poll(() => indicatorTransitions(running.page)).toContain('transform');
         /**

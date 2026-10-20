@@ -96,7 +96,7 @@ transcript is many screens tall, and the user leaves it following the latest rep
 click back to that Chat is then measured from each state a Session can be in:
 
 - `keptAlive`: the Chat is still among the five most recently selected Sessions (the visible one
-  included) whose Workbench stays mounted;
+  included; Open Sessions are not pinned, so a long tab strip does not hold more) whose Workbench stays mounted;
 - `cached`: newer Sessions evicted it from keep-alive, while the Renderer's query cache still holds
   its conversation;
 - `uncached`: after a Renderer reload nothing is cached, and the switch reads the conversation from

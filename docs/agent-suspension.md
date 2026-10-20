@@ -37,7 +37,7 @@ Both automatic rules consider a Terminal only when every condition holds:
 - It is a PTY Agent Terminal (never a Shell tab) whose provider supports automatic suspension
   (Claude Code and Codex; Grok Build does not), or an Agent Chat on any provider; its process is
   running, and its Agent is `starting` or `running`.
-- Its Session is not the selected Session, not the Agent Commander's Session, and not archived.
+- Its Session is not shown by any visible window (see [Open Sessions](open-sessions.md)), not the Agent Commander's Session, and not archived.
 - No phone has it open through the mobile gateway: neither its Terminal screen nor its Session's
   Conversation.
 - The Agent is not mid-turn, and it is not waiting for the user: a permission prompt or a question

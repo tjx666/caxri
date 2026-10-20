@@ -23,6 +23,7 @@ import { ipcMain } from 'electron';
 
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { runInRequestWindow } from './request-window';
+import { runInRequestWindowKey } from './window-presence-registry';
 
 /**
  * Failure codes that typically originate from ordinary Renderer-side user input (e.g. an unresolved path while the user
@@ -76,12 +77,21 @@ export interface WorkbenchIpcOptions {
      */
     remote?(sender: WebContents): RemoteRendererRoute | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
+    /**
+     * The window key of a Workbench sender, which Main injects into the requests that act for a window. A Renderer
+     * never names its own window.
+     */
+    windowKey?(sender: WebContents): string | undefined;
 }
 
 export interface RemoteRendererRoute {
     isRecovering(): boolean;
     onEventsReady(): void;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
+    /**
+     * The key this SSH Host window acts under on its own Server.
+     */
+    windowKey: string;
     window(): BrowserWindow | undefined;
 }
 
@@ -447,9 +457,11 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     ok: false,
                     error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
                 };
-            const reply = await runInRequestWindow(
-                companion ? companion.window() : remote?.window(),
-                () => (remote?.transport ?? options.transport).dispatch(raw),
+            const windowKey = remote ? remote.windowKey : options.windowKey?.(event.sender);
+            const reply = await runInRequestWindowKey(windowKey, () =>
+                runInRequestWindow(companion ? companion.window() : remote?.window(), () =>
+                    (remote?.transport ?? options.transport).dispatch(raw),
+                ),
             );
             if (companion && reply.ok) companion.observeReply?.(raw, reply);
             /**

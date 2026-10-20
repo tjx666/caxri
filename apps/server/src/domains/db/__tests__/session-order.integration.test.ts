@@ -41,13 +41,13 @@ async function fixture() {
 describe('Session sidebar order', () => {
     it('persists a relative move without manufacturing activity or changing selection', async () => {
         const { database, path, project, a, b, c, order } = await fixture();
-        database.selectSession(c.id);
+        database.selectSession(c.id, 'main');
         expect(order()).toEqual([c.id, b.id, a.id]);
         database.reorderSession(a.id, c.id, 'before');
         expect(order()).toEqual([a.id, c.id, b.id]);
         expect(database.getSession(a.id)?.lastSessionActivityAt).toBe(a.lastSessionActivityAt);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(c.id);
-        database.selectSession(b.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(c.id);
+        database.selectSession(b.id, 'main');
         expect(order()).toEqual([a.id, c.id, b.id]);
         connections.splice(connections.indexOf(database), 1);
         database.close();
@@ -150,8 +150,8 @@ describe('Session sidebar order', () => {
     it('uses manual sidebar order for fallback after archiving the selected Session', async () => {
         const { database, a, b, c } = await fixture();
         database.reorderSession(a.id, c.id, 'before');
-        database.selectSession(b.id);
+        database.selectSession(b.id, 'main');
         database.archiveSession(b.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(a.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(a.id);
     });
 });

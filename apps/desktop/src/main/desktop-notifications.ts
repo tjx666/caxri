@@ -15,7 +15,7 @@ import type { DesktopServerConnection } from './server-connection';
 interface DesktopNotificationOptions {
     currentDirectory: string;
     focusMainWindow: () => Promise<BrowserWindow>;
-    getWindow: () => BrowserWindow | undefined;
+    isSessionShown: (sessionId: string) => boolean;
     handleMainMethod: (request: MainRequest) => Promise<unknown>;
     isPackaged: boolean;
     logger: () => StructuredLogger | undefined;
@@ -44,8 +44,8 @@ export interface DesktopNotifications {
 export function createDesktopNotifications({
     currentDirectory,
     focusMainWindow,
-    getWindow,
     handleMainMethod,
+    isSessionShown,
     isPackaged,
     logger,
     resourcesPath,
@@ -66,7 +66,7 @@ export function createDesktopNotifications({
         sendEvent,
         delivery: systemNotifications,
         focusMainWindow,
-        getWindow,
+        isSessionShown,
         logger,
         supervisor,
     });

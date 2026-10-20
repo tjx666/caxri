@@ -47,6 +47,7 @@ import { projectStatusClock } from './options';
 import { parseGitHubPullRequest } from './parse';
 import { PullRequestExtras } from './pull-request-extras';
 import { refreshLogRecord } from './refresh-log';
+import { ResidentPoll } from './resident-poll';
 import type { PullRequestTarget, SessionPullRequestResolver } from './session-pull-request';
 import {
     loadOverviewPullRequest,
@@ -71,13 +72,6 @@ const SUMMARY_CACHE_LIMIT = 128;
  * so the per-call record is kept only as the outlier signal (production p99 was ~600ms, max ~10s).
  */
 const SLOW_LOCAL_PREPARE_MS = 250;
-/**
- * Floor and ceiling for the resident poll. The floor keeps a refresh that is still in flight from being re-triggered in
- * a tight loop; the ceiling bounds how long a rate-limit back-off can leave the panel unattended.
- */
-const POLL_MIN_DELAY_MS = 15_000;
-const POLL_MAX_DELAY_MS = 5 * 60_000;
-
 export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();
     private readonly overviewRequests = new SingleFlight<string, ProjectStatusOverview>();
@@ -95,10 +89,8 @@ export class ProjectStatusService {
     private readonly extras: PullRequestExtras;
     private readonly linear: LinearIssueStore;
     private readonly alerts: ProjectStatusAlertTracker;
-    private polledSessionId?: string;
     private resolveSessionPullRequest?: SessionPullRequestResolver;
-    private pollTimer?: NodeJS.Timeout;
-    private isPollScheduled = false;
+    private readonly residentPoll: ResidentPoll;
     private readonly watch?: DeliveryWatch;
     private readonly commandTelemetry: ExternalStatusCommandTelemetry;
     private readonly clock: ProjectStatusClock;
@@ -117,6 +109,12 @@ export class ProjectStatusService {
         private readonly options: ProjectStatusServiceOptions = {},
     ) {
         this.clock = projectStatusClock(options);
+        this.residentPoll = new ResidentPoll({
+            clock: this.clock,
+            expiresAt: (sessionId) => this.summaries.get(sessionId)?.expiresAt ?? 0,
+            logger,
+            refresh: (sessionId) => this.summary(sessionId),
+        });
         this.alerts = new ProjectStatusAlertTracker({ now: () => this.now() });
         const { cli } = logEventCatalog.projectStatus;
         this.commandTelemetry = new ExternalStatusCommandTelemetry(logger, cli, () => this.now());
@@ -127,7 +125,7 @@ export class ProjectStatusService {
                 isEnabled: () => this.areAlertsEnabled(),
                 listSessions: listWatchedSessions,
                 logger,
-                selectedSessionId: () => this.polledSessionId,
+                polledSessionIds: () => this.residentPoll.polled,
                 summaryOf: (sessionId) => this.summaries.get(sessionId)?.value,
                 watchSession: (sessionId, covered, isPendingRound) =>
                     this.watchSession(sessionId, covered, isPendingRound),
@@ -486,57 +484,6 @@ export class ProjectStatusService {
         return this.options.settings?.()['projectStatus.notifications.enabled'] === true;
     }
 
-    /**
-     * Arms the next resident refresh for the polled Session against its cache expiry, so a snapshot with a running job
-     * is revisited sooner than a settled one and a rate-limited source is left alone.
-     */
-    private schedulePoll(): void {
-        if (this.pollTimer) {
-            this.clock.clearTimer(this.pollTimer);
-            this.pollTimer = undefined;
-        }
-        const sessionId = this.polledSessionId;
-        if (!sessionId) return;
-        const expiresAt = this.summaries.get(sessionId)?.expiresAt ?? 0;
-        const delayMs = Math.min(
-            Math.max(expiresAt - this.now(), POLL_MIN_DELAY_MS),
-            POLL_MAX_DELAY_MS,
-        );
-        const timer = this.clock.setTimer(() => {
-            this.pollTimer = undefined;
-            // Fire-and-forget: `runPoll` owns its own failure logging and re-arms the timer either way.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void this.runPoll(sessionId);
-        }, delayMs);
-        // Never hold the Server process open for a background refresh.
-        timer.unref();
-        this.pollTimer = timer;
-    }
-
-    private async runPoll(sessionId: string): Promise<void> {
-        if (this.isPollScheduled || this.polledSessionId !== sessionId) return;
-        this.isPollScheduled = true;
-        const startedAt = performance.now();
-        try {
-            await this.summary(sessionId);
-            this.logger.write('debug', logEventCatalog.projectStatus.poll, {
-                durationMs: performance.now() - startedAt,
-                fields: { result: 'success' },
-            });
-        } catch (error) {
-            this.logger.write('debug', logEventCatalog.projectStatus.poll, {
-                durationMs: performance.now() - startedAt,
-                fields: {
-                    result: 'failure',
-                    code: error instanceof CaxriError ? error.code : 'INTERNAL',
-                },
-            });
-        } finally {
-            this.isPollScheduled = false;
-            if (this.polledSessionId === sessionId) this.schedulePoll();
-        }
-    }
-
     private rememberSummary(sessionId: string, entry: SummaryCacheEntry): void {
         rememberBounded(
             this.summaries,
@@ -597,7 +544,7 @@ export class ProjectStatusService {
                 this.publishAlerts(sessionId, value);
                 this.options.emit?.({ event: 'projectStatus.changed', payload: { sessionId } });
                 // The fresh TTL is what paces the next resident poll, so re-arm against it rather than the stale one.
-                this.schedulePoll();
+                this.residentPoll.schedule();
             });
         } catch (error) {
             if (this.sessionGenerations.get(sessionId) !== sessionGeneration) return;
@@ -651,14 +598,11 @@ export class ProjectStatusService {
     }
 
     /**
-     * Names the Session whose delivery status is kept warm in the background. Only the selected Session is polled: it
-     * is the one the Status panel will render, and every extra repository costs another `gh`/`vc` round trip against a
-     * budget shared with the user's own shell.
+     * Names the Sessions whose delivery status is kept warm in the background (the visible ones; see
+     * {@link ResidentPoll}).
      */
-    setPolledSession(sessionId: string | undefined): void {
-        if (this.polledSessionId === sessionId) return;
-        this.polledSessionId = sessionId;
-        this.schedulePoll();
+    setPolledSessions(sessionIds: ReadonlySet<string>): void {
+        this.residentPoll.set(sessionIds);
     }
 
     /**
@@ -683,10 +627,7 @@ export class ProjectStatusService {
     dispose(): void {
         this.watch?.dispose();
         this.commandTelemetry.flush();
-        this.polledSessionId = undefined;
-        if (!this.pollTimer) return;
-        this.clock.clearTimer(this.pollTimer);
-        this.pollTimer = undefined;
+        this.residentPoll.dispose();
     }
 
     /**
@@ -696,8 +637,7 @@ export class ProjectStatusService {
         for (const sessionId of sessionIds) {
             this.sessionGenerations.delete(sessionId);
             this.summaries.delete(sessionId);
-            // A deleted Session must not keep a background `gh`/`vc` refresh alive on its behalf.
-            if (this.polledSessionId === sessionId) this.setPolledSession(undefined);
+            this.residentPoll.remove(sessionId);
         }
     }
 

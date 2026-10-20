@@ -14,6 +14,7 @@ import { remotePathBrowserDirectories } from './path-browser-directories';
 import type { PathBrowserLogger } from './path-browser-log';
 import type { ProjectRootGrants } from './root-grants';
 import type { DesktopServerConnection } from './server-connection';
+import { currentRequestWindowKey, PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
 type ContinueParameters = Extract<MainRequest, { method: 'session.continueInWorktree' }>['params'];
 type AuthorizeParameters = Extract<
@@ -85,7 +86,9 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         { sessionId: string } | { reason: TerminalFileLinkRefusalReason } | { canceled: true }
     > {
         const server = options.getServer();
-        const state = await server.request('app.bootstrap');
+        // The requesting window's own selection decides which Session a link opens in.
+        const windowKey = currentRequestWindowKey();
+        const state = await server.request('app.bootstrap', windowKey ? { windowKey } : {});
         const sessions = state.sessions.filter(
             (session) =>
                 session.archivedAt === undefined && session.workbenchProjectId === projectId,
@@ -108,6 +111,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             const created = await server.request('session.create', {
                 projectId,
                 defaultAgent: null,
+                ...(windowKey && { windowKey }),
             });
             return { sessionId: created.session.id };
         }
@@ -226,6 +230,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             const created = await server.request('session.create', {
                 projectId,
                 defaultAgent: null,
+                windowKey: PRIMARY_WINDOW_KEY,
             });
             return { sessionId: created.session.id };
         }
@@ -276,7 +281,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
          * already-mounted link picker, and stealing focus for that would be jarring rather than helpful.
          */
         await options.focusWindow();
-        const state = await server.request('app.bootstrap');
+        const state = await server.request('app.bootstrap', { windowKey: PRIMARY_WINDOW_KEY });
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
                 const decision = await confirmExternalOpen(resolved.path);

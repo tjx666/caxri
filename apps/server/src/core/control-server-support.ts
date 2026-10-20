@@ -502,6 +502,11 @@ export interface ControlServerOptions {
     protocolIdentity?: { serverId: string; stateEpoch: string };
     onClientCountChanged?(count: number, event: 'connected' | 'disconnected' | 'reset'): void;
     /**
+     * A socket that had completed a handshake closed, whatever its lease state. Per-connection memory state (window
+     * presence) must not outlive the socket that reported it.
+     */
+    onConnectionClosed?(connectionId: string): void;
+    /**
      * A Desktop completed its handshake with a capability lease, as opposed to an operator, CLI, or Agent client.
      */
     onDesktopAttached?(): void;

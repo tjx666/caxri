@@ -31,3 +31,9 @@ _Researched 2026-08-06._
 _Researched 2026-10-10._
 
 - A rich input box overlays the running TUI (toggled with `ctrl-g`) and collapses on permission prompts, returning input to the TUI. It is an input aid over the PTY, not a structured Chat surface.
+
+## Multi-tab and multi-window (2026-10-21)
+
+Dragging a tab across windows runs a `CrossWindowTabDrag` state machine and transfers the view tree
+to the target window. Each window keeps its own `active_tab_index`. Reference for the future tear-off
+drag; AGPL-3.0, reference-only.

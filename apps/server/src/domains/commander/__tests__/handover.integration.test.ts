@@ -19,7 +19,9 @@ async function fixture(discovered: DiscoveredConversation[] = []) {
         await rm(directory, { recursive: true, force: true });
     });
     const commanderProject = database.createProject(join(directory, 'commander'));
-    const commanderSession = database.createSession(commanderProject.id, null).session;
+    const commanderSession = database.createSession(commanderProject.id, null, undefined, {
+        windowKey: 'main',
+    }).session;
     const commanderTerminal = database.createTerminal(commanderSession.id, 'codex', directory);
     const repo = join(directory, 'repository');
     await mkdir(join(repo, 'packages', 'web'), { recursive: true });
@@ -34,7 +36,9 @@ async function fixture(discovered: DiscoveredConversation[] = []) {
      * A user Session whose primary Agent holds a Codex conversation, like one started from the Workbench.
      */
     const agentSession = (conversationId = 'conversation-1') => {
-        const { session, terminal } = database.createSession(userProject.id, 'codex');
+        const { session, terminal } = database.createSession(userProject.id, 'codex', undefined, {
+            windowKey: 'main',
+        });
         database.rebindAgentSession(terminal!.id, 'codex', conversationId);
         return { session, terminal: terminal! };
     };
@@ -42,7 +46,9 @@ async function fixture(discovered: DiscoveredConversation[] = []) {
      * A user Session whose primary Agent is an Agent Chat, bound to `conversationId` once its provider opened one.
      */
     const chatSession = (provider: 'claude' | 'codex' | 'grok', conversationId?: string) => {
-        const { session } = database.createSession(userProject.id, null);
+        const { session } = database.createSession(userProject.id, null, undefined, {
+            windowKey: 'main',
+        });
         const terminal = database.createTerminal(session.id, provider, repo, 'chat');
         if (conversationId) database.rebindAgentSession(terminal.id, provider, conversationId);
         return { session, terminal };
@@ -121,7 +127,9 @@ describe('Commander hand-over', () => {
         const { session } = f.agentSession();
         const archived = f.agentSession('conversation-2').session;
         f.database.archiveSession(archived.id);
-        const shellOnly = f.database.createSession(f.userProject.id, 'shell').session;
+        const shellOnly = f.database.createSession(f.userProject.id, 'shell', undefined, {
+            windowKey: 'main',
+        }).session;
 
         const result = await f.service.handOver({
             sessionIds: [
@@ -375,7 +383,9 @@ describe('Commander hand-over', () => {
     it('re-announces every hand-over the Commander has not continued before it launches', async () => {
         const f = await fixture();
         const { session } = f.agentSession();
-        const shellOnly = f.database.createSession(f.userProject.id, 'shell').session;
+        const shellOnly = f.database.createSession(f.userProject.id, 'shell', undefined, {
+            windowKey: 'main',
+        }).session;
         await f.service.handOver({ sessionIds: [session.id, shellOnly.id] });
         f.notify.mockClear();
 
@@ -437,7 +447,7 @@ describe('Commander hand-over', () => {
             agentSessionId: providerSessionId,
             lastProcessState: 'detached',
         });
-        expect(f.database.getAppState('lastSelectedSessionId')).not.toBe(session.id);
+        expect(f.database.windowOpenSessions.get('main').activeSessionId).not.toBe(session.id);
         expect(commanderHandovers(f.database)[0]).toMatchObject({
             source: 'conversation',
             target: { terminalId: terminal.id, provider: 'claude' },
