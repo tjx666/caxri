@@ -222,6 +222,78 @@ describe('toolchain contract', () => {
         }
     });
 
+    it('declares the same @types/node major as the Node.js runtime in mise.toml', async () => {
+        const majorOf = (version: string): number => Number(/\d+/u.exec(version)?.[0]);
+        const runtimeMajor = majorOf(miseVersion('node'));
+        const { stdout } = await execFileAsync('git', ['ls-files', '-z', '--', '**package.json'], {
+            cwd: repoRoot,
+        });
+        const manifests = stdout.split('\0').filter(Boolean);
+        const declared = (
+            await Promise.all(
+                manifests.map(async (path) => {
+                    const manifest = JSON.parse(await readFile(join(repoRoot, path), 'utf8')) as {
+                        dependencies?: Record<string, string>;
+                        devDependencies?: Record<string, string>;
+                    };
+                    const range =
+                        manifest.devDependencies?.['@types/node'] ??
+                        manifest.dependencies?.['@types/node'];
+
+                    return range ? [{ major: majorOf(range), path }] : [];
+                }),
+            )
+        ).flat();
+
+        expect(declared.length).toBeGreaterThan(0);
+        expect(declared.filter(({ major }) => major !== runtimeMajor)).toEqual([]);
+
+        const installed = JSON.parse(
+            await readFile(join(repoRoot, 'node_modules/@types/node/package.json'), 'utf8'),
+        ) as { version: string };
+
+        expect(majorOf(installed.version)).toBe(runtimeMajor);
+    });
+
+    it('rejects a builtin newer than the shipped Node.js runtime at typecheck', async () => {
+        // `node:vfs` exists only in newer Node.js releases; Node 24 throws ERR_UNKNOWN_BUILTIN_MODULE at runtime.
+        // Declarations from a newer major would let this import typecheck silently.
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-node-types-'));
+
+        try {
+            await writeFile(join(directory, 'probe.ts'), "import 'node:vfs';\n");
+            await writeFile(
+                join(directory, 'tsconfig.json'),
+                JSON.stringify({
+                    compilerOptions: {
+                        module: 'esnext',
+                        moduleResolution: 'bundler',
+                        noEmit: true,
+                        target: 'es2022',
+                        typeRoots: [join(repoRoot, 'node_modules/@types')],
+                        types: ['node'],
+                    },
+                    files: ['probe.ts'],
+                }),
+            );
+
+            let stdout = '';
+
+            try {
+                await execFileAsync(join(repoRoot, 'node_modules', '.bin', 'tsc'), [
+                    '-p',
+                    join(directory, 'tsconfig.json'),
+                ]);
+            } catch (error) {
+                stdout = (error as { stdout?: string }).stdout ?? '';
+            }
+
+            expect(stdout).toContain('node:vfs');
+        } finally {
+            await rm(directory, { force: true, recursive: true });
+        }
+    });
+
     it('keeps the TypeScript 7 CLI and TypeScript 6 JavaScript API wired side by side', async () => {
         const tscPath = join(repoRoot, 'node_modules', '.bin', 'tsc');
         const { stdout } = await execFileAsync(tscPath, ['--version']);

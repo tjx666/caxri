@@ -32,6 +32,9 @@ Keep these compatibility exceptions:
   triggers. The Editor breadcrumb picker therefore uses a controlled, trigger-less Popover anchored
   to the clicked segment (`PopoverContent` takes an `anchor`), so no Popover in the Renderer may
   register more than one `PopoverTrigger`. `e2e/editor-breadcrumbs.e2e.ts` covers the picker.
+- `@types/node`: held on the major of the Node.js runtime in `mise.toml` (`^24`), not the latest major. Newer
+  declarations typecheck builtins the shipped runtime rejects (for example `node:vfs`). `scripts/__tests__/toolchain-contract.test.ts`
+  enforces the match and the `node:vfs` rejection; raise both together when `mise.toml` moves.
 - `typescript` / `@typescript/native` npm aliases: exact TypeScript 6 API and TypeScript 7 CLI pair.
 - `apps/mobile` `typescript`: the plain TypeScript 6 package, held on major 6. Expo tooling resolves
   `typescript` from the app and expects its JavaScript API: the Expo CLI TypeScript prerequisite checks
