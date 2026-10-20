@@ -138,6 +138,16 @@ describe('parsePersistedAgentChatAttachments', () => {
         expect(parsePersistedAgentChatAttachments({ not: 'a list' })).toEqual([]);
     });
 
+    it("keeps an image's placeholder number and drops one that is not a positive integer", () => {
+        expect(
+            parsePersistedAgentChatAttachments([
+                { ...attachment('a'), token: 2 },
+                { ...attachment('b'), token: 0 },
+                { ...attachment('c'), token: 1.5 },
+            ]).map((entry) => ('token' in entry ? entry.token : undefined)),
+        ).toEqual([2, undefined, undefined]);
+    });
+
     it('keeps file and folder cards with an absolute path', () => {
         expect(
             parsePersistedAgentChatAttachments([

@@ -18,6 +18,7 @@ import {
     isAgentChatSkillAttachment,
     returnUnsentAgentChatMessage,
 } from '../agent-chat-drafts';
+import { agentChatTextWithSentImageNumbers } from '../agent-chat-image-placeholders';
 import {
     dropAgentChatPendingMessage,
     expireAgentChatPendingMessage,
@@ -25,18 +26,20 @@ import {
 } from '../agent-chat-pending';
 
 /**
- * The message `text` and `attachments` make: images ride along as images, and skill, file, and folder cards are cited
- * ahead of the text in the provider's own layout (`agentChatTextWithPathReferences`).
+ * The message `text` and `attachments` make: images ride along as images, their placeholders numbered in the order they
+ * are sent (`agentChatTextWithSentImageNumbers`), and skill, file, and folder cards are cited ahead of the text in the
+ * provider's own layout (`agentChatTextWithPathReferences`).
  */
 function agentChatMessageInput(
     text: string,
     attachments: readonly AgentChatAttachment[],
     providerName: string,
 ): AgentChatMessageInput {
-    const images = attachments.filter(isAgentChatImageAttachment).map(({ image }) => image);
+    const imageAttachments = attachments.filter(isAgentChatImageAttachment);
+    const images = imageAttachments.map(({ image }) => image);
     return {
         text: agentChatTextWithPathReferences(
-            text,
+            agentChatTextWithSentImageNumbers(text, imageAttachments),
             attachments.filter(isAgentChatPathAttachment),
             providerName,
             attachments.filter(isAgentChatSkillAttachment).map(({ skill }) => ({ name: skill })),

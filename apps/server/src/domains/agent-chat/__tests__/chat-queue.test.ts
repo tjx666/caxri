@@ -123,6 +123,21 @@ describe('ChatFollowUpQueue dispatch', () => {
         expect(queuedTexts()).toEqual([]);
     });
 
+    it("renumbers each joined message's image placeholders past the images before it", async () => {
+        const { endTurn, hold, queue, sent } = queueFixture();
+        hold();
+        queue.add(message('look at [Image #1]', [image]));
+        queue.add(message('and compare [Image #2] with [Image #1]', [image, image]));
+        await endTurn();
+        expect(sent).toEqual([
+            {
+                kind: 'message',
+                text: 'look at [Image #1]\n\nand compare [Image #3] with [Image #2]',
+                imageCount: 3,
+            },
+        ]);
+    });
+
     it('sends a command on its own turn, between the messages around it', async () => {
         const { endTurn, hold, queue, queuedTexts, sent } = queueFixture();
         hold();

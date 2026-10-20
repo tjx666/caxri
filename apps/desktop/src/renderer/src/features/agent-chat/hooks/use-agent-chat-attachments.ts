@@ -6,6 +6,7 @@ import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
 import type {
     AgentChatAttachment,
+    AgentChatImageAttachment,
     AgentChatPathAttachment,
     AgentChatSkillAttachment,
 } from '../agent-chat-drafts';
@@ -17,6 +18,7 @@ import {
     readAgentChatAttachments,
     writeAgentChatAttachments,
 } from '../agent-chat-drafts';
+import { attachmentsWithReattached } from '../agent-chat-image-placeholders';
 import type { AgentChatImageRejection, AgentChatImageReservation } from '../agent-chat-images';
 import {
     agentChatImageBytes,
@@ -61,7 +63,12 @@ export function useAgentChatAttachments(terminalId: string) {
             writeAgentChatAttachments(terminalId, updated);
             return updated;
         });
-    const add = async (files: readonly File[]): Promise<void> => {
+    /**
+     * Reads `files` as images. With `firstToken`, each accepted image gets the next placeholder number from it, in the
+     * order the files came, and the numbers of the ones read are returned so the composer can write their placeholders
+     * (`agent-chat-image-placeholders.ts`); a file that fails leaves its number unused.
+     */
+    const add = async (files: readonly File[], firstToken?: number): Promise<number[]> => {
         const accepted: File[] = [];
         /**
          * Rejected file names per reason, so one toast per reason can name the files it refused.
@@ -81,12 +88,20 @@ export function useAgentChatAttachments(terminalId: string) {
         }
         for (const [rejection, fileNames] of rejections)
             pushToast('error', agentChatImageRejectionMessage(rejection, fileNames));
-        if (accepted.length === 0) return;
+        if (accepted.length === 0) return [];
         setReadingCount((count) => count + accepted.length);
         const results = await Promise.allSettled(accepted.map((file) => readAgentChatImage(file)));
         setReadingCount((count) => count - accepted.length);
         const images = results.flatMap((result, index) =>
-            result.status === 'fulfilled' ? [{ ...result.value, name: accepted[index]?.name }] : [],
+            result.status === 'fulfilled'
+                ? [
+                      {
+                          ...result.value,
+                          name: accepted[index]?.name,
+                          token: firstToken === undefined ? undefined : firstToken + index,
+                      },
+                  ]
+                : [],
         );
         // Swap each file's estimate for the bytes actually read, so `release` later frees exactly what it holds.
         const estimated = accepted.reduce(
@@ -111,13 +126,15 @@ export function useAgentChatAttachments(terminalId: string) {
             pushToast('error', translate('agentChat.images.unreadable'));
         update((current) => [
             ...current,
-            ...images.map(({ image, isResized, name }) => ({
+            ...images.map(({ image, isResized, name, token }) => ({
                 id: crypto.randomUUID(),
                 image,
                 name,
                 ...(isResized && { isResized }),
+                ...(token !== undefined && { token }),
             })),
         ]);
+        return images.flatMap(({ token }) => (token === undefined ? [] : [token]));
     };
     /**
      * Adds file, folder, and skill cards, skipping a path or skill already attached. Returns the ids of `cards`; a
@@ -181,21 +198,34 @@ export function useAgentChatAttachments(terminalId: string) {
         update((current) => attachmentsAfterSend(current, sent));
     };
     /**
+     * Puts `taken` back through `place` and reserves the ones not attached already. The stored list mirrors this
+     * composer's state (`update` writes both), and the reservation must change once, outside an updater React may run
+     * twice.
+     */
+    const putBack = <T extends AgentChatAttachment>(
+        taken: readonly T[],
+        place: (current: AgentChatAttachment[], returned: T[]) => AgentChatAttachment[],
+    ): void => {
+        const attached = new Set(readAgentChatAttachments(terminalId).map(({ id }) => id));
+        const returned = taken.filter((attachment) => !attached.has(attachment.id));
+        if (returned.length === 0) return;
+        const reservation = reservationOf(returned);
+        reserved.current = {
+            count: reserved.current.count + reservation.count,
+            bytes: reserved.current.bytes + reservation.bytes,
+        };
+        update((current) => place(current, returned));
+    };
+    /**
      * Puts back images whose message failed to send, ahead of any attached since, and reserves them again.
      */
-    const restoreUnsent = (sent: readonly AgentChatAttachment[]): void => {
-        // The stored list mirrors this composer's state (`update` writes both), and the reservation must change once,
-        // outside an updater React may run twice.
-        const attached = new Set(readAgentChatAttachments(terminalId).map(({ id }) => id));
-        const returned = sent.filter((attachment) => !attached.has(attachment.id));
-        if (returned.length === 0) return;
-        const taken = reservationOf(returned);
-        reserved.current = {
-            count: reserved.current.count + taken.count,
-            bytes: reserved.current.bytes + taken.bytes,
-        };
-        update((current) => attachmentsWithReturned(current, returned));
-    };
+    const restoreUnsent = (sent: readonly AgentChatAttachment[]): void =>
+        putBack(sent, attachmentsWithReturned);
+    /**
+     * Puts back images whose placeholders came back into the draft (undo), each in its place among the images.
+     */
+    const reattach = (images: readonly AgentChatImageAttachment[]): void =>
+        putBack(images, attachmentsWithReattached);
     return {
         attachments,
         readingCount,
@@ -217,6 +247,7 @@ export function useAgentChatAttachments(terminalId: string) {
         remove,
         removeCards,
         clearSent,
+        reattach,
         restoreUnsent,
     };
 }

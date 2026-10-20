@@ -5,6 +5,7 @@ import type {
     AgentChatSnapshot,
 } from '@caxri/protocol';
 import {
+    agentChatTextWithOffsetImages,
     CaxriError,
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
@@ -131,21 +132,26 @@ function dispatchBatch(entries: readonly QueuedInput[]): QueuedInput[] {
 
 /**
  * The one input a batch sends: a command as it is, or its messages joined in queue order with every image attached. An
- * image-only message adds no blank paragraph.
+ * image-only message adds no blank paragraph. Each message's `[Image #N]` placeholders move past the images of the
+ * messages before it, so they still name its own images.
  */
 function mergeBatch(batch: readonly QueuedInput[]): QueuedInput {
     const [first] = batch;
     if (batch.length === 1) return first;
     const messages = batch as readonly QueuedMessage[];
     const images = messages.flatMap((entry) => entry.message.images ?? []);
+    let imageOffset = 0;
+    const texts = messages.map(({ message }) => {
+        const imageCount = message.images?.length ?? 0;
+        const text = agentChatTextWithOffsetImages(message.text, imageOffset, imageCount);
+        imageOffset += imageCount;
+        return text;
+    });
     return {
         id: first.id,
         kind: 'message',
         message: {
-            text: messages
-                .map((entry) => entry.message.text)
-                .filter((text) => text.length > 0)
-                .join(MERGED_MESSAGE_SEPARATOR),
+            text: texts.filter((text) => text.length > 0).join(MERGED_MESSAGE_SEPARATOR),
             ...(images.length > 0 && { images }),
         },
     };

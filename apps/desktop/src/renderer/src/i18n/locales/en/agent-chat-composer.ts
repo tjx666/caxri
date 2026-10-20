@@ -23,6 +23,7 @@ export const agentChatComposer = {
         'Files on this Mac cannot be referenced on the SSH Host. Copy the file to the SSH Host, then drop it from Files. Images still attach.',
 
     'agentChat.attachments.fallbackName': 'Attachment {{number}}',
+    'agentChat.attachments.imageNumber': 'Image {{number}}',
     'agentChat.attachments.label': 'Attachments',
     'agentChat.attachments.folder': 'Folder',
     'agentChat.attachments.file': 'File',

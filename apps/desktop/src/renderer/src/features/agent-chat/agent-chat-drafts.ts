@@ -151,6 +151,11 @@ export interface AgentChatImageAttachment {
      * not the original.
      */
     isResized?: boolean;
+    /**
+     * The number its `[Image #N]` placeholder carries in the draft, fixed while the draft is written
+     * (`agent-chat-image-placeholders.ts`). Missing for an image that was never written into the text.
+     */
+    token?: number;
 }
 
 /**

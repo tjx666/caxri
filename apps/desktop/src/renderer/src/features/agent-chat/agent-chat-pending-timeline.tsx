@@ -7,6 +7,7 @@ import { AgentChatPathReferenceChips } from './agent-chat-path-reference-chips';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatUserMessageBubble } from './agent-chat-user-message';
+import { hasAgentChatImagePlaceholders } from './agent-chat-user-message-text';
 import type { useAgentChatPending } from './hooks/use-agent-chat-pending';
 
 /**
@@ -29,11 +30,20 @@ function AgentChatPendingUserMessage({
             data-agent-chat-pending=""
         >
             {message.images.length > 0 && (
-                <AgentChatMessageImages className="max-w-[85%]" images={message.images} />
+                <AgentChatMessageImages
+                    className="max-w-[85%]"
+                    images={message.images}
+                    isNumbered={hasAgentChatImagePlaceholders(text, message.images.length)}
+                />
             )}
             <AgentChatPathReferenceChips references={references} skills={skills} />
             {text && (
-                <AgentChatUserMessageBubble isEditing={false} text={text} onOpenFile={onOpenFile} />
+                <AgentChatUserMessageBubble
+                    images={message.images}
+                    isEditing={false}
+                    text={text}
+                    onOpenFile={onOpenFile}
+                />
             )}
             <span className="-mt-0.5 text-[11px] leading-4 text-muted">
                 {t('agentChat.message.sending')}

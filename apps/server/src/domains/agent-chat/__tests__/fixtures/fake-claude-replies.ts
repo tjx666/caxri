@@ -14,7 +14,7 @@ export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
             hook_name: 'SessionStart:startup',
             outcome: 'error',
             exit_code: 1,
-            stderr: 'Example configuration could not be read.\nCheck the test configuration file.',
+            stderr: 'Example configuration could not be read.\nRun `example-check --config` to see why.',
             stdout: '',
             output: '',
         });

@@ -6,7 +6,11 @@ import { Compartment, EditorState, Prec } from '@codemirror/state';
 import { EditorView, placeholder as placeholderExtension } from '@codemirror/view';
 
 import { useTranslation } from '../../i18n';
-import { agentChatComposerExtensions, externalDraft } from './agent-chat-composer-extensions';
+import {
+    agentChatComposerExtensions,
+    agentChatImagePills,
+    externalDraft,
+} from './agent-chat-composer-extensions';
 import type {
     AgentChatComposerInput,
     AgentChatComposerKeyEvent,
@@ -24,6 +28,7 @@ import type { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-men
 import type { useAgentChatComposerEnter } from './hooks/use-agent-chat-composer-enter';
 import type { useAgentChatComposerSend } from './hooks/use-agent-chat-composer-send';
 import type { useAgentChatDraftStash } from './hooks/use-agent-chat-draft-stash';
+import type { useAgentChatImagePlaceholders } from './hooks/use-agent-chat-image-placeholders';
 import type { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import type { useAgentChatSessionMenu } from './hooks/use-agent-chat-session-menu';
 
@@ -39,6 +44,7 @@ interface ComposerHandlers {
     onFocus: () => void;
     onKeyDown: (event: AgentChatComposerKeyEvent) => void;
     onKeyUp: (event: AgentChatComposerKeyEvent) => void;
+    onOpenImage: (token: number) => void;
     onPaste: (event: AgentChatComposerPasteEvent) => void;
     onSelect: (input: AgentChatComposerInput) => void;
 }
@@ -48,13 +54,16 @@ interface ComposerHandlers {
  * user writes (`agentChatMarkdownMarks`), as in the Codex app's composer. Each key goes to the first owner that claims
  * it, in this order: the draft stash (Ctrl+S), the prompt history list, the slash-command menu, the `@` Sessions menu,
  * Goal mode, and finally Enter and Escape; a key an owner prevents never reaches the editor's own keymap. The history
- * list's highlighted prompt replaces the placeholder while it is open.
+ * list's highlighted prompt replaces the placeholder while it is open. An attached image's `[Image #N]` placeholder
+ * shows as a pill (`imagePlaceholders.pills`); clicking one opens its preview, and `imagePlaceholders.onEdit` hears
+ * every edit the user makes so a deleted pill takes its image along.
  */
 export function AgentChatComposerEditor({
     composerKeys,
     draft,
     goalMode,
     history,
+    imagePlaceholders,
     inputReference,
     isEditing,
     menu,
@@ -70,6 +79,10 @@ export function AgentChatComposerEditor({
     draft: string;
     goalMode: ComposerSend['goalMode'];
     history: ReturnType<typeof useAgentChatPromptHistory>;
+    imagePlaceholders: Pick<
+        ReturnType<typeof useAgentChatImagePlaceholders>,
+        'onEdit' | 'openImage' | 'pills'
+    >;
     inputReference: RefObject<AgentChatComposerInput | null>;
     isEditing: boolean;
     menu: ReturnType<typeof useAgentChatCommandMenu>;
@@ -82,6 +95,7 @@ export function AgentChatComposerEditor({
     onPaste: (event: AgentChatComposerPasteEvent) => void;
 }) {
     const { t } = useTranslation();
+    const imagePills = imagePlaceholders.pills;
     const hostReference = useRef<HTMLDivElement>(null);
     const viewReference = useRef<EditorView>(null);
     /**
@@ -92,6 +106,7 @@ export function AgentChatComposerEditor({
     const handlers = useRef<ComposerHandlers>(null);
     const [compartments] = useState(() => ({
         attributes: new Compartment(),
+        imagePills: new Compartment(),
         placeholder: new Compartment(),
     }));
     const [{ attach, input }] = useState(agentChatComposerInput);
@@ -114,6 +129,7 @@ export function AgentChatComposerEditor({
             onChange: (input) => {
                 const { value } = input;
                 setDraft(() => value);
+                imagePlaceholders.onEdit(value);
                 history.close();
                 sessionMenu.trackCaret(input);
             },
@@ -130,6 +146,7 @@ export function AgentChatComposerEditor({
                 composerKeys.onKeyDown(event);
             },
             onKeyUp: sessionMenu.trackCaretKey,
+            onOpenImage: imagePlaceholders.openImage,
             onPaste,
             onSelect: (input) => sessionMenu.followSelection(input),
         };
@@ -168,6 +185,7 @@ export function AgentChatComposerEditor({
                     agentChatComposerExtensions(MAX_AGENT_CHAT_MESSAGE_LENGTH),
                     compartments.placeholder.of([]),
                     compartments.attributes.of([]),
+                    compartments.imagePills.of([]),
                     EditorView.updateListener.of((update) => {
                         if (update.transactions.some((tr) => tr.annotation(externalDraft))) return;
                         if (update.docChanged) handlers.current?.onChange(input);
@@ -219,6 +237,17 @@ export function AgentChatComposerEditor({
         );
         viewReference.current?.dispatch({ effects });
     }, [attributesKey, compartments]);
+
+    useLayoutEffect(() => {
+        const pills = new Map(imagePills.map((pill) => [pill.token, pill]));
+        const effects = compartments.imagePills.reconfigure(
+            agentChatImagePills.of({
+                pills,
+                open: (token) => handlers.current?.onOpenImage(token),
+            }),
+        );
+        viewReference.current?.dispatch({ effects });
+    }, [compartments, imagePills]);
 
     return <div ref={hostReference} data-slot="agent-chat-composer-editor" />;
 }

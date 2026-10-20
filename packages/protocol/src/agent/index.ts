@@ -9,6 +9,7 @@ export * from './agent-chat-diff.js';
 export * from './agent-chat-goal.js';
 export * from './agent-chat-goal-contract.js';
 export * from './agent-chat-history.js';
+export * from './agent-chat-image-tokens.js';
 export * from './agent-chat-labels.js';
 export * from './agent-chat-labels-en.js';
 export * from './agent-chat-labels-zh-cn.js';

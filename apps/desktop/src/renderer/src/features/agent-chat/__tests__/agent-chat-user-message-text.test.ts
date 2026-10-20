@@ -25,4 +25,20 @@ describe('agentChatUserMessageSegments', () => {
             { kind: 'text', text: ' and src/y.ts:1' },
         ]);
     });
+
+    it("marks the placeholders of the message's own images", () => {
+        expect(
+            agentChatUserMessageSegments('compare [Image #1] with [Image #3]', {
+                withFiles: false,
+                imageCount: 2,
+            }),
+        ).toEqual([
+            { kind: 'text', text: 'compare ' },
+            { kind: 'image', text: '[Image #1]', number: 1 },
+            { kind: 'text', text: ' with [Image #3]' },
+        ]);
+        expect(agentChatUserMessageSegments('[Image #1]', { withFiles: false })).toEqual([
+            { kind: 'text', text: '[Image #1]' },
+        ]);
+    });
 });

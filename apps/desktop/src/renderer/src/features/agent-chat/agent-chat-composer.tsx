@@ -41,6 +41,7 @@ import { useAgentChatDraft } from './hooks/use-agent-chat-draft';
 import { useAgentChatDraftStash } from './hooks/use-agent-chat-draft-stash';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHandoff } from './hooks/use-agent-chat-handoff';
+import { useAgentChatImagePlaceholders } from './hooks/use-agent-chat-image-placeholders';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import { useAgentChatSessionMenu } from './hooks/use-agent-chat-session-menu';
 import { useAgentChatStop } from './hooks/use-agent-chat-stop';
@@ -241,12 +242,14 @@ export function AgentChatComposer({
         terminalId,
     });
     const { isStopping, stop } = useAgentChatStop({ activeTurnId, terminalId });
+    const placeholders = useAgentChatImagePlaceholders({ draft, images, inputReference, setDraft });
     const { fileInput, isAttaching, pastePlainText } = useAgentChatComposerInput({
         draft,
         dropHandlersReference,
         images,
         inputReference,
         providerName,
+        reserveImageTokens: placeholders.reserve,
         setDraft,
         supportsImages,
         terminal,
@@ -386,10 +389,8 @@ export function AgentChatComposer({
                             attachments={images.attachments}
                             isGoalMode={goalMode.isOn}
                             pendingCount={images.readingCount}
-                            onRemove={(id) => {
-                                images.remove(id);
-                                focusInput();
-                            }}
+                            preview={placeholders.preview}
+                            onRemove={placeholders.removeAttachment}
                         />
                     )}
                     <AgentChatComposerEditor
@@ -397,6 +398,7 @@ export function AgentChatComposer({
                         draft={draft}
                         goalMode={goalMode}
                         history={history}
+                        imagePlaceholders={placeholders}
                         inputReference={inputReference}
                         isEditing={edit.isEditing}
                         menu={menu}

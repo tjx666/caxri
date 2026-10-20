@@ -1,6 +1,7 @@
+import { agentChatImageTokenRanges } from '@caxri/protocol';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
 import type { Extension, Range } from '@codemirror/state';
-import { Annotation, EditorState } from '@codemirror/state';
+import { Annotation, EditorState, Facet } from '@codemirror/state';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
 
@@ -88,6 +89,110 @@ const livePreview = ViewPlugin.fromClass(
     { decorations: (plugin) => plugin.decorations },
 );
 
+/**
+ * One attached image as its placeholder pill shows it.
+ */
+export interface AgentChatComposerImagePill {
+    label: string;
+    thumbnail: string;
+    token: number;
+}
+
+interface ImagePills {
+    pills: ReadonlyMap<number, AgentChatComposerImagePill>;
+    /**
+     * Opens the image's preview when its pill is clicked.
+     */
+    open: (token: number) => void;
+}
+
+/**
+ * The composer's attached images by placeholder number; a placeholder no image owns stays plain text.
+ */
+export const agentChatImagePills = Facet.define<ImagePills, ImagePills>({
+    combine: (values) => values[0] ?? { pills: new Map(), open: () => {} },
+});
+
+class ImagePillWidget extends WidgetType {
+    constructor(
+        private readonly pill: AgentChatComposerImagePill,
+        private readonly open: (token: number) => void,
+    ) {
+        super();
+    }
+
+    override eq(other: ImagePillWidget): boolean {
+        return (
+            other.pill.token === this.pill.token &&
+            other.pill.label === this.pill.label &&
+            other.pill.thumbnail === this.pill.thumbnail
+        );
+    }
+
+    override toDOM(): HTMLElement {
+        const pill = document.createElement('span');
+        pill.className = 'cm-image-pill';
+        pill.dataset.imageToken = String(this.pill.token);
+        const thumbnail = document.createElement('img');
+        thumbnail.alt = '';
+        thumbnail.src = this.pill.thumbnail;
+        pill.append(thumbnail, this.pill.label);
+        // The press keeps the editor from moving the caret around the pill; the preview opens on the click, because a
+        // dialog opened on the press would take the release and click on its overlay and close at once.
+        pill.addEventListener('mousedown', (event) => {
+            if (event.button === 0) event.preventDefault();
+        });
+        pill.addEventListener('click', (event) => {
+            if (event.button === 0) this.open(this.pill.token);
+        });
+        return pill;
+    }
+}
+
+function imagePillDecorations(state: EditorState): DecorationSet {
+    const { open, pills } = state.facet(agentChatImagePills);
+    if (pills.size === 0) return Decoration.none;
+    return Decoration.set(
+        agentChatImageTokenRanges(state.doc.toString()).flatMap(({ from, number, to }) => {
+            const pill = pills.get(number);
+            return pill
+                ? [Decoration.replace({ widget: new ImagePillWidget(pill, open) }).range(from, to)]
+                : [];
+        }),
+    );
+}
+
+/**
+ * Draws each attached image's `[Image #N]` placeholder as a pill with its thumbnail, like a file pill in Cursor's
+ * composer. The pill is atomic: the caret steps over it and Backspace deletes it whole, which removes the image
+ * (`useAgentChatImagePlaceholders`). The document keeps the placeholder text, which is what the Agent receives.
+ */
+const imagePills = ViewPlugin.fromClass(
+    class {
+        decorations: DecorationSet;
+
+        constructor(view: EditorView) {
+            this.decorations = imagePillDecorations(view.state);
+        }
+
+        update(update: ViewUpdate): void {
+            if (
+                update.docChanged ||
+                update.startState.facet(agentChatImagePills) !==
+                    update.state.facet(agentChatImagePills)
+            )
+                this.decorations = imagePillDecorations(update.state);
+        }
+    },
+    {
+        decorations: (plugin) => plugin.decorations,
+        provide: (plugin) =>
+            EditorView.atomicRanges.of(
+                (view) => view.plugin(plugin)?.decorations ?? Decoration.none,
+            ),
+    },
+);
+
 const MONO = "var(--editor-font-family, ui-monospace, 'Caxri JetBrains Mono', monospace)";
 const CODE_BACKGROUND = 'color-mix(in srgb, var(--border) 45%, transparent)';
 
@@ -129,6 +234,30 @@ const composerTheme = EditorView.theme({
         backgroundColor: CODE_BACKGROUND,
     },
     '.cm-md-line-fence': { color: 'var(--muted)' },
+    '.cm-image-pill': {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        height: '18px',
+        margin: '0 1px',
+        padding: '0 6px 0 2px',
+        borderRadius: 'var(--radius-sm)',
+        backgroundColor: CODE_BACKGROUND,
+        fontSize: '12px',
+        lineHeight: '18px',
+        verticalAlign: 'text-bottom',
+        cursor: 'zoom-in',
+        userSelect: 'none',
+    },
+    '.cm-image-pill:hover': {
+        backgroundColor: 'color-mix(in srgb, var(--border) 75%, transparent)',
+    },
+    '.cm-image-pill img': {
+        width: '14px',
+        height: '14px',
+        borderRadius: '3px',
+        objectFit: 'cover',
+    },
 });
 
 /**
@@ -148,6 +277,7 @@ export function agentChatComposerExtensions(maxLength: number): Extension {
             (transaction) => agentChatLimitedChange(transaction, maxLength) ?? transaction,
         ),
         livePreview,
+        imagePills,
         composerTheme,
     ];
 }
