@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { BootstrapState } from '@caxri/protocol';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -66,13 +67,13 @@ test('typing @ in Agent Chat completes Project files and inserts a Project-relat
         // A path with whitespace is quoted so the mention does not end at the space.
         await message.press('Enter');
         await expect(list).toHaveCount(0);
-        await expect(message).toHaveValue('read @"docs/invoice notes.md" ');
+        await expectComposerValue(message, 'read @"docs/invoice notes.md" ');
 
         await message.fill('@totals');
         await expect(list.getByRole('option')).toHaveCount(1);
         await expect(list.getByText('Sessions', { exact: true })).toHaveCount(0);
         await message.press('Tab');
-        await expect(message).toHaveValue('@src/billing/invoice-totals.ts ');
+        await expectComposerValue(message, '@src/billing/invoice-totals.ts ');
 
         // A word nothing matches leaves the list closed, and Escape dismisses it until the next edit.
         await message.fill('@zzzz-no-such-file');

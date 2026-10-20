@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expectComposerValue } from './support/agent-chat-composer.ts';
+import { composerValue, expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -72,19 +72,19 @@ test('a Codex turn opens as one review whose line comments land in the Chat mess
         await greeting.getByRole('textbox', { name: 'Comment' }).fill('Inline the constant');
         await greeting.getByRole('button', { name: 'Save' }).click();
         await expect(note).toContainText('Inline the constant');
-        await expect(message).toHaveValue(/Inline the constant$/u);
-        await expect(message).not.toHaveValue(/Name the constant message/u);
+        await expectComposerValue(message, /Inline the constant$/u);
+        await expect.poll(() => composerValue(message)).not.toMatch(/Name the constant message/u);
 
         await note.getByRole('button', { name: 'Remove comment' }).click();
         await expect(note).toHaveCount(0);
-        await expect(message).toHaveValue('');
+        await expectComposerValue(message, '');
         await expect(review.getByText('1 comment', { exact: true })).toHaveCount(0);
         await page
             .locator('[data-sonner-toast]')
             .getByRole('button', { name: 'Undo', exact: true })
             .click();
         await expect(note).toContainText('Inline the constant');
-        await expect(message).toHaveValue(/Inline the constant$/u);
+        await expectComposerValue(message, /Inline the constant$/u);
         await expect(review.getByText('1 comment', { exact: true })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('turn-review-edited.png') });
 
