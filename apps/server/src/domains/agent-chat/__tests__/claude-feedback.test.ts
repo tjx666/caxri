@@ -19,12 +19,32 @@ describe('real Claude feedback envelopes', () => {
         ).toEqual([
             expect.objectContaining({
                 type: 'notice',
-                kind: 'warning',
+                kind: 'output',
                 turnId: 'turn',
                 title: 'example-mod · /display-test',
                 message: 'Example mod output.\nRead these details.',
             }),
         ]);
+    });
+    it('shows a prompt blocked by an exit-code-2 Hook once, through its blocked notice', () => {
+        const exitTwo = {
+            subtype: 'hook_response',
+            hook_name: 'UserPromptSubmit',
+            hook_event: 'UserPromptSubmit',
+            outcome: 'error',
+            exit_code: 2,
+            stderr: 'Synthetic block.',
+        };
+        expect(claudeFeedbackItems(exitTwo)).toEqual([]);
+        // A crashing prompt Hook, or exit code 2 from a tool Hook, is still a failure worth showing.
+        expect(claudeFeedbackItems({ ...exitTwo, exit_code: 1 })).toHaveLength(1);
+        expect(
+            claudeFeedbackItems({
+                ...exitTwo,
+                hook_name: 'PreToolUse:Bash',
+                hook_event: 'PreToolUse',
+            }),
+        ).toHaveLength(1);
     });
     it('uses the intact structured mod reason and warning severity', () => {
         expect(
