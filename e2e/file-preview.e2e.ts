@@ -345,7 +345,8 @@ test('previews PDF, CSV, and Mermaid files', async () => {
  * external-document grant (issue #1791): Main registers it without a text read and the Renderer fetches its bytes
  * through `externalDocument.readAsset`.
  */
-test('previews a PDF opened from outside every Project', async () => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('previews a PDF opened from outside every Project', async ({}, testInfo) => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-external-pdf-e2e-'));
     const root = join(testDirectory, 'project');
     const externalRoot = join(testDirectory, 'external');
@@ -380,6 +381,7 @@ test('previews a PDF opened from outside every Project', async () => {
         const pdf = page.getByTestId('pdf-preview');
         await expect(pdf.locator('.page')).toHaveCount(2);
         await expect(pdf.locator('.textLayer').first()).toContainText('External page one');
+        await page.screenshot({ path: testInfo.outputPath('external-pdf.png') });
         await expect(page.locator('.monaco-editor')).toHaveCount(0);
     } finally {
         try {

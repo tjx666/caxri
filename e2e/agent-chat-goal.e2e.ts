@@ -127,6 +127,7 @@ test('Goal mode dims attachments, says they stay for the next message, and keeps
         await page.getByRole('menuitem', { name: /^Goal/u }).click();
         await expect(hint).toBeVisible();
         await expect(attached).toHaveCSS('opacity', '0.5');
+        await expect(page.getByRole('menu')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('goal-attachments-hint.png') });
 
         await message.fill('hold the line with notes attached');

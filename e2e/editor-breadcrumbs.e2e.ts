@@ -6,7 +6,8 @@ import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
-test('Editor breadcrumbs browse siblings with one keyboard focus model', async () => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('Editor breadcrumbs browse siblings with one keyboard focus model', async ({}, testInfo) => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-breadcrumbs-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -79,6 +80,10 @@ test('Editor breadcrumbs browse siblings with one keyboard focus model', async (
             'aria-selected',
             'true',
         );
+        await running.page.screenshot({
+            path: testInfo.outputPath('breadcrumb-siblings.png'),
+            animations: 'disabled',
+        });
         await expect
             .poll(() => componentSiblings.evaluate((element) => element.scrollTop))
             .toBeGreaterThan(0);

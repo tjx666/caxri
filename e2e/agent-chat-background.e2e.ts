@@ -142,6 +142,10 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         // Undo in the toast puts the deleted message back where it was, not at the end.
         await queue.getByRole('button', { name: 'Delete queued message' }).first().click();
         await expect(queue.getByText('hello after this')).toHaveCount(0);
+        await page.screenshot({
+            path: testInfo.outputPath('codex-queue-undo.png'),
+            animations: 'disabled',
+        });
         await page
             .locator('[data-sonner-toast]')
             .getByRole('button', { name: 'Undo', exact: true })
