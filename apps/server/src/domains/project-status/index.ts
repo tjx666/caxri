@@ -38,7 +38,9 @@ import {
 import { summaryCacheTtlMs } from './cache-ttl';
 import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-over';
 import { pendingSummaryEntry } from './carry-over';
+import { EmptyCheckRollupTracker } from './empty-check-rollup';
 import { projectStatusCliError } from './external';
+import { emptyGitHubLoad } from './github-load';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear';
 import type { ProjectStatusClock, ProjectStatusServiceOptions } from './options';
 import { projectStatusClock } from './options';
@@ -100,6 +102,7 @@ export class ProjectStatusService {
     private readonly watch?: DeliveryWatch;
     private readonly commandTelemetry: ExternalStatusCommandTelemetry;
     private readonly clock: ProjectStatusClock;
+    private readonly emptyCheckRollups = new EmptyCheckRollupTracker();
     private readonly remotes = new RepoRemoteCache(() => this.now());
     private readonly remoteHeads = new RemoteHeadCache(() => this.now());
     private readonly readGit = (cwd: string, arguments_: readonly string[]) =>
@@ -369,14 +372,7 @@ export class ProjectStatusService {
             errors: ProjectStatusError[];
         }
     > {
-        /**
-         * A function, not a shared literal: each `return` gets its own arrays rather than aliases of one.
-         */
-        const empty = (): { acceptances: []; linearIssues: []; errors: ProjectStatusError[] } => ({
-            acceptances: [],
-            linearIssues: [],
-            errors: [],
-        });
+        const empty = emptyGitHubLoad;
         if (!context.owner || !context.repo || !context.branch) return empty();
         try {
             const output = await this.github.view({
@@ -389,6 +385,7 @@ export class ProjectStatusService {
             });
             if (!output) return empty();
             const parsed = parseGitHubPullRequest(output, this.ignoredChecks());
+            parsed.pullRequest = this.emptyCheckRollups.settle(parsed.pullRequest, this.now());
             /**
              * Both readers work from the same already-fetched body, and neither blocks the other: a Linear outage must
              * not hide the acceptance verdict, and an `lh` that is not installed must not hide the linked issues.
