@@ -27,3 +27,8 @@ _Researched 2026-08-06._
 View state is keyed by window label. `PageClaims` allows one page per window, so a page never renders
 in two windows at once. Relevant to the later tear-off window rule that one Session is viewed by
 one window.
+
+Adopted by Caxri's tear-off: a Session is an Open Session of at most one window; selecting it elsewhere activates it
+in the owner instead of viewing it twice ([docs/open-sessions.md](../../../../docs/open-sessions.md)). cmux's
+`moveWorkspaceToWindow` (a live workspace moves between windows without restarting) is the model for moving the
+Session in one transaction, and LobeHub's `TopicPopupGuard` is the same duplicate-open guard.

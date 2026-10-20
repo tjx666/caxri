@@ -55,6 +55,38 @@ or archived IDs again, so a stale entry can never resurrect a Session. Selection
 edits are separate writes; the list carries no active ID, so a late list save cannot undo a newer
 selection.
 
+## Windows
+
+A Session is an Open Session of **at most one window**. The Server enforces this at entry level (membership in
+a strip), in the two places a Session enters a strip: selecting it, and saving a strip.
+
+- Selecting or resuming a Session that another window owns leaves the requesting window unchanged and
+  activates the Session in its owner. The result carries `ownerWindowKey`, and Desktop Main raises the owner
+  window (a notification click does the same). A strip edit that names a Session owned elsewhere drops it.
+- Dragging a tab out of every window **tears it off**. Releasing the tab with no drop target (`dropEffect`
+  `none`) outside the source window asks Main to open a new Workbench window; releasing it over the source
+  window (a cancelled drag) or over another Workbench window opens nothing. The new window opens with its
+  title bar under the cursor, keeps the source window's size, and is clamped to the display. The Renderer
+  sends the `dragend` screen point, and Main falls back to the native cursor when the platform reports
+  `0,0` (a known Chromium quirk VS Code works around the same way).
+- A tear-off is all or nothing. Main creates the window hidden, the Server moves the Session in one
+  transaction (`window.openSessions.moveToWindow`), and only then does the window show. A refusal (the source
+  would be left empty, the Session is not open there) destroys the hidden window and changes nothing. A
+  window's last Open Session cannot be torn off; the strip is hidden at one tab, so no drag starts.
+- Closing a torn-off window releases its strip like closing its tab: its unsaved Editor buffers are decided
+  for that window only, nothing touches Terminals, and the Session returns to the sidebar's pool and can be
+  opened anywhere. Closing the primary window decides unsaved buffers for every window, then closes the
+  torn-off windows but keeps their strips. Quitting keeps every strip too; the next launch reopens the
+  torn-off windows, cascaded from the primary window (per-window bounds are not persisted yet).
+- Event routing: shared state (Server state, Terminal output, settings) reaches every window; one-shot
+  commands (menu accelerators, Editor open requests, toasts) reach only the focused window; an unsaved-Editor
+  question or a window's own full-screen state reaches only its window. The table is `EVENT_AUDIENCE` in
+  `apps/desktop/src/main/event-audience.ts` and is exhaustive over server events.
+
+Known limits: `desktop.openRequested` goes to the focused window, not necessarily a Session's owner; Terminal
+output is broadcast to every window (each ignores Terminals it does not render); a tear-off window has no
+Terminal prompts on close.
+
 ## Presence
 
 Presence answers "what is each window looking at right now". It is memory only, lives on the Server
@@ -87,5 +119,6 @@ context, never a global selection. Keep-alive stays the most recent five Session
 
 ## Limits
 
-One window exists today; moving a Session into its own window is future work. The file watcher is
-single-scope and follows the primary visible Session until then.
+Dropping a tab onto another window to merge it is not supported; a tear-off is one-way into a new window. The
+file watcher is single-scope and follows the primary visible Session, so a Session shown only in a torn-off
+window is watched while that window is the primary visible one. Per-window bounds are not persisted.
