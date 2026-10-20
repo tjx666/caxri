@@ -5,6 +5,7 @@ import type { AgentChatItemStatus, AgentToolKind } from '@caxri/protocol';
 import { agentChatItemStatusLabel, agentChatItemStatusTone } from '@caxri/protocol';
 import type { LucideProps } from 'lucide-react-native';
 import {
+    BookOpen,
     Bot,
     Brain,
     Circle,
@@ -14,7 +15,6 @@ import {
     Command,
     FilePenLine,
     FilePlus,
-    FileText,
     FolderOpen,
     Globe,
     Hourglass,
@@ -22,15 +22,16 @@ import {
     Layers,
     ListTodo,
     MessageCircleQuestionMark,
-    Plug,
     Search,
     Sparkles,
     SquareTerminal,
     Wrench,
 } from 'lucide-react-native';
 
+import { McpConnectorIcon } from '../../components/mcp-connector-icon';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { ConversationMcpServerIcon } from './conversation-mcp-server-icon';
 import { conversationStyles as styles } from './conversation-styles';
 
 const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
@@ -42,11 +43,11 @@ const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
     edit: FilePenLine,
     image: Image,
     list: FolderOpen,
-    mcp: Plug,
+    mcp: McpConnectorIcon,
     other: Wrench,
     plan: ListTodo,
     question: MessageCircleQuestionMark,
-    read: FileText,
+    read: BookOpen,
     search: Search,
     skill: Sparkles,
     stop: CircleStop,
@@ -63,18 +64,28 @@ const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
  */
 export const ConversationToolIcon = ({
     kind,
+    mcpIconUrls,
     theme,
 }: {
     /**
      * `null` marks a group mixing several kinds.
      */
     kind: AgentToolKind | null;
+    /**
+     * The icon URLs of the MCP server a `mcp` row belongs to (`agentChatMcpIconUrls`); the connector glyph stands in
+     * while they load or when none is given.
+     */
+    mcpIconUrls?: readonly string[];
     theme: MobileTheme;
 }) => {
     const Icon = kind ? TOOL_ICONS[kind] : Layers;
     return (
         <View style={[styles.toolIcon, { backgroundColor: theme.elevated }]}>
-            <Icon color={theme.muted} size={14} strokeWidth={2} />
+            {kind === 'mcp' && mcpIconUrls && mcpIconUrls.length > 0 ? (
+                <ConversationMcpServerIcon theme={theme} urls={mcpIconUrls} />
+            ) : (
+                <Icon color={theme.muted} size={14} strokeWidth={2} />
+            )}
         </View>
     );
 };

@@ -3,6 +3,8 @@ import type {
     AgentChatDiffLine,
     AgentChatFileChange,
     AgentChatItem,
+    AgentChatPathReference,
+    AgentChatSkillReference,
     AgentChatSnapshot,
     AgentChatTurn,
     AgentChatTurnArtifacts,
@@ -19,6 +21,7 @@ import {
     isAgentChatItemVisible,
     isAgentChatSubagentItem,
     isAgentChatWorkItem,
+    parseAgentChatPathReferences,
     splitAgentChatWork,
 } from '@caxri/protocol';
 
@@ -43,7 +46,17 @@ type AgentChatMessageEntry = Extract<
  */
 export type AgentChatTimelineEntry =
     | { kind: 'feedback'; id: string; notice: Extract<AgentChatItem, { type: 'notice' }> }
-    | { kind: 'message'; id: string; message: AgentChatMessageEntry }
+    | {
+          kind: 'message';
+          id: string;
+          message: AgentChatMessageEntry;
+          /**
+           * The files, folders, and skills a user message cited ahead of its words (`parseAgentChatPathReferences`),
+           * drawn as chips under its images; `message.text` is then only what the user typed. Absent when it cited
+           * none.
+           */
+          cited?: { references: AgentChatPathReference[]; skills: AgentChatSkillReference[] };
+      }
     | {
           /**
            * An answered question request, listed as each question over the answer given (Desktop's `Asked 3
@@ -118,7 +131,11 @@ const toMessage = (
 ): AgentChatMessageEntry => {
     switch (item.type) {
         case 'userMessage': {
-            return { id: item.id, type: item.type, text: item.text };
+            return {
+                id: item.id,
+                type: item.type,
+                text: parseAgentChatPathReferences(item.text).text,
+            };
         }
         case 'agentMessage': {
             return {
@@ -151,6 +168,22 @@ function answeredEntry(item: AgentChatItem): AgentChatTimelineEntry | undefined 
     if (item.type !== 'notice' || item.kind !== 'answered' || !item.answers?.length)
         return undefined;
     return { kind: 'answered', id: item.id, isExpanded: true, answers: item.answers };
+}
+
+/**
+ * A message row. A user message that cites files, folders, or skills splits them off as `cited`, so the bubble shows
+ * only the user's words (Desktop's `AgentChatUserMessage`).
+ */
+function messageEntry(
+    item: Extract<AgentChatItem, { type: 'agentMessage' | 'notice' | 'userMessage' }>,
+    t: Translate,
+): AgentChatTimelineEntry {
+    const base = { kind: 'message' as const, id: item.id, message: toMessage(item, t) };
+    if (item.type !== 'userMessage') return base;
+    const { references, skills } = parseAgentChatPathReferences(item.text);
+    return references.length > 0 || skills.length > 0
+        ? { ...base, cited: { references, skills } }
+        : base;
 }
 
 /**
@@ -191,7 +224,7 @@ function groupEntries(
                 text: item.text,
                 task: item.delegatedTask,
             });
-        else entries.push({ kind: 'message', id: item.id, message: toMessage(item, t) });
+        else entries.push(messageEntry(item, t));
     }
     flush();
     return entries;

@@ -64,6 +64,13 @@
             "when": 1791882893675,
             "tag": "0008_session_creator",
             "breakpoints": true
+        },
+        {
+            "idx": 9,
+            "version": "6",
+            "when": 1792483627471,
+            "tag": "0009_agent_chat_persistence",
+            "breakpoints": true
         }
     ]
 }

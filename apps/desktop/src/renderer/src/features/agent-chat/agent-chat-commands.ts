@@ -40,6 +40,7 @@ import { agentChatHandoffPrompt } from './agent-chat-handoff';
 import { agentChatConfigureFailureMessage } from './agent-chat-model-selection';
 import { addAgentChatPendingAnswer, dropAgentChatPendingAnswer } from './agent-chat-pending';
 import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
+import { previewAgentChatRevert } from './agent-chat-restore-preview-commands';
 import {
     agentChatForkSuccessMessage,
     agentChatReplaceTurnsConfirm,
@@ -110,6 +111,7 @@ export async function didRewindAgentChat(
             const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
                 providerName: request.providerName,
                 removedTurns: request.removedTurns,
+                ...(await previewAgentChatRevert(terminalId, request.itemId)),
             });
             if (!confirmed) return;
         }
@@ -202,6 +204,7 @@ export async function restoreAgentChatFiles(
         const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
             providerName: request.providerName,
             removedTurns: request.restoredTurns,
+            ...(await previewAgentChatRevert(terminalId, request.itemId)),
         });
         if (!confirmed) return;
         await caxri.request('agentChat.restoreFiles', { terminalId, itemId: request.itemId });
@@ -350,13 +353,53 @@ export function stopAgentChatTask(terminalId: string, taskId: string): void {
 }
 
 /**
- * Removes a queued message.
+ * Removes a queued message and offers Undo in a toast. Server Core keeps the removed message, images included, and Undo
+ * puts it back where it was (`restoreAgentChatQueued`).
  */
 export function removeAgentChatQueued(terminalId: string, id: string): void {
     // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
     void tryCommand(translate('agentChat.commands.removeQueuedFailed'), () =>
         caxri.request('agentChat.removeQueued', { terminalId, id }),
+    ).then((removed) => {
+        // `undefined` means the removal failed and tryCommand already said so.
+        if (removed === undefined) return;
+        pushToast('info', translate('agentChat.commands.queuedRemoved'), {
+            history: false,
+            action: { id: 'agentChat.restoreQueued', params: { terminalId, id } },
+        });
+    });
+}
+
+/**
+ * The Undo of {@link removeAgentChatQueued}: Server Core puts the message back in its place, or refuses when it can no
+ * longer (the Chat restarted, or too many messages were removed since).
+ */
+export function restoreAgentChatQueued({
+    terminalId,
+    id,
+}: {
+    terminalId: string;
+    id: string;
+}): void {
+    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
+    void tryCommand(translate('agentChat.commands.restoreQueuedFailed'), () =>
+        caxri.request('agentChat.restoreQueued', { terminalId, id }),
     );
+}
+
+/**
+ * Rewrites a queued message's text where it stands; its images and its place in the queue are kept. Resolves whether
+ * the edit was saved.
+ */
+export async function didSaveAgentChatQueuedText(
+    terminalId: string,
+    id: string,
+    text: string,
+): Promise<boolean> {
+    const saved = await tryCommand(translate('agentChat.commands.editQueuedFailed'), () =>
+        caxri.request('agentChat.editQueued', { terminalId, id, text }),
+    );
+    return saved !== undefined;
 }
 
 /**

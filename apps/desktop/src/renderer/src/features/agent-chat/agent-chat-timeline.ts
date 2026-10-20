@@ -4,19 +4,10 @@ import type {
     AgentChatTurn,
     AgentChatTurnArtifacts,
     AgentChatWorkItem,
-    AgentToolKind,
-    AgentToolPresentation,
 } from '@caxri/protocol';
 import {
-    agentChatActiveWork,
     agentChatFinalReplyId,
-    agentChatMcpToolTitle,
-    agentChatWorkSummaryTools,
-    agentToolKindCounts,
-    agentToolOutcomeLabel,
     collectAgentChatTurnArtifacts,
-    describeAgentChatWork,
-    describeAgentTool,
     foldAgentChatTurn,
     isAgentChatAwaitingReply,
     isAgentChatItemVisible,
@@ -288,54 +279,6 @@ export function buildAgentChatTimeline(
  */
 export function agentChatTimelineEntryKey(entry: AgentChatTimelineEntry): string {
     return entry.kind === 'item' ? entry.item.id : entry.id;
-}
-
-/**
- * A work row's kind, verb, and subject on Desktop, in the active language: the shared `describeAgentChatWork`, except
- * that an MCP tool call reads as its tool (`Web search exa`), the way the Codex app names it beside the server's icon;
- * the icon, not an `exa` prefix, says which server answered. The shared presentation keeps the server name for the
- * phone and the CLI, which show no server icon.
- */
-export function describeAgentChatWorkRow(
-    item: AgentChatWorkItem,
-    t: Translate = translate,
-): AgentToolPresentation {
-    const mcp = mcpToolAction(item);
-    if (!mcp || item.type !== 'toolCall') return describeAgentChatWork(item, t);
-    if (item.status === 'running') return mcp;
-    return { ...mcp, label: agentToolOutcomeLabel(mcp, item.status, t) };
-}
-
-function mcpToolAction(item: AgentChatWorkItem): AgentToolPresentation | undefined {
-    if (item.type !== 'toolCall') return undefined;
-    const mcp = parseAgentMcpToolName(item.name);
-    if (!mcp) return undefined;
-    return { kind: 'mcp', label: agentChatMcpToolTitle(mcp.tool), isCodeSubject: false };
-}
-
-/**
- * The glyph a work summary row leads with, the way the Codex app marks a group by its first part: the kind its phrase
- * names first (`Called 3 MCP tools, ran 2 commands` leads with MCP), plus the first MCP tool call's name when MCP
- * leads, so the row shows that server's icon.
- */
-export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): {
-    kind: AgentToolKind;
-    mcpToolName?: string;
-} {
-    const active = agentChatActiveWork(items);
-    if (active)
-        return {
-            kind: active.presentation.kind,
-            ...(active.presentation.kind === 'mcp' &&
-                active.item.type === 'toolCall' && { mcpToolName: active.item.name }),
-        };
-    const tools = agentChatWorkSummaryTools(items);
-    const kind = agentToolKindCounts(tools).at(0)?.kind ?? 'thought';
-    const mcpToolName =
-        kind === 'mcp'
-            ? tools.find((tool) => describeAgentTool(tool).kind === 'mcp')?.name
-            : undefined;
-    return { kind, ...(mcpToolName && { mcpToolName }) };
 }
 
 /**

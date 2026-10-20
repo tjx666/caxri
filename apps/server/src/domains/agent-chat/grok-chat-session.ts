@@ -384,6 +384,7 @@ class GrokChatSession implements AgentChatProviderSession {
             cwd: this.options.cwd,
             environment: this.options.environment,
             spawnProcess: this.options.spawnProcess,
+            processGroups: this.options.processGroups,
             handlers: {
                 onNotification: (method, parameters) => this.onNotification(method, parameters),
                 onServerRequest: (request) => this.onServerRequest(request),

@@ -5,7 +5,7 @@ import {
     Archive,
     EllipsisVertical,
     FolderPlus,
-    Inbox,
+    MessageSquareWarning,
     Settings,
     Unlink,
 } from 'lucide-react-native';
@@ -212,7 +212,7 @@ export const SessionHomeHeader = ({
                 ) : null}
                 {onOpenInbox ? (
                     <MenuAction
-                        icon={Inbox}
+                        icon={MessageSquareWarning}
                         label={t('sessions.home.needsYou')}
                         onPress={() => {
                             closeMenu();

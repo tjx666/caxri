@@ -12,24 +12,35 @@ import type {
     AgentChatComposerKeyEvent,
 } from '../agent-chat-composer-view';
 import { draftWithInsertion } from '../agent-chat-drafts';
+import type { AgentChatMentionRow } from '../agent-chat-file-mentions';
 import {
-    agentChatSessionEmptyText,
+    agentChatFileSuggestion,
+    agentChatMentionActiveIndex,
+    agentChatMentionHeadingAt,
+    agentChatMentionRows,
+    agentChatMentionRowSuggestion,
+    agentChatMentionStep,
+    formatAgentChatFileMention,
+} from '../agent-chat-file-mentions';
+import {
     agentChatSessionPreparingText,
-    agentChatSessionSuggestion,
     agentChatSessionSuggestions,
 } from '../agent-chat-suggestions';
+import { useAgentChatFileMentions } from './use-agent-chat-file-mentions';
 import { useAgentChatPlacedCaret } from './use-agent-chat-placed-caret';
 
 /**
- * The `@` Sessions list: typing `@` at the start of a word offers the other Sessions with an Agent conversation,
- * searched by title, each with its Project and, when titles repeat, when it was last opened. A query with no match
- * keeps the list open on a `No Sessions match` row, as the slash-command list does. Choosing one asks the Server to
- * condense that conversation into a reference file and replaces the typed `@word` with `@<path>` and a sentence saying
- * whose conversation it is; meanwhile the list shows a progress row naming the Session (`preparing`), and Enter waits
- * rather than sending the half-typed `@word`. Keys match the slash-command list: arrows move, Enter or Tab chooses,
- * Escape dismisses until the next edit. The list shows only while the input has focus, so it never covers another
- * surface, and waits for the user to edit the draft or move the caret, so showing a Chat whose restored draft ends in
- * `@word` does not open it.
+ * The `@` list: typing `@` at the start of a word offers a `Files` group, the Project files whose path contains the
+ * word (`useAgentChatFileMentions`; the files open in Editor tabs for a bare `@`), then a `Sessions` group, the other
+ * Sessions with an Agent conversation, searched by title, each with its Project and, when titles repeat, when it was
+ * last opened. A group with no match is left out, and with neither the list stays closed. Choosing a file replaces the
+ * typed `@word` with `@<Project-relative path>`, quoted when the path holds whitespace. Choosing a Session asks the
+ * Server to condense that conversation into a reference file and replaces the typed `@word` with `@<path>` and a
+ * sentence saying whose conversation it is; meanwhile the list shows a progress row naming the Session (`preparing`),
+ * and Enter waits rather than sending the half-typed `@word`. Keys match the slash-command list: arrows move, Enter or
+ * Tab chooses, Escape dismisses until the next edit. The list shows only while the input has focus, so it never covers
+ * another surface, and waits for the user to edit the draft or move the caret, so showing a Chat whose restored draft
+ * ends in `@word` does not open it.
  */
 export function useAgentChatSessionMenu({
     currentSessionId,
@@ -38,6 +49,7 @@ export function useAgentChatSessionMenu({
     isInputFocused,
     isShown,
     isSuppressed,
+    root,
     setDraft,
 }: {
     currentSessionId: string | undefined;
@@ -53,6 +65,10 @@ export function useAgentChatSessionMenu({
      * The slash-command list is open; it owns the keys and the space above the input.
      */
     isSuppressed: boolean;
+    /**
+     * Where the Agent runs, which turns open Editor tabs' paths into Project-relative ones for an empty `@`.
+     */
+    root: string | undefined;
     setDraft: (update: (current: string) => string) => void;
 }) {
     const listId = useId();
@@ -77,12 +93,20 @@ export function useAgentChatSessionMenu({
     );
     const [active, setActive] = useState({ query: mention?.query, index: 0 });
     const isVisible = isInputFocused && !isSuppressed;
-    const isOpen = mention !== undefined && dismissedDraft !== draft && !isPreparing && isVisible;
-    const activeIndex =
-        active.query === mention?.query ? Math.min(active.index, candidates.length - 1) : 0;
-    const activeCandidate = isOpen ? candidates[activeIndex] : undefined;
-    const activeOptionId = activeCandidate
-        ? suggestionOptionId(listId, agentChatSessionSuggestion(activeCandidate).key)
+    const isListable =
+        mention !== undefined && dismissedDraft !== draft && !isPreparing && isVisible;
+    const { files } = useAgentChatFileMentions({
+        isEnabled: isListable,
+        query: mention?.query ?? '',
+        root,
+        sessionId: currentSessionId,
+    });
+    const rows = agentChatMentionRows(files, candidates);
+    const isOpen = isListable && rows.length > 0;
+    const activeIndex = agentChatMentionActiveIndex(active, mention?.query, rows.length);
+    const activeRow = isOpen ? rows[activeIndex] : undefined;
+    const activeOptionId = activeRow
+        ? suggestionOptionId(listId, agentChatMentionRowSuggestion(activeRow).key)
         : undefined;
     useEffect(() => {
         if (!activeOptionId) return;
@@ -104,14 +128,22 @@ export function useAgentChatSessionMenu({
         setPreparing(candidate.title);
         const reference = await prepareSessionReference(candidate.sessionId);
         setPreparing(undefined);
+        if (reference) insertText(reference, range, typed);
+    };
+    /**
+     * Puts `text` over `range` of the draft, then the caret after it. The user may keep typing while a Session's
+     * reference is written, so the range is used only while it still holds `typed`; otherwise the text goes at the
+     * end.
+     */
+    function insertText(text: string, range: { start: number; end: number }, typed: string): void {
         const input = inputReference.current;
-        if (!reference || !input) return;
+        if (!input) return;
         const current = input.value;
         const target =
             current.slice(range.start, range.end) === typed
                 ? range
                 : { start: current.length, end: current.length };
-        const inserted = draftWithInsertion(current, target.start, target.end, reference);
+        const inserted = draftWithInsertion(current, target.start, target.end, text);
         setDraft(() => inserted.draft);
         // A programmatic draft change fires no select event; without this the stale caret still sits inside the
         // inserted `@<path>` and reopens the list on its "No Sessions match" row.
@@ -120,16 +152,18 @@ export function useAgentChatSessionMenu({
             input.focus();
             input.setSelectionRange(inserted.caret, inserted.caret);
         });
-    };
+    }
 
-    const choose = async (candidate: SessionReferenceCandidate): Promise<void> => {
-        if (!mention || isPreparing) return;
-        await insertReference(candidate, mention, draft.slice(mention.start, mention.end));
+    const chooseRow = (row: AgentChatMentionRow | undefined): void => {
+        if (!mention || isPreparing || !row) return;
+        const typed = draft.slice(mention.start, mention.end);
+        if (row.kind === 'file') insertText(formatAgentChatFileMention(row.path), mention, typed);
+        // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
+        else void insertReference(row.candidate, mention, typed);
     };
 
     return {
         activeIndex,
-        emptyText: agentChatSessionEmptyText(mention?.query ?? ''),
         isOpen,
         /**
          * Whether a chosen Session's reference is still being written, which holds Send.
@@ -143,7 +177,14 @@ export function useAgentChatSessionMenu({
             preparing !== undefined && isVisible
                 ? agentChatSessionPreparingText(preparing)
                 : undefined,
-        suggestions: agentChatSessionSuggestions(candidates, openedAt),
+        /**
+         * Which group heading the row at `index` starts, or `undefined` when it continues the group above it.
+         */
+        groupAt: (index: number) => agentChatMentionHeadingAt(files.length, index),
+        suggestions: [
+            ...files.map((path) => agentChatFileSuggestion(path)),
+            ...agentChatSessionSuggestions(candidates, openedAt),
+        ],
         inputAria: isOpen
             ? {
                   'aria-activedescendant': activeOptionId,
@@ -168,11 +209,7 @@ export function useAgentChatSessionMenu({
             void insertReference(candidate, range, input.value.slice(range.start, range.end));
         },
         highlight: (index: number) => setActive({ query: mention?.query, index }),
-        chooseAt: (index: number) => {
-            const candidate = candidates.at(index);
-            // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
-            if (candidate) void choose(candidate);
-        },
+        chooseAt: (index: number) => chooseRow(rows.at(index)),
         /**
          * Returns whether the key was the list's, so the composer skips its own handling (Enter must not send the
          * half-typed `@word`).
@@ -188,17 +225,19 @@ export function useAgentChatSessionMenu({
             if (!isOpen) return false;
             const action = suggestionMenuKeyAction(event);
             // With no row to choose, only Escape is the list's; Enter still sends the draft.
-            if (!action || (action !== 'dismiss' && !activeCandidate)) return false;
+            if (!action || (action !== 'dismiss' && !activeRow)) return false;
             event.preventDefault();
             if (action === 'next' || action === 'previous') {
-                const delta = action === 'next' ? 1 : -1;
                 setActive({
                     query: mention.query,
-                    index: (activeIndex + delta + candidates.length) % candidates.length,
+                    index: agentChatMentionStep(
+                        activeIndex,
+                        action === 'next' ? 1 : -1,
+                        rows.length,
+                    ),
                 });
             } else if (action === 'dismiss') setDismissedDraft(draft);
-            // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
-            else if (activeCandidate) void choose(activeCandidate);
+            else chooseRow(activeRow);
             return true;
         },
     };

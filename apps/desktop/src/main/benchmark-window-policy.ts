@@ -17,6 +17,8 @@ const ADMITTED_METHODS = new Set<string>([
     'benchmark.delete',
     'benchmark.get',
     'benchmark.list',
+    'benchmark.shareImage.copy',
+    'benchmark.shareImage.save',
     'benchmark.start',
     'events.recover',
     'external.open',

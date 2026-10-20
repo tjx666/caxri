@@ -32,6 +32,10 @@ export function affectedTestArguments(paths: readonly string[]): string[] | unde
     return ['vitest', 'related', '--run', '--passWithNoTests', '--silent=passed-only', ...sources];
 }
 
+/**
+ * The `affected` scope also runs the repository-wide knip gate (about 3 s locally) so an unused export fails before
+ * merge instead of surfacing on the `main` push's `full` checks.
+ */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function focusedCheckArguments(
     paths: readonly string[],
@@ -45,6 +49,7 @@ export function focusedCheckArguments(
         '--lint',
         ...(scope === 'focused-e2e' || scope === 'affected' ? [] : ['--test']),
         ...(scope === 'focused-docs' || scope === 'focused-harness' ? [] : ['--type']),
+        ...(scope === 'affected' ? ['--knip'] : []),
     ];
 }
 

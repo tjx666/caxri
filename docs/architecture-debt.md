@@ -64,20 +64,6 @@ tracked by its own issue because it needs a product decision or its own design.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1680](https://github.com/tjx666/caxri/issues/1680): barrels export only, enforced by a structure test.
 
-### AD-simplify-shared-single-flight: [OPEN · Modernization opportunity · M]
-
-- **Summary:** `SingleFlight` lives under Server domains, so Desktop Main and other owners hand-roll dedupe and per-key serialization with diverging eviction semantics.
-- **Evidence:** `apps/desktop/src/main/agent-provider-status.ts`, `apps/server/src/domains/agents/discovery.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1681](https://github.com/tjx666/caxri/issues/1681): one primitive in `packages/system`.
-
-### AD-ext-virtual-tab-descriptors: [OPEN · Architecture debt · M]
-
-- **Summary:** Adding a virtual editor tab scheme still needs coordinated edits in eight or nine files without an exhaustive check.
-- **Evidence:** `packages/protocol/src/domain/virtual-tabs.ts` and its Renderer consumers; the status-bar symptom is resolved below.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1682](https://github.com/tjx666/caxri/issues/1682): one exhaustive descriptor table.
-
 ### AD-domain-line-budget-splits: [OPEN · Architecture debt · M]
 
 - **Summary:** Several Server modules say in their JSDoc that they exist to fit the line budget, and the Server composition root is spread across files.
@@ -123,6 +109,22 @@ tracked by its own issue because it needs a product decision or its own design.
 ---
 
 ## RESOLVED
+
+### AD-simplify-shared-single-flight: [RESOLVED · Modernization opportunity · M]
+
+- **Summary:** `SingleFlight` lived under Server domains, so Desktop Main and other owners hand-rolled dedupe and per-key serialization with diverging eviction semantics.
+- **Evidence:** `packages/system/src/process/single-flight.ts` (join in-flight work) and `keyed-serial-queue.ts` (strict per-key FIFO) are now the shared primitives; Provider status, executable discovery, messaging capability probes, the external-link target probe, Session rename, mobile Terminal mutations, Chat permission switches, and `argv.jsonc` writes use them. Retained-result caches (link favicons and previews, parsed transcripts) stay specialized and say why.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-20 with the fix
+- **Resolved:** 2026-10-20 via [issue caxri#1681](https://github.com/tjx666/caxri/issues/1681).
+- **Remediation target / Acceptance:** One primitive in `packages/system`.
+
+### AD-ext-virtual-tab-descriptors: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Adding a virtual editor tab scheme needed coordinated edits in eight or nine files without an exhaustive check.
+- **Evidence:** `packages/protocol/src/domain/virtual-tabs.ts` registers each scheme once; the Renderer's `virtualTabDescriptors` (`features/editor/virtual-tab-descriptors.ts`) and `VIRTUAL_TAB_SURFACES` (`editor-surface.tsx`) are `Record`s keyed by that union, so tab display, icon, surface, and status bar eligibility are looked up and a missing scheme fails typecheck. Covered by `features/editor/__tests__/virtual-tab-descriptors.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-20 with the fix
+- **Resolved:** 2026-10-20 via [issue caxri#1682](https://github.com/tjx666/caxri/issues/1682).
+- **Remediation target / Acceptance:** One exhaustive descriptor table.
 
 ### AD-proc-chat-endpoint-identity: [RESOLVED · Contract drift · M]
 

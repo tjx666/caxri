@@ -22,8 +22,9 @@ import { canPreviewPath, previewerForPath, shouldOpenAsPreview } from './preview
  * preview tab, the document that preview is already showing. Every other virtual tab (a Git diff, a transcript) has no
  * preview even when its encoded path ends in a previewable extension.
  *
- * An external document previews only as Markdown, because that view renders the editor's cached buffer. The image view
- * loads its asset through Project file IPC, which cannot reach a file outside every Project.
+ * An external document previews as Markdown, because that view renders the editor's cached buffer, or as a PDF, whose
+ * bytes come from Main under the document's grant. The image view loads its asset through Project file IPC, which
+ * cannot reach a file outside every Project.
  *
  * This is the one predicate behind every preview entry point: the commands, the tab-rail icon, and both context menus,
  * so a format registered in `preview-registry.ts` appears in all of them at once.
@@ -31,8 +32,10 @@ import { canPreviewPath, previewerForPath, shouldOpenAsPreview } from './preview
 export function previewSourcePath(tabPath: string): string | undefined {
     const preview = parseFilePreviewTab(tabPath);
     if (preview) return preview.path;
-    if (isExternalEditorTabPath(tabPath))
-        return previewerForPath(tabPath)?.id === 'markdown' ? tabPath : undefined;
+    if (isExternalEditorTabPath(tabPath)) {
+        const id = previewerForPath(tabPath)?.id;
+        return id === 'markdown' || id === 'pdf' ? tabPath : undefined;
+    }
     if (isVirtualEditorTabPath(tabPath)) return undefined;
     return canPreviewPath(tabPath) ? tabPath : undefined;
 }

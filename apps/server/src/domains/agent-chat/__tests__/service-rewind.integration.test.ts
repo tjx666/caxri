@@ -150,6 +150,42 @@ describe('AgentChatService rewind', () => {
         expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second', 'third']);
     });
 
+    it('previews the files a Claude restore would revert without touching them', async () => {
+        const { service, terminal, secondId, fakeLog } = await threeTurns('claude');
+        const preview = await service.previewRestoreFiles(terminal.id, secondId);
+        expect(preview).toMatchObject({
+            supported: true,
+            totalFiles: 2,
+            insertions: 4,
+            deletions: 1,
+        });
+        expect(preview.files.map((file) => file.path)).toContain('notes.md');
+        // Only the SDK dry run ran; nothing was restored.
+        expect(await fakeLog('claude', 'rewinds.jsonl')).toEqual([
+            { userMessageId: secondId, dryRun: true },
+        ]);
+        expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second', 'third']);
+    });
+
+    it('previews nothing for Grok or Codex, and refuses while a turn runs', async () => {
+        const grok = await threeTurns('grok');
+        await expect(
+            grok.service.previewRestoreFiles(grok.terminal.id, grok.secondId),
+        ).resolves.toEqual({ supported: false, files: [], totalFiles: 0 });
+
+        const codex = await threeTurns('codex');
+        await expect(
+            codex.service.previewRestoreFiles(codex.terminal.id, codex.secondId),
+        ).resolves.toEqual({ supported: false, files: [], totalFiles: 0 });
+
+        const { service, terminal, until, secondId } = await threeTurns('claude');
+        await service.send(terminal.id, { text: 'slow' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await expect(service.previewRestoreFiles(terminal.id, secondId)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+    });
+
     it('restores Grok code with the files-only mode and keeps the conversation', async () => {
         const { service, terminal, secondId, fakeLog } = await threeTurns('grok');
         await service.restoreFiles(terminal.id, secondId);

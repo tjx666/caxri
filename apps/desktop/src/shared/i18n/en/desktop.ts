@@ -160,6 +160,11 @@ export const desktop = {
     'desktop.revertFiles.detail':
         'Files return to how they were before this message. Changes made to them since, including your own, are lost.',
     'desktop.revertFiles.confirm': 'Revert Files',
+    'desktop.revertFiles.previewFailed':
+        "Couldn't preview changes. The files to revert are not listed.",
+    'desktop.revertFiles.moreFiles': '...and {{count}} more',
+    'desktop.revertFiles.filesOne': '{{count}} file will be reverted',
+    'desktop.revertFiles.filesOther': '{{count}} files will be reverted',
 
     'desktop.quit.title': 'Quit Caxri?',
     'desktop.quit.messageOne': 'Quit Caxri while {{running}} is running?',
@@ -220,6 +225,8 @@ export const desktop = {
     'desktop.fileFilter.allFiles': 'All Files',
     'desktop.diagnosticsExport.title': 'Export Diagnostics',
     'desktop.diagnosticsExport.zipArchive': 'ZIP Archive',
+    'desktop.benchmarkShare.title': 'Save Share Image',
+    'desktop.benchmarkShare.pngImage': 'PNG Image',
     'desktop.chooseProjectFolder': 'Choose a Project folder',
     'desktop.chooseChatFilesAndFolders': 'Add files and folders',
 

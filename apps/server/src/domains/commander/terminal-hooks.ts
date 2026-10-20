@@ -28,6 +28,13 @@ export class CommanderTerminalHooks {
     };
 
     /**
+     * An Agent Endpoint `SIGINT` interrupted the Agent in a Terminal (the keyboard Escape arrives through
+     * {@link input}).
+     */
+    readonly interrupted = (terminalId: string): void =>
+        this.notifier?.observeInterrupt(terminalId);
+
+    /**
      * Human input into a Chat (a message, command, rewind, or interrupt), the Chat counterpart of {@link input}: it
      * takes a handed-over Session back. A Chat has no Terminal draft for the notifier to fence.
      */

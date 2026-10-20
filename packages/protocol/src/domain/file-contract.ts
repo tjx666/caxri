@@ -232,7 +232,12 @@ export const fileMethods = {
             /**
              * Each surface replaces only its own previous search within the Session.
              */
-            consumer: z.enum(['project-search', 'path-browser', 'mobile-composer']),
+            consumer: z.enum([
+                'project-search',
+                'path-browser',
+                'mobile-composer',
+                'agent-chat-mention',
+            ]),
             mode: fileSearchModeSchema,
             query: z.string().min(1).max(256),
             caseSensitive: z.boolean().default(false),

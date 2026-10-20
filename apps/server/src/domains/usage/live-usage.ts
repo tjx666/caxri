@@ -1,12 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
 import type { AgentProvider, AgentUsageReadout, UsageLimit } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
 import type { AgentEnvironment, AgentTranscriptIdentity } from '../agents';
 import { boundAgentIdentity } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { SingleFlight } from '../single-flight';
 import type { UsageRecord } from './record';
 import type { UsageTranscriptFiles } from './scanner';
 import { IncrementalUsageScan, UsageTranscriptLocator } from './scanner';

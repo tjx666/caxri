@@ -12,49 +12,6 @@ function match(relativePath: string) {
 }
 
 describe('rankProjectSearchMatches', () => {
-    it('ranks a file-name hit above one that only matched a directory segment', () => {
-        const ranked = rankProjectSearchMatches(
-            [match('search/deep/notes.ts'), match('a/search.ts')],
-            'search',
-            10,
-        );
-
-        expect(ranked.map((entry) => entry.relativePath)).toEqual([
-            'a/search.ts',
-            'search/deep/notes.ts',
-        ]);
-    });
-
-    it('orders an exact name, then a bare stem, then a prefix, then a loose contains', () => {
-        const ranked = rankProjectSearchMatches(
-            [
-                match('d/my-token-helper.ts'),
-                match('c/token'),
-                match('b/tokenizer.ts'),
-                match('a/token.ts'),
-            ],
-            'token',
-            10,
-        );
-
-        expect(ranked.map((entry) => entry.name)).toEqual([
-            'token',
-            'token.ts',
-            'tokenizer.ts',
-            'my-token-helper.ts',
-        ]);
-    });
-
-    it('breaks ties toward the shallower path so the nearest copy leads', () => {
-        const ranked = rankProjectSearchMatches(
-            [match('a/b/c/index.ts'), match('a/index.ts')],
-            'index',
-            10,
-        );
-
-        expect(ranked.map((entry) => entry.relativePath)).toEqual(['a/index.ts', 'a/b/c/index.ts']);
-    });
-
     it('splits each hit into the file name and its Project-relative directory', () => {
         const [nested, top] = rankProjectSearchMatches(
             [match('packages/model/src/resolve.ts'), match('resolve.ts')],

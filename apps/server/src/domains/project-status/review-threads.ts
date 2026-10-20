@@ -3,12 +3,12 @@ import type {
     ProjectStatusRepository,
     ProjectStatusReviewThread,
 } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
 import type { ExternalStatusCommandTelemetry, ExternalStatusRunner } from '../external-status';
 import { parseExternalJson } from '../external-status';
-import { SingleFlight } from '../single-flight';
 import { parseCodexReviewSummary } from './codex-review-summary';
 
 type PullRequest = ProjectStatusRepository['pullRequest'];

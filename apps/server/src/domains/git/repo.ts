@@ -9,11 +9,10 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, MAX_GIT_STATUS_FILES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { fileIdentity, mapWithConcurrency } from '@caxri/system';
+import { fileIdentity, mapWithConcurrency, SingleFlight } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project';
-import { SingleFlight } from '../single-flight';
 import type { GitChangeTracker } from './change-tracker';
 import { describeGitSummaryFailure } from './errors';
 import type { GitMetadataWatcher } from './metadata-watcher';

@@ -1,7 +1,9 @@
 /**
- * The composer controls a keyboard command can reach: the model picker, the permission menu, and the plan mode toggle.
+ * The composer controls a command can reach: the model picker, the permission menu, the plan mode toggle, and sending
+ * the message (used by the turn review's "Back to Chat and Send").
  */
-export type AgentChatComposerCommand = 'changeModel' | 'changePermissionMode' | 'togglePlanMode';
+export type AgentChatComposerCommand =
+    'changeModel' | 'changePermissionMode' | 'send' | 'togglePlanMode';
 
 /**
  * Each mounted Chat composer registers the controls its provider offers, keyed by Terminal id, so a command reaches the
@@ -43,6 +45,29 @@ export function runAgentChatComposerCommand(
     command: AgentChatComposerCommand,
 ): void {
     if (terminalId !== undefined) handlers.get(terminalId)?.get(command)?.();
+}
+
+/**
+ * Runs `command` as soon as the Chat's composer registers it, for a caller that has just brought the Chat forward and
+ * so may run before its composer mounted. Gives up after `timeoutMs`: a composer that never registers the command (a
+ * blocked send, a Terminal surface) means there is nothing to send. Returns the cancel.
+ */
+export function runAgentChatComposerCommandWhenReady(
+    terminalId: string,
+    command: AgentChatComposerCommand,
+    timeoutMs = 1_500,
+): () => void {
+    const deadline = Date.now() + timeoutMs;
+    let frame = 0;
+    const attempt = (): void => {
+        if (canRunAgentChatComposerCommand(terminalId, command)) {
+            runAgentChatComposerCommand(terminalId, command);
+            return;
+        }
+        if (Date.now() < deadline) frame = requestAnimationFrame(attempt);
+    };
+    attempt();
+    return () => cancelAnimationFrame(frame);
 }
 
 /**

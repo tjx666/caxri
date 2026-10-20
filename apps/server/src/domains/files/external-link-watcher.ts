@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises';
 import { relative } from 'node:path';
 
 import type { FileChange } from '@caxri/protocol';
-import { mapWithConcurrency } from '@caxri/system';
+import { mapWithConcurrency, SingleFlight } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 import type { ResolvedSessionPath } from '../project';
@@ -35,7 +35,7 @@ export class ExternalLinkWatcher {
     private handle?: WatchHandle;
     private overflowed = false;
     private readonly pendingProbes = new Map<string, PendingProbe>();
-    private readonly targetProbes = new Map<string, Promise<string>>();
+    private readonly targetProbes = new SingleFlight<string, string>();
     private readonly fingerprintTarget: (target: string) => Promise<string>;
 
     constructor(
@@ -80,14 +80,10 @@ export class ExternalLinkWatcher {
         target: string,
         targets: Map<string, Promise<string>>,
     ): Promise<string> {
-        let snapshot = targets.get(target) ?? this.targetProbes.get(target);
-        if (!snapshot) {
-            // eslint-disable-next-line unicorn/prefer-await -- retain one physical read until uncancellable I/O settles
-            snapshot = this.fingerprintTarget(target).finally(() => {
-                this.targetProbes.delete(target);
-            });
-            this.targetProbes.set(target, snapshot);
-        }
+        // The slot is held until the uncancellable physical read settles, even across scope resets.
+        const snapshot =
+            targets.get(target) ??
+            this.targetProbes.run(target, () => this.fingerprintTarget(target));
         targets.set(target, snapshot);
         return snapshot;
     }

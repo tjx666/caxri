@@ -70,42 +70,54 @@ export async function fixture(
         (_executable: string, arguments_: string[], spawnOptions: SpawnOptionsWithoutStdio) =>
             spawn(process.execPath, [FAKE_CLIS[provider], ...arguments_], spawnOptions),
     );
-    const service = new AgentChatService({
-        database,
-        logger,
-        send: (event) => events.push(event),
-        environment: () =>
-            Promise.resolve({
-                ...process.env,
-                FAKE_CODEX_STATE_DIR: stateDirectory,
-                FAKE_GROK_STATE_DIR: grokStateDirectory,
-                CLAUDE_CONFIG_DIR: claudeConfigDirectory,
-                FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,
+    const createService = () =>
+        new AgentChatService({
+            database,
+            logger,
+            send: (event) => events.push(event),
+            environment: () =>
+                Promise.resolve({
+                    ...process.env,
+                    FAKE_CODEX_STATE_DIR: stateDirectory,
+                    FAKE_GROK_STATE_DIR: grokStateDirectory,
+                    CLAUDE_CONFIG_DIR: claudeConfigDirectory,
+                    FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,
+                }),
+            launchSettings: () => ({
+                ...defaultAgentProviderSettings[provider].launch,
+                args:
+                    typeof options.launchArgs === 'function'
+                        ? options.launchArgs()
+                        : (options.launchArgs ?? []),
             }),
-        launchSettings: () => ({
-            ...defaultAgentProviderSettings[provider].launch,
-            args:
-                typeof options.launchArgs === 'function'
-                    ? options.launchArgs()
-                    : (options.launchArgs ?? []),
-        }),
-        resolveExecutable: () => Promise.resolve(`/fake/${provider}`),
-        coordinator,
-        observeLifecycleSignal: (signal) => {
-            signals.push(signal);
-            options.observeLifecycleSignal?.(signal);
-            return Promise.resolve('accepted');
-        },
-        clientVersion: '0.0.0-test',
-        agentEnvironment,
-        spawnProcess,
-        ...(options.turnRequestTimeoutMs !== undefined && {
-            turnRequestTimeoutMs: options.turnRequestTimeoutMs,
-        }),
-        ...(options.endpoint && { endpoint: options.endpoint }),
-        onAgentStateChanged: options.onAgentStateChanged,
-        delegation: options.delegation,
-    });
+            resolveExecutable: () => Promise.resolve(`/fake/${provider}`),
+            coordinator,
+            observeLifecycleSignal: (signal) => {
+                signals.push(signal);
+                options.observeLifecycleSignal?.(signal);
+                return Promise.resolve('accepted');
+            },
+            clientVersion: '0.0.0-test',
+            agentEnvironment,
+            spawnProcess,
+            ...(options.turnRequestTimeoutMs !== undefined && {
+                turnRequestTimeoutMs: options.turnRequestTimeoutMs,
+            }),
+            ...(options.endpoint && { endpoint: options.endpoint }),
+            onAgentStateChanged: options.onAgentStateChanged,
+            delegation: options.delegation,
+        });
+    const service = createService();
+    /**
+     * Stands in for a Server Core restart: a new service over the same database and provider state, built after the old
+     * one stopped. Every service built here is shut down with the test.
+     */
+    const restartServer = async () => {
+        await service.shutdown();
+        const restarted = createService();
+        onTestFinished(() => restarted.shutdown());
+        return restarted;
+    };
     onTestFinished(async () => {
         await service.shutdown();
         database.close();
@@ -214,6 +226,7 @@ export async function fixture(
         claudeConfigDirectory,
         fakeLog,
         service,
+        restartServer,
         terminal,
         signals,
         coordinator,

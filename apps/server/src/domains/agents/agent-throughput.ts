@@ -1,8 +1,8 @@
 import type { AgentProvider, AgentThroughput } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
 import type { CaxriDatabase } from '../db';
-import { SingleFlight } from '../single-flight';
 import type { AgentEnvironment } from './contract';
 import { defaultAgentEnvironment } from './contract';
 import { agentProviders } from './providers';

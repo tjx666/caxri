@@ -303,6 +303,8 @@ export class AgentIdentity {
             if (!terminal?.provider) return;
             this.db.terminals.updateAgentSessionId(terminalId, undefined, startedAt);
             this.db.terminals.updateAgentCwd(terminalId, undefined, startedAt);
+            // The replacement opens a new Agent Session, so a rewound resume point of the old one no longer applies.
+            this.db.agentChatState.setResumeAt(terminalId, undefined);
             this.db.terminals.setTitle(terminalId, defaultTerminalTitle(terminal.kind), startedAt);
         });
     }

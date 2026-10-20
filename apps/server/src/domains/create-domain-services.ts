@@ -35,6 +35,7 @@ import {
     createSessionCreationHandlers,
     createSessionCreator,
     createSessionMarkReadHandler,
+    createSessionRuntimeForgetter,
     createSessionSelectionHandlers,
     SessionCompaction,
 } from './session';
@@ -105,6 +106,10 @@ export async function createDomainServices(
             suspensionState.service?.observeAppliedLifecycle(signal);
             commanderHooks.notifier?.onLifecycleApplied(signal);
             commanderHooks.handovers?.onLifecycleApplied(signal);
+        },
+        onSignalInterrupt: (terminalId) => {
+            suspensionState.service?.observeInterrupt(terminalId);
+            commanderHooks.interrupted(terminalId);
         },
         send,
         userDataPath,
@@ -256,19 +261,14 @@ export async function createDomainServices(
         agentOperation: coordinator.agentOperation(terminal.id),
         processId: terminals.processId(terminal.id),
     });
-    const forgetSessionRuntime = (sessionId: string): void => {
-        // Retire naming before resetting its revision fence or removing the Session's database identity.
-        agentRuntime.automaticNaming.forgetSession(sessionId);
-        sessionRenames.forgetSession(sessionId);
-        terminalRestores.forget(sessionId);
-        terminalSuspension.forgetSession(sessionId);
-        coordinator.forgetSession(sessionId);
-        transcripts.forgetSession(sessionId);
-        terminals.terminateSession(sessionId);
-        // eslint-disable-next-line no-void -- Session teardown is synchronous; provider exit completes on its own.
-        void agentChat.closeSession(sessionId);
-        agentRuntime.revokeAutoAllow(sessionId, 'sessionDeleted'); // Archive keeps it (caxri#1295).
-    };
+    const forgetSessionRuntime = createSessionRuntimeForgetter({
+        agentChat,
+        agentRuntime,
+        terminalRestores,
+        terminals,
+        terminalSuspension,
+        transcripts,
+    });
     const evictSessionCaches = (sessionIds: readonly string[]): void => {
         git.evictSessions(sessionIds);
         projectStatus.evictSessions(sessionIds);

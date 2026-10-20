@@ -98,6 +98,13 @@ export const logEventCatalog = {
          * Never carries message text or paths.
          */
         filesRestored: 'agent_chat.files_restored',
+        /**
+         * Server Core's startup sweep of provider process groups a previous lifetime left behind (killed before it
+         * could reap them): how many were `recorded`, how many it stopped (`reaped`), found already empty (`gone`), or
+         * refused because the group ID now belongs to a different process group (`reused`), and the duration. Never
+         * carries paths or commands.
+         */
+        staleGroupsReaped: 'agent_chat.stale_groups_reaped',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',

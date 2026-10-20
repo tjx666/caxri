@@ -26,6 +26,16 @@ export interface ToastActionParameters {
      */
     'agentChat.pasteAsText': { pasteId: string };
     /**
+     * Puts a turn review comment the user removed back into the Chat's draft. Carries only identity: the comment text
+     * stays in the review's own bounded memory (`agent-chat-review-draft.ts`).
+     */
+    'agentChat.restoreReviewComment': { restoreId: string };
+    /**
+     * Puts a queued message the user deleted back where it was in the Chat's queue. Carries only identity: the message
+     * stays in Server Core's queue memory until the window closes (`agent-chat-commands.ts`).
+     */
+    'agentChat.restoreQueued': { terminalId: string; id: string };
+    /**
      * Raises the Agent Commander window, for a notice about work just handed to it.
      */
     'agentCommander.open': undefined;
@@ -131,6 +141,8 @@ export type ToastAction = {
 export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'agentChat.redoUndo': 'toasts.action.redo',
     'agentChat.pasteAsText': 'agentChat.composer.pasteAsText',
+    'agentChat.restoreReviewComment': 'toasts.action.undo',
+    'agentChat.restoreQueued': 'toasts.action.undo',
     'agentCommander.open': 'toasts.action.openAgentCommander',
     'agentCommander.handBack': 'agentCommander.handover.handBack',
     'agentCommander.undoDismiss': 'toasts.action.undo',

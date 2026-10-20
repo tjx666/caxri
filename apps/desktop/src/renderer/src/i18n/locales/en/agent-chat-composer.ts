@@ -26,6 +26,8 @@ export const agentChatComposer = {
     'agentChat.attachments.label': 'Attachments',
     'agentChat.attachments.folder': 'Folder',
     'agentChat.attachments.file': 'File',
+    'agentChat.attachments.goalTextOnly':
+        'The goal includes text only. Attachments stay for your next message.',
     'agentChat.attachments.preparing': 'Preparing image',
     'agentChat.attachments.preview': 'Preview {{name}}',
     'agentChat.attachments.remove': 'Remove {{name}}',
@@ -92,13 +94,13 @@ export const agentChatComposer = {
     'agentChat.slash.skills': 'Skills',
     'agentChat.slash.skillsNeedAgent': 'Skills appear once the Agent is running',
     'agentChat.slash.loadingSkills': 'Loading skills…',
+    'agentChat.slash.files': 'Files',
+    'agentChat.slash.mentions': 'Files and Sessions',
     'agentChat.slash.sessions': 'Sessions',
     'agentChat.slash.footerDismiss': 'Esc to dismiss',
     'agentChat.slash.footerCommands':
         '↑↓ to move · Tab to complete · Enter to run · Esc to dismiss',
     'agentChat.slash.footerSessions': '↑↓ to move · Enter to cite · Esc to dismiss',
-    'agentChat.slash.noSessionMatches': 'No Sessions match',
-    'agentChat.slash.noSessionsToCite': 'No other Sessions to cite',
     'agentChat.slash.preparingSession': 'Preparing “{{title}}”…',
     'agentChat.slash.showInvocation': 'Show {{invocation}}',
     'agentChat.slash.instructionsUnavailable':
@@ -119,6 +121,9 @@ export const agentChatComposer = {
     'agentChat.queue.steerNow': 'Steer now',
     'agentChat.queue.steerTooltip': 'Add to the running turn now',
     'agentChat.queue.commandWaits': 'A command waits for the running turn to end',
+    'agentChat.queue.imagesAttachedOne': '1 image attached',
+    'agentChat.queue.imagesAttachedOther': '{{count}} images attached',
+    'agentChat.queue.editLabel': 'Queued message text',
     'agentChat.queue.imageCountOne': '1 image',
     'agentChat.queue.imageCountOther': '{{count}} images',
 

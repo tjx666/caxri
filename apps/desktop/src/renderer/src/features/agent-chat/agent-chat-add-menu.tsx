@@ -26,13 +26,13 @@ const ROW_CLASS_NAME = 'h-auto min-h-8 gap-2.5 py-1.5 text-[13px]';
 
 /**
  * A row's name over its description in the `meta` size, as the permission menu sets its rows, so a long description
- * gets its own line instead of being cut off beside the name.
+ * wraps onto further lines instead of being truncated (English Plan mode copy overflowed the menu width).
  */
 function RowText({ description, label }: { description: string; label: string }) {
     return (
         <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate">{label}</span>
-            <span className="truncate text-[11px] leading-4 text-muted">{description}</span>
+            <span className="text-[11px] leading-4 break-words text-muted">{description}</span>
         </span>
     );
 }

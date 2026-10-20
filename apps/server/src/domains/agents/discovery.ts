@@ -1,6 +1,6 @@
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
-import { readE2EAgentPolicy, selectE2EAgentExecutable } from '@caxri/system';
+import { readE2EAgentPolicy, selectE2EAgentExecutable, SingleFlight } from '@caxri/system';
 
 import {
     clearServerExecutableCache,
@@ -12,7 +12,7 @@ const executableNames: Record<AgentProvider, string> = Object.fromEntries(
     agentProviderIds.map((provider) => [provider, agentProviderCatalog[provider].executableName]),
 ) as Record<AgentProvider, string>;
 
-const executableRequests = new Map<string, Promise<string | undefined>>();
+const executableRequests = new SingleFlight<string, string | undefined>();
 const versionCache = new Map<AgentProvider, { executable: string; version: string }>();
 
 export function clearExecutableCache(): void {
@@ -32,15 +32,7 @@ export async function discoverExecutable(
     );
     if (!selectedExecutable) return undefined;
     const requestKey = `${name}:${selectedExecutable}`;
-    const pending = executableRequests.get(requestKey);
-    if (pending) return pending;
-    const request = resolveServerExecutable(selectedExecutable);
-    executableRequests.set(requestKey, request);
-    try {
-        return await request;
-    } finally {
-        executableRequests.delete(requestKey);
-    }
+    return executableRequests.run(requestKey, () => resolveServerExecutable(selectedExecutable));
 }
 
 export async function readVersion(

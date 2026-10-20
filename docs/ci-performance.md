@@ -326,8 +326,11 @@ routes it to the `affected` scope:
   the same. This expands hosted platform checks only; `runE2E` remains false and an explicit
   dispatch still owns every full E2E run.
 
-Knip, React Doctor, and bundle budgets run in the `full` checks scope on hosted macOS. Ordinary
-pushes to `main` run those checks but do not start full E2E. There is no scheduled full E2E.
+React Doctor and bundle budgets run in the `full` checks scope on hosted macOS; Knip runs in both
+the `full` and `affected` scopes, so an unused export fails a ready source PR before merge. Knip is
+repository-wide but measured at about 3 s locally (warm cache), cheap enough to add to `affected`
+without a separate job or a change to the required `guards` job. Ordinary pushes to `main` run the
+`full` checks but do not start full E2E. There is no scheduled full E2E.
 
 `hosted-smoke` is the repeatable hosted desktop launch and runs only `e2e/smoke.e2e.ts`. That spec
 does not request clipboard access, so this one disposable GitHub-hosted route explicitly skips the

@@ -13,18 +13,15 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
 import { usePaneViewSession } from '../workbench/pane-view-session';
-import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
 import { AgentChatComposerEditor } from './agent-chat-composer-editor';
+import { AgentChatComposerNotices } from './agent-chat-composer-notices';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import type { AgentChatComposerInput } from './agent-chat-composer-view';
-import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { isAgentChatSkillAttachment } from './agent-chat-drafts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
-import { AgentChatEditBar } from './agent-chat-edit-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
-import { AgentChatPlanPaceAlert } from './agent-chat-plan-pace-alert';
 import type { agentChatSendBlock } from './agent-chat-presentation';
 import {
     agentChatComposerPlaceholder,
@@ -35,6 +32,7 @@ import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
+import { useAgentChatComposerCommand } from './hooks/use-agent-chat-composer-command';
 import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
 import { useAgentChatComposerEnter } from './hooks/use-agent-chat-composer-enter';
 import { useAgentChatComposerInput } from './hooks/use-agent-chat-composer-input';
@@ -223,6 +221,7 @@ export function AgentChatComposer({
         isInputFocused,
         isShown,
         isSuppressed: menu.isOpen,
+        root: workbenchRoot,
         setDraft,
     });
     const { continueInNewChat, isContinuing } = useAgentChatHandoff({
@@ -278,6 +277,11 @@ export function AgentChatComposer({
             setDraft,
             terminalId,
         });
+    // The turn review's "Back to Chat and Send" sends the message from outside the composer.
+    useAgentChatComposerCommand(terminalId, 'send', isSendable, () => {
+        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
+        void submit();
+    });
     const history = useAgentChatPromptHistory({
         draft,
         hasAttachments: images.attachments.length > 0,
@@ -316,10 +320,6 @@ export function AgentChatComposer({
         stop();
         focusInput();
     };
-    /**
-     * The notice rows give way to the activity row and the edit bar, which own the strip while they show.
-     */
-    const hasStripRoom = !activity && !edit.isEditing;
     return (
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
             <AgentChatDropOverlay
@@ -342,8 +342,12 @@ export function AgentChatComposer({
                     onQueueAction={focusInput}
                     onQueueEdit={restoreQueued}
                 >
-                    <AgentChatActivityBar
+                    <AgentChatComposerNotices
                         activity={activity}
+                        delivery={isTurnRunning && draft.trim().length > 0}
+                        edit={edit.bar}
+                        isContinuing={isContinuing}
+                        isEditing={edit.isEditing}
                         notice={
                             composerKeys.notice ??
                             stash.notice ??
@@ -351,19 +355,12 @@ export function AgentChatComposer({
                                 ? t('agentChat.slash.confirmSendAsText')
                                 : undefined)
                         }
-                        showsDeliveryHint={isTurnRunning && draft.trim().length > 0}
-                        onStop={stopAndFocus}
-                    />
-                    <AgentChatEditBar edit={edit.bar} />
-                    <AgentChatContextAlerts
-                        isContinuing={isContinuing}
-                        isShown={hasStripRoom}
+                        terminalId={terminalId}
                         usage={snapshot?.usage}
                         onCompact={compact}
                         onContinueInNewChat={continueInNewChat}
-                        terminalId={terminalId}
+                        onStop={stopAndFocus}
                     />
-                    <AgentChatPlanPaceAlert isShown={hasStripRoom} terminalId={terminalId} />
                 </AgentChatComposerStrip>
                 <form
                     className={cn(
@@ -387,6 +384,7 @@ export function AgentChatComposer({
                     {images.hasAttachmentRow && (
                         <AgentChatAttachmentList
                             attachments={images.attachments}
+                            isGoalMode={goalMode.isOn}
                             pendingCount={images.readingCount}
                             onRemove={(id) => {
                                 images.remove(id);

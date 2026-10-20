@@ -25,6 +25,10 @@ export interface ConversationTimelineState {
     historyExpired: boolean;
     isLoadingOlder: boolean;
     items: AgentTimelineItem[];
+    /**
+     * Older messages exist on the computer but cannot be requested until the phone reconnects.
+     */
+    needsConnectionForOlder?: boolean;
     olderCursor?: string;
     /**
      * The pairing the live items were read under; only that pairing may save them.

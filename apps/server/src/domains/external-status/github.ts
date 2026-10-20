@@ -1,7 +1,7 @@
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
-import { SingleFlight } from '../single-flight';
 import type { ExternalStatusRunner } from './command';
 import { isNoPullRequest } from './command';
 

@@ -1,7 +1,12 @@
+import { restoreAgentChatQueued } from '../features/agent-chat/agent-chat-commands';
 import {
     agentChatPasteAsTextUnavailableReason,
     pasteAgentChatSavedPasteAsText,
 } from '../features/agent-chat/agent-chat-long-paste-commands';
+import {
+    restoreRemovedReviewComment,
+    reviewCommentRestoreUnavailableReason,
+} from '../features/agent-chat/agent-chat-review-draft';
 import {
     agentChatRedoUnavailableReason,
     redoAgentChatTurn,
@@ -65,6 +70,11 @@ export const toastActionHandlers: ToastActionHandlers = {
     'agentChat.pasteAsText': {
         unavailable: agentChatPasteAsTextUnavailableReason,
         run: pasteAgentChatSavedPasteAsText,
+    },
+    'agentChat.restoreQueued': { run: restoreAgentChatQueued },
+    'agentChat.restoreReviewComment': {
+        unavailable: reviewCommentRestoreUnavailableReason,
+        run: restoreRemovedReviewComment,
     },
     'agentCommander.open': { run: () => executeCommand('agentCommander.open') },
     'agentCommander.handBack': {

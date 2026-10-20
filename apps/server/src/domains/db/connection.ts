@@ -153,6 +153,8 @@ function initializeSchema(database: Database.Database): void {
              * Project folders and user files are never touched.
              */
             database.exec(`
+                DROP TABLE IF EXISTS agent_chat_answered_notices;
+                DROP TABLE IF EXISTS agent_chat_process_groups;
                 DROP TABLE IF EXISTS benchmark_runs;
                 DROP TABLE IF EXISTS commander_inbox_replies;
                 DROP TABLE IF EXISTS commander_inbox_items;

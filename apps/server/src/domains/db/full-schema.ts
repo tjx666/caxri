@@ -3,5 +3,6 @@
  * query builder read this module, so a table defined in any schema file reaches migrations and queries alike.
  */
 export * from './schema';
+export * from './schema-agent-chat';
 export * from './schema-benchmark';
 export * from './schema-commander';

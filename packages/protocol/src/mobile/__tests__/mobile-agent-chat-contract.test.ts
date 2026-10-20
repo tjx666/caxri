@@ -7,6 +7,7 @@ import { applyAgentChatPatch } from '../../agent/agent-chat-reducer.js';
 import {
     clipAgentChatCommandsForMobile,
     clipAgentChatItemForMobile,
+    clipAgentChatMcpServersForMobile,
     clipAgentChatPatchForMobile,
     clipAgentChatQueueForMobile,
     MOBILE_AGENT_CHAT_CLIP_MARKER,
@@ -335,6 +336,36 @@ describe('mobile Agent Chat projection', () => {
             clipAgentChatCommandsForMobile(commands),
         );
         expect(agentChatPatchSchema.safeParse(patch).success).toBe(true);
+    });
+
+    it('ships MCP servers to the phone with HTTPS icons only, never inline images', () => {
+        const servers = [
+            {
+                name: 'exa',
+                title: 'Exa',
+                icons: [
+                    { src: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' },
+                    { src: 'https://exa.example/logo.png', theme: 'dark' as const },
+                ],
+                siteOrigins: ['https://exa.example'],
+            },
+            { name: 'inline-only', icons: [{ src: 'data:image/png;base64,AAAA' }] },
+        ];
+        expect(clipAgentChatMcpServersForMobile(servers)).toEqual([
+            {
+                name: 'exa',
+                title: 'Exa',
+                icons: [{ src: 'https://exa.example/logo.png', theme: 'dark' }],
+                siteOrigins: ['https://exa.example'],
+            },
+            { name: 'inline-only' },
+        ]);
+        const windowed = windowAgentChatSnapshotForMobile({
+            ...snapshot([message('m-1', 'hello')]),
+            mcpServers: servers,
+        });
+        expect(JSON.stringify(windowed.mcpServers)).not.toContain('data:');
+        expect(agentChatSnapshotSchema.safeParse(windowed).success).toBe(true);
     });
 
     it('refuses a patch that cannot fit one frame', () => {

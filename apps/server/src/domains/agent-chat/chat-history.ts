@@ -35,7 +35,8 @@ interface ParsedTranscript {
 /**
  * Parsed transcripts by Terminal. Records before a cursor never change in an append-only transcript, so a parse stays
  * valid for the history it was read for; a replaced history (`historyId`) parses again, because a rewind may have moved
- * the conversation onto another branch.
+ * the conversation onto another branch. This is a retained, TTL-bound cache, not a `SingleFlight`, which forgets a load
+ * as soon as it settles.
  */
 const parsed = new Map<string, Promise<ParsedTranscript | undefined>>();
 

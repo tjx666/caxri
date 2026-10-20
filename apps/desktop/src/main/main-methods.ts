@@ -27,6 +27,7 @@ import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
 import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat-path-picker';
 import { createAgentProviderStatus, createE2EStatusPageFetch } from './agent-provider-status';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
+import { handleBenchmarkShare, isBenchmarkShare } from './benchmark-share-methods';
 import {
     BUG_REPORT_SCREENSHOT_DIRECTORY,
     pruneBugReportScreenshots,
@@ -192,6 +193,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         const supervisor = options.getSupervisor();
         if (isExternalDocumentRequest(request))
             return handleExternalDocumentRequest(request, supervisor, externalDocumentWatcher);
+        if (isBenchmarkShare(request)) return handleBenchmarkShare(request, options.getWindow());
         if (isEnvironmentRequest(request)) return handleEnvironmentRequest(request, environment);
         if (isWindowRequest(request)) return handleWindowRequest(request, options);
         const mainWindow = options.getWindow();

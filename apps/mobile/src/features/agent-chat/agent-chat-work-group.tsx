@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, use, useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatTask, AgentChatWorkItem } from '@caxri/protocol';
@@ -8,7 +8,7 @@ import {
     agentChatTaskActivity,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
-    agentChatWorkKind,
+    agentChatWorkSummaryGlyph,
     isAgentChatWorkRunning,
     summarizeAgentChatWork,
 } from '@caxri/protocol';
@@ -23,6 +23,11 @@ import { ConversationToolRowView } from '../conversation/conversation-tool-row';
 import { AgentChatTaskStatusGlyph } from './agent-chat-task-detail';
 import { useAgentChatTaskLink } from './agent-chat-task-links';
 import { agentChatTaskRow } from './agent-chat-tasks';
+import {
+    agentChatMcpIconUrls,
+    agentChatMcpServerFor,
+    AgentChatMcpServersContext,
+} from './agent-chat-mcp-icons';
 import { AgentChatWorkDetail } from './agent-chat-work-detail';
 import type { AgentChatWorkRowPresentation } from './agent-chat-work-row';
 import { agentChatWorkRowPresentation } from './agent-chat-work-row';
@@ -105,6 +110,21 @@ const TaskFacts = ({ task, theme }: { task: AgentChatTask; theme: MobileTheme })
 };
 
 /**
+ * The icon URLs of the MCP server a tool call belongs to; empty for any other work or a server the provider has not
+ * described, whose row keeps the connector glyph.
+ */
+const useMcpIconUrls = (toolName: string | undefined): string[] => {
+    const servers = use(AgentChatMcpServersContext);
+    return useMemo(
+        () =>
+            toolName === undefined
+                ? []
+                : agentChatMcpIconUrls(agentChatMcpServerFor(servers, toolName)),
+        [servers, toolName],
+    );
+};
+
+/**
  * One piece of Chat work: its glyph, a present-tense verb under the activity highlight while it runs (`Running pnpm
  * test`, `Thinking`), else its settled verb and subject with the facts above. Memoized so a streamed reply elsewhere in
  * the turn does not redraw finished rows.
@@ -123,7 +143,8 @@ const AgentChatWorkRow = memo(
         // A background shell keeps its own row facts (`Background`, `Exit N`); a subagent's row follows its task.
         const linked = useAgentChatTaskLink(item.id)?.task;
         const task = linked?.kind === 'agent' ? linked : undefined;
-        const row = agentChatWorkRowPresentation(item, t);
+        const mcpIconUrls = useMcpIconUrls(item.type === 'toolCall' ? item.name : undefined);
+        const row = agentChatWorkRowPresentation(item, t, mcpIconUrls.length > 0);
         const activity = task && agentChatTaskActivity(task, t);
         return (
             <ConversationToolRowView
@@ -134,6 +155,7 @@ const AgentChatWorkRow = memo(
                 isCodeSubject={row.isCodeSubject}
                 isRunning={row.isRunning}
                 kind={row.kind}
+                mcpIconUrls={mcpIconUrls}
                 onPress={() => onPress(item)}
                 subject={row.subject}
                 testID={`agent-chat-work-${item.id}`}
@@ -178,6 +200,8 @@ export const AgentChatWorkGroup = ({
               rows.find((item) => item.id === selectedId) ??
               null);
     const first = summarized.at(0);
+    const glyph = useMemo(() => agentChatWorkSummaryGlyph(summarized), [summarized]);
+    const mcpIconUrls = useMcpIconUrls(glyph.mcpToolName);
     return (
         <View style={conversationStyles.message}>
             <View style={[conversationStyles.toolGroup, { borderColor: theme.border }]}>
@@ -190,7 +214,8 @@ export const AgentChatWorkGroup = ({
                         failure={agentChatWorkGroupFailure(summarized)}
                         id={id}
                         isRunning={summarized.some(isAgentChatWorkRunning)}
-                        kind={agentChatWorkKind(summarized) ?? null}
+                        kind={glyph.kind}
+                        mcpIconUrls={mcpIconUrls}
                         summary={summarizeAgentChatWork(summarized, t)}
                         testID={`agent-chat-work-group-${first.id}`}
                         theme={theme}

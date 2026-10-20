@@ -27,6 +27,7 @@ export const ConversationToolGroupView = ({
     id,
     isRunning,
     kind,
+    mcpIconUrls,
     summary,
     testID,
     theme,
@@ -44,6 +45,10 @@ export const ConversationToolGroupView = ({
      * `null` marks a group mixing several kinds.
      */
     kind: AgentToolKind | null;
+    /**
+     * The icon URLs of the MCP server a `mcp` summary leads with.
+     */
+    mcpIconUrls?: readonly string[];
     summary: string;
     testID: string;
     theme: MobileTheme;
@@ -69,7 +74,7 @@ export const ConversationToolGroupView = ({
                 ]}
                 testID={testID}
             >
-                <ConversationToolIcon kind={kind} theme={theme} />
+                <ConversationToolIcon kind={kind} mcpIconUrls={mcpIconUrls} theme={theme} />
                 <Text
                     numberOfLines={expanded ? undefined : 1}
                     style={[styles.toolSubject, { color: theme.text }]}

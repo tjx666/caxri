@@ -20,6 +20,7 @@ import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
 import type { McpServerReport } from './chat-mcp-servers';
+import type { ProviderGroupRegistration } from './provider-process-groups';
 
 /**
  * The seam between `AgentChatService` and one provider's structured protocol. The service owns the Terminal row, the
@@ -178,6 +179,10 @@ export interface AgentChatSessionHost {
     instructions?: string;
     spawnProcess?: SpawnChatProcess;
     /**
+     * Where the provider's process group is recorded; see `ProviderProcess`.
+     */
+    processGroups?: ProviderGroupRegistration;
+    /**
      * Bound on a request that starts or steers a turn. Tests shorten it to exercise a provider that answers late.
      */
     turnRequestTimeoutMs?: number;
@@ -298,6 +303,16 @@ export interface ChatRewindTarget extends ChatForkTarget {
 }
 
 /**
+ * What a restore would change, as the provider reports it. Paths are as the provider names them (absolute or relative
+ * to the Chat's folder); the counts are totals over every file.
+ */
+export interface ChatRestorePreview {
+    files: string[];
+    insertions?: number;
+    deletions?: number;
+}
+
+/**
  * How the restart after a rewind reopens the conversation. Absent: resume the bound Agent Session as usual (the
  * provider already rewound its record). `resumeAt`: resume it ending at that point of the record. `fresh`: the rewind
  * removed every turn, so the restart begins a new Agent Session.
@@ -368,6 +383,11 @@ export interface AgentChatProviderSession {
      * (`capabilities.chatRewindFiles`); a provider without them omits it.
      */
     restoreFiles?(target: ChatRewindTarget): Promise<void>;
+    /**
+     * Read-only preview of `restoreFiles`: the files it would put back, without changing anything on disk. A provider
+     * that cannot preview a restore omits it (Grok Build's rewind has no dry run).
+     */
+    previewRestoreFiles?(target: ChatRewindTarget): Promise<ChatRestorePreview>;
     /**
      * Stops the running turn. Background tasks keep running.
      */

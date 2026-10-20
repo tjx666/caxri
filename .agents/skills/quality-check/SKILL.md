@@ -79,9 +79,9 @@ Successful output reports dirty ownership layers, suggested follow-up gates, and
 checks as separate fields. Suggested gates are not execution receipts. Failures include the
 underlying tool output needed to act.
 
-`bun run knip` is repository-wide, and CI runs it only in the `full` checks scope (a main push, an
-explicit dispatch, or a ready PR on a full-validation path), not in the `affected` scope most PRs
-get. Run `knip` (or
+`bun run knip` is repository-wide (about 3 s), and CI runs it in the `full` checks scope (a main
+push, an explicit dispatch, or a ready PR on a full-validation path) and in the `affected` scope
+ordinary ready source PRs get; draft and `focused-*` scopes skip it. Run `knip` (or
 `--knip`) locally before pushing Renderer or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
 against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains
 a CI validator.

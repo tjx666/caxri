@@ -11,14 +11,13 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import { CaxriError, isChatTerminal, toWireError } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 
 /**
  * Server domains expose public root barrels by architecture contract; structure tests reject deep provider imports.
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
-import { SingleFlight } from '../single-flight';
 import type { TerminalLifecycleCause, TerminalWorkingDirectoryIdentity } from '../terminal';
 import { launchChat, prepareDelegatedChat } from './chat-launch';
 import { currentAgentLaunchId, isAgentLive, requireDispatchChats } from './chat-target';

@@ -9,14 +9,13 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { GitService, GitWorktreeTopology } from '../git';
 import { assertInsideRoot } from '../path-security';
 import type { SessionTranscriptContext } from '../session';
-import { SingleFlight } from '../single-flight';
 import type { WorktreeProvenanceScope } from './provenance';
 import {
     AgentWorktreeAttribution,

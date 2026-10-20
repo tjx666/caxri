@@ -16,6 +16,7 @@ import type {
     AgentChatTranscript,
     ChatFork,
     ChatForkTarget,
+    ChatRestorePreview,
     ChatResumePoint,
     ChatRewindTarget,
 } from './chat-provider';
@@ -65,6 +66,30 @@ export async function restoreClaudeFiles(
             'UNAVAILABLE',
             clip(`Claude could not restore files: ${applied.error ?? 'unknown error'}`, 300),
         );
+}
+
+/**
+ * What {@link restoreClaudeFiles} would put back, from the SDK's dry run: nothing on disk changes. A checkpoint the dry
+ * run cannot find fails with `CONFLICT`, as the restore itself would.
+ */
+export async function previewClaudeRestore(
+    query: Pick<Query, 'rewindFiles'>,
+    itemId: string,
+): Promise<ChatRestorePreview> {
+    const preview = await query.rewindFiles(itemId, { dryRun: true });
+    if (!preview.canRewind)
+        throw new CaxriError(
+            'CONFLICT',
+            clip(
+                `Claude cannot restore files for this message: ${preview.error ?? 'no checkpoint'}`,
+                300,
+            ),
+        );
+    return {
+        files: preview.filesChanged ?? [],
+        ...(preview.insertions !== undefined && { insertions: preview.insertions }),
+        ...(preview.deletions !== undefined && { deletions: preview.deletions }),
+    };
 }
 
 function configDirectory(environment: NodeJS.ProcessEnv): string {

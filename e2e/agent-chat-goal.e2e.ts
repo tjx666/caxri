@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -92,6 +92,52 @@ test('a Codex Chat sets, pauses, resumes, and clears a goal', async ({}, testInf
 
         await row.getByRole('button', { name: 'Clear goal' }).click();
         await expect(row).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('Goal mode dims attachments, says they stay for the next message, and keeps them after the goal is set', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-goal-files-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const notes = join(directory, 'notes.txt');
+    await writeFile(notes, 'goal notes\n');
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expect(message).toBeVisible();
+        await chat.locator('input[type="file"]').setInputFiles([notes]);
+        const attached = chat.getByRole('list', { name: 'Attachments' });
+        await expect(attached.getByRole('listitem')).toHaveCount(1);
+        const hint = chat.getByText(
+            'The goal includes text only. Attachments stay for your next message.',
+        );
+        await expect(hint).toHaveCount(0);
+
+        await chat.getByRole('button', { name: 'Add files and more' }).click();
+        await page.getByRole('menuitem', { name: /^Goal/u }).click();
+        await expect(hint).toBeVisible();
+        await expect(attached).toHaveCSS('opacity', '0.5');
+        await page.screenshot({ path: testInfo.outputPath('goal-attachments-hint.png') });
+
+        await message.fill('hold the line with notes attached');
+        await message.press('Enter');
+        const row = chat.locator('[data-agent-chat-goal]');
+        await expect(row).toHaveAttribute('data-agent-chat-goal', 'active');
+        // The goal carried text only: the card is still in the composer, undimmed, for the next message.
+        await expect(hint).toHaveCount(0);
+        await expect(attached.getByRole('listitem')).toHaveCount(1);
+        await expect(attached).toHaveCSS('opacity', '1');
+        await page.screenshot({ path: testInfo.outputPath('goal-attachments-kept.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

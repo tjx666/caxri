@@ -4,6 +4,8 @@ import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type { SpawnChatProcess } from './chat-provider';
+import type { ProviderGroupRegistration } from './provider-process-groups';
+import { registerProviderGroup } from './provider-process-groups';
 
 const TERMINATION_GRACE_MS = 1_000;
 
@@ -70,7 +72,7 @@ async function hasGroupEmptiedWithin(pgid: number, timeoutMs: number): Promise<b
  * the kernel cannot hand that ID to an unrelated process or group until the probe reports the group empty, and the
  * reaper stops signaling there.
  */
-async function reapGroup(pgid: number): Promise<void> {
+export async function reapGroup(pgid: number): Promise<void> {
     if (!isGroupAlive(pgid)) return;
     signalGroup(pgid, 'SIGTERM');
     if (await hasGroupEmptiedWithin(pgid, TERMINATION_GRACE_MS)) return;
@@ -114,6 +116,11 @@ export class ProviderProcess {
         cwd: string;
         environment: NodeJS.ProcessEnv;
         spawnProcess?: SpawnChatProcess;
+        /**
+         * Records the process group while it lives, so a Server Core that is killed before it can reap the group does
+         * not leave it behind for good: the next start sweeps it (see `reapStaleProviderGroups`).
+         */
+        processGroups?: ProviderGroupRegistration;
     }) {
         const spawnProcess = options.spawnProcess ?? spawn;
         this.child = spawnProcess(options.executable, [...options.args], {
@@ -130,9 +137,13 @@ export class ProviderProcess {
             this.child.once('exit', () => resolve());
         });
         const { pid } = this.child;
+        const registered =
+            pid !== undefined && process.platform !== 'win32' && options.processGroups
+                ? registerProviderGroup(options.processGroups, pid)
+                : undefined;
         this.reaped =
             pid !== undefined && process.platform !== 'win32'
-                ? this.reapAfterExit(pid)
+                ? this.reapAfterExit(pid, registered, options.processGroups)
                 : this.leaderExited;
         /**
          * Stderr carries provider tracing that may quote conversation content; drain it without retaining it.
@@ -140,9 +151,20 @@ export class ProviderProcess {
         this.child.stderr.resume();
     }
 
-    private async reapAfterExit(pgid: number): Promise<void> {
+    private async reapAfterExit(
+        pgid: number,
+        registered: Promise<void> | undefined,
+        processGroups: ProviderGroupRegistration | undefined,
+    ): Promise<void> {
         await this.leaderExited;
         await reapGroup(pgid);
+        // The group is empty now: its record must not outlive it, or a reused ID could be mistaken for it later.
+        await registered;
+        try {
+            processGroups?.ledger.forget(pgid);
+        } catch {
+            // The startup sweep ignores a record whose group is gone.
+        }
     }
 
     /**

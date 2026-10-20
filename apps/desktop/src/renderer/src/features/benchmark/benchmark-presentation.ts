@@ -4,7 +4,12 @@ import type {
     BenchmarkCatalog,
     BenchmarkEntry,
 } from '@caxri/protocol';
-import { formatShortDuration, formatTokens, formatUsd } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    formatShortDuration,
+    formatTokens,
+    formatUsd,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import type { BenchmarkMetric, QualitySource } from './benchmark-results';
@@ -47,6 +52,16 @@ export function modelLabel(
             (candidate) => candidate.id === entry.model || candidate.resolvedId === entry.model,
         );
     return model?.displayName ?? entry.model;
+}
+
+/**
+ * The judge as people name it: its Agent, then its model.
+ */
+export function judgeModelLabel(
+    catalog: BenchmarkCatalog | undefined,
+    judge: Pick<BenchmarkEntry, 'model' | 'provider'>,
+): string {
+    return `${agentProviderCatalog[judge.provider].displayName} · ${modelLabel(catalog, judge)}`;
 }
 
 export function metricLabel(t: Translate, metric: BenchmarkMetric): string {

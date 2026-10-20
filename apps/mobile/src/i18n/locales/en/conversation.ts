@@ -29,6 +29,7 @@ export const conversation = {
     'conversation.attention.turnOff': 'Turn off',
     'conversation.attention.turnOffAlwaysAllow': 'Turn off Always allow',
     'conversation.earlierOnComputer': 'Earlier messages are available on your computer.',
+    'conversation.connectToLoadEarlier': 'Connect to load earlier messages.',
     'conversation.empty': 'No messages yet.',
     'conversation.emptyCanSend': 'No messages yet. Send a message to start the Conversation.',
     'conversation.event.bashCommand': 'Shell command',

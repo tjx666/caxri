@@ -36,6 +36,7 @@ const ConversationHistory = ({
     error,
     historyExpired,
     isLoadingOlder,
+    needsConnection,
     onLoadOlder,
     olderCursor,
     theme,
@@ -44,6 +45,7 @@ const ConversationHistory = ({
     error: string | null;
     historyExpired: boolean;
     isLoadingOlder: boolean;
+    needsConnection: boolean;
     onLoadOlder: () => void;
     olderCursor?: string;
     theme: MobileTheme;
@@ -77,6 +79,14 @@ const ConversationHistory = ({
                         )}
                     </Text>
                 </Pressable>
+            ) : null}
+            {needsConnection ? (
+                <Text
+                    style={[styles.historyText, { color: theme.muted }]}
+                    testID="conversation-history-offline"
+                >
+                    {t('conversation.connectToLoadEarlier')}
+                </Text>
             ) : null}
             {truncated ? (
                 <Text
@@ -398,6 +408,7 @@ export const ConversationList = <Entry extends { id: string }>({
                 error={timeline.error}
                 historyExpired={timeline.historyExpired}
                 isLoadingOlder={timeline.isLoadingOlder}
+                needsConnection={timeline.needsConnectionForOlder === true}
                 onLoadOlder={onLoadOlder}
                 olderCursor={timeline.olderCursor}
                 theme={theme}
@@ -410,6 +421,7 @@ export const ConversationList = <Entry extends { id: string }>({
             timeline.error,
             timeline.historyExpired,
             timeline.isLoadingOlder,
+            timeline.needsConnectionForOlder,
             timeline.olderCursor,
             timeline.truncated,
         ],

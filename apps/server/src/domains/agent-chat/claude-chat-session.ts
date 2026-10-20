@@ -17,13 +17,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import {
-    clip,
-    endedSessionOperations,
-    isRecord,
-    slashCommandPrompt,
-    stringField,
-} from './chat-items';
+import { clip, isRecord, slashCommandPrompt, stringField } from './chat-items';
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
@@ -31,7 +25,7 @@ import type {
     ChatFork,
     ChatForkTarget,
     ChatInputOptions,
-    ChatProcessEnd,
+    ChatRestorePreview,
     ChatResumePoint,
     ChatRewindTarget,
     ChatTaskHistory,
@@ -60,7 +54,13 @@ import { ClaudePermissions } from './claude-permissions';
 import { ClaudePlanLimits } from './claude-plan-limits';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
-import { forkClaudeSession, restoreClaudeFiles, rewindClaudeSession } from './claude-rewind';
+import {
+    forkClaudeSession,
+    previewClaudeRestore,
+    restoreClaudeFiles,
+    rewindClaudeSession,
+} from './claude-rewind';
+import { reportClaudeSessionEnd } from './claude-session-end';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { withClaudeShellHooks } from './claude-shell-hooks';
 import { ClaudeStream } from './claude-stream';
@@ -198,6 +198,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             cwd: spawnOptions.cwd ?? this.options.cwd,
             environment: spawnOptions.env,
             spawnProcess: this.options.spawnProcess,
+            processGroups: this.options.processGroups,
         });
         providerProcess.child.once('error', (error: NodeJS.ErrnoException) => {
             this.spawnErrorCode = error.code ?? 'unknown';
@@ -345,30 +346,14 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.isEnded = true;
         this.prompts.end();
         this.tasks.close();
-        const snapshot = this.options.read();
-        const { activeTurnId } = snapshot;
-        const keys = this.requests.drain();
-        this.options.apply(endedSessionOperations(snapshot));
-        for (const key of keys)
-            this.options.lifecycle({
-                phase: 'attentionResolved',
-                agentSessionId: this.sessionId,
-                agentToolUseId: key,
-            });
-        const child = this.process?.child;
-        const end: ChatProcessEnd = this.requested
-            ? { reason: 'closed' }
-            : this.spawnErrorCode !== undefined || !child?.pid
-              ? { reason: 'spawnFailed', ...(this.spawnErrorCode && { code: this.spawnErrorCode }) }
-              : { reason: 'exited', exitCode: child.exitCode, signal: child.signalCode };
-        this.options.onExit({
-            end,
+        reportClaudeSessionEnd({
+            child: this.process?.child,
+            host: this.options,
             requested: this.requested,
-            ...(activeTurnId && { activeTurnId }),
+            requests: this.requests,
+            sessionId: this.sessionId,
+            spawnErrorCode: this.spawnErrorCode,
             turns: this.turns.count,
-            serverRequests: this.requests.count,
-            rejectedRequests: 0,
-            droppedFrames: 0,
         });
     }
 
@@ -527,6 +512,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     async restoreFiles(target: ChatRewindTarget): Promise<void> {
         await restoreClaudeFiles(this.requireOpen(), target.itemId);
+    }
+
+    previewRestoreFiles(target: ChatRewindTarget): Promise<ChatRestorePreview> {
+        return previewClaudeRestore(this.requireOpen(), target.itemId);
     }
 
     async interrupt(): Promise<void> {

@@ -291,6 +291,7 @@ async function readClaudeState(
      * `realpath` is memoized per probe rather than per cached file so a re-pointed symlink or renamed root is seen on
      * the next probe; distinct working directories are few even when the session directory holds hundreds of files.
      */
+    // Retained for the whole probe (never evicted on settle), so a plain memo rather than a `SingleFlight`.
     const canonicalCwds = new Map<string, Promise<string>>();
     const canonicalCwd = (cwd: string): Promise<string> => {
         let pending = canonicalCwds.get(cwd);

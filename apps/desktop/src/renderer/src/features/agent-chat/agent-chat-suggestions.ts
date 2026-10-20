@@ -60,15 +60,6 @@ export function agentChatSuggestionFooter(
 }
 
 /**
- * The `@` list's row while nothing matches: a query that matches no title, or no other Session to cite at all.
- */
-export function agentChatSessionEmptyText(query: string): string {
-    return translate(
-        query.trim() ? 'agentChat.slash.noSessionMatches' : 'agentChat.slash.noSessionsToCite',
-    );
-}
-
-/**
  * The `@` list's progress row while the chosen Session is condensed into a reference file.
  */
 export function agentChatSessionPreparingText(title: string): string {

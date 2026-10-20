@@ -35,7 +35,11 @@ export {
     type AgentSignalDecision,
 } from './hooks/contract';
 export { commandCreatesWorktree } from './hooks/worktree-command';
-export { isMidTurnSignal, isStandaloneEscape } from './lifecycle-watchdogs';
+export {
+    isLateMidTurnSignalAfterInterrupt,
+    isMidTurnSignal,
+    isStandaloneEscape,
+} from './lifecycle-watchdogs';
 export { createLongPasteService, LongPasteService } from './long-paste';
 export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { reconcilePrimaryTurnFailure } from './primary-turn-failure';

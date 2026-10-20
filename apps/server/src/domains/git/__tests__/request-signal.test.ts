@@ -1,6 +1,6 @@
+import { SingleFlight } from '@caxri/system';
 import { describe, expect, it } from 'vitest';
 
-import { SingleFlight } from '../../single-flight';
 import {
     authoritativeGitMutation,
     currentGitRequestSignal,

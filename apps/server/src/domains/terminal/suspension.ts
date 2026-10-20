@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
-import { isMidTurnSignal, isStandaloneEscape } from '../agents';
+import { isLateMidTurnSignalAfterInterrupt, isMidTurnSignal, isStandaloneEscape } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { agentCommanderIdentity } from '../db';
 import { isPtyTerminal } from '../pty-guard';
@@ -365,8 +365,19 @@ export class TerminalSuspensionService {
         const sample = this.sample(terminalId);
         sample.lastInputAt = this.now();
         if (!isStandaloneEscape(data)) return;
+        this.observeInterrupt(terminalId);
+    }
+
+    /**
+     * The Agent's turn was interrupted: a standalone Escape, or an Agent Endpoint `SIGINT`. Clears the in-flight and
+     * awaiting-user holds and stamps the interrupt so a hook the provider emitted just before it, delivered just after,
+     * does not reopen the turn (see `isLateMidTurnSignalAfterInterrupt`).
+     */
+    observeInterrupt(terminalId: string): void {
+        const sample = this.sample(terminalId);
         sample.turnInFlight = false;
         sample.awaitingUser = false;
+        sample.interruptedAt = this.now();
     }
 
     /**
@@ -378,13 +389,18 @@ export class TerminalSuspensionService {
      *
      * A main-scope mid-turn signal (`isMidTurnSignal`) reopens the turn: `observeInput` takes every standalone Escape
      * as an interrupt, so without this an Escape that only closed a picker would leave a running turn guarded by the
-     * idle clock alone (GitHub issue #1785).
+     * idle clock alone (GitHub issue #1785). One arriving within a short window after the interrupt is that turn's own
+     * late hook and does not reopen it (GitHub issue #1819).
      */
     observeLifecycle(signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase' | 'terminalId'>): void {
         const sample = this.sample(signal.terminalId);
         const now = this.now();
         sample.lastSignalAt = now;
-        if (isMidTurnSignal(signal)) sample.turnInFlight = true;
+        if (
+            isMidTurnSignal(signal) &&
+            !isLateMidTurnSignalAfterInterrupt(signal, sample.interruptedAt, now)
+        )
+            sample.turnInFlight = true;
         const isMainScope = signal.agentId === undefined;
         switch (signal.phase) {
             case 'turnStarted':

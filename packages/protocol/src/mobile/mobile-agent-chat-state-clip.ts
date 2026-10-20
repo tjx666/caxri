@@ -133,11 +133,43 @@ export function clipAgentChatTasksForMobile(tasks: AgentChatTasks): AgentChatTas
 }
 
 /**
+ * Longest HTTPS icon URL the phone keeps. Longer ones are dropped, because the server list rides in every snapshot and
+ * `state` patch and the phone loads each icon by its URL.
+ */
+export const MOBILE_AGENT_CHAT_MCP_ICON_URL_MAX_LENGTH = 512;
+
+type AgentChatMcpServers = NonNullable<AgentChatSnapshot['mcpServers']>;
+
+/**
+ * The phone's copy of the MCP servers a Chat's tool calls named: each server's name, title, site origins, and HTTPS
+ * icon URLs. Inline (`data:`) icons stay on the computer, because an inline image would spend the phone's frame budget;
+ * the phone loads the HTTPS icons itself and draws the connector glyph while one loads or when none does.
+ * Deterministic, so the snapshot window and later `state` patches agree.
+ */
+export function clipAgentChatMcpServersForMobile(
+    servers: AgentChatMcpServers,
+): AgentChatMcpServers {
+    return servers.map((server) => {
+        const icons = (server.icons ?? []).filter(
+            ({ src }) =>
+                src.startsWith('https://') &&
+                src.length <= MOBILE_AGENT_CHAT_MCP_ICON_URL_MAX_LENGTH,
+        );
+        return {
+            name: server.name,
+            ...(server.title !== undefined && { title: server.title }),
+            ...(icons.length > 0 && { icons }),
+            ...(server.siteOrigins && { siteOrigins: server.siteOrigins }),
+        };
+    });
+}
+
+/**
  * Bounded copies of Desktop's Chat state for the phone: the background work (see {@link clipAgentChatTasksForMobile}),
  * the follow-up queue as a bounded preview (see {@link clipAgentChatQueueForMobile}) with its paused flag and its real
- * length, which the preview alone cannot tell once the queue outgrows it, and the provider's commands shortened (see
- * {@link clipAgentChatCommandsForMobile}). MCP server icons are a Desktop surface the phone does not render yet, so they
- * stay on the computer (an inline icon would also spend the phone's frame budget on nothing it shows).
+ * length, which the preview alone cannot tell once the queue outgrows it, the provider's commands shortened (see
+ * {@link clipAgentChatCommandsForMobile}), and the MCP servers without their inline icons (see
+ * {@link clipAgentChatMcpServersForMobile}).
  */
 export function clipAgentChatStateForMobile<
     State extends Pick<
@@ -147,7 +179,7 @@ export function clipAgentChatStateForMobile<
 >(state: State): State {
     if (!state.tasks && !state.queue && !state.commands && !state.mcpServers) return state;
     const rest = { ...state };
-    delete rest.mcpServers;
+    if (rest.mcpServers) rest.mcpServers = clipAgentChatMcpServersForMobile(rest.mcpServers);
     if (rest.commands) rest.commands = clipAgentChatCommandsForMobile(rest.commands);
     if (rest.tasks) rest.tasks = clipAgentChatTasksForMobile(rest.tasks);
     if (rest.queue) {

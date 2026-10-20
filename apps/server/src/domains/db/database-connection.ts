@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 
 import type { CaxriDrizzleDatabase } from './connection';
 import { markShutdown as markTerminalsShutdown, openDatabase } from './connection';
+import { AgentChatStateModel } from './models/agent-chat-state';
 import { AgentDelegationsModel } from './models/agent-delegations';
 import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { AgentSessionUsageModel } from './models/agent-session-usage';
@@ -78,6 +79,7 @@ export class CaxriDatabaseConnection {
     readonly protocolState: ProtocolStateModel;
     readonly commanderTasks: CommanderTasksModel;
     readonly commanderPendingNotices: CommanderPendingNoticesModel;
+    readonly agentChatState: AgentChatStateModel;
 
     constructor(path: string, options: CaxriDatabaseConnectionOptions = {}) {
         const opened = openDatabase(path);
@@ -103,6 +105,7 @@ export class CaxriDatabaseConnection {
         this.commanderInbox = new CommanderInboxModel(this.db, (work) => this.transaction(work));
         this.commanderTasks = new CommanderTasksModel(this.db);
         this.commanderPendingNotices = new CommanderPendingNoticesModel(this.db);
+        this.agentChatState = new AgentChatStateModel(this.database);
         this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));
         this.onTransaction = options.onTransaction;
     }

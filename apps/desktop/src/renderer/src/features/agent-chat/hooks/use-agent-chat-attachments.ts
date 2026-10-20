@@ -142,6 +142,23 @@ export function useAgentChatAttachments(terminalId: string) {
             })),
         );
     /**
+     * Adds cards for references that are still being resolved (a dropped path's folder probe). The wait counts as
+     * reading from the call on, synchronously, so it shows the spinner placeholder and holds Send until the real cards
+     * are attached; a message sent right after a drop therefore carries them instead of the next one.
+     */
+    const addPathsWhenResolved = async (
+        resolving: Promise<readonly AgentChatPathReference[]>,
+    ): Promise<void> => {
+        setReadingCount((count) => count + 1);
+        try {
+            addPaths(await resolving);
+        } catch {
+            // Resolving a path cannot reasonably fail; if it does, no card is attached and Send is released below.
+        } finally {
+            setReadingCount((count) => count - 1);
+        }
+    };
+    /**
      * Removes the cards `ids` names, such as the ones an "Edit from here" brought back when the edit is cancelled.
      */
     const removeCards = (ids: readonly string[]): void => {
@@ -190,6 +207,7 @@ export function useAgentChatAttachments(terminalId: string) {
         add,
         addCards,
         addPaths,
+        addPathsWhenResolved,
         /**
          * Attaches a skill card for `name`; a skill already attached stays one card.
          */

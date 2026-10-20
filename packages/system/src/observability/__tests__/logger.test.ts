@@ -1,13 +1,37 @@
 import { existsSync } from 'node:fs';
+import type * as FsPromisesModule from 'node:fs/promises';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { runWithObservationContext } from '../context';
 import { logEventCatalog, MAX_LOG_BYTES, StructuredLogger } from '../logger';
+
+type FsPromises = typeof FsPromisesModule;
+
+/**
+ * Test-controlled gate in front of the real async `appendFile`. While `hold` is set, calls are counted and parked until
+ * `release()`, so a test can observe the disk deterministically instead of racing the libuv thread pool.
+ */
+const appendGate = vi.hoisted(() => ({
+    calls: 0,
+    hold: undefined as Promise<void> | undefined,
+}));
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+    const actual = await importOriginal<FsPromises>();
+    return {
+        ...actual,
+        appendFile: async (...arguments_: Parameters<typeof actual.appendFile>) => {
+            appendGate.calls += 1;
+            if (appendGate.hold) await appendGate.hold;
+            return actual.appendFile(...arguments_);
+        },
+    };
+});
 
 // Payload that makes four records fill one generation, whatever `MAX_LOG_BYTES` currently is.
 const RECORD_PAYLOAD_BYTES = MAX_LOG_BYTES / 5;
@@ -143,15 +167,22 @@ describe('StructuredLogger', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
         try {
             const logger = new StructuredLogger(directory);
+            const gate = Promise.withResolvers<void>();
+            const release = () => gate.resolve();
+            appendGate.calls = 0;
+            appendGate.hold = gate.promise;
             logger.write('info', logEventCatalog.serverCore.ready);
             // Regression for issue #237: the sync logger's appendFileSync per record froze the
             // event loop whenever the disk stalled; write() must now enqueue without touching fs.
-            // Checked synchronously: awaiting a read would race the async drain, which may land
-            // the record before the read resolves.
+            // The real appendFile is parked behind the gate, so the file cannot exist yet no
+            // matter how the thread pool schedules; a sync write (appendFileSync) would create it.
+            expect(appendGate.calls).toBe(1);
             expect(existsSync(logger.path)).toBe(false);
+            release();
             await logger.flush();
             expect(await readFile(logger.path, 'utf8')).toContain(logEventCatalog.serverCore.ready);
         } finally {
+            appendGate.hold = undefined;
             await rm(directory, { recursive: true, force: true });
         }
     });

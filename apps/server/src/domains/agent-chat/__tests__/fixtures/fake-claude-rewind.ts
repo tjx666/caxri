@@ -47,6 +47,11 @@ export function rewindFiles(
         `${JSON.stringify({ userMessageId: id, dryRun: request.dry_run === true })}\n`,
     );
     return {
-        response: { canRewind: true, filesChanged: ['notes.md'], insertions: 1, deletions: 0 },
+        response: {
+            canRewind: true,
+            filesChanged: ['notes.md', path.join(process.cwd(), 'src/app.ts')],
+            insertions: 4,
+            deletions: 1,
+        },
     };
 }

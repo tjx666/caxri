@@ -11,6 +11,20 @@ export const CHART_MARGIN = { top: 28, right: 28, bottom: 44, left: 52 } as cons
 const PLOT_INSET = 14;
 const LABEL_HEIGHT = 14;
 
+/**
+ * Average advance of an 11px UI glyph, for placing labels before they render; close enough to keep them apart.
+ */
+const LABEL_CHAR_WIDTH = 6.2;
+const EFFORT_CHAR_WIDTH = 5.4;
+
+/**
+ * The width a point's label (model name plus optional effort tag) is expected to take, for {@link layoutChart}'s overlap
+ * avoidance. Shared by the on-screen chart and the share card so both place labels alike.
+ */
+export function estimatePointLabelWidth(name: string, effort: string | undefined): number {
+    return name.length * LABEL_CHAR_WIDTH + (effort ? 4 + effort.length * EFFORT_CHAR_WIDTH : 0);
+}
+
 interface Tick {
     value: number;
     position: number;

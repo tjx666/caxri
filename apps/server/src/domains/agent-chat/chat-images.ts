@@ -1,6 +1,6 @@
 import type { AgentChatImageInput } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 
-import { SingleFlight } from '../single-flight';
 import { MAX_HISTORY_TRANSCRIPT_BYTES } from './chat-history';
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
 import type { AgentChatTranscript } from './chat-provider';

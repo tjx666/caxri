@@ -44,6 +44,21 @@ describe('agent chat path references', () => {
         ).toEqual({ references, skills: [], text: '' });
     });
 
+    it('round-trips the filesystem root as a folder', () => {
+        const root = [{ path: '/', isDirectory: true }];
+        const text = agentChatTextWithPathReferences('look', root, 'Codex');
+        expect(text).toContain('## /: /\n');
+        expect(parseAgentChatPathReferences(text)).toEqual({
+            references: root,
+            skills: [],
+            text: 'look',
+        });
+        const mixed = [...root, ...references];
+        expect(
+            parseAgentChatPathReferences(agentChatTextWithPathReferences('x', mixed)).references,
+        ).toEqual(mixed);
+    });
+
     it('leaves ordinary text alone, including a look-alike heading', () => {
         expect(parseAgentChatPathReferences('plain message')).toEqual({
             references: [],

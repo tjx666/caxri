@@ -2,7 +2,7 @@ import type { AgentDelegationReceipt } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
-import { isMidTurnSignal, isStandaloneEscape } from '../agents';
+import { isLateMidTurnSignalAfterInterrupt, isMidTurnSignal, isStandaloneEscape } from '../agents';
 import type { DeliveredNotice } from '../db';
 import { agentCommanderTerminal } from '../db';
 import type {
@@ -17,6 +17,7 @@ import type {
     CommanderInboxNoticeEvent,
 } from './notice-text';
 import { formatCommanderCompletionNotice, formatCommanderResumePrompt } from './notice-text';
+import { rememberNotifiedRevision } from './notified-revisions';
 
 /**
  * What the launch prompt built for one Commander launch carried, settled once that launch is running.
@@ -135,6 +136,11 @@ export class CommanderCompletionNotifier {
      * signal settles whether the Escape really interrupted that turn (see `settleEscapedTurn`).
      */
     private escapedTurnLaunchId: string | undefined;
+    /**
+     * When the last interrupt cleared the turn marker, so the interrupted turn's own late mid-turn hook does not mark
+     * it again (see `isLateMidTurnSignalAfterInterrupt`).
+     */
+    private interruptedAt: number | undefined;
 
     constructor(private readonly options: CommanderCompletionNotifierOptions) {
         for (const notice of options.database.commanderPendingNotices.list())
@@ -310,11 +316,31 @@ export class CommanderCompletionNotifier {
      */
     private settleEscapedTurn(signal: AgentLifecycleSignal): void {
         if (this.escapedTurnLaunchId === undefined || signal.agentId) return;
-        const isReopened = signal.launchId === this.escapedTurnLaunchId && isMidTurnSignal(signal);
+        const isMidTurn = signal.launchId === this.escapedTurnLaunchId && isMidTurnSignal(signal);
+        // The interrupted turn's own late hook proves nothing; keep waiting for a boundary or a later signal.
+        if (isMidTurn && isLateMidTurnSignalAfterInterrupt(signal, this.interruptedAt, this.now()))
+            return;
+        const isReopened = isMidTurn;
         if (!isReopened && !['turnFailed', 'turnFinished', 'turnStarted'].includes(signal.phase))
             return;
         this.escapedTurnLaunchId = undefined;
         if (isReopened) this.options.database.commanderPendingNotices.markTurnStarted(this.now());
+    }
+
+    private markInterrupted(): void {
+        this.options.database.commanderPendingNotices.clearTurn();
+        this.escapedTurnLaunchId = this.turnStartBaseline?.launchId;
+        this.interruptedAt = this.now();
+    }
+
+    /**
+     * An Agent Endpoint `SIGINT` interrupted this Terminal's Agent. It ends the turn exactly as a standalone Escape
+     * does, so the persisted turn marker is cleared and a restart does not resume the abandoned work (GitHub issue
+     * #1819).
+     */
+    observeInterrupt(terminalId: string): void {
+        if (this.commander()?.terminalId !== terminalId) return;
+        this.markInterrupted();
     }
 
     /**
@@ -330,10 +356,7 @@ export class CommanderCompletionNotifier {
      */
     observeInput(terminalId: string, data: string): void {
         if (this.commander()?.terminalId !== terminalId) return;
-        if (isStandaloneEscape(data)) {
-            this.options.database.commanderPendingNotices.clearTurn();
-            this.escapedTurnLaunchId = this.turnStartBaseline?.launchId;
-        }
+        if (isStandaloneEscape(data)) this.markInterrupted();
         if (data.includes('\u{1B}[200~')) this.isPasting = true;
         this.submittedEpoch =
             data === '\r' && !this.isPasting ? this.options.inputEpoch(terminalId) : undefined;
@@ -501,7 +524,7 @@ export class CommanderCompletionNotifier {
         if (status === 'failed' && previous?.status === 'requested') return;
         const notifiedRevision = this.notifiedRevisions.get(receipt.delegationId) ?? 0;
         if (receipt.revision <= notifiedRevision) return;
-        this.notifiedRevisions.set(receipt.delegationId, receipt.revision);
+        rememberNotifiedRevision(this.notifiedRevisions, receipt.delegationId, receipt.revision);
         this.options.database.commanderPendingNotices.putDelegation({
             delegationId: receipt.delegationId,
             sessionId: receipt.sessionId,

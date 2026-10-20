@@ -1,4 +1,5 @@
 import { configureToastActions } from '../../stores/toast-actions';
+import { restoreAgentChatQueued } from '../agent-chat/agent-chat-commands';
 import {
     agentChatPasteAsTextUnavailableReason,
     pasteAgentChatSavedPasteAsText,
@@ -24,6 +25,7 @@ export function configureCommanderToastActions(): void {
             unavailable: agentChatPasteAsTextUnavailableReason,
             run: pasteAgentChatSavedPasteAsText,
         },
+        'agentChat.restoreQueued': { run: restoreAgentChatQueued },
         'agentCommander.undoDismiss': {
             unavailable: ({ itemId }) => commanderInboxUndoDismissUnavailableReason(itemId),
             run: ({ itemId }) => undoCommanderInboxDismissal(itemId),

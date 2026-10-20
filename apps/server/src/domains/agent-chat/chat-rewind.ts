@@ -9,6 +9,7 @@ import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@c
 
 import { requireChatTerminal } from './chat-launch';
 import type { ChatResumePoint } from './chat-provider';
+import { chatStateStore } from './chat-state-store';
 import type { ChatStateDelivery } from './chat-states';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -76,12 +77,12 @@ export interface ChatRewindRequest {
 
 /**
  * The parts of `AgentChatService` a rewind drives: the per-Chat send chain, a restart that keeps the Agent's autonomy
- * (resuming at `resumeAt` when given), and the send that follows.
+ * and the send that follows.
  */
-interface ChatRewindHost {
+export interface ChatRewindHost {
     options: AgentChatServiceOptions;
     enqueue: (terminalId: string, deliver: ChatStateDelivery) => Promise<void>;
-    restart: (terminalId: string, resumeAt: string | undefined) => Promise<unknown>;
+    restart: (terminalId: string) => Promise<unknown>;
     send: (terminalId: string, message: Omit<AgentChatMessageInput, 'delivery'>) => Promise<void>;
 }
 
@@ -156,13 +157,17 @@ export async function rewindChat(
         log(outcome, reason, code);
         throw error;
     }
+    /**
+     * A provider that rewinds by resuming at an earlier record (Claude Code) keeps its transcript append-only, so the
+     * resume point is stored until the first new turn writes past it. Without it, a Server Core restart (or a restart
+     * after the edited message failed to send) would resume at the newest record and bring the rewound turns back.
+     */
+    if (resumePoint?.kind === 'resumeAt')
+        chatStateStore(host.options.database).setResumeAt(terminalId, resumePoint.at);
     // Every turn is gone: the next start opens a new Agent Session instead of resuming the emptied one.
     if (resumePoint?.kind === 'fresh') host.options.coordinator.prepareTerminalStart(terminalId);
     try {
-        await host.restart(
-            terminalId,
-            resumePoint?.kind === 'resumeAt' ? resumePoint.at : undefined,
-        );
+        await host.restart(terminalId);
         await host.send(terminalId, request.message);
     } catch (error) {
         // The provider record is already rewound, so this is its own outcome rather than `failed`.

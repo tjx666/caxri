@@ -33,6 +33,11 @@ const environmentMethodScopes = {
      * Benchmark runs on the local Server; an SSH Host window has no Benchmark window of its own.
      */
     'benchmark.open': 'local-only',
+    /**
+     * The share card goes to this Mac's clipboard or disk, which an SSH Host window has no access to.
+     */
+    'benchmark.shareImage.copy': 'local-only',
+    'benchmark.shareImage.save': 'local-only',
     'bugReport.captureScreenshot': 'local-only',
     'bugReport.saveScreenshot': 'local-only',
     /**

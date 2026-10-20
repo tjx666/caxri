@@ -1,5 +1,5 @@
 import type { AgentChatTask, AgentChatTaskPatchOperation } from '@caxri/protocol';
-import { CaxriError, MAX_AGENT_CHAT_TASK_ITEMS, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost, ChatTaskHistory } from './chat-provider';
@@ -526,13 +526,11 @@ export class CodexTasks {
             const turnId = stringField(turn.id);
             return turnId ? historyItems(turn.items, turnId, turn.status === 'inProgress') : [];
         });
-        const kept = items.slice(-MAX_AGENT_CHAT_TASK_ITEMS);
-        const operations: AgentChatTaskPatchOperation[] = kept.map((item) => ({
+        // Every item is replayed: the task projection keeps the newest ones and archives the rest for paging.
+        const operations: AgentChatTaskPatchOperation[] = items.map((item) => ({
             op: 'upsertItem',
             item,
         }));
-        if (kept.length < items.length)
-            operations.push({ op: 'state', state: { truncated: true } });
         return { taskId: threadId, operations };
     }
 }

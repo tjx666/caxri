@@ -16,6 +16,7 @@ import { requireChatTerminal } from './chat-launch';
 import { ChatProjection } from './chat-projection';
 import type { AgentChatProviderSession } from './chat-provider';
 import { ChatFollowUpQueue } from './chat-queue';
+import { chatStateStore } from './chat-state-store';
 import { forgetTaskRevisions } from './chat-task-projections';
 
 export type ChatTerminal = TerminalRecord & { provider: AgentProvider };
@@ -47,10 +48,6 @@ export interface ChatState {
      * instead of `stopped`, whenever the exit lands. The next start clears it.
      */
     suspending?: boolean;
-    /**
-     * Where the next start resumes the conversation, set by a rewind for the restart that follows it.
-     */
-    resumeAt?: string;
 }
 
 /**
@@ -127,6 +124,21 @@ export class ChatStates {
                 onChange: () => state.followUps.dispatch(),
                 delegatedTaskSource: (delegationId) =>
                     delegatedTaskSource(this.options.database, delegationId),
+                answeredNotices: {
+                    load: () =>
+                        chatStateStore(this.options.database).answeredNotices.list(terminalId),
+                    save: (notice, after) =>
+                        chatStateStore(this.options.database).answeredNotices.save(
+                            terminalId,
+                            notice,
+                            after,
+                        ),
+                    remove: (itemIds) =>
+                        chatStateStore(this.options.database).answeredNotices.remove(
+                            terminalId,
+                            itemIds,
+                        ),
+                },
             }),
             sendQueue: Promise.resolve(),
             followUps: new ChatFollowUpQueue({

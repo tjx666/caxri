@@ -30,6 +30,7 @@ export const conversation: TranslatedNamespace<typeof source> = {
     'conversation.attention.terminalFallback': '此 Agent 的请求需要在终端中处理。',
     'conversation.attention.turnOff': '关闭',
     'conversation.attention.turnOffAlwaysAllow': '关闭始终允许',
+    'conversation.connectToLoadEarlier': '连接后才能加载更早的消息。',
     'conversation.earlierOnComputer': '更早的消息可在电脑上查看。',
     'conversation.empty': '还没有消息。',
     'conversation.emptyCanSend': '还没有消息。发送一条消息开始对话。',

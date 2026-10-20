@@ -10,7 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 
@@ -26,7 +26,6 @@ import {
 } from '../external-status';
 import type { GitService } from '../git';
 import type { SessionTranscriptContext } from '../session';
-import { SingleFlight } from '../single-flight';
 import { loadOverviewAcceptances, loadPullRequestAcceptances } from './acceptance';
 import { ProjectStatusAlertTracker } from './alerts';
 import type { BranchPublicationContext } from './branch';

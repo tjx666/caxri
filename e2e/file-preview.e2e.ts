@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { createProjectSession, createShellSession, launchCaxri } from './support/helpers.ts';
 import { measurePreviewDecode } from './support/preview-decode-benchmark.ts';
 import { syntheticPdf } from './support/synthetic-pdf.ts';
 
@@ -328,6 +328,57 @@ test('previews PDF, CSV, and Mermaid files', async () => {
         await expect(
             page.getByTestId('mermaid-preview').locator('.caxri-markdown-diagram-error'),
         ).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A PDF opened from outside every Project (a free-path Open File, as a Terminal path link does) previews under the
+ * external-document grant (issue #1791): Main registers it without a text read and the Renderer fetches its bytes
+ * through `externalDocument.readAsset`.
+ */
+test('previews a PDF opened from outside every Project', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-external-pdf-e2e-'));
+    const root = join(testDirectory, 'project');
+    const externalRoot = join(testDirectory, 'external');
+    const userData = join(testDirectory, 'user-data');
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(externalRoot, { recursive: true })]);
+    await writeFile(
+        join(externalRoot, 'outside-manual.pdf'),
+        syntheticPdf(['External page one', 'External page two']),
+    );
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const { page } = running;
+    try {
+        await createShellSession(page);
+        await page.locator('.xterm-helper-textarea').focus();
+        await page.keyboard.press('Meta+P');
+        const dialog = page.getByRole('dialog');
+        const input = dialog.getByRole('combobox', { name: 'File path' });
+        await expect(input).toBeFocused();
+        await input.press('Backspace');
+        await input.fill(`${externalRoot}/outside`);
+        await expect(input).toHaveAttribute('aria-busy', 'false');
+        await expect(
+            dialog.getByRole('option', { name: 'outside-manual.pdf', exact: true }),
+        ).toBeVisible();
+        await input.press('Enter');
+        await expect(dialog).toHaveCount(0);
+
+        await expect(
+            page.getByRole('tab', { name: 'outside-manual.pdf', exact: true }),
+        ).toBeVisible();
+        const pdf = page.getByTestId('pdf-preview');
+        await expect(pdf.locator('.page')).toHaveCount(2);
+        await expect(pdf.locator('.textLayer').first()).toContainText('External page one');
+        await expect(page.locator('.monaco-editor')).toHaveCount(0);
     } finally {
         try {
             await running.app.close();

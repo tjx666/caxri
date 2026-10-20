@@ -1,5 +1,6 @@
 import type { SessionRecord } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
 import type { AcceptanceReference } from '../acceptance-link';
@@ -22,7 +23,6 @@ import {
     scanTranscriptToEnd,
 } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { SingleFlight } from '../single-flight';
 import { SessionContextTelemetry } from './context-telemetry';
 
 const MAX_TRANSCRIPT_SCANS = 128;

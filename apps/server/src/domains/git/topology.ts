@@ -1,8 +1,7 @@
 import { lstat, realpath } from 'node:fs/promises';
 
-import { mapWithConcurrency } from '@caxri/system';
+import { mapWithConcurrency, SingleFlight } from '@caxri/system';
 
-import { SingleFlight } from '../single-flight';
 import { parseWorktreeEntries } from './repo';
 import { sharedGitRequest } from './request-signal';
 

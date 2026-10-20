@@ -178,6 +178,18 @@ describe('codexUsageParser', () => {
         expect(inputTokens(accumulator)).toBe(50);
     });
 
+    it("skips the single request a one-request parent replays at the fork's creation instant", () => {
+        const accumulator = new UsageAccumulator();
+        const parser = codexUsageParser(accumulator);
+        parser.line(codexLine(T0, 'session_meta', { id: 'child', forked_from_id: 'parent' }));
+        // The parent's only request is copied once, stamped with the fork's own instant.
+        parser.line(codexTotalsAt(T0 + 20, 500));
+        parser.line(codexTotalsAt(T0 + 6000, 560));
+        parser.flush?.();
+
+        expect(inputTokens(accumulator)).toBe(60);
+    });
+
     it("counts each request's own usage when the running total continues another rollout's history", () => {
         const accumulator = new UsageAccumulator();
         const parser = codexUsageParser(accumulator);

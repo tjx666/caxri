@@ -135,7 +135,11 @@ describe('focused CI checks', () => {
             'apps/server/src/index.ts',
             '--lint',
             '--type',
+            '--knip',
         ]);
+        for (const scope of ['focused-source', 'focused-docs', 'focused-e2e'] as const) {
+            expect(focusedCheckArguments(['a.ts'], scope)).not.toContain('--knip');
+        }
         expect(
             affectedTestArguments([
                 'apps/server/src/index.ts',

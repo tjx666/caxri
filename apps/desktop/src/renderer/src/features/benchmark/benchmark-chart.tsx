@@ -4,7 +4,7 @@ import { agentProviderCatalog } from '@caxri/protocol';
 import { useContainerWidth } from '../../hooks/use-container-width';
 import { useTranslation } from '../../i18n';
 import type { PlacedPoint } from './benchmark-chart-layout';
-import { CHART_MARGIN, layoutChart } from './benchmark-chart-layout';
+import { CHART_MARGIN, estimatePointLabelWidth, layoutChart } from './benchmark-chart-layout';
 import type { MarkerShape } from './benchmark-presentation';
 import {
     formatTick,
@@ -18,11 +18,6 @@ import type { ChartModel, ChartPoint, QualitySource } from './benchmark-results'
 import { isHigherBetter } from './benchmark-results';
 
 const CHART_HEIGHT = 380;
-/**
- * Average advance of an 11px UI glyph, for placing labels before they render; close enough to keep them apart.
- */
-const LABEL_CHAR_WIDTH = 6.2;
-const EFFORT_CHAR_WIDTH = 5.4;
 
 function Marker({
     shape,
@@ -96,13 +91,8 @@ export function BenchmarkChart({
     const { t } = useTranslation();
     const [reference, width] = useContainerWidth<HTMLDivElement>();
     const nameOf = (point: Pick<ChartPoint, 'entry'>) => modelLabel(catalog, point.entry);
-    const layout = layoutChart(
-        chart,
-        width,
-        CHART_HEIGHT,
-        (point) =>
-            nameOf(point).length * LABEL_CHAR_WIDTH +
-            (point.entry.effort ? 4 + point.entry.effort.length * EFFORT_CHAR_WIDTH : 0),
+    const layout = layoutChart(chart, width, CHART_HEIGHT, (point) =>
+        estimatePointLabelWidth(nameOf(point), point.entry.effort),
     );
     const { plot } = layout;
     const byEntry = new Map(layout.points.map((point) => [point.entryIndex, point]));

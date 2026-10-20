@@ -18,6 +18,8 @@ import { ConversationUserAttachments } from '../conversation/conversation-user-a
 import { ConversationList } from '../conversation/conversation-view';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatActivityLine } from './agent-chat-activity-line';
+import { AgentChatGoalBar } from './agent-chat-goal-bar';
+import { AgentChatMcpServersContext } from './agent-chat-mcp-icons';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import {
     agentChatComposerAvailability,
@@ -138,6 +140,11 @@ const AgentChatBody = ({
      */
     const imageCounts = agentChatImageCounts(snapshot);
     const terminalId = snapshot?.terminalId;
+    const serverList = snapshot?.mcpServers;
+    const mcpServers = useMemo(
+        () => (serverList ? new Map(serverList.map((server) => [server.name, server])) : undefined),
+        [serverList],
+    );
     const renderImages = useMemo(() => {
         const counts = new Map<string, number>(
             imageCounts ? (JSON.parse(imageCounts) as Array<[string, number]>) : [],
@@ -157,18 +164,20 @@ const AgentChatBody = ({
     if (entries.length > 0)
         return (
             <ConversationUserAttachments value={renderImages}>
-                <ConversationList
-                    entries={entries}
-                    enterFrom={enterFrom}
-                    followKey={pending.sendCount}
-                    isConnected={isConnected}
-                    isTurnStart={isAgentChatTurnStart}
-                    onFollowingChange={setFollowing}
-                    onRetry={chat.refresh}
-                    renderEntry={renderEntry}
-                    theme={theme}
-                    timeline={timeline}
-                />
+                <AgentChatMcpServersContext value={mcpServers}>
+                    <ConversationList
+                        entries={entries}
+                        enterFrom={enterFrom}
+                        followKey={pending.sendCount}
+                        isConnected={isConnected}
+                        isTurnStart={isAgentChatTurnStart}
+                        onFollowingChange={setFollowing}
+                        onRetry={chat.refresh}
+                        renderEntry={renderEntry}
+                        theme={theme}
+                        timeline={timeline}
+                    />
+                </AgentChatMcpServersContext>
             </ConversationUserAttachments>
         );
     if (chat.status === 'error')
@@ -441,6 +450,7 @@ export const AgentChatView = ({
                     theme={theme}
                 />
             ) : null}
+            <AgentChatGoalBar canAct={canActOnQueue} chat={chat} theme={theme} />
             <AgentChatTaskStrip
                 chat={chat}
                 deviceRole={deviceRole}

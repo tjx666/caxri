@@ -6,11 +6,7 @@ import type {
     AgentChatTaskPatchOperation,
     AgentChatTurn,
 } from '@caxri/protocol';
-import {
-    agentChatImageInputSchema,
-    MAX_AGENT_CHAT_TASK_ITEMS,
-    MAX_AGENT_CHAT_TEXT_LENGTH,
-} from '@caxri/protocol';
+import { agentChatImageInputSchema, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
@@ -397,7 +393,8 @@ export function claudeHistoryItems(transcript: string): {
 /**
  * Operations that rebuild one subagent's task projection from its own JSONL transcript (Claude Code writes it beside
  * the session transcript). The subagent's prompt opens it as a user message; turn ids are dropped because a task
- * projection has no turns. Only the newest {@link MAX_AGENT_CHAT_TASK_ITEMS} items are kept.
+ * projection has no turns. Every item is replayed: the task projection keeps the newest `MAX_AGENT_CHAT_TASK_ITEMS` and
+ * archives the rest for `agentChat.readHistory`.
  */
 export function claudeTaskHistoryOperations(
     transcript: string,
@@ -413,13 +410,10 @@ export function claudeTaskHistoryOperations(
             ) as AgentChatItem;
         })
         .toArray();
-    const kept = all.slice(-MAX_AGENT_CHAT_TASK_ITEMS);
     return [
         { op: 'reset' },
-        ...kept.map((item) => ({ op: 'upsertItem' as const, item })),
-        ...(isTailTruncated || kept.length < all.length
-            ? [{ op: 'state' as const, state: { truncated: true } }]
-            : []),
+        ...all.map((item) => ({ op: 'upsertItem' as const, item })),
+        ...(isTailTruncated ? [{ op: 'state' as const, state: { truncated: true } }] : []),
     ];
 }
 

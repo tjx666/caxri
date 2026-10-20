@@ -412,15 +412,62 @@ export function unsavedChangesChoice(response: number): DiscardChoice {
 }
 
 /**
+ * Most files the native dialog lists; a native sheet cannot expand, so the rest collapse into "and N more".
+ */
+const REVERT_PREVIEW_VISIBLE_FILES = 8;
+
+interface RevertPreview {
+    files: ReadonlyArray<{ path: string; additions?: number; deletions?: number }>;
+    totalFiles: number;
+    insertions?: number;
+    deletions?: number;
+}
+
+/**
+ * The files a revert would put back, one per line with `+N -M` where the Chat recorded the edit, then the totals; or a
+ * note that the preview failed. Empty when the provider has no preview or the revert touches no file.
+ */
+function revertPreviewDetail(preview?: RevertPreview, isFailed?: boolean): string {
+    if (isFailed) return t('desktop.revertFiles.previewFailed');
+    if (!preview || preview.totalFiles === 0) return '';
+    const lines = preview.files.slice(0, REVERT_PREVIEW_VISIBLE_FILES).map((file) => {
+        const stats =
+            file.additions === undefined || file.deletions === undefined
+                ? ''
+                : `  +${file.additions} -${file.deletions}`;
+        return `${file.path}${stats}`;
+    });
+    const hidden = preview.totalFiles - lines.length;
+    if (hidden > 0) lines.push(t('desktop.revertFiles.moreFiles', { count: hidden }));
+    const totals =
+        preview.insertions === undefined || preview.deletions === undefined
+            ? ''
+            : ` (+${preview.insertions} -${preview.deletions})`;
+    return [
+        t(
+            preview.totalFiles === 1
+                ? 'desktop.revertFiles.filesOne'
+                : 'desktop.revertFiles.filesOther',
+            { count: preview.totalFiles },
+        ) + totals,
+        ...lines,
+    ].join('\n');
+}
+
+/**
  * "Edit from here" with file restore: the provider puts back the files the removed turns changed, which overwrites the
  * current contents, the user's own edits since included. Cancel is the default so Enter never reverts files.
  */
 export function revertAgentChatFilesPrompt({
     providerName,
     removedTurns,
+    preview,
+    previewFailed,
 }: {
     providerName: string;
     removedTurns: number;
+    preview?: RevertPreview;
+    previewFailed?: boolean;
 }): MessageBoxOptions {
     return {
         type: 'warning',
@@ -431,7 +478,9 @@ export function revertAgentChatFilesPrompt({
                 : 'desktop.revertFiles.messageOther',
             { provider: providerName, count: removedTurns },
         ),
-        detail: t('desktop.revertFiles.detail'),
+        detail: [t('desktop.revertFiles.detail'), revertPreviewDetail(preview, previewFailed)]
+            .filter(Boolean)
+            .join('\n\n'),
         buttons: [t('desktop.revertFiles.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,

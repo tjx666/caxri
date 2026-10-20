@@ -396,4 +396,42 @@ describe('revert Agent Chat files prompt', () => {
             'Revert the files Grok changed in these 3 turns?',
         );
     });
+
+    it('lists the files with their line counts and collapses a long list', () => {
+        const files = Array.from({ length: 12 }, (_value, index) => ({
+            path: `src/file-${index}.ts`,
+            additions: index,
+            deletions: 1,
+        }));
+        const { detail } = revertAgentChatFilesPrompt({
+            providerName: 'Claude',
+            removedTurns: 2,
+            preview: { files, totalFiles: 12, insertions: 66, deletions: 12 },
+        });
+        expect(detail).toContain('12 files will be reverted (+66 -12)');
+        expect(detail).toContain('src/file-0.ts  +0 -1');
+        expect(detail).toContain('src/file-7.ts  +7 -1');
+        expect(detail).not.toContain('src/file-8.ts');
+        expect(detail).toContain('...and 4 more');
+    });
+
+    it('lists a file without line counts when none were recorded', () => {
+        const { detail } = revertAgentChatFilesPrompt({
+            providerName: 'Claude',
+            removedTurns: 1,
+            preview: { files: [{ path: 'notes.md' }], totalFiles: 1 },
+        });
+        expect(detail).toContain('1 file will be reverted');
+        expect(detail).toMatch(/\nnotes\.md$/u);
+    });
+
+    it("says the preview failed and keeps the dialog's own warning", () => {
+        const { detail } = revertAgentChatFilesPrompt({
+            providerName: 'Claude',
+            removedTurns: 1,
+            previewFailed: true,
+        });
+        expect(detail).toContain('Files return to how they were');
+        expect(detail).toContain("Couldn't preview changes");
+    });
 });

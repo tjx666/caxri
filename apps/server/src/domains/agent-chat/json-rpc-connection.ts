@@ -4,6 +4,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { ChatProcessEnd, SpawnChatProcess } from './chat-provider';
 import { ProviderProcess } from './provider-process';
+import type { ProviderGroupRegistration } from './provider-process-groups';
 
 /**
  * Largest single protocol frame accepted from the provider. A resumed Codex thread returns its whole history in one
@@ -48,6 +49,10 @@ export interface JsonRpcConnectionOptions {
      * Test seam for a fake child process. Always called with piped stdio.
      */
     spawnProcess?: SpawnChatProcess;
+    /**
+     * Where the provider's process group is recorded; see {@link ProviderProcess}.
+     */
+    processGroups?: ProviderGroupRegistration;
 }
 
 /**

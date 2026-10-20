@@ -8,9 +8,8 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 
-import { SingleFlight } from '../single-flight';
 import type {
     AgentEnvironment,
     AgentLowCostGenerationContext,

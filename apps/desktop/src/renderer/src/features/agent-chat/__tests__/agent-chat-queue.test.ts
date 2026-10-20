@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatNextQueuedId,
     agentChatQueueCardLabels,
+    agentChatQueuedTextAfterEdit,
+    agentChatQueuedTextEdit,
     agentChatQueueEntries,
     agentChatQueueHeader,
 } from '../agent-chat-queue';
 
 describe('agentChatQueueEntries', () => {
-    it('adds Edit to the shared row, except for a message carrying images', () => {
+    it('adds Edit to the shared row, including a message carrying images (edited in place)', () => {
         const [message, withImages, command] = agentChatQueueEntries(
             [
                 { id: 'm1', text: 'Then run the tests' },
@@ -26,7 +28,12 @@ describe('agentChatQueueEntries', () => {
             sendNowLabel: 'Steer',
             canEdit: true,
         });
-        expect(withImages).toMatchObject({ imageLabel: '2 images', canEdit: false });
+        expect(withImages).toMatchObject({
+            imageLabel: '2 images',
+            imageCount: 2,
+            text: 'Look at this',
+            canEdit: true,
+        });
         expect(command).toMatchObject({
             commandLabel: '/compact',
             canSendNow: false,
@@ -125,7 +132,7 @@ describe('agentChatQueueHeader', () => {
 });
 
 describe('agentChatQueueCardLabels', () => {
-    const message = { canEdit: true, canSendNow: true, sendNowLabel: 'Steer' as const };
+    const message = { canSendNow: true, sendNowLabel: 'Steer' as const };
 
     it('names each action, steering while a turn runs', () => {
         expect(agentChatQueueCardLabels(message)).toEqual({
@@ -143,10 +150,8 @@ describe('agentChatQueueCardLabels', () => {
     });
 
     it('says why an action is unavailable', () => {
-        expect(
-            agentChatQueueCardLabels({ ...message, canEdit: false, canSendNow: false }),
-        ).toMatchObject({
-            editTooltip: 'Messages with images cannot be edited',
+        expect(agentChatQueueCardLabels({ ...message, canSendNow: false })).toMatchObject({
+            editTooltip: 'Edit',
             sendTooltip: 'A command waits for the running turn to end',
         });
     });
@@ -155,7 +160,6 @@ describe('agentChatQueueCardLabels', () => {
         expect(
             agentChatQueueCardLabels({
                 ...message,
-                canEdit: false,
                 canSendNow: false,
                 isPending: true,
             }),
@@ -166,5 +170,21 @@ describe('agentChatQueueCardLabels', () => {
             sendText: 'Steer',
             sendAriaLabel: 'Steer now',
         });
+    });
+});
+
+describe('agentChatQueuedTextEdit', () => {
+    it('edits only what the user typed and keeps the cited files ahead of it', () => {
+        const text =
+            '# Files mentioned by the user:\n\n## a.ts: /tmp/a.ts\n\n## My request:\nlook here';
+        const { prefix, body } = agentChatQueuedTextEdit(text);
+        expect(body).toBe('look here');
+        expect(agentChatQueuedTextAfterEdit(prefix, 'look there')).toBe(
+            '# Files mentioned by the user:\n\n## a.ts: /tmp/a.ts\n\n## My request:\nlook there',
+        );
+    });
+
+    it('treats plain text as all body', () => {
+        expect(agentChatQueuedTextEdit('plain')).toEqual({ prefix: '', body: 'plain' });
     });
 });

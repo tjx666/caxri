@@ -8,6 +8,7 @@ import {
     selectPaneTab,
     splitPaneTab,
 } from '../workbench/pane-actions';
+import { runAgentChatComposerCommandWhenReady } from './agent-chat-composer-commands';
 import { planAgentChatTaskTabPlacement } from './agent-chat-task-placement';
 
 /**
@@ -69,4 +70,13 @@ export function revealAgentChat(terminalId: string): void {
     if (!tabId) return;
     selectPaneTab(tabId);
     focusTerminalById(terminalId);
+}
+
+/**
+ * Brings a Chat forward and sends its message, the turn review's "Back to Chat and Send". The Chat's composer may only
+ * mount once its tab is selected, so the send waits for it to register (`runAgentChatComposerCommandWhenReady`).
+ */
+export function revealAgentChatAndSend(terminalId: string): void {
+    revealAgentChat(terminalId);
+    runAgentChatComposerCommandWhenReady(terminalId, 'send');
 }

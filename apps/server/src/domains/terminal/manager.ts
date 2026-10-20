@@ -9,13 +9,12 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, errorMessage, isCaxriError, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
 
 import type { ShutdownReason } from '../db';
 import { shutdownOutcome } from '../db';
 import { assertPtyTerminal, isPtyTerminal } from '../pty-guard';
-import { SingleFlight } from '../single-flight';
 import { AgentStartWaiters } from './agent-start-waiters';
 import { logTerminalAttach } from './attach-log';
 import type {

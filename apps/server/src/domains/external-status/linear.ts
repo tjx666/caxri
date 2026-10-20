@@ -1,8 +1,8 @@
 import type { ProjectStatusLinearIssue } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
-import { SingleFlight } from '../single-flight';
 import {
     LINEAR_ISSUE_QUERY,
     linearIssueResponseSchema,

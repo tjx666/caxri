@@ -54,6 +54,13 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.review.commentOnRange': '评论 {{range}}',
     'agentChat.review.noteHeading': '审阅 · {{range}}',
     'agentChat.review.addedToChat': '已添加到消息',
+    'agentChat.review.pendingCommentsOne': '1 条评论',
+    'agentChat.review.pendingCommentsOther': '{{count}} 条评论',
+    'agentChat.review.backToChatAndSend': '回到对话并发送',
+    'agentChat.review.editComment': '编辑评论',
+    'agentChat.review.removeComment': '删除评论',
+    'agentChat.review.commentRemoved': '评论已删除',
+    'agentChat.review.restoreGone': '这条评论已无法恢复。',
     'agentChat.review.side.original': '旧',
     'agentChat.review.side.modified': '新',
 

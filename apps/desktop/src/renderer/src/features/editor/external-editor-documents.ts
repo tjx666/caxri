@@ -1,4 +1,9 @@
-import { errorMessage, externalEditorTabPath, isExternalEditorTabPath } from '@caxri/protocol';
+import {
+    errorMessage,
+    externalEditorTabPath,
+    filePreviewTabPath,
+    isExternalEditorTabPath,
+} from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { getSelectedSession } from '../../stores/selectors';
@@ -6,6 +11,7 @@ import { getSessionDocuments, useSessionViewStore } from '../../stores/session-v
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { openFilePreview } from '../preview/preview-commands';
+import { shouldOpenAsPreview } from '../preview/preview-registry';
 import { didOpenEditorTabForSession } from './document-commands';
 import { openLinkedExternalFile } from './external-document-client';
 
@@ -22,7 +28,7 @@ interface ExternalEditorDocumentResult {
  * Opens content that Main already authorized and read without routing its absolute path through Project file IPC.
  *
  * Reopening a file that is already open reuses its tab. A clean buffer takes the fresh read; a dirty one is kept, so
- * reopening never discards unsaved edits.
+ * reopening never discards unsaved edits. A PDF opens straight on its preview tab.
  */
 export function openExternalEditorDocument({
     sessionId,
@@ -57,7 +63,13 @@ export function openExternalEditorDocument({
         workbenchProjectId,
     );
     if (!didCache) return false;
-    if (!didOpenEditorTabForSession(sessionId, path)) {
+    /**
+     * A format with no text form (a PDF) opens on its preview, as a Project file does: Main registered the document
+     * without a text read, and the preview fetches the bytes under that grant. The cached entry still carries the
+     * display path and the ephemeral lifetime.
+     */
+    const tabPath = shouldOpenAsPreview(document.name) ? filePreviewTabPath(path) : path;
+    if (!didOpenEditorTabForSession(sessionId, tabPath)) {
         view.evictDocument(sessionId, path, workbenchProjectId);
         return false;
     }

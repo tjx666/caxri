@@ -37,7 +37,10 @@ export function useAgentChatComposerInput({
 }: {
     draft: string;
     dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
-    images: Pick<ReturnType<typeof useAgentChatAttachments>, 'add' | 'addPaths' | 'isReading'>;
+    images: Pick<
+        ReturnType<typeof useAgentChatAttachments>,
+        'add' | 'addPaths' | 'addPathsWhenResolved' | 'isReading'
+    >;
     inputReference: RefObject<AgentChatComposerInput | null>;
     providerName: string;
     setDraft: (update: (current: string) => string) => void;
@@ -86,8 +89,9 @@ export function useAgentChatComposerInput({
             );
             return false;
         }
-        // eslint-disable-next-line no-void -- reading whether each one is a folder cannot fail
-        void agentChatOsFileReferences(files).then(images.addPaths);
+        // The card is reserved now: the folder probe holds Send until the card is attached.
+        // eslint-disable-next-line no-void -- addPathsWhenResolved reports nothing to wait for
+        void images.addPathsWhenResolved(agentChatOsFileReferences(files));
         return true;
     };
     /**

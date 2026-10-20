@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
-    AgentChatHistoryPage,
     AgentChatMessageInput,
     AgentChatModelRequest,
     AgentChatPermissionRequest,
@@ -16,10 +15,9 @@ import {
     CaxriError,
     resolveAgentChatModelChange,
 } from '@caxri/protocol';
-import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
+import { assertE2EAgentChatInput, readE2EAgentPolicy, SingleFlight } from '@caxri/system';
 
 import { AgentRunAutonomy } from '../agents';
-import { SingleFlight } from '../single-flight';
 import { readChatContext } from './chat-context';
 import { ChatDelegationLinks } from './chat-delegation';
 import { ChatEndpointLease } from './chat-endpoint-lease';
@@ -33,14 +31,16 @@ import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
-import type { ChatRewindRequest } from './chat-rewind';
+import type { ChatRewindHost, ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';
+import { previewChatRestore } from './chat-rewind-preview';
 import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
 import { ChatStates } from './chat-states';
 import { compactIdleChat, isChatIdleForSuspension, suspendIdleChat } from './chat-suspension';
-import { readChatTask, stopChatTask } from './chat-task-read';
+import type { ChatTaskHost } from './chat-task-read';
+import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -50,6 +50,7 @@ import type { AgentChatServiceOptions } from './service-options';
  */
 export class AgentChatService {
     private readonly states: ChatStates;
+    private readonly taskHost: ChatTaskHost;
     /**
      * One provider start in flight per Terminal; concurrent reads and sends join it.
      */
@@ -85,6 +86,11 @@ export class AgentChatService {
             onAgentStateChanged: (terminalId, state) =>
                 options.onAgentStateChanged?.(terminalId, state),
         });
+        this.taskHost = {
+            database: options.database,
+            states: this.states,
+            ensureStarted: (terminalId, state) => this.ensureStarted(terminalId, state),
+        };
         this.permissionSwitches = new ChatPermissionSwitches({
             options,
             enqueue: (id, deliver) => this.enqueueOn(id, this.states.open(id), deliver),
@@ -161,9 +167,18 @@ export class AgentChatService {
         };
     }
 
-    private queueHost(): queueActions.ChatQueueActionsHost {
+    /**
+     * The parts of this service the queue card, rewind, fork, and restore actions drive.
+     */
+    private actionHost(): ChatRewindHost & queueActions.ChatQueueActionsHost {
         const { options, states } = this;
-        return { options, states, enqueue: (id, deliver) => this.enqueue(id, deliver) };
+        return {
+            options,
+            states,
+            enqueue: (id, deliver) => this.enqueue(id, deliver),
+            restart: (id) => this.restart(id, true),
+            send: (id, message) => this.send(id, message),
+        };
     }
 
     /**
@@ -324,24 +339,19 @@ export class AgentChatService {
     }
 
     /**
-     * Returns the page of history before `beforeItemId`; see {@link readChatTerminalHistory}.
+     * The page of history before `beforeItemId`: the Chat's ({@link readChatTerminalHistory}) or a task's.
      */
-    readHistory(terminalId: string, beforeItemId: string): Promise<AgentChatHistoryPage> {
-        return readChatTerminalHistory(this.options, this.states, terminalId, beforeItemId);
+    readHistory(terminalId: string, beforeItemId: string, taskId?: string) {
+        return taskId === undefined
+            ? readChatTerminalHistory(this.options, this.states, terminalId, beforeItemId)
+            : readChatTaskHistory(this.taskHost, terminalId, taskId, beforeItemId);
     }
 
     /**
      * Returns a task's own projection; see {@link readChatTask}.
      */
     readTask(terminalId: string, taskId: string): Promise<AgentChatTaskSnapshot> {
-        requireChatTerminal(this.options.database, terminalId);
-        const state = this.states.open(terminalId);
-        return readChatTask(
-            state,
-            taskId,
-            () => this.ensureStarted(terminalId, state),
-            () => this.states.get(terminalId) === state,
-        );
+        return readChatTask(this.taskHost, terminalId, taskId);
     }
 
     /**
@@ -368,19 +378,27 @@ export class AgentChatService {
      * The queue card's actions; see `chat-queue-actions.ts`.
      */
     removeQueued(terminalId: string, id: string): void {
-        queueActions.removeQueued(this.queueHost(), terminalId, id);
+        queueActions.removeQueued(this.actionHost(), terminalId, id);
+    }
+
+    restoreQueued(terminalId: string, id: string): void {
+        queueActions.restoreQueued(this.actionHost(), terminalId, id);
+    }
+
+    editQueued(terminalId: string, id: string, text: string): void {
+        queueActions.editQueued(this.actionHost(), terminalId, id, text);
     }
 
     takeQueued(terminalId: string, id: string): { text: string } {
-        return queueActions.takeQueued(this.queueHost(), terminalId, id);
+        return queueActions.takeQueued(this.actionHost(), terminalId, id);
     }
 
     sendQueuedNow(terminalId: string, id: string): Promise<void> {
-        return queueActions.sendQueuedNow(this.queueHost(), terminalId, id);
+        return queueActions.sendQueuedNow(this.actionHost(), terminalId, id);
     }
 
     resumeQueue(terminalId: string): boolean {
-        return queueActions.didResumeQueue(this.queueHost(), terminalId);
+        return queueActions.didResumeQueue(this.actionHost(), terminalId);
     }
 
     respond(terminalId: string, requestId: string, response: AgentChatResponse): void {
@@ -394,35 +412,28 @@ export class AgentChatService {
      * "Edit from here"; see {@link rewindChat}.
      */
     async rewind(terminalId: string, request: ChatRewindRequest): Promise<void> {
-        await rewindChat(
-            {
-                options: this.options,
-                enqueue: (id, deliver) => this.enqueue(id, deliver),
-                restart: (id, resumeAt) => this.restart(id, true, resumeAt),
-                send: (id, message) => this.send(id, message),
-            },
-            terminalId,
-            request,
-        );
+        await rewindChat(this.actionHost(), terminalId, request);
     }
 
     /**
      * "Fork from here"; see {@link forkChat}.
      */
     fork(terminalId: string, itemId: string, createSession: CreateForkSession) {
-        const host = { options: this.options, enqueue: this.enqueue.bind(this) };
-        return forkChat(host, terminalId, itemId, createSession);
+        return forkChat(this.actionHost(), terminalId, itemId, createSession);
     }
 
     /**
      * "Restore code to here"; see {@link restoreChatFiles}.
      */
     async restoreFiles(terminalId: string, itemId: string): Promise<void> {
-        await restoreChatFiles(
-            { options: this.options, enqueue: (id, deliver) => this.enqueue(id, deliver) },
-            terminalId,
-            itemId,
-        );
+        await restoreChatFiles(this.actionHost(), terminalId, itemId);
+    }
+
+    /**
+     * The dry run behind the revert confirmation; see {@link previewChatRestore}.
+     */
+    previewRestoreFiles(terminalId: string, itemId: string) {
+        return previewChatRestore(this.actionHost(), terminalId, itemId);
     }
 
     /**
@@ -440,11 +451,7 @@ export class AgentChatService {
      * replaced start's approval mode (see `AgentRunAutonomy`). Queued follow-ups carry over; input still waiting in the
      * replaced state's send chain rejects.
      */
-    async restart(
-        terminalId: string,
-        shouldKeepAgentAutonomy = false,
-        resumeAt?: string,
-    ): Promise<TerminalRecord> {
+    async restart(terminalId: string, shouldKeepAgentAutonomy = false): Promise<TerminalRecord> {
         requireChatTerminal(this.options.database, terminalId);
         const previous = this.states.get(terminalId);
         if (previous) previous.retiring ??= 'replaced';
@@ -457,12 +464,6 @@ export class AgentChatService {
             state.followUps.adopt(previous.followUps);
             state.projection.adoptReplaced(previous.projection);
         }
-        /**
-         * A rewound Claude Code conversation resumes at `resumeAt` until its next turn writes past it; a restart before
-         * then (Retry after the edited message failed to send) must not resume the rewound branch again.
-         */
-        const carriedResumeAt = resumeAt ?? previous?.resumeAt;
-        if (carriedResumeAt !== undefined) state.resumeAt = carriedResumeAt;
         await this.startQuietly(terminalId, state, shouldKeepAgentAutonomy);
         return this.options.database.getTerminal(terminalId) ?? terminal;
     }

@@ -135,6 +135,18 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await message.fill('');
         await queue.getByRole('button', { name: 'Delete queued message' }).last().click();
         await expect(queue.getByText('hello third')).toHaveCount(0);
+        // Undo in the toast puts the deleted message back where it was, not at the end.
+        await queue.getByRole('button', { name: 'Delete queued message' }).first().click();
+        await expect(queue.getByText('hello after this')).toHaveCount(0);
+        await page
+            .locator('[data-sonner-toast]')
+            .getByRole('button', { name: 'Undo', exact: true })
+            .click();
+        await expect(queue.getByRole('listitem')).toHaveCount(2);
+        await expect(queue.getByRole('listitem')).toContainText([
+            'hello after this',
+            'hello second',
+        ]);
         await chat.getByRole('button', { name: 'Resume' }).click();
         // The two messages left in the queue go out together, as one message and one turn.
         await expect(

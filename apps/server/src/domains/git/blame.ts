@@ -1,10 +1,10 @@
 import { relative } from 'node:path';
 
 import type { GitBlame, GitFileHead, GitSummary, ServerOperationParameters } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project';
-import { SingleFlight } from '../single-flight';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 
 interface GitBlameServiceOptions {

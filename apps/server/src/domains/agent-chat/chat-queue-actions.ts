@@ -29,7 +29,26 @@ function queueOf(host: ChatQueueActionsHost, terminalId: string): ChatFollowUpQu
  * The queue card's Delete.
  */
 export function removeQueued(host: ChatQueueActionsHost, terminalId: string, id: string): void {
-    queueOf(host, terminalId).remove(id, 'removed');
+    queueOf(host, terminalId).removeForUndo(id);
+}
+
+/**
+ * The Undo of the queue card's Delete: puts the entry back in its place.
+ */
+export function restoreQueued(host: ChatQueueActionsHost, terminalId: string, id: string): void {
+    queueOf(host, terminalId).restoreRemoved(id);
+}
+
+/**
+ * The queue card's Edit of a message with images: rewrites its text in place and keeps the images.
+ */
+export function editQueued(
+    host: ChatQueueActionsHost,
+    terminalId: string,
+    id: string,
+    text: string,
+): void {
+    queueOf(host, terminalId).editText(id, text);
 }
 
 /**

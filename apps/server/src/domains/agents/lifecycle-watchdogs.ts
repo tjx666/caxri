@@ -33,6 +33,32 @@ export function isMidTurnSignal(signal: Pick<AgentLifecycleSignal, 'agentId' | '
     return signal.agentId === undefined && midTurnPhases.has(signal.phase);
 }
 
+/**
+ * How long after an interrupt a main-scope mid-turn signal is treated as the interrupted turn's own late hook. A hook
+ * runs through a bridge process and a socket while an Escape travels Core's input channel directly, so the server can
+ * see the Escape first and the `PostToolBatch`/`PostToolUse` the provider emitted just before it second. Such a signal
+ * must not reopen the turn: a real interrupt produces no `Stop`, so a reopened turn would never close. This is an
+ * estimate; the real Claude and Codex post-interrupt hook timing has not been measured (see docs/agent-suspension.md).
+ */
+export const LATE_MID_TURN_SIGNAL_WINDOW_MS = 2000;
+
+/**
+ * Whether a signal is a mid-turn signal that arrived within {@link LATE_MID_TURN_SIGNAL_WINDOW_MS} after the interrupt
+ * at `interruptedAt`. Past the window a mid-turn signal still proves an Escape only closed a picker and reopens the
+ * turn. Shared by terminal suspension and the Commander completion notifier so both read an interrupt the same way.
+ */
+export function isLateMidTurnSignalAfterInterrupt(
+    signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase'>,
+    interruptedAt: number | undefined,
+    now: number,
+): boolean {
+    return (
+        interruptedAt !== undefined &&
+        now - interruptedAt <= LATE_MID_TURN_SIGNAL_WINDOW_MS &&
+        isMidTurnSignal(signal)
+    );
+}
+
 interface RunningTurnIdentity {
     agentTurnId: string;
     launchId: string;

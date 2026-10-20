@@ -56,6 +56,9 @@ export const AgentChatComposerInput = ({
             submitBehavior="newline"
             style={[
                 styles.composer,
+                // Android adds the font's ascent padding above the first line; with a fixed lineHeight inside a
+                // max-height scroller that extra space pushes the first line's top under the clip edge (#1937).
+                { includeFontPadding: false },
                 {
                     backgroundColor: theme.surface,
                     borderColor: theme.border,

@@ -308,3 +308,107 @@ describe('ChatFollowUpQueue takeForEdit', () => {
         expect(queuedTexts()).toEqual(['look']);
     });
 });
+
+describe('ChatFollowUpQueue restoreRemoved', () => {
+    it('puts a deleted entry back just ahead of the entry that followed it', () => {
+        const { hold, queue, queuedTexts } = queueFixture();
+        hold();
+        const [first, middle, last] = [message('first'), message('middle'), message('last')];
+        for (const entry of [first, middle, last]) queue.add(entry);
+        queue.removeForUndo(middle.id);
+        expect(queuedTexts()).toEqual(['first', 'last']);
+        queue.restoreRemoved(middle.id);
+        expect(queuedTexts()).toEqual(['first', 'middle', 'last']);
+    });
+
+    it('restores the last entry at the end, and keeps images with a restored message', async () => {
+        const { endTurn, hold, queue, queuedTexts, sent } = queueFixture();
+        hold();
+        const [first, last] = [message('first'), message('last', [image])];
+        queue.add(first);
+        queue.add(last);
+        queue.removeForUndo(last.id);
+        queue.restoreRemoved(last.id);
+        expect(queuedTexts()).toEqual(['first', 'last']);
+        await endTurn();
+        expect(sent).toEqual([{ kind: 'message', text: 'first\n\nlast', imageCount: 1 }]);
+    });
+
+    it('falls back to the end when the entry that followed it has left the queue', () => {
+        const { hold, queue, queuedTexts } = queueFixture();
+        hold();
+        const [first, middle, last] = [message('first'), message('middle'), message('last')];
+        for (const entry of [first, middle, last]) queue.add(entry);
+        queue.removeForUndo(middle.id);
+        queue.remove(last.id);
+        queue.restoreRemoved(middle.id);
+        expect(queuedTexts()).toEqual(['first', 'middle']);
+    });
+
+    it('restores an entry once, and refuses one that was never deleted for Undo', () => {
+        const { hold, queue } = queueFixture();
+        hold();
+        const [kept, dropped] = [message('kept'), message('dropped')];
+        queue.add(kept);
+        queue.add(dropped);
+        queue.removeForUndo(dropped.id);
+        queue.restoreRemoved(dropped.id);
+        expect(() => queue.restoreRemoved(dropped.id)).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+        queue.remove(kept.id);
+        expect(() => queue.restoreRemoved(kept.id)).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+    });
+});
+
+describe('ChatFollowUpQueue editText', () => {
+    it('rewrites the text in place and sends the original images with it', async () => {
+        const { endTurn, hold, queue, queuedTexts, sent } = queueFixture();
+        hold();
+        const [before, edited, after] = [
+            message('before'),
+            message('look', [image]),
+            message('after'),
+        ];
+        for (const entry of [before, edited, after]) queue.add(entry);
+        queue.editText(edited.id, 'look closely');
+        expect(queuedTexts()).toEqual(['before', 'look closely', 'after']);
+        await endTurn();
+        expect(sent).toEqual([
+            { kind: 'message', text: 'before\n\nlook closely\n\nafter', imageCount: 1 },
+        ]);
+    });
+
+    it('allows an image-only message to lose its text but not a text-only one', () => {
+        const { hold, queue, queuedTexts } = queueFixture();
+        hold();
+        const [withImage, plain] = [message('look', [image]), message('plain')];
+        queue.add(withImage);
+        queue.add(plain);
+        queue.editText(withImage.id, '');
+        expect(queuedTexts()).toEqual(['', 'plain']);
+        expect(() => queue.editText(plain.id, '  ')).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }),
+        );
+    });
+
+    it('refuses a command, an entry that left the queue, and text past the queue bound', () => {
+        const { hold, queue } = queueFixture();
+        hold();
+        const [slash, text] = [command('compact'), message('hi')];
+        queue.add(slash);
+        queue.add(text);
+        expect(() => queue.editText(slash.id, 'x')).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }),
+        );
+        expect(() => queue.editText(text.id, 'x'.repeat(300_000))).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }),
+        );
+        queue.remove(text.id);
+        expect(() => queue.editText(text.id, 'x')).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+    });
+});

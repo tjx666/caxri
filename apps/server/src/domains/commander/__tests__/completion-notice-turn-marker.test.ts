@@ -2,6 +2,7 @@ import type { SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
+import { LATE_MID_TURN_SIGNAL_WINDOW_MS } from '../../agents/lifecycle-watchdogs';
 import { CommanderCompletionNotifier } from '../completion-notice';
 import { commanderRowReader } from './commander-rows-fake';
 import { pendingStore } from './pending-notices-fake';
@@ -14,6 +15,7 @@ const COMMANDER_TERMINAL_ID = 'commander-terminal';
 function markerFixture() {
     const notices = pendingStore();
     let epoch = 0;
+    let nowMs = 1_000_000;
     const notifier = new CommanderCompletionNotifier({
         database: {
             agentCommanderRows: () => ({
@@ -27,6 +29,7 @@ function markerFixture() {
             commanderPendingNotices: notices,
         },
         hasIdleProof: () => false,
+        now: () => nowMs,
         inputEpoch: () => epoch,
         write: () => true,
     });
@@ -38,6 +41,9 @@ function markerFixture() {
                 terminalId: COMMANDER_TERMINAL_ID,
                 ...signal,
             });
+        },
+        advance(ms: number) {
+            nowMs += ms;
         },
         hasMarker: () => notices.list().some((notice) => notice.kind === 'interrupted_turn'),
         notifier,
@@ -90,6 +96,7 @@ describe('CommanderCompletionNotifier interrupted-turn marker', () => {
         f.apply({ phase: 'sessionIdentified' });
         expect(f.hasMarker()).toBe(false);
 
+        f.advance(LATE_MID_TURN_SIGNAL_WINDOW_MS + 1);
         f.apply({ phase: 'shellToolFinished' });
         expect(f.hasMarker()).toBe(true);
         expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain(
@@ -103,6 +110,34 @@ describe('CommanderCompletionNotifier interrupted-turn marker', () => {
         f.type('\u{1B}');
         f.apply({ phase: 'turnFinished', agentTurnId: 'turn-1' });
         f.apply({ phase: 'toolBatchFinished' });
+        expect(f.hasMarker()).toBe(false);
+    });
+
+    it("ignores the interrupted turn's own late tool-batch hook right after Escape (#1819)", () => {
+        const f = markerFixture();
+        f.apply({ phase: 'turnStarted' });
+        f.type('\u{1B}');
+        f.advance(50);
+        f.apply({ phase: 'toolBatchFinished' });
+        expect(f.hasMarker()).toBe(false);
+
+        // A signal past the window still shows the Escape only closed a picker.
+        f.advance(LATE_MID_TURN_SIGNAL_WINDOW_MS);
+        f.apply({ phase: 'toolBatchFinished' });
+        expect(f.hasMarker()).toBe(true);
+    });
+
+    it('clears the turn marker on an Agent Endpoint SIGINT and ignores its late hook (#1819)', () => {
+        const f = markerFixture();
+        f.apply({ phase: 'turnStarted' });
+        expect(f.hasMarker()).toBe(true);
+
+        f.notifier.observeInterrupt('other-terminal');
+        expect(f.hasMarker()).toBe(true);
+        f.notifier.observeInterrupt(COMMANDER_TERMINAL_ID);
+        expect(f.hasMarker()).toBe(false);
+        f.advance(50);
+        f.apply({ phase: 'shellToolFinished' });
         expect(f.hasMarker()).toBe(false);
     });
 });

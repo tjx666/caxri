@@ -20,6 +20,7 @@ import { chatReportedStateHost } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import { chatSessionLogCallbacks } from './chat-session-logs';
+import { chatStateStore } from './chat-state-store';
 import type { ChatState, ChatTerminal } from './chat-states';
 
 /**
@@ -91,6 +92,8 @@ export async function startChat(
         }
         // Like a PTY launch environment, binds this launch to Agent delegation before anything spawns.
         delegation.bindLaunch(terminalId, launchId, delegated.delegationId);
+        // Stored by a rewind, so it survives a Server Core restart before the first new turn.
+        const resumeAt = chatStateStore(database).resumeAt(terminalId);
         session = driver.create({
             terminalId,
             cwd,
@@ -101,13 +104,14 @@ export async function startChat(
             permission: database.getChatPermission(terminalId) ?? { planMode: false },
             agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
             ...(delegated.agentSessionId && { newAgentSessionId: delegated.agentSessionId }),
-            ...(state.resumeAt !== undefined && { resumeAt: state.resumeAt }),
+            ...(resumeAt !== undefined && { resumeAt }),
             clientVersion: options.clientVersion,
             ...(environment.CAXRI_CLI &&
                 database.agentCommanderRows()?.terminalId !== terminalId && {
                     instructions: AGENT_SESSION_DISCOVERY_CONTEXT,
                 }),
             spawnProcess: options.spawnProcess,
+            processGroups: { terminalId, ledger: chatStateStore(database).processGroups },
             turnRequestTimeoutMs: options.turnRequestTimeoutMs,
             read: () => state.projection.snapshot,
             apply: (operations) => {
@@ -126,7 +130,8 @@ export async function startChat(
                 isCurrent,
                 onEvent: (event) => {
                     // The first new turn writes past the resume point, so a later start resumes the newest record again.
-                    if (event.phase === 'turnStarted') state.resumeAt = undefined;
+                    if (resumeAt !== undefined && event.phase === 'turnStarted')
+                        chatStateStore(database).setResumeAt(terminalId, undefined);
                 },
             }),
             ...chatReportedStateHost(database, {

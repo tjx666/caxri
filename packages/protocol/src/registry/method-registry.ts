@@ -39,6 +39,7 @@ import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
 import { MAX_TRUSTED_FOLDER_LENGTH } from '../configuration/trusted-folders.js';
 import { agentProviderStatusDesktopMethods } from '../desktop/agent-provider-status-contract.js';
 import { argvDesktopMethods } from '../desktop/argv-config.js';
+import { benchmarkShareMethods } from '../desktop/benchmark-share-contract.js';
 import { contextMenuDesktopMethods } from '../desktop/context-menu-contract.js';
 import {
     desktopHostMethods,
@@ -178,6 +179,7 @@ export const methods = {
     ...businessMethods,
     ...usageMethods,
     ...benchmarkMethods,
+    ...benchmarkShareMethods,
     ...bugReportMethods,
     ...mobileMethods,
     ...workbenchMethods,
