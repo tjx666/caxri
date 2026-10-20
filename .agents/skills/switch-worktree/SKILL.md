@@ -44,7 +44,10 @@ local-only, or no-merge restriction narrows that scope.
    to the same delivery across sibling pull requests and duplicate exact-head evidence.
 6. Merge the PR, close the linked issues, and synchronize the primary checkout.
 7. Call the Skill tool with "file-issue" for any debt or follow-up the delivery leaves behind (deferred findings, known flakes, consciously skipped scope) so nothing survives only
-   in the session transcript.
+   in the session transcript. A defect that acceptance of the requested work exposes inside that
+   request's scope is not follow-up: fix it in this delivery. For example, a background-task output
+   view that stops short of the exit line, found while accepting that view, ships fixed rather than
+   as a new issue.
 
 Narrow this flow only when the user explicitly limits delivery (e.g. "只实现，不提交" or
 "只分析"). Do not infer implementation-only scope from casual wording, the timing of the request,
