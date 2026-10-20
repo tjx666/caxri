@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 import type { ArgvConfig, ArgvConfigChanges } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURATION_SOURCE_BYTES } from '@caxri/protocol';
-import { parseJsonc } from '@caxri/system';
+import { KeyedSerialQueue, parseJsonc } from '@caxri/system';
 import { applyEdits, modify } from 'jsonc-parser';
 
 const defaultArgvConfig: ArgvConfig = {
@@ -192,22 +192,7 @@ export async function readArgvConfig(
  * Serializes read-modify-write cycles per config path so overlapping `argv.update` requests cannot interleave and drop
  * each other's fields; each entry is the tail of that path's write chain.
  */
-const writeQueues = new Map<string, Promise<unknown>>();
-
-async function enqueueWrite<T>(path: string, task: () => Promise<T>): Promise<T> {
-    const previous = writeQueues.get(path) ?? Promise.resolve();
-    const next = (async () => {
-        // A failed predecessor must not poison the chain; its rejection already reached its caller.
-        try {
-            await previous;
-        } catch {
-            // ignored: only ordering matters here
-        }
-        return task();
-    })();
-    writeQueues.set(path, next);
-    return next;
-}
+const writeQueues = new KeyedSerialQueue<string>();
 
 /**
  * Applies a partial update onto `argv.jsonc` with comment-preserving JSONC edits and an atomic unique-temp-file rename,
@@ -219,7 +204,7 @@ export function updateArgvConfig(
     changes: ArgvConfigChanges,
 ): Promise<ArgvConfig> {
     const path = argvConfigPath(userDataPath);
-    return enqueueWrite(path, async () => {
+    return writeQueues.run(path, async () => {
         let source: string;
         try {
             source = await readArgvConfigSource(userDataPath);

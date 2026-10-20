@@ -11,7 +11,9 @@ import {
     agentChatToolCallArguments,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
+    agentChatWorkSummaryGlyph,
     agentToolActiveLabel,
+    describeAgentChatWorkRow,
     isAgentChatWorkRunning,
     splitAgentChatWork,
     stripLineNumberGutter,
@@ -55,7 +57,6 @@ import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from './agent-chat-task-open-button';
-import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from './agent-chat-timeline';
 import { AgentChatToolArguments } from './agent-chat-tool-arguments';
 import { AgentChatWorkFileLink } from './agent-chat-work-file-link';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';

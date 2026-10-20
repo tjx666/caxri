@@ -1,11 +1,10 @@
 import type { AgentOperation, AgentProvider, ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { errorMessage, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
-import { SingleFlight } from '../single-flight';
 import { AgentAttentionTracker } from './attention-tracker';
 import { agentProviderStateRoot } from './contract';
 import {
@@ -78,7 +77,7 @@ export class AgentCoordinator {
         private readonly agents: AgentService,
         emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
-        options: AgentCoordinatorOptions = {},
+        private readonly options: AgentCoordinatorOptions = {},
     ) {
         this.hookLaunches = createRecoveringHookLaunchTracker(
             (terminalId, launchId) => this.launchIdsByTerminal.get(terminalId) === launchId,
@@ -456,6 +455,7 @@ export class AgentCoordinator {
             launchId === undefined ? 'escape' : 'signal',
             this.attention.forget(terminalId),
         );
+        if (launchId !== undefined) this.options.onSignalInterrupt?.(terminalId);
         if (released || wasCompacting || launchId !== undefined) this.probeTerminal(terminalId);
     }
 

@@ -185,6 +185,10 @@ async function fetchPreview(
  */
 export function createLinkPreviews(fetch: ManualRedirectFetch, resolveHost: ResolveHost) {
     const publicFetch = createPublicHttpsFetch(fetch, resolveHost);
+    /**
+     * Not a `SingleFlight`: a settled result stays cached (bounded, oldest evicted) and only an outright failure is
+     * forgotten, whereas `SingleFlight` drops every entry the moment its load settles.
+     */
     const cache = new Map<string, Promise<LinkPreview>>();
     /**
      * Resolves a cache entry and forgets it when the request failed outright. Only that exact entry is forgotten:

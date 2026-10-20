@@ -40,3 +40,15 @@ export function diagnosticsExportDialogOptions(now: Date): SaveDialogOptions {
         ],
     };
 }
+
+/**
+ * Save dialog for a Benchmark share card; `fileName` is the suggested name, already reduced to a base name by the
+ * caller.
+ */
+export function benchmarkShareImageDialogOptions(fileName: string): SaveDialogOptions {
+    return {
+        title: translateMain('desktop.benchmarkShare.title'),
+        defaultPath: fileName,
+        filters: [{ name: translateMain('desktop.benchmarkShare.pngImage'), extensions: ['png'] }],
+    };
+}

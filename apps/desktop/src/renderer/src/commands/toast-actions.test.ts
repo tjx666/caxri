@@ -44,7 +44,7 @@ vi.mock('../features/updates/update-commands', () => ({
 vi.mock('./execute', () => ({ executeCommand: mocks.executeCommand }));
 vi.mock('../stores/dialogs', () => ({ openSettings: mocks.openSettings }));
 vi.mock('../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
-vi.mock('../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
+vi.mock('../stores/toasts', () => ({ pushToast: vi.fn(), tryCommand: mocks.tryCommand }));
 vi.mock('../stores/workbench-root-notice', () => ({
     undoFollowedWorkbenchRoot: mocks.undoFollowedWorkbenchRoot,
 }));

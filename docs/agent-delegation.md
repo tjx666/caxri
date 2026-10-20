@@ -253,7 +253,9 @@ The root must resolve to an existing directory. `--register-project` explicitly 
 Project metadata if that exact canonical root is not already registered. A parent Project does not
 implicitly authorize a nested root, and an automatically owned worktree Project cannot be used for
 this bootstrap. The Server creates or reuses a dedicated Session for the Project and caller provider
-without changing the Desktop's selection. Project, Session and binding creation share one database
+without changing the Desktop's selection. A Project the user had hidden is shown again (the same
+restore as adding its folder manually) and Server Core emits `state.changed`, so the sidebar shows where
+the delegated Session runs. Project, Session and binding creation share one database
 transaction. This owner CLI operation is separate from the Renderer's native folder grants.
 
 The private response contains `clientId`, `generation`, `token`, `projectId` and `sessionId`.

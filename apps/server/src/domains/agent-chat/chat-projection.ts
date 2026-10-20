@@ -46,6 +46,20 @@ interface ChatProjectionOptions {
      * Names the Session a delegated task came from; see {@link stampDelegatedTasks}.
      */
     delegatedTaskSource(delegationId: string): AgentChatDelegatedTaskSource | undefined;
+    /**
+     * Where `answered` notices outlive this Server Core process; see {@link AnsweredNoticeStore}.
+     */
+    answeredNotices?: AnsweredNoticeStore;
+}
+
+/**
+ * Durable storage for the `answered` notices of one Chat, so a history replay after a Server Core restart can put them
+ * back (see {@link carryAnsweredNotices}).
+ */
+interface AnsweredNoticeStore {
+    load(): readonly AnsweredNoticeEntry[];
+    save(notice: AgentChatItem, after: string | undefined): void;
+    remove(itemIds: readonly string[]): void;
 }
 
 /**
@@ -100,44 +114,72 @@ export function stampStoppedTurns(
 }
 
 /**
- * Keeps each `answered` notice through a history replay. Server Core records the notice itself when the user answers a
- * question (`agentChatAnsweredNotice`); no provider's history carries it, so the `reset` batch that rebuilds a resumed
- * Chat (Retry after a crash, or any restart of the provider process) would otherwise drop it and leave the Agent acting
- * on a choice the transcript no longer mentions. A notice stays only while the replay still holds its turn, so a rewind
- * past that turn drops it. It goes back after the item it followed, or after its turn's first item (the user's message)
- * when that item's replayed id differs. It survives only within this Server Core process: the notice is not persisted.
+ * An `answered` notice with the id of the item it followed, the anchor a replay re-inserts it after.
  */
-export function carryAnsweredNotices(
-    previous: readonly AgentChatItem[],
-    operations: readonly AgentChatPatchOperation[],
-): readonly AgentChatPatchOperation[] {
-    const resetIndex = operations.findIndex((operation) => operation.op === 'reset');
-    if (resetIndex === -1) return operations;
-    const notices = previous.flatMap((item, index) =>
+interface AnsweredNoticeEntry {
+    notice: AgentChatItem;
+    after: string | undefined;
+}
+
+/**
+ * The `answered` notices among `items`, each with the item that precedes it.
+ */
+function answeredNoticeEntries(items: readonly AgentChatItem[]): AnsweredNoticeEntry[] {
+    return items.flatMap((item, index) =>
         item.type === 'notice' && item.kind === 'answered' && item.turnId !== undefined
-            ? [{ notice: item, after: index > 0 ? previous[index - 1].id : undefined }]
+            ? [{ notice: item, after: index > 0 ? items[index - 1].id : undefined }]
             : [],
     );
-    if (notices.length === 0) return operations;
+}
+
+/**
+ * Keeps each `answered` notice through a history replay. Server Core records the notice itself when the user answers a
+ * question (`agentChatAnsweredNotice`); no provider's history carries it, so the `reset` batch that rebuilds a resumed
+ * Chat (Retry after a crash, any restart of the provider process, or a Server Core restart) would otherwise drop it and
+ * leave the Agent acting on a choice the transcript no longer mentions. A notice stays only while the replay still
+ * holds its turn, so a rewind past that turn drops it. It goes back after the item it followed, or after its turn's
+ * first item (the user's message) when that item's replayed id differs. Notices are persisted (see
+ * {@link AnsweredNoticeStore}); `dropped` lists the ones this replay no longer holds a place for.
+ */
+function carryAnsweredNoticeEntries(
+    entries: readonly AnsweredNoticeEntry[],
+    operations: readonly AgentChatPatchOperation[],
+): { operations: readonly AgentChatPatchOperation[]; dropped: string[] } {
+    const resetIndex = operations.findIndex((operation) => operation.op === 'reset');
+    if (resetIndex === -1 || entries.length === 0) return { operations, dropped: [] };
     const carried = [...operations];
     let isChanged = false;
+    const dropped: string[] = [];
     const upsertIndex = (isMatch: (item: AgentChatItem) => boolean): number =>
         carried.findIndex(
             (operation, index) =>
                 index > resetIndex && operation.op === 'upsertItem' && isMatch(operation.item),
         );
-    for (const { notice, after } of notices) {
+    for (const { notice, after } of entries) {
         if (upsertIndex((item) => item.id === notice.id) !== -1) continue;
         let index =
             after === undefined
                 ? -1
                 : upsertIndex((item) => item.id === after && item.turnId === notice.turnId);
         if (index === -1) index = upsertIndex((item) => item.turnId === notice.turnId);
-        if (index === -1) continue;
+        if (index === -1) {
+            dropped.push(notice.id);
+            continue;
+        }
         carried.splice(index + 1, 0, { op: 'upsertItem', item: notice });
         isChanged = true;
     }
-    return isChanged ? carried : operations;
+    return { operations: isChanged ? carried : operations, dropped };
+}
+
+/**
+ * {@link carryAnsweredNoticeEntries} over the notices found in `previous` items.
+ */
+export function carryAnsweredNotices(
+    previous: readonly AgentChatItem[],
+    operations: readonly AgentChatPatchOperation[],
+): readonly AgentChatPatchOperation[] {
+    return carryAnsweredNoticeEntries(answeredNoticeEntries(previous), operations).operations;
 }
 
 /**
@@ -275,13 +317,52 @@ export class ChatProjection {
         return [...kept, { op: 'state', state: { truncated: this.snapshot.truncated } }];
     }
 
+    /**
+     * Re-inserts the `answered` notices a history replay does not carry: those this process holds and the ones saved
+     * before a restart. A notice whose turn the replay no longer holds is deleted, but only from a replay that rebuilt
+     * some history, so a transient empty read cannot erase them.
+     */
+    private carryNotices(
+        operations: readonly AgentChatPatchOperation[],
+    ): readonly AgentChatPatchOperation[] {
+        const { answeredNotices } = this.options;
+        const entries = answeredNoticeEntries([...this.replacedItems, ...this.snapshot.items]);
+        const known = new Set(entries.map((entry) => entry.notice.id));
+        const stored = answeredNotices?.load() ?? [];
+        for (const entry of stored) if (!known.has(entry.notice.id)) entries.push(entry);
+        const result = carryAnsweredNoticeEntries(entries, operations);
+        const hasHistory = operations.some((operation) => operation.op === 'upsertItem');
+        if (hasHistory) answeredNotices?.remove(result.dropped);
+        return result.operations;
+    }
+
+    /**
+     * Saves each `answered` notice that enters the Chat live, with the item it follows (the newest item, since a live
+     * upsert appends).
+     */
+    private persistNewNotices(
+        operations: readonly AgentChatPatchOperation[],
+    ): readonly AgentChatPatchOperation[] {
+        const { answeredNotices } = this.options;
+        if (!answeredNotices) return operations;
+        for (const operation of operations) {
+            if (operation.op !== 'upsertItem') continue;
+            const { item } = operation;
+            if (item.type !== 'notice' || item.kind !== 'answered' || item.turnId === undefined)
+                continue;
+            if (this.snapshot.items.some((existing) => existing.id === item.id)) continue;
+            answeredNotices.save(item, this.snapshot.items.at(-1)?.id);
+        }
+        return operations;
+    }
+
     apply(operations: readonly AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
         const isHistoryReplay = operations.some((operation) => operation.op === 'reset');
         const carried = isHistoryReplay
-            ? carryAnsweredNotices([...this.replacedItems, ...this.snapshot.items], operations)
-            : operations;
+            ? this.carryNotices(operations)
+            : this.persistNewNotices(operations);
         const timed = stampStoppedTurns(
             stampNewItems(this.snapshot, carried, Date.now()),
             this.stops,

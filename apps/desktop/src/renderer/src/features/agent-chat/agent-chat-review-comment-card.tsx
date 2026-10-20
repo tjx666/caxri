@@ -1,4 +1,5 @@
 import type { ReviewCommentText } from '@caxri/protocol';
+import { Pencil, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
@@ -30,12 +31,17 @@ const CARD_CLASS_NAME =
  * shortcut.
  */
 export function AgentChatReviewCommentCard({
+    isEditing = false,
     lineCount,
     text,
     onAdd,
     onCancel,
     onChange,
 }: {
+    /**
+     * The card rewrites a comment already in the message: its button says Save instead of Add to message.
+     */
+    isEditing?: boolean;
     lineCount: number;
     text: string;
     onAdd: () => void;
@@ -46,6 +52,7 @@ export function AgentChatReviewCommentCard({
     const add = (): void => {
         if (text.trim()) onAdd();
     };
+    const submitLabel = t(isEditing ? 'common.save' : 'agentChat.review.addToChat');
     return (
         <div
             aria-label={t('agentChat.review.commentGroup')}
@@ -81,9 +88,9 @@ export function AgentChatReviewCommentCard({
                 <Button size="sm" variant="ghost" onClick={onCancel}>
                     {t('common.cancel')}
                 </Button>
-                <Tooltip content={t('agentChat.review.addToChat')} shortcut="cmd+enter">
+                <Tooltip content={submitLabel} shortcut="cmd+enter">
                     <Button aria-disabled={!text.trim() || undefined} size="sm" onClick={add}>
-                        {t('agentChat.review.addToChat')}
+                        {submitLabel}
                     </Button>
                 </Tooltip>
             </div>
@@ -92,9 +99,18 @@ export function AgentChatReviewCommentCard({
 }
 
 /**
- * A comment already in the Chat's message, left under its lines as a record of what was asked.
+ * A comment already in the Chat's message, left under its lines as a record of what was asked. Edit rewrites it in the
+ * message and Remove takes it out (the review offers Undo), so the card and the composer never disagree.
  */
-export function AgentChatReviewCommentNote({ comment }: { comment: ReviewCommentText }) {
+export function AgentChatReviewCommentNote({
+    comment,
+    onEdit,
+    onRemove,
+}: {
+    comment: ReviewCommentText;
+    onEdit: () => void;
+    onRemove: () => void;
+}) {
     const { t } = useTranslation();
     const range = rangeLabel(comment, t);
     return (
@@ -105,7 +121,31 @@ export function AgentChatReviewCommentNote({ comment }: { comment: ReviewComment
         >
             <div className="mb-0.5 flex items-center justify-between gap-2 text-[11px] text-muted">
                 <span>{t('agentChat.review.noteHeading', { range })}</span>
-                <span>{t('agentChat.review.addedToChat')}</span>
+                <span className="flex items-center gap-1">
+                    <span>{t('agentChat.review.addedToChat')}</span>
+                    <Tooltip content={t('agentChat.review.editComment')}>
+                        <Button
+                            aria-label={t('agentChat.review.editComment')}
+                            className="size-5"
+                            size="icon"
+                            variant="ghost"
+                            onClick={onEdit}
+                        >
+                            <Pencil aria-hidden="true" size={12} />
+                        </Button>
+                    </Tooltip>
+                    <Tooltip content={t('agentChat.review.removeComment')}>
+                        <Button
+                            aria-label={t('agentChat.review.removeComment')}
+                            className="size-5"
+                            size="icon"
+                            variant="ghost"
+                            onClick={onRemove}
+                        >
+                            <Trash2 aria-hidden="true" size={12} />
+                        </Button>
+                    </Tooltip>
+                </span>
             </div>
             <p className="m-0 whitespace-pre-wrap">{comment.text}</p>
         </div>

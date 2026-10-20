@@ -188,4 +188,14 @@ export const benchmark = {
     'benchmark.failure.turnFailed': 'Agent 报告了错误',
     'benchmark.failure.processExited': 'Agent 意外退出',
     'benchmark.failure.serverRestarted': '因重启中断',
+    // 分享图
+    'benchmark.share.button': '分享',
+    'benchmark.share.copy': '复制图片',
+    'benchmark.share.save': '保存为 PNG…',
+    'benchmark.share.madeWith': 'Made with Caxri',
+    'benchmark.share.copied': '分享图片已复制到剪贴板',
+    'benchmark.share.saved': '分享图片已保存',
+    'benchmark.share.copyFailed': '无法复制分享图片',
+    'benchmark.share.saveFailed': '无法保存分享图片',
+    'benchmark.share.noResults': '运行出结果后才能分享',
 };

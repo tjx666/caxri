@@ -37,10 +37,17 @@ function userMessage(chat: Locator, text: string): Locator {
 async function answerNativeDialogs(app: E2EApp, response: number): Promise<void> {
     await app.evaluate(({ dialog }, answer) => {
         const shown: string[] = [];
+        const details: string[] = [];
         // eslint-disable-next-line unicorn/no-global-object-property-assignment -- read back by a later evaluate in Main
         (globalThis as { shownDialogs?: string[] }).shownDialogs = shown;
-        dialog.showMessageBox = ((_window: unknown, options: { message: string }) => {
+        // eslint-disable-next-line unicorn/no-global-object-property-assignment -- read back by a later evaluate in Main
+        (globalThis as { shownDialogDetails?: string[] }).shownDialogDetails = details;
+        dialog.showMessageBox = ((
+            _window: unknown,
+            options: { message: string; detail?: string },
+        ) => {
             shown.push(options.message);
+            details.push(options.detail ?? '');
             return Promise.resolve({ checkboxChecked: false, response: answer });
         }) as typeof dialog.showMessageBox;
     }, response);
@@ -119,6 +126,13 @@ test('a Claude Chat restores code to an earlier message and keeps the conversati
                 ),
             )
             .toEqual(['Revert the files Claude changed in these 2 turns?']);
+        // The dialog lists the files the dry run found, with the totals (the fake CLI reports two files).
+        const [detail] =
+            (await running.app.evaluate(
+                () => (globalThis as { shownDialogDetails?: string[] }).shownDialogDetails,
+            )) ?? [];
+        expect(detail).toContain('2 files will be reverted (+4 -1)');
+        expect(detail).toContain('notes.md');
         // The conversation stays: both questions and their replies are still there.
         await expect(userMessage(chat, 'second question')).toHaveCount(1);
         await expect(chat.getByText(/You said: second question/u)).toBeVisible();

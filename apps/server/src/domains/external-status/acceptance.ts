@@ -1,8 +1,8 @@
 import type { ProjectStatusAcceptance } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 import type { z } from 'zod';
 
-import { SingleFlight } from '../single-flight';
 import { acceptanceBundleSchema, mapAcceptanceBundle, parseExternalJson } from './parse';
 
 /**

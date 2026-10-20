@@ -5,6 +5,7 @@ import { ConversationEntry } from '../conversation/conversation-entry';
 import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
 import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
 import { AgentChatFeedback } from './agent-chat-feedback';
+import { AgentChatPathChips } from './agent-chat-path-chips';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
 import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
@@ -36,7 +37,21 @@ export const AgentChatTimelineEntry = memo(
                 return <AgentChatFeedback item={entry.notice} theme={theme} />;
             }
             case 'message': {
-                return <ConversationEntry entry={entry.message} theme={theme} />;
+                return (
+                    <ConversationEntry
+                        entry={entry.message}
+                        theme={theme}
+                        userExtras={
+                            entry.cited ? (
+                                <AgentChatPathChips
+                                    references={entry.cited.references}
+                                    skills={entry.cited.skills}
+                                    theme={theme}
+                                />
+                            ) : undefined
+                        }
+                    />
+                );
             }
             case 'answered': {
                 return (

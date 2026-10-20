@@ -10,7 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderStatusSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 
 import type { ParsedStatusPage } from './agent-provider-status-parsers';
 import {
@@ -186,7 +186,7 @@ export function createAgentProviderStatus(options: {
 }) {
     const now = options.now ?? Date.now;
     const cache = new Map<AgentProvider, CachedStatus>();
-    const inFlight = new Map<AgentProvider, Promise<AgentProviderStatus>>();
+    const inFlight = new SingleFlight<AgentProvider, AgentProviderStatus>();
     /**
      * The last failure reason per provider, so a page that stays down logs once, not on every expiry, and its recovery
      * is recorded as a transition.
@@ -280,27 +280,11 @@ export function createAgentProviderStatus(options: {
         return result;
     }
 
-    async function refreshOnce(
-        provider: AgentProvider,
-        source: StatusPageSource,
-    ): Promise<AgentProviderStatus> {
-        try {
-            return await refresh(provider, source);
-        } finally {
-            inFlight.delete(provider);
-        }
-    }
-
     return async (provider: AgentProvider): Promise<AgentProviderStatus | null> => {
         const source = STATUS_PAGES[provider];
         if (!source) return null;
         const cached = cache.get(provider);
         if (cached && cached.expiresAt > now()) return cached.status;
-        let pending = inFlight.get(provider);
-        if (!pending) {
-            pending = refreshOnce(provider, source);
-            inFlight.set(provider, pending);
-        }
-        return pending;
+        return inFlight.run(provider, () => refresh(provider, source));
     };
 }

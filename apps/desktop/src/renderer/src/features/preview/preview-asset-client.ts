@@ -36,17 +36,29 @@ function cacheKey(source: PreviewAssetSource, path: string): string {
         : `external:${source.externalDocumentId}\0${path}`;
 }
 
-function requestAsset(source: PreviewAssetSource, path: string) {
+/**
+ * Splits a source and absolute path into the method and params that read it. Main resolves an external path against the
+ * document's folder itself; only the part below that folder crosses IPC.
+ */
+function assetRequest(source: PreviewAssetSource, path: string) {
     if ('sessionId' in source)
-        return caxri.request('files.readAsset', { sessionId: source.sessionId, path });
-    // Main resolves the path against the document's folder itself; only the part below that folder crosses IPC.
+        return {
+            method: 'files.readAsset',
+            params: { sessionId: source.sessionId, path },
+        } as const;
     const prefix = source.directory.endsWith('/') ? source.directory : `${source.directory}/`;
-    if (!path.startsWith(prefix))
-        return Promise.reject(new Error('Image is outside the document folder'));
-    return caxri.request('externalDocument.readAsset', {
-        documentId: source.externalDocumentId,
-        path: path.slice(prefix.length),
-    });
+    if (!path.startsWith(prefix)) throw new Error('Image is outside the document folder');
+    return {
+        method: 'externalDocument.readAsset',
+        params: { documentId: source.externalDocumentId, path: path.slice(prefix.length) },
+    } as const;
+}
+
+async function requestAsset(source: PreviewAssetSource, path: string) {
+    const request = assetRequest(source, path);
+    return request.method === 'files.readAsset'
+        ? caxri.request(request.method, request.params)
+        : caxri.request(request.method, request.params);
 }
 
 /**
@@ -132,14 +144,18 @@ export function releaseAsset(source: PreviewAssetSource, path: string): void {
 /**
  * Reads a whole binary file a preview renders itself (a PDF) as bytes, without an object URL or a shared cache entry:
  * the view owns the decoded document for as long as it is mounted, and a second copy in a cache would double the
- * largest payload a preview reads.
+ * largest payload a preview reads. An external document's PDF is read under the same grant as its linked images.
  */
 export async function readAssetBytes(
-    sessionId: string,
+    source: PreviewAssetSource,
     path: string,
     signal: AbortSignal,
 ): Promise<Uint8Array<ArrayBuffer>> {
-    const asset = await caxri.requestWithSignal('files.readAsset', signal, { sessionId, path });
+    const request = assetRequest(source, path);
+    const asset =
+        request.method === 'files.readAsset'
+            ? await caxri.requestWithSignal(request.method, signal, request.params)
+            : await caxri.requestWithSignal(request.method, signal, request.params);
     return decodeBase64(asset.base64);
 }
 

@@ -6,11 +6,11 @@ import type {
     ServerOperationParameters,
 } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 import { GitPullRequestErrorMessage } from 'caxri';
 import { z } from 'zod';
 
-import { SingleFlight } from '../single-flight';
 import { parseGitNumstat, sumGitLineStats, withGitLineStat } from './numstat';
 import { sharedGitRequest } from './request-signal';
 

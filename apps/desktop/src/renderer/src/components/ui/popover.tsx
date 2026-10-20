@@ -4,8 +4,6 @@ import { cn } from '@/lib/utilities';
 
 import { ANCHORED_POPUP_MOTION } from './overlay-motion';
 
-export type PopoverActions = PopoverPrimitive.Root.Actions;
-
 export function Popover<Payload>(properties: PopoverPrimitive.Root.Props<Payload>) {
     return <PopoverPrimitive.Root {...properties} />;
 }
@@ -16,17 +14,22 @@ export function PopoverTrigger<Payload>(properties: PopoverPrimitive.Trigger.Pro
 
 export function PopoverContent({
     align = 'start',
+    anchor,
     className,
     collisionPadding = 8,
     side = 'bottom',
     sideOffset = 4,
     ...properties
 }: PopoverPrimitive.Popup.Props &
-    Pick<PopoverPrimitive.Positioner.Props, 'align' | 'collisionPadding' | 'side' | 'sideOffset'>) {
+    Pick<
+        PopoverPrimitive.Positioner.Props,
+        'align' | 'anchor' | 'collisionPadding' | 'side' | 'sideOffset'
+    >) {
     return (
         <PopoverPrimitive.Portal data-slot="popover-portal">
             <PopoverPrimitive.Positioner
                 align={align}
+                anchor={anchor}
                 collisionPadding={collisionPadding}
                 side={side}
                 sideOffset={sideOffset}

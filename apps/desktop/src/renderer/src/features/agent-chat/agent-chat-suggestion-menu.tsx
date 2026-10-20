@@ -17,7 +17,8 @@ interface SuggestionMenuState {
 
 /**
  * The composer's lists, of which at most one shows: the prompt history while browsing it, then the slash-command list
- * while open, otherwise the `@` Sessions list, or its progress row while a chosen Session's reference is written.
+ * while open, otherwise the `@` list of Project files and Sessions, or its progress row while a chosen Session's
+ * reference is written.
  */
 export function AgentChatSuggestionMenu({
     commandMenu,
@@ -36,7 +37,7 @@ export function AgentChatSuggestionMenu({
     onChooseCommand: (index: number) => void;
     sessionMenu: SuggestionMenuState & {
         chooseAt: (index: number) => void;
-        emptyText: string;
+        groupAt: (index: number) => 'files' | 'sessions' | undefined;
         preparingText: string | undefined;
     };
 }) {
@@ -93,10 +94,13 @@ export function AgentChatSuggestionMenu({
     return (
         <SuggestionList
             activeIndex={sessionMenu.activeIndex}
-            emptyText={sessionMenu.emptyText}
             footer={agentChatSuggestionFooter('sessions', sessionMenu.suggestions.length > 0)}
-            headingAt={(index) => (index === 0 ? t('agentChat.slash.sessions') : undefined)}
-            label={t('agentChat.slash.sessions')}
+            headingAt={(index) => {
+                const group = sessionMenu.groupAt(index);
+                if (group === undefined) return;
+                return t(group === 'files' ? 'agentChat.slash.files' : 'agentChat.slash.sessions');
+            }}
+            label={t('agentChat.slash.mentions')}
             listId={sessionMenu.listId}
             suggestions={sessionMenu.suggestions}
             onChoose={sessionMenu.chooseAt}

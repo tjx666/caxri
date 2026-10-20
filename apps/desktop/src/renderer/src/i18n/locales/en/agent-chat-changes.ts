@@ -55,6 +55,13 @@ export const agentChatChanges = {
     'agentChat.review.commentOnRange': 'Comment on {{range}}',
     'agentChat.review.noteHeading': 'Review · {{range}}',
     'agentChat.review.addedToChat': 'Added to message',
+    'agentChat.review.pendingCommentsOne': '1 comment',
+    'agentChat.review.pendingCommentsOther': '{{count}} comments',
+    'agentChat.review.backToChatAndSend': 'Back to Chat and Send',
+    'agentChat.review.editComment': 'Edit comment',
+    'agentChat.review.removeComment': 'Remove comment',
+    'agentChat.review.commentRemoved': 'Comment removed',
+    'agentChat.review.restoreGone': 'This comment can no longer be restored.',
     'agentChat.review.side.original': 'Old',
     'agentChat.review.side.modified': 'New',
 

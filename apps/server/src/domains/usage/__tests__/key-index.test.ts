@@ -45,4 +45,28 @@ describe('UsageKeyIndex', () => {
         index.store('a', undefined);
         expect(index.countedElsewhere('b', 100)('a')).toBe(false);
     });
+
+    it('reports the copies that must now own a unit when its source is recreated later', () => {
+        const index = new UsageKeyIndex();
+        index.store('source', { keys: ['a'], bornAt: 100 });
+        index.store('copy', { keys: ['a'], bornAt: 200 });
+        expect(index.countedElsewhere('copy', 200)('a')).toBe(true);
+
+        // The source is rewritten and now postdates the copy: the copy, not the source, owns the unit.
+        const sourceSkips = index.countedElsewhere('source', 300);
+        expect(sourceSkips('a')).toBe(true);
+        expect(index.store('source', { keys: ['a'], bornAt: 300 })).toEqual(['copy']);
+
+        // The copy's rescan counts the unit and leaves nothing further to rescan.
+        expect(index.countedElsewhere('copy', 200)('a')).toBe(false);
+        expect(index.store('copy', { keys: ['a'], bornAt: 200 })).toEqual([]);
+    });
+
+    it('detects a later bornAt that arrives only through store', () => {
+        const index = new UsageKeyIndex();
+        index.store('source', { keys: ['a'], bornAt: 100 });
+        index.store('copy', { keys: ['a'], bornAt: 200 });
+
+        expect(index.store('source', { keys: ['a'], bornAt: 300 })).toEqual(['copy']);
+    });
 });

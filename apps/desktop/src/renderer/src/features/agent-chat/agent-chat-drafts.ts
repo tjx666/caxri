@@ -4,6 +4,7 @@ import type {
     AgentChatSkillReference,
 } from '@caxri/protocol';
 import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
+import { notifyListeners } from '@caxri/utils';
 import { debounce } from 'es-toolkit';
 
 import { translate } from '../../i18n';
@@ -220,6 +221,21 @@ export function readAgentChatDraft(terminalId: string): string {
     return loadedDrafts().get(terminalId) ?? '';
 }
 
+/**
+ * Surfaces that render from a Chat's draft (the turn review's pending comment count) and so need to hear every write,
+ * whether it came from typing or from another surface.
+ */
+const draftChangeListeners = new Map<string, Set<() => void>>();
+
+function notifyDraftChange(terminalId: string): void {
+    const listeners = draftChangeListeners.get(terminalId);
+    if (!listeners) return;
+    // One throwing surface cannot stop the others from hearing the write; Desktop mirrors `console.error` into its log.
+    notifyListeners(listeners, undefined, (error) =>
+        console.error('agentChat.draft listener failed', error),
+    );
+}
+
 export function writeAgentChatDraft(terminalId: string, text: string): void {
     const current = loadedDrafts();
     if (current.get(terminalId) === text || (!text && !current.has(terminalId))) return;
@@ -227,6 +243,28 @@ export function writeAgentChatDraft(terminalId: string, text: string): void {
     if (text) current.set(terminalId, text);
     dirty.add(terminalId);
     persistDrafts();
+    notifyDraftChange(terminalId);
+}
+
+/**
+ * Calls `listener` after each change to a Chat's stored draft. Returns the unsubscribe. Pairs with
+ * {@link readAgentChatDraft} as a `useSyncExternalStore` source.
+ */
+export function subscribeAgentChatDraftChanges(
+    terminalId: string,
+    listener: () => void,
+): () => void {
+    let listeners = draftChangeListeners.get(terminalId);
+    if (!listeners) {
+        listeners = new Set();
+        draftChangeListeners.set(terminalId, listeners);
+    }
+    listeners.add(listener);
+    return () => {
+        const current = draftChangeListeners.get(terminalId);
+        current?.delete(listener);
+        if (current?.size === 0) draftChangeListeners.delete(terminalId);
+    };
 }
 
 /**

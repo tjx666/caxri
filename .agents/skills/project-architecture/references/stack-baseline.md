@@ -27,14 +27,11 @@ Keep these compatibility exceptions:
   The native add-ons are not part of this risk: `better-sqlite3`, `node-pty`, and `@parcel/watcher`
   load in the Server artifact's own bundled Node runtime (`runtime/bin/node`), never in Main or the
   Renderer, so they follow that runtime's ABI rather than Electron's.
-- `@base-ui/react`: exact 1.7.0. Version 1.8.0 triggers a `PopoverStore` / `syncTriggerCount`
-  update loop when opening the multi-trigger Editor breadcrumb picker (React error 185).
-  `e2e/editor-breadcrumbs.e2e.ts` reproduces it locally and in
-  CI run `34299568185`.
-  Re-checked 2026-09-21 against 1.8.0 and 2026-10-13 against 1.9.0, then the newest release: the
-  spec fails the same way (the Editor tab falls through to its error boundary) while the same
-  dependency set with 1.7.0 passes, so the pin stays.
-  Re-evaluate it only after that regression passes on a newer release.
+- `@base-ui/react`: caret range (`^1.9.0`), no longer pinned. Versions 1.8.0 and 1.9.0 loop in
+  `PopoverStore` / `syncTriggerCount` (React error 185) when one Popover owns several registered
+  triggers. The Editor breadcrumb picker therefore uses a controlled, trigger-less Popover anchored
+  to the clicked segment (`PopoverContent` takes an `anchor`), so no Popover in the Renderer may
+  register more than one `PopoverTrigger`. `e2e/editor-breadcrumbs.e2e.ts` covers the picker.
 - `typescript` / `@typescript/native` npm aliases: exact TypeScript 6 API and TypeScript 7 CLI pair.
 - `apps/mobile` `typescript`: the plain TypeScript 6 package, held on major 6. Expo tooling resolves
   `typescript` from the app and expects its JavaScript API: the Expo CLI TypeScript prerequisite checks

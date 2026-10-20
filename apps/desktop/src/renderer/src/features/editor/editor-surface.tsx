@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
     createElement,
     lazy,
@@ -8,10 +9,9 @@ import {
     useSyncExternalStore,
 } from 'react';
 
+import type { VirtualEditorTabScheme } from '@caxri/protocol';
 import {
     isExternalEditorTabPath,
-    isSettingsTabPath,
-    isUsageTabPath,
     parseAgentContextTab,
     parseAgentStatusTab,
     parseAgentTaskTab,
@@ -19,6 +19,7 @@ import {
     parseAgentTurnReviewTab,
     parseFilePreviewTab,
     parseGitDiffTab,
+    virtualEditorTabScheme,
 } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
@@ -28,7 +29,6 @@ import { translate, useTranslation } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
-import { PREVIEW_LOADING_LABEL_KEY } from '../preview/preview-registry';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
@@ -43,6 +43,7 @@ import {
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
 import { editorStatusKey } from './editor-status';
 import { FileEditorBreadcrumbs } from './file-editor-breadcrumbs';
+import { virtualTabDescriptors } from './virtual-tab-descriptors';
 
 const GitDiffEditor = lazy(async () => {
     const module = await import('./git-diff-editor');
@@ -234,115 +235,66 @@ export function EditorSurface({ paneId, path }: { paneId: string; path: string }
     );
 }
 
+/**
+ * The surface each virtual tab scheme renders. Keyed by the protocol's scheme union, so a scheme without a surface
+ * fails typecheck; its Suspense placeholder is declared beside its label and icon in `virtualTabDescriptors`.
+ */
+const VIRTUAL_TAB_SURFACES: Record<
+    VirtualEditorTabScheme,
+    (properties: { paneId: string; path: string }) => ReactNode
+> = {
+    gitDiff: ({ paneId, path }) => {
+        const tab = parseGitDiffTab(path);
+        /*
+         * Keyed per diff resource so switching between two diff tabs in one pane remounts the editor instead
+         * of re-pointing a live one. `@monaco-editor/react`'s DiffEditor swaps a changed model path only on
+         * the inner editors, but Monaco's `DiffEditorWidget.getModel()` still answers with the pair it was
+         * mounted with, so the wrapper's `original` update effect writes the new tab's original text into
+         * the previous tab's model and the diff keeps being computed against that stale pair.
+         */
+        return tab && <GitDiffEditor key={path} paneId={paneId} tab={tab} tabPath={path} />;
+    },
+    agentTranscript: ({ path }) => {
+        const tab = parseAgentTranscriptTab(path);
+        return tab && <AgentTranscriptEditor key={tab.terminalId} tab={tab} />;
+    },
+    agentTask: ({ path }) => {
+        const tab = parseAgentTaskTab(path);
+        return tab && <AgentChatTaskTab key={path} tab={tab} />;
+    },
+    agentTurnReview: ({ path }) => {
+        const tab = parseAgentTurnReviewTab(path);
+        return tab && <AgentChatTurnReviewTab key={path} tab={tab} />;
+    },
+    agentStatus: ({ path }) => {
+        const tab = parseAgentStatusTab(path);
+        return tab && <AgentStatusPage key={path} terminalId={tab.terminalId} />;
+    },
+    agentContext: ({ path }) => {
+        const tab = parseAgentContextTab(path);
+        return tab && <AgentContextPage key={path} terminalId={tab.terminalId} />;
+    },
+    external: ({ paneId, path }) => <FileEditorSurface paneId={paneId} path={path} />,
+    filePreview: ({ paneId, path }) => {
+        const tab = parseFilePreviewTab(path);
+        return tab && <PreviewSurface key={tab.path} paneId={paneId} tab={tab} />;
+    },
+    settings: () => <SettingsWorkbenchPage />,
+    usage: () => <UsageWorkbenchPage />,
+};
+
 function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }) {
     const { t } = useTranslation();
-    const gitDiffTab = parseGitDiffTab(path);
-    if (gitDiffTab)
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton
-                        variant="document"
-                        label={t('editor.load.loadingDiffEditor')}
-                    />
-                }
-            >
-                {/*
-                 * Keyed per diff resource so switching between two diff tabs in one pane remounts the editor instead
-                 * of re-pointing a live one. `@monaco-editor/react`'s DiffEditor swaps a changed model path only on
-                 * the inner editors, but Monaco's `DiffEditorWidget.getModel()` still answers with the pair it was
-                 * mounted with, so the wrapper's `original` update effect writes the new tab's original text into
-                 * the previous tab's model and the diff keeps being computed against that stale pair.
-                 */}
-                <GitDiffEditor key={path} paneId={paneId} tab={gitDiffTab} tabPath={path} />
-            </Suspense>
-        );
-    const transcriptTab = parseAgentTranscriptTab(path);
-    if (transcriptTab)
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton
-                        variant="document"
-                        label={t('editor.load.loadingTranscript')}
-                    />
-                }
-            >
-                <AgentTranscriptEditor key={transcriptTab.terminalId} tab={transcriptTab} />
-            </Suspense>
-        );
-    const agentTaskTab = parseAgentTaskTab(path);
-    if (agentTaskTab)
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton variant="document" label={t('editor.load.loadingTask')} />
-                }
-            >
-                <AgentChatTaskTab key={path} tab={agentTaskTab} />
-            </Suspense>
-        );
-    const turnReviewTab = parseAgentTurnReviewTab(path);
-    if (turnReviewTab)
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton variant="document" label={t('editor.load.loadingChanges')} />
-                }
-            >
-                <AgentChatTurnReviewTab key={path} tab={turnReviewTab} />
-            </Suspense>
-        );
-    const agentStatusTab = parseAgentStatusTab(path);
-    if (agentStatusTab)
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton variant="page" label={t('editor.load.loadingAgentStatus')} />
-                }
-            >
-                <AgentStatusPage key={path} terminalId={agentStatusTab.terminalId} />
-            </Suspense>
-        );
-    const agentContextTab = parseAgentContextTab(path);
-    if (agentContextTab)
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton variant="page" label={t('editor.load.loadingAgentContext')} />
-                }
-            >
-                <AgentContextPage key={path} terminalId={agentContextTab.terminalId} />
-            </Suspense>
-        );
-    const previewTab = parseFilePreviewTab(path);
-    if (previewTab)
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />
-                }
-            >
-                <PreviewSurface key={previewTab.path} paneId={paneId} tab={previewTab} />
-            </Suspense>
-        );
-    if (isSettingsTabPath(path))
-        return (
-            <Suspense
-                fallback={
-                    <LoadingSkeleton variant="page" label={t('editor.load.loadingSettings')} />
-                }
-            >
-                <SettingsWorkbenchPage />
-            </Suspense>
-        );
-    if (isUsageTabPath(path))
-        return (
-            <Suspense
-                fallback={<LoadingSkeleton variant="page" label={t('editor.load.loadingUsage')} />}
-            >
-                <UsageWorkbenchPage />
-            </Suspense>
-        );
-    return <FileEditorSurface paneId={paneId} path={path} />;
+    const scheme = virtualEditorTabScheme(path);
+    if (!scheme) return <FileEditorSurface paneId={paneId} path={path} />;
+    const surface = VIRTUAL_TAB_SURFACES[scheme]({ paneId, path });
+    const loading = virtualTabDescriptors[scheme].loading;
+    if (!loading) return surface;
+    return (
+        <Suspense
+            fallback={<LoadingSkeleton variant={loading.variant} label={t(loading.labelKey)} />}
+        >
+            {surface}
+        </Suspense>
+    );
 }

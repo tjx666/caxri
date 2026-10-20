@@ -6,10 +6,10 @@ import type {
     AgentDelegationReceipt,
 } from '@caxri/protocol';
 import { agentDelegationSettingsSchema, CaxriError, isDelegationActive } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import type { StoredAgentDelegation } from '../db';
-import { SingleFlight } from '../single-flight';
 import type { DelegationAccess, DelegationAuthority } from './admission';
 import {
     admittedDelegation,

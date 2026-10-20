@@ -1,4 +1,5 @@
 import type { ProjectStatusRepository } from '@caxri/protocol';
+import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
 import type {
@@ -12,7 +13,6 @@ import {
     REPO_MERGE_SETTINGS_FIELDS,
     repoMergeSettingsSchema,
 } from '../external-status';
-import { SingleFlight } from '../single-flight';
 
 type PullRequest = ProjectStatusRepository['pullRequest'];
 

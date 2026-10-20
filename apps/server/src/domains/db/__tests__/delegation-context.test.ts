@@ -28,3 +28,23 @@ it('requires explicit new-root authorization and atomically reuses the dedicated
         database.close();
     }
 });
+
+it('un-hides a Project the user hid so the delegated Session is visible on Desktop', () => {
+    const database = new CaxriDatabase(':memory:');
+    try {
+        const project = database.createProject('/synthetic/hidden');
+        database.createSession(project.id, null);
+        database.hideProject(project.id);
+        expect(database.getProject(project.id)?.hiddenAt).toBeDefined();
+
+        const context = database.ensureDelegationContext('/synthetic/hidden', 'codex', false);
+
+        expect(context.projectId).toBe(project.id);
+        expect(database.getProject(project.id)?.hiddenAt).toBeUndefined();
+        expect(database.listSessions(project.id).map((session) => session.id)).toContain(
+            context.sessionId,
+        );
+    } finally {
+        database.close();
+    }
+});

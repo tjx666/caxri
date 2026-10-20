@@ -304,8 +304,12 @@ function isSameCodexTotals(left: CodexTotals, right: CodexTotals): boolean {
  * request's whole context, which selects a long-context price tier.
  *
  * A rollout whose `session_meta` names `forked_from_id` may open with a replay of its parent's totals (see
- * {@link CODEX_REPLAY_BURST_GAP_MS}). Its first event is held until the second arrives: two events within the burst gap
- * start a replay, whose last total becomes the baseline; otherwise the held event is the fork's own first request.
+ * {@link CODEX_REPLAY_BURST_GAP_MS}). An event stamped with the fork's own creation instant is replay at once, even when
+ * the parent made a single request. Otherwise the first event is held until the second arrives: two events within the
+ * burst gap start a replay, whose last total becomes the baseline; else the held event is the fork's own first request.
+ * A continuation file's first event (see {@link UsageParserOptions.isContinuation}) is a new request, not a repeat: in
+ * real reverted threads its running total exceeds the original file's last total by exactly its `last_token_usage`, so
+ * it counts through `last` like any other advanced event.
  */
 export function codexUsageParser(
     accumulator: UsageAccumulator,
@@ -318,6 +322,12 @@ export function codexUsageParser(
     let replay: 'none' | 'undecided' | 'skipping' = 'none';
     let held: CodexTokenCount | undefined;
     let lastReplayAt = 0;
+    /**
+     * Record time of the `session_meta` that names `forked_from_id`: Codex stamps the parent history it copies into a
+     * fork with the fork's creation instant, so a `token_count` at that instant is replayed whatever else the file
+     * holds.
+     */
+    let forkedAt: number | undefined;
     const count = (event: CodexTokenCount) => {
         const { totals, last } = event;
         const base = previous;
@@ -365,8 +375,10 @@ export function codexUsageParser(
             const payload = record(entry?.payload);
             if (!payload) return;
             if (entry?.type === 'session_meta') {
-                if (replay === 'none' && !previous && string(payload.forked_from_id))
+                if (replay === 'none' && !previous && string(payload.forked_from_id)) {
                     replay = 'undecided';
+                    forkedAt = at;
+                }
                 return;
             }
             if (entry?.type === 'turn_context') {
@@ -393,6 +405,14 @@ export function codexUsageParser(
                 serviceTier,
             };
             if (replay === 'undecided') {
+                if (!held && forkedAt !== undefined && at - forkedAt <= CODEX_REPLAY_BURST_GAP_MS) {
+                    // Stamped with the fork's creation instant: parent history, even when it is a single event
+                    // that the burst rule below could not tell from the fork's own first request.
+                    previous = totals;
+                    lastReplayAt = at;
+                    replay = 'skipping';
+                    return;
+                }
                 if (!held) {
                     held = event;
                     return;

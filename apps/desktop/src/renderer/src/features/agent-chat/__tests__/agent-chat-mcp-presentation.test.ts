@@ -1,8 +1,8 @@
 import type { AgentChatWorkItem } from '@caxri/protocol';
+import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { agentChatMcpIconCandidates, isDarkBackground } from '../agent-chat-mcp-icons';
-import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from '../agent-chat-timeline';
 import { agentChatToolArgumentEntries } from '../agent-chat-tool-argument-entries';
 
 const toolCall = (

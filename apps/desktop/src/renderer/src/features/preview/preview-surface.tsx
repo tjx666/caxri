@@ -211,19 +211,50 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
             ));
         }
         case 'pdf': {
-            return (
+            const external = parseExternalEditorTab(tab.path);
+            const suspense = (content: ReactNode) => (
                 <Suspense
                     fallback={
                         <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />
                     }
                 >
-                    <PdfPreview
-                        path={tab.path}
-                        sessionId={session.id}
-                        viewStateKey={viewStateKey}
-                        workbenchProjectId={session.workbenchProjectId}
-                    />
+                    {content}
                 </Suspense>
+            );
+            /**
+             * An external PDF has no Project file to read: its bytes come from Main under the grant the open created,
+             * keyed by the document's ID and folder. The cached document supplies the display path and, once its tab is
+             * gone, the closed-document recovery, as for external Markdown.
+             */
+            if (external)
+                return textSurface((document) =>
+                    document.displayPath
+                        ? suspense(
+                              <PdfPreview
+                                  path={tab.path}
+                                  sessionId={session.id}
+                                  viewStateKey={viewStateKey}
+                                  workbenchProjectId={session.workbenchProjectId}
+                                  external={{
+                                      documentId: external.documentId,
+                                      displayPath: document.displayPath,
+                                      directory:
+                                          document.displayPath.slice(
+                                              0,
+                                              document.displayPath.lastIndexOf('/'),
+                                          ) || '/',
+                                  }}
+                              />,
+                          )
+                        : null,
+                );
+            return suspense(
+                <PdfPreview
+                    path={tab.path}
+                    sessionId={session.id}
+                    viewStateKey={viewStateKey}
+                    workbenchProjectId={session.workbenchProjectId}
+                />,
             );
         }
     }

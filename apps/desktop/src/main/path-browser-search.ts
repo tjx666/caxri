@@ -1,5 +1,7 @@
 import { posix } from 'node:path';
 
+import { rankPathMatches } from '@caxri/utils';
+
 /**
  * One Project-wide file-name hit prepared for the path browser list: the file name the user recognizes plus the
  * Project-relative directory that disambiguates same-named files.
@@ -61,22 +63,6 @@ export function rememberProjectSearch(
 }
 
 /**
- * Server Core returns name-mode hits in path order because the Search view lists them that way. Quick-open needs
- * relevance instead, so the strongest signal is how the file name itself matched; a hit that only matched a directory
- * segment ranks below every name hit.
- */
-function nameScore(name: string, query: string): number {
-    const candidate = name.toLocaleLowerCase();
-    const needle = query.toLocaleLowerCase();
-    if (!needle || !candidate.includes(needle)) return 0;
-    if (candidate === needle) return 4;
-    const extension = posix.extname(candidate);
-    if (extension && candidate.slice(0, -extension.length) === needle) return 3;
-    if (candidate.startsWith(needle)) return 2;
-    return 1;
-}
-
-/**
  * Orders name-mode search hits for quick open and caps them at the snapshot's entry budget.
  *
  * Ties break toward the shallower path, then the shorter name, then a stable path comparison, so repeating the same
@@ -87,31 +73,13 @@ export function rankProjectSearchMatches(
     query: string,
     limit: number,
 ): RankedProjectMatch[] {
-    const ranked = matches.map((match) => {
-        const name = posix.basename(match.relativePath);
+    return rankPathMatches(matches, (match) => match.relativePath, query, limit).map((match) => {
         const directoryLabel = posix.dirname(match.relativePath);
         return {
             directoryLabel: directoryLabel === '.' ? '' : directoryLabel,
-            depth: match.relativePath.split('/').length,
-            name,
+            name: posix.basename(match.relativePath),
             path: match.path,
             relativePath: match.relativePath,
-            score: nameScore(name, query),
         };
     });
-    return ranked
-        .toSorted(
-            (left, right) =>
-                right.score - left.score ||
-                left.depth - right.depth ||
-                left.name.length - right.name.length ||
-                left.relativePath.localeCompare(right.relativePath),
-        )
-        .slice(0, limit)
-        .map(({ directoryLabel, name, path, relativePath }) => ({
-            directoryLabel,
-            name,
-            path,
-            relativePath,
-        }));
 }

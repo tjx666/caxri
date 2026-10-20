@@ -3,6 +3,7 @@ import {
     agentChatItemStatusLabel,
     agentChatWorkVerb,
     describeAgentChatWork,
+    describeAgentChatWorkRow,
     isAgentChatWorkRunning,
 } from '@caxri/protocol';
 
@@ -36,11 +37,18 @@ export interface AgentChatWorkRowPresentation {
     verb: string;
 }
 
+/**
+ * `hasServerIcon`: the row draws its MCP server's own icon, so the title is the tool alone (`Web search exa`) as on
+ * Desktop; without an icon the server's name stays in the title so the row still says which server answered.
+ */
 export function agentChatWorkRowPresentation(
     item: AgentChatWorkItem,
     t: Translate = translate,
+    hasServerIcon = false,
 ): AgentChatWorkRowPresentation {
-    const presentation = describeAgentChatWork(item, t);
+    const presentation = hasServerIcon
+        ? describeAgentChatWorkRow(item, t)
+        : describeAgentChatWork(item, t);
     const verb = agentChatWorkVerb(item, presentation, t);
     const isRunning = isAgentChatWorkRunning(item);
     const isSettledCommand = item.type === 'command' && !isRunning;

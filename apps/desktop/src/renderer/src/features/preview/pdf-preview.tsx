@@ -307,17 +307,24 @@ export function PdfPreview({
     sessionId,
     viewStateKey,
     workbenchProjectId,
+    external,
 }: {
     path: string;
     sessionId: string;
     viewStateKey: string;
     workbenchProjectId: string | undefined;
+    /**
+     * Set for a PDF opened from outside every Project: Main's grant for it and where it lives. Absent for a Project
+     * file.
+     */
+    external?: { directory: string; displayPath: string; documentId: string };
 }) {
     const { t } = useTranslation();
     const { state, isCheckingPassword, retry, submitPassword } = usePdfDocument(
         sessionId,
         workbenchProjectId,
         path,
+        external,
     );
     if (state.status === 'failed')
         return (

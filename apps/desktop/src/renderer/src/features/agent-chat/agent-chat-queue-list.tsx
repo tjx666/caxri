@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 import {
@@ -13,10 +14,13 @@ import {
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { cn } from '../../lib/utilities';
 import {
+    didSaveAgentChatQueuedText,
     editAgentChatQueued,
     removeAgentChatQueued,
     resumeAgentChatQueue,
@@ -26,6 +30,8 @@ import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { AgentChatQueueEntryView } from './agent-chat-queue';
 import {
     agentChatQueueCardLabels,
+    agentChatQueuedTextAfterEdit,
+    agentChatQueuedTextEdit,
     agentChatQueueEntries,
     agentChatQueueHeader,
 } from './agent-chat-queue';
@@ -35,6 +41,8 @@ import {
  * gets no pointer events in Chromium, so the tooltip that says why the action is unavailable would never open. Each
  * click handler refuses an unavailable action itself.
  */
+function noop(): void {}
+
 const ACTION_CLASS_NAME = 'text-muted not-aria-disabled:hover:text-foreground';
 
 /**
@@ -80,6 +88,86 @@ function QueueCardAction({
     );
 }
 
+/**
+ * Edits the text of a queued message that carries images, in its own row: the images stay on Server Core and cannot
+ * return to the composer, so the message is rewritten where it stands and the row says how many images ride with it.
+ * Enter saves and Escape cancels, like the other inline editors.
+ */
+function QueueTextEditor({
+    entry,
+    onClose,
+    terminalId,
+}: {
+    entry: AgentChatQueueEntryView;
+    onClose: () => void;
+    terminalId: string;
+}) {
+    const { t } = useTranslation();
+    const { prefix, body } = agentChatQueuedTextEdit(entry.text);
+    const [value, setValue] = useState(body);
+    const [isSaving, setIsSaving] = useState(false);
+    const imageCount = entry.imageCount;
+    const save = async (): Promise<void> => {
+        if (isSaving) return;
+        setIsSaving(true);
+        let isSaved: boolean;
+        try {
+            isSaved = await didSaveAgentChatQueuedText(
+                terminalId,
+                entry.id,
+                agentChatQueuedTextAfterEdit(prefix, value),
+            );
+        } finally {
+            setIsSaving(false);
+        }
+        if (isSaved) onClose();
+    };
+    return (
+        <li className="flex min-w-0 flex-col gap-1 rounded-md py-1 pr-1 pl-2 text-[12px] leading-5">
+            <Textarea
+                autoFocus
+                aria-label={t('agentChat.queue.editLabel')}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                onKeyDown={(event) => {
+                    if (isImeComposing(event)) return;
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        onClose();
+                    }
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
+                        void save();
+                    }
+                }}
+            />
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-muted">
+                    {imageCount === 1
+                        ? t('agentChat.queue.imagesAttachedOne')
+                        : t('agentChat.queue.imagesAttachedOther', { count: imageCount })}
+                </span>
+                <span className="flex gap-1.5">
+                    <Button size="sm" variant="ghost" onClick={onClose}>
+                        {t('common.cancel')}
+                    </Button>
+                    <Button
+                        aria-disabled={isSaving || (!value.trim() && imageCount === 0) || undefined}
+                        size="sm"
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
+                            void save();
+                        }}
+                    >
+                        {t('common.save')}
+                    </Button>
+                </span>
+            </div>
+        </li>
+    );
+}
+
 function QueueCard({
     entry,
     onAction,
@@ -94,6 +182,18 @@ function QueueCard({
     const { t } = useTranslation();
     const isPending = entry.isPending === true;
     const labels = agentChatQueueCardLabels(entry, t);
+    const [isEditingText, setIsEditingText] = useState(false);
+    if (isEditingText)
+        return (
+            <QueueTextEditor
+                entry={entry}
+                terminalId={terminalId}
+                onClose={() => {
+                    setIsEditingText(false);
+                    onAction();
+                }}
+            />
+        );
     return (
         <li
             aria-busy={isPending}
@@ -120,8 +220,13 @@ function QueueCard({
                 isDisabled={!entry.canEdit}
                 size="icon"
                 tooltip={labels.editTooltip}
-                onAction={onAction}
+                // A message with images is edited in its row, which keeps focus there until it closes.
+                onAction={entry.imageCount > 0 ? noop : onAction}
                 onRun={() => {
+                    if (entry.imageCount > 0) {
+                        setIsEditingText(true);
+                        return;
+                    }
                     // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
                     void editAgentChatQueued(terminalId, entry.id, onEdit);
                 }}

@@ -8,7 +8,7 @@ import type {
     SessionRecord,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
+import { logEventCatalog, mapWithConcurrency, SingleFlight } from '@caxri/system';
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
@@ -26,7 +26,6 @@ import {
 import type { GitService } from '../git';
 import type { SessionTranscriptContext } from '../session';
 import { SessionContextService } from '../session';
-import { SingleFlight } from '../single-flight';
 import { withSessionDeployment } from './session-pull-request-deployment';
 import type { SessionPullRequestResolution } from './session-pull-request-parse';
 import {

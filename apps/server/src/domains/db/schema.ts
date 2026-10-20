@@ -297,6 +297,7 @@ export const terminals = sqliteTable(
          * 1 while a Chat's plan mode is on; null or 0 otherwise.
          */
         chatPlanMode: integer('chat_plan_mode'),
+        agentResumeAt: text('agent_resume_at'),
     },
     (table) => [
         /**

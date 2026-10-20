@@ -14,6 +14,17 @@ const MAX_AGENT_CHAT_ARCHIVE_ITEMS = 20_000;
 const MAX_AGENT_CHAT_ARCHIVE_TEXT_LENGTH = 32 * 1024 * 1024;
 
 /**
+ * Bounds of a subagent task's archive. A Chat keeps up to 20 task projections, so each gets a smaller share than the
+ * Chat's own archive.
+ */
+export const TASK_ARCHIVE_LIMITS = { maxItems: 5000, maxTextLength: 8 * 1024 * 1024 } as const;
+
+export interface ChatHistoryArchiveLimits {
+    maxItems: number;
+    maxTextLength: number;
+}
+
+/**
  * Items older than a cursor, oldest first, with the turns they belong to.
  */
 export interface ChatHistorySlice {
@@ -73,12 +84,19 @@ export class ChatHistoryArchive {
      */
     isIncomplete = false;
 
+    constructor(
+        private readonly limits: ChatHistoryArchiveLimits = {
+            maxItems: MAX_AGENT_CHAT_ARCHIVE_ITEMS,
+            maxTextLength: MAX_AGENT_CHAT_ARCHIVE_TEXT_LENGTH,
+        },
+    ) {}
+
     private enforceBudget(): void {
         let drop = 0;
         while (
             drop < this.items.length - 1 &&
-            (this.items.length - drop > MAX_AGENT_CHAT_ARCHIVE_ITEMS ||
-                this.textLength > MAX_AGENT_CHAT_ARCHIVE_TEXT_LENGTH)
+            (this.items.length - drop > this.limits.maxItems ||
+                this.textLength > this.limits.maxTextLength)
         ) {
             const item = this.items[drop];
             this.textLength -= agentChatItemTextLength(item);
@@ -117,14 +135,17 @@ export class ChatHistoryArchive {
      * Records what one operation evicted from the projection: `before` is the snapshot it applied to, `after` the
      * result. Eviction only ever drops a prefix of `before.items`.
      */
-    recordEviction(before: AgentChatSnapshot, after: AgentChatSnapshot): readonly AgentChatItem[] {
+    recordEviction(
+        before: Pick<AgentChatSnapshot, 'items'> & { turns?: readonly AgentChatTurn[] },
+        after: Pick<AgentChatSnapshot, 'items'>,
+    ): readonly AgentChatItem[] {
         if (after.items === before.items || before.items.length === 0) return [];
         const first = after.items.at(0);
         if (first?.id === before.items.at(0)?.id) return [];
         const kept = first ? before.items.findIndex((item) => item.id === first.id) : -1;
         const evicted = before.items.slice(0, kept === -1 ? before.items.length : kept);
         if (evicted.length === 0) return [];
-        const turnOf = new Map(before.turns.map((turn) => [turn.id, turn]));
+        const turnOf = new Map((before.turns ?? []).map((turn) => [turn.id, turn]));
         for (const item of evicted) {
             this.items.push(item);
             this.textLength += agentChatItemTextLength(item);

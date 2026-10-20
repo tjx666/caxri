@@ -9,6 +9,8 @@ export type {
     SpawnChatProcess,
 } from './chat-provider';
 export { AgentChatStartError } from './chat-provider';
+export { chatStateStore } from './chat-state-store';
 export { createAgentChatHandlers } from './handlers';
-export { ProviderProcess } from './provider-process';
+export { ProviderProcess, reapGroup } from './provider-process';
+export { reapStaleProviderGroups } from './provider-process-groups';
 export { AgentChatService } from './service';

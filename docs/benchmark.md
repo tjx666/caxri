@@ -38,6 +38,8 @@ finishes it shows:
 
 **Run again** copies a finished run's settings into the New run form. Past runs stay in the left column until deleted.
 
+**Share** (beside Run again, once a run has results) exports a share card: the prompt summary, the scatter chart, the top five leaderboard rows, the date, the judge model, and a "Made with Caxri" credit, drawn in the current theme at 2x. Choose **Copy image** to put it on the clipboard or **Save as PNG** for the native save dialog. The card is rasterized in the window and nothing is uploaded.
+
 ## The window
 
 Like the [Agent Commander](agent-commander.md), the Benchmark window is a companion window: it shares the Workbench

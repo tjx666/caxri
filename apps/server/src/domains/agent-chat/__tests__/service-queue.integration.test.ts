@@ -141,6 +141,34 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
         await service.interrupt(terminal.id);
     });
 
+    it('restores a deleted queued message in its place, and edits its text in place', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello one' });
+        await service.send(terminal.id, { text: 'hello two' });
+        await service.send(terminal.id, { text: 'hello three' });
+        const queued = await until((snapshot) => snapshot.queue?.length === 3);
+        const [oneId = '', twoId = ''] = queued.queue?.map((entry) => entry.id) ?? [];
+
+        service.removeQueued(terminal.id, twoId);
+        expect(service.read(terminal.id).queue?.map((entry) => entry.text)).toEqual([
+            'hello one',
+            'hello three',
+        ]);
+        service.restoreQueued(terminal.id, twoId);
+        service.editQueued(terminal.id, oneId, 'hello one edited');
+        expect(service.read(terminal.id).queue?.map((entry) => entry.text)).toEqual([
+            'hello one edited',
+            'hello two',
+            'hello three',
+        ]);
+        expect(() => service.restoreQueued(terminal.id, twoId)).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+        await service.interrupt(terminal.id);
+    });
+
     it('keeps a queued message in place when sending it now fails', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'slow please' });

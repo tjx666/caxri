@@ -4,6 +4,7 @@ import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 import type * as PdfViewerModule from 'pdfjs-dist/web/pdf_viewer.mjs';
 
 import { openExternalUrl } from '../../lib/external-link';
+import { retryableLoader } from '../../lib/retryable-loader';
 import { pushToast } from '../../stores/toasts';
 import { InlinePdfBinaryDataFactory } from './pdf-binary-data';
 import type { PdfFindResult, PdfFindStep } from './pdf-find';
@@ -33,8 +34,11 @@ export interface PdfRestoredView {
 
 const shared = {
     worker: undefined as pdfjs.PDFWorker | undefined,
-    viewerModule: undefined as Promise<typeof PdfViewerModule> | undefined,
 };
+
+const importViewerModule = retryableLoader(
+    (): Promise<typeof PdfViewerModule> => import('pdfjs-dist/web/pdf_viewer.mjs'),
+);
 
 /**
  * The viewer components read the core library from `globalThis.pdfjsLib` when their module evaluates instead of
@@ -43,8 +47,7 @@ const shared = {
 function loadViewerModule(): Promise<typeof PdfViewerModule> {
     // eslint-disable-next-line unicorn/no-global-object-property-assignment -- pdf.js's viewer reads this global, see above
     (globalThis as { pdfjsLib?: unknown }).pdfjsLib ??= pdfjs;
-    shared.viewerModule ??= import('pdfjs-dist/web/pdf_viewer.mjs');
-    return shared.viewerModule;
+    return importViewerModule();
 }
 
 /**

@@ -67,3 +67,25 @@ describe('agentChatWorkRowPresentation', () => {
         expect(row.failedExitCode).toBe(undefined);
     });
 });
+
+describe('agentChatWorkRowPresentation for MCP tool calls', () => {
+    const mcpCall: AgentChatWorkItem = {
+        id: 'm1',
+        turnId: 't1',
+        type: 'toolCall',
+        name: 'exa/web_search_exa',
+        status: 'completed',
+    };
+
+    it('keeps the server name in the title while the row has no server icon', () => {
+        const row = agentChatWorkRowPresentation(mcpCall);
+        expect(row.kind).toBe('mcp');
+        expect(`${row.verb} ${row.subject ?? ''}`).toContain('exa');
+    });
+
+    it('titles the row by the tool alone once the server icon shows, as Desktop does', () => {
+        const row = agentChatWorkRowPresentation(mcpCall, undefined, true);
+        expect(row).toMatchObject({ kind: 'mcp', verb: 'Web search exa' });
+        expect(row.subject).toBeUndefined();
+    });
+});

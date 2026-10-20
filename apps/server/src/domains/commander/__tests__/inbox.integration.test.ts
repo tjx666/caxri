@@ -357,14 +357,17 @@ describe('commander inbox migration', () => {
         database.close();
         const raw = new Database(databasePath);
         raw.exec('DROP TABLE commander_inbox_replies; DROP TABLE commander_inbox_items');
-        // `0006_chat_permission_modes`, `0007_benchmark_runs`, and `0008_session_creator` came after the Inbox, so that
-        // version predates them too.
+        // `0006_chat_permission_modes`, `0007_benchmark_runs`, `0008_session_creator`, and `0009_agent_chat_persistence`
+        // came after the Inbox, so that version predates them too.
         raw.exec(
             'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
         );
         raw.exec('DROP TABLE benchmark_runs');
         raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 4}`);
+        raw.exec(
+            'DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
+        );
+        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 5}`);
         raw.close();
 
         const upgraded = new CaxriDatabase(databasePath);

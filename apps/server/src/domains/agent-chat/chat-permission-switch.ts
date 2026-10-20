@@ -4,6 +4,7 @@ import type {
     AgentProvider,
 } from '@caxri/protocol';
 import { CaxriError, resolveAgentChatPermissionChange } from '@caxri/protocol';
+import { KeyedSerialQueue } from '@caxri/system';
 
 import { requireChatTerminal } from './chat-launch';
 import { chatPermissionState } from './chat-permissions';
@@ -40,7 +41,7 @@ export interface ChatPermissionSwitchHost {
  * Input already in the chain still runs first; a second switch waits for the first.
  */
 export class ChatPermissionSwitches {
-    private readonly pending = new Map<string, Promise<unknown>>();
+    private readonly pending = new KeyedSerialQueue<string>();
 
     constructor(private readonly host: ChatPermissionSwitchHost) {}
 
@@ -48,25 +49,16 @@ export class ChatPermissionSwitches {
      * Switches the Chat's permission; see {@link switchChatPermission}.
      */
     async switch(terminalId: string, request: AgentChatPermissionRequest): Promise<void> {
-        const previous = this.pending.get(terminalId);
-        const switching = (async () => {
-            if (previous) await Promise.allSettled([previous]);
-            await switchChatPermission(this.host, terminalId, request);
-        })();
-        this.pending.set(terminalId, switching);
-        try {
-            await switching;
-        } finally {
-            if (this.pending.get(terminalId) === switching) this.pending.delete(terminalId);
-        }
+        await this.pending.run(terminalId, () =>
+            switchChatPermission(this.host, terminalId, request),
+        );
     }
 
     /**
      * Waits for the Chat's pending switch, whether it succeeded or failed.
      */
     async settled(terminalId: string): Promise<void> {
-        const switching = this.pending.get(terminalId);
-        if (switching) await Promise.allSettled([switching]);
+        await this.pending.settled(terminalId);
     }
 }
 

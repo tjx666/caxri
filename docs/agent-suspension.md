@@ -59,6 +59,19 @@ or resolution) reopens it, so a long command started after that Escape keeps the
 such a signal arrives, only the idle window protects the Agent. That gap is deliberate: an Escape
 followed by no hook at all looks the same as a real interrupt, which must still release the Agent.
 
+A hook can also lag the Escape: a provider's `PostToolBatch` or `PostToolUse` runs through a bridge
+process and a socket, while the Escape travels Core's input channel directly, so Core may see the
+Escape first and the interrupted turn's own last hook second. A real interrupt sends no `Stop`, so
+reopening on that straggler would hold the Agent awake forever. A main-turn mid-turn signal that
+arrives within 2 seconds after the interrupt (`LATE_MID_TURN_SIGNAL_WINDOW_MS` in
+`lifecycle-watchdogs.ts`, shared with the Commander completion notifier) therefore does not reopen
+the turn; the same signal after the window still does. An Agent Endpoint `SIGINT` takes the same
+path as the Escape: it clears the in-flight marker (and the Commander's `interrupted_turn` mark) and
+starts the same window. The 2 second value is an estimate: the real Claude and Codex timing of hooks
+after an interrupt has not been measured yet (it needs the `debug` skill's controlled real-Agent
+procedure, recording only hook names and timestamps), so whether these providers emit such late
+hooks at all is unconfirmed.
+
 An unread completion does not block suspension. The final screen is captured before the process
 stops, so the output the user has not read yet is still on the tab when they come back.
 

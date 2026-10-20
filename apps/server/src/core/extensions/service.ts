@@ -11,9 +11,8 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, extensionCommandResult, isExtensionViewReadOperation } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, SingleFlight } from '@caxri/system';
 
-import { SingleFlight } from '../../domains/single-flight';
 import type {
     ExtensionHostApiRequest,
     ExtensionHostRegistration,

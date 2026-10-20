@@ -41,7 +41,8 @@ Every path that registers a Project is one of these authorities; a new one belon
 - The external-caller delegation bootstrap: the profile owner's confirmed
   `caxri agent delegate access create --root <path> --register-project`. Server Core
   (`agent.delegation.access.bootstrap`, `apps/server/src/domains/db/delegation-context.ts`)
-  canonicalizes the root, reuses an existing Project for that exact root or creates an ordinary,
+  canonicalizes the root, reuses an existing Project for that exact root (un-hiding it if the user
+  hid it, so the delegated Session is visible) or creates an ordinary,
   visible Project only when `--register-project` is set, rejects a non-top-level (worktree) Project,
   and creates or reuses a dedicated Session in the same transaction without changing the Desktop's
   selection; see [external callers](../../../../docs/agent-delegation.md#external-callers-and-directory-authorization).

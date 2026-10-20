@@ -201,7 +201,7 @@ describe('readAssetBytes', () => {
         });
 
         const bytes = await readAssetBytes(
-            'session-1',
+            { sessionId: 'session-1' },
             '/p/manual.pdf',
             new AbortController().signal,
         );
@@ -211,7 +211,44 @@ describe('readAssetBytes', () => {
             sessionId: 'session-1',
             path: '/p/manual.pdf',
         });
-        await readAssetBytes('session-1', '/p/manual.pdf', new AbortController().signal);
+        await readAssetBytes(
+            { sessionId: 'session-1' },
+            '/p/manual.pdf',
+            new AbortController().signal,
+        );
         expect(request).toHaveBeenCalledTimes(2);
+    });
+
+    it('reads an external document through its grant, relative to the document folder', async () => {
+        request.mockReset();
+        request.mockResolvedValue({
+            path: '/tmp/docs/manual.pdf',
+            mediaType: 'application/pdf',
+            base64: btoa('%PDF-1.7'),
+            size: 8,
+        });
+
+        await readAssetBytes(
+            { externalDocumentId: 'doc-1', directory: '/tmp/docs' },
+            '/tmp/docs/manual.pdf',
+            new AbortController().signal,
+        );
+
+        expect(request).toHaveBeenCalledWith('externalDocument.readAsset', {
+            documentId: 'doc-1',
+            path: 'manual.pdf',
+        });
+    });
+
+    it('refuses a path outside the external document folder before any request', async () => {
+        request.mockReset();
+        await expect(
+            readAssetBytes(
+                { externalDocumentId: 'doc-1', directory: '/tmp/docs' },
+                '/tmp/other/manual.pdf',
+                new AbortController().signal,
+            ),
+        ).rejects.toThrow('outside the document folder');
+        expect(request).not.toHaveBeenCalled();
     });
 });

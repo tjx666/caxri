@@ -57,6 +57,10 @@ interface CreateAgentRuntimeOptions {
      */
     onLifecycleSignal?: (signal: AgentLifecycleSignal) => void;
     onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
+    /**
+     * A delivered `SIGINT` interrupted a launch's turn; see `AgentCoordinatorOptions.onSignalInterrupt`.
+     */
+    onSignalInterrupt?: (terminalId: string) => void;
     send: (event: ServerEvent) => void;
     userDataPath: string;
     watchHub: WatchHub;
@@ -103,6 +107,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             namingState.service?.observe(signal);
             options.onLifecycleApplied?.(signal);
         },
+        onSignalInterrupt: options.onSignalInterrupt,
         refreshDelayMs: dependencies.agentRefreshDelayMs,
         unknownRecoveryMs: dependencies.agentUnknownRecoveryMs,
     });

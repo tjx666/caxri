@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { memo, use, useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -54,60 +55,81 @@ const ConversationAgentMessage = ({
     theme: MobileTheme;
 }) => <ConversationMarkdown text={useConversationPacedText(text, isStreaming)} theme={theme} />;
 
-export const ConversationEntry = memo(({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
-    const { t } = useTranslation();
-    const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
-    const renderUserAttachments = use(ConversationUserAttachments);
-    if (entry.type === 'turnBoundary') {
-        const divider = conversationTurnDivider(entry, t);
-        return (
-            <ConversationTurnDivider
-                label={divider.label}
-                testID={`conversation-turn-${entry.id}`}
-                theme={theme}
-                tone={divider.tone}
-            />
-        );
-    }
-    if (entry.type === 'userMessage')
-        return (
-            <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>
-                {renderUserAttachments?.(entry.id)}
-                {entry.text.length > 0 ? (
-                    <View style={[styles.userBubble, { backgroundColor: theme.surface }]}>
-                        <Text selectable style={[styles.userText, { color: theme.text }]}>
-                            {entry.text}
-                        </Text>
-                    </View>
-                ) : null}
-            </View>
-        );
-    if (entry.type === 'systemEvent')
-        return <ConversationSystemEvent event={entry} theme={theme} />;
-    if (entry.type === 'agentMessage')
-        return (
-            <View style={styles.message} testID={`conversation-agent-${entry.id}`}>
-                <ConversationAgentMessage
-                    isStreaming={entry.streaming === true}
-                    text={entry.text}
+export const ConversationEntry = memo(
+    ({
+        entry,
+        theme,
+        userExtras,
+    }: {
+        entry: Entry;
+        theme: MobileTheme;
+        /**
+         * Drawn between a user message's attachments and its bubble, such as the files an Agent Chat message cites.
+         */
+        userExtras?: ReactNode;
+    }) => {
+        const { t } = useTranslation();
+        const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
+        const renderUserAttachments = use(ConversationUserAttachments);
+        if (entry.type === 'turnBoundary') {
+            const divider = conversationTurnDivider(entry, t);
+            return (
+                <ConversationTurnDivider
+                    label={divider.label}
+                    testID={`conversation-turn-${entry.id}`}
                     theme={theme}
+                    tone={divider.tone}
+                />
+            );
+        }
+        if (entry.type === 'userMessage')
+            return (
+                <View
+                    style={[styles.message, styles.userRow]}
+                    testID={`conversation-user-${entry.id}`}
+                >
+                    {renderUserAttachments?.(entry.id)}
+                    {userExtras}
+                    {entry.text.length > 0 ? (
+                        <View style={[styles.userBubble, { backgroundColor: theme.surface }]}>
+                            <Text selectable style={[styles.userText, { color: theme.text }]}>
+                                {entry.text}
+                            </Text>
+                        </View>
+                    ) : null}
+                </View>
+            );
+        if (entry.type === 'systemEvent')
+            return <ConversationSystemEvent event={entry} theme={theme} />;
+        if (entry.type === 'agentMessage')
+            return (
+                <View style={styles.message} testID={`conversation-agent-${entry.id}`}>
+                    <ConversationAgentMessage
+                        isStreaming={entry.streaming === true}
+                        text={entry.text}
+                        theme={theme}
+                    />
+                </View>
+            );
+        return (
+            <View style={styles.message}>
+                {entry.type === 'toolCall' ? (
+                    <View style={[styles.toolGroup, { borderColor: theme.border }]}>
+                        <ConversationToolRow onPress={setSelectedTool} theme={theme} tool={entry} />
+                    </View>
+                ) : (
+                    <ConversationToolGroup
+                        group={entry}
+                        onToolPress={setSelectedTool}
+                        theme={theme}
+                    />
+                )}
+                <ConversationToolDetail
+                    onClose={() => setSelectedTool(null)}
+                    theme={theme}
+                    tool={selectedTool}
                 />
             </View>
         );
-    return (
-        <View style={styles.message}>
-            {entry.type === 'toolCall' ? (
-                <View style={[styles.toolGroup, { borderColor: theme.border }]}>
-                    <ConversationToolRow onPress={setSelectedTool} theme={theme} tool={entry} />
-                </View>
-            ) : (
-                <ConversationToolGroup group={entry} onToolPress={setSelectedTool} theme={theme} />
-            )}
-            <ConversationToolDetail
-                onClose={() => setSelectedTool(null)}
-                theme={theme}
-                tool={selectedTool}
-            />
-        </View>
-    );
-});
+    },
+);

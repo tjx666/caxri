@@ -7,7 +7,7 @@ import {
     agentChatEditedFilesStat,
     projectDisplayPath,
 } from '@caxri/protocol';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
@@ -15,13 +15,14 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
+import { pushToast } from '../../stores/toasts';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatDiff } from './agent-chat-file-changes';
 import {
     AgentChatReviewCommentCard,
     AgentChatReviewCommentNote,
 } from './agent-chat-review-comment-card';
-import { revealAgentChat } from './agent-chat-task-opener';
+import { revealAgentChat, revealAgentChatAndSend } from './agent-chat-task-opener';
 import { collectAgentChatTurnReview } from './agent-chat-turn-review';
 import { useAgentChatReviewComments } from './hooks/use-agent-chat-review-comments';
 
@@ -81,27 +82,50 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
     const stat = agentChatEditedFilesStat(files.map(({ file }) => file));
     return (
         <div className="flex h-full min-h-0 flex-col bg-background" data-agent-chat-turn-review="">
-            <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
-                <div className="min-w-0 flex-1">
-                    <h2 className="m-0 text-[13px] leading-5 font-semibold text-foreground">
+            <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-2">
+                <div className="min-w-fit flex-1">
+                    <h2 className="m-0 truncate text-[13px] leading-5 font-semibold text-foreground">
                         {t('agentChat.review.title')}
                     </h2>
-                    <p className="m-0 flex items-center gap-2 text-[11px] leading-4 text-muted">
+                    {/* The pending comment count shares the summary line; a pane too narrow for it and the buttons wraps them below. */}
+                    <p className="m-0 flex items-center gap-2 text-[11px] leading-4 whitespace-nowrap text-muted">
                         {files.length === 1
                             ? t('agentChat.review.fileCountOne')
                             : t('agentChat.review.fileCountOther', { count: files.length })}
                         <DiffStat additions={stat.additions} deletions={stat.deletions} />
+                        {comments.pendingCount > 0 && (
+                            <span>
+                                {comments.pendingCount === 1
+                                    ? t('agentChat.review.pendingCommentsOne')
+                                    : t('agentChat.review.pendingCommentsOther', {
+                                          count: comments.pendingCount,
+                                      })}
+                            </span>
+                        )}
                     </p>
                 </div>
-                <Button
-                    className="shrink-0 gap-1 text-[12px]"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => revealAgentChat(terminalId)}
-                >
-                    <ArrowLeft aria-hidden="true" className="size-3.5" />
-                    {t('agentChat.review.backToChat')}
-                </Button>
+                {/* One group, so a narrow pane moves both buttons to the next row together, still right-aligned. */}
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                    <Button
+                        className="shrink-0 gap-1 text-[12px]"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => revealAgentChat(terminalId)}
+                    >
+                        <ArrowLeft aria-hidden="true" className="size-3.5" />
+                        {t('agentChat.review.backToChat')}
+                    </Button>
+                    {comments.pendingCount > 0 && (
+                        <Button
+                            className="shrink-0 gap-1 text-[12px]"
+                            size="sm"
+                            onClick={() => revealAgentChatAndSend(terminalId)}
+                        >
+                            <Send aria-hidden="true" className="size-3.5" />
+                            {t('agentChat.review.backToChatAndSend')}
+                        </Button>
+                    )}
+                </div>
             </header>
             <div className="min-h-0 flex-1 overflow-auto">
                 {files.map(({ file, lines }) => {
@@ -138,12 +162,52 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
                                         <>
                                             {added
                                                 .filter((entry) => entry.range.end === index)
-                                                .map((entry) => (
-                                                    <AgentChatReviewCommentNote
-                                                        comment={entry.comment}
-                                                        key={entry.id}
-                                                    />
-                                                ))}
+                                                .map((entry) =>
+                                                    comments.editing?.id === entry.id ? (
+                                                        <AgentChatReviewCommentCard
+                                                            isEditing
+                                                            key={entry.id}
+                                                            lineCount={
+                                                                entry.range.end -
+                                                                entry.range.start +
+                                                                1
+                                                            }
+                                                            text={comments.editing.text}
+                                                            onAdd={comments.saveEdit}
+                                                            onCancel={comments.cancelEdit}
+                                                            onChange={comments.writeEdit}
+                                                        />
+                                                    ) : (
+                                                        <AgentChatReviewCommentNote
+                                                            comment={entry.comment}
+                                                            key={entry.id}
+                                                            onEdit={() =>
+                                                                comments.beginEdit(entry.id)
+                                                            }
+                                                            onRemove={() => {
+                                                                const restoreId = comments.remove(
+                                                                    entry.id,
+                                                                );
+                                                                if (restoreId)
+                                                                    pushToast(
+                                                                        'info',
+                                                                        t(
+                                                                            'agentChat.review.commentRemoved',
+                                                                        ),
+                                                                        {
+                                                                            history: false,
+                                                                            action: {
+                                                                                id: 'agentChat.restoreReviewComment',
+                                                                                params: {
+                                                                                    restoreId,
+                                                                                },
+                                                                            },
+                                                                        },
+                                                                    );
+                                                            }}
+                                                        />
+                                                    ),
+                                                )}
                                             {draft?.range.end === index && (
                                                 <AgentChatReviewCommentCard
                                                     lineCount={

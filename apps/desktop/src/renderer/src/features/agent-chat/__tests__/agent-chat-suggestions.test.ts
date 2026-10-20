@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatSelectionCaret,
-    agentChatSessionEmptyText,
     agentChatSessionPreparingText,
     agentChatSessionSuggestions,
     agentChatSuggestionFooter,
@@ -56,9 +55,7 @@ describe('Agent Chat suggestion list copy', () => {
         expect(agentChatSuggestionFooter('sessions', false)).toBe('Esc to dismiss');
     });
 
-    it('explains an empty @ list and the reference being prepared', () => {
-        expect(agentChatSessionEmptyText('relese')).toBe('No Sessions match');
-        expect(agentChatSessionEmptyText('')).toBe('No other Sessions to cite');
+    it('names the Session whose reference is being prepared', () => {
         expect(agentChatSessionPreparingText('Fix login')).toBe('Preparing “Fix login”…');
     });
 });

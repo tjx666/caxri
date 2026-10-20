@@ -22,12 +22,15 @@ export function createAgentChatHandlers(
     | 'agentChat.configure'
     | 'agentChat.fork'
     | 'agentChat.interrupt'
+    | 'agentChat.previewRestoreFiles'
     | 'agentChat.read'
     | 'agentChat.readContext'
     | 'agentChat.readHistory'
     | 'agentChat.readImage'
     | 'agentChat.readTask'
+    | 'agentChat.editQueued'
     | 'agentChat.removeQueued'
+    | 'agentChat.restoreQueued'
     | 'agentChat.respond'
     | 'agentChat.resumeQueue'
     | 'agentChat.rewind'
@@ -70,6 +73,8 @@ export function createAgentChatHandlers(
                     return { sessionId: created.session.id, terminalId: created.terminal!.id };
                 },
             ),
+        'agentChat.previewRestoreFiles': ({ terminalId, itemId }) =>
+            agentChat.previewRestoreFiles(terminalId, itemId),
         'agentChat.restoreFiles': async ({ terminalId, itemId }) => {
             await agentChat.restoreFiles(terminalId, itemId);
             return null;
@@ -118,8 +123,8 @@ export function createAgentChatHandlers(
         },
         'agentChat.readImage': ({ terminalId, itemId, index }) =>
             readChatImage(records, terminalId, itemId, index),
-        'agentChat.readHistory': ({ terminalId, beforeItemId }) =>
-            agentChat.readHistory(terminalId, beforeItemId),
+        'agentChat.readHistory': ({ terminalId, beforeItemId, taskId }) =>
+            agentChat.readHistory(terminalId, beforeItemId, taskId),
         'agentChat.readTask': ({ terminalId, taskId }) => agentChat.readTask(terminalId, taskId),
         'agentChat.readContext': ({ terminalId }) => agentChat.readContext(terminalId),
         'agentChat.stopTask': async ({ terminalId, taskId }) => {
@@ -128,6 +133,14 @@ export function createAgentChatHandlers(
         },
         'agentChat.removeQueued': ({ terminalId, id }) => {
             agentChat.removeQueued(terminalId, id);
+            return null;
+        },
+        'agentChat.restoreQueued': ({ terminalId, id }) => {
+            agentChat.restoreQueued(terminalId, id);
+            return null;
+        },
+        'agentChat.editQueued': ({ terminalId, id, text }) => {
+            agentChat.editQueued(terminalId, id, text);
             return null;
         },
         'agentChat.takeQueued': ({ terminalId, id }) => agentChat.takeQueued(terminalId, id),

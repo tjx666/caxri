@@ -256,6 +256,36 @@ describe('files an external document refers to', () => {
         );
     });
 
+    it('registers an external PDF without a text read and serves its bytes under that grant', async () => {
+        const bytes = Buffer.from([
+            0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a, 0x00, 0xff,
+        ]);
+        const { directory } = await externalFile();
+        await writeFile(join(directory, 'manual.pdf'), bytes);
+
+        const document = await readExternalFileSnapshot(join(directory, 'manual.pdf'));
+        expect(document).toMatchObject({ name: 'manual.pdf', content: '', size: bytes.byteLength });
+
+        const asset = await readExternalDocumentAsset(document.id, 'manual.pdf');
+        expect(asset.mediaType).toBe('application/pdf');
+        expect(Buffer.from(asset.base64, 'base64')).toEqual(bytes);
+    });
+
+    it('still refuses a PDF outside the grant or through an ID Main never issued', async () => {
+        const { directory, document } = await externalFile();
+        const outside = await mkdtemp(join(tmpdir(), 'caxri-external-outside-'));
+        created.push(outside);
+        await writeFile(join(outside, 'secret.pdf'), '%PDF-1.7');
+
+        await expect(
+            readExternalDocumentAsset(document.id, `../${outside.split('/').at(-1)}/secret.pdf`),
+        ).rejects.toThrow(/outside the document folder/);
+        await expect(readExternalDocumentAsset('unissued-id', 'manual.pdf')).rejects.toThrow(
+            /no longer available/,
+        );
+        expect(directory).toBeTruthy();
+    });
+
     it('opens a linked document in the same folder as another external document', async () => {
         const { directory, document } = await externalFile();
         await writeFile(join(directory, 'next.md'), '# Next\n', 'utf8');

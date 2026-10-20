@@ -8,6 +8,7 @@ import type { PdfFailure, PdfPasswordPrompt } from '../pdf-failure';
 import { describePdfFailure, pdfPasswordPrompt } from '../pdf-failure';
 import type { PdfReadCause, PdfSettledRead } from '../pdf-reload';
 import { PDF_FAILURE_CONFIRM_MS, pdfReadFailureAction, shownPdfRead } from '../pdf-reload';
+import type { PreviewAssetSource } from '../preview-asset-client';
 import { readAssetBytes } from '../preview-asset-client';
 import { usePreviewSourceRevision } from './use-preview-source-revision';
 
@@ -36,11 +37,12 @@ interface PdfReadRequest {
 type SettledRead = PdfSettledRead<PdfDocumentState> & { task?: PDFDocumentLoadingTask };
 
 /**
- * Reads a PDF through `files.readAsset` and parses it when the tab opens, on Retry, and again whenever the file is
- * rewritten on disk (`usePreviewSourceRevision`). A reload the disk caused keeps the previous document on screen until
- * the new one parses (see `shownPdfRead`), and confirms a failed read once before showing it (see
- * `pdfReadFailureAction`). A protected PDF settles as the password form; `submitPassword` reads the file again with the
- * password, keeping the form on screen until pdf.js accepts or rejects it.
+ * Reads a PDF through `files.readAsset` (or, for an external document, `externalDocument.readAsset`) and parses it when
+ * the tab opens, on Retry, and again whenever the file is rewritten on disk (`usePreviewSourceRevision`). A reload the
+ * disk caused keeps the previous document on screen until the new one parses (see `shownPdfRead`), and confirms a
+ * failed read once before showing it (see `pdfReadFailureAction`). A protected PDF settles as the password form;
+ * `submitPassword` reads the file again with the password, keeping the form on screen until pdf.js accepts or rejects
+ * it.
  *
  * The hook owns every document it parses. The settled one lives until a later read settles or the view unmounts, which
  * is what lets a reload keep showing it; a read still in flight when it is superseded is aborted, and a document it
@@ -50,6 +52,7 @@ export function usePdfDocument(
     sessionId: string,
     workbenchProjectId: string | undefined,
     path: string,
+    external?: { directory: string; displayPath: string; documentId: string },
 ): {
     state: PdfDocumentState;
     /**
@@ -60,6 +63,9 @@ export function usePdfDocument(
     submitPassword: (password: string) => void;
 } {
     const source = `${sessionId}\0${path}`;
+    const externalDocumentId = external?.documentId;
+    const externalDirectory = external?.directory;
+    const readPath = external?.displayPath ?? path;
     const [request, setRequest] = useState<PdfReadRequest>({ id: 0, cause: 'open' });
     const [settled, setSettled] = useState<SettledRead>();
     // A rewrite on disk starts a `disk` read. Reset during render, so the read starts in the commit that saw the change.
@@ -100,7 +106,11 @@ export function usePdfDocument(
         };
         const open = async (): Promise<void> => {
             try {
-                const bytes = await readAssetBytes(sessionId, path, controller.signal);
+                const assetSource: PreviewAssetSource =
+                    externalDocumentId !== undefined && externalDirectory !== undefined
+                        ? { externalDocumentId, directory: externalDirectory }
+                        : { sessionId };
+                const bytes = await readAssetBytes(assetSource, readPath, controller.signal);
                 if (isSuperseded()) return;
                 task = loadPdfDocument(
                     bytes,
@@ -135,7 +145,7 @@ export function usePdfDocument(
             // eslint-disable-next-line no-void -- teardown has nothing to report; a destroyed task cannot fail usefully
             if (!isAdopted) void task?.destroy();
         };
-    }, [path, request, sessionId, source]);
+    }, [externalDirectory, externalDocumentId, path, readPath, request, sessionId, source]);
 
     /**
      * The settled document is released when a later read replaces it (a reload, a failure, another file) or when the

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommanderCompletionNotifier } from '../completion-notice';
 import { classifyCommanderCompletionNotice } from '../completion-notice-contract';
 import { formatCommanderResumePrompt } from '../notice-text';
+import { MAX_NOTIFIED_REVISIONS } from '../notified-revisions';
 import type { Fixture } from './completion-notice.fixture';
 import {
     COMMANDER_TERMINAL_ID,
@@ -374,6 +375,20 @@ describe('CommanderCompletionNotifier', () => {
         });
         restarted.notifyReceiptChanged(receipt({ status: 'completed', revision: 3 }));
         expect(f.notices.list().filter((notice) => notice.kind === 'delegation')).toHaveLength(1);
+    });
+
+    it('bounds the remembered notified revisions and evicts the least recently notified delegation (#1803)', () => {
+        const remembered = () =>
+            (f.notifier as unknown as { notifiedRevisions: Map<string, number> }).notifiedRevisions;
+        const cap = MAX_NOTIFIED_REVISIONS;
+        for (let index = 0; index < cap + 20; index++)
+            f.notifier.notifyReceiptChanged(
+                receipt({ delegationId: `delegation-${index}`, status: 'completed' }),
+            );
+
+        expect(remembered().size).toBe(cap);
+        expect(remembered().has('delegation-0')).toBe(false);
+        expect(remembered().has(`delegation-${cap + 19}`)).toBe(true);
     });
 
     it('hands a relaunched Commander what it missed as its launch prompt, settled once the Agent runs', () => {

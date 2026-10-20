@@ -102,6 +102,34 @@ describe('AgentCoordinator permission attention', () => {
         },
     );
 
+    it('reports a SIGINT for the current launch only, so suspension and the Commander can clear their turn marker (#1819)', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-signal-interrupt-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const interrupted: string[] = [];
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(),
+            () => {},
+            createLogger(join(directory, 'logs')),
+            { onSignalInterrupt: (terminalId) => interrupted.push(terminalId) },
+        );
+        try {
+            const terminalId = created.terminal!.id;
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            coordinator.observeInterrupt(terminalId, 'stale-launch');
+            coordinator.observeInput(terminalId, '\u{1B}');
+            expect(interrupted).toEqual([]);
+
+            coordinator.observeInterrupt(terminalId, 'launch-1');
+            expect(interrupted).toEqual([terminalId]);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('keeps Codex waiting until every exact question resolves without clearing an approval', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-question-resolution-'));
         temporaryDirectories.push(directory);

@@ -6,7 +6,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { KeyedSerialQueue, logEventCatalog } from '@caxri/system';
 
 import type { AgentCoordinator, AgentService } from '../agents';
 /**
@@ -30,20 +30,10 @@ interface AgentRenameTarget {
  * provider request could overwrite a newer name after the newer request had already completed.
  */
 export class SessionRenameQueue {
-    private readonly tails = new Map<string, Promise<void>>();
+    private readonly sessions = new KeyedSerialQueue<string>();
 
     run<Result>(sessionId: string, rename: () => Promise<Result>): Promise<Result> {
-        const previous = this.tails.get(sessionId) ?? Promise.resolve();
-        // eslint-disable-next-line unicorn/prefer-await -- the next tail must be installed before another call enters
-        const result = previous.then(rename);
-        // eslint-disable-next-line unicorn/prefer-await -- the tail intentionally converts success/failure to completion
-        const tail = result.then(() => {}).catch(() => {});
-        this.tails.set(sessionId, tail);
-        // eslint-disable-next-line no-void -- cleanup observes an already non-rejecting completion tail
-        void tail.finally(() => {
-            if (this.tails.get(sessionId) === tail) this.tails.delete(sessionId);
-        });
-        return result;
+        return this.sessions.run(sessionId, rename);
     }
 }
 

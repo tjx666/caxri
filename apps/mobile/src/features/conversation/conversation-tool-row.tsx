@@ -88,6 +88,7 @@ export const ConversationToolRowView = ({
     isCodeSubject,
     isRunning,
     kind,
+    mcpIconUrls,
     onPress,
     subject,
     testID,
@@ -103,6 +104,10 @@ export const ConversationToolRowView = ({
     isCodeSubject: boolean;
     isRunning: boolean;
     kind: AgentToolKind;
+    /**
+     * The icon URLs of the MCP server the tool belongs to; empty or absent keeps the tool kind's glyph.
+     */
+    mcpIconUrls?: readonly string[];
     onPress: () => void;
     subject: string | undefined;
     testID: string;
@@ -120,7 +125,7 @@ export const ConversationToolRowView = ({
         ]}
         testID={testID}
     >
-        <ConversationToolIcon kind={kind} theme={theme} />
+        <ConversationToolIcon kind={kind} mcpIconUrls={mcpIconUrls} theme={theme} />
         {activity ? (
             <View style={styles.toolTitleStack}>
                 <View style={styles.toolTitleLine}>

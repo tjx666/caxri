@@ -19,8 +19,11 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { stopAgentChatTask } from './agent-chat-commands';
 import { AgentChatExpansionState } from './agent-chat-expansion';
+import { AgentChatHistoryHead } from './agent-chat-history-head';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
+import { agentChatSettledChunks } from './agent-chat-settled-chunks';
+import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
@@ -30,6 +33,7 @@ import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
+import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { useAgentChatTask } from './hooks/use-agent-chat-task';
@@ -124,19 +128,46 @@ function TaskTimeline({
     isRunning,
     items,
     revision,
+    taskId,
     terminalId,
     truncated,
 }: {
     isRunning: boolean;
     items: readonly AgentChatItem[];
     revision: number;
+    taskId: string;
     terminalId: string;
     truncated: boolean;
 }) {
     const { t } = useTranslation();
-    const { scrollReference, contentReference, isLatestInView, onScroll, jumpToLatest, anchor } =
-        useAgentChatScroll(revision);
+    const {
+        scrollReference,
+        contentReference,
+        isLatestInView,
+        onScroll,
+        jumpToLatest,
+        stopFollowing,
+        anchor,
+    } = useAgentChatScroll(revision);
+    /**
+     * Older items the projection's budget cut are paged back from Server Core like the Chat's own history: a page goes
+     * in above the reader's position and renders as settled chunks apart from the live, streaming items.
+     */
+    const history = useAgentChatHistory(
+        terminalId,
+        { historyId: taskId, truncated },
+        { scrollReference, contentReference, stopFollowing },
+        taskId,
+    );
+    const olderItems = history.history.items;
+    const settledChunks = useMemo(() => agentChatSettledChunks(olderItems, []), [olderItems]);
     const timeline = useMemo(() => buildAgentChatTimeline(items, [], undefined), [items]);
+    /**
+     * Older items exist that no page will bring back: the provider's record was cut off. Reaching the real start shows
+     * nothing.
+     */
+    const isEarlierHidden =
+        !history.hasMore && (history.history.isLoaded ? history.history.truncated : truncated);
     /**
      * Rows the user expanded stay open as the subagent's timeline rebuilds them, and toggling one holds it in place
      * instead of following, exactly as in the parent Chat.
@@ -163,12 +194,24 @@ function TaskTimeline({
                     className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none"
                     ref={contentReference}
                 >
-                    {truncated && (
+                    <AgentChatHistoryHead
+                        hasFailed={history.history.status === 'failed'}
+                        hasMore={history.hasMore}
+                        isLoading={history.history.status === 'loading'}
+                        isUnavailable={false}
+                        loadedCount={olderItems.length}
+                        providerName=""
+                        scrollReference={scrollReference}
+                        onLoad={history.loadOlder}
+                        onOpenAsTerminal={undefined}
+                    />
+                    {isEarlierHidden && (
                         <p className="m-0 text-center text-[11px] text-muted">
                             {t('agentChat.tasks.earlierHidden')}
                         </p>
                     )}
                     <AgentChatExpansionContext value={expansion}>
+                        <AgentChatSettledTimeline chunks={settledChunks} onOpenFile={openFile} />
                         {timeline.map((entry) => (
                             <AgentChatTimelineEntryView
                                 entry={entry}
@@ -259,6 +302,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
                 isRunning={isRunning}
                 items={snapshot.items}
                 revision={snapshot.revision}
+                taskId={snapshot.taskId}
                 terminalId={tab.terminalId}
                 truncated={snapshot.truncated}
             />

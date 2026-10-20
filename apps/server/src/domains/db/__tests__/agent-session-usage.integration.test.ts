@@ -112,6 +112,8 @@ describe('Agent Session usage ledger', () => {
             'commander_inbox_replies',
             'commander_inbox_items',
             'benchmark_runs',
+            'agent_chat_answered_notices',
+            'agent_chat_process_groups',
         ];
         const upgrades = [
             {
@@ -131,6 +133,7 @@ describe('Agent Session usage ledger', () => {
                 'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
             );
             raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
+            raw.exec('ALTER TABLE terminals DROP COLUMN agent_resume_at');
             raw.pragma(`user_version = ${from}`);
             raw.close();
 

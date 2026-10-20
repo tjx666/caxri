@@ -3,7 +3,13 @@ import process from 'node:process';
 import type { ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import { agentChatEndpoint, AgentChatService } from './agent-chat';
+import {
+    agentChatEndpoint,
+    AgentChatService,
+    chatStateStore,
+    reapGroup,
+    reapStaleProviderGroups,
+} from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import type { createAgentRuntime } from './agent-runtime';
 import type { CommanderTerminalHooks } from './commander';
@@ -45,7 +51,7 @@ export function createAgentChatService({
     send: (event: ServerEvent) => void;
 }): AgentChatService {
     const { agentEnvironment, agentLaunchSettings, coordinator } = agentRuntime;
-    return new AgentChatService({
+    const service = new AgentChatService({
         database,
         logger,
         send,
@@ -89,4 +95,15 @@ export function createAgentChatService({
             }),
         }),
     });
+    /**
+     * Provider process groups a previous Server Core lifetime left behind when it was killed. The records are read
+     * synchronously, before any Chat can start and record a group of this lifetime.
+     */
+    // eslint-disable-next-line no-void -- the sweep never rejects and must not delay startup
+    void reapStaleProviderGroups({
+        ledger: () => chatStateStore(database).processGroups,
+        logger,
+        reapGroup,
+    });
+    return service;
 }

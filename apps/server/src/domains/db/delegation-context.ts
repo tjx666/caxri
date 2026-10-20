@@ -4,7 +4,10 @@ import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 import type { CaxriDatabaseConnection } from './database-connection';
 
 /**
- * Idempotent owner bootstrap commits Project, Session and binding together without changing visible selection.
+ * Idempotent owner bootstrap commits Project, Session and binding together without changing visible selection. A
+ * Project the user hid is un-hidden (`ProjectsModel.create` restores the existing row, order, and Sessions): the
+ * delegated Session would otherwise run in a Project the Desktop user cannot see. The caller emits the `state.changed`
+ * that makes the Project reappear at the sidebar.
  */
 export function ensureDelegationContext(
     database: CaxriDatabaseConnection,
@@ -26,6 +29,7 @@ export function ensureDelegationContext(
                 'PATH_DENIED',
                 'Authorize a top-level Project root for external delegation',
             );
+        if (project.hiddenAt !== undefined) project = database.projects.create(rootPath);
         const bindings = database.appState.get('externalDelegationSessions') ?? {};
         const key = `${project.id}:${provider}`;
         const previous = bindings[key] ? database.sessions.get(bindings[key]) : undefined;

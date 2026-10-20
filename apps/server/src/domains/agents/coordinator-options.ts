@@ -3,6 +3,11 @@ import type { AgentProvider } from '@caxri/protocol';
 import type { AgentLifecycleSignal } from './hooks/contract';
 
 export interface AgentCoordinatorOptions {
+    /**
+     * A delivered `SIGINT` (Agent Endpoint control) interrupted the launch's turn. Keyboard Escape is observed through
+     * Terminal input instead.
+     */
+    onSignalInterrupt?: (terminalId: string) => void;
     onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
     /**
      * Trailing delay before Agent Terminal output refreshes durable Agent metadata.

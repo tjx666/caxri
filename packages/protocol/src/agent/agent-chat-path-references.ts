@@ -113,8 +113,12 @@ function parsePathLines(block: string | undefined): AgentChatPathReference[] | u
         if (!line) continue;
         const path = REFERENCE_LINE.exec(line)?.groups?.path;
         if (!path) return undefined;
-        const isDirectory = path.length > 1 && path.endsWith('/');
-        references.push({ path: isDirectory ? path.slice(0, -1) : path, isDirectory });
+        // The filesystem root is always a folder, and its one-character path cannot carry a trailing `/` marker.
+        const isDirectory = path === '/' || path.endsWith('/');
+        references.push({
+            path: isDirectory && path !== '/' ? path.slice(0, -1) : path,
+            isDirectory,
+        });
     }
     return references;
 }

@@ -4,6 +4,7 @@ export {
     agentCommanderTerminal,
 } from './commander-rows';
 export { CaxriDatabaseConnection } from './database-connection';
+export { AgentChatStateModel } from './models/agent-chat-state';
 export type { StoredAgentDelegation } from './models/agent-delegations';
 export type {
     AgentSessionUsageRow,

@@ -193,4 +193,14 @@ export const benchmark = {
     'benchmark.failure.turnFailed': 'Agent reported an error',
     'benchmark.failure.processExited': 'Agent exited unexpectedly',
     'benchmark.failure.serverRestarted': 'Interrupted by a restart',
+    // Share card
+    'benchmark.share.button': 'Share',
+    'benchmark.share.copy': 'Copy image',
+    'benchmark.share.save': 'Save as PNG…',
+    'benchmark.share.madeWith': 'Made with Caxri',
+    'benchmark.share.copied': 'Share image copied to the clipboard',
+    'benchmark.share.saved': 'Share image saved',
+    'benchmark.share.copyFailed': 'Couldn’t copy the share image',
+    'benchmark.share.saveFailed': 'Couldn’t save the share image',
+    'benchmark.share.noResults': 'Nothing to share until a run has results',
 };

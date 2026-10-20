@@ -19,13 +19,12 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { AsyncSemaphore } from '@caxri/system';
+import { AsyncSemaphore, SingleFlight } from '@caxri/system';
 
 import { readBoundedRegularFile } from '../bounded-file-reader';
 import { ExternalStatusHub } from '../external-status';
 import { assertInsideRoot, isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project';
-import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
 import { listLocalBranches } from './branches';
 import { GitChangeTracker } from './change-tracker';

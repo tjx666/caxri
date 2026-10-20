@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { LATE_MID_TURN_SIGNAL_WINDOW_MS } from '../../agents/lifecycle-watchdogs';
 import { UNTOUCHED_SUSPENSION_DELAY_MS } from '../suspension-policy';
 import { createHarness, idleAfterThirtyMinutes, terminal } from './suspension.fixture';
 
@@ -401,10 +402,37 @@ describe('TerminalSuspensionService: idle suspension', () => {
         harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
         // The Escape only closed a completion menu; the long Bash command it started keeps running silently.
         harness.service.observeInput('terminal-a', '\u{1B}');
+        // Past the late-hook window, so the signal is evidence the turn continues rather than a straggler.
+        harness.advance(LATE_MID_TURN_SIGNAL_WINDOW_MS + 1);
         harness.service.observeLifecycle({ phase: 'shellToolStarted', terminalId: 'terminal-a' });
         harness.advance(60 * 60_000);
         expect(await harness.service.sweep()).toEqual([]);
         finishTurn(harness);
+        harness.advance(60_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it("parks an Agent whose Escape interrupt was followed by that turn's late tool-batch hook (#1819)", async () => {
+        const harness = createHarness({ settings: oneMinute });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        harness.service.observeInput('terminal-a', '\u{1B}');
+        // The provider emitted PostToolBatch just before the interrupt; its bridge delivered it after the Escape.
+        harness.advance(50);
+        harness.service.observeLifecycle({ phase: 'toolBatchFinished', terminalId: 'terminal-a' });
+        harness.advance(60_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('clears the in-flight turn on an Agent Endpoint SIGINT and ignores its late hook (#1819)', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        harness.service.observeInterrupt('terminal-a');
+        harness.advance(50);
+        harness.service.observeLifecycle({ phase: 'shellToolFinished', terminalId: 'terminal-a' });
         harness.advance(60_000);
         expect(await harness.service.sweep()).toEqual(['terminal-a']);
     });

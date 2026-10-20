@@ -78,6 +78,14 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['wall-clock'],
         why: 'Clicks Undo on the "Dismissed" toast before its real 4s auto-dismissal sends the dismissal.',
     },
+    'e2e/agent-chat-background.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: 'Clicks Undo on the "Queued message removed" toast before its real 4s auto-dismissal.',
+    },
+    'e2e/agent-chat-turn-review.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: 'Clicks Undo on the "Comment removed" toast before its real 4s auto-dismissal.',
+    },
     'e2e/agent-chat-claude.e2e.ts': {
         reasons: ['wall-clock'],
         why: 'Asserts an approved command row shows no duration, i.e. the approval round trip stays under one real second.',

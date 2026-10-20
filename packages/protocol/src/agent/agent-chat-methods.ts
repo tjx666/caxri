@@ -110,11 +110,18 @@ export const agentChatMethods = {
     /**
      * Returns the page of history right before `beforeItemId`, the oldest item the Client holds (the projection's first
      * item, or the first item of the last page read). Read from the history Server Core keeps once items leave the
-     * projection, then from the provider's own record. An unknown `beforeItemId` returns an empty page.
+     * projection, then from the provider's own record. An unknown `beforeItemId` returns an empty page. With `taskId`
+     * the page belongs to that task (a subagent's own conversation): `beforeItemId` is the oldest task item the Client
+     * holds, and the page comes from the items the task's projection evicted. Fails with `NOT_FOUND` for an unknown
+     * task, like `agentChat.readTask`.
      */
     'agentChat.readHistory': {
         ...commandPolicy('server', 'read'),
-        params: z.strictObject({ ...terminalTarget, beforeItemId: z.string().min(1).max(200) }),
+        params: z.strictObject({
+            ...terminalTarget,
+            beforeItemId: z.string().min(1).max(200),
+            taskId: agentChatTaskSchema.shape.id.optional(),
+        }),
         result: agentChatHistoryPageSchema,
     },
     /**
@@ -216,6 +223,35 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
+     * Read-only preview of `agentChat.restoreFiles` for the revert confirmation: the files the provider would put back
+     * and how many lines that adds and removes, from a dry run that changes nothing on disk. `supported: false` means
+     * the provider cannot preview (Grok Build's `_x.ai/rewind` has no dry run, and Codex cannot restore files), so the
+     * Client shows no list. `files` lists at most 200 of `totalFiles` paths relative to the Chat's folder; a file's own
+     * `additions` and `deletions` are what the Agent's recorded edits since the message did to it, absent when the Chat
+     * has no record of an edit to it, while `insertions` and `deletions` are the provider's totals for the whole
+     * revert. A dry run the provider refuses fails with `CONFLICT`, a running turn or a message that did not start its
+     * turn with `CONFLICT` too.
+     */
+    'agentChat.previewRestoreFiles': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({ ...terminalTarget, itemId: z.string().min(1).max(200) }),
+        result: z.strictObject({
+            supported: z.boolean(),
+            files: z
+                .array(
+                    z.strictObject({
+                        path: z.string().min(1).max(4_096),
+                        additions: z.number().int().nonnegative().optional(),
+                        deletions: z.number().int().nonnegative().optional(),
+                    }),
+                )
+                .max(200),
+            totalFiles: z.number().int().nonnegative(),
+            insertions: z.number().int().nonnegative().optional(),
+            deletions: z.number().int().nonnegative().optional(),
+        }),
+    },
+    /**
      * Stops the running turn. Messages still queued stay queued and the queue pauses until `agentChat.resumeQueue`.
      * Background tasks keep running.
      */
@@ -277,6 +313,30 @@ export const agentChatMethods = {
     'agentChat.removeQueued': {
         ...commandPolicy('server', 'control'),
         params: z.strictObject({ ...terminalTarget, id: agentChatQueuedMessageSchema.shape.id }),
+        result: z.null(),
+    },
+    /**
+     * Undo of `agentChat.removeQueued`: puts the removed message, images included, back just ahead of the message that
+     * followed it (at the end when that one has left the queue). Server Core keeps only the last few removed messages,
+     * and forgets them when the Chat restarts; one it no longer holds fails with `CONFLICT`.
+     */
+    'agentChat.restoreQueued': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ ...terminalTarget, id: agentChatQueuedMessageSchema.shape.id }),
+        result: z.null(),
+    },
+    /**
+     * Rewrites a queued message's text where it stands: its images and its place in the queue are kept, which is how a
+     * message carrying images is edited since images never return to a composer. A command, or a message left with no
+     * text and no images, fails with `VALIDATION`; one that already left the queue fails with `CONFLICT`.
+     */
+    'agentChat.editQueued': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({
+            ...terminalTarget,
+            id: agentChatQueuedMessageSchema.shape.id,
+            text: agentChatQueuedMessageSchema.shape.text,
+        }),
         result: z.null(),
     },
     /**
@@ -351,6 +411,30 @@ export const agentChatMethods = {
         params: z.object({
             providerName: z.string().min(1).max(100),
             removedTurns: z.number().int().positive(),
+            /**
+             * What `agentChat.previewRestoreFiles` found, listed in the dialog's detail. Absent when the provider has
+             * no preview.
+             */
+            preview: z
+                .object({
+                    files: z
+                        .array(
+                            z.object({
+                                path: z.string().min(1).max(4_096),
+                                additions: z.number().int().nonnegative().optional(),
+                                deletions: z.number().int().nonnegative().optional(),
+                            }),
+                        )
+                        .max(200),
+                    totalFiles: z.number().int().nonnegative(),
+                    insertions: z.number().int().nonnegative().optional(),
+                    deletions: z.number().int().nonnegative().optional(),
+                })
+                .optional(),
+            /**
+             * The preview was supported but failed; the dialog says so and stays usable.
+             */
+            previewFailed: z.boolean().optional(),
         }),
         result: z.object({ confirmed: z.boolean() }),
     },

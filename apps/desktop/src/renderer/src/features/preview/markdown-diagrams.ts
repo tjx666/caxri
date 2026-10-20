@@ -5,6 +5,7 @@ import type Mermaid from 'mermaid';
 
 import { translate } from '../../i18n';
 import { MemoCache } from '../../lib/memo-cache';
+import { retryableLoader } from '../../lib/retryable-loader';
 
 /**
  * Rendered SVG keyed by the Mermaid theme seed and diagram source, so a keystroke elsewhere in the document does not
@@ -19,7 +20,6 @@ const diagramRenders = new Semaphore(1);
 type MermaidModule = typeof Mermaid;
 
 const state = {
-    module: undefined as Promise<MermaidModule> | undefined,
     themeKey: undefined as string | undefined,
     sequence: 0,
 };
@@ -59,10 +59,10 @@ function mermaidThemeVariables(theme: ThemeTokens): Record<string, string> {
  * `mermaid` fence must never pay for it. `startOnLoad: false` keeps it from scanning the workbench DOM, and the strict
  * security level keeps diagram labels from smuggling markup back in.
  */
-async function importMermaid(): Promise<MermaidModule> {
+const importMermaid = retryableLoader(async (): Promise<MermaidModule> => {
     const module = await import('mermaid');
     return module.default;
-}
+});
 
 /**
  * Identity of the colors Mermaid is seeded with. Keyed on content rather than `theme.id` because editing a custom theme
@@ -73,8 +73,7 @@ function mermaidThemeKey(theme: ThemeTokens): string {
 }
 
 async function loadMermaid(theme: ThemeTokens, themeKey: string): Promise<MermaidModule> {
-    state.module ??= importMermaid();
-    const mermaid = await state.module;
+    const mermaid = await importMermaid();
     if (state.themeKey !== themeKey) {
         mermaid.initialize({
             startOnLoad: false,

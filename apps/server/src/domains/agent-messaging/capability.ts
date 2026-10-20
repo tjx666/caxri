@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 
 import type { AgentLaunchSettings, AgentMessagingCapability, AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
-import { isAccessible, readE2EAgentPolicy } from '@caxri/system';
+import { isAccessible, readE2EAgentPolicy, SingleFlight } from '@caxri/system';
 
 /**
  * Server domains expose public root barrels by architecture contract; deep imports are rejected by
@@ -139,7 +139,7 @@ export function pendingMessagingCapability(checkedAt = Date.now()): AgentMessagi
  */
 export class AgentMessagingCapabilityProbe {
     private readonly cache = new Map<string, CachedCapability>();
-    private readonly inFlight = new Map<string, Promise<AgentMessagingCapability>>();
+    private readonly inFlight = new SingleFlight<string, AgentMessagingCapability>();
     private readonly providerEpochs = new Map<AgentProvider, number>();
     private readonly cliAvailable: (path: string) => Promise<boolean>;
     private readonly cliPath?: string;
@@ -237,15 +237,6 @@ export class AgentMessagingCapabilityProbe {
         const key = `${input.provider}\u{0}${epoch}\u{0}${normalizedLaunchKey(input.provider, input.launch)}`;
         const cached = this.cache.get(key);
         if (cached && cached.expiresAt > checkedAt) return cached.capability;
-        const pending = this.inFlight.get(key);
-        if (pending) return pending;
-
-        const request = this.checkOnce(input, checkedAt, key);
-        this.inFlight.set(key, request);
-        try {
-            return await request;
-        } finally {
-            if (this.inFlight.get(key) === request) this.inFlight.delete(key);
-        }
+        return this.inFlight.run(key, () => this.checkOnce(input, checkedAt, key));
     }
 }

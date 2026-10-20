@@ -114,6 +114,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | Background wait status                 | Background shells never hold a turn's completion                         | `docs/activity-view.md`                                                                                                                   |
 | Claude plan limits                     | SDK `/usage` request plus `rate_limit_event` updates, no Keychain read   | `docs/usage.md`; `apps/server/src/domains/agent-chat/claude-plan-limits.ts`                                                               |
 | Caxri skill card                       | A picked skill shown as a chip in the composer instead of typed text     | `docs/agent-chat.md`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-skill-card.tsx`                                       |
+| Chat `@` file completion               | Workspace files offered from the composer's `@` trigger                  | `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-file-mentions.ts`                                                           |
 
 ## Paseo (Apache-2.0)
 

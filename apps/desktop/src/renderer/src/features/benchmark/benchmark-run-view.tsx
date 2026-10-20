@@ -1,12 +1,7 @@
 import { useState } from 'react';
 
 import type { BenchmarkCatalog, BenchmarkRun } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    formatShortDuration,
-    formatTokens,
-    formatUsd,
-} from '@caxri/protocol';
+import { formatShortDuration, formatTokens, formatUsd } from '@caxri/protocol';
 import { RotateCcw, Square, Trash2 } from 'lucide-react';
 
 import { ReportCard, StatTile } from '../../components/report-card';
@@ -18,7 +13,7 @@ import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { BenchmarkChart } from './benchmark-chart';
 import { BenchmarkLeaderboard } from './benchmark-leaderboard';
-import { metricLabel, modelLabel } from './benchmark-presentation';
+import { judgeModelLabel, metricLabel, modelLabel } from './benchmark-presentation';
 import { useTickingNow } from './benchmark-queries';
 import type { BenchmarkMetric } from './benchmark-results';
 import {
@@ -30,6 +25,7 @@ import {
     runSpend,
     runTokens,
 } from './benchmark-results';
+import { BenchmarkShareMenu } from './benchmark-share-menu';
 
 function runCaption(
     t: Translate,
@@ -48,7 +44,7 @@ function runCaption(
     if (run.settings.judge)
         parts.push(
             t('benchmark.run.judgedBy', {
-                model: `${agentProviderCatalog[run.settings.judge.provider].displayName} · ${modelLabel(catalog, run.settings.judge)}`,
+                model: judgeModelLabel(catalog, run.settings.judge),
             }),
         );
     if (run.settings.checkCommand)
@@ -145,10 +141,20 @@ export function BenchmarkRunView({
                             {t('benchmark.run.cancel')}
                         </Button>
                     ) : (
-                        <Button size="sm" variant="secondary" onClick={onRunAgain}>
-                            <RotateCcw aria-hidden="true" size={12} />
-                            {t('benchmark.run.runAgain')}
-                        </Button>
+                        <>
+                            <BenchmarkShareMenu
+                                catalog={catalog}
+                                chart={chart}
+                                isDisabled={chart.points.length === 0}
+                                ranked={ranked}
+                                run={run}
+                                source={source}
+                            />
+                            <Button size="sm" variant="secondary" onClick={onRunAgain}>
+                                <RotateCcw aria-hidden="true" size={12} />
+                                {t('benchmark.run.runAgain')}
+                            </Button>
+                        </>
                     )}
                     <Tooltip content={t('benchmark.run.delete')}>
                         <Button

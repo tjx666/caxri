@@ -30,7 +30,13 @@ lifecycle events through the `AgentChatSessionHost` callbacks, which the service
 replaced session's late reports are dropped. Shared pieces:
 
 - `ProviderProcess` (`provider-process.ts`): the child in its own process group, stderr drained
-  without being retained, and the stdin EOF, SIGTERM, SIGKILL stop escalation.
+  without being retained, and the stdin EOF, SIGTERM, SIGKILL stop escalation. It records the
+  group in `agent_chat_process_groups` (group ID plus the leader's `ps` start time) until the
+  group is reaped. A Server Core killed with SIGKILL cannot reap, so the next start
+  (`reapStaleProviderGroups`, `provider-process-groups.ts`) reads the table and stops each group
+  after checking the process table: a leader with another start time, or surviving members older
+  than the recorded leader, mean the ID was reused and nothing is signaled. It logs
+  `agent_chat.stale_groups_reaped`.
 - `chat-items.ts`: bounded string helpers, closing dangling items, the operations for a process
   that ended, the `answered` notice, the replacement diff for a file edit, and the prompt text of a
   slash command that runs as a message.
@@ -186,10 +192,11 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   skipped, a visible user prompt opens a turn, and every resumed turn is finished. A missing
   transcript or a `--resume` that fails its handshake is `resume_failed`.
 - **Answered notices across a resume.** No provider's history holds the `answered` notices Caxri
-  synthesizes. A restart in the same Server Core process (Retry after a crash, a surface switch)
-  hands the replaced projection's notices to the new one, and the first history replay puts each
-  back after the item it followed, or after its turn's first item, while the replay still holds
-  that turn. The notices are not persisted, so a Server Core restart loses them.
+  synthesizes, so each is saved in `agent_chat_answered_notices` (Chat, turn, the item it followed,
+  and the notice) when the user answers. Every history replay, including the first one after a
+  Server Core restart, puts each back after the item it followed, or after its turn's first item,
+  while the replay still holds that turn. A replay that rebuilt some history deletes the notices
+  whose turn it no longer holds (a rewind past them); the rows also go with the Terminal.
 - **Grok Build resume.** `session/load` replays the conversation as `session/update` frames before
   it answers, with `turn_completed` marking where each turn ended; the Chat folds them into one
   reset. An unknown session id fails `session/load`, which is `resume_failed`. A replayed
@@ -367,7 +374,11 @@ record is the source of truth.
   Code Chat reads the rest from its transcript (up to 128 MiB, parsed once and cached for a minute
   while the reader pages back); other providers already replay their whole history into the
   archive on resume, so their history ends there. A resumed history is applied in one batch, so a
-  Client receives only the items the projection keeps, never the evicted ones. The snapshot's
+  Client receives only the items the projection keeps, never the evicted ones. A subagent task
+  keeps the same kind of archive per task projection (bounded at 5,000 items and 8 MiB of text),
+  and `agentChat.readHistory` with a `taskId` pages it for the task's tab; a task rebuilt from the
+  provider's record replays every item, so its projection keeps the newest 500 and archives the
+  rest. The snapshot's
   `historyId` changes on every replaced history (a resume, a rewind, a reset), so a page read for
   an earlier history is discarded rather than stitched onto the new one.
 - Once a Desktop pane has scrolled back, it keeps the items the projection evicts so no gap opens
@@ -475,8 +486,14 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
   and returns its full text (a command as `/name arguments`) in one step, so an entry the queue
   sends meanwhile fails with `CONFLICT` instead of being both sent and back in the composer. An
   entry carrying images stays queued and fails with `VALIDATION`, since images never return to a
-  composer; the queue card disables its Edit. The returned text goes ahead of any draft
-  (`agentChatDraftWithReturnedMessage`). A failed dispatch puts every joined entry back in order and pauses
+  composer. The Desktop queue card edits such an entry in place instead:
+  `agentChat.editQueued` replaces the text of a queued message and keeps its images (and any
+  path-reference prefix the card leaves alone), and the row shows "N images attached"; an empty
+  text without images, or a command, fails with `VALIDATION`. The returned text goes ahead of any draft
+  (`agentChatDraftWithReturnedMessage`). Removing an entry keeps it in a bounded Server stash
+  (10 entries) with the entry that followed it, so the Undo toast's `agentChat.restoreQueued`
+  puts it back at its original position (at the end when that successor already left), and
+  fails with `CONFLICT` once the stash no longer holds it. A failed dispatch puts every joined entry back in order and pauses
   the queue.
 - A Codex `turn/start` or `turn/steer` that times out may still have started the turn, so Codex
   Chat checks before failing: the user message's `clientId` echo, or `thread/turns/list` over the
@@ -543,6 +560,13 @@ ordinary draft with the held-back draft lost.
   restore code, since nothing returns to the composer), logs `agent_chat.files_restored`, and
   confirms with a success toast (`Restored the code changed in N turns`), since the transcript
   itself does not change.
+  Before either revert asks, the Client calls the read-only `agentChat.previewRestoreFiles`, and
+  the dialog lists the files to revert with `+N -M` per file and the totals. Claude Code answers
+  from `rewindFiles(uuid, { dryRun: true })`, which reports only file names and totals, so Server
+  Core takes each file's counts from the edits the Chat recorded in the turns being reverted (a
+  file changed some other way lists without counts). The native dialog shows the first eight files
+  and "...and N more". A provider with no preview (Grok Build exposes none) shows no list; a
+  failed or slow (10 s) dry run shows "Couldn't preview changes" and the dialog stays usable.
   Claude Code uses `rewindFiles` alone, without a restart; Grok Build uses
   `_x.ai/rewind/execute { mode: 'files_only' }`. Codex offers no file restore, so the action is
   absent there.
@@ -558,6 +582,11 @@ there and leaves the old continuation in the file. History replay (`claude-histo
 active branch from the newest record and drops a sibling branch only where the active branch
 continues with a new user prompt, because parallel tool calls branch the file too. Editing the
 first message has no earlier record to resume at, so the Chat starts a new Claude Code session.
+
+The rewind point is stored in `terminals.agent_resume_at` and cleared when the first new turn
+starts (or the Agent Session is replaced), because until a turn writes past it, any start would
+otherwise resume at the newest record and bring the rewound turns back. This matters when the
+edited message failed to send or Server Core restarted in between.
 File checkpoints are taken only from prompts sent with checkpointing on, so a Chat started before
 it was enabled, or a message older than the transcript tail Caxri reads, refuses to revert files
 with the reason. Grok Build names a prompt by its index in the whole session, which the Chat may
@@ -697,7 +726,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   snapshot's `mcpServers`, and retries a server that was still connecting after a minute, at most
   three times. Main fetches a remote icon through `links.favicon`, falling back to the sites'
   `/favicon.ico`. `mcpServers` keeps the newest 20 servers, and inline `data:` icons share 64 KiB across them (a server
-  whose icon no longer fits keeps its HTTPS icons and site origins); an HTTPS icon URL over 2048 characters is dropped. The phone receives no `mcpServers` and keeps the server name in the label. A command the Agent
+  whose icon no longer fits keeps its HTTPS icons and site origins); an HTTPS icon URL over 2048 characters is dropped. The phone receives `mcpServers` without inline icons (name, title, site origins, and HTTPS icon URLs of at most 512 characters) and loads those icons directly, drawing the connector glyph while one loads or when none does; a row whose server has an icon titles itself by the tool alone, as Desktop's does, and otherwise keeps the server name in the label. A command the Agent
   described (Claude Code's `Bash` description) is titled by that description, and its command line
   moves into the expanded view. A row shows its duration once it reaches a second, a non-zero `Exit N`, and a
   `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
@@ -737,6 +766,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   opens above the link, so it never covers that row.
   Every time carries a tooltip with the full date. Formatting and day grouping live in
   `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-time.ts`.
+- A subagent's task tab pages its own history the same way (history head, auto-load near the top,
+  position held, Retry on failure) and shows the "earlier messages are not shown" note only when
+  the provider's record was cut off, never at the real start.
 - Scrolling back reads the whole conversation, not only the projection. Near the top, the pane
   loads the previous page (`agentChat.readHistory`) 1,600 px before the reader reaches it and keeps
   the entry at the top of the view where it was, so the page appears above without moving the

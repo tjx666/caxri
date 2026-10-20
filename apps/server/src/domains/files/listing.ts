@@ -15,10 +15,10 @@ import {
     AsyncSemaphore,
     logEventCatalog,
     mapWithConcurrency,
+    SingleFlight,
     waitForSharedOperation,
 } from '@caxri/system';
 
-import { SingleFlight } from '../single-flight';
 import type { ResolveSessionPath } from './documents';
 import type { FileTreeExcludes } from './file-tree-excludes';
 import { isFileTreeExcludeMatch } from './file-tree-excludes';

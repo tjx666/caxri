@@ -120,7 +120,9 @@ export const useAgentChatHistory = (
      * The list's history header: a load-earlier button while more can load, and the "on your computer" note only once
      * nothing more can load and the conversation is still cut.
      */
-    const truncated = !canLoad && (merged?.truncated ?? false);
+    const needsConnectionForOlder =
+        !isLive && snapshot !== undefined && canLoadOlderAgentChatHistory(history, snapshot);
+    const truncated = !canLoad && !needsConnectionForOlder && (merged?.truncated ?? false);
     const timeline = useMemo<ConversationTimelineState & { loadOlder: () => Promise<void> }>(
         () => ({
             error,
@@ -128,11 +130,12 @@ export const useAgentChatHistory = (
             isLoadingOlder,
             items: [],
             loadOlder,
+            needsConnectionForOlder,
             ...(olderCursor !== undefined && { olderCursor }),
             status: 'available',
             truncated,
         }),
-        [error, isLoadingOlder, loadOlder, olderCursor, truncated],
+        [error, isLoadingOlder, loadOlder, needsConnectionForOlder, olderCursor, truncated],
     );
     return { snapshot: merged, timeline };
 };

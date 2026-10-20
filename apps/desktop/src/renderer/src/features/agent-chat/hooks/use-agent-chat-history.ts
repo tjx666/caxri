@@ -1,10 +1,11 @@
 import type { RefObject } from 'react';
 import { useLayoutEffect, useRef } from 'react';
 
-import type { AgentChatOlderHistory, AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatOlderHistory } from '@caxri/protocol';
 import { hasOlderAgentChatHistory } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import type { AgentChatHistoryWindow } from '../agent-chat-history-client';
 import {
     agentChatHistoryQueryKey,
     cachedAgentChatHistory,
@@ -32,7 +33,7 @@ export interface AgentChatHistory {
  */
 export function useAgentChatHistory(
     terminalId: string,
-    snapshot: AgentChatSnapshot | undefined,
+    snapshot: Pick<AgentChatHistoryWindow, 'historyId' | 'truncated'> | undefined,
     view: {
         scrollReference: RefObject<HTMLDivElement | null>;
         contentReference: RefObject<HTMLDivElement | null>;
@@ -41,13 +42,17 @@ export function useAgentChatHistory(
          */
         stopFollowing: () => void;
     },
+    /**
+     * The task whose own history is paged (a subagent's tab), with `snapshot` describing the task's projection.
+     */
+    taskId?: string,
 ): AgentChatHistory {
     const client = useQueryClient();
     const historyId = snapshot?.historyId;
     const { data: history } = useQuery({
-        queryKey: agentChatHistoryQueryKey(terminalId, historyId),
-        queryFn: () => cachedAgentChatHistory(client, terminalId, historyId),
-        initialData: () => cachedAgentChatHistory(client, terminalId, historyId),
+        queryKey: agentChatHistoryQueryKey(terminalId, historyId, taskId),
+        queryFn: () => cachedAgentChatHistory(client, terminalId, historyId, taskId),
+        initialData: () => cachedAgentChatHistory(client, terminalId, historyId, taskId),
         staleTime: Infinity,
     });
     const { scrollReference, contentReference, stopFollowing } = view;
@@ -74,7 +79,7 @@ export function useAgentChatHistory(
     }, [history.items, scrollReference]);
     const loadOlder = (): void => {
         // eslint-disable-next-line no-void -- the loader records its own failure in the cached history
-        void loadOlderAgentChatHistory(terminalId, holdViewTop);
+        void loadOlderAgentChatHistory({ terminalId, taskId }, holdViewTop);
     };
     return { history, hasMore: hasOlderAgentChatHistory(history, snapshot), loadOlder };
 }

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import type { AgentChatAttachment, AgentChatImageAttachment } from './agent-chat-drafts';
 import {
     agentChatAttachmentLabel,
@@ -102,10 +103,15 @@ function AttachmentThumbnail({
  */
 export function AgentChatAttachmentList({
     attachments,
+    isGoalMode = false,
     onRemove,
     pendingCount = 0,
 }: {
     attachments: readonly AgentChatAttachment[];
+    /**
+     * Goal mode sets text only, so the attachments are dimmed and a hint says they stay for the next message.
+     */
+    isGoalMode?: boolean;
     onRemove: (id: string) => void;
     /**
      * Images still being read, shown as placeholders once reading takes noticeably long.
@@ -121,7 +127,10 @@ export function AgentChatAttachmentList({
         <>
             <ul
                 aria-label={t('agentChat.attachments.label')}
-                className="m-0 flex list-none flex-wrap items-end gap-2.5 px-3 pt-3 pb-0 empty:hidden"
+                className={cn(
+                    'm-0 flex list-none flex-wrap items-end gap-2.5 px-3 pt-3 pb-0 empty:hidden',
+                    isGoalMode && 'opacity-50',
+                )}
             >
                 {attachments.map((attachment) => {
                     if (isAgentChatSkillAttachment(attachment))
@@ -165,6 +174,11 @@ export function AgentChatAttachmentList({
                     <PendingAttachmentChip key={`pending-${index}`} />
                 ))}
             </ul>
+            {isGoalMode && attachments.length > 0 && (
+                <p className="m-0 px-3 pt-2 text-xs text-muted">
+                    {t('agentChat.attachments.goalTextOnly')}
+                </p>
+            )}
             <Dialog
                 open={preview !== undefined}
                 onOpenChange={(isOpen) => {

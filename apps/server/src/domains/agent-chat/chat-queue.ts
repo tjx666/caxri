@@ -36,9 +36,11 @@ type QueueChange =
     | 'deliveryUnknown'
     | 'dispatched'
     | 'dispatchFailed'
+    | 'editedInPlace'
     | 'paused'
     | 'queued'
     | 'removed'
+    | 'restored'
     | 'resumed'
     | 'sentNow'
     | 'steered'
@@ -150,6 +152,22 @@ function mergeBatch(batch: readonly QueuedInput[]): QueuedInput {
 }
 
 /**
+ * How many deleted entries stay restorable. Each may hold images, so the stash is bounded like the queue itself.
+ */
+const MAX_RESTORABLE_QUEUE_ENTRIES = 10;
+
+/**
+ * An entry the user deleted, with the entry that followed it so Undo can put it back in the same place.
+ */
+interface RemovedQueuedInput {
+    entry: QueuedInput;
+    /**
+     * The id of the entry that came right after it, or `undefined` when it was last.
+     */
+    beforeId: string | undefined;
+}
+
+/**
  * What the queue needs from its Chat. `enqueue` is the Chat's serialized input chain, so a dispatched input stays in
  * order with inputs the user sends directly.
  */
@@ -199,6 +217,10 @@ export class ChatFollowUpQueue {
      * into the new Chat state.
      */
     private isRetired = false;
+    /**
+     * Entries the user deleted, newest last, kept for Undo (see {@link restoreRemoved}).
+     */
+    private removedEntries: RemovedQueuedInput[] = [];
 
     constructor(private readonly host: FollowUpQueueHost) {}
 
@@ -357,6 +379,63 @@ export class ChatFollowUpQueue {
         if (this.entries.length === 0) this.pauseReason = undefined;
         this.publish();
         if (reason) this.log(reason);
+    }
+
+    /**
+     * The queue card's Delete: removes an entry and keeps it, images included, so {@link restoreRemoved} can put it back
+     * where it was.
+     */
+    removeForUndo(id: string): void {
+        const entry = this.entry(id);
+        const index = this.entries.indexOf(entry);
+        const beforeId = this.entries.at(index + 1)?.id;
+        this.remove(id, 'removed');
+        this.removedEntries.push({ entry, beforeId });
+        if (this.removedEntries.length > MAX_RESTORABLE_QUEUE_ENTRIES) this.removedEntries.shift();
+    }
+
+    /**
+     * Undo of a Delete: puts the entry back just ahead of the one that followed it, or at the end when that one has
+     * left the queue since. Fails with `CONFLICT` when the entry cannot be restored (forgotten, or the Chat restarted).
+     * The queue may send it at once when the Chat is idle and the queue is not paused, exactly as a new entry would.
+     */
+    restoreRemoved(id: string): void {
+        const index = this.removedEntries.findIndex((removed) => removed.entry.id === id);
+        if (index === -1 || this.entries.some((entry) => entry.id === id))
+            throw new CaxriError('CONFLICT', 'This message can no longer be restored');
+        const [{ entry, beforeId }] = this.removedEntries.splice(index, 1);
+        try {
+            assertQueueRoom(this.entries, entry);
+        } catch (error) {
+            this.removedEntries.splice(index, 0, { entry, beforeId });
+            throw error;
+        }
+        const position = this.entries.findIndex((candidate) => candidate.id === beforeId);
+        this.entries.splice(position === -1 ? this.entries.length : position, 0, entry);
+        this.publish();
+        this.log('restored');
+        this.dispatch();
+    }
+
+    /**
+     * Rewrites a queued message's text where it stands, keeping its images and its place in the queue: the Edit of a
+     * message whose images cannot return to a composer. A command has no images and is edited through
+     * {@link takeForEdit}; an emptied message with no images is refused.
+     */
+    editText(id: string, text: string): void {
+        const entry = this.entry(id);
+        if (entry.kind !== 'message')
+            throw new CaxriError('VALIDATION', 'A queued command cannot be edited in place');
+        if (text.trim() === '' && (entry.message.images?.length ?? 0) === 0)
+            throw new CaxriError('VALIDATION', 'A queued message cannot be empty');
+        const edited: QueuedMessage = { ...entry, message: { ...entry.message, text } };
+        assertQueueRoom(
+            this.entries.filter((candidate) => candidate !== entry),
+            edited,
+        );
+        this.entries[this.entries.indexOf(entry)] = edited;
+        this.publish();
+        this.log('editedInPlace');
     }
 
     /**

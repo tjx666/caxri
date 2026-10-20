@@ -149,6 +149,10 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.revertFiles.detail':
         '文件将回到这条消息之前的状态。之后对它们所做的更改（包括你自己的）都会丢失。',
     'desktop.revertFiles.confirm': '还原文件',
+    'desktop.revertFiles.previewFailed': '无法预览更改，待还原的文件未列出。',
+    'desktop.revertFiles.moreFiles': '……另有 {{count}} 个',
+    'desktop.revertFiles.filesOne': '将还原 {{count}} 个文件',
+    'desktop.revertFiles.filesOther': '将还原 {{count}} 个文件',
 
     'desktop.quit.title': '退出 Caxri？',
     'desktop.quit.messageOne': '有 {{running}}正在运行，要退出 Caxri 吗？',
@@ -205,6 +209,8 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.fileFilter.allFiles': '所有文件',
     'desktop.diagnosticsExport.title': '导出诊断信息',
     'desktop.diagnosticsExport.zipArchive': 'ZIP 压缩包',
+    'desktop.benchmarkShare.title': '保存分享图片',
+    'desktop.benchmarkShare.pngImage': 'PNG 图片',
     'desktop.chooseProjectFolder': '选择项目文件夹',
     'desktop.chooseChatFilesAndFolders': '添加文件和文件夹',
 

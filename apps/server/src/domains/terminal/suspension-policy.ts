@@ -30,6 +30,10 @@ export interface TerminalActivitySample {
     lastTurnFinishedAt?: number;
     lastTurnStartedAt?: number;
     turnInFlight: boolean;
+    /**
+     * When the Agent's turn was last interrupted (Escape or `SIGINT`), for ignoring that turn's late mid-turn hooks.
+     */
+    interruptedAt?: number;
 }
 
 export interface IdleSuspensionSettings {

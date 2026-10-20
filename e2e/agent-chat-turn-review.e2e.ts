@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expectComposerValue } from './support/agent-chat-composer.ts';
+import { composerValue, expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -64,6 +64,37 @@ test('a Codex turn opens as one review whose line comments land in the Chat mess
             ].join('\n'),
         );
         await page.screenshot({ path: testInfo.outputPath('turn-review-added.png') });
+
+        // The header counts the comments waiting in the message; editing and removing stay in step with the composer.
+        await expect(review.getByText('1 comment', { exact: true })).toBeVisible();
+        const note = greeting.getByRole('note', { name: 'Comment on New L2–3' });
+        await note.getByRole('button', { name: 'Edit comment' }).click();
+        await greeting.getByRole('textbox', { name: 'Comment' }).fill('Inline the constant');
+        await greeting.getByRole('button', { name: 'Save' }).click();
+        await expect(note).toContainText('Inline the constant');
+        await expectComposerValue(message, /Inline the constant$/u);
+        await expect.poll(() => composerValue(message)).not.toMatch(/Name the constant message/u);
+
+        await note.getByRole('button', { name: 'Remove comment' }).click();
+        await expect(note).toHaveCount(0);
+        await expectComposerValue(message, '');
+        await expect(review.getByText('1 comment', { exact: true })).toHaveCount(0);
+        await page
+            .locator('[data-sonner-toast]')
+            .getByRole('button', { name: 'Undo', exact: true })
+            .click();
+        await expect(note).toContainText('Inline the constant');
+        await expectComposerValue(message, /Inline the constant$/u);
+        await expect(review.getByText('1 comment', { exact: true })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('turn-review-edited.png') });
+
+        // Back to Chat and Send returns to the Chat and sends the message with the comments in it.
+        await review.getByRole('button', { name: 'Back to Chat and Send' }).click();
+        await expect(
+            session
+                .locator('[data-agent-chat-user-message]')
+                .filter({ hasText: 'Inline the constant' }),
+        ).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

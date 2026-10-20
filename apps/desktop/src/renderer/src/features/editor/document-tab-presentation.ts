@@ -1,58 +1,14 @@
-import type { GitDiffTab } from '@caxri/protocol';
 import {
-    gitDiffTabLabel,
-    isSettingsTabPath,
-    isUsageTabPath,
-    parseAgentContextTab,
-    parseAgentStatusTab,
-    parseAgentTaskTab,
-    parseAgentTranscriptTab,
-    parseAgentTurnReviewTab,
     parseExternalEditorTab,
     parseFilePreviewTab,
-    parseGitDiffTab,
+    virtualEditorTabScheme,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
-import { shouldOpenAsPreview } from '../preview/preview-registry';
-
-/**
- * Localized document tab labels for the Renderer's tab rail. Only `gitDiffTabLabel` remains in `@caxri/protocol`, and
- * it is reused as is for the language-neutral file and commit labels; every worded label (diff changes, transcript,
- * Agent task, Agent status, file preview, Settings, Usage) is translated here and has no protocol counterpart.
- */
-function diffTabLabel(tab: GitDiffTab, t: Translate): string {
-    if (tab.kind !== 'changes') return gitDiffTabLabel(tab);
-    return t(
-        tab.source === 'pull-request' ? 'editor.tab.pullRequestChanges' : 'editor.tab.changes',
-        {
-            repository: tab.repositoryName,
-        },
-    );
-}
-
-function transcriptTabLabel(terminalTitle: string | undefined, t: Translate): string {
-    return terminalTitle
-        ? t('editor.tab.transcriptNamed', { title: terminalTitle })
-        : t('editor.tab.transcript');
-}
-
-function taskTabLabel(
-    task: { kind: 'agent' | 'shell'; title: string } | undefined,
-    t: Translate,
-): string {
-    const title = task?.title.trim();
-    if (title) return title;
-    return task?.kind === 'shell' ? 'Shell' : t('editor.tab.subagent');
-}
-
-function previewTabLabel(path: string, t: Translate): string {
-    const external = parseExternalEditorTab(path);
-    const name = external ? external.name : path.slice(path.lastIndexOf('/') + 1);
-    return shouldOpenAsPreview(path) ? name : t('editor.tab.preview', { name });
-}
+import type { VirtualTabPresentationOptions } from './virtual-tab-descriptors';
+import { virtualTabDescriptors } from './virtual-tab-descriptors';
 
 function directorySegments(displayPath: string): string[] {
     return displayPath.split('/').slice(0, -1).filter(Boolean);
@@ -81,69 +37,33 @@ export function externalTabParentLabel(
 }
 
 /**
- * Keeps resource labels and filesystem hover paths consistent without branching inside tab rendering.
+ * Keeps resource labels and filesystem hover paths consistent without branching inside tab rendering. A virtual tab's
+ * label, icon, and tooltip come from its scheme's entry in `virtualTabDescriptors`; only a Project file is described
+ * here.
  */
 export function documentTabPresentation(
     path: string,
-    options: {
-        /**
-         * Display name of the Agent an `agentStatusTabPath` tab describes, once its Terminal is known.
-         */
-        agentName?: string;
-        /**
-         * Title of the Terminal an `agentStatusTabPath` or `agentContextTabPath` tab describes. Two such tabs for the
-         * same Agent share a label, so the tooltip names the Terminal to tell them apart.
-         */
-        agentTerminalTitle?: string;
-        displayPath?: string;
+    options: VirtualTabPresentationOptions & {
         /**
          * Display paths of every external document open in the same Session, so an external tab whose filename repeats
          * can show the parent directory that tells it apart.
          */
         externalDisplayPaths?: readonly string[];
-        /**
-         * Display path of an external document a preview tab renders. The preview tab encodes the opaque
-         * `caxri-external-file://` identity, which must never reach the user.
-         */
-        previewSourceDisplayPath?: string;
-        transcriptTitle?: string;
-        /**
-         * The Agent Chat task an `agentTaskTabPath` tab shows, when the Chat still lists it.
-         */
-        task?: { kind: 'agent' | 'shell'; title: string };
     },
     t: Translate = translate,
 ) {
-    const diff = parseGitDiffTab(path);
-    const transcript = parseAgentTranscriptTab(path);
-    const agentTask = parseAgentTaskTab(path);
-    const agentStatus = parseAgentStatusTab(path);
-    const agentContext = parseAgentContextTab(path);
-    const turnReview = parseAgentTurnReviewTab(path);
+    const scheme = virtualEditorTabScheme(path);
     const external = parseExternalEditorTab(path);
     const preview = parseFilePreviewTab(path);
     const previewExternal = preview ? parseExternalEditorTab(preview.path) : undefined;
-    const isSettings = isSettingsTabPath(path);
-    const isUsage = isUsageTabPath(path);
-    const label = diff
-        ? diffTabLabel(diff, t)
-        : transcript
-          ? transcriptTabLabel(options.transcriptTitle, t)
-          : agentTask
-            ? taskTabLabel(options.task, t)
-            : agentStatus
-              ? t('editor.tab.agentStatus', { agent: options.agentName ?? 'Agent' })
-              : agentContext
-                ? t('editor.tab.agentContext')
-                : turnReview
-                  ? t('editor.tab.turnChanges')
-                  : preview
-                    ? previewTabLabel(preview.path, t)
-                    : isSettings
-                      ? t('editor.tab.settings')
-                      : isUsage
-                        ? t('editor.tab.usage')
-                        : (external?.name ?? pathBasename(path));
+    const presentation = scheme
+        ? virtualTabDescriptors[scheme].present(path, options, t)
+        : {
+              icon: 'file' as const,
+              fileIconName: pathBasename(path),
+              label: pathBasename(path),
+              labelTooltip: options.displayPath ?? path,
+          };
     const isOutsideProject = Boolean(external) || Boolean(previewExternal);
     const detail =
         external && options.displayPath
@@ -159,49 +79,6 @@ export function documentTabPresentation(
          * apart.
          */
         ...(detail && { detail }),
-        fileIconName:
-            diff?.kind === 'file'
-                ? pathBasename(diff.path)
-                : turnReview || diff?.kind === 'changes'
-                  ? 'changes.diff'
-                  : transcript
-                    ? 'transcript.jsonl'
-                    : preview
-                      ? pathBasename(preview.path)
-                      : isSettings || isUsage || agentTask || agentStatus || agentContext
-                        ? undefined
-                        : (external?.name ?? pathBasename(path)),
-        // Settings draws its own glyph, as VS Code's Settings editor tab does, instead of the JSON file it is stored in.
-        icon: isSettings
-            ? ('settings' as const)
-            : isUsage
-              ? ('usage' as const)
-              : agentTask
-                ? options.task?.kind === 'shell'
-                    ? ('shell-task' as const)
-                    : ('agent-task' as const)
-                : agentStatus
-                  ? ('agent-status' as const)
-                  : agentContext
-                    ? ('agent-context' as const)
-                    : ('file' as const),
-        label,
-        // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
-        labelTooltip: preview
-            ? previewExternal
-                ? (options.previewSourceDisplayPath ?? previewExternal.name)
-                : preview.path
-            : (agentStatus || agentContext) && options.agentTerminalTitle
-              ? `${label} · ${options.agentTerminalTitle}`
-              : diff ||
-                  transcript ||
-                  agentTask ||
-                  agentStatus ||
-                  agentContext ||
-                  turnReview ||
-                  isSettings ||
-                  isUsage
-                ? label
-                : (options.displayPath ?? external?.name ?? path),
+        ...presentation,
     };
 }
