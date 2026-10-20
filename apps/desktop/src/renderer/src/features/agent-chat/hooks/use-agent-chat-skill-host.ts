@@ -4,8 +4,11 @@ import type { MarkdownSkillHost } from '../../../components/markdown/markdown-co
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
-import { AgentChatSkillReference } from '../agent-chat-skill-reference';
-import { agentChatSkillIndex, agentChatSkillMatch } from '../agent-chat-skill-references';
+import { AgentChatSkillReference } from '../composer-input/agent-chat-skill-reference';
+import {
+    agentChatSkillIndex,
+    agentChatSkillMatch,
+} from '../composer-input/agent-chat-skill-references';
 import { AGENT_ACTION_DISCOVERY_STALE_MS } from './use-agent-chat-command-menu';
 
 /**

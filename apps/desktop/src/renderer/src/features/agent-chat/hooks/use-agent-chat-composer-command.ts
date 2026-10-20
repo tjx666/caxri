@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
-import type { AgentChatComposerCommand } from '../agent-chat-composer-commands';
+import type { AgentChatComposerCommand } from '../composer/agent-chat-composer-commands';
 import {
     agentChatCommandFinalFocus,
     registerAgentChatComposerCommand,
-} from '../agent-chat-composer-commands';
+} from '../composer/agent-chat-composer-commands';
 
 /**
  * Registers `run` as this Chat's handler for `command` while `isAvailable`, so the command's shortcut and palette entry

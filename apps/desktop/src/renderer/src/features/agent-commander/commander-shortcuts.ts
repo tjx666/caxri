@@ -14,11 +14,11 @@ import {
 } from '../../lib/keybindings';
 import { useDialogStore } from '../../stores/dialogs';
 import { useWorkbenchStore } from '../../stores/workbench';
-import type { AgentChatComposerCommand } from '../agent-chat/agent-chat-composer-commands';
+import type { AgentChatComposerCommand } from '../agent-chat/composer/agent-chat-composer-commands';
 import {
     canRunAgentChatComposerCommand,
     runAgentChatComposerCommand,
-} from '../agent-chat/agent-chat-composer-commands';
+} from '../agent-chat/composer/agent-chat-composer-commands';
 import { restartActiveTerminal } from '../terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../terminal/terminal-link-actions';
 import { clearActiveTerminal, findInActiveTerminal } from '../terminal/terminal-pane-handlers';

@@ -9,7 +9,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { localizedDuration } from '../../../lib/usage-format';
 import { cn } from '../../../lib/utilities';
-import { agentChatDayLabel, agentChatMessageFullTime } from '../agent-chat-time';
+import { agentChatDayLabel, agentChatMessageFullTime } from '../transcript/agent-chat-time';
 import type { CacheAnalysis, CacheBreak, CacheRequestPoint } from './cache-analysis';
 import { contextCategoryLabel } from './category-labels';
 import type { ContextSegment } from './composition';

@@ -7,7 +7,7 @@ import { focusNextAttentionSession } from '../features/agent-activity/agent-acti
 import {
     canRunAgentChatComposerCommand,
     runAgentChatComposerCommand,
-} from '../features/agent-chat/agent-chat-composer-commands';
+} from '../features/agent-chat/composer/agent-chat-composer-commands';
 import { takeBackFromCommander } from '../features/agent-commander/commander-handover-commands';
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';

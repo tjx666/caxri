@@ -5,14 +5,14 @@ import {
     completeAgentChatAction,
 } from '@caxri/protocol';
 
-import type { AgentChatComposerKeyEvent } from '../agent-chat-composer-view';
-import { agentChatCompactCommand } from '../agent-chat-context';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
+import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
 import {
     agentChatGoalModeDraft,
     isAgentChatGoalAction,
     isAgentChatGoalOffered,
-} from '../agent-chat-slash-commands';
+} from '../composer-input/agent-chat-slash-commands';
+import { agentChatCompactCommand } from '../context/agent-chat-context';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import { useAgentChatComposerEdit } from './use-agent-chat-composer-edit';
 import { useAgentChatSubmit } from './use-agent-chat-submit';

@@ -19,45 +19,14 @@ import {
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { agentChatReadFollowOptions } from './agent-chat-cache-retention';
 import { recoverAgentChat } from './agent-chat-commands';
-import { AgentChatComposer } from './agent-chat-composer';
-import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatEmptyState } from './agent-chat-empty-state';
-import { AgentChatExpansionState } from './agent-chat-expansion';
-import { AgentChatFindScope } from './agent-chat-find-scope';
-import { AgentChatHistoryHead } from './agent-chat-history-head';
 import type { AgentChatHost } from './agent-chat-host';
 import { agentChatHostCapabilities } from './agent-chat-host';
-import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
-import { AgentChatMessageRail } from './agent-chat-message-rail';
-import { AgentChatDayBreak } from './agent-chat-message-time';
-import { AgentChatPendingTimeline } from './agent-chat-pending-timeline';
-import {
-    agentChatEmptyHint,
-    agentChatEmptyMessage,
-    agentChatRecoveryNotice,
-    agentChatSendBlock,
-    isAgentChatBusy,
-} from './agent-chat-presentation';
-import {
-    AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
-    isAgentChatMessageRailShown,
-} from './agent-chat-rail-marks';
-import {
-    AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
-    onAgentChatTranscriptKeyDown,
-} from './agent-chat-reply-navigation';
-import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
+import { AgentChatComposer } from './composer/agent-chat-composer';
+import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
+import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { AgentChatReturnHint } from './agent-chat-return-hint';
-import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
-import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
-import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import {
-    agentChatTimelineEntryKey,
-    isAgentChatAwaitingReplyInTimeline,
-} from './agent-chat-timeline';
-import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
-import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './hooks/use-agent-chat-approval-keys';
 import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
@@ -82,6 +51,37 @@ import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-ag
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
 import { useLoadingStyle } from './loading';
+import { AgentChatMessageRail } from './messages/agent-chat-message-rail';
+import { AgentChatDayBreak } from './messages/agent-chat-message-time';
+import {
+    AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
+    onAgentChatTranscriptKeyDown,
+} from './messages/agent-chat-reply-navigation';
+import { AgentChatReplyPlaceholder } from './messages/agent-chat-reply-placeholder';
+import { AgentChatSelectionToolbar } from './messages/agent-chat-selection-toolbar';
+import { AgentChatExpansionState } from './transcript/agent-chat-expansion';
+import { AgentChatHistoryHead } from './transcript/agent-chat-history-head';
+import { AgentChatJumpToLatest } from './transcript/agent-chat-jump-to-latest';
+import { AgentChatPendingTimeline } from './transcript/agent-chat-pending-timeline';
+import {
+    agentChatEmptyHint,
+    agentChatEmptyMessage,
+    agentChatRecoveryNotice,
+    agentChatSendBlock,
+    isAgentChatBusy,
+} from './transcript/agent-chat-presentation';
+import {
+    AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
+    isAgentChatMessageRailShown,
+} from './transcript/agent-chat-rail-marks';
+import { AgentChatSettledTimeline } from './transcript/agent-chat-settled-timeline';
+import type { AgentChatTimelineEntry } from './transcript/agent-chat-timeline';
+import {
+    agentChatTimelineEntryKey,
+    isAgentChatAwaitingReplyInTimeline,
+} from './transcript/agent-chat-timeline';
+import { AgentChatTimelineEntryView } from './transcript/agent-chat-timeline-entry-view';
+import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
 
 /**
  * The rows a sent message rises to the top with: each user message starts a turn, including one still being sent

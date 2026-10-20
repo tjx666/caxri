@@ -9,7 +9,7 @@ import { useTranslation } from '../../i18n';
 import { useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { retainAgentChatComposerState } from '../agent-chat/agent-chat-drafts';
+import { retainAgentChatComposerState } from '../agent-chat/composer-input/agent-chat-drafts';
 import { chooseProjectFolder } from '../session/session-creation-commands';
 import { useReportViewedSession } from '../session-tabs/use-report-viewed-session';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';

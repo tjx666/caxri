@@ -8,10 +8,10 @@ import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/sugges
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
-import type { AgentChatComposerKeyEvent } from '../agent-chat-composer-view';
-import { agentChatCommandMenuKeyStep } from '../agent-chat-presentation';
-import { agentChatSkillDiscoveryNotice } from '../agent-chat-slash-commands';
-import { agentChatActionSuggestion } from '../agent-chat-suggestions';
+import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
+import { agentChatSkillDiscoveryNotice } from '../composer-input/agent-chat-slash-commands';
+import { agentChatActionSuggestion } from '../composer-input/agent-chat-suggestions';
+import { agentChatCommandMenuKeyStep } from '../transcript/agent-chat-presentation';
 
 /**
  * Discovered skills stay fresh enough while the user types a run of invocations, and a new search after a pause

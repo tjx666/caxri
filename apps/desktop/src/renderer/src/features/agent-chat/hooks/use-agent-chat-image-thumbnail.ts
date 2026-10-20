@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { caxri } from '../../../lib/caxri';
 import { caxriQueryKey } from '../../../queries/client';
-import { agentChatImageThumbnail } from '../agent-chat-images';
+import { agentChatImageThumbnail } from '../attachments/agent-chat-images';
 
 /**
  * Which image of which sent message to preview; `undefined` when the message already carries its thumbnail.

@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
-import type { AgentChatAttachment } from '../agent-chat-drafts';
-import { subscribeAgentChatUnsentReturns } from '../agent-chat-drafts';
+import type { AgentChatAttachment } from '../composer-input/agent-chat-drafts';
+import { subscribeAgentChatUnsentReturns } from '../composer-input/agent-chat-drafts';
 
 /**
  * Takes a message whose send failed back into this mounted composer (`returnUnsentAgentChatMessage`), for as long as

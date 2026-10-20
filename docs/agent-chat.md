@@ -399,7 +399,7 @@ record is the source of truth.
   an earlier history is discarded rather than stitched onto the new one.
 - Once a Desktop pane has scrolled back, it keeps the items the projection evicts so no gap opens
   between the pages read and the live view. That copy is bounded at 5,000 items
-  (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-history.ts`): past it the oldest
+  (`apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-history.ts`): past it the oldest
   kept items are dropped, never while a page is on its way, and the next scroll-back reads them again.
 - A Client that receives a patch while its own read is still in flight holds the patch (up to 200)
   and replays it once the read lands, instead of dropping it and re-reading again.
@@ -779,7 +779,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
   `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
   `git diff`/`git show`, or JSON; anything else stays plain text. Timeline folding lives in
-  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`, which takes the
+  `apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-timeline.ts`, which takes the
   fold range from `foldAgentChatTurn` in `packages/protocol/src/agent/agent-chat-turn-fold.ts`,
   shared with the phone; the work row and
   summary wording, turn labels, and output-language inference every client shares live in
@@ -803,7 +803,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   its height, so revealing it never shifts the transcript. A link preview card in a user message
   opens above the link, so it never covers that row.
   Every time carries a tooltip with the full date. Formatting and day grouping live in
-  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-time.ts`.
+  `apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-time.ts`.
 - A subagent's task tab pages its own history the same way (history head, auto-load near the top,
   position held, Retry on failure) and shows the "earlier messages are not shown" note only when
   the provider's record was cut off, never at the real start.
@@ -825,7 +825,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   ArrowDown, Home, and End move among its ticks and Enter jumps. Ticks shrink together, down to a
   6px target each, rather than scroll when a long conversation would overflow the view; past 120 messages each tick stands for an even
   stretch of the conversation, so ticks stay apart
-  (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-rail-marks.ts`).
+  (`apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-rail-marks.ts`).
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
   Jump to latest. It takes its own strip above the conversation rather than floating over it, so it
   never covers the text it searches, and its buttons' tooltips name Enter, Shift+Enter, and Escape. It reuses the Terminal's `terminal.find` command: a Chat registers itself as its

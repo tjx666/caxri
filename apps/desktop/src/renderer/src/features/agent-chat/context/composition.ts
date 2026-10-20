@@ -1,7 +1,7 @@
 import type { AgentChatContextComposition, AgentChatUsage } from '@caxri/protocol';
 import { formatTokens } from '@caxri/protocol';
 
-import { agentChatContextLimit, agentChatContextPercent } from '../agent-chat-context';
+import { agentChatContextLimit, agentChatContextPercent } from './agent-chat-context';
 
 type Category = AgentChatContextComposition['categories'][number];
 

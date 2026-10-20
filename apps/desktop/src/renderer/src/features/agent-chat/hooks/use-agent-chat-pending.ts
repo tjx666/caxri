@@ -8,7 +8,7 @@ import {
     selectAgentChatPendingAnswers,
     selectAgentChatPendingMessages,
     useAgentChatPendingStore,
-} from '../agent-chat-pending';
+} from '../transcript/agent-chat-pending';
 
 /**
  * What this Chat shows ahead of its projection (`agentChatPendingView`): messages on their way, split by where they

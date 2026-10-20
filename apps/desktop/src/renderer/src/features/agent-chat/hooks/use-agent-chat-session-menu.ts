@@ -10,9 +10,9 @@ import { prepareSessionReference } from '../../session/session-reference-command
 import type {
     AgentChatComposerInput,
     AgentChatComposerKeyEvent,
-} from '../agent-chat-composer-view';
-import { draftWithInsertion } from '../agent-chat-drafts';
-import type { AgentChatMentionRow } from '../agent-chat-file-mentions';
+} from '../composer/agent-chat-composer-view';
+import { draftWithInsertion } from '../composer-input/agent-chat-drafts';
+import type { AgentChatMentionRow } from '../composer-input/agent-chat-file-mentions';
 import {
     agentChatFileSuggestion,
     agentChatMentionActiveIndex,
@@ -21,11 +21,11 @@ import {
     agentChatMentionRowSuggestion,
     agentChatMentionStep,
     formatAgentChatFileMention,
-} from '../agent-chat-file-mentions';
+} from '../composer-input/agent-chat-file-mentions';
 import {
     agentChatSessionPreparingText,
     agentChatSessionSuggestions,
-} from '../agent-chat-suggestions';
+} from '../composer-input/agent-chat-suggestions';
 import { useAgentChatFileMentions } from './use-agent-chat-file-mentions';
 import { useAgentChatPlacedCaret } from './use-agent-chat-placed-caret';
 

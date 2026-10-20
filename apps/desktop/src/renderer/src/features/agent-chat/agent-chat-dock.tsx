@@ -5,9 +5,9 @@ import { CircleAlert, Info, RotateCcw, SquareTerminal, Unplug } from 'lucide-rea
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { AgentChatPlanCard } from './agent-chat-plan-card';
-import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
-import { AgentChatRequestCard } from './agent-chat-request-card';
+import { AgentChatPlanCard } from './tools/agent-chat-plan-card';
+import type { AgentChatRecoveryNotice } from './transcript/agent-chat-presentation';
+import { AgentChatRequestCard } from './transcript/agent-chat-request-card';
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling

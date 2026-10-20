@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { useTerminal } from '../../stores/selectors';
-import { AgentChatTerminalContent } from '../agent-chat/agent-chat-terminal-content';
+import { AgentChatTerminalContent } from '../agent-chat/tasks/agent-chat-terminal-content';
 import { didPasteDropIntoTerminal, isTerminalPasteDrag } from '../terminal/terminal-drop';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { useAgentCommanderStore } from './commander-client';

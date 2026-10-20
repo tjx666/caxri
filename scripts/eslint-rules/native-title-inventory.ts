@@ -21,10 +21,11 @@ interface ApprovedNativeTitle {
  * removed.
  */
 export const approvedNativeTitles: Readonly<Partial<Record<string, ApprovedNativeTitle>>> = {
-    'apps/desktop/src/renderer/src/features/agent-chat/agent-chat-composer-extensions.ts': {
-        count: 1,
-        reason: 'CodeMirror widget DOM outside React; the path is the editor text a keyboard cursor already reads.',
-    },
+    'apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer-extensions.ts':
+        {
+            count: 1,
+            reason: 'CodeMirror widget DOM outside React; the path is the editor text a keyboard cursor already reads.',
+        },
     'apps/desktop/src/renderer/src/features/preview/markdown-code-blocks.ts': {
         count: 3,
         reason: 'Generated copy button whose title repeats its aria-label.',

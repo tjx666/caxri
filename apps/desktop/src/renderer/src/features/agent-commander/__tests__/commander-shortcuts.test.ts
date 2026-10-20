@@ -21,7 +21,7 @@ vi.mock('../../terminal/terminal-surface-commands', () => ({
 import { commandDefinitions } from '../../../commands/definitions';
 import { useDialogStore } from '../../../stores/dialogs';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { registerAgentChatComposerCommand } from '../../agent-chat/agent-chat-composer-commands';
+import { registerAgentChatComposerCommand } from '../../agent-chat/composer/agent-chat-composer-commands';
 import { setCommanderPaletteOpen, useCommanderDialogsStore } from '../commander-dialogs-store';
 import {
     COMMANDER_KEYBOARD_COMMANDS,

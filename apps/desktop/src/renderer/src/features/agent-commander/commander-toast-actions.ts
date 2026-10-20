@@ -3,7 +3,7 @@ import { restoreAgentChatQueued } from '../agent-chat/agent-chat-commands';
 import {
     agentChatPasteAsTextUnavailableReason,
     pasteAgentChatSavedPasteAsText,
-} from '../agent-chat/agent-chat-long-paste-commands';
+} from '../agent-chat/composer-input/agent-chat-long-paste-commands';
 import { terminalToastActionHandlers } from '../terminal/terminal-toast-actions';
 import { openWorkbenchSettings } from './commander-commands';
 import {

@@ -3,20 +3,20 @@ import { useState } from 'react';
 
 import { translate } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
+import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
 import type {
     AgentChatComposerInput,
     AgentChatComposerKeyEvent,
-} from '../agent-chat-composer-view';
-import type { AgentChatDraftStash } from '../agent-chat-draft-stash';
+} from '../composer/agent-chat-composer-view';
+import type { AgentChatDraftStash } from '../composer-input/agent-chat-draft-stash';
 import {
     decideAgentChatStashAction,
     isAgentChatDraftStashKey,
     readAgentChatDraftStash,
     restoredAgentChatDraftText,
     writeAgentChatDraftStash,
-} from '../agent-chat-draft-stash';
-import type { AgentChatAttachment } from '../agent-chat-drafts';
-import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
+} from '../composer-input/agent-chat-draft-stash';
+import type { AgentChatAttachment } from '../composer-input/agent-chat-drafts';
 import { LONG_NOTICE_MS, useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
 
 /**

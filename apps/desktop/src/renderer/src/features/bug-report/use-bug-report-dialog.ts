@@ -10,7 +10,7 @@ import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { readAgentChatImage } from '../agent-chat/agent-chat-images';
+import { readAgentChatImage } from '../agent-chat/attachments/agent-chat-images';
 import { activateTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab } from '../workbench/pane-actions';
 import type { BugReportContext, BugReportDraft, BugReportScreenshotReference } from './bug-report';

@@ -7,7 +7,7 @@ import './styles/styles.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { configureAgentChatAttachmentsForCommander } from './features/agent-chat/agent-chat-drafts';
+import { configureAgentChatAttachmentsForCommander } from './features/agent-chat/composer-input/agent-chat-drafts';
 import { AgentCommanderApp } from './features/agent-commander/agent-commander-app';
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
 import { configureCommanderTerminalHost } from './features/agent-commander/commander-commands';

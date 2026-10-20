@@ -1,6 +1,9 @@
 import { useLayoutEffect, useState } from 'react';
 
-import { agentChatRailTickCapacity, MAX_AGENT_CHAT_RAIL_MARKS } from '../agent-chat-rail-marks';
+import {
+    agentChatRailTickCapacity,
+    MAX_AGENT_CHAT_RAIL_MARKS,
+} from '../transcript/agent-chat-rail-marks';
 
 /**
  * The room the rail leaves above and below itself inside the conversation area (its `max-h-[calc(100%-6rem)]`).

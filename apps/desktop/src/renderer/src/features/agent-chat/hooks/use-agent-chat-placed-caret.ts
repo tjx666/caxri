@@ -4,16 +4,16 @@ import { mentionAtCaret } from '../../../lib/suggestion-options';
 import {
     markAgentChatComposerCaretKey,
     markAgentChatComposerSelectionPlaced,
-} from '../agent-chat-composer-caret';
+} from '../composer/agent-chat-composer-caret';
 import type {
     AgentChatComposerInput,
     AgentChatComposerKeyEvent,
-} from '../agent-chat-composer-view';
+} from '../composer/agent-chat-composer-view';
 import {
     agentChatSelectionCaret,
     isAgentChatCaretKey,
     isAgentChatCaretKeyRelease,
-} from '../agent-chat-suggestions';
+} from '../composer-input/agent-chat-suggestions';
 
 /**
  * The composer caret the user placed and the `@word` at it, for the `@` Sessions list that follows that word. There is

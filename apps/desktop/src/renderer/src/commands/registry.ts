@@ -1,6 +1,6 @@
 import type { CommandId, ViewContainerId } from '@caxri/protocol';
 
-import type { AgentChatComposerCommand } from '../features/agent-chat/agent-chat-composer-commands';
+import type { AgentChatComposerCommand } from '../features/agent-chat/composer/agent-chat-composer-commands';
 import type { SessionNavigationDirection } from '../features/session/session-navigation-history';
 import type { SettingsView } from '../stores/dialogs';
 

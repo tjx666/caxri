@@ -4,22 +4,22 @@ import {
     appendToAgentChatDraft,
     readAgentChatDraft,
     subscribeAgentChatDraftChanges,
-} from '../agent-chat-drafts';
+} from '../composer-input/agent-chat-drafts';
 import {
     pendingReviewCommentFlags,
     removeAgentChatReviewCommentWithUndo,
     replaceAgentChatReviewComment,
-} from '../agent-chat-review-draft';
+} from '../turns/agent-chat-review-draft';
 import type {
     AgentChatReviewComment,
     AgentChatReviewFile,
     AgentChatReviewRange,
-} from '../agent-chat-turn-review';
+} from '../turns/agent-chat-turn-review';
 import {
     agentChatReviewComment,
     agentChatReviewRange,
     formatAgentChatReviewComment,
-} from '../agent-chat-turn-review';
+} from '../turns/agent-chat-turn-review';
 
 /**
  * The comment being written: on which file, the line it started on, the range it covers so far, and its text, kept here

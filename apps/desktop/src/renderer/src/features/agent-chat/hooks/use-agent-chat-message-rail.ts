@@ -1,11 +1,11 @@
 import type { RefObject } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE } from '../agent-chat-history';
+import { AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE } from '../transcript/agent-chat-history';
 import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
     agentChatActiveRailIndex,
-} from '../agent-chat-rail-marks';
+} from '../transcript/agent-chat-rail-marks';
 import { isScrolledToEnd } from './use-agent-chat-scroll';
 
 /**

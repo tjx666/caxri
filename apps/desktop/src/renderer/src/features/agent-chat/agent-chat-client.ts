@@ -16,7 +16,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
 import { subscribeAgentChatCacheRetention } from './agent-chat-cache-retention';
-import { subscribeAgentChatHistoryRetention } from './agent-chat-history-client';
+import { subscribeAgentChatHistoryRetention } from './transcript/agent-chat-history-client';
 
 function agentChatQueryKey(terminalId: string) {
     return caxriQueryKey('agentChat.read', { terminalId });

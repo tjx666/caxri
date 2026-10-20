@@ -32,21 +32,24 @@ import {
     restartTerminal,
     restartTerminalWithRecovery,
 } from '../terminal/terminal-commands';
+import { agentChatHandoffPrompt } from './agent-chat-handoff';
 import {
     agentChatReferenceAttachments,
     writeAgentChatAttachments,
     writeAgentChatDraft,
-} from './agent-chat-drafts';
-import { agentChatHandoffPrompt } from './agent-chat-handoff';
-import { agentChatConfigureFailureMessage } from './agent-chat-model-selection';
-import { addAgentChatPendingAnswer, dropAgentChatPendingAnswer } from './agent-chat-pending';
-import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
-import { previewAgentChatRevert } from './agent-chat-restore-preview-commands';
+} from './composer-input/agent-chat-drafts';
+import { agentChatConfigureFailureMessage } from './model/agent-chat-model-selection';
+import {
+    addAgentChatPendingAnswer,
+    dropAgentChatPendingAnswer,
+} from './transcript/agent-chat-pending';
+import type { AgentChatRecoveryNotice } from './transcript/agent-chat-presentation';
+import { previewAgentChatRevert } from './turns/agent-chat-restore-preview-commands';
 import {
     agentChatForkSuccessMessage,
     agentChatReplaceTurnsConfirm,
     agentChatRestoreSuccessMessage,
-} from './agent-chat-rewind-copy';
+} from './turns/agent-chat-rewind-copy';
 
 /**
  * Sends a message. An idle Chat starts a turn; while a turn runs, `delivery` decides whether the message waits in the
