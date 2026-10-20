@@ -42,7 +42,7 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
-import { activateSessionInWindow, WindowOpenSessionsStore } from './open-sessions';
+import { selectInWindow, WindowOpenSessionsStore } from './open-sessions';
 import {
     promoteLivePrimaryAgentSuccessor,
     removeTerminalWithSuccession,
@@ -449,8 +449,8 @@ export class CaxriDatabase {
         return this.db.transaction(() => moveTerminalToNewSession(this.db, terminalId, windowKey));
     }
 
-    selectSession(sessionId: string, windowKey?: string): void {
-        this.db.transaction(() => {
+    selectSession(sessionId: string, windowKey?: string): { ownerWindowKey?: string } {
+        return this.db.transaction(() => {
             const session = this.db.sessions.get(sessionId);
             if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
             if (session.archivedAt !== undefined)
@@ -458,7 +458,7 @@ export class CaxriDatabase {
             this.db.sessions.touchLastOpened(sessionId);
             this.db.projects.touchLastOpened(session.projectId);
             this.db.appState.set('lastSelectedProjectId', session.projectId);
-            if (windowKey) activateSessionInWindow(this.db, windowKey, sessionId, 'navigate');
+            return selectInWindow(this.db, windowKey, sessionId);
         });
     }
 

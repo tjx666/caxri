@@ -32,6 +32,7 @@ import {
     openSessionIdsSchema,
     sessionPlacementSchema,
     windowKeyParameter,
+    windowKeySchema,
     windowOpenSessionsSchema,
 } from './window-presence-contract.js';
 
@@ -51,6 +52,14 @@ const sessionIdWrite = {
  * A Session operation that also moves the requesting window's active Session.
  */
 const windowSessionParameters = z.object({ sessionId: identifierSchema, ...windowKeyParameter });
+/**
+ * The Session a window asked to open, plus the window that owns it when the request was redirected. A Session is an
+ * Open Session of at most one window, so asking another window to select it leaves the requester unchanged and
+ * activates it in the owner, which `ownerWindowKey` names so Desktop Main can raise that window.
+ */
+const windowSessionResultSchema = sessionRecordSchema.extend({
+    ownerWindowKey: windowKeySchema.optional(),
+});
 const sessionAttentionReadResult = z.object({
     acknowledged: z.boolean(),
     sessionId: identifierSchema,
@@ -145,7 +154,7 @@ export const sessionMethods = {
     'session.select': {
         ...serverWrite,
         params: windowSessionParameters,
-        result: sessionRecordSchema,
+        result: windowSessionResultSchema,
     },
     /**
      * Replaces the requesting window's Open Sessions strip with the ordered IDs. It never carries the active Session:
@@ -223,7 +232,11 @@ export const sessionMethods = {
         result: z.array(sessionRecordSchema),
     },
     'session.detach': sessionIdWrite,
-    'session.resume': { ...sessionIdWrite, params: windowSessionParameters },
+    'session.resume': {
+        ...sessionIdWrite,
+        params: windowSessionParameters,
+        result: windowSessionResultSchema,
+    },
     /**
      * Desktop-visible read of the in-memory "Always allow in this Session" grant (issue caxri#1295). Never durable, so
      * this is its own command rather than a `sessionRecordSchema` field; see `permissionAutoAllowStatusSchema`.

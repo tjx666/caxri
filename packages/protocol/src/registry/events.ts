@@ -66,6 +66,7 @@ const fullStateChangeReasonSchema = z.enum([
     'terminal.close',
     'terminal.moveToNewSession',
     'unknown',
+    'window.openSessions',
 ]);
 
 /**
