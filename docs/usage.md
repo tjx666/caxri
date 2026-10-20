@@ -108,7 +108,7 @@ tokens but not time.
 
 ## Live conversation readout
 
-An Agent Terminal's status bar shows its bound conversation's running usage (`1.2M · $3.40 · 5h 62% · 7d 28% left`) and opens this
+An Agent Terminal's status bar shows its bound conversation's running usage (`1.2M · $3.40 · 7d 28% left`) and opens this
 page on click. The Renderer polls `terminal.agentUsage` every two seconds; Server Core (`LiveAgentUsage`,
 `apps/server/src/domains/usage/live-usage.ts`) keeps one `IncrementalUsageScan` per Terminal, so each poll parses only
 records appended since the last one, and prices the result with the same rules as the report. The conversation's files
@@ -125,8 +125,10 @@ tabs show the provider's count and no cost.
 
 ## Plan limits
 
-The status bar lists every live plan window shortest first, as what is left (`5h 62% · 7d 28% left`), and turns
-`--warning` once any of them has used 90%. Its hover card gives each window's reset. The figures are account-wide:
+The status bar lists the live plan windows shortest first, as what is left (`7d 28% left`), and turns `--warning`
+once any window it shows has used 90%. The 5-hour window resets several times a day, so the chip leaves it out unless
+`statusBar.usage.showFiveHourLimit` is on (`5h 62% · 7d 28% left`). Its hover card lists every window with its reset
+either way. The figures are account-wide:
 the newest reading Server Core has from any conversation.
 
 - **Codex** writes its windows into the rollout, which the live scan already reads.

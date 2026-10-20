@@ -24,20 +24,53 @@ export function agentUsageCostLabel(readout: AgentUsageReadout): string | undefi
 }
 
 /**
+ * The 5-hour plan window, which the chip leaves out unless `statusBar.usage.showFiveHourLimit` is on.
+ */
+const FIVE_HOUR_WINDOW_MINUTES = 300;
+
+/**
+ * What the chip reads from its Setting; the hover card ignores it and always lists every window.
+ */
+export interface AgentUsageChipOptions {
+    /**
+     * `statusBar.usage.showFiveHourLimit`: the 5-hour window resets several times a day, so it is opt-in.
+     */
+    showFiveHourLimit: boolean;
+}
+
+/**
+ * The live limit windows the chip itself shows: {@link currentLimitWindows} minus the 5-hour window unless the user
+ * opted in. The weekly window is the one that actually stops a plan for days, so it is the one worth a status-bar
+ * slot.
+ */
+function agentUsageChipWindows(
+    limit: UsageLimit | undefined,
+    now: number,
+    { showFiveHourLimit }: AgentUsageChipOptions,
+): ReturnType<typeof currentLimitWindows> {
+    const windows = currentLimitWindows(limit, now);
+    return showFiveHourLimit
+        ? windows
+        : windows.filter((window) => window.windowMinutes !== FIVE_HOUR_WINDOW_MINUTES);
+}
+
+/**
  * The chip text: conversation tokens, estimated cost, and every live rate-limit window shortest first, e.g. `1.2M ·
- * $3.40 · 5h 38% · 7d 88% left`, so the 5-hour and weekly plan limits read apart and never as context or token use.
- * Cost follows {@link agentUsageCostLabel}. The limit is the newest account-wide reading the Server has seen, which may
- * come from another conversation, so the hover card states its age and each window's reset.
+ * $3.40 · 5h 38% · 7d 88% left` (windows per {@link agentUsageChipWindows}), so the 5-hour and weekly plan limits read
+ * apart and never as context or token use. Cost follows {@link agentUsageCostLabel}. The limit is the newest
+ * account-wide reading the Server has seen, which may come from another conversation, so the hover card states its age
+ * and each window's reset.
  */
 export function agentUsageLabel(
     readout: AgentUsageReadout,
     now: number,
+    options: AgentUsageChipOptions,
     t: Translate = translate,
 ): string {
     const parts = [formatTokens(readout.tokens.total)];
     const cost = agentUsageCostLabel(readout);
     if (cost) parts.push(cost);
-    const windows = currentLimitWindows(readout.limit, now);
+    const windows = agentUsageChipWindows(readout.limit, now, options);
     if (windows.length > 0)
         parts.push(
             t('statusBar.usage.chipLimitsLeft', {
@@ -70,8 +103,9 @@ export type AgentUsageLimitTone = 'warning';
 export function agentUsageLimitTone(
     readout: AgentUsageReadout,
     now: number,
+    options: AgentUsageChipOptions,
 ): AgentUsageLimitTone | undefined {
-    return currentLimitWindows(readout.limit, now).some(
+    return agentUsageChipWindows(readout.limit, now, options).some(
         (window) => Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT,
     )
         ? 'warning'

@@ -73,6 +73,10 @@ export const settingsCatalog = {
     'settings.primarySidebar.translucent.description':
         'On macOS, blur the desktop through the sidebar like frosted glass when the theme matches the system light or dark appearance.',
 
+    'settings.statusBar.usage.showFiveHourLimit.title': 'Show 5-hour limit in the status bar',
+    'settings.statusBar.usage.showFiveHourLimit.description':
+        'Adds the 5-hour plan limit to the Agent usage chip beside the weekly limit. Its hover card always lists every limit.',
+
     'settings.window.zoomLevel.title': 'Zoom level',
     'settings.window.zoomLevel.description':
         'Scales the whole interface. 0 is the original size; each step up or down zooms by 20%. View › Zoom In, Zoom Out, and Reset Zoom change it too.',

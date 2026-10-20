@@ -69,6 +69,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.primarySidebar.translucent.description':
         '在 macOS 上，主题与系统的浅色或深色外观一致时，侧边栏透出模糊的桌面，呈磨砂玻璃效果。',
 
+    'settings.statusBar.usage.showFiveHourLimit.title': '在状态栏显示 5 小时限额',
+    'settings.statusBar.usage.showFiveHourLimit.description':
+        '在 Agent 用量标签中，于每周限额旁同时显示 5 小时套餐限额。悬停卡片始终列出全部限额。',
+
     'settings.window.zoomLevel.title': '缩放级别',
     'settings.window.zoomLevel.description':
         '缩放整个界面。0 为原始大小；每增减一级缩放 20%。“视图 › 放大”“缩小”和“重置缩放”也会更改此项。',
