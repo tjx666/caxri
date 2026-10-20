@@ -108,6 +108,7 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toBeVisible();
 
+        await message.fill('what are these');
         await pasteImage(message);
         const attached = chat.getByRole('list', { name: 'Attachments' });
         await expect(attached.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();
@@ -119,15 +120,34 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         await expect(
             attached.getByRole('img', { name: 'retina.png (resized to fit the 5 MB limit)' }),
         ).toBeVisible();
-        await message.fill('what are these');
+        // Each image is written into the message where the caret was, drawn as a numbered pill matching its thumbnail.
+        await expectComposerValue(message, 'what are these [Image #1] [Image #2] [Image #3] ');
+        await expect(chat.locator('.cm-image-pill')).toHaveCount(3);
+        await expect(attached.locator('[data-attachment-token="1"]')).toHaveText('#1');
+        // Deleting a pill removes its image, and undo brings both back.
+        await message.press('End');
+        await message.press('ArrowLeft');
+        await message.press('Backspace');
+        await expect(attached.getByRole('button', { name: /^Remove retina\.png/u })).toHaveCount(0);
+        // Like deleting a word, the spaces on either side of the pill stay.
+        await expectComposerValue(message, 'what are these [Image #1] [Image #2]  ');
+        await message.press('Meta+z');
+        await expectComposerValue(message, 'what are these [Image #1] [Image #2] [Image #3] ');
+        await expect(attached.getByRole('button', { name: /^Remove retina\.png/u })).toBeVisible();
+        // Clicking a pill opens its image's preview, which stays open past the click that opened it.
+        await chat.locator('.cm-image-pill[data-image-token="2"]').click();
+        await expect(page.getByRole('dialog', { name: 'pixel.png' })).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-attachments.png') });
         await message.press('Enter');
 
         // The Server refuses any image over the limit, so this receipt proves the resized bytes fit.
         await expect(chat.getByText('Received 3 images.')).toBeVisible();
         await expect(attached).toHaveCount(0);
-        await expect(chat.getByRole('img', { name: 'Attachment 1' })).toBeVisible();
-        await expect(chat.getByRole('img', { name: 'Attachment 2' })).toBeVisible();
+        await expect(chat.getByRole('img', { name: 'Image 1' })).toBeVisible();
+        await expect(chat.getByRole('img', { name: 'Image 2' })).toBeVisible();
+        await expect(chat.locator('[data-agent-chat-image-pill]')).toHaveCount(3);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-sent-images.png') });
 
         // The `/` menu reuses the Agent Commands & Skills discovery, so a Project skill sits beside the commands.
@@ -225,7 +245,11 @@ test('a Codex Chat attaches picked files and folders as cards and saves a long p
         const notesCard = attached.locator(`[data-agent-chat-path-attachment="${notes}"]`);
         await expect(notesCard).toContainText('notes.txt');
         await expect(notesCard).toContainText('File');
-        await expectComposerValue(message, '');
+        // Picked images are written into the message as placeholders; a file card is not.
+        await expectComposerValue(
+            message,
+            `${shots.map((_, index) => `[Image #${index + 1}]`).join(' ')} `,
+        );
         // `+` → Files and folders opens the native panel, stubbed in Main to choose the folder; Main tells it is one.
         await running.app.evaluate(({ dialog, shell }, chosen) => {
             dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [chosen] });
@@ -342,7 +366,8 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
         // An image alone is a message.
         await message.press('Enter');
         await expect(chat.getByText('Received 1 image.')).toBeVisible();
-        await expect(chat.getByRole('img', { name: 'Attachment 1' })).toBeVisible();
+        await expect(chat.getByRole('img', { name: 'Image 1' })).toBeVisible();
+        await expect(chat.locator('[data-agent-chat-image-pill]')).toBeVisible();
 
         await message.fill('/');
         const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
@@ -371,10 +396,16 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
         await failure.getByRole('button', { name: 'Retry' }).click();
         await expect(failure).toHaveCount(0);
         await expect(chat.getByText('Received 1 image.')).toBeVisible();
-        const restored = chat.locator('img[alt="Attachment 1"]');
+        const restored = chat.locator('img[alt="Image 1"]');
         await expect(restored).toHaveAttribute('src', /^data:image\/jpeg;base64,/u);
         await expect(restored).toHaveJSProperty('complete', true);
         await page.screenshot({ path: testInfo.outputPath('claude-chat-restored-image.png') });
+
+        // A failed Hook's message reads as Markdown, so the command it quotes in backticks shows as code.
+        await message.fill('synthetic feedback');
+        await message.press('Enter');
+        await expect(chat.locator('code', { hasText: 'example-check --config' })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-hook-feedback.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

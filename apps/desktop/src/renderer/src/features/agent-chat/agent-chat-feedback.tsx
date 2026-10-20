@@ -1,9 +1,14 @@
+import { useMemo } from 'react';
+
+import { parseMarkdownBlocks } from '@caxri/markdown';
 import type { AgentChatItem } from '@caxri/protocol';
 import { agentChatNoticeMessage } from '@caxri/protocol';
 import { CircleAlert, SquareTerminal, TriangleAlert } from 'lucide-react';
 
+import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { openAgentChatLink } from './agent-chat-links';
 
 const FEEDBACK_TONES = {
     error: {
@@ -31,7 +36,10 @@ const FEEDBACK_TONES = {
 };
 
 /**
- * Provider feedback has its own source and tone so it cannot be mistaken for a model reply.
+ * Provider feedback has its own source and tone so it cannot be mistaken for a model reply. An error or a warning, such
+ * as a failed Hook's message, renders its Markdown: Hooks write for the Agent and quote commands in backticks, which
+ * read as code here as they do in a reply. Line breaks stay as written, since a Hook's stderr is lines rather than
+ * paragraphs. Command output stays verbatim, because it lines its columns up with spaces.
  */
 export function AgentChatFeedback({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
     const { t } = useTranslation();
@@ -53,10 +61,23 @@ export function AgentChatFeedback({ item }: { item: Extract<AgentChatItem, { typ
             <Icon className={cn('mt-0.5 shrink-0', tone.size)} />
             <div className="min-w-0 flex-1 select-text">
                 {item.title && <div className="mb-1 font-medium">{item.title}</div>}
-                <div className="wrap-anywhere whitespace-pre-wrap">
-                    {agentChatNoticeMessage(item, t)}
-                </div>
+                {item.kind === 'error' || item.kind === 'warning' ? (
+                    <FeedbackMarkdown text={agentChatNoticeMessage(item, t)} />
+                ) : (
+                    <div className="wrap-anywhere whitespace-pre-wrap">
+                        {agentChatNoticeMessage(item, t)}
+                    </div>
+                )}
             </div>
+        </div>
+    );
+}
+
+function FeedbackMarkdown({ text }: { text: string }) {
+    const blocks = useMemo(() => parseMarkdownBlocks(text), [text]);
+    return (
+        <div className="flex flex-col gap-1.5 wrap-anywhere whitespace-pre-line">
+            <MarkdownBlocks blocks={blocks} variant="transcript" onOpenUrl={openAgentChatLink} />
         </div>
     );
 }

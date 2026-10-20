@@ -23,6 +23,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
         '无法在 SSH Host 上引用此 Mac 上的文件。请先将文件复制到 SSH Host，再从“文件”中拖入。图片仍可作为附件添加。',
 
     'agentChat.attachments.fallbackName': '附件 {{number}}',
+    'agentChat.attachments.imageNumber': '图片 {{number}}',
     'agentChat.attachments.label': '附件',
     'agentChat.attachments.folder': '文件夹',
     'agentChat.attachments.file': '文件',

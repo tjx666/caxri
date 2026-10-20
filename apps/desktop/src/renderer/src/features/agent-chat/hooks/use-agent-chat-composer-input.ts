@@ -2,6 +2,7 @@ import type { DragEvent, RefObject } from 'react';
 import { useImperativeHandle } from 'react';
 
 import type { AgentChatPathReference, TerminalRecord } from '@caxri/protocol';
+import { agentChatImageToken } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { isOsFileDrag, isOsFileReferenceRefused, osFilePaths } from '../../../lib/file-drag';
@@ -29,6 +30,7 @@ export function useAgentChatComposerInput({
     images,
     inputReference,
     providerName,
+    reserveImageTokens,
     setDraft,
     supportsImages,
     terminal,
@@ -43,6 +45,10 @@ export function useAgentChatComposerInput({
     >;
     inputReference: RefObject<AgentChatComposerInput | null>;
     providerName: string;
+    /**
+     * The first of `count` placeholder numbers for images about to be attached (`useAgentChatImagePlaceholders`).
+     */
+    reserveImageTokens: (count: number) => number;
     setDraft: (update: (current: string) => string) => void;
     supportsImages: boolean;
     terminal: TerminalRecord | undefined;
@@ -105,8 +111,16 @@ export function useAgentChatComposerInput({
         setDraft,
         terminalId,
     });
+    /**
+     * Attaches images and writes their `[Image #N]` placeholders at the caret once they are read, as the terminal
+     * Agents do for a pasted image, so the message says where each one belongs.
+     */
+    const addImages = async (files: readonly File[]): Promise<void> => {
+        const tokens = await images.add(files, reserveImageTokens(files.length));
+        if (tokens.length > 0) insertText(tokens.map(agentChatImageToken).join(' '));
+    };
     const fileInput = useAgentChatFileInput({
-        add: images.add,
+        add: addImages,
         didInsertPaths,
         didInsertPickedPaths,
         isImageInputEnabled: supportsImages,

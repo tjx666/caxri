@@ -157,7 +157,9 @@ Local `--plugin-dir` launch arguments also carry through to the Chat SDK.
 
 The feedback callouts follow [Paseo's notification presentation](https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/app/src/components/message.tsx):
 severity color, an icon, and a readable body. Mod command output and blocked input use the warning
-treatment; a failed Hook is an error.
+treatment; a failed Hook is an error. An error or warning body renders as Markdown with its line
+breaks kept, because Hooks write for the Agent and quote commands in backticks; command output stays
+verbatim so its space-aligned columns survive (`agent-chat-feedback.tsx`).
 
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
 live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
@@ -1114,6 +1116,17 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   position; no provider process is needed), makes the same thumbnail, and caches only the thumbnail.
   Codex history comes from its app-server, whose item ids name no on-disk record, so a resumed Codex
   image stays a placeholder, as does an image the transcript tail no longer reaches.
+- **Inline image placeholders.** An attached image is written into the draft at the caret as
+  `[Image #N]`, the placeholder the Claude Code and Codex TUIs use, and the composer draws it as an
+  atomic pill with the thumbnail, as Cursor draws a file mention; the tray thumbnail carries the
+  same `#N` badge, as Orca's does, and clicking a pill opens the preview. `N` is fixed while the
+  draft is written, so removing image 1 leaves image 2 named 2. Deleting a pill removes its image,
+  removing an image from the tray removes its pill, and undo brings both back
+  (`agent-chat-image-placeholders.ts`). At send the placeholders are renumbered 1..k in the order the
+  images are sent, which is the numbering the Agent reads: Claude Code receives the text block
+  before its images, as its TUI sends them, and the queue renumbers a joined message's placeholders
+  past the images of the messages before it (`packages/protocol/src/agent/agent-chat-image-tokens.ts`).
+  The sent bubble draws each placeholder that names one of its images as the same pill.
 - **Other files and folders.** Files and folders in `+` opens the native open panel through
   `dialog.selectPaths`, which takes several files and folders at once (Chromium's file input cannot
   pick a folder together with files). It grants nothing, unlike the Project folder dialog, so a pick

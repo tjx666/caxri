@@ -22,6 +22,7 @@ export type PersistedAgentChatAttachment =
           image: AgentChatImageInput;
           name?: string;
           isResized?: boolean;
+          token?: number;
       }
     | { id: string; path: string; isDirectory: boolean }
     | { id: string; skill: string };
@@ -57,7 +58,7 @@ export function parsePersistedAgentChatAttachments(value: unknown): PersistedAge
     if (!Array.isArray(value)) return [];
     return value.flatMap((entry: unknown): PersistedAgentChatAttachment[] => {
         if (typeof entry !== 'object' || entry === null) return [];
-        const { id, image, isDirectory, isResized, name, path, skill } = entry as Record<
+        const { id, image, isDirectory, isResized, name, path, skill, token } = entry as Record<
             string,
             unknown
         >;
@@ -73,6 +74,9 @@ export function parsePersistedAgentChatAttachments(value: unknown): PersistedAge
                 image: parsed.data,
                 ...(typeof name === 'string' && { name }),
                 ...(isResized === true && { isResized }),
+                ...(typeof token === 'number' &&
+                    Number.isSafeInteger(token) &&
+                    token > 0 && { token }),
             },
         ];
     });

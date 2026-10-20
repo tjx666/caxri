@@ -69,6 +69,15 @@ function AttachmentThumbnail({
                 className="block size-28 rounded-lg border border-border object-cover"
                 src={attachment.image.thumbnail}
             />
+            {attachment.token !== undefined && (
+                <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute top-1 left-1 z-10 rounded-sm bg-background/85 px-1 text-[11px] leading-4 font-medium text-foreground tabular-nums"
+                    data-attachment-token={attachment.token}
+                >
+                    #{attachment.token}
+                </span>
+            )}
             {attachment.isResized && (
                 <span
                     aria-hidden="true"
@@ -99,13 +108,16 @@ function AttachmentThumbnail({
  * unmounts the button that had focus, so the caller hands focus back to the message input. Remove names the image the
  * way its preview does, by file name (`agentChatAttachmentName`). A resized image says so on hover and in its alt text,
  * since what is sent is not the original file. Clicking a thumbnail opens the full image in a dialog, since the
- * thumbnail crops a screenshot. An image without a name is named by its position among the images.
+ * thumbnail crops a screenshot. An image without a name is named by its position among the images. An image written
+ * into the text wears its placeholder's `#N`, as in Orca, so the pill in the text and its thumbnail read as one; a
+ * pill's click opens the same preview (`preview`).
  */
 export function AgentChatAttachmentList({
     attachments,
     isGoalMode = false,
     onRemove,
     pendingCount = 0,
+    preview: { id: previewId, onChange: onPreviewChange },
 }: {
     attachments: readonly AgentChatAttachment[];
     /**
@@ -117,9 +129,12 @@ export function AgentChatAttachmentList({
      * Images still being read, shown as placeholders once reading takes noticeably long.
      */
     pendingCount?: number;
+    /**
+     * The image whose preview is open, and how to open or close one.
+     */
+    preview: { id: string | undefined; onChange: (id: string | undefined) => void };
 }) {
     const { t } = useTranslation();
-    const [previewId, setPreviewId] = useState<string>();
     const images = attachments.filter(isAgentChatImageAttachment);
     const previewIndex = images.findIndex((attachment) => attachment.id === previewId);
     const preview = previewIndex === -1 ? undefined : images[previewIndex];
@@ -158,7 +173,7 @@ export function AgentChatAttachmentList({
                             <AttachmentThumbnail
                                 attachment={attachment}
                                 index={index}
-                                onPreview={() => setPreviewId(attachment.id)}
+                                onPreview={() => onPreviewChange(attachment.id)}
                             />
                             <AgentChatAttachmentRemoveButton
                                 className="top-1.5 right-1.5"
@@ -182,7 +197,7 @@ export function AgentChatAttachmentList({
             <Dialog
                 open={preview !== undefined}
                 onOpenChange={(isOpen) => {
-                    if (!isOpen) setPreviewId(undefined);
+                    if (!isOpen) onPreviewChange(undefined);
                 }}
             >
                 <DialogContent className="w-auto max-w-[min(960px,calc(100vw-32px))] p-3">

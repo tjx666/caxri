@@ -48,8 +48,8 @@ export function isClaudeCompactCommand(text: string): boolean {
 }
 
 /**
- * User message content for a prompt with images: the images first, as the Claude Code TUI sends a pasted image, then
- * the text when there is any.
+ * User message content for a prompt with images: the text first when there is any, then the images, as the Claude Code
+ * TUI sends a pasted image. The text names each image where it belongs as `[Image #N]`, counting the images in order.
  */
 function claudeUserContent(
     text: string,
@@ -57,11 +57,11 @@ function claudeUserContent(
 ): string | Array<Record<string, unknown>> {
     if (images.length === 0) return text;
     return [
+        ...(text ? [{ type: 'text', text }] : []),
         ...images.map((image) => ({
             type: 'image',
             source: { type: 'base64', media_type: image.mediaType, data: image.data },
         })),
-        ...(text ? [{ type: 'text', text }] : []),
     ];
 }
 

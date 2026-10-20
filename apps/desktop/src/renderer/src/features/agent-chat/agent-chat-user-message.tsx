@@ -11,6 +11,7 @@ import { useTranslation } from '../../i18n';
 import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { AgentChatDelegatedTaskBubble } from './agent-chat-delegated-task-bubble';
+import { AgentChatImagePill } from './agent-chat-image-pill';
 import { AgentChatInvocationChip } from './agent-chat-invocation-chip';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageImages } from './agent-chat-message-images';
@@ -20,7 +21,10 @@ import { agentChatDeliveryCaption } from './agent-chat-presentation';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
 import { AgentChatUserMessageActions } from './agent-chat-user-message-actions';
-import { agentChatUserMessageSegments } from './agent-chat-user-message-text';
+import {
+    agentChatUserMessageSegments,
+    hasAgentChatImagePlaceholders,
+} from './agent-chat-user-message-text';
 import { useAgentChatEdit } from './hooks/use-agent-chat-edit';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 import { useAgentChatUserMessageMenu } from './hooks/use-agent-chat-user-message-menu';
@@ -113,6 +117,7 @@ export function AgentChatUserMessage({
                 <AgentChatMessageImages
                     className="max-w-[85%]"
                     images={images}
+                    isNumbered={hasAgentChatImagePlaceholders(words, images.length)}
                     message={terminalId === undefined ? undefined : { terminalId, itemId: id }}
                 />
             )}
@@ -122,6 +127,7 @@ export function AgentChatUserMessage({
             ) : (
                 words && (
                     <AgentChatUserMessageBubble
+                        images={images}
                         isEditing={isEditing}
                         text={words}
                         onOpenFile={onOpenFile}
@@ -139,10 +145,15 @@ export function AgentChatUserMessage({
  * with the edit banner's accent for attention.
  */
 export function AgentChatUserMessageBubble({
+    images,
     isEditing,
     text,
     onOpenFile,
 }: {
+    /**
+     * The message's images, which its `[Image #N]` placeholders show as pills.
+     */
+    images?: ReadonlyArray<{ thumbnail?: string }>;
     isEditing: boolean;
     text: string;
     onOpenFile?: (target: string) => void;
@@ -163,10 +174,14 @@ export function AgentChatUserMessageBubble({
                 {invocation ? (
                     <>
                         <AgentChatInvocationChip invocation={invocation.invocation} />
-                        <UserMessageText text={invocation.rest} onOpenFile={onOpenFile} />
+                        <UserMessageText
+                            images={images}
+                            text={invocation.rest}
+                            onOpenFile={onOpenFile}
+                        />
                     </>
                 ) : (
-                    <UserMessageText text={text} onOpenFile={onOpenFile} />
+                    <UserMessageText images={images} text={text} onOpenFile={onOpenFile} />
                 )}
             </div>
             {isCut && (
@@ -187,19 +202,33 @@ export function AgentChatUserMessageBubble({
  * The user's own words, verbatim. A path they typed or dropped in (`src/app.ts:12`, an absolute path) opens in the
  * editor, and a URL they pasted gets the same site icon and hover card as a link in a reply. Both take the reply's link
  * treatment (the full accent with no underline until hover), so a link reads the same on both sides of the transcript.
+ * An image's placeholder reads as the pill it was in the composer.
  */
 function UserMessageText({
+    images,
     text,
     onOpenFile,
 }: {
+    images: ReadonlyArray<{ thumbnail?: string }> | undefined;
     text: string;
     onOpenFile?: (target: string) => void;
 }) {
     const terminalId = useAgentChatTerminal();
     const { t } = useTranslation();
-    const segments = agentChatUserMessageSegments(text, { withFiles: onOpenFile !== undefined });
+    const segments = agentChatUserMessageSegments(text, {
+        withFiles: onOpenFile !== undefined,
+        imageCount: images?.length,
+    });
     return segments.map((segment, position) => {
         if (segment.kind === 'text') return segment.text;
+        if (segment.kind === 'image')
+            return (
+                <AgentChatImagePill
+                    key={position}
+                    number={segment.number}
+                    thumbnail={images?.[segment.number - 1]?.thumbnail}
+                />
+            );
         if (segment.kind === 'file')
             /*
              * An anchor rather than a `<button>`: a button is an atomic inline block, so a long path that does not fit the
