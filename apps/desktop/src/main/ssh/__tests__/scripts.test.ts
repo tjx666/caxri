@@ -23,7 +23,7 @@ import { SshHostScriptHost } from './support/script-host';
 
 /**
  * Result parsing, input validation, and the probe, launch, stop-wait, and seed-config scripts. The install and cache
- * scripts are covered in `remote-scripts-install.test.ts`.
+ * scripts are covered in `scripts-install.test.ts`.
  */
 describe('remote scripts', () => {
     let host: SshHostScriptHost;

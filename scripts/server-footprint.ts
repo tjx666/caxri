@@ -29,7 +29,7 @@ import { startSshLab, stopSshLab } from './ssh-lab';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 const BASELINE_FILE = resolve(repoRoot, 'scripts/server-footprint-baseline.json');
-const BENCHMARK_TEST = 'apps/desktop/src/main/ssh/__tests__/remote-footprint.integration.test.ts';
+const BENCHMARK_TEST = 'apps/desktop/src/main/ssh/__tests__/footprint.integration.test.ts';
 const LAB_NAME = 'caxri-footprint-lab';
 
 async function run(

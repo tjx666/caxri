@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { shellQuote } from './shell-quote';
 
 /**
- * Shared building blocks of the remote `sh` scripts in `remote-scripts.ts`: input assertions that keep every embedded
+ * Shared building blocks of the remote `sh` scripts in `scripts.ts`: input assertions that keep every embedded
  * value a hash, a relative path, or an integer, the per-script nonce, the common prologue, and the shell function
  * libraries several scripts splice in after it.
  */
