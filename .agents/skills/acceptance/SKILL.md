@@ -132,9 +132,15 @@ accept/reject on this?_
    [`.agents/acceptance/common-mistakes.md`](../../acceptance/common-mistakes.md) before planning
    the round, load the matching project field notes indexed by `PROJECT.md`, and search
    [`.agents/acceptance/probe-mock-patterns.md`](../../acceptance/probe-mock-patterns.md) before
-   authoring a new probe or mock. Fix adapter drift when observed.
-2. Confirm LobeHub CLI authentication with `lh whoami --json`. Do not guess an
-   `auth status` subcommand; the Go intake snapshot runs this same fail-closed probe automatically.
+   authoring a new probe or mock. Fix adapter drift when observed. Before asking the user about an
+   environment or fixture failure, search `.agents/acceptance/` for the exact error; ask for the
+   missing prerequisite only when it records no fix.
+2. Run `lh acceptance preflight --json` before writing plan or report text. It fails closed on
+   authentication, and its `language.locale` is the report language the account enforces at
+   ingest. Caxri reports are Simplified Chinese, so stop and report a mismatch when the locale is
+   not `zh-CN`. Pass that language to any subagent you delegate to, including the
+   acceptance-checker. On a CLI without `preflight`, fall back to `lh whoami --json`; do not guess
+   an `auth status` subcommand. The Go intake snapshot runs the `whoami` probe automatically.
 3. Resolve the immutable one-sentence business requirement for the whole acceptance. Write it in
    Simplified Chinese. The scaffold freezes it in the acceptance root so every later round must
    reuse the exact same requirement.
@@ -271,7 +277,14 @@ result schema. Preserve the returned Acceptance id, URL, and round index. Never 
 published round. If the post-publication readback does not contain every declared evidence item,
 preserve that history and publish a corrected round. Run the report scaffold's `finalize` command
 before every ingest. It computes the summary and fails locally on plan/case drift, missing
-evidence, required-medium gaps, or English-only human-facing content.
+evidence, required-medium gaps, or English-only human-facing content. It does not check the
+account's enforced language, so also run `lh acceptance run ingest "$ROUND_DIR" --dry-run` once
+before the first real ingest; never publish only to test a payload.
+
+If publication reports `storage_quota` (in `recovery.reason` or `failedEvidence[].reason`) or a
+`storage_block:` error, follow [references/publication-recovery.md](references/publication-recovery.md):
+keep the local evidence, report the coverage that actually uploaded, and give the user both
+recovery options. Never delete user data automatically or re-ingest the whole round.
 
 Inside Go, never call raw `lh acceptance run ingest`. Use the Go `acceptance-publish` command
 so later rounds are forced onto the frozen Acceptance id and publication is recorded only after
@@ -301,7 +314,8 @@ Before every follow-up, read current server state and actionable feedback using 
 ## Finish
 
 Copy any cited Main or Runtime log excerpts into the round assets before stopping because the
-isolated user-data directory is temporary. Stop only the Electron process started for this round.
+isolated user-data directory is temporary. Stop only the Electron process started for this round,
+and close the round's `agent-browser` session.
 Clear only the Android package data owned by a disposable acceptance emulator. Terminate or
 uninstall only the app instance owned by a disposable iOS acceptance Simulator; leave user-owned
 emulators, Simulators, and physical devices running.
@@ -323,7 +337,8 @@ the work is.
 The final response MUST include the published acceptance URL together with the
 coverage result: never only a check-result id or a prose claim. Keep local reports under
 `.records/` and expose only the **acceptance** (`/acceptance/<acceptanceId>`), the stable
-cross-round decision surface; append `?r=<roundIndex>` for this round's fixed snapshot.
+cross-round decision surface. Do not append `?r=<roundIndex>`: the page opens on its latest
+round, so a per-round link adds nothing for the reader.
 Put no images, local paths, local file links, or internal run-page paths in the
 chat reply.
 
@@ -348,6 +363,7 @@ report, owns the compact workflow-observation summary shown beside that URL.
 - Evidence rules: [references/evidence.md](references/evidence.md)
 - Native dialogs: [references/native-dialogs.md](references/native-dialogs.md)
 - Report schema: [references/report.md](references/report.md)
+- Storage-limit recovery: [references/publication-recovery.md](references/publication-recovery.md)
 - Temporal capture: [references/recording-cdp.md](references/recording-cdp.md)
 - Android temporal capture: [references/recording-android.md](references/recording-android.md)
 - iOS Simulator temporal capture:

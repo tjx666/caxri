@@ -398,6 +398,12 @@ schema does not define a `transcript` evidence type.
 
 ## Publish immutable history
 
+Validate the round, including the account's enforced report language, without publishing:
+
+```bash
+lh acceptance run ingest "${REPORT_DIR%/}" --dry-run --json
+```
+
 Create the standalone Acceptance with the first round:
 
 ```bash

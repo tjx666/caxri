@@ -184,10 +184,11 @@ developer tools without explicit authorization.
 ## 3. Auth
 
 Caxri itself has no account login. Acceptance publication uses the operator's
-existing authenticated `lh` CLI session and must be checked separately with:
+existing authenticated `lh` CLI session. Check it, and the account's enforced report language,
+with:
 
 ```bash
-lh whoami --json
+lh acceptance preflight --json # older CLI without preflight: lh whoami --json
 ```
 
 ### Project hook trust
