@@ -5,6 +5,7 @@ import {
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
     agentChatTurnSpacerHeight,
+    isAgentChatCatchUpScroll,
     isFollowingAfterScroll,
     isLatestInView,
     isNewAgentChatPrompt,
@@ -153,5 +154,31 @@ describe('isNewAgentChatPrompt', () => {
         expect(isNewAgentChatPrompt(undefined, 'u1')).toBe(false);
         expect(isNewAgentChatPrompt('u1', 'u1')).toBe(false);
         expect(isNewAgentChatPrompt('u1', 'u2')).toBe(true);
+    });
+});
+
+describe('isAgentChatCatchUpScroll', () => {
+    it('treats the first move a Chat makes onto its end as a catch-up, however short', () => {
+        expect(
+            isAgentChatCatchUpScroll({ from: 0, hasMoved: false, to: 120, viewHeight: 600 }),
+        ).toBe(true);
+        expect(
+            isAgentChatCatchUpScroll({ from: 0, hasMoved: false, to: 18_000, viewHeight: 600 }),
+        ).toBe(true);
+    });
+
+    it('treats a jump of more than one screen as a catch-up once the view has moved', () => {
+        expect(
+            isAgentChatCatchUpScroll({ from: 4000, hasMoved: true, to: 4601, viewHeight: 600 }),
+        ).toBe(true);
+    });
+
+    it('leaves a streaming reply that moves the view a few lines at a time as an ordinary scroll', () => {
+        expect(
+            isAgentChatCatchUpScroll({ from: 4000, hasMoved: true, to: 4060, viewHeight: 600 }),
+        ).toBe(false);
+        expect(
+            isAgentChatCatchUpScroll({ from: 4000, hasMoved: true, to: 4600, viewHeight: 600 }),
+        ).toBe(false);
     });
 });

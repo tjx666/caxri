@@ -119,6 +119,17 @@ export function Workbench() {
      * badges of the Sessions kept alive behind it.
      */
     const retainedIds = useMemo(() => new Set(retained), [retained]);
+    /**
+     * DOM order of the retained Workbenches. `retained` is most recently used first, so rendering it directly had React
+     * move a Workbench node on almost every switch, and moving a node resets the scroll offset of everything inside it:
+     * a Chat the user had scrolled up came back at its top, and one following the latest reply visibly re-scrolled to
+     * the end. Any order in which two retained Sessions never swap works; with id order, admitting or evicting a
+     * Session only inserts or removes its own node.
+     */
+    const mountOrder = useMemo(
+        () => retained.toSorted((left, right) => left.localeCompare(right)),
+        [retained],
+    );
     const terminalKey = useWorkbenchStore((state) =>
         (state.bootstrap?.sessionStates ?? [])
             .filter(({ sessionId }) => retainedIds.has(sessionId))
@@ -147,22 +158,29 @@ export function Workbench() {
         );
     }, [chatTerminalKey]);
     return (
-        <section className="workbench flex min-h-0 min-w-0 flex-col bg-background">
+        <section className="workbench grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-background">
             {session ? (
-                retained.map((sessionId) => (
+                mountOrder.map((sessionId) => (
                     <div
                         key={sessionId}
-                        className="workbench-session h-full min-h-0 w-full min-w-0"
+                        // Every retained Workbench shares the one grid cell; only the visible one paints.
+                        className="workbench-session col-start-1 row-start-1 min-h-0 min-w-0"
                         /**
                          * Deliberately not `data-session-id`: that attribute already identifies a PrimarySidebar
                          * Session row, and reusing it here made one id match two unrelated elements (a row to click and
                          * a whole Workbench subtree), so any lookup by Session id became ambiguous.
                          */
                         data-workbench-session-id={sessionId}
-                        // `hidden` rather than a class, matching `ChromeTabPanel`: it takes the subtree out of the
-                        // accessibility tree and out of `Tab` order while leaving the DOM (and therefore xterm's
-                        // buffer and the Editor's models) intact.
+                        /**
+                         * `hidden` marks the Session that is off screen, and `styles.css` turns it into
+                         * `content-visibility: hidden` rather than `display: none`: the subtree skips style, layout,
+                         * and paint all the same, but keeps its layout and every scroll offset, so coming back neither
+                         * starts a Chat at its top nor scrolls it programmatically (which flashed the overlay
+                         * scrollbar). `inert` keeps what `display: none` used to guarantee: no focus, no pointer, and
+                         * no accessibility tree for the hidden subtree.
+                         */
                         hidden={sessionId !== selectedSessionId}
+                        inert={sessionId !== selectedSessionId}
                     >
                         <PaneView
                             isVisible={sessionId === selectedSessionId}
