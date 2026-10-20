@@ -30,7 +30,7 @@ export interface DirectoryDensityFamily extends DirectoryDensityOwner {
 }
 
 export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
-    { cap: 114, directory: 'apps/desktop/src/main' },
+    { cap: 116, directory: 'apps/desktop/src/main' },
     { cap: 96, directory: 'apps/server/src/domains/agent-chat' },
     { cap: 12, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
 ];
