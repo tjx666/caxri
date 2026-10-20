@@ -7,7 +7,7 @@ import {
     canStopAgentChatTask,
     isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
-import { Square } from 'lucide-react';
+import { ChevronRight, Square } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
@@ -20,6 +20,7 @@ import {
     stopAgentChatTask,
     useAgentChatTaskStopStore,
 } from './agent-chat-commands';
+import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 
@@ -157,11 +158,20 @@ export function AgentChatTaskStrip({
                         <button
                             aria-controls={endedListId}
                             aria-expanded={isShowingEnded}
-                            className="cursor-pointer border-0 bg-transparent p-0 text-muted tabular-nums hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
+                            className="inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 align-middle text-muted tabular-nums hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                             type="button"
                             onClick={() => setShowingEnded((value) => !value)}
                         >
                             {t('agentChat.tasks.endedCount', { count: ended.length })}
+                            {/* The count reads as plain status text without a disclosure cue. */}
+                            <ChevronRight
+                                aria-hidden="true"
+                                className={cn(
+                                    'size-3 shrink-0',
+                                    agentChatChevronMotion(isShowingEnded),
+                                    isShowingEnded && 'rotate-90',
+                                )}
+                            />
                         </button>
                     )}
                 </span>

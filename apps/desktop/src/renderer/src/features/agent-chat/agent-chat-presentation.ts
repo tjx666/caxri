@@ -435,6 +435,24 @@ export function agentChatEscapeAction(
 }
 
 /**
+ * Whether Escape pressed in the Chat pane outside the composer stops the running turn. The composer, and every inline
+ * editor, own Escape while the caret is in them (`isEditableTarget`), as does an open menu, popover, dialog, or list
+ * (`isOverlayOpen`); a key some handler already consumed (`defaultPrevented`) is never acted on twice.
+ */
+export function shouldAgentChatPaneEscapeStop(
+    event: Parameters<typeof isAgentChatInterruptKey>[0] & { defaultPrevented: boolean },
+    state: { isTurnRunning: boolean; isEditableTarget: boolean; isOverlayOpen: boolean },
+): boolean {
+    return (
+        isAgentChatInterruptKey(event) &&
+        !event.defaultPrevented &&
+        state.isTurnRunning &&
+        !state.isEditableTarget &&
+        !state.isOverlayOpen
+    );
+}
+
+/**
  * The caption under a user message in the timeline. A message reaches the timeline only once it was delivered (a
  * pending follow-up waits in the queue cards above the composer), so a queued one is now an ordinary message and a
  * `Queued` caption would read as still pending. Only `Steered` says something still true: it joined a running turn.

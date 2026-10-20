@@ -59,6 +59,8 @@ export const statusBar = {
     'statusBar.usage.limitLeft': '{{percent}}% left',
     'statusBar.usage.chipLimitWindow': '{{window}} {{percent}}%',
     'statusBar.usage.chipLimitsLeft': '{{windows}} left',
+    'statusBar.usage.paceNote':
+        '{{window}} limit: {{percent}}% left, {{reset}}. Using it faster than an even pace.',
     'statusBar.usage.limitsAsOf': 'Limits as of',
     'statusBar.usage.methodNote':
         "Tokens and cost are read from this conversation's own transcript and priced at API list prices, the same rules as the Usage page. Plan limits are account-wide: the newest reading from any conversation.",

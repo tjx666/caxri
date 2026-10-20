@@ -140,7 +140,13 @@ export function resolveConflictsAction(
         icon: new ThemeIcon('send'),
         label: 'Resolve',
         tone: 'danger',
-        tooltip: "Has conflicts. Send to this Session's Agent to rebase and resolve them.",
+        tooltip:
+            "Has conflicts. Send to this Session's Agent to rebase and resolve them; it will force-push (with lease) to this branch.",
+        confirmation: {
+            title: `Send #${pullRequest.number} to the Agent to resolve conflicts?`,
+            message: `The Agent will rebase \`${repo.branch}\` onto its base and force-push the branch with lease, rewriting its history on GitHub. The pull request is not merged.`,
+            confirmLabel: 'Send to Agent',
+        },
         feedback: { failure: `Couldn't send #${pullRequest.number} to the Agent` },
     };
 }
@@ -219,8 +225,9 @@ export function fixFailedChecksPrompt(
 
 /**
  * The labeled `Fix` button a pull request with failed checks gets beside its red merge glyph: getting the checks green
- * is the next step, and it is the Agent's work. The merge glyph stays for the deliberate `Merge Anyway`. Nothing on
- * GitHub changes from here, so it needs no confirmation.
+ * is the next step, and it is the Agent's work. The merge glyph stays for the deliberate `Merge Anyway`. The prompt
+ * tells the Agent to push its fix to the pull request's branch, and the tooltip says so; that is a plain push the user
+ * can revert with a commit, so unlike {@link resolveConflictsAction} it needs no confirmation.
  */
 export function fixFailedChecksAction(
     repo: Pick<ProjectStatusRepository, 'branch' | 'kind' | 'name'>,
@@ -235,7 +242,8 @@ export function fixFailedChecksAction(
         icon: new ThemeIcon('send'),
         label: 'Fix',
         tone: 'danger',
-        tooltip: "Checks did not pass. Send them to this Session's Agent to investigate and fix.",
+        tooltip:
+            "Checks did not pass. Send them to this Session's Agent to investigate; it may push a fix to this branch.",
         feedback: { failure: `Couldn't send #${pullRequest.number} to the Agent` },
     };
 }

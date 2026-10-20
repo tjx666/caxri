@@ -6,6 +6,7 @@ import {
     agentUsageCostLabel,
     agentUsageLabel,
     agentUsageLimitTone,
+    agentUsagePaceNote,
 } from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
@@ -109,6 +110,26 @@ describe('agent usage limit tone', () => {
         expect(agentUsageLimitTone(withWindows(89.6, 40), NOW, ALL_WINDOWS)).toBe('warning');
         expect(agentUsageLimitTone(withWindows(10, 95), NOW, ALL_WINDOWS)).toBe('warning');
         expect(agentUsageLimitTone(withWindows(10, 99, NOW - 1), NOW, ALL_WINDOWS)).toBeUndefined();
+    });
+
+    it('warns while the weekly window runs ahead of an even pace', () => {
+        const DAY = 86_400_000;
+        // 30% used with 6 of 7 days left: an even pace leaves about 86%, this leaves 70%.
+        expect(agentUsageLimitTone(withWindows(10, 30, NOW + 6 * DAY), NOW, DEFAULT_WINDOWS)).toBe(
+            'warning',
+        );
+        // 10% used with 6 of 7 days left is on pace.
+        expect(
+            agentUsageLimitTone(withWindows(10, 10, NOW + 6 * DAY), NOW, DEFAULT_WINDOWS),
+        ).toBeUndefined();
+    });
+
+    it('explains a pace warning in plain words and stays silent otherwise', () => {
+        const DAY = 86_400_000;
+        expect(agentUsagePaceNote(withWindows(10, 30, NOW + 6.5 * DAY), NOW)).toBe(
+            'Weekly limit: 70% left, resets in 6d 12h. Using it faster than an even pace.',
+        );
+        expect(agentUsagePaceNote(withWindows(10, 10, NOW + 6 * DAY), NOW)).toBeUndefined();
     });
 
     it('follows only the windows the chip shows', () => {

@@ -26,9 +26,10 @@ type PullRequestState = ReturnType<typeof useSessionPullRequest>;
 
 /**
  * The Session's pull request on the phone: what it is, whether its checks passed, and the same merge Desktop's Status
- * panel offers. A ready pull request merges with one tap; any other reason asks first on a second page of the same
- * sheet (so the keyboard-free confirmation never stacks a dialog over the sheet), and a conflict or a draft explains
- * the next step instead of offering a merge GitHub would refuse.
+ * panel offers. Every merge asks first, since it cannot be undone from Caxri: a ready pull request on a plain
+ * confirmation, any other reason on a second page of the same sheet (so the keyboard-free confirmation never stacks a
+ * dialog over the sheet), and a conflict or a draft explains the next step instead of offering a merge GitHub would
+ * refuse.
  */
 export const PullRequestSheet = ({
     deviceRole,
@@ -79,7 +80,7 @@ export const PullRequestSheet = ({
                     >
                         {pullRequest.title}
                     </Text>
-                    {isConfirming && action.kind === 'confirm' ? (
+                    {isConfirming && (action.kind === 'confirm' || action.kind === 'merge') ? (
                         <MergeConfirmation
                             action={action}
                             onBack={() => setConfirming(false)}
@@ -114,7 +115,6 @@ export const PullRequestSheet = ({
                                 isConnected={isConnected}
                                 isMerging={isMerging}
                                 onConfirm={() => setConfirming(true)}
-                                onMerge={merge}
                                 pullRequest={pullRequest}
                                 theme={theme}
                             />
@@ -170,7 +170,6 @@ const MergeArea = ({
     isConnected,
     isMerging,
     onConfirm,
-    onMerge,
     pullRequest,
     theme,
 }: {
@@ -179,7 +178,6 @@ const MergeArea = ({
     isConnected: boolean;
     isMerging: boolean;
     onConfirm: () => void;
-    onMerge: () => void;
     pullRequest: MobilePullRequest;
     theme: MobileTheme;
 }) => {
@@ -228,7 +226,7 @@ const MergeArea = ({
                           ? 'pullRequest.mergeAnyway'
                           : 'pullRequest.merge',
                 )}
-                onPress={action.kind === 'merge' ? onMerge : onConfirm}
+                onPress={onConfirm}
                 testID="pull-request-merge"
                 theme={theme}
                 variant={action.kind === 'merge' ? 'success' : isOverride ? 'danger' : 'secondary'}
@@ -253,26 +251,26 @@ const MergeConfirmation = ({
     pullRequest,
     theme,
 }: {
-    action: Extract<PullRequestMergeAction, { kind: 'confirm' }>;
+    action: Extract<PullRequestMergeAction, { kind: 'confirm' | 'merge' }>;
     onBack: () => void;
     onMerge: () => void;
     pullRequest: MobilePullRequest;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const isOverride = action.kind === 'confirm' && action.isOverride;
     return (
         <View style={styles.confirmation} testID="pull-request-confirmation">
             <Text style={[styles.confirmTitle, { color: theme.text }]}>
                 {t('pullRequest.confirm.title', { number: pullRequest.number })}
             </Text>
-            <Text
-                style={[
-                    styles.confirmText,
-                    { color: action.isOverride ? theme.danger : theme.text },
-                ]}
-            >
-                {pullRequestConfirmation(pullRequest, action.blocker, t)}
-            </Text>
+            {action.kind === 'confirm' ? (
+                <Text
+                    style={[styles.confirmText, { color: isOverride ? theme.danger : theme.text }]}
+                >
+                    {pullRequestConfirmation(pullRequest, action.blocker, t)}
+                </Text>
+            ) : null}
             <Text style={[styles.confirmText, { color: theme.muted }]}>
                 {`${pullRequestMergeMethodNote(pullRequest, t)} ${t('pullRequest.confirm.undo')}`}
             </Text>
@@ -288,13 +286,11 @@ const MergeConfirmation = ({
                 </View>
                 <View style={styles.buttonSlot}>
                     <SheetButton
-                        label={t(
-                            action.isOverride ? 'pullRequest.mergeAnyway' : 'pullRequest.merge',
-                        )}
+                        label={t(isOverride ? 'pullRequest.mergeAnyway' : 'pullRequest.merge')}
                         onPress={onMerge}
                         testID="pull-request-confirm-merge"
                         theme={theme}
-                        variant={action.isOverride ? 'danger' : 'primary'}
+                        variant={isOverride ? 'danger' : 'primary'}
                     />
                 </View>
             </View>

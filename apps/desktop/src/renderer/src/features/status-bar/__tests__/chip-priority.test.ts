@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChipFit, DroppableChip, HiddenChips } from '../chip-priority';
 import {
     CHIP_DROP_ORDER,
+    chipDropOrder,
     chipVisibility,
     isSameHiddenChips,
     NO_HIDDEN_CHIPS,
@@ -88,6 +89,33 @@ describe('resolveHiddenChips', () => {
             NO_HIDDEN_CHIPS,
         );
         expect(hiddenKeys(result)).toEqual(['childProcessCount']);
+    });
+});
+
+describe('urgent chips', () => {
+    it('drops a warning chip after every calm chip', () => {
+        expect(chipDropOrder(new Set(['agentUsage']))).toEqual([
+            'childProcessCount',
+            'memory',
+            'agentThroughput',
+            'linearIssue',
+            'acceptance',
+            'pullRequest',
+            'agentUsage',
+        ]);
+        expect(chipDropOrder(undefined)).toEqual(CHIP_DROP_ORDER);
+    });
+
+    it('keeps the urgent usage chip while lower-value chips are hidden to make room', () => {
+        const base = fit(420, 300);
+        const calm = resolveHiddenChips(base, NO_HIDDEN_CHIPS);
+        const urgent = resolveHiddenChips(
+            { ...base, urgent: new Set(['agentUsage']) },
+            NO_HIDDEN_CHIPS,
+        );
+        expect(hiddenKeys(calm)).toContain('agentUsage');
+        expect(hiddenKeys(urgent)).not.toContain('agentUsage');
+        expect(hiddenKeys(urgent)).toContain('linearIssue');
     });
 });
 

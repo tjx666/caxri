@@ -6,6 +6,7 @@ import { Kbd } from '../../components/ui/kbd';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { useIsAgentChatStopping } from './hooks/use-agent-chat-stop';
 import { useClockTick } from './hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from './loading';
 
@@ -41,6 +42,42 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 }
 
 /**
+ * How the row reads for this activity: `Stopping…` once Stop was requested for a working turn, the sweep everywhere but
+ * while waiting or stopping, and the Esc hint while the turn (or a stoppable compaction) can still be stopped.
+ */
+function activityRowState(activity: AgentChatActivity | undefined, isStopRequested: boolean) {
+    const isStopping = activity?.kind === 'working' && isStopRequested;
+    const isStoppable =
+        activity?.kind === 'working' || (activity?.kind === 'compacting' && activity.isStoppable);
+    return {
+        isStopping,
+        isSweeping: !isStopping && activity?.kind !== 'waiting',
+        canStop: !isStopping && isStoppable,
+    };
+}
+
+/**
+ * A pointer shortcut for the Esc hint. It stays out of the tab order and the accessibility tree with the rest of its
+ * row: the composer's Stop button is the accessible control.
+ */
+function StopHint({ isTrailing, onStop }: { isTrailing: boolean; onStop: () => void }) {
+    const { t } = useTranslation();
+    return (
+        <button
+            className={cn(
+                '-mr-1.5 shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-[11px] text-muted transition-colors hover:bg-elevated hover:text-foreground',
+                isTrailing && 'ml-auto',
+            )}
+            tabIndex={-1}
+            type="button"
+            onClick={onStop}
+        >
+            <Kbd size="compact">Esc</Kbd> {t('agentChat.activity.stopHint')}
+        </button>
+    );
+}
+
+/**
  * The composer strip's row while the Chat starts, works, or waits on the user. The strip sits on top of the card rather
  * than inside it, so the Chat's state never reads as part of what the user is typing. A working turn shows its verb
  * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall; a turn
@@ -58,6 +95,7 @@ export function AgentChatActivityBar({
     notice,
     onStop,
     showsDeliveryHint,
+    terminalId,
     turnId,
 }: {
     activity: AgentChatActivity | undefined;
@@ -71,15 +109,25 @@ export function AgentChatActivityBar({
      */
     showsDeliveryHint: boolean;
     /**
+     * The Chat Terminal, whose pending Stop turns the row into `Stopping…`.
+     */
+    terminalId: string;
+    /**
      * The running turn, which seeds Buddy's rare party hat so it stays on for the whole turn.
      */
     turnId: string | undefined;
 }) {
     const { t } = useTranslation();
+    // Once Stop was requested the row says so, stops sweeping, and drops the Esc hint: Stop cannot be asked twice.
+    const { isStopping, isSweeping, canStop } = activityRowState(
+        activity,
+        useIsAgentChatStopping(terminalId, turnId),
+    );
+    const text = isStopping ? t('agentChat.activity.stopping') : activity?.text;
     return (
         <>
             <span aria-live="polite" className="sr-only" role="status">
-                {notice ?? activity?.text}
+                {notice ?? text}
             </span>
             {/*
              * While a turn waits, the approval or question card sits right above the composer and is the waiting state
@@ -98,11 +146,7 @@ export function AgentChatActivityBar({
                         <WorkingIndicatorGlyph activity={activity} turnId={turnId} />
                     )}
                     <span className="min-w-0 truncate">
-                        <span
-                            className={activity.kind === 'waiting' ? undefined : 'activity-shimmer'}
-                        >
-                            {activity.text}
-                        </span>
+                        <span className={isSweeping ? 'activity-shimmer' : undefined}>{text}</span>
                     </span>
                     {activity.kind === 'working' && activity.startedAt !== undefined && (
                         <ElapsedTime startedAt={activity.startedAt} />
@@ -113,24 +157,7 @@ export function AgentChatActivityBar({
                             <Kbd size="compact">⌘Enter</Kbd> {t('agentChat.activity.steerHint')}
                         </span>
                     )}
-                    {(activity.kind === 'working' ||
-                        (activity.kind === 'compacting' && activity.isStoppable)) && (
-                        /*
-                         * A pointer shortcut for the Esc hint. It stays out of the tab order and the accessibility
-                         * tree with the rest of this row: the composer's Stop button is the accessible control.
-                         */
-                        <button
-                            className={cn(
-                                '-mr-1.5 shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-[11px] text-muted transition-colors hover:bg-elevated hover:text-foreground',
-                                !showsDeliveryHint && 'ml-auto',
-                            )}
-                            tabIndex={-1}
-                            type="button"
-                            onClick={onStop}
-                        >
-                            <Kbd size="compact">Esc</Kbd> {t('agentChat.activity.stopHint')}
-                        </button>
-                    )}
+                    {canStop && <StopHint isTrailing={!showsDeliveryHint} onStop={onStop} />}
                 </div>
             )}
             {notice && (

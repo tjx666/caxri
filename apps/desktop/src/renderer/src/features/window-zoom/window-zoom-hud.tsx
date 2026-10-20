@@ -14,9 +14,12 @@ const HUD_VISIBLE_MS = 1500;
 
 /**
  * The zoom HUD, as the ChatGPT desktop app shows one: after any change to `window.zoomLevel` (a shortcut, the View
- * menu, the command palette, or Settings) the current percentage appears at the window's top right with Zoom Out, Zoom
- * In, and Reset beside it, then fades away. Hovering it, or tabbing into it, keeps it up so the buttons can be used;
- * the first settings load shows nothing, since no zoom changed. Mounted by every window that follows the app zoom.
+ * menu, the command palette, or Settings) the current percentage appears at the window's bottom right, just above the
+ * status bar where the persistent zoom indicator lives, with Zoom Out, Zoom In, and Reset beside it, then fades away.
+ * Hovering it, or tabbing into it, keeps it up so the buttons can be used; the first settings load shows nothing, since
+ * no zoom changed. It sits at the bottom right rather than the top right because the top right is chrome (the secondary
+ * sidebar's title and action icons); the bottom-right corner above the status bar covers only the end of the content
+ * area for the 1.5 seconds it is up. Mounted by every window that follows the app zoom.
  */
 export function WindowZoomHud() {
     const { t } = useTranslation();
@@ -57,11 +60,11 @@ export function WindowZoomHud() {
         <div
             aria-label={t('windowZoom.hud.label')}
             className={cn(
-                'fixed top-13 right-3 z-[90] flex items-center gap-0.5 rounded-md bg-elevated py-1 pr-1 pl-3 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]',
+                'fixed right-3 bottom-9 z-[90] flex items-center gap-0.5 rounded-md bg-elevated py-1 pr-1 pl-3 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]',
                 'transition-[opacity,translate] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-reduce:transition-none',
                 isShown
                     ? 'translate-y-0 opacity-100'
-                    : 'pointer-events-none -translate-y-1 opacity-0',
+                    : 'pointer-events-none translate-y-1 opacity-0',
             )}
             data-window-zoom-hud={isShown ? 'shown' : 'hidden'}
             inert={!isShown}

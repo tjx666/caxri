@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ZoomIn, ZoomOut } from 'lucide-react';
 
@@ -27,7 +27,15 @@ export function WindowZoomIndicator({
     const { t } = useTranslation();
     const level = useSettings()?.['window.zoomLevel'] ?? 0;
     const [isOpen, setOpen] = useState(false);
-    if (level === 0 && !isOpen) return null;
+    // Reset (or a shortcut) back to 100% removes the indicator, so its popover closes with it instead of lingering on
+    // "100%" with every button disabled. Adjusting state during render drops the stale open flag before it can reopen
+    // the popover at the next zoom change.
+    if (level === 0 && isOpen) setOpen(false);
+    useEffect(() => {
+        // The HUD reads this shared flag, so it must follow the popover's real state.
+        if (level === 0) windowZoomIndicator.isOpen = false;
+    }, [level]);
+    if (level === 0) return null;
     const percent = windowZoomPercent(level);
     const label = t('windowZoom.indicator.label', { percent });
     return (

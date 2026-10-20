@@ -29,7 +29,11 @@ import { IconButton } from '../../components/icon-button';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
-import { agentChatQueueCardLayout, agentChatQueueRowHints } from './agent-chat-queue';
+import {
+    agentChatQueueCardLayout,
+    agentChatQueueRowHints,
+    agentChatQueueSendNowText,
+} from './agent-chat-queue';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
 import { useIsKeyboardShown } from './use-keyboard-shown';
@@ -173,7 +177,7 @@ const QueueRowActions = ({
             >
                 <CornerDownLeft color={theme.primaryForeground} size={14} strokeWidth={2.5} />
                 <Text style={[styles.steerText, { color: theme.primaryForeground }]}>
-                    {entry.sendNowLabel}
+                    {agentChatQueueSendNowText(entry, t)}
                 </Text>
             </Pressable>
             <IconButton

@@ -88,6 +88,12 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.primarySidebar.translucent.title': '半透明侧边栏',
     'settings.primarySidebar.translucent.description':
         '在 macOS 上，主题与系统的浅色或深色外观一致时，侧边栏透出模糊的桌面，呈磨砂玻璃效果。',
+    'settings.primarySidebar.translucent.inactive.fullScreen':
+        '未生效：窗口处于全屏，没有可模糊的桌面。',
+    'settings.primarySidebar.translucent.inactive.themeDarkSystemLight':
+        '未生效：当前主题为深色，而 macOS 使用浅色外观。',
+    'settings.primarySidebar.translucent.inactive.themeLightSystemDark':
+        '未生效：当前主题为浅色，而 macOS 使用深色外观。',
 
     'settings.statusBar.usage.showFiveHourLimit.title': '在状态栏显示 5 小时限额',
     'settings.statusBar.usage.showFiveHourLimit.description':

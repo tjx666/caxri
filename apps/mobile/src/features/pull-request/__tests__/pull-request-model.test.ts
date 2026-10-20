@@ -28,7 +28,7 @@ const pr = (overrides: Partial<MobilePullRequest> = {}): MobilePullRequest => ({
 });
 
 describe('mobile pull request merge model', () => {
-    it('merges a ready pull request in one tap, like the Desktop Status panel', () => {
+    it('reads a ready pull request as nothing blocking its merge', () => {
         expect(pullRequestMergeAction(pr())).toEqual({ kind: 'merge' });
         expect(pullRequestTone(pr())).toBe('success');
         expect(pullRequestReadiness(pr(), translate)).toBe('Ready to merge');

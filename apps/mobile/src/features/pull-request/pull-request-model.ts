@@ -6,7 +6,7 @@ import type { MobileTheme } from '../../theme/tokens';
 /**
  * What the sheet's primary button does, mirroring the Desktop Status panel's merge button so both surfaces agree:
  *
- * - `merge`: nothing blocks it, one tap merges.
+ * - `merge`: nothing blocks it; the sheet still confirms once, naming only the pull request, so a stray tap never merges.
  * - `confirm`: a reason is worth reading first (`isOverride` when checks failed, labelled Merge anyway).
  * - `refused`: a conflict GitHub would refuse; resolving it is the next step.
  * - `draft`: GitHub cannot merge a draft; the user marks it ready on GitHub.

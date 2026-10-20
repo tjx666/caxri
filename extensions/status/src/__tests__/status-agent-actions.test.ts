@@ -2,6 +2,7 @@ import type { ProjectStatusReviewThread } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
 import {
+    fixFailedChecksAction,
     fixFailedChecksPrompt,
     fixReviewCommentsAction,
     resolveConflictsAction,
@@ -121,6 +122,28 @@ describe('Status extension review fix prompt', () => {
             feedback: { failure: "Couldn't send #7 to the Agent" },
         });
         expect(action.icon.id).toBe('send');
+    });
+
+    it('asks before Resolve force-pushes and names the outcome on the confirm button', () => {
+        const action = resolveConflictsAction(
+            { name: 'project', kind: 'primary', branch: 'feature', defaultBranch: 'main' },
+            pullRequest,
+        );
+
+        expect(action.tooltip).toContain('force-push');
+        expect(action.confirmation?.title).toBe('Send #7 to the Agent to resolve conflicts?');
+        expect(action.confirmation?.confirmLabel).toBe('Send to Agent');
+        expect(action.confirmation?.message).toContain('force-push the branch with lease');
+    });
+
+    it('says Fix may push to the branch and sends without a confirmation', () => {
+        const action = fixFailedChecksAction(
+            { name: 'project', kind: 'primary', branch: 'feature' },
+            { ...pullRequest, checks: [], headSha: undefined },
+        );
+
+        expect(action.tooltip).toContain('push a fix to this branch');
+        expect(action.confirmation).toBeUndefined();
     });
 
     it('lists each failed check with its run link and asks for a fix without merging', () => {

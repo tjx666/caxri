@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatMarkdownMarks } from '../agent-chat-composer-markdown';
+import {
+    agentChatMarkdownMarks,
+    isAgentChatEmphasisIntentional,
+} from '../agent-chat-composer-markdown';
 
 /**
  * The marks for a draft with the caret at `|` (or none, for an unfocused editor), each written as its kind, style, and
@@ -93,5 +96,46 @@ describe('agentChatMarkdownMarks', () => {
 
     it('treats the last line of an unclosed fence as code', () => {
         expect(marks('```\ncode')).toEqual(['line:fence ```', 'line:code code']);
+    });
+});
+
+describe('isAgentChatEmphasisIntentional', () => {
+    const isIntentional = (text: string, from = 0, to = text.length): boolean =>
+        isAgentChatEmphasisIntentional(text, from, to);
+
+    it('accepts ordinary emphasis', () => {
+        expect(isIntentional('**bold**')).toBe(true);
+        expect(isIntentional('*it*')).toBe(true);
+        expect(isIntentional('a **b** c', 2, 7)).toBe(true);
+    });
+
+    it('rejects emphasis made of path characters', () => {
+        expect(isIntentional('src/*.ts and lib/*.ts', 4, 18)).toBe(false);
+        expect(isIntentional('__init__.py', 0, 8)).toBe(false);
+        expect(isIntentional('*src/a.ts*')).toBe(false);
+    });
+
+    it('rejects intraword underscore emphasis', () => {
+        expect(isIntentional('foo_bar_baz', 3, 8)).toBe(false);
+    });
+
+    it('rejects a double-underscore dunder name but keeps underscore emphasis around words', () => {
+        expect(isIntentional('__init__')).toBe(false);
+        expect(isIntentional('call __init__ now', 5, 13)).toBe(false);
+        expect(isIntentional('__two words__')).toBe(true);
+        expect(isIntentional('_it_')).toBe(true);
+    });
+});
+
+describe('agentChatMarkdownMarks on path-like text', () => {
+    it('keeps path and identifier text raw and unstyled', () => {
+        expect(marks('src/*.ts and lib/*.ts')).toEqual([]);
+        expect(marks('__init__.py')).toEqual([]);
+        expect(marks('foo_bar_baz')).toEqual([]);
+        expect(marks('and __init__ plus')).toEqual([]);
+    });
+
+    it('still renders real emphasis beside it', () => {
+        expect(marks('a **b** c')).toEqual(['text:strong **b**', 'hide **', 'hide **']);
     });
 });

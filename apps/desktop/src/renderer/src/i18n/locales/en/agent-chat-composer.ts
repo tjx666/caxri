@@ -86,7 +86,11 @@ export const agentChatComposer = {
 
     'agentChat.history.label': 'Recent prompts',
     'agentChat.history.footer': '↑↓ to move · Enter to fill · Esc to dismiss',
-    'agentChat.stash.stashed': 'Draft stashed. Press Ctrl+S in an empty input to bring it back.',
+    'agentChat.stash.stashed':
+        'Draft stashed until you quit. Ctrl+S in an empty input restores it.',
+    'agentChat.stash.occupied':
+        'A draft is already stashed. Clear the input and press Ctrl+S to restore it first.',
+    'agentChat.stash.restored': 'Restored your stashed draft.',
     'agentChat.stash.placeholder': 'Draft stashed · Ctrl+S to restore',
     'agentChat.slash.label': 'Commands and skills',
     'agentChat.slash.noMatches': 'No matching command or skill',

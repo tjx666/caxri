@@ -218,11 +218,12 @@ no background of its own keeps its default dark text readable.
   tinted by readiness: green when ready, red for failed checks, conflicts, or a closed pull request,
   amber when branch protection or a stale base may make GitHub refuse, gray while checks run or for
   a draft, and purple once merged. Tapping it opens a sheet with the title, a status card
-  (readiness and the failed check names), a Merge button, and Open on GitHub. A ready pull request
-  merges with one tap. Any other blocker adds a confirmation page that names it, and failed checks
-  turn the button into Merge anyway; conflicts and drafts disable it with the reason. Only a
-  connected `control` device can merge, and the sheet says why otherwise. Android Acceptance
-  `MOB-CHAT-24` and `MOB-CHAT-25` cover the failed-checks confirmation and the one-tap merge.
+  (readiness and the failed check names), a Merge button, and Open on GitHub. Every merge goes
+  through a confirmation page, so a stray tap never merges: for a ready pull request it names only
+  the pull request, any other blocker is named on it, and failed checks turn the button into Merge
+  anyway; conflicts and drafts disable it with the reason. Only a connected `control` device can
+  merge, and the sheet says why otherwise. Android Acceptance `MOB-CHAT-24` and `MOB-CHAT-25` cover
+  the failed-checks confirmation and the ready pull request's confirmation.
 
 ### Composer
 

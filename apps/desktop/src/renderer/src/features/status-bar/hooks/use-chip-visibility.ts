@@ -15,6 +15,11 @@ import {
  */
 const PRIORITY_CHIP_ATTRIBUTE = 'data-status-chip';
 
+/**
+ * The attribute `StatusItem` sets while it warns, so the bar drops it after the calm chips.
+ */
+const URGENT_ATTRIBUTE = 'data-status-urgent';
+
 const DROPPABLE = new Set<string>(CHIP_DROP_ORDER);
 
 /**
@@ -40,6 +45,7 @@ function measureChipFit(footer: HTMLElement): ChipFit {
     let required = columnGap(footer) * Math.max(0, regions.length - 1);
     for (const region of regions) required += region.scrollWidth;
     const chips: ChipFit['chips'] = {};
+    const urgent = new Set<DroppableChip>();
     for (const slot of footer.querySelectorAll<HTMLElement>(
         `[${CSS.escape(PRIORITY_CHIP_ATTRIBUTE)}]`,
     )) {
@@ -48,8 +54,10 @@ function measureChipFit(footer: HTMLElement): ChipFit {
         if (!chip || !DROPPABLE.has(chip) || width <= 0) continue;
         chips[chip as DroppableChip] =
             width + (slot.parentElement ? columnGap(slot.parentElement) : 0);
+        if (slot.querySelector(`[${CSS.escape(URGENT_ATTRIBUTE)}]`))
+            urgent.add(chip as DroppableChip);
     }
-    return { available, required, chips };
+    return { available, required, chips, urgent };
 }
 
 /**

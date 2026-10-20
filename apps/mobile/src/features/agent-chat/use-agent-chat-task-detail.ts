@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AgentChatTask } from '@caxri/protocol';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
-import { AGENT_CHAT_TASK_POLL_MS, agentChatTaskStopError } from './agent-chat-tasks';
+import { AgentChatTaskStopTimeouts } from './agent-chat-task-stop-timeout';
+import {
+    AGENT_CHAT_TASK_POLL_MS,
+    agentChatTaskStopError,
+    agentChatTaskStopUnconfirmed,
+} from './agent-chat-tasks';
 
 const TICK_MS = 1_000;
 
@@ -58,37 +63,63 @@ export const useAgentChatTaskDetail = (
 
 /**
  * Stop for a Chat's background tasks. A task shows `Stopping…` from the tap until the Chat reports it no longer
- * running; the request returning only means the provider was asked, as with the composer's Stop.
+ * running; the request returning only means the provider was asked, as with the composer's Stop. If the Chat never
+ * reports it, the button comes back after `AGENT_CHAT_TASK_STOP_TIMEOUT_MS` with a notice instead of staying disabled
+ * forever.
  */
 export const useAgentChatTaskStop = (terminalId: string) => {
     const { request } = useMobileClient();
     const { t } = useTranslation();
     const [stoppingIds, setStoppingIds] = useState<ReadonlySet<string>>(() => new Set());
-    const [error, setError] = useState<{ taskId: string; message: string } | null>(null);
+    const [error, setError] = useState<{
+        taskId: string;
+        kind: 'failed' | 'unconfirmed';
+    } | null>(null);
+    const clearStopping = useCallback((taskId: string) => {
+        setStoppingIds(
+            (current) => new Set([...current].filter((stopping) => stopping !== taskId)),
+        );
+    }, []);
+    const timeouts = useMemo(
+        () =>
+            new AgentChatTaskStopTimeouts((taskId) => {
+                clearStopping(taskId);
+                setError({ taskId, kind: 'unconfirmed' });
+            }),
+        [clearStopping],
+    );
+    useEffect(() => () => timeouts.dispose(), [timeouts]);
     const stop = useCallback(
         async (taskId: string): Promise<void> => {
             setError(null);
             setStoppingIds((current) => new Set([...current, taskId]));
+            timeouts.start(taskId);
             try {
                 await request('mobile.agentChat.stopTask', { terminalId, taskId });
             } catch {
-                setStoppingIds(
-                    (current) => new Set([...current].filter((stopping) => stopping !== taskId)),
-                );
-                setError({ taskId, message: agentChatTaskStopError(t) });
+                timeouts.settle(taskId);
+                clearStopping(taskId);
+                setError({ taskId, kind: 'failed' });
             }
         },
-        [request, t, terminalId],
+        [clearStopping, request, terminalId, timeouts],
     );
     const isStopping = useCallback(
         (task: Pick<AgentChatTask, 'id' | 'status'>): boolean =>
             task.status === 'running' && stoppingIds.has(task.id),
         [stoppingIds],
     );
+    /**
+     * The stop notice for a task. The unconfirmed notice is only meaningful while the task still runs; a task that
+     * ended in the meantime needs no warning that its stop could not be confirmed.
+     */
     const errorFor = useCallback(
-        (taskId: string): string | undefined =>
-            error?.taskId === taskId ? error.message : undefined,
-        [error],
+        (task: Pick<AgentChatTask, 'id' | 'status'>): string | undefined => {
+            if (error?.taskId !== task.id) return undefined;
+            if (error.kind === 'failed') return agentChatTaskStopError(t);
+            return task.status === 'running' ? agentChatTaskStopUnconfirmed(t) : undefined;
+        },
+        [error, t],
     );
     return { errorFor, isStopping, stop };
 };

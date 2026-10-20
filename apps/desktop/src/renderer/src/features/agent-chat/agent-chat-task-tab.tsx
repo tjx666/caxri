@@ -15,9 +15,15 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
+import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { stopAgentChatTask } from './agent-chat-commands';
+import {
+    agentChatTaskKey,
+    stopAgentChatTask,
+    useAgentChatTaskStopStore,
+} from './agent-chat-commands';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatHistoryHead } from './agent-chat-history-head';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
@@ -37,6 +43,7 @@ import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { useAgentChatTask } from './hooks/use-agent-chat-task';
+import { useLoadingStyle } from './loading';
 
 /**
  * An ended subagent's transcript can still gain its last response after the task reports it ended, so its usage is
@@ -46,6 +53,38 @@ const ENDED_TASK_USAGE_POLL_MS = 30_000;
 
 const STATE_CLASS_NAME =
     'flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted';
+
+/**
+ * The header's Stop, busy from the click until the task leaves `running`, like the composer strip's.
+ */
+function TaskStopButton({ taskId, terminalId }: { taskId: string; terminalId: string }) {
+    const { t } = useTranslation();
+    const isStopping = useAgentChatTaskStopStore(({ stopping }) =>
+        stopping.has(agentChatTaskKey(terminalId, taskId)),
+    );
+    const label = t(isStopping ? 'agentChat.tasks.stopping' : 'agentChat.tasks.stop');
+    return (
+        <Tooltip content={label}>
+            <Button
+                aria-busy={isStopping || undefined}
+                aria-disabled={isStopping || undefined}
+                className="min-h-6 gap-1 px-1.5 aria-busy:cursor-progress aria-busy:opacity-100"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                    if (!isStopping) stopAgentChatTask(terminalId, taskId);
+                }}
+            >
+                {isStopping ? (
+                    <Spinner className="size-3.5" role="presentation" />
+                ) : (
+                    <Square aria-hidden="true" className="size-2.5 fill-current" />
+                )}
+                {label}
+            </Button>
+        </Tooltip>
+    );
+}
 
 /**
  * Title, identity, status, elapsed time, and Stop. Closing the tab never stops the task; only this button does.
@@ -104,15 +143,7 @@ function TaskHeader({
                     <AgentChatTaskElapsed task={task} />
                     <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
                     {canStopAgentChatTask(task) && (
-                        <Button
-                            className="min-h-6 gap-1 px-1.5"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => stopAgentChatTask(terminalId, task.id)}
-                        >
-                            <Square className="size-2.5 fill-current" />
-                            {t('agentChat.tasks.stop')}
-                        </Button>
+                        <TaskStopButton taskId={task.id} terminalId={terminalId} />
                     )}
                 </div>
             )}
@@ -263,6 +294,8 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
             ? t(kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent')
             : taskTitle;
     const isRunning = task?.status === 'running';
+    // The same sweep setting as the Chat pane: the CSS keys off this ancestor attribute.
+    const { statusShimmer } = useLoadingStyle();
     const body = isUnavailable ? (
         <div className={STATE_CLASS_NAME}>
             <p className="m-0 text-foreground">{t('agentChat.tasks.unavailable')}</p>
@@ -311,7 +344,11 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
         <LoadingSkeleton variant="document" label={t('agentChat.tasks.loading')} />
     );
     return (
-        <section aria-label={title} className="flex h-full min-h-0 flex-col bg-background">
+        <section
+            aria-label={title}
+            className="flex h-full min-h-0 flex-col bg-background"
+            data-agent-chat-status-shimmer={statusShimmer}
+        >
             <TaskHeader kind={kind} task={task} terminalId={tab.terminalId} title={title} />
             <div className="min-h-0 flex-1">{body}</div>
         </section>

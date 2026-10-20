@@ -42,6 +42,31 @@ const INLINE_STYLES: Partial<Record<string, 'code' | 'emphasis' | 'strike' | 'st
 
 const INLINE_MARKS = new Set(['CodeMark', 'EmphasisMark', 'StrikethroughMark']);
 
+const PATH_CHARACTER = /[/.\\]/;
+const WORD_CHARACTER = /[\p{L}\p{N}]/u;
+const IDENTIFIER = /^[\p{L}\p{N}_]+$/u;
+
+/**
+ * Whether an `Emphasis` or `StrongEmphasis` span at `[from, to)` reads as intentional emphasis rather than path or
+ * identifier text that CommonMark happens to parse as emphasis. `src/*.ts and lib/*.ts` is italic and `__init__.py` is
+ * bold to the parser, but hiding their `*` and `_` would show the user text they did not type. A span is left raw when
+ * its delimiters touch a path character (`/`, `.`, `\`) outside the span, its content holds a `/` or `.` with no
+ * whitespace, it is an intraword `_` span (`foo_bar_baz`), or it is a `__dunder__` name: double `_` around one
+ * identifier word, the way Python spells `__init__`. Asterisk emphasis keeps rendering, so `**bold**` still works.
+ */
+export function isAgentChatEmphasisIntentional(text: string, from: number, to: number): boolean {
+    const delimiter = text[from];
+    const before = text[from - 1] ?? '';
+    const after = text[to] ?? '';
+    if (PATH_CHARACTER.test(before) || PATH_CHARACTER.test(after)) return false;
+    if (delimiter === '_' && (WORD_CHARACTER.test(before) || WORD_CHARACTER.test(after)))
+        return false;
+    const width = text.startsWith(delimiter + delimiter, from) && to - from > 3 ? 2 : 1;
+    const content = text.slice(from + width, to - width);
+    if (delimiter === '_' && width === 2 && IDENTIFIER.test(content)) return false;
+    return !PATH_CHARACTER.test(content) || /\s/.test(content);
+}
+
 const FENCE = /^ {0,3}(?:`{3,}|~{3,})\s*$/;
 
 const HEADINGS: Partial<Record<string, 'heading1' | 'heading2' | 'heading3'>> = {
@@ -86,12 +111,26 @@ export function agentChatMarkdownMarks(
                 return;
             }
             const inline = INLINE_STYLES[name];
+            if (
+                (name === 'Emphasis' || name === 'StrongEmphasis') &&
+                !isAgentChatEmphasisIntentional(text, from, to)
+            ) {
+                // Path or identifier text: leave it raw, and leave its delimiters visible (see the mark branch).
+                return;
+            }
             if (inline) {
                 marks.push({ kind: 'text', from, to, style: inline });
                 if (isTouched(from, to)) revealed.push({ from, to });
                 return;
             }
             if (INLINE_MARKS.has(name) && node.node.parent?.name !== 'FencedCode') {
+                const owner = node.node.parent;
+                if (
+                    owner &&
+                    (owner.name === 'Emphasis' || owner.name === 'StrongEmphasis') &&
+                    !isAgentChatEmphasisIntentional(text, owner.from, owner.to)
+                )
+                    return;
                 const isRevealed = revealed.some((range) => range.from <= from && range.to >= to);
                 if (!isRevealed) marks.push({ kind: 'hide', from, to });
                 else marks.push({ kind: 'text', from, to, style: 'syntax' });

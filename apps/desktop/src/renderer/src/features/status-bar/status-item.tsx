@@ -63,6 +63,7 @@ export function StatusItem({
     href,
     icon,
     interactiveTitle,
+    isUrgent,
     onClick,
     title,
 }: {
@@ -78,6 +79,10 @@ export function StatusItem({
      * Renders `title` in a hover card the pointer can enter, for a title that carries its own links.
      */
     interactiveTitle?: boolean;
+    /**
+     * Marks the item as warning the user, so the status bar drops it after the calmer chips (`chip-priority.ts`).
+     */
+    isUrgent?: boolean;
     onClick?: () => void;
     title: ReactNode;
 }) {
@@ -95,6 +100,7 @@ export function StatusItem({
                     href={href}
                     rel="noreferrer"
                     aria-label={ariaLabel}
+                    data-status-urgent={isUrgent ? '' : undefined}
                     onClick={(event) => {
                         // Main denies every `window.open`/target=_blank navigation, so this anchor
                         // is semantic only; the actual navigation goes through `external.open`.
@@ -110,6 +116,7 @@ export function StatusItem({
                     type="button"
                     className={cn(statusItemClassName, 'flex-none', className)}
                     aria-label={ariaLabel}
+                    data-status-urgent={isUrgent ? '' : undefined}
                     onClick={onClick}
                 >
                     {content}

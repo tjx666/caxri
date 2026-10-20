@@ -83,7 +83,9 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
 
     'agentChat.history.label': '最近发送',
     'agentChat.history.footer': '↑↓ 移动 · Enter 填入 · Esc 关闭',
-    'agentChat.stash.stashed': '草稿已暂存，在空输入框按 Ctrl+S 恢复。',
+    'agentChat.stash.stashed': '草稿已暂存，退出 Caxri 前有效。在空输入框按 Ctrl+S 恢复。',
+    'agentChat.stash.occupied': '已有暂存草稿。请先清空输入框，再按 Ctrl+S 恢复它。',
+    'agentChat.stash.restored': '已恢复暂存的草稿。',
     'agentChat.stash.placeholder': '草稿已暂存 · Ctrl+S 恢复',
     'agentChat.slash.label': '命令和 Skill',
     'agentChat.slash.noMatches': '没有匹配的命令或 Skill',

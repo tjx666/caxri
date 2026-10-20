@@ -9,13 +9,15 @@ import type {
 } from '../agent-chat-composer-view';
 import type { AgentChatDraftStash } from '../agent-chat-draft-stash';
 import {
+    decideAgentChatStashAction,
     isAgentChatDraftStashKey,
     readAgentChatDraftStash,
+    restoredAgentChatDraftText,
     writeAgentChatDraftStash,
 } from '../agent-chat-draft-stash';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
-import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
+import { LONG_NOTICE_MS, useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
 
 /**
  * Ctrl+S stashes the composer's draft and empties it, and Ctrl+S in an empty composer brings it back, as Claude Code's
@@ -49,9 +51,10 @@ export function useAgentChatDraftStash({
     };
     const restore = (saved: AgentChatDraftStash): void => {
         store(undefined);
-        setDraft((current) => (current === '' ? saved.text : current));
+        setDraft((current) => restoredAgentChatDraftText(current, saved.text));
         restoreAttachments(saved.attachments);
         if (saved.isGoalMode) setAgentChatGoalMode(terminalId, true);
+        notice.show(translate('agentChat.stash.restored'));
         const input = inputReference.current;
         const caret = Math.min(saved.caret, saved.text.length);
         // A controlled value change leaves the caret where it was; put it back where the user stashed it.
@@ -67,24 +70,40 @@ export function useAgentChatDraftStash({
             shiftKey: event.shiftKey,
         });
         if (!isStashKey) return false;
-        if (draft.trim() !== '' || attachments.length > 0) {
-            event.preventDefault();
-            store({
-                text: draft,
-                caret: event.currentTarget.selectionStart,
-                attachments,
-                isGoalMode,
-            });
-            setDraft(() => '');
-            clearAttachments(attachments);
-            if (isGoalMode) setAgentChatGoalMode(terminalId, false);
-            notice.show(translate('agentChat.stash.stashed'));
-            return true;
+        const action = decideAgentChatStashAction({
+            attachmentCount: attachments.length,
+            draft,
+            hasStash: stash !== undefined,
+        });
+        switch (action) {
+            case 'ignore': {
+                return false;
+            }
+            case 'refuse-occupied': {
+                event.preventDefault();
+                notice.show(translate('agentChat.stash.occupied'));
+                return true;
+            }
+            case 'stash': {
+                event.preventDefault();
+                store({
+                    text: draft,
+                    caret: event.currentTarget.selectionStart,
+                    attachments,
+                    isGoalMode,
+                });
+                setDraft(() => '');
+                clearAttachments(attachments);
+                if (isGoalMode) setAgentChatGoalMode(terminalId, false);
+                notice.show(translate('agentChat.stash.stashed'), LONG_NOTICE_MS);
+                return true;
+            }
+            case 'restore': {
+                event.preventDefault();
+                if (stash) restore(stash);
+                return true;
+            }
         }
-        if (!stash) return false;
-        event.preventDefault();
-        restore(stash);
-        return true;
     };
     return {
         didHandleKey,
@@ -98,7 +117,7 @@ export function useAgentChatDraftStash({
             // The send empties the input in the same update; read the input once it has rendered.
             requestAnimationFrame(() => {
                 const saved = readAgentChatDraftStash(terminalId);
-                if (saved && inputReference.current?.value === '') restore(saved);
+                if (saved && inputReference.current?.value.trim() === '') restore(saved);
             });
         },
     };
