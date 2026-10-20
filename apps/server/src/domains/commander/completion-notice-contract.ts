@@ -1,8 +1,14 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import type { AgentCommanderRowReader, CaxriDatabase, CommanderPendingNoticesModel } from '../db';
+import type {
+    AgentCommanderRowReader,
+    CaxriDatabase,
+    CommanderPendingNoticesModel,
+    DeliveredNotice,
+} from '../db';
 import type { CommanderCompletionNoticeStatus } from './notice-text';
+import type { QueuedNoticeBatch } from './queued-notices';
 
 /**
  * Why a consumed notice batch's PTY write did not provably land. Both are rare: the Commander Terminal was just
@@ -97,4 +103,25 @@ export interface CommanderCompletionNotifierOptions {
         launchId: string,
         onDelivered?: (wasAccepted: boolean) => void,
     ): boolean;
+}
+
+/**
+ * What the launch prompt built for one Commander launch carried, settled once that launch is running.
+ */
+export interface CommanderLaunchPromptClaim {
+    /**
+     * When the prompt was built. A turn marker set after it belongs to the new launch, not the one this prompt resumed.
+     */
+    claimedAt: number;
+    /**
+     * The exact revisions the prompt reported; a newer transition that lands before the launch runs stays owed.
+     */
+    delegations: DeliveredNotice[];
+    hasInterruptedTurn: boolean;
+    /**
+     * The in-memory notices the prompt reported; one replaced by a later event before the launch runs stays owed.
+     */
+    queued: QueuedNoticeBatch;
+    oldestQueuedAt: number;
+    terminalId: string;
 }

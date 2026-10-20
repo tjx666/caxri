@@ -115,7 +115,7 @@ describe('CommanderCompletionNotifier managed Session notices', () => {
         change('session-1', 'completed');
         const prompt = f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
         expect(prompt).toContain('Missed 1 Session update: Session session-1 finished its turn.');
-        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, 'launch-2');
         vi.advanceTimersByTime(30_000);
         expect(f.writeCalls).toHaveLength(0);
         expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toBeUndefined();

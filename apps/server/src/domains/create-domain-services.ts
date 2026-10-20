@@ -146,10 +146,7 @@ export async function createDomainServices(
             workbenchRoots,
         }),
         onLaunched: (terminal) => {
-            commanderHooks.launched(
-                terminal.id,
-                terminals.agentLaunchId(terminal.id) !== undefined,
-            );
+            commanderHooks.launched(terminal.id, terminals.agentLaunchId(terminal.id));
             return suspensionState.service?.parkLaunch(terminal);
         },
         onLifecycleStarted: (terminal) => {

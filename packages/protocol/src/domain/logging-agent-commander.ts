@@ -88,6 +88,12 @@ export const agentCommanderLogEvents = {
      */
     resumePromptDelivered: 'agent_commander.resume_prompt_delivered',
     /**
+     * A Commander that launched with no prompt became able to take a notice. `fields.reason` is `session_started` (its
+     * Agent reported SessionStart) or `start_timeout` (it reported nothing within the wait, as Codex does until the
+     * first prompt goes in), with `waitMs` since the launch.
+     */
+    freshLaunchReady: 'agent_commander.fresh_launch_ready',
+    /**
      * A Commander task was recorded. `fields.origin` is `commander` (the Commander registered it) or `delegation` (the
      * ledger recorded a delegation the Commander dispatched without registering one).
      */

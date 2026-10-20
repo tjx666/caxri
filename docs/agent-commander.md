@@ -391,10 +391,11 @@ A Commander launched with nothing owed (for example by `commander.ensure` when t
 handed over from the Workbench) carries no launch prompt and runs no first turn, so it has no
 finished turn to prove idle. Its fresh launch counts as one idle point instead: a Chat Commander
 proves it when its Chat reports ready with no prompt due, and a PTY Commander when the main thread's
-first `sessionIdentified` (SessionStart) arrives with no input since the launch. Input or a started
-turn before that point withdraws it, since some providers fire SessionStart only after the first
-submit. Claude Code in a Terminal binds no SessionStart hook, so a Claude Terminal Commander still
-waits for its first turn to end before it hears a notice queued at launch.
+first `sessionIdentified` (SessionStart) arrives with no input since the launch, or when eight seconds
+pass with no signal at all (`promptless-launch.ts`). The timeout exists because Codex fires
+SessionStart only as the first prompt goes in, and Claude Code in a Terminal binds no SessionStart
+hook, so without it either Commander kept a hand-over notice until the user spoke first. Input or a
+started turn before that point withdraws it.
 
 A transition that arrives while any of these fails stays queued and is retried the next time the
 Commander reaches a clean idle point; several transitions queued at once coalesce into one line. A
@@ -704,6 +705,7 @@ they reconstruct a bug report without Terminal output or transcripts:
 | `agent_commander.completion_notice_queued`          | A settled task, Inbox or hand-over event, or managed Session state (`sessionState`) was queued for the Commander, with the batch size (debug).         |
 | `agent_commander.completion_notice_deferred`        | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).                                |
 | `agent_commander.completion_notice_delivered`       | The coalesced line was written, with its entry count per kind (`sessionCount` for Session states), the oldest entry's wait, and the blocked turns.     |
+| `agent_commander.fresh_launch_ready`                | A Commander launched with no prompt became able to take a notice: `reason` (`session_started`, `start_timeout`) and `waitMs` since the launch.         |
 | `agent_commander.resume_prompt_delivered`           | A relaunched Commander received its launch prompt: missed delegation `count`, Inbox `inboxCount`, `interruptedTurn`, and the oldest entry's `waitMs`.  |
 | `agent_commander.task_recorded`                     | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).                                |
 | `agent_commander.task_transitioned`                 | A ledger task changed status: `from`, `to`, and the task's age.                                                                                        |

@@ -102,7 +102,7 @@ export class CommanderTerminalHooks {
         private readonly logger: StructuredLogger,
     ) {}
 
-    launched(terminalId: string, didLaunchAgent: boolean): void {
-        this.notifier?.onLaunched(terminalId, didLaunchAgent);
+    launched(terminalId: string, agentLaunchId: string | undefined): void {
+        this.notifier?.onLaunched(terminalId, agentLaunchId);
     }
 }
