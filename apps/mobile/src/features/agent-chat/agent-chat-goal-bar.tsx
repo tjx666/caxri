@@ -84,40 +84,15 @@ export const AgentChatGoalBar = ({
                     )}
                 </Pressable>
                 {canAct ? (
-                    <>
-                        {view.toggle ? (
-                            <IconButton
-                                accessibilityLabel={t(
-                                    view.toggle === 'pause'
-                                        ? 'chat.goal.pause'
-                                        : 'chat.goal.resume',
-                                )}
-                                color={theme.muted}
-                                disabled={isBusy}
-                                icon={view.toggle === 'pause' ? Pause : Play}
-                                onPress={() => {
-                                    // eslint-disable-next-line no-void -- The bar reports a failed command itself.
-                                    void run(view.toggle ?? 'pause');
-                                }}
-                                size={18}
-                                testID="agent-chat-goal-toggle"
-                                theme={theme}
-                            />
-                        ) : null}
-                        <IconButton
-                            accessibilityLabel={t('chat.goal.clear')}
-                            color={theme.muted}
-                            disabled={isBusy}
-                            icon={Trash2}
-                            onPress={() => {
-                                // eslint-disable-next-line no-void -- The bar reports a failed command itself.
-                                void run('clear');
-                            }}
-                            size={18}
-                            testID="agent-chat-goal-clear"
-                            theme={theme}
-                        />
-                    </>
+                    <AgentChatGoalActions
+                        isBusy={isBusy}
+                        onRun={(action) => {
+                            // eslint-disable-next-line no-void -- The bar reports a failed command itself.
+                            void run(action);
+                        }}
+                        theme={theme}
+                        toggle={view.toggle}
+                    />
                 ) : null}
             </View>
             {isExpanded ? (
@@ -139,6 +114,51 @@ export const AgentChatGoalBar = ({
                 </Text>
             ) : null}
         </View>
+    );
+};
+
+/**
+ * Pause or Resume when the goal allows it, then Clear.
+ */
+const AgentChatGoalActions = ({
+    isBusy,
+    onRun,
+    theme,
+    toggle,
+}: {
+    isBusy: boolean;
+    onRun: (action: 'clear' | 'pause' | 'resume') => void;
+    theme: MobileTheme;
+    toggle: 'pause' | 'resume' | undefined;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            {toggle ? (
+                <IconButton
+                    accessibilityLabel={t(
+                        toggle === 'pause' ? 'chat.goal.pause' : 'chat.goal.resume',
+                    )}
+                    color={theme.muted}
+                    disabled={isBusy}
+                    icon={toggle === 'pause' ? Pause : Play}
+                    onPress={() => onRun(toggle)}
+                    size={18}
+                    testID="agent-chat-goal-toggle"
+                    theme={theme}
+                />
+            ) : null}
+            <IconButton
+                accessibilityLabel={t('chat.goal.clear')}
+                color={theme.muted}
+                disabled={isBusy}
+                icon={Trash2}
+                onPress={() => onRun('clear')}
+                size={18}
+                testID="agent-chat-goal-clear"
+                theme={theme}
+            />
+        </>
     );
 };
 

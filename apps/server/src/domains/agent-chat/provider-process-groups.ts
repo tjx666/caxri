@@ -153,14 +153,16 @@ export async function reapStaleProviderGroups(options: {
         if (groups.length === 0) return;
         const table = await (options.readTable ?? readProcessTable)();
         const counts: Record<StaleGroupOutcome, number> = { gone: 0, reaped: 0, reused: 0 };
-        for (const group of groups) {
-            // Never the group of this very process, whatever the record claims.
-            const outcome = group.pgid <= 1 ? 'reused' : classifyGroup(table, group);
-            counts[outcome] += 1;
-            // eslint-disable-next-line no-await-in-loop -- each group is stopped and forgotten before the next
-            if (outcome === 'reaped') await options.reapGroup(group.pgid);
-            ledger.forget(group.pgid, group.leaderStartedAt);
-        }
+        // Groups are independent, so they are stopped together; each record is forgotten only after its own stop.
+        await Promise.all(
+            groups.map(async (group) => {
+                // Never the group of this very process, whatever the record claims.
+                const outcome = group.pgid <= 1 ? 'reused' : classifyGroup(table, group);
+                counts[outcome] += 1;
+                if (outcome === 'reaped') await options.reapGroup(group.pgid);
+                ledger.forget(group.pgid, group.leaderStartedAt);
+            }),
+        );
         options.logger.write('info', logEventCatalog.agentChat.staleGroupsReaped, {
             fields: { recorded: groups.length, ...counts, durationMs: Date.now() - startedAt },
         });
