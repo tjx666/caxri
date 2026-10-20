@@ -7,6 +7,7 @@ import { translate } from '../../../i18n';
 import { isOsFileDrag, isOsFileReferenceRefused, osFilePaths } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
 import { terminalDropInput } from '../../terminal/terminal-drop';
+import type { AgentChatComposerInput } from '../agent-chat-composer-view';
 import { draftWithInsertion } from '../agent-chat-drafts';
 import { agentChatOsFileReferences } from '../agent-chat-path-attachments';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
@@ -37,7 +38,7 @@ export function useAgentChatComposerInput({
     draft: string;
     dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
     images: Pick<ReturnType<typeof useAgentChatAttachments>, 'add' | 'addPaths' | 'isReading'>;
-    inputReference: RefObject<HTMLTextAreaElement | null>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
     providerName: string;
     setDraft: (update: (current: string) => string) => void;
     supportsImages: boolean;
@@ -50,16 +51,15 @@ export function useAgentChatComposerInput({
      * otherwise (the user kept typing while a long paste was saved), then puts the caret after it.
      */
     const insertText = (text: string, range?: AgentChatPasteRange): void => {
-        const textarea = inputReference.current;
-        const current = textarea?.value ?? draft;
-        const start = textarea?.selectionStart ?? current.length;
-        const at =
-            range?.value === current ? range : { start, end: textarea?.selectionEnd ?? start };
+        const input = inputReference.current;
+        const current = input?.value ?? draft;
+        const start = input?.selectionStart ?? current.length;
+        const at = range?.value === current ? range : { start, end: input?.selectionEnd ?? start };
         const inserted = draftWithInsertion(current, at.start, at.end, text);
         setDraft(() => inserted.draft);
         requestAnimationFrame(() => {
-            textarea?.focus();
-            textarea?.setSelectionRange(inserted.caret, inserted.caret);
+            input?.focus();
+            input?.setSelectionRange(inserted.caret, inserted.caret);
         });
     };
     /**

@@ -17,6 +17,7 @@ import {
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { recoverAgentChat } from './agent-chat-commands';
 import { AgentChatComposer } from './agent-chat-composer';
+import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatEmptyState } from './agent-chat-empty-state';
 import { AgentChatExpansionState } from './agent-chat-expansion';
@@ -123,7 +124,7 @@ export function AgentChatPane({
     const query = useCaxriQuery('agentChat.read', { terminalId }, { staleTime: Infinity });
     const snapshot = query.data;
     const projectRoot = usePaneViewSession()?.rootPath;
-    const inputReference = useRef<HTMLTextAreaElement | null>(null);
+    const inputReference = useRef<AgentChatComposerInput | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
     const { canFork, canOpenBesideChat, canOpenContext, canSaveProjectDefault } =
         agentChatHostCapabilities(host);

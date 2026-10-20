@@ -1,0 +1,224 @@
+import type { RefObject } from 'react';
+import { useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+
+import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
+import { Compartment, EditorState, Prec } from '@codemirror/state';
+import { EditorView, placeholder as placeholderExtension } from '@codemirror/view';
+
+import { useTranslation } from '../../i18n';
+import { agentChatComposerExtensions, externalDraft } from './agent-chat-composer-extensions';
+import type {
+    AgentChatComposerInput,
+    AgentChatComposerKeyEvent,
+    AgentChatComposerPasteEvent,
+} from './agent-chat-composer-view';
+import {
+    agentChatComposerAttributes,
+    agentChatComposerInput,
+    agentChatComposerKeyEvent,
+    agentChatComposerPasteEvent,
+    agentChatDraftTransaction,
+    isAgentChatEditorTextDrop,
+} from './agent-chat-composer-view';
+import type { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
+import type { useAgentChatComposerEnter } from './hooks/use-agent-chat-composer-enter';
+import type { useAgentChatComposerSend } from './hooks/use-agent-chat-composer-send';
+import type { useAgentChatDraftStash } from './hooks/use-agent-chat-draft-stash';
+import type { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
+import type { useAgentChatSessionMenu } from './hooks/use-agent-chat-session-menu';
+
+type ComposerSend = ReturnType<typeof useAgentChatComposerSend>;
+
+/**
+ * What the editor's DOM and change events call; refreshed every render so the long-lived editor reaches current state.
+ */
+interface ComposerHandlers {
+    onBlur: () => void;
+    onChange: (input: AgentChatComposerInput) => void;
+    onClick: (input: AgentChatComposerInput) => void;
+    onFocus: () => void;
+    onKeyDown: (event: AgentChatComposerKeyEvent) => void;
+    onKeyUp: (event: AgentChatComposerKeyEvent) => void;
+    onPaste: (event: AgentChatComposerPasteEvent) => void;
+    onSelect: (input: AgentChatComposerInput) => void;
+}
+
+/**
+ * The composer's message input: a CodeMirror editor whose document is the draft's Markdown, rendered in place as the
+ * user writes (`agentChatMarkdownMarks`), as in the Codex app's composer. Each key goes to the first owner that claims
+ * it, in this order: the draft stash (Ctrl+S), the prompt history list, the slash-command menu, the `@` Sessions menu,
+ * Goal mode, and finally Enter and Escape; a key an owner prevents never reaches the editor's own keymap. The history
+ * list's highlighted prompt replaces the placeholder while it is open.
+ */
+export function AgentChatComposerEditor({
+    composerKeys,
+    draft,
+    goalMode,
+    history,
+    inputReference,
+    isEditing,
+    menu,
+    menuActions,
+    placeholder,
+    sessionMenu,
+    setDraft,
+    setInputFocused,
+    stash,
+    onPaste,
+}: {
+    composerKeys: ReturnType<typeof useAgentChatComposerEnter>;
+    draft: string;
+    goalMode: ComposerSend['goalMode'];
+    history: ReturnType<typeof useAgentChatPromptHistory>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
+    isEditing: boolean;
+    menu: ReturnType<typeof useAgentChatCommandMenu>;
+    menuActions: Pick<ComposerSend, 'choose' | 'complete'>;
+    placeholder: string;
+    sessionMenu: ReturnType<typeof useAgentChatSessionMenu>;
+    setDraft: (update: (current: string) => string) => void;
+    setInputFocused: (isFocused: boolean) => void;
+    stash: ReturnType<typeof useAgentChatDraftStash>;
+    onPaste: (event: AgentChatComposerPasteEvent) => void;
+}) {
+    const { t } = useTranslation();
+    const hostReference = useRef<HTMLDivElement>(null);
+    const viewReference = useRef<EditorView>(null);
+    /**
+     * The draft the editor starts with; it opens with the caret at 0, as a mounted textarea did, while a draft set
+     * later moves the caret to the end (`agentChatDraftTransaction`).
+     */
+    const mountedDraft = useRef(draft);
+    const handlers = useRef<ComposerHandlers>(null);
+    const [compartments] = useState(() => ({
+        attributes: new Compartment(),
+        placeholder: new Compartment(),
+    }));
+    const [{ attach, input }] = useState(agentChatComposerInput);
+    useImperativeHandle(inputReference, () => input, [input]);
+    const attributes = agentChatComposerAttributes({
+        ...(history.inputAria ?? sessionMenu.inputAria ?? menu.inputAria),
+        'aria-label': t('agentChat.composer.message'),
+        // CodeMirror turns spellcheck off for code; the composer is prose, as the textarea was.
+        'spellcheck': 'true',
+    });
+    const attributesKey = JSON.stringify(attributes);
+    const shownPlaceholder = history.preview ?? placeholder;
+
+    useLayoutEffect(() => {
+        handlers.current = {
+            onBlur: () => {
+                setInputFocused(false);
+                history.close();
+            },
+            onChange: (input) => {
+                const { value } = input;
+                setDraft(() => value);
+                history.close();
+                sessionMenu.trackCaret(input);
+            },
+            onClick: (input) => sessionMenu.trackCaret(input),
+            onFocus: () => setInputFocused(true),
+            onKeyDown: (event) => {
+                sessionMenu.notePressedKey(event);
+                // "Edit from here" owns the input; stashing it would strand the edit bar without its text.
+                if (!isEditing && stash.didHandleKey(event)) return;
+                if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen)) return;
+                if (menu.didHandleKey(event, menuActions)) return;
+                if (sessionMenu.didHandleKey(event)) return;
+                if (goalMode.didHandleKey(event)) return;
+                composerKeys.onKeyDown(event);
+            },
+            onKeyUp: sessionMenu.trackCaretKey,
+            onPaste,
+            onSelect: (input) => sessionMenu.followSelection(input),
+        };
+    });
+
+    useLayoutEffect(() => {
+        const parent = hostReference.current;
+        if (!parent) return;
+        // Ahead of the editor's keymap, so a key owner sees Enter before it inserts a newline.
+        const domEvents = Prec.highest(
+            EditorView.domEventHandlers({
+                blur: () => handlers.current?.onBlur(),
+                click: () => handlers.current?.onClick(input),
+                focus: () => handlers.current?.onFocus(),
+                keydown: (event) => {
+                    handlers.current?.onKeyDown(agentChatComposerKeyEvent(event, input));
+                    return event.defaultPrevented;
+                },
+                keyup: (event) =>
+                    handlers.current?.onKeyUp(agentChatComposerKeyEvent(event, input)),
+                paste: (event) => {
+                    const pasted = agentChatComposerPasteEvent(event, input);
+                    if (pasted) handlers.current?.onPaste(pasted);
+                    return event.defaultPrevented;
+                },
+                // Files, Editor tabs, and Projects bubble to the pane's drop handlers, which cite them.
+                dragover: (event) => !isAgentChatEditorTextDrop(event.dataTransfer),
+                drop: (event) => !isAgentChatEditorTextDrop(event.dataTransfer),
+            }),
+        );
+        const view = new EditorView({
+            parent,
+            state: EditorState.create({
+                doc: mountedDraft.current,
+                extensions: [
+                    agentChatComposerExtensions(MAX_AGENT_CHAT_MESSAGE_LENGTH),
+                    compartments.placeholder.of([]),
+                    compartments.attributes.of([]),
+                    EditorView.updateListener.of((update) => {
+                        if (update.transactions.some((tr) => tr.annotation(externalDraft))) return;
+                        if (update.docChanged) handlers.current?.onChange(input);
+                        else if (update.selectionSet) handlers.current?.onSelect(input);
+                    }),
+                    domEvents,
+                ],
+            }),
+        });
+        // The draft as `value`, for the approval keys' empty check and for Playwright, since the DOM text omits the
+        // Markdown syntax the live preview hides (`e2e/support/agent-chat-composer.ts`). The caret is not exposed as
+        // `selectionStart`: React's selection restore treats an element carrying it as a textarea and assigns to it.
+        Object.defineProperties(view.contentDOM, {
+            composerSelection: {
+                get: () => ({ end: input.selectionEnd, start: input.selectionStart }),
+            },
+            value: { get: () => input.value },
+        });
+        viewReference.current = view;
+        attach(view);
+        return () => {
+            attach(null);
+            viewReference.current = null;
+            view.destroy();
+        };
+    }, [attach, compartments, input]);
+
+    useLayoutEffect(() => {
+        const view = viewReference.current;
+        if (!view) return;
+        const transaction = agentChatDraftTransaction(view.state.doc.toString(), draft);
+        if (!transaction) return;
+        view.dispatch({
+            ...transaction,
+            annotations: [externalDraft.of(true), ...[transaction.annotations ?? []].flat()],
+        });
+    }, [draft]);
+
+    useLayoutEffect(() => {
+        viewReference.current?.dispatch({
+            effects: compartments.placeholder.reconfigure(placeholderExtension(shownPlaceholder)),
+        });
+    }, [compartments, shownPlaceholder]);
+
+    useLayoutEffect(() => {
+        const contentAttributes = JSON.parse(attributesKey) as Record<string, string>;
+        const effects = compartments.attributes.reconfigure(
+            EditorView.contentAttributes.of(contentAttributes),
+        );
+        viewReference.current?.dispatch({ effects });
+    }, [attributesKey, compartments]);
+
+    return <div ref={hostReference} data-slot="agent-chat-composer-editor" />;
+}

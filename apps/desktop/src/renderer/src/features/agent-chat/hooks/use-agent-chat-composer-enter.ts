@@ -1,14 +1,12 @@
-import type { KeyboardEvent } from 'react';
-
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { sendAgentChatQueuedNow } from '../agent-chat-commands';
 import { agentChatComposerKeyAction, isAgentChatPlainPasteKey } from '../agent-chat-composer-keys';
-import type { AgentChatTextEdit } from '../agent-chat-composer-list';
 import {
     agentChatListContinuation,
     isAgentChatListContinuationKey,
 } from '../agent-chat-composer-list';
+import type { AgentChatComposerKeyEvent } from '../agent-chat-composer-view';
 import type { agentChatSendTooltip } from '../agent-chat-presentation';
 import { agentChatSendRefusal } from '../agent-chat-presentation';
 import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
@@ -64,7 +62,7 @@ export function useAgentChatComposerEnter({
         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
         else void submit(delivery);
     };
-    const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    const onKeyDown = (event: AgentChatComposerKeyEvent): void => {
         if (isAgentChatPlainPasteKey(event)) {
             event.preventDefault();
             // eslint-disable-next-line no-void -- pastePlainText reports its own failures
@@ -89,7 +87,7 @@ export function useAgentChatComposerEnter({
             );
             if (edit) {
                 event.preventDefault();
-                applyTextEdit(input, edit);
+                input.applyEdit(edit);
             }
             return;
         }
@@ -123,18 +121,4 @@ export function useAgentChatComposerEnter({
         }
     };
     return { notice: refusalNotice.notice, onKeyDown };
-}
-
-/**
- * Applies an edit as typing would. `execCommand` is deprecated but remains the only way to change a textarea that keeps
- * the edit on the native undo stack, so Cmd+Z takes back a continued list item; it also fires the `input` event the
- * controlled textarea's `onChange` stores.
- */
-function applyTextEdit(input: HTMLTextAreaElement, edit: AgentChatTextEdit): void {
-    input.setSelectionRange(edit.from, edit.to);
-    // An empty `insertText` does not delete the selection; ending a list removes the marker with `delete`.
-    const [command, text] = edit.text ? ['insertText', edit.text] : ['delete', undefined];
-    // oxlint-disable-next-line typescript/no-deprecated -- see the JSDoc above
-    if (edit.from < edit.to || edit.text) document.execCommand(command, false, text);
-    input.setSelectionRange(edit.caret, edit.caret);
 }

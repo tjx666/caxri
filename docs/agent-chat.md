@@ -1126,7 +1126,19 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
 - **List continuation.** Enter sends; Shift+Enter on a Markdown list line (`-`, `*`, `+`, `1.`,
   `1)`, or a `- [ ]` task) starts the next item with the same indent and marker, as the Codex app's
   composer does, and renumbers the ordered items below it. On an item with no text it ends the list
-  instead. The edit goes through the textarea's undo stack, so Cmd+Z takes it back.
+  instead. The edit goes through the editor's undo stack, so Cmd+Z takes it back.
+- **Live Markdown preview.** The message input is a CodeMirror 6 editor whose document is the
+  draft's exact Markdown, so what the Agent receives is byte for byte what was typed (no rich-text
+  serializer escapes `snake_case` or `*`). Headings, bold, italics, strikethrough, inline code,
+  list bullets, quotes, and fenced code render in place, as in the Codex app's composer and
+  Obsidian's live preview; an element's syntax shows again while the caret or a selection touches
+  it, and everything renders while the input is unfocused (`agentChatMarkdownMarks`). Offsets and
+  the selection mean the same as a textarea's, so the key owners (stash, prompt history, menus, Goal
+  mode, send) read the editor through a textarea-shaped adapter (`AgentChatComposerInput`). Text
+  drags insert at the drop point; files, Editor tabs, and Projects still go to the pane's drop
+  handlers. The 100,000-character limit trims typed and pasted text as a textarea's `maxLength`
+  did. A draft set from outside the editor (sent, restored, replaced) stays off the undo stack; an
+  insertion such as a picked Session reference can be undone like typing.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
   queue. Codex also lists `/goal` (see [Goals](#goals)).

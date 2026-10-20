@@ -33,11 +33,17 @@ export function agentChatApprovalKeyDecision(
 
 /**
  * Whether the element focus sits in leaves the composer empty for an approval key: a text field the user typed into
- * keeps its keys, while a button, the transcript, or an empty field does not.
+ * keeps its keys, while a button, the transcript, or an empty field does not. The composer is a contenteditable editor
+ * that exposes its draft as `value` (`agent-chat-composer-editor.tsx`); another contenteditable without one reads as
+ * holding text.
  */
-export function isAgentChatComposerEmpty(target: { value?: unknown; tagName?: string } | null) {
+export function isAgentChatComposerEmpty(
+    target: { isContentEditable?: boolean; tagName?: string; value?: unknown } | null,
+) {
     if (!target) return true;
     const tag = target.tagName?.toLowerCase();
-    if (tag !== 'textarea' && tag !== 'input') return true;
-    return typeof target.value !== 'string' || target.value === '';
+    if (tag === 'textarea' || tag === 'input')
+        return typeof target.value !== 'string' || target.value === '';
+    if (target.isContentEditable !== true) return true;
+    return typeof target.value === 'string' && target.value === '';
 }

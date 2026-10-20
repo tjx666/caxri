@@ -16,8 +16,8 @@ const LONG_PASTE_REFERENCE_ALLOWANCE = 2048;
 /**
  * Decides where `pasted` goes when it replaces a selection of `selectedLength` in a draft of `currentLength`. Text past
  * `threshold` (`agentChat.longPasteThreshold`) becomes a file so a log or a dump does not bury the message, and so does
- * any paste the message limit would otherwise cut, since the textarea's `maxLength` drops the overflow silently.
- * Raising the threshold is how a user pastes long text as is; it never lets a paste past the message limit be cut.
+ * any paste the message limit would otherwise cut, since the editor's length limit drops the overflow silently. Raising
+ * the threshold is how a user pastes long text as is; it never lets a paste past the message limit be cut.
  */
 export function agentChatPasteDisposition({
     currentLength,

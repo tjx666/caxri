@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import type { BootstrapState } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 
+import { composerValue, expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatProvider, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -216,8 +217,8 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         });
         await message.press('Enter');
         await expect(list).toHaveCount(0);
-        await expect(message).toHaveValue(REFERENCE);
-        const chatReference = await message.inputValue();
+        await expectComposerValue(message, REFERENCE);
+        const chatReference = await composerValue(message);
         await expectCondensedConversation(REFERENCE.exec(chatReference)![1]);
         // Escape dismisses the list until the draft changes.
         await message.fill('@log');
@@ -234,7 +235,7 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         await pageRequest(page, 'session.select', { sessionId: shellId });
         await expect(message).toBeHidden();
         await pageRequest(page, 'session.select', { sessionId: citingSessionId });
-        await expect(message).toHaveValue('@lo');
+        await expectComposerValue(message, '@lo');
         await expect(list).toHaveCount(0);
         await message.click();
         await expect(list).toBeVisible();

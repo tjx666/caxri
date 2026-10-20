@@ -1,4 +1,3 @@
-import type { KeyboardEvent } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
@@ -9,6 +8,7 @@ import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/sugges
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
+import type { AgentChatComposerKeyEvent } from '../agent-chat-composer-view';
 import { agentChatCommandMenuKeyStep } from '../agent-chat-presentation';
 import { agentChatSkillDiscoveryNotice } from '../agent-chat-slash-commands';
 import { agentChatActionSuggestion } from '../agent-chat-suggestions';
@@ -127,7 +127,7 @@ export function useAgentChatCommandMenu({
          * whether the key was the menu's, so the composer skips its own handling.
          */
         didHandleKey: (
-            event: KeyboardEvent<HTMLTextAreaElement>,
+            event: AgentChatComposerKeyEvent,
             handlers: {
                 choose: (action: AgentAction) => void;
                 complete: (action: AgentAction) => void;

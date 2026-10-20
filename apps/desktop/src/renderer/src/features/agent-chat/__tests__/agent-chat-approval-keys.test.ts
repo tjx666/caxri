@@ -65,6 +65,13 @@ describe('isAgentChatComposerEmpty', () => {
         expect(isAgentChatComposerEmpty({ tagName: 'TEXTAREA', value: 'draft' })).toBe(false);
         expect(isAgentChatComposerEmpty({ tagName: 'INPUT', value: 'other' })).toBe(false);
         expect(isAgentChatComposerEmpty({ tagName: 'BUTTON' })).toBe(true);
+        expect(
+            isAgentChatComposerEmpty({ isContentEditable: true, tagName: 'DIV', value: '' }),
+        ).toBe(true);
+        expect(
+            isAgentChatComposerEmpty({ isContentEditable: true, tagName: 'DIV', value: 'draft' }),
+        ).toBe(false);
+        expect(isAgentChatComposerEmpty({ isContentEditable: true, tagName: 'DIV' })).toBe(false);
         expect(isAgentChatComposerEmpty(null)).toBe(true);
     });
 });

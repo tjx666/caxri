@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -51,7 +52,8 @@ test('a Codex turn opens as one review whose line comments land in the Chat mess
         await expect(greeting.getByRole('note', { name: 'Comment on New L2–3' })).toContainText(
             'Name the constant message',
         );
-        await expect(message).toHaveValue(
+        await expectComposerValue(
+            message,
             [
                 '@src/greeting.ts#L2-L3 (Agent turn diff, modified side)',
                 '```diff',

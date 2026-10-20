@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { Locator } from '@playwright/test';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import {
     fakeClaudeChatAgentMode,
     fakeCodexChatAgentMode,
@@ -58,7 +59,7 @@ test('a Claude Chat forks from an earlier message into a new Session', async ({}
         const forked = page.locator(VISIBLE_SESSION);
         await expect(forked).not.toHaveAttribute('data-workbench-session-id', source ?? '');
         const message = forked.getByRole('textbox', { name: 'Message' });
-        await expect(message).toHaveValue('second question');
+        await expectComposerValue(message, 'second question');
         await expect(userMessage(forked, 'first question')).toBeVisible();
         await expect(userMessage(forked, 'second question')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('claude-forked.png') });
@@ -89,7 +90,7 @@ test('a Codex Chat forks its first message into an empty Chat', async ({}, testI
         await forkedFrom.getByRole('button', { name: 'Fork from here' }).click();
 
         const forked = page.locator(VISIBLE_SESSION);
-        await expect(forked.getByRole('textbox', { name: 'Message' })).toHaveValue('hello there');
+        await expectComposerValue(forked.getByRole('textbox', { name: 'Message' }), 'hello there');
         await expect(forked.locator('[data-agent-chat-user-message]')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-forked.png') });
     } finally {

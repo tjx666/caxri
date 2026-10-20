@@ -1,8 +1,12 @@
-import type { KeyboardEvent, RefObject } from 'react';
+import type { RefObject } from 'react';
 import { useState } from 'react';
 
 import { translate } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
+import type {
+    AgentChatComposerInput,
+    AgentChatComposerKeyEvent,
+} from '../agent-chat-composer-view';
 import type { AgentChatDraftStash } from '../agent-chat-draft-stash';
 import {
     isAgentChatDraftStashKey,
@@ -31,7 +35,7 @@ export function useAgentChatDraftStash({
     attachments: readonly AgentChatAttachment[];
     clearAttachments: (attachments: readonly AgentChatAttachment[]) => void;
     draft: string;
-    inputReference: RefObject<HTMLTextAreaElement | null>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
     restoreAttachments: (attachments: readonly AgentChatAttachment[]) => void;
     setDraft: (update: (current: string) => string) => void;
     terminalId: string;
@@ -53,7 +57,7 @@ export function useAgentChatDraftStash({
         // A controlled value change leaves the caret where it was; put it back where the user stashed it.
         requestAnimationFrame(() => input?.setSelectionRange(caret, caret));
     };
-    const didHandleKey = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    const didHandleKey = (event: AgentChatComposerKeyEvent): boolean => {
         const isStashKey = isAgentChatDraftStashKey({
             key: event.key,
             altKey: event.altKey,

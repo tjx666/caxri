@@ -10,10 +10,10 @@ interface ComposerSelection {
 }
 
 /**
- * Composers whose selection the user placed (clicked, typed, or moved the caret with a key). Keyed by the element, so
- * the mark lives exactly as long as that textarea: Chromium keeps a textarea's selection across blur, so a caret the
- * user put at the start of the draft is still theirs when the Chat is shown again, while a remounted composer is a
- * fresh element whose 0..0 selection is React's initial value, not a user choice.
+ * Composers whose selection the user placed (clicked, typed, or moved the caret with a key). Keyed by the input, so the
+ * mark lives exactly as long as that composer: the editor keeps its selection across blur, so a caret the user put at
+ * the start of the draft is still theirs when the Chat is shown again, while a remounted composer is a fresh editor
+ * whose 0..0 selection is its initial value, not a user choice.
  *
  * This is deliberately separate from the caret `useAgentChatPlacedCaret` follows for the `@` Sessions list: that caret
  * is forgotten whenever the Chat is hidden, and it ignores modified caret keys such as Cmd+Up.

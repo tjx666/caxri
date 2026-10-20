@@ -5,6 +5,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
+import type { AgentChatComposerInput } from '../agent-chat-composer-view';
 import {
     agentChatReferenceAttachments,
     draftAfterEditCancel,
@@ -71,7 +72,7 @@ export function useAgentChatComposerEdit({
     canSend: boolean;
     draft: string;
     focusInput: () => void;
-    inputReference: RefObject<HTMLTextAreaElement | null>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
     isBusy: boolean;
     isTurnRunning: boolean;
     options: AgentChatComposerEditOptions;
@@ -116,9 +117,9 @@ export function useAgentChatComposerEdit({
             appendedDraft: '',
         });
         requestAnimationFrame(() => {
-            const textarea = inputReference.current;
-            textarea?.focus();
-            textarea?.setSelectionRange(text.length, text.length);
+            const input = inputReference.current;
+            input?.focus();
+            input?.setSelectionRange(text.length, text.length);
         });
     };
     useImperativeHandle(options.handleReference, () => ({ startEdit }));

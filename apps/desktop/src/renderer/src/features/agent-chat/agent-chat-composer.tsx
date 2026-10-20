@@ -16,8 +16,9 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
+import { AgentChatComposerEditor } from './agent-chat-composer-editor';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
-import { AgentChatComposerTextarea } from './agent-chat-composer-textarea';
+import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { isAgentChatSkillAttachment } from './agent-chat-drafts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
@@ -78,7 +79,7 @@ interface AgentChatComposerProperties {
      */
     dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
     edit: AgentChatComposerEditOptions;
-    inputReference: RefObject<HTMLTextAreaElement | null>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
     /**
      * Whether a message sent now waits in the queue (`isAgentChatBusy`).
      */
@@ -393,7 +394,7 @@ export function AgentChatComposer({
                             }}
                         />
                     )}
-                    <AgentChatComposerTextarea
+                    <AgentChatComposerEditor
                         composerKeys={composerKeys}
                         draft={draft}
                         goalMode={goalMode}

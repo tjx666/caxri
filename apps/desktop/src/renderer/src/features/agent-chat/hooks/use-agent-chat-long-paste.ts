@@ -1,4 +1,3 @@
-import type { ClipboardEvent } from 'react';
 import { useState } from 'react';
 
 import { defaultAppSettings } from '@caxri/protocol';
@@ -8,6 +7,10 @@ import { useSettings } from '../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../stores/toasts';
 import { longPasteFailureMessage } from '../../terminal/terminal-long-paste';
 import { saveAgentChatLongPaste } from '../agent-chat-commands';
+import type {
+    AgentChatComposerInput,
+    AgentChatComposerPasteEvent,
+} from '../agent-chat-composer-view';
 import {
     agentChatPasteDisposition,
     canAgentChatPasteFitAsText,
@@ -39,7 +42,7 @@ export function useAgentChatLongPaste({
     terminalId,
 }: {
     insert: (text: string, range: AgentChatPasteRange) => void;
-    inputReference: { current: HTMLTextAreaElement | null };
+    inputReference: { current: AgentChatComposerInput | null };
     setDraft: (update: (current: string) => string) => void;
     terminalId: string;
 }) {
@@ -78,12 +81,12 @@ export function useAgentChatLongPaste({
         const text = await tryCommand(translate('agentChat.composer.plainPasteFailed'), () =>
             navigator.clipboard.readText(),
         );
-        const textarea = inputReference.current;
-        if (!text || !textarea) return;
+        const input = inputReference.current;
+        if (!text || !input) return;
         const pasted = draftWithPlainPaste(
-            textarea.value,
-            textarea.selectionStart,
-            textarea.selectionEnd,
+            input.value,
+            input.selectionStart,
+            input.selectionEnd,
             text,
         );
         if (!pasted) {
@@ -91,7 +94,7 @@ export function useAgentChatLongPaste({
             return;
         }
         setDraft(() => pasted.draft);
-        requestAnimationFrame(() => textarea.setSelectionRange(pasted.caret, pasted.caret));
+        requestAnimationFrame(() => input.setSelectionRange(pasted.caret, pasted.caret));
     };
     return {
         isSaving: savingCount > 0,
@@ -99,7 +102,7 @@ export function useAgentChatLongPaste({
          * Call first from the input's paste handler. Returns whether the paste's text was taken, so it must not also
          * land in the input; images the same paste carries are still the caller's.
          */
-        didTakePaste: (event: ClipboardEvent<HTMLTextAreaElement>): boolean => {
+        didTakePaste: (event: AgentChatComposerPasteEvent): boolean => {
             const pasted = event.clipboardData.getData('text/plain');
             const { selectionEnd, selectionStart, value } = event.currentTarget;
             const sizes = {
