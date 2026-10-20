@@ -58,7 +58,7 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
     const [merge, setMerge] = useState<
         | { state: 'idle' }
         | { state: 'merging' }
-        | { state: 'merged'; message: string }
+        | { state: 'merged'; message: string; number: number }
         | { state: 'failed'; message: string }
     >({ state: 'idle' });
     const startMerge = useCallback(
@@ -75,6 +75,7 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
                 setMerge({
                     state: 'merged',
                     message: t(`pullRequest.merged.${method}`, { number: pullRequest.number }),
+                    number: pullRequest.number,
                 });
             } catch (error) {
                 setMerge({ state: 'failed', message: pullRequestMergeErrorMessage(error, t) });
@@ -85,10 +86,19 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         [queryClient, queryKey, request, sessionId, t],
     );
     const resetMerge = useCallback(() => setMerge({ state: 'idle' }), []);
+    const read = query.data?.pullRequest;
+    /**
+     * GitHub accepted the merge, but Project Status can still answer from before it for a moment. Show the pull request
+     * as merged at once so the sheet and the chip never offer to merge it again.
+     */
+    const pullRequest =
+        read && merge.state === 'merged' && merge.number === read.number
+            ? { ...read, lifecycle: 'merged' as const, mergeBlocker: undefined }
+            : read;
     return {
         isObservable,
         merge,
-        pullRequest: query.data?.pullRequest,
+        pullRequest,
         resetMerge,
         startMerge,
     };

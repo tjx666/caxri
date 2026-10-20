@@ -8,8 +8,8 @@ import { promisify } from 'node:util';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { waitForCheck } from './mobile-agent-chat-helpers';
-import { tapMobileCheck } from './mobile-android';
+import { hasCheck, waitForCheck } from './mobile-agent-chat-helpers';
+import { mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
 
 const execFileAsync = promisify(execFile);
 
@@ -172,6 +172,11 @@ export async function executeMobilePullRequestScenario(
             await tapMobileCheck(serial, 'pull-request-confirm-merge');
         }
         await waitForCheck(serial, 'pull-request-merge-outcome');
+        // A merged pull request no longer offers Merge, even before Project Status reads it back as merged.
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => !hasCheck(nodes, 'pull-request-merge'),
+        );
         await capture(environment, 'merged', artifacts);
 
         const merges = (await readFile(gh.mergeLog, 'utf8')).trim().split('\n').filter(Boolean);
