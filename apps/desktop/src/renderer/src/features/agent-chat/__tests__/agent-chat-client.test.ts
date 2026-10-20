@@ -66,6 +66,24 @@ describe('createAgentChatPatchCache', () => {
         cache.dispose();
     });
 
+    it('forgets patches held for a read dropped before it settled', async () => {
+        const cache = createAgentChatPatchCache(queryClient);
+        const dropped = pendingRead();
+        // More patches than the cache holds, so it would repeat the read once this one settled.
+        for (let revision = 2; revision <= 202; revision += 1)
+            cache.apply(message(revision, `${revision}`));
+        queryClient.removeQueries({ queryKey });
+        // The dropped read is cancelled, so its settle rejects.
+        await expect(dropped.settle(snapshotAt(1))).rejects.toThrow();
+
+        const read = pendingRead();
+        await read.settle(snapshotAt(205));
+        // A leftover overflow would invalidate the fresh read and read the Chat again.
+        expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(false);
+        expect(queryClient.getQueryData<AgentChatSnapshot>(queryKey)?.revision).toBe(205);
+        cache.dispose();
+    });
+
     it('ignores a Chat nobody has open', () => {
         const cache = createAgentChatPatchCache(queryClient);
         cache.apply(message(1, 'unseen'));

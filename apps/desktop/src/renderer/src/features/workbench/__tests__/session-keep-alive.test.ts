@@ -17,10 +17,10 @@ beforeEach(() => {
 
 describe('Session keep-alive', () => {
     it('keeps the most recently selected Sessions and evicts past the limit', () => {
-        for (const id of ['a', 'b', 'c', 'd']) retainKeepAliveSession(id);
+        const ids = Array.from({ length: SESSION_KEEP_ALIVE_LIMIT + 1 }, (_, index) => `s${index}`);
+        for (const id of ids) retainKeepAliveSession(id);
 
-        expect(retained()).toEqual(['d', 'c', 'b']);
-        expect(retained()).toHaveLength(SESSION_KEEP_ALIVE_LIMIT);
+        expect(retained()).toEqual(ids.slice(1).toReversed());
     });
 
     it('promotes a Session that is already retained instead of duplicating it', () => {

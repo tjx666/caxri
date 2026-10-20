@@ -57,10 +57,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## vscode-fe-helper (MIT)
 
-| Caxri feature                 | Borrowed                                          | Evidence                                                                                                     |
-| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Status panel (Project Status) | Sidebar model and polling scheduler               | `.agents/skills/competitors/SKILL.md`                                                                        |
-| Unresolved review threads     | The "Unresolved Comments" group and its page size | `extensions/status/src/status-review-threads.ts`; `apps/server/src/domains/project-status/review-threads.ts` |
+| Caxri feature                 | Borrowed                                          | Evidence                                                   |
+| ----------------------------- | ------------------------------------------------- | ---------------------------------------------------------- |
+| Status panel (Project Status) | Sidebar model and polling scheduler               | `.agents/skills/competitors/SKILL.md`                      |
+| Unresolved review threads     | The "Unresolved Comments" group and its page size | `apps/server/src/domains/project-status/review-threads.ts` |
 
 ## iTerm2
 
@@ -105,18 +105,19 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## T3 Code (MIT)
 
-| Caxri feature                          | Borrowed                                                                 | Evidence                                                                                                                                  |
-| -------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Activity queue placement and retention | Left Side Bar queue (with the Codex app); 15-minute window               | `docs/activity-view.md`; `apps/desktop/src/renderer/src/features/agent-activity/agent-activity-retention.ts`                              |
-| Chat composer card, Plan card, drafts  | Composer drawer and tray (with LobeHub), task badge, localStorage drafts | `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-drafts.ts`                                     |
-| Long paste saved as a file             | 32 KiB threshold                                                         | `docs/agent-chat.md`; `packages/protocol/src/agent/agent-chat-contract.ts`                                                                |
-| Turn review, folding, work log         | Turn review and folding (with the Codex app)                             | `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-turn-review-tab.tsx` |
-| Mobile foreground recovery             | Probe or reconnect on return to foreground                               | `docs/mobile/design.md`                                                                                                                   |
-| Streaming Markdown tests               | Prefix-equality tests                                                    | `chat-markdown-rendering.md`                                                                                                              |
-| Background wait status                 | Background shells never hold a turn's completion                         | `docs/activity-view.md`                                                                                                                   |
-| Claude plan limits                     | SDK `/usage` request plus `rate_limit_event` updates, no Keychain read   | `docs/usage.md`; `apps/server/src/domains/agent-chat/claude-plan-limits.ts`                                                               |
-| Caxri skill card                       | A picked skill shown as a chip in the composer instead of typed text     | `docs/agent-chat.md`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-skill-card.tsx`                                       |
-| Chat `@` file completion               | Workspace files offered from the composer's `@` trigger                  | `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-file-mentions.ts`                                                           |
+| Caxri feature                          | Borrowed                                                                                                 | Evidence                                                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Activity queue placement and retention | Left Side Bar queue (with the Codex app); 15-minute window                                               | `docs/activity-view.md`; `packages/protocol/src/domain/session-activity-group.ts`                                                         |
+| Chat composer card, Plan card, drafts  | Composer drawer and tray (with LobeHub), task badge, localStorage drafts                                 | `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-drafts.ts`                                     |
+| Long paste saved as a file             | 32 KiB threshold                                                                                         | `docs/agent-chat.md`; `packages/protocol/src/agent/agent-chat-contract.ts`                                                                |
+| Turn review, folding, work log         | Turn review and folding (with the Codex app)                                                             | `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-turn-review-tab.tsx` |
+| Mobile foreground recovery             | Probe or reconnect on return to foreground                                                               | `docs/mobile/design.md`                                                                                                                   |
+| Streaming Markdown tests               | Prefix-equality tests                                                                                    | `chat-markdown-rendering.md`                                                                                                              |
+| Background wait status                 | Background shells never hold a turn's completion                                                         | `docs/activity-view.md`                                                                                                                   |
+| Claude plan limits                     | SDK `/usage` request plus `rate_limit_event` updates, no Keychain read                                   | `docs/usage.md`; `apps/server/src/domains/agent-chat/claude-plan-limits.ts`                                                               |
+| Caxri skill card                       | A picked skill shown as a chip in the composer instead of typed text                                     | `docs/agent-chat.md`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-skill-card.tsx`                                       |
+| Chat `@` file completion               | Workspace files offered from the composer's `@` trigger                                                  | `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-file-mentions.ts`                                                           |
+| Agent Chat Session switch              | Frame-by-frame switch measurement; 16 remembered conversations; hidden Chats skip rendering their stream | `docs/renderer-performance.md`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-cache-retention.ts`                         |
 
 ## Paseo (Apache-2.0)
 
