@@ -95,7 +95,8 @@ chrome and the gap between pages follow the Caxri theme, the way every PDF reade
 A damaged or non-PDF file, a password-protected one, and one over 32 MiB each show a readable cause
 with **Open with Default App**; a read failure keeps **Retry**. When the file is rewritten on disk
 (a save from another app, an Agent regenerating it), the view reads it again after the burst of
-watcher events settles and returns to the same page and zoom. The old copy stays on screen until
+watcher events settles and returns to the same page and zoom. A PDF opened from outside every
+Project follows Main's external-document watcher instead of the Project's. The old copy stays on screen until
 the new one parses, so the reader never sees the view blank out. A reload whose read fails,
 usually because it caught a half-written file or a delete-then-rename replacement midway, keeps the
 old copy and reads once more a second later; only a second failure replaces the view with the

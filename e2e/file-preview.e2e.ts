@@ -383,6 +383,15 @@ test('previews a PDF opened from outside every Project', async ({}, testInfo) =>
         await expect(pdf.locator('.textLayer').first()).toContainText('External page one');
         await page.screenshot({ path: testInfo.outputPath('external-pdf.png') });
         await expect(page.locator('.monaco-editor')).toHaveCount(0);
+
+        // Another app rewrites the file: the preview reloads it, as it does a Project PDF (issue #2211).
+        await writeFile(
+            join(externalRoot, 'outside-manual.pdf'),
+            syntheticPdf(['Rewritten page one', 'Rewritten page two', 'Rewritten page three']),
+        );
+        await expect(pdf.locator('.page')).toHaveCount(3);
+        await expect(pdf.locator('.textLayer').first()).toContainText('Rewritten page one');
+        await page.screenshot({ path: testInfo.outputPath('external-pdf-rewritten.png') });
     } finally {
         try {
             await running.app.close();

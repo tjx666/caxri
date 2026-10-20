@@ -76,4 +76,30 @@ describe('subscribePreviewSourceChanges', () => {
         unsubscribe();
         expect(mocks.state.handler).toBeUndefined();
     });
+
+    it('follows an external document by the ID Main issued, not by path (#2211)', () => {
+        vi.useFakeTimers();
+        const onChange = vi.fn();
+        const unsubscribe = subscribePreviewSourceChanges(
+            { externalDocumentId: 'doc-1' },
+            onChange,
+        );
+        mocks.state.handler?.({
+            event: 'externalDocument.changed',
+            payload: { documentId: 'doc-2' },
+        });
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: changed([{ kind: 'update', path: source.path }]),
+        });
+        vi.advanceTimersByTime(250);
+        expect(onChange).not.toHaveBeenCalled();
+        mocks.state.handler?.({
+            event: 'externalDocument.changed',
+            payload: { documentId: 'doc-1' },
+        });
+        vi.advanceTimersByTime(250);
+        expect(onChange).toHaveBeenCalledOnce();
+        unsubscribe();
+    });
 });
