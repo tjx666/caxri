@@ -113,6 +113,7 @@ export const commands = {
     'commands.agentCommander.stop': 'Stop Agent Commander',
     'commands.agentCommander.handOver': 'Hand Over to Agent Commander…',
     'commands.agentCommander.takeBack': 'Take Back from Agent Commander',
+    'commands.help.showKeyboardShortcuts': 'Keyboard Shortcuts',
     'commands.processExplorer.open': 'Open Process Explorer',
     'commands.developer.toggleScreencastMode': 'Toggle Screencast Mode',
     'commands.developer.reportBug': 'Report Bug to Agent',

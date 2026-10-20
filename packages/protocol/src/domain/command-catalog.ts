@@ -493,12 +493,24 @@ export const commandDefinitions: CommandDefinition[] = [
             'End the Agent Commander’s management of the selected Session; its Agents keep running',
         when: 'commanderTakeBackAvailable',
     },
+    /**
+     * The cheatsheet leads the Help menu in its own group, the way VS Code's Help menu sets its "Keyboard Shortcuts
+     * Reference" apart from the diagnostic tools below it. Unlike them it works in an SSH Host window too.
+     */
+    {
+        id: 'help.showKeyboardShortcuts',
+        title: 'Keyboard Shortcuts',
+        category: 'Help',
+        description: 'Show every keyboard shortcut, grouped by category',
+        keywords: ['cheatsheet', 'keybindings', 'hotkeys'],
+        nativeMenu: { menu: 'help', group: 0, order: 0 },
+    },
     {
         id: 'processExplorer.open',
         title: 'Open Process Explorer',
         category: 'Help',
         description: 'Inspect Caxri process resource usage',
-        nativeMenu: { menu: 'help', group: 0, order: 0 },
+        nativeMenu: { menu: 'help', group: 1, order: 0 },
         when: 'localMachine',
     },
     {
@@ -512,7 +524,7 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Report Bug to Agent',
         category: 'Help',
         description: 'Preview and send a privacy-safe local bug report to a running Agent',
-        nativeMenu: { menu: 'help', group: 1, order: 0 },
+        nativeMenu: { menu: 'help', group: 2, order: 0 },
         when: 'localMachine',
     },
     {
@@ -520,7 +532,7 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Export Diagnostics',
         category: 'Help',
         description: 'Export a privacy-safe diagnostics bundle',
-        nativeMenu: { menu: 'help', group: 1, order: 1 },
+        nativeMenu: { menu: 'help', group: 2, order: 1 },
         when: 'localMachine',
     },
     {

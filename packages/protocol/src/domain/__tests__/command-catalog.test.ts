@@ -129,7 +129,11 @@ describe('command registry', () => {
         ]);
         expect(
             getNativeMenuCommandGroups('help').map((group) => group.map((command) => command.id)),
-        ).toEqual([['processExplorer.open'], ['developer.reportBug', 'diagnostics.export']]);
+        ).toEqual([
+            ['help.showKeyboardShortcuts'],
+            ['processExplorer.open'],
+            ['developer.reportBug', 'diagnostics.export'],
+        ]);
         expect(getNativeMenuCommandGroups('terminal')[0]?.map((command) => command.id)).toEqual([
             'terminal.new',
             'terminal.clear',
@@ -154,6 +158,29 @@ describe('command registry', () => {
             expect(unknownCommands, `unmigrated commands in ${generation.id}`).toEqual([]);
         }
         expect(releasedDefaultKeybindingGenerations.at(-1)?.bindings).toEqual(defaultKeybindings);
+    });
+
+    /**
+     * A default added without its `add` change reaches new installs only: every existing `keybindings.jsonc` keeps the
+     * old set, and nothing else fails. Upgrading the newest tagged generation must therefore land on every current
+     * default.
+     */
+    it('brings the newest released generation up to every current default', () => {
+        const released = releasedDefaultKeybindingGenerations.at(-2);
+        expect(released).toBeDefined();
+        const migrated = reconcileDefaultKeybindings(
+            released?.bindings ?? [],
+            defaultKeybindingChanges,
+        ).value;
+        for (const binding of defaultKeybindings)
+            expect(migrated, `${released?.id} did not receive ${binding.key}`).toContainEqual(
+                binding,
+            );
+        expect(migrated).toContainEqual({ key: 'cmd+n', command: 'session.create' });
+        expect(migrated).toContainEqual({
+            key: 'cmd+k cmd+r',
+            command: 'help.showKeyboardShortcuts',
+        });
     });
 
     /**

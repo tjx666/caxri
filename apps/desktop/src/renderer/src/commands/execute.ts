@@ -415,6 +415,7 @@ const commandContext: CommandContext = {
             else pushToast('info', translate('core.commands.usageNeedsProject'));
         },
         openSessionSearch: () => useDialogStore.getState().setSessionSearchOpen(true),
+        openKeyboardShortcuts: () => useDialogStore.getState().setKeyboardShortcutsOpen(true),
         /**
          * Opens the picker with the selected Session already checked, like its row menu's Hand Over. The picker lists
          * only Sessions the Commander does not manage, so a managed one stays unchecked.

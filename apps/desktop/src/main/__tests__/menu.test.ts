@@ -453,7 +453,7 @@ describe('application menu', () => {
         expect(dispatchCommand).not.toHaveBeenCalled();
     });
 
-    it('offers Report Bug to Agent above Export Diagnostics with its default accelerator', () => {
+    it('leads Help with Keyboard Shortcuts and offers Report Bug above Export Diagnostics', () => {
         const template = buildAppMenuTemplate({
             keybindings: defaultKeybindings,
             dispatchCommand: vi.fn(),
@@ -467,11 +467,21 @@ describe('application menu', () => {
         const help = submenu(template, 'Help');
 
         expect(help.map((item) => item.id ?? item.type)).toEqual([
+            'command.help.showKeyboardShortcuts',
+            'separator',
             'command.processExplorer.open',
             'separator',
             'command.developer.reportBug',
             'command.diagnostics.export',
         ]);
+        // A two-chord binding has no native accelerator, so the menu advertises it in the label instead.
+        const shortcuts = help.find((item) => item.id === 'command.help.showKeyboardShortcuts');
+        expect(shortcuts?.accelerator).toBeUndefined();
+        expect(shortcuts?.label).toBe('Keyboard Shortcuts [⌘K ⌘R]');
+        expect(
+            submenu(template, 'Session').find((item) => item.id === 'command.session.create')
+                ?.accelerator,
+        ).toBe('Command+N');
         expect(help.find((item) => item.id === 'command.developer.reportBug')?.accelerator).toBe(
             'Command+Shift+B',
         );

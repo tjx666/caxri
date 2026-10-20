@@ -164,7 +164,7 @@ function InboxToggle() {
         <CommanderColumnToggle
             badge={
                 count > 0 && (
-                    <span className="agent-commander-inbox-count rounded-full bg-badge px-1.5 text-[10px] leading-4 text-badge-foreground">
+                    <span className="agent-commander-inbox-count rounded-full bg-badge px-1.5 text-[10px] leading-4 text-badge-foreground tabular-nums">
                         {count}
                     </span>
                 )

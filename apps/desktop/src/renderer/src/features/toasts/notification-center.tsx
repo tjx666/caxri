@@ -116,7 +116,9 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                         {entry.timeLabel}
                     </time>
                     {entry.count > 1 && (
-                        <span>{t('toasts.center.occurrences', { count: entry.count })}</span>
+                        <span className="tabular-nums">
+                            {t('toasts.center.occurrences', { count: entry.count })}
+                        </span>
                     )}
                     {muted && <span>{t('toasts.center.muted')}</span>}
                 </div>
@@ -202,7 +204,7 @@ export function NotificationCenter() {
                     }
                 >
                     <Bell size={14} />
-                    {unread > 0 && <span className="text-[11px]">{unread}</span>}
+                    {unread > 0 && <span className="text-[11px] tabular-nums">{unread}</span>}
                 </PopoverTrigger>
             </Tooltip>
             <PopoverContent

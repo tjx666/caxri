@@ -211,6 +211,12 @@ they each shipped once as regressions. Monospace previews and diffs use `meta` s
 may use unitless `1.45` or `1.5` line height; compact uppercase headings may use `0.04em` or
 `0.06em` tracking. No other arbitrary typography values are allowed.
 
+Numbers that change while visible (timers, elapsed durations, percentages and meters, token and cost
+counters, unread and match counts, badges, zoom percentage, line and column) use tabular digits
+(`tabular-nums`; `fontVariant: ['tabular-nums']` on Mobile), so the layout does not shift as digits
+change. Static numbers (versions, fixed dates) keep proportional digits. Put the class on the
+shared component when every usage shows changing digits (`StatusItem`, `StatTile`).
+
 ### Spacing and radius
 
 - 4px grid: primary gaps and paddings are 4, 8, 12, 16, 24. Optical half-steps (2, 6, 10px) are
@@ -1055,6 +1061,15 @@ thing they are aiming at defeats the surface.
 
 **Command palette**: rows show command title left, `kbd` shortcut hint right (render from live
 keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
+
+**Keyboard Shortcuts**: `Command+K Command+R` and the Help menu open a read-only cheatsheet of
+every live binding, user overrides included. It is something the user reads rather than aims
+through, so it takes the Dialog scrim, not the picker's. Layout: title, one dense search field
+(matching title, category, or shortcut), then two balanced columns of category blocks in catalog
+order, each a small uppercase `meta` heading over `dense` rows with the title left and compact
+keycaps right; a command with two bindings shows both. A block never splits across columns. The
+footer's single ghost **Edit Keybindings** button closes the sheet and opens the Settings
+Keybindings page, which stays the only place to change a binding.
 
 **Project search**: `Command+Shift+F` opens a centered overlay 70% of the window in each direction,
 not a panel inside Files. Search is a workspace-wide question and its answer wants two columns; a

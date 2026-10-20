@@ -53,6 +53,7 @@ interface DialogState {
      */
     projectSearchSeedRequest: { id: number; seed: ProjectSearchSeed };
     sessionSearchOpen: boolean;
+    keyboardShortcutsOpen: boolean;
     agentActionsOpen: boolean;
     agentActionsTerminalId?: string;
     pathBrowserOpen: boolean;
@@ -116,6 +117,7 @@ interface DialogState {
     setProjectSearchOpen(isOpen: boolean): void;
     openProjectSearch(seed?: ProjectSearchSeed): void;
     setSessionSearchOpen(isOpen: boolean): void;
+    setKeyboardShortcutsOpen(isOpen: boolean): void;
     openAgentActions(terminalId: string): void;
     setAgentActionsOpen(isOpen: boolean): void;
     setPathBrowserOpen(isOpen: boolean): void;
@@ -153,6 +155,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     projectSearchOpen: false,
     projectSearchSeedRequest: { id: 0, seed: {} },
     sessionSearchOpen: false,
+    keyboardShortcutsOpen: false,
     agentActionsOpen: false,
     agentActionsTerminalId: undefined,
     pathBrowserOpen: false,
@@ -180,6 +183,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
             projectSearchSeedRequest: { id: state.projectSearchSeedRequest.id + 1, seed },
         })),
     setSessionSearchOpen: (sessionSearchOpen) => set({ sessionSearchOpen }),
+    setKeyboardShortcutsOpen: (keyboardShortcutsOpen) => set({ keyboardShortcutsOpen }),
     openAgentActions: (agentActionsTerminalId) =>
         set({ agentActionsOpen: true, agentActionsTerminalId }),
     setAgentActionsOpen: (agentActionsOpen) => set({ agentActionsOpen }),
@@ -257,3 +261,5 @@ export const openStatusBarPicker = (picker: StatusBarPicker): void =>
 
 export const setSessionSearchOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setSessionSearchOpen(isOpen);
+export const setKeyboardShortcutsOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setKeyboardShortcutsOpen(isOpen);

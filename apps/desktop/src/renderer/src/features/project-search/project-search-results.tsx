@@ -222,7 +222,7 @@ function ContentResultGroup({
                 {directory && (
                     <span className="min-w-0 flex-1 truncate text-muted">{directory}</span>
                 )}
-                <span className="ml-auto shrink-0 text-muted">{matches.length}</span>
+                <span className="ml-auto shrink-0 text-muted tabular-nums">{matches.length}</span>
             </button>
             <DisclosureMotion animate expanded={expanded} kind="files-content-group">
                 {() =>

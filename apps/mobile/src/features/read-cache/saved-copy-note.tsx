@@ -6,7 +6,7 @@ import { useSavedAge } from './use-saved-age';
 
 const styles = StyleSheet.create({
     note: { paddingHorizontal: 16, paddingVertical: 6 },
-    text: { fontSize: 12, lineHeight: 16, textAlign: 'center' },
+    text: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16, textAlign: 'center' },
 });
 
 /**

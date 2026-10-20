@@ -32,7 +32,7 @@ export function ContainerBadgeChip({
     return (
         <span
             aria-hidden="true"
-            className={`absolute -right-2 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${fill}`}
+            className={`absolute -right-2 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold tabular-nums ring-2 ring-surface ${fill}`}
             data-view-container-badge={containerId}
             data-view-container-badge-kind={badge.kind}
         >

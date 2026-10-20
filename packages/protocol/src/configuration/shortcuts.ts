@@ -77,6 +77,11 @@ const KEY_SYMBOLS: Record<string, string> = {
     tab: '⇥',
 };
 
+/**
+ * Function keys are stored lowercase (`f2`) but printed on the keycap as `F2`.
+ */
+const FUNCTION_KEY = /^f\d{1,2}$/;
+
 function formatChordParts(chord: string): string[] {
     const parts = chord.split('+');
     const partSet = new Set(parts);
@@ -85,7 +90,8 @@ function formatChordParts(chord: string): string[] {
     );
     const mainKey = parts.find((part) => !Object.hasOwn(MODIFIER_SYMBOLS, part)) ?? '';
     const displayKey =
-        KEY_SYMBOLS[mainKey] ?? (mainKey.length === 1 ? mainKey.toUpperCase() : mainKey);
+        KEY_SYMBOLS[mainKey] ??
+        (mainKey.length === 1 || FUNCTION_KEY.test(mainKey) ? mainKey.toUpperCase() : mainKey);
     return displayKey ? [...symbols, displayKey] : symbols;
 }
 

@@ -90,6 +90,7 @@ export const commandIds = [
     'shellCommand.uninstall',
     'pathBrowser.open',
     'commandPalette.open',
+    'help.showKeyboardShortcuts',
     'processExplorer.open',
     'agentCommander.open',
     'agentCommander.stop',

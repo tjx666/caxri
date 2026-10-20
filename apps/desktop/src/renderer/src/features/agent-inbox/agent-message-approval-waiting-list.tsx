@@ -36,7 +36,7 @@ export function AgentMessageApprovalWaitingList({
                     <h2 className="m-0 text-[12px] font-semibold">
                         {t('agentInbox.waitingList.title')}
                     </h2>
-                    <span className="ml-auto rounded bg-badge px-1.5 text-[11px] text-badge-foreground">
+                    <span className="ml-auto rounded bg-badge px-1.5 text-[11px] text-badge-foreground tabular-nums">
                         {approvals.length}
                     </span>
                 </div>

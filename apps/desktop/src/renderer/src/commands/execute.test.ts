@@ -197,6 +197,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openPathBrowser: record('dialogs.openPathBrowser'),
                 openProjectSearch: record('dialogs.openProjectSearch'),
                 openSessionSearch: record('dialogs.openSessionSearch'),
+                openKeyboardShortcuts: record('dialogs.openKeyboardShortcuts'),
                 openCommanderHandover: record('dialogs.openCommanderHandover'),
             },
             windows: {
@@ -553,6 +554,15 @@ describe('executeCommand', () => {
             'dialogs.openSettings(source)',
             'dialogs.openSettings(trusted-domains)',
         ]);
+    });
+
+    it('opens the Keyboard Shortcuts cheatsheet in an SSH Host window too', () => {
+        const { calls, context } = recordingContext();
+        context.remote.isLocalOnlyAvailable = () => false;
+
+        executeCommand('help.showKeyboardShortcuts', undefined, context);
+
+        expect(calls).toEqual(['dialogs.openKeyboardShortcuts']);
     });
 
     it('delegates an unknown local command without throwing', () => {

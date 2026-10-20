@@ -17,6 +17,7 @@ import { openFileForSession } from './features/editor/document-commands';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { subscribeUnsavedEditorRequests } from './features/editor/unsaved-editor-commands';
+import { KeyboardShortcutsDialog } from './features/keyboard-shortcuts/keyboard-shortcuts-dialog';
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
 import { useDeliveryFocusRefresh } from './features/primary-sidebar/hooks/use-delivery-focus-refresh';
@@ -284,6 +285,7 @@ export function App() {
                     <ArchivedSessionsDialog />
                     <CommanderHandoverDialog isFromWorkbench />
                     <SessionSearchDialog />
+                    <KeyboardShortcutsDialog />
                     <UpdateDialog />
                     <CommandPalette />
                     <ProjectSearchDialog />

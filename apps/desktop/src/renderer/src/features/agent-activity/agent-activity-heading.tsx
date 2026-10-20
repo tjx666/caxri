@@ -72,7 +72,11 @@ export function AgentActivityHeading({
         <>
             <AgentActivityGroupIcon groupId={group.id} />
             <span>{heading.label}</span>
-            {heading.count !== undefined && <span aria-hidden="true">{heading.count}</span>}
+            {heading.count !== undefined && (
+                <span aria-hidden="true" className="tabular-nums">
+                    {heading.count}
+                </span>
+            )}
             <span className="sr-only">{heading.summary}</span>
         </>
     );
