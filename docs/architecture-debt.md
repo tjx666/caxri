@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-10-13 @ `319eab82e` (`main`)                                                                      |
+| **Last full audit**      | 2026-10-21 @ `403f8de9a` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `319eab82e`               |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `403f8de9a`               |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -31,84 +31,138 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ## OPEN
 
-Full audit 2026-10-13 @ `319eab82e` revalidated every entry below as still present; the new fixable
-findings were resolved by the [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992) batch below. Each remaining entry is
-tracked by its own issue because it needs a product decision or its own design.
-
-### AD-sec-delegation-hidden-project: [OPEN · Contract drift · S]
-
-- **Summary:** Delegation bootstrap reuses a hidden Project for its root and creates a Session there that Desktop never shows.
-- **Evidence:** `apps/server/src/domains/db/delegation-context.ts` reuses the row found by root path without unhiding it; the registration-authority list in `security.md` now names the bootstrap.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1677](https://github.com/tjx666/caxri/issues/1677): unhide or refuse, with an integration test.
-
-### AD-ui-native-title-tooltips: [OPEN · Contract drift · M]
-
-- **Summary:** Native `title` attributes bypass the shared Tooltip (keyboard users cannot read them), and "open this file" has five unshared implementations.
-- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-context-alerts.tsx` and other Renderer `title` uses; no lint rule guards them.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1678](https://github.com/tjx666/caxri/issues/1678): lint rule plus one file-reference component.
-
-### AD-test-knip-before-merge: [OPEN · Coverage or observability gap · S]
-
-- **Summary:** An ordinary PR that leaves an unused export can merge green and fail only on the
-  post-merge `main` push.
-- **Evidence:** `scripts/ci-execution-plan.ts` assigns `affected`; `scripts/run-ci-focused-checks.ts` runs no knip. Skills and `docs/ci-performance.md` now state this accurately.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1679](https://github.com/tjx666/caxri/issues/1679): knip in the `affected` scope or `guards`.
-
-### AD-domain-implementation-barrels: [OPEN · Architecture debt · M]
-
-- **Summary:** Seven `index.ts` files hold 400 to 760 lines of implementation, contradicting the thin-barrel rule and seeding the pattern.
-- **Evidence:** `git`, `config`, `project-status`, `theme`, `providers/{codex,claude}` barrels and `packages/extension-api/src/index.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1680](https://github.com/tjx666/caxri/issues/1680): barrels export only, enforced by a structure test.
-
-### AD-domain-line-budget-splits: [OPEN · Architecture debt · M]
-
-- **Summary:** Several Server modules say in their JSDoc that they exist to fit the line budget, and the Server composition root is spread across files.
-- **Evidence:** `apps/server/src/domains/service-handlers.ts`, `apps/server/src/domains/create-domain-services.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1683](https://github.com/tjx666/caxri/issues/1683): composition root in one directory, no line-budget split rationale.
+Full audit 2026-10-21 @ `403f8de9a` revalidated every prior entry. The fix batch in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
+resolved most of them; the entries below keep the part that still needs a product decision or its own design.
 
 ### AD-lifecycle-chat-idle-providers: [OPEN · Architecture debt · L]
 
-- **Summary:** Reading an old Chat starts its provider process, and nothing stops it again until the Session is archived or the app quits, so browsing Chats accumulates provider processes and keeps Server Core counted as busy.
-- **Evidence:** `apps/server/src/domains/agent-chat/service.ts` `read()` lazily starts the provider; `apps/server/src/domains/terminal/suspension-policy.ts` skips non-PTY Terminals; `apps/server/src/domains/create-domain-services.ts` counts `agentChat.liveCount` as running work.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): idle Chats stop their provider, reads no longer start one, and a busy Chat is never stopped.
+- **Summary:** Reading a stopped Chat still starts its provider, because model lists, commands, and live state come from the provider rather than from a transcript reader.
+- **Evidence:** `apps/server/src/domains/agent-chat/service.ts` `read()` still starts a bound Chat. The ownership half is fixed: a read-started provider holds an observation lease (`apps/server/src/domains/agent-chat/chat-suspension.ts`) that the idle sweep reclaims two minutes after its Session is left, independent of the idle-suspension setting (`apps/server/src/domains/terminal/suspension-policy.ts`), and every provider start, PTY relaunch, and restore passes the 16-per-Session and 32-global capacity gate in `apps/server/src/domains/db/models/terminals.ts`. Covered by `service-lease.integration.test.ts`, `service-capacity.integration.test.ts`, and `terminal-restart-capacity.integration.test.ts`.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 with the fix
+- **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): a pure read starts no provider. Reclaim is time-bounded, not count-bounded: browsing many Chats inside the lease window can still hold providers up to the capacity limit.
 
-### AD-dup-chat-revision-sync: [OPEN · Architecture debt · M]
+### AD-domain-line-budget-splits: [OPEN · Architecture debt · M]
 
-- **Summary:** Desktop and Mobile each implement the Agent Chat revision-chain hold, replay, and re-read logic, so a sync fix lands twice and the two clients can drift.
-- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-client.ts` and `apps/mobile/src/features/agent-chat/agent-chat-sync.ts`. The shared copy and question answers moved to `packages/protocol` in the fix batch; the sync core did not.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1801](https://github.com/tjx666/caxri/issues/1801): one pure revision-chain core in `packages/protocol/src/agent/` used by both clients.
-
-### AD-layout-agent-chat-flat-feature: [OPEN · Architecture debt · M]
-
-- **Summary:** `features/agent-chat` keeps 80+ files flat although `turn-*`, `task*`, and `find*` families form cohesive sub-domains, so placing and finding Chat code costs every change a directory scan.
-- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/`; source-layout's sub-domain guidance. Downgraded from contract drift by its verifier: no rule mechanically requires the split.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1802](https://github.com/tjx666/caxri/issues/1802): pure moves into sub-domain directories with before/after visual parity.
+- **Summary:** The Server composition root still interleaves the Terminal suspension, resource-monitor, selection, and Session-parking lifecycles, so their create, start, and close steps are not discoverable from one owner.
+- **Evidence:** `apps/server/src/domains/create-domain-services.ts`. The line-budget split rationales are gone; Project Status now owns its own dispose in `apps/server/src/domains/status-service-creation.ts`, and the Agent lifecycle fan-out lives in `apps/server/src/domains/agent-lifecycle-fan-out.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-21 with the fix
+- **Remediation target / Acceptance:** [issue caxri#1683](https://github.com/tjx666/caxri/issues/1683): group the remaining slices by lifecycle owner without changing startup or close order.
 
 ### AD-layout-flat-family-enforcement: [OPEN · Architecture debt · M]
 
-- **Summary:** The source-layout rule that a cluster of three or more cohesive modules owns a directory is enforced only for Renderer features and the root of `apps/server/src/domains`, so Desktop Main (100+ flat files) and Server domains such as `agent-chat` (flat `claude-*`, `codex-*`, `grok-*` families) keep growing flat.
-- **Evidence:** `.agents/skills/source-layout/SKILL.md` cluster rule; `eslint.config.ts` feature-directory-structure; `apps/server/src/domains/__tests__/structure.test.ts` checks only top-level domain files; the sibling agents domain already uses `providers/{claude,codex,grok}`.
-- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): a ratcheted guard for nested flat families plus pure moves into provider and family directories.
-
-### AD-naming-ssh-host-identifiers: [OPEN · Contract drift · M]
-
-- **Summary:** The glossary names the feature SSH Host and lists Remote as an alias to avoid in new code, yet the protocol methods are `remote.*`, Main splits the feature between `ssh/remote-*.ts` and flat `remote-*` siblings, and the doc is titled Remote SSH; Environment is used as a concept without a glossary entry.
-- **Evidence:** `GLOSSARY.md` SSH Host entry; `packages/protocol/src/desktop/remote-environment-contract.ts` method names; `apps/desktop/src/main/remote-environments.ts`, `apps/desktop/src/main/ssh/`; `docs/remote-ssh.md`. English UI copy already says SSH Host.
-- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1994](https://github.com/tjx666/caxri/issues/1994): one SSH Host vocabulary across protocol, Main modules, and docs, with Environment defined in the glossary.
+- **Summary:** Desktop Main (114 direct modules) and the Server `agent-chat` domain (94, with flat `chat-`, `claude-`, `codex-`, and `grok-` families) are still flat; they can no longer grow, but nothing has moved into family directories yet.
+- **Evidence:** `scripts/directory-density-baseline.ts` records shrink-only caps for those owners, their prefix families, and the Renderer `features/agent-chat` root; `scripts/__tests__/directory-density-ratchet.test.ts` fails on growth and on an untightened shrink, and `scripts/run-ci-focused-checks.ts` routes affected and draft pull requests touching those directories to it.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 with the fix
+- **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): pure moves into provider and family directories, tightening the recorded caps as they land.
 
 ---
 
 ## RESOLVED
+
+### AD-sec-project-root-identity: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Add Project could persist a different folder than the one the user picked when the path was replaced between the pick and the create.
+- **Evidence:** `apps/desktop/src/main/root-grants.ts` stores the canonical path, device, and inode captured at pick time; `apps/desktop/src/main/workbench-root-authority.ts` injects that identity as `expectedRootIdentity` and ignores any Renderer-supplied identity. Covered by `apps/desktop/src/main/__tests__/workbench-root-project-identity.test.ts`; Server Core stays the final check in `apps/server/src/domains/__tests__/project-create.integration.test.ts`.
+- **First seen:** 2026-10-21 @ 403f8de9a · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264).
+- **Remediation target / Acceptance:** A replaced folder returns `PATH_DENIED`, inserts no Project, and cannot be retried with the same grant.
+
+### AD-lifecycle-outer-provider-recovery: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** A render failure in the I18n or Query provider bypassed the crash recovery screen, leaving the Workbench on its launch layer and auxiliary windows blank.
+- **Evidence:** `apps/desktop/src/renderer/src/renderer-root.tsx` puts the `ErrorBoundary` outside every provider for all four Renderer entries. Covered by `e2e/root-error-boundary.e2e.ts`.
+- **First seen:** 2026-10-21 @ 403f8de9a · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264).
+- **Remediation target / Acceptance:** A provider-level failure shows the recovery screen with a working Reload in every window.
+
+### AD-toolchain-node-types-major: [RESOLVED · Contract drift · S]
+
+- **Summary:** `@types/node` 26 declared APIs that the shipped Node 24 runtime lacks, so code could typecheck and then fail at runtime.
+- **Evidence:** Every workspace pins `@types/node` `^24`; `scripts/__tests__/toolchain-contract.test.ts` asserts the major matches `mise.toml` and that a Node 26-only builtin fails typecheck.
+- **First seen:** 2026-10-21 @ 403f8de9a · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264).
+- **Remediation target / Acceptance:** Runtime and declaration majors cannot drift apart silently.
+
+### AD-tooling-watch-ci-operands: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** `watch-ci` value flags accepted a missing, empty, or flag-like operand and fell through to Git and GitHub calls, sometimes silently watching the current branch.
+- **Evidence:** `scripts/watch-ci.ts` validates every value flag in one operand reader; `scripts/__tests__/watch-ci-arguments.test.ts` asserts zero external calls for twelve invalid forms.
+- **First seen:** 2026-10-21 @ 403f8de9a · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264).
+- **Remediation target / Acceptance:** Invalid operands fail before any process call.
+
+### AD-ui-interaction-state-tokens: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Hover, selected, and focus washes were hand-mixed with `color-mix` in about 25 Renderer files with no semantic owner.
+- **Evidence:** `apps/desktop/src/renderer/src/styles/theme.css` owns the `--state-*` tokens derived from theme roles, so imported themes inherit them; `DESIGN.md` documents the classes. `apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts` fails on a new hand-mixed recipe.
+- **First seen:** 2026-10-21 @ 403f8de9a · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264).
+- **Remediation target / Acceptance:** One named token per interaction-state class; surfaces may still differ in intensity.
+
+### AD-docs-process-explorer-stop-terminal: [RESOLVED · Contract drift · S]
+
+- **Summary:** Architecture references described the Process Explorer preload as snapshot-only although it ships a narrow `stopTerminal` action.
+- **Evidence:** `.agents/skills/project-architecture/references/ipc.md`, `.agents/skills/project-architecture/references/process-model.md`, and `docs/process-explorer.md` now describe `stopTerminal` as a sender- and identifier-validated `terminal.suspend`, not a request bridge or process kill.
+- **First seen:** 2026-10-21 @ 403f8de9a · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264).
+- **Remediation target / Acceptance:** References match the shipped preload without widening it.
+
+### AD-sec-delegation-hidden-project: [RESOLVED · Contract drift · S]
+
+- **Summary:** Delegation bootstrap reuses a hidden Project for its root and creates a Session there that Desktop never shows.
+- **Evidence:** `apps/server/src/domains/db/delegation-context.ts` restores a hidden Project through `ProjectsModel.create` before creating the delegated Session; covered by `apps/server/src/domains/db/__tests__/delegation-context.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-20 @ 7850276e5 via [issue caxri#1677](https://github.com/tjx666/caxri/issues/1677)
+- **Remediation target / Acceptance:** [issue caxri#1677](https://github.com/tjx666/caxri/issues/1677): unhide or refuse, with an integration test.
+
+### AD-test-knip-before-merge: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** An ordinary PR that leaves an unused export can merge green and fail only on the
+  post-merge `main` push.
+- **Evidence:** `scripts/run-ci-focused-checks.ts` runs `--knip` in the `affected` scope, so an unused export fails before merge.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-20 @ 7850276e5 via [issue caxri#1679](https://github.com/tjx666/caxri/issues/1679)
+- **Remediation target / Acceptance:** [issue caxri#1679](https://github.com/tjx666/caxri/issues/1679): knip in the `affected` scope or `guards`.
+
+### AD-ui-native-title-tooltips: [RESOLVED · Contract drift · M]
+
+- **Summary:** Native `title` attributes carried unique or truncated text (command IDs, paths, exit status) that keyboard users could not reach.
+- **Evidence:** The shared Tooltip on focusable triggers now carries that text; the Terminal announces command exit status through its live region. `scripts/eslint-rules/native-title.ts` rejects a new native title outside the reasoned inventory in `scripts/eslint-rules/native-title-inventory.ts`; covered by `scripts/__tests__/native-title.test.ts`. The separate file-reference component consolidation was not revalidated here and stays with the issue.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
+- **Remediation target / Acceptance:** [issue caxri#1678](https://github.com/tjx666/caxri/issues/1678): lint rule plus one file-reference component.
+
+### AD-domain-implementation-barrels: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Seven `index.ts` files hold 400 to 760 lines of implementation, contradicting the thin-barrel rule and seeding the pattern.
+- **Evidence:** The seven `index.ts` files are re-export-only barrels over named modules such as `apps/server/src/domains/git/service.ts`; `scripts/__tests__/thin-barrels.test.ts` enforces it.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
+- **Remediation target / Acceptance:** [issue caxri#1680](https://github.com/tjx666/caxri/issues/1680): barrels export only, enforced by a structure test.
+
+### AD-dup-chat-revision-sync: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Desktop and Mobile each implement the Agent Chat revision-chain hold, replay, and re-read logic, so a sync fix lands twice and the two clients can drift.
+- **Evidence:** `packages/protocol/src/agent/agent-chat-revision-convergence.ts` owns hold, replay, gap, overflow, re-read, and dispose decisions for both clients; vectors in `packages/protocol/src/agent/__tests__/agent-chat-revision-convergence.test.ts`.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
+- **Remediation target / Acceptance:** [issue caxri#1801](https://github.com/tjx666/caxri/issues/1801): one pure revision-chain core in `packages/protocol/src/agent/` used by both clients.
+
+### AD-layout-agent-chat-flat-feature: [RESOLVED · Architecture debt · M]
+
+- **Summary:** `features/agent-chat` keeps 80+ files flat although `turn-*`, `task*`, and `find*` families form cohesive sub-domains, so placing and finding Chat code costs every change a directory scan.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/` keeps 12 direct production modules; families live in sub-domain directories such as `turns/`, `tasks/`, `composer/`, and `find/`.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
+- **Remediation target / Acceptance:** [issue caxri#1802](https://github.com/tjx666/caxri/issues/1802): pure moves into sub-domain directories with before/after visual parity.
+
+### AD-naming-ssh-host-identifiers: [RESOLVED · Contract drift · M]
+
+- **Summary:** The glossary names the feature SSH Host and lists Remote as an alias to avoid in new code, yet the protocol methods are `remote.*`, Main splits the feature between `ssh/remote-*.ts` and flat `remote-*` siblings, and the doc is titled Remote SSH; Environment is used as a concept without a glossary entry.
+- **Evidence:** `packages/protocol/src/desktop/ssh-host-contract.ts` exposes `sshHost.*` methods; Main owners live in `apps/desktop/src/main/ssh/`; `docs/ssh-host.md` is the living doc and `GLOSSARY.md` defines Environment. `scripts/__tests__/ssh-host-vocabulary.test.ts` rejects the retired spellings.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
+- **Remediation target / Acceptance:** [issue caxri#1994](https://github.com/tjx666/caxri/issues/1994): one SSH Host vocabulary across protocol, Main modules, and docs, with Environment defined in the glossary.
 
 ### AD-simplify-shared-single-flight: [RESOLVED · Modernization opportunity · M]
 
@@ -177,7 +231,7 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-ui-ssh-local-file-drop: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Dropping a file from this Mac into a Terminal or the Chat composer of an SSH Host window inserted a local path that does not exist on the host.
-- **Evidence:** `apps/desktop/src/renderer/src/lib/file-drag.ts` `isOsFileReferenceRefused`; `features/terminal/terminal-drop.ts` and `hooks/use-agent-chat-composer-input.ts` show a toast; `docs/remote-ssh.md` lists the limit.
+- **Evidence:** `apps/desktop/src/renderer/src/lib/file-drag.ts` `isOsFileReferenceRefused`; `features/terminal/terminal-drop.ts` and `hooks/use-agent-chat-composer-input.ts` show a toast; `docs/ssh-host.md` lists the limit.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** OS file drops are refused in SSH Host windows with an explanation; local windows are unchanged.
@@ -617,9 +671,10 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-sec-hand-written-bounded-reads: [RESOLVED · Architecture debt · M]
 
 - **Summary:** Several user-file reads reimplemented the bounded reader by hand, and some opened without `O_NONBLOCK`, so a FIFO at that path hung the read.
-- **Evidence:** `apps/server/src/domains/bounded-file-reader.ts` gains `symlinks` and `inspect` options; `config/source.ts`, `claude/metadata-cache.ts`, `grok/state.ts`, `core/extensions/discovery.ts`, `catalog.ts`, and `core/private-json-store.ts` now use it, with FIFO tests.
+- **Evidence:** `packages/system/src/filesystem/bounded-file-reader.ts` (then under Server domains) gains `symlinks` and `inspect` options; `config/source.ts`, `claude/metadata-cache.ts`, `grok/state.ts`, `core/extensions/discovery.ts`, `catalog.ts`, and `core/private-json-store.ts` now use it, with FIFO tests.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
+- **Changed-shape recurrence:** 2026-10-21 @ 403f8de9a, the Chat image picker in Desktop Main read with `stat` then `readFile`. Fixed in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264): the reader moved to `packages/system/src/filesystem/bounded-file-reader.ts` and `apps/desktop/src/main/agent-chat-path-picker.ts` uses it; covered by `apps/desktop/src/main/__tests__/agent-chat-path-picker.test.ts`.
 - **Remediation target / Acceptance:** A FIFO at any migrated path fails fast as a non-regular file.
 
 ### AD-lifecycle-quit-prompt-parent: [RESOLVED · Confirmed defect · S]
@@ -753,7 +808,7 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-sec-theme-import-bounded-read: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Theme import now reads through one regular-file handle into a fixed-size buffer and rejects growth before format sniffing or parsing, while preserving final-symlink compatibility for user-owned theme and provider configuration files.
-- **Evidence:** `apps/server/src/domains/bounded-file-reader.ts:15-50` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `apps/server/src/domains/theme/index.ts` uses that boundary; `apps/server/src/domains/theme/__tests__/theme.test.ts` covers final symlinks, post-open growth, and FIFO rejection.
+- **Evidence:** `packages/system/src/filesystem/bounded-file-reader.ts` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `apps/server/src/domains/theme/importer.ts` uses that boundary; `apps/server/src/domains/theme/__tests__/theme.test.ts` covers final symlinks, post-open growth, and FIFO rejection.
 - **First seen:** 2026-08-13 @ 63a7ccc · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
 - **Remediation target / Acceptance:** No parser receives more than 1 MiB; post-open growth returns `CAPACITY`, pathname replacement cannot redirect the opened handle, and normal supported imports continue to succeed.
@@ -817,9 +872,10 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-sec-config-disk-size-cap: [RESOLVED · Architecture debt · S]
 
 - **Summary:** Settings/keybindings/theme disk load and hot-reload read and parse without a pre-parse size cap, while IPC update and theme import already bound sources, so an oversized userData config can inflate Server memory and cross-process event/get payloads.
-- **Evidence:** `packages/protocol/src/configuration/configuration-contract.ts` owns the bounded source and keybinding limits. `apps/server/src/domains/config/index.ts` performs bounded reads before parsing; protocol registry and event schemas reuse the same contracts. `apps/server/src/domains/__tests__/configuration.test.ts` and `packages/protocol/src/__tests__/contracts.test.ts` cover startup, hot reload, and protocol rejection.
+- **Evidence:** `packages/protocol/src/configuration/configuration-contract.ts` owns the bounded source and keybinding limits. `apps/server/src/domains/config/service.ts` performs bounded reads before parsing; protocol registry and event schemas reuse the same contracts. `apps/server/src/domains/__tests__/configuration.test.ts` and `packages/protocol/src/__tests__/contracts.test.ts` cover startup, hot reload, and protocol rejection.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 40d6d13 via [issue caxri#76](https://github.com/tjx666/caxri/issues/76).
+- **Changed-shape recurrence:** 2026-10-21 @ 403f8de9a, SSH Host first-connect seeding read the three sources unbounded. Fixed in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264): `apps/desktop/src/main/ssh/seed-config.ts` reads each through the shared cap; covered by `apps/desktop/src/main/ssh/__tests__/seed-config.test.ts`.
 - **Remediation target / Acceptance:** Shared max for settings/keybindings/theme sources enforced on disk load, hot-reload, and IPC; bound event/result `source` (and keybindings array growth) to the same ceiling. Acceptance: oversized userData config keeps prior valid state, does not emit/get multi-cap sources; focused unit test fails if the size gate is removed.
 
 ### AD-state-dual-editor-dirty: [RESOLVED · Architecture debt · M]
@@ -943,11 +999,9 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ---
 
-## Current priority guide (OPEN at 2026-10-13)
+## Current priority guide (OPEN at 2026-10-21)
 
-**Top priorities:** `AD-ext-virtual-tab-descriptors` → `AD-layout-flat-family-enforcement`.
-
-**Quick wins (S):** `AD-test-knip-before-merge` · `AD-sec-delegation-hidden-project` (after its product decision).
+**Top priorities:** `AD-lifecycle-chat-idle-providers` → `AD-layout-flat-family-enforcement` → `AD-domain-line-budget-splits`.
 
 ## Historical priority guide (all resolved)
 
