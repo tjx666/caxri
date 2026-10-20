@@ -593,3 +593,25 @@
     background-color: var(--warning);
     color: var(--background);
 }
+
+/*
+ * Frosted primary sidebar (`use-translucent-sidebar.ts` sets the attribute on macOS only, when the theme matches the
+ * system appearance). The window already sits on a `vibrancy` material behind a transparent page; the root and the
+ * app shell stop painting over it, the sidebar and its divider tint it with the theme's surface, and the Workbench
+ * column repaints its own opaque background so only the sidebar is see-through. The status bar and secondary sidebar
+ * keep their opaque `bg-surface`.
+ */
+html[data-translucent-sidebar] {
+    --sidebar-translucent-fill: color-mix(in srgb, var(--surface) 62%, transparent);
+    background: transparent;
+}
+html[data-translucent-sidebar] .app-shell {
+    background: transparent;
+}
+html[data-translucent-sidebar] .workbench-column {
+    background: var(--background);
+}
+html[data-translucent-sidebar] .session-primary-sidebar,
+html[data-translucent-sidebar] .session-primary-sidebar + .panel-divider {
+    background: var(--sidebar-translucent-fill);
+}

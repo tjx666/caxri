@@ -65,6 +65,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.primarySidebar.autoCollapseProjects.option.30m': '30 分钟后',
     'settings.primarySidebar.autoCollapseProjects.option.2h': '2 小时后',
 
+    'settings.primarySidebar.translucent.title': '半透明侧边栏',
+    'settings.primarySidebar.translucent.description':
+        '在 macOS 上，主题与系统的浅色或深色外观一致时，侧边栏透出模糊的桌面，呈磨砂玻璃效果。',
+
     'settings.window.zoomLevel.title': '缩放级别',
     'settings.window.zoomLevel.description':
         '缩放整个界面。0 为原始大小；每增减一级缩放 20%。“视图 › 放大”“缩小”和“重置缩放”也会更改此项。',
