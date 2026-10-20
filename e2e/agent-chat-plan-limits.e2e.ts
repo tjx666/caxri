@@ -42,9 +42,14 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
 
-        // Claude Code writes no limits into its transcript; the running Chat answered `/usage` for the status bar.
+        // Claude Code writes no limits into its transcript; the running Chat answered `/usage` for the status bar. The
+        // chip leaves the 5-hour window out by default, and a week ahead of pace marks it as a warning that is dropped
+        // last when the status bar runs out of room.
         const usageChip = page.getByRole('button', { name: /^Open Usage/u });
-        await expect(usageChip).toContainText('5h 78% · 7d 39% left');
+        await expect(usageChip).toContainText('7d 39% left');
+        await expect(usageChip).not.toContainText('5h');
+        await expect(usageChip).toHaveAttribute('data-status-urgent', '');
+        await expect(usageChip).toHaveClass(/text-warning/u);
 
         const pace = chat.locator('[data-agent-chat-plan-pace-alert]');
         await expect(pace).toContainText('Weekly limit ahead of pace: 39% left, resets in 5d');
