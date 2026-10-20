@@ -5,6 +5,33 @@ import type { BuddyMood } from './presentation';
 
 const SWEAT_DROP = 'M19.6 5.2c.9 1.2 1.3 2 1.3 2.6a1.3 1.3 0 0 1-2.6 0c0-.6.4-1.4 1.3-2.6z';
 
+interface EyeShape {
+    cy: number;
+    rx: number;
+    ry: number;
+}
+
+/**
+ * Eye shapes for the moods that look around: reading squints, searching widens the eye behind the lens.
+ */
+const LOOKING_EYES: Record<
+    Exclude<BuddyMood, 'compact' | 'wait' | 'tired' | 'run'>,
+    [EyeShape, EyeShape]
+> = {
+    think: [
+        { cy: 12.6, rx: 1.6, ry: 2.2 },
+        { cy: 12.6, rx: 1.6, ry: 2.2 },
+    ],
+    read: [
+        { cy: 13, rx: 1.7, ry: 1.25 },
+        { cy: 13, rx: 1.7, ry: 1.25 },
+    ],
+    search: [
+        { cy: 12.6, rx: 1.6, ry: 2.2 },
+        { cy: 12.6, rx: 2, ry: 2.6 },
+    ],
+};
+
 /**
  * Buddy's eyes and mouth for a mood. Moods that look around (`think`, `read`, `search`) move their eyes as one group.
  */
@@ -63,27 +90,14 @@ function BuddyFace({ mood }: { mood: BuddyMood }) {
             );
         }
         default: {
-            const isReading = mood === 'read';
-            const isSearching = mood === 'search';
+            const [left, right] = LOOKING_EYES[mood];
             return (
                 <g className="buddy-look">
                     <g className="buddy-blink">
-                        <ellipse
-                            cx="8"
-                            cy={isReading ? 13 : 12.6}
-                            fill={GLYPH_CUTOUT}
-                            rx={isReading ? 1.7 : 1.6}
-                            ry={isReading ? 1.25 : 2.2}
-                        />
-                        <ellipse
-                            cx="14"
-                            cy={isReading ? 13 : 12.6}
-                            fill={GLYPH_CUTOUT}
-                            rx={isReading ? 1.7 : isSearching ? 2 : 1.6}
-                            ry={isReading ? 1.25 : isSearching ? 2.6 : 2.2}
-                        />
+                        <ellipse cx="8" fill={GLYPH_CUTOUT} {...left} />
+                        <ellipse cx="14" fill={GLYPH_CUTOUT} {...right} />
                     </g>
-                    {isSearching && (
+                    {mood === 'search' && (
                         <g
                             fill="none"
                             stroke="var(--merged)"

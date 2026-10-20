@@ -111,6 +111,7 @@ export function AgentChatWorkGlyph({
     isRunning,
     ...still
 }: WorkGlyphProperties & { isFailed?: boolean; isRunning: boolean }) {
+    // react-doctor-disable-next-line react-doctor/no-derived-useState -- deliberately latches the mount-time value; later `isRunning` changes must not swap the component.
     const [wasRunning] = useState(isRunning);
     return wasRunning ? (
         <WatchedWorkGlyph isFailed={isFailed} isRunning={isRunning} {...still} />
