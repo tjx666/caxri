@@ -19,45 +19,23 @@ import { ConversationStatusGlyph, ConversationToolIcon } from './conversation-to
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
 /**
- * One work row: the tool's glyph, its verb, what it acted on, and trailing facts. A running row keeps its glyph and
- * reads as one line of plain text under a sweeping highlight (`Running pnpm test`), as Desktop's live rows do; a
- * settled one shows a code subject (a command, path, or pattern) in a monospace chip. Both a terminal Agent's tool rows
- * and an Agent Chat's work rows draw through this view.
+ * A work row's title: one line of plain text under a sweeping highlight while the work runs, else the verb and the
+ * subject, a code subject in a monospace chip.
  */
-export const ConversationToolRowView = ({
-    accessibilityLabel,
+const ToolTitle = ({
     isCodeSubject,
     isRunning,
-    kind,
-    onPress,
     subject,
-    testID,
     theme,
-    trailing,
     verb,
 }: {
-    accessibilityLabel: string;
     isCodeSubject: boolean;
     isRunning: boolean;
-    kind: AgentToolKind;
-    onPress: () => void;
     subject: string | undefined;
-    testID: string;
     theme: MobileTheme;
-    trailing?: ReactNode;
     verb: string;
 }) => (
-    <Pressable
-        accessibilityLabel={accessibilityLabel}
-        accessibilityRole="button"
-        onPress={onPress}
-        style={({ pressed }) => [
-            styles.toolRow,
-            pressed ? { backgroundColor: theme.surface } : null,
-        ]}
-        testID={testID}
-    >
-        <ConversationToolIcon kind={kind} theme={theme} />
+    <>
         {isRunning ? (
             <View style={styles.toolTitle}>
                 <ShimmerText
@@ -94,6 +72,78 @@ export const ConversationToolRowView = ({
                     <View style={styles.toolSpacer} />
                 )}
             </>
+        )}
+    </>
+);
+
+/**
+ * One work row: the tool's glyph, its verb, what it acted on, and trailing facts. A running row keeps its glyph and
+ * reads as one line of plain text under a sweeping highlight (`Running pnpm test`), as Desktop's live rows do; a
+ * settled one shows a code subject (a command, path, or pattern) in a monospace chip. Both a terminal Agent's tool rows
+ * and an Agent Chat's work rows draw through this view.
+ */
+export const ConversationToolRowView = ({
+    accessibilityLabel,
+    activity,
+    isCodeSubject,
+    isRunning,
+    kind,
+    onPress,
+    subject,
+    testID,
+    theme,
+    trailing,
+    verb,
+}: {
+    accessibilityLabel: string;
+    /**
+     * A second, muted line under the title: what the subagent the row started is doing now.
+     */
+    activity?: string;
+    isCodeSubject: boolean;
+    isRunning: boolean;
+    kind: AgentToolKind;
+    onPress: () => void;
+    subject: string | undefined;
+    testID: string;
+    theme: MobileTheme;
+    trailing?: ReactNode;
+    verb: string;
+}) => (
+    <Pressable
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+            styles.toolRow,
+            pressed ? { backgroundColor: theme.surface } : null,
+        ]}
+        testID={testID}
+    >
+        <ConversationToolIcon kind={kind} theme={theme} />
+        {activity ? (
+            <View style={styles.toolTitleStack}>
+                <View style={styles.toolTitleLine}>
+                    <ToolTitle
+                        isCodeSubject={isCodeSubject}
+                        isRunning={isRunning}
+                        subject={subject}
+                        theme={theme}
+                        verb={verb}
+                    />
+                </View>
+                <Text numberOfLines={1} style={[styles.toolActivity, { color: theme.muted }]}>
+                    {activity}
+                </Text>
+            </View>
+        ) : (
+            <ToolTitle
+                isCodeSubject={isCodeSubject}
+                isRunning={isRunning}
+                subject={subject}
+                theme={theme}
+                verb={verb}
+            />
         )}
         {trailing}
     </Pressable>

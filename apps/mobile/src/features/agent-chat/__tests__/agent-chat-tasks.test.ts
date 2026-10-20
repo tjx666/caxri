@@ -115,18 +115,33 @@ describe('agentChatTaskDetailContent', () => {
         ).toMatchObject({ kind: 'empty', text: 'No output' });
     });
 
-    it("shows a subagent's latest message", () => {
+    it("lists a subagent's messages and work in order, without its prompt or blank messages", () => {
+        const read = {
+            id: 'w1',
+            type: 'toolCall' as const,
+            name: 'Read',
+            status: 'completed' as const,
+        };
         expect(
             agentChatTaskDetailContent(
                 { kind: 'agent', status: 'running' },
                 detail({
                     items: [
+                        { id: 'u1', type: 'userMessage', text: 'Find the README' },
                         { id: 'm1', type: 'agentMessage', text: 'First', streaming: false },
+                        read,
                         { id: 'm2', type: 'agentMessage', text: ' ', streaming: true },
                     ],
                 }),
             ),
-        ).toEqual({ kind: 'message', text: 'First', notes: [] });
+        ).toEqual({
+            kind: 'transcript',
+            entries: [
+                { kind: 'message', id: 'm1', text: 'First' },
+                { kind: 'work', id: 'w1', item: read },
+            ],
+            notes: [],
+        });
         expect(
             agentChatTaskDetailContent({ kind: 'agent', status: 'running' }, detail()),
         ).toMatchObject({ kind: 'empty', text: 'No messages yet' });

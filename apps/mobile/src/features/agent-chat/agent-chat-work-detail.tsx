@@ -8,6 +8,7 @@ import {
     agentChatToolCallArguments,
     agentChatWorkVerb,
     describeAgentChatWork,
+    isAgentChatSubagentItem,
     stripLineNumberGutter,
     unwrapShellCommand,
 } from '@caxri/protocol';
@@ -104,11 +105,11 @@ export const AgentChatWorkDetail = ({
 };
 
 /**
- * The live side of a background command: the task it became, with its status, Stop, and output tail kept current, as
- * the Background work sheet shows it. Absent once the Chat no longer lists the task, which leaves the output the row
- * captured before it moved to the background.
+ * The live side of a row's task: a background command's output tail, or the subagent a tool call started with its
+ * transcript, each with status and Stop kept current, as the Background work sheet shows it. Absent once the Chat no
+ * longer lists the task, which leaves what the row itself captured.
  */
-const BackgroundTask = ({ itemId, theme }: { itemId: string; theme: MobileTheme }) => {
+const LinkedTask = ({ itemId, theme }: { itemId: string; theme: MobileTheme }) => {
     const link = useAgentChatTaskLink(itemId);
     const stopper = useAgentChatTaskStop(link?.terminalId ?? '');
     const { t } = useTranslation();
@@ -116,7 +117,11 @@ const BackgroundTask = ({ itemId, theme }: { itemId: string; theme: MobileTheme 
     return (
         <View style={styles.backgroundTask}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                {t('chat.work.backgroundOutput')}
+                {t(
+                    link.task.kind === 'agent'
+                        ? 'chat.tasks.subagent'
+                        : 'chat.work.backgroundOutput',
+                )}
             </Text>
             <AgentChatTaskDetailBody
                 canControl={link.canControl}
@@ -126,6 +131,24 @@ const BackgroundTask = ({ itemId, theme }: { itemId: string; theme: MobileTheme 
                 theme={theme}
             />
         </View>
+    );
+};
+
+/**
+ * A subagent's tool call: the live subagent while the Chat lists it, whose transcript ends on what the call returned,
+ * else the call's own output.
+ */
+const SubagentOutput = ({
+    item,
+    theme,
+}: {
+    item: Extract<AgentChatWorkItem, { type: 'toolCall' }>;
+    theme: MobileTheme;
+}) => {
+    const link = useAgentChatTaskLink(item.id);
+    if (link) return <LinkedTask itemId={item.id} theme={theme} />;
+    return (
+        <Output language={agentChatOutputLanguage(item)} text={item.output ?? ''} theme={theme} />
     );
 };
 
@@ -177,7 +200,7 @@ const AgentChatWorkDetailBody = ({
                             <Text style={[styles.note, { color: theme.muted }]}>
                                 {t('chat.work.movedToBackground')}
                             </Text>
-                            <BackgroundTask itemId={item.id} theme={theme} />
+                            <LinkedTask itemId={item.id} theme={theme} />
                         </>
                     ) : null}
                 </>
@@ -193,15 +216,19 @@ const AgentChatWorkDetailBody = ({
                             {argumentsText}
                         </Text>
                     ) : null}
-                    <Output
-                        language={agentChatOutputLanguage(item)}
-                        text={
-                            describeAgentChatWork(item).kind === 'read'
-                                ? stripLineNumberGutter(output)
-                                : output
-                        }
-                        theme={theme}
-                    />
+                    {isAgentChatSubagentItem(item) ? (
+                        <SubagentOutput item={item} theme={theme} />
+                    ) : (
+                        <Output
+                            language={agentChatOutputLanguage(item)}
+                            text={
+                                describeAgentChatWork(item).kind === 'read'
+                                    ? stripLineNumberGutter(output)
+                                    : output
+                            }
+                            theme={theme}
+                        />
+                    )}
                 </>
             );
         }

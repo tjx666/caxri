@@ -322,4 +322,10 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.model.effort.xhigh': '超高',
     'agentChat.model.effort.max': '最高',
     'agentChat.model.effort.ultra': 'Ultra',
+
+    // A subagent's usage and live activity (`agentChatTaskUsageSummary`, `agentChatTaskActivity`)
+    'agentChat.tasks.usageTokens': '{{tokens}} 个 Token',
+    'agentChat.tasks.toolUseOne': '1 次工具调用',
+    'agentChat.tasks.toolUseOther': '{{count}} 次工具调用',
+    'agentChat.tasks.usingTool': '正在使用 {{tool}}',
 };

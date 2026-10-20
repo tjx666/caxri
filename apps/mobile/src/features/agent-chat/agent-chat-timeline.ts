@@ -17,6 +17,7 @@ import {
     foldAgentChatTurn,
     isAgentChatAwaitingReply,
     isAgentChatItemVisible,
+    isAgentChatWorkItem,
     splitAgentChatWork,
 } from '@caxri/protocol';
 
@@ -105,15 +106,6 @@ export type AgentChatTimelineEntry =
           id: string;
       };
 
-const WORK_TYPES: ReadonlySet<AgentChatItem['type']> = new Set([
-    'command',
-    'fileChange',
-    'reasoning',
-    'toolCall',
-]);
-
-const isWorkItem = (item: AgentChatItem): item is AgentChatWorkItem => WORK_TYPES.has(item.type);
-
 const toMessage = (
     item: Extract<AgentChatItem, { type: 'agentMessage' | 'notice' | 'userMessage' }>,
     t: Translate,
@@ -176,7 +168,7 @@ function groupEntries(
         work = [];
     };
     for (const item of visible) {
-        if (isWorkItem(item)) {
+        if (isAgentChatWorkItem(item)) {
             work.push(item);
             continue;
         }

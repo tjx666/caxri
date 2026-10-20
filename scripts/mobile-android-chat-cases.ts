@@ -157,4 +157,10 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-pull-request-merge',
     },
+    'MOB-CHAT-26': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-subagent',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

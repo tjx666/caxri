@@ -283,6 +283,7 @@ function startBackgroundAgent(io: FakeClaudeIo, startedAt: number, finishAfterMs
             description,
             prompt: 'Watch the build.',
             subagent_type: 'general-purpose',
+            model: 'fake-haiku',
             run_in_background: true,
         },
     });
@@ -297,12 +298,26 @@ function startBackgroundAgent(io: FakeClaudeIo, startedAt: number, finishAfterMs
         is_backgrounded: true,
     });
     io.toolResult(toolUseId, 'Async agent launched successfully.');
+    // Like Claude Code, a running subagent reports its own steps and then a `task_progress` naming the tool it last used.
     setTimeout(() => {
-        if (tasks.background.has(taskId))
-            childAssistant(io, toolUseId, `msg_${crypto.randomUUID()}`, {
-                type: 'text',
-                text: 'Working in the background.',
-            });
+        if (!tasks.background.has(taskId)) return;
+        childAssistant(io, toolUseId, `msg_${crypto.randomUUID()}`, {
+            type: 'text',
+            text: 'Working in the background.',
+        });
+        childAssistant(io, toolUseId, `msg_${crypto.randomUUID()}`, {
+            type: 'tool_use',
+            id: `toolu_${crypto.randomUUID()}`,
+            name: 'Grep',
+            input: { pattern: 'build' },
+        });
+        io.system('task_progress', {
+            task_id: taskId,
+            tool_use_id: toolUseId,
+            description,
+            usage: { total_tokens: 12_300, tool_uses: 2, duration_ms: 50 },
+            last_tool_name: 'Grep',
+        });
     }, 50);
     io.result(startedAt, 'done');
     if (finishAfterMs)

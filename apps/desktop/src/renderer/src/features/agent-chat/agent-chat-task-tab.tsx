@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
 import {
+    agentChatTaskActivity,
     agentChatTaskGlyphStatus,
+    agentChatTaskIdentity,
+    agentChatTaskUsageSummary,
     canStopAgentChatTask,
     isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
@@ -22,12 +25,7 @@ import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
 import { AgentChatTaskOutput } from './agent-chat-task-output';
-import {
-    agentChatTaskActivity,
-    agentChatTaskIdentity,
-    agentChatTaskKind,
-    agentChatTaskUsageSummary,
-} from './agent-chat-tasks';
+import { agentChatTaskBilledUsage, agentChatTaskKind } from './agent-chat-tasks';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
@@ -75,7 +73,7 @@ function TaskHeader({
     );
     const details = [
         kind === 'agent' ? agentChatTaskIdentity(task) : undefined,
-        task && agentChatTaskUsageSummary(task, t, billed),
+        task && agentChatTaskUsageSummary(task, t, agentChatTaskBilledUsage(billed)),
         task && agentChatTaskActivity(task, t),
     ].filter(Boolean);
     return (

@@ -1,9 +1,12 @@
+import { formatTokens } from '../domain/usage-format.js';
 import type { AgentChatItemStatus, AgentChatTask } from './agent-chat-contract.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 
 /**
  * Presentation rules for a Chat's background work (`snapshot.tasks`) that Desktop's strip and task tab and the phone's
- * Background work sheet share, so both list, time, and offer Stop for the same tasks the same way. Wording that needs a
- * translation stays with each client.
+ * Background work sheet share, so both list, time, and offer Stop for the same tasks the same way. Shared wording comes
+ * from the `agentChatLabelsEn` catalog; the rest stays with each client.
  */
 
 /**
@@ -62,6 +65,56 @@ export function isAgentChatTaskTitleCommand(
     kind: AgentChatTask['kind'] = task?.kind ?? 'agent',
 ): boolean {
     return kind === 'shell' && !task?.command;
+}
+
+/**
+ * `general-purpose · claude-sonnet-4-5`, the facts a subagent's detail shows under its title.
+ */
+export function agentChatTaskIdentity(
+    task: Pick<AgentChatTask, 'agentType' | 'model'> | undefined,
+): string | undefined {
+    const parts = [task?.agentType, task?.model].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
+/**
+ * What a running task is doing now, for its timeline row and strip entry: the provider's progress line, else the tool
+ * it last used. An ended task shows its final summary.
+ */
+export function agentChatTaskActivity(
+    task: Pick<AgentChatTask, 'lastToolName' | 'status' | 'summary'>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string | undefined {
+    const summary = task.summary?.trim();
+    if (summary) return summary;
+    if (task.status === 'running' && task.lastToolName)
+        return t('agentChat.tasks.usingTool', { tool: task.lastToolName });
+    return undefined;
+}
+
+/**
+ * `683k tokens · $0.21 · 8 tool uses`. Without `billed` the provider's `totalTokens` is shown and no cost; Desktop
+ * passes the subagent transcript priced like its status bar, whose tokens replace the provider's count so the figure
+ * beside the cost is the one the cost was computed from.
+ */
+export function agentChatTaskUsageSummary(
+    task: Pick<AgentChatTask, 'usage'>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+    billed?: { totalTokens: number; cost: string | undefined },
+): string | undefined {
+    const parts: string[] = [];
+    const { toolUses } = task.usage ?? {};
+    const totalTokens = billed ? billed.totalTokens : task.usage?.totalTokens;
+    if (totalTokens)
+        parts.push(t('agentChat.tasks.usageTokens', { tokens: formatTokens(totalTokens) }));
+    if (billed?.cost) parts.push(billed.cost);
+    if (toolUses)
+        parts.push(
+            toolUses === 1
+                ? t('agentChat.tasks.toolUseOne')
+                : t('agentChat.tasks.toolUseOther', { count: toolUses }),
+        );
+    return parts.length > 0 ? parts.join(' · ') : undefined;
 }
 
 export function canStopAgentChatTask(task: Pick<AgentChatTask, 'canStop' | 'status'>): boolean {

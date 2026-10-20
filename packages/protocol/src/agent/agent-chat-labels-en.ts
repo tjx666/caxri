@@ -325,4 +325,10 @@ export const agentChatLabelsEn = {
     'agentChat.model.effort.xhigh': 'Extra high',
     'agentChat.model.effort.max': 'Max',
     'agentChat.model.effort.ultra': 'Ultra',
+
+    // A subagent's usage and live activity (`agentChatTaskUsageSummary`, `agentChatTaskActivity`)
+    'agentChat.tasks.usageTokens': '{{tokens}} tokens',
+    'agentChat.tasks.toolUseOne': '1 tool use',
+    'agentChat.tasks.toolUseOther': '{{count}} tool uses',
+    'agentChat.tasks.usingTool': 'Using {{tool}}',
 } as const;

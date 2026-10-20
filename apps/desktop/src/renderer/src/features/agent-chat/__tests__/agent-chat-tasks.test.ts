@@ -1,16 +1,13 @@
 import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
-import { agentChatTasksByItem } from '@caxri/protocol';
+import { agentChatTasksByItem, agentChatTaskUsageSummary } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
 import {
-    agentChatTaskActivity,
-    agentChatTaskIdentity,
+    agentChatTaskBilledUsage,
     agentChatTaskKind,
     agentChatTaskLinkForItem,
-    agentChatTaskUsageSummary,
     agentChatTurnSubagents,
-    isAgentChatSubagentItem,
     isAgentChatTaskItemRunning,
 } from '../agent-chat-tasks';
 
@@ -28,26 +25,6 @@ function task(overrides: Partial<AgentChatTask> & Pick<AgentChatTask, 'id'>): Ag
 function toolCall(id: string, name: string): AgentChatItem {
     return { id, type: 'toolCall', name, status: 'completed' };
 }
-
-describe('isAgentChatSubagentItem', () => {
-    it.each(['Task', 'Agent', 'spawnAgent', 'spawn_agent'])('recognizes %s rows', (name) => {
-        expect(isAgentChatSubagentItem(toolCall('item-1', name))).toBe(true);
-    });
-
-    it('ignores other tools and non-tool items', () => {
-        expect(isAgentChatSubagentItem(toolCall('item-1', 'Read'))).toBe(false);
-        expect(isAgentChatSubagentItem(toolCall('item-1', 'TaskOutput'))).toBe(false);
-        expect(
-            isAgentChatSubagentItem({
-                id: 'item-1',
-                type: 'command',
-                command: 'ls',
-                output: '',
-                status: 'completed',
-            }),
-        ).toBe(false);
-    });
-});
 
 describe('agentChatTaskLinkForItem', () => {
     const shell = task({ id: 'shell-1', kind: 'shell', itemId: 'command-1' });
@@ -146,20 +123,7 @@ describe('isAgentChatTaskItemRunning', () => {
     });
 });
 
-describe('agentChatTaskUsageSummary', () => {
-    it('summarizes reported usage', () => {
-        expect(
-            agentChatTaskUsageSummary(
-                task({ id: 'a', usage: { totalTokens: 12_300, toolUses: 1 } }),
-                translate,
-            ),
-        ).toBe('12.3k tokens · 1 tool use');
-        expect(
-            agentChatTaskUsageSummary(task({ id: 'a', usage: { toolUses: 4 } }), translate),
-        ).toBe('4 tool uses');
-        expect(agentChatTaskUsageSummary(task({ id: 'a' }), translate)).toBeUndefined();
-    });
-
+describe('agentChatTaskBilledUsage', () => {
     it('shows the billed tokens and cost of the subagent transcript in place of the provider count', () => {
         const billed = {
             provider: 'claude' as const,
@@ -176,40 +140,13 @@ describe('agentChatTaskUsageSummary', () => {
             unpricedModels: [],
         };
         const reported = task({ id: 'a', usage: { totalTokens: 64_900, toolUses: 12 } });
-        expect(agentChatTaskUsageSummary(reported, translate, billed)).toBe(
-            '683k tokens · $0.21 · 12 tool uses',
+        const summary = (readout: Parameters<typeof agentChatTaskBilledUsage>[0]) =>
+            agentChatTaskUsageSummary(reported, translate, agentChatTaskBilledUsage(readout));
+        expect(summary(billed)).toBe('683k tokens · $0.21 · 12 tool uses');
+        expect(summary({ ...billed, unpricedModels: ['claude-haiku-5-5'] })).toBe(
+            '683k tokens · 12 tool uses',
         );
-        expect(
-            agentChatTaskUsageSummary(reported, translate, {
-                ...billed,
-                unpricedModels: ['claude-haiku-5-5'],
-            }),
-        ).toBe('683k tokens · 12 tool uses');
-        expect(agentChatTaskUsageSummary(reported, translate, null)).toBe(
-            '64.9k tokens · 12 tool uses',
-        );
-    });
-});
-
-describe('task presentation', () => {
-    it('joins the agent type and model', () => {
-        expect(agentChatTaskIdentity({ agentType: 'general-purpose', model: 'sonnet' })).toBe(
-            'general-purpose · sonnet',
-        );
-        expect(agentChatTaskIdentity({})).toBeUndefined();
-        expect(agentChatTaskIdentity(undefined)).toBeUndefined();
-    });
-
-    it('describes what a task is doing', () => {
-        expect(agentChatTaskActivity({ status: 'running', summary: ' Reading files ' })).toBe(
-            'Reading files',
-        );
-        expect(agentChatTaskActivity({ status: 'running', lastToolName: 'Grep' })).toBe(
-            'Using Grep',
-        );
-        expect(
-            agentChatTaskActivity({ status: 'completed', lastToolName: 'Grep' }),
-        ).toBeUndefined();
+        expect(summary(null)).toBe('64.9k tokens · 12 tool uses');
     });
 });
 
