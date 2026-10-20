@@ -196,6 +196,25 @@ export function agentChatActiveWork(
 }
 
 /**
+ * The kind of work the active turn is doing right now and when that piece of work began, for a status indicator that
+ * shows what kind of tool runs. It scans back from the newest item and stops at an earlier turn's item, so a long
+ * history costs only the active turn's tail.
+ */
+export function agentChatTurnActiveWork(
+    items: readonly AgentChatItem[],
+    turnId: string,
+): { kind: AgentToolKind; startedAt: number | undefined } | undefined {
+    let start = items.length;
+    while (start > 0) {
+        const previous = items[start - 1].turnId;
+        if (previous !== undefined && previous !== turnId) break;
+        start -= 1;
+    }
+    const active = agentChatActiveWork(items.slice(start).filter(isAgentChatWorkItem));
+    return active && { kind: active.presentation.kind, startedAt: active.item.createdAt };
+}
+
+/**
  * The verb a work row leads with: present tense while the item runs (`Running`, `Editing`), else the settled verb
  * `describeAgentChatWork` chose (`Ran`, `Failed to edit`).
  */

@@ -49,6 +49,26 @@ export const settingsCatalog = {
     'settings.agentChat.longPasteThreshold.description':
         'Longer text pasted into a Chat is saved to a local file and the message cites it, so a log or a dump does not bury the message. Raise it to paste such text as is; text that would not fit in one message is still saved to a file.',
 
+    'settings.agentChat.workingIndicator.title': 'Chat working indicator',
+    'settings.agentChat.workingIndicator.description':
+        'What a Chat shows while the Agent works on a reply. Buddy also takes the status line spinner and acts out the work: reading, searching, running a command. Reduce Motion stills every choice.',
+    'settings.agentChat.workingIndicator.option.buddy': 'Buddy',
+    'settings.agentChat.workingIndicator.option.dots': 'Dots',
+    'settings.agentChat.workingIndicator.option.caret': 'Caret',
+    'settings.agentChat.workingIndicator.option.braille': 'Braille',
+    'settings.agentChat.workingIndicator.option.orbit': 'Orbit',
+
+    'settings.agentChat.animatedToolIcons.title': 'Animated Chat tool icons',
+    'settings.agentChat.animatedToolIcons.description':
+        'A running tool row in a Chat animates its icon to act out the work, such as a bookworm inching along a book while it reads. Turn off to keep the still icon.',
+
+    'settings.agentChat.statusShimmer.title': 'Chat status shimmer',
+    'settings.agentChat.statusShimmer.description':
+        'How a light sweeps across running status text in a Chat, such as the working phrase and a running tool title.',
+    'settings.agentChat.statusShimmer.option.dwell': 'Sweep, then rest',
+    'settings.agentChat.statusShimmer.option.continuous': 'Continuous sweep',
+    'settings.agentChat.statusShimmer.option.off': 'Off',
+
     'settings.workbench.newWorktreeBehavior.title': 'New worktree behavior',
     'settings.workbench.newWorktreeBehavior.description':
         'Choose whether to follow detected worktrees. Continue automatically authorizes new worktree folders without asking.',

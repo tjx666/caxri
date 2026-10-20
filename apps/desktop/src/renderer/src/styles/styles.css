@@ -153,6 +153,7 @@
     --motion-overlay-exit: 100ms;
     --motion-compaction-pulse: 1800ms;
     --motion-activity-shimmer: 2200ms;
+    --motion-activity-dwell: 2600ms;
     --motion-skeleton-pulse: 2000ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
@@ -220,39 +221,6 @@
 }
 
 /*
- * The Agent Chat reply placeholder's dots (`agent-chat-reply-placeholder.tsx`) breathe one after
- * another on the compaction pulse's period. Reduced motion leaves them still at half strength.
- */
-@keyframes reply-placeholder-dot {
-    0%,
-    60%,
-    100% {
-        opacity: 0.35;
-    }
-    30% {
-        opacity: 1;
-    }
-}
-
-.reply-placeholder-dot {
-    opacity: 0.5;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .reply-placeholder-dot {
-        animation: reply-placeholder-dot var(--motion-compaction-pulse) ease-in-out infinite;
-    }
-
-    .reply-placeholder-dot:nth-child(2) {
-        animation-delay: calc(var(--motion-compaction-pulse) / 6);
-    }
-
-    .reply-placeholder-dot:nth-child(3) {
-        animation-delay: calc(var(--motion-compaction-pulse) / 3);
-    }
-}
-
-/*
  * A highlight sweeping left to right across live Agent Chat text (a running tool's verb, `Thinking`,
  * the composer's working line), the way the Codex app and T3 Code mark work in progress without a
  * spinner per row. The gradient is clipped to the glyphs, so apply it only to a plain text span:
@@ -280,6 +248,38 @@
         background-clip: text;
         -webkit-text-fill-color: transparent;
         animation: activity-shimmer var(--motion-activity-shimmer) linear infinite;
+    }
+
+    /*
+     * The Chat's default (`agentChat.statusShimmer`): one softer, slanted sweep over the first third
+     * of the period, then a rest, so a long turn's text is not under constant motion.
+     */
+    [data-agent-chat-status-shimmer='dwell'] .activity-shimmer {
+        background-image: linear-gradient(
+            105deg,
+            currentColor 0 42%,
+            var(--foreground) 50%,
+            currentColor 58% 100%
+        );
+        background-size: 250% 100%;
+        animation: activity-dwell-shimmer var(--motion-activity-dwell) cubic-bezier(0.4, 0, 0.2, 1)
+            infinite;
+    }
+
+    [data-agent-chat-status-shimmer='off'] .activity-shimmer {
+        background-image: none;
+        -webkit-text-fill-color: currentColor;
+        animation: none;
+    }
+}
+
+@keyframes activity-dwell-shimmer {
+    0% {
+        background-position: 100% 0;
+    }
+    31%,
+    100% {
+        background-position: 0 0;
     }
 }
 

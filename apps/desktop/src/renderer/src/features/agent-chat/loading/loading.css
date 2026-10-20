@@ -1,0 +1,1762 @@
+/*
+ * Agent Chat working animations: a live glyph per tool kind for a running work row (`glyphs/`),
+ * Buddy (`buddy.tsx`), the reply placeholder figures, and the one-shot settle of a work row's icon.
+ * Each glyph is choreography at 16px, so its timings and curves are its own rather than motion
+ * tokens. Every animation runs only under `prefers-reduced-motion: no-preference`; the tool glyphs
+ * also fall back to the still icon in JS under Reduce Motion (`useLoadingStyle`), since the web
+ * glyph's SMIL motion ignores CSS.
+ */
+.agent-chat-glyph *,
+.agent-chat-buddy *,
+.agent-chat-figure * {
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+/* Shared: a quick blink for any glyph with eyes. */
+@keyframes glyph-blink {
+    0%,
+    88%,
+    100% {
+        transform: scaleY(1);
+    }
+    92% {
+        transform: scaleY(0.1);
+    }
+}
+
+/* thought: satellites orbit and dip into a breathing core. */
+@keyframes think-orbit {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@keyframes think-pull {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(var(--pull));
+    }
+}
+@keyframes think-core {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.8);
+    }
+}
+@keyframes think-speck {
+    0%,
+    100% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* read: four inchworm strides along the book, a bite out of the page, then fade and heal. */
+@keyframes read-worm-tail {
+    0% {
+        transform: translateX(0);
+    }
+    10%,
+    20% {
+        transform: translateX(2.2px);
+    }
+    30%,
+    40% {
+        transform: translateX(4.4px);
+    }
+    50%,
+    60% {
+        transform: translateX(6.6px);
+    }
+    70%,
+    100% {
+        transform: translateX(8.8px);
+    }
+}
+@keyframes read-worm-middle {
+    0% {
+        transform: translate(0, 0);
+    }
+    10% {
+        transform: translate(1.1px, -1.8px);
+    }
+    20% {
+        transform: translate(2.2px, 0);
+    }
+    30% {
+        transform: translate(3.3px, -1.8px);
+    }
+    40% {
+        transform: translate(4.4px, 0);
+    }
+    50% {
+        transform: translate(5.5px, -1.8px);
+    }
+    60% {
+        transform: translate(6.6px, 0);
+    }
+    70% {
+        transform: translate(7.7px, -1.8px);
+    }
+    80%,
+    100% {
+        transform: translate(8.8px, 0);
+    }
+}
+@keyframes read-worm-head {
+    0%,
+    10% {
+        transform: translate(0, 0);
+    }
+    20%,
+    30% {
+        transform: translate(2.2px, 0);
+    }
+    40%,
+    50% {
+        transform: translate(4.4px, 0);
+    }
+    60%,
+    70% {
+        transform: translate(6.6px, 0);
+    }
+    80% {
+        transform: translate(8.8px, 0);
+    }
+    84% {
+        transform: translate(9.6px, 0.9px);
+    }
+    87% {
+        transform: translate(8.8px, 0);
+    }
+    90% {
+        transform: translate(9.6px, 0.9px);
+    }
+    93%,
+    100% {
+        transform: translate(8.8px, 0);
+    }
+}
+@keyframes read-worm {
+    0% {
+        opacity: 0;
+    }
+    4%,
+    92% {
+        opacity: 1;
+    }
+    99%,
+    100% {
+        opacity: 0;
+    }
+}
+@keyframes read-bite {
+    0%,
+    83% {
+        transform: scale(0);
+    }
+    85% {
+        transform: scale(0.8);
+    }
+    90%,
+    97% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(0);
+    }
+}
+
+/* search: the lens hops side to side and lands with a squash; its pupil darts. */
+@keyframes search-hop-x {
+    0% {
+        transform: translateX(-2.6px);
+    }
+    40%,
+    50% {
+        transform: translateX(2.6px);
+    }
+    90%,
+    100% {
+        transform: translateX(-2.6px);
+    }
+}
+@keyframes search-hop-y {
+    0% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+    }
+    20% {
+        transform: translateY(-3.4px);
+        animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+    }
+    40%,
+    50% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+    }
+    70% {
+        transform: translateY(-3.4px);
+        animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+    }
+    90%,
+    100% {
+        transform: translateY(0);
+    }
+}
+@keyframes search-land {
+    0%,
+    36%,
+    52%,
+    86%,
+    100% {
+        transform: scale(1);
+    }
+    41%,
+    91% {
+        transform: scale(1.14, 0.84);
+    }
+    46%,
+    96% {
+        transform: scale(0.96, 1.05);
+    }
+}
+@keyframes search-pupil {
+    0%,
+    20% {
+        transform: translate(-1.2px, -0.6px);
+    }
+    30%,
+    50% {
+        transform: translate(1.2px, 0.4px);
+    }
+    60%,
+    75% {
+        transform: translate(0.2px, -1.2px);
+    }
+    85%,
+    100% {
+        transform: translate(-1.2px, -0.6px);
+    }
+}
+
+/* list: files pop out of the folder and drop back in. */
+@keyframes list-paper {
+    0% {
+        transform: translateY(0) rotate(0);
+        animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+    }
+    30% {
+        transform: translateY(-6.5px) rotate(var(--tilt));
+        animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.4);
+    }
+    55%,
+    100% {
+        transform: translateY(0) rotate(0);
+    }
+}
+@keyframes list-lid {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    8% {
+        transform: translateY(0.8px) scale(1.03, 0.95);
+    }
+    18% {
+        transform: translateY(0);
+    }
+}
+
+/* edit: cursive flows left out of a bobbing, rocking nib. */
+@keyframes edit-trail {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-5px);
+    }
+}
+@keyframes edit-pen-bob {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3.4px);
+    }
+    65% {
+        transform: translateY(-4.65px);
+    }
+    82% {
+        transform: translateY(-2.2px);
+    }
+}
+@keyframes edit-pen-rock {
+    0%,
+    100% {
+        transform: rotate(-5deg);
+    }
+    50% {
+        transform: rotate(7deg);
+    }
+}
+
+/* write: keys hammer, the carriage steps left, then dings back. */
+@keyframes write-carriage {
+    0%,
+    6% {
+        transform: translateX(0);
+    }
+    10%,
+    23% {
+        transform: translateX(-1.2px);
+    }
+    27%,
+    40% {
+        transform: translateX(-2.4px);
+    }
+    44%,
+    57% {
+        transform: translateX(-3.6px);
+    }
+    61%,
+    70% {
+        transform: translateX(-4.8px);
+    }
+    78% {
+        transform: translateX(0.6px);
+    }
+    82%,
+    100% {
+        transform: translateX(0);
+    }
+}
+@keyframes write-keycap {
+    0%,
+    100% {
+        transform: translateY(0) scaleY(1);
+    }
+    4% {
+        transform: translateY(0.7px) scaleY(0.5);
+    }
+    9% {
+        transform: translateY(0) scaleY(1);
+    }
+}
+@keyframes write-typed {
+    0%,
+    6% {
+        stroke-dashoffset: 6.4;
+    }
+    61%,
+    74% {
+        stroke-dashoffset: 0;
+    }
+    78%,
+    100% {
+        stroke-dashoffset: 6.4;
+    }
+}
+@keyframes write-ding {
+    0%,
+    76% {
+        opacity: 0;
+        transform: scale(0) rotate(0);
+    }
+    82% {
+        opacity: 1;
+        transform: scale(1.3) rotate(30deg);
+    }
+    92% {
+        opacity: 1;
+        transform: scale(1) rotate(45deg);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.6) rotate(60deg);
+    }
+}
+
+/* command: the block cursor hops after the prompt and kicks up dust. */
+@keyframes command-hop {
+    0% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+    }
+    45% {
+        transform: translateY(-4.6px);
+        animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5);
+    }
+    88%,
+    100% {
+        transform: translateY(0);
+    }
+}
+@keyframes command-squash {
+    0% {
+        transform: scale(1.2, 0.8);
+    }
+    14% {
+        transform: scale(0.9, 1.12);
+    }
+    45% {
+        transform: scale(1, 1);
+    }
+    84% {
+        transform: scale(0.94, 1.08);
+    }
+    90% {
+        transform: scale(1.22, 0.78);
+    }
+    100% {
+        transform: scale(1.2, 0.8);
+    }
+}
+@keyframes command-prompt {
+    0%,
+    86%,
+    100% {
+        transform: translateX(0);
+    }
+    92% {
+        transform: translateX(-1.2px);
+    }
+}
+@keyframes command-dust {
+    0%,
+    87% {
+        opacity: 0;
+        transform: translateX(0);
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(var(--drift)) translateY(-1px);
+    }
+}
+
+/* agent: the parent buds a child that pops off, hops, and opens its eyes. */
+@keyframes agent-child {
+    0% {
+        transform: translate(0, 0) scale(0.5);
+    }
+    15% {
+        transform: translate(0, 0) scale(0.9);
+    }
+    50% {
+        transform: translate(8.5px, 0) scale(1);
+    }
+    58% {
+        transform: translate(8.5px, -1.8px) scale(0.95, 1.05);
+    }
+    66% {
+        transform: translate(8.5px, 0) scale(1.1, 0.9);
+    }
+    72%,
+    80% {
+        transform: translate(8.5px, 0) scale(1);
+    }
+    90% {
+        transform: translate(8.5px, 0) scale(0);
+    }
+    91% {
+        transform: translate(0, 0) scale(0);
+    }
+    100% {
+        transform: translate(0, 0) scale(0.5);
+    }
+}
+@keyframes agent-child-eyes {
+    0%,
+    42% {
+        transform: translate(8.5px, 0);
+        opacity: 0;
+    }
+    50% {
+        transform: translate(8.5px, 0);
+        opacity: 1;
+    }
+    58% {
+        transform: translate(8.5px, -1.8px);
+        opacity: 1;
+    }
+    66%,
+    80% {
+        transform: translate(8.5px, 0);
+        opacity: 1;
+    }
+    86%,
+    100% {
+        transform: translate(8.5px, 0);
+        opacity: 0;
+    }
+}
+@keyframes agent-parent {
+    0%,
+    15%,
+    60%,
+    100% {
+        transform: scale(1);
+    }
+    32% {
+        transform: scale(1.1, 0.92);
+    }
+    46% {
+        transform: scale(0.95, 1.04);
+    }
+}
+
+/* mcp: two puzzle halves snap together and a spark pops at the seam. */
+@keyframes mcp-left {
+    0%,
+    100% {
+        transform: translateX(-2.6px);
+    }
+    30%,
+    64% {
+        transform: translateX(0);
+    }
+    33% {
+        transform: translateX(-0.5px);
+    }
+}
+@keyframes mcp-right {
+    0%,
+    100% {
+        transform: translateX(2.6px);
+    }
+    30%,
+    64% {
+        transform: translateX(0);
+    }
+    33% {
+        transform: translateX(0.5px);
+    }
+}
+@keyframes mcp-spark {
+    0%,
+    30% {
+        opacity: 0;
+        transform: scale(0) rotate(0);
+    }
+    38% {
+        opacity: 1;
+        transform: scale(1.3) rotate(30deg);
+    }
+    56% {
+        opacity: 1;
+        transform: scale(1) rotate(45deg);
+    }
+    64%,
+    100% {
+        opacity: 0;
+        transform: scale(0.4) rotate(60deg);
+    }
+}
+
+/* wait: a snail inches across and leaves a fading slime trail. */
+@keyframes wait-snail {
+    0% {
+        transform: translateX(-3px);
+        opacity: 0;
+    }
+    8% {
+        opacity: 1;
+    }
+    88% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(2.6px);
+        opacity: 0;
+    }
+}
+@keyframes wait-body {
+    0%,
+    100% {
+        transform: scaleX(1);
+    }
+    50% {
+        transform: scaleX(1.07);
+    }
+}
+@keyframes wait-shell {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0);
+    }
+    50% {
+        transform: translateY(-0.4px) rotate(-3deg);
+    }
+}
+@keyframes wait-stalk {
+    0%,
+    100% {
+        transform: rotate(-8deg);
+    }
+    50% {
+        transform: rotate(10deg);
+    }
+}
+@keyframes wait-slime {
+    0% {
+        transform: scaleX(0);
+        opacity: 0.45;
+    }
+    88% {
+        opacity: 0.45;
+    }
+    100% {
+        transform: scaleX(1);
+        opacity: 0;
+    }
+}
+
+/* plan: checks pop in down the list. */
+@keyframes plan-check {
+    0% {
+        stroke-dashoffset: 7;
+        transform: scale(1);
+    }
+    12% {
+        stroke-dashoffset: 0;
+        transform: scale(1.3);
+    }
+    20% {
+        transform: scale(1);
+    }
+    80% {
+        stroke-dashoffset: 0;
+        opacity: 1;
+    }
+    92%,
+    100% {
+        stroke-dashoffset: 0;
+        opacity: 0;
+    }
+}
+@keyframes plan-item {
+    0% {
+        opacity: 0.3;
+    }
+    12%,
+    80% {
+        opacity: 1;
+    }
+    92%,
+    100% {
+        opacity: 0.3;
+    }
+}
+
+/* skill: a wand flicks and sprinkles stardust. */
+@keyframes skill-wand {
+    0%,
+    100% {
+        transform: rotate(-6deg);
+    }
+    18% {
+        transform: rotate(-16deg);
+    }
+    30% {
+        transform: rotate(14deg);
+    }
+    40% {
+        transform: rotate(8deg);
+    }
+    60% {
+        transform: rotate(-6deg);
+    }
+}
+@keyframes skill-star {
+    0%,
+    26% {
+        transform: scale(1) rotate(0);
+    }
+    34% {
+        transform: scale(1.35) rotate(45deg);
+    }
+    50%,
+    100% {
+        transform: scale(1) rotate(90deg);
+    }
+}
+@keyframes skill-dust {
+    0%,
+    28% {
+        opacity: 0;
+        transform: translate(-3px, -2px) scale(0);
+    }
+    40% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1.2);
+    }
+    85% {
+        opacity: 0.9;
+        transform: translate(0, 2.4px) scale(0.7);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(0, 3px) scale(0);
+    }
+}
+
+/* image: a Polaroid gets a shake and develops. */
+@keyframes image-shake {
+    0%,
+    4%,
+    34%,
+    100% {
+        transform: rotate(0);
+    }
+    8% {
+        transform: rotate(-10deg);
+    }
+    14% {
+        transform: rotate(9deg);
+    }
+    20% {
+        transform: rotate(-7deg);
+    }
+    26% {
+        transform: rotate(4deg);
+    }
+}
+@keyframes image-develop {
+    0%,
+    30% {
+        opacity: 0;
+    }
+    75%,
+    92% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/* other: a wind-up toy turns its key, then waddles. */
+@keyframes other-key {
+    0% {
+        transform: scaleX(1);
+    }
+    8% {
+        transform: scaleX(-1);
+    }
+    16% {
+        transform: scaleX(1);
+    }
+    24% {
+        transform: scaleX(-1);
+    }
+    32%,
+    100% {
+        transform: scaleX(1);
+    }
+}
+@keyframes other-waddle {
+    0%,
+    34% {
+        transform: rotate(0) translateY(0);
+    }
+    44% {
+        transform: rotate(-9deg) translateY(-0.6px);
+    }
+    56% {
+        transform: rotate(9deg) translateY(-0.6px);
+    }
+    68% {
+        transform: rotate(-7deg) translateY(-0.4px);
+    }
+    80% {
+        transform: rotate(5deg);
+    }
+    92%,
+    100% {
+        transform: rotate(0);
+    }
+}
+@keyframes other-foot {
+    0%,
+    38%,
+    50%,
+    62%,
+    74%,
+    100% {
+        transform: translateY(0);
+    }
+    44%,
+    68% {
+        transform: translateY(-1.4px);
+    }
+}
+
+/* browser: a cursor glides to a button, clicks, and a ripple spreads. */
+@keyframes browser-cursor {
+    0% {
+        transform: translate(17px, 18px);
+    }
+    38% {
+        transform: translate(10px, 13.6px);
+    }
+    44% {
+        transform: translate(10px, 13.6px) scale(0.82);
+    }
+    50% {
+        transform: translate(10px, 13.6px) scale(1);
+    }
+    72% {
+        transform: translate(10px, 13.6px);
+    }
+    100% {
+        transform: translate(17px, 18px);
+    }
+}
+@keyframes browser-button {
+    0%,
+    42%,
+    56%,
+    100% {
+        transform: scale(1);
+    }
+    47% {
+        transform: scale(0.88, 0.7);
+    }
+}
+@keyframes browser-ripple {
+    0%,
+    44% {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+    48% {
+        opacity: 0.9;
+    }
+    75%,
+    100% {
+        opacity: 0;
+        transform: scale(2.2);
+    }
+}
+
+/* computer: the monitor's eyes chase the cursor. */
+@keyframes computer-cursor {
+    0%,
+    6% {
+        transform: translate(5px, 4.6px);
+    }
+    26%,
+    32% {
+        transform: translate(17px, 5.4px);
+    }
+    52%,
+    58% {
+        transform: translate(15.4px, 11.4px);
+    }
+    78%,
+    84% {
+        transform: translate(5.6px, 11px);
+    }
+    100% {
+        transform: translate(5px, 4.6px);
+    }
+}
+@keyframes computer-eyes {
+    0%,
+    8% {
+        transform: translate(-1px, -0.7px);
+    }
+    28%,
+    34% {
+        transform: translate(1px, -0.6px);
+    }
+    54%,
+    60% {
+        transform: translate(0.8px, 0.6px);
+    }
+    80%,
+    86% {
+        transform: translate(-0.9px, 0.5px);
+    }
+    100% {
+        transform: translate(-1px, -0.7px);
+    }
+}
+
+/* manage: a winged letter flaps across. */
+@keyframes manage-wing {
+    0%,
+    100% {
+        transform: scaleY(1);
+    }
+    50% {
+        transform: scaleY(-0.35);
+    }
+}
+@keyframes manage-letter {
+    0%,
+    100% {
+        transform: translate(-1.4px, 0.8px) rotate(-4deg);
+    }
+    50% {
+        transform: translate(1.4px, -1.2px) rotate(4deg);
+    }
+}
+
+/* question: a puppy head tilt, and the dot bounces. */
+@keyframes question-tilt {
+    0%,
+    18% {
+        transform: rotate(0);
+    }
+    26%,
+    48% {
+        transform: rotate(-16deg);
+    }
+    56%,
+    70% {
+        transform: rotate(12deg);
+    }
+    80%,
+    100% {
+        transform: rotate(0);
+    }
+}
+@keyframes question-dot-hop {
+    0%,
+    100% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+    }
+    50% {
+        transform: translateY(-2.6px);
+        animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5);
+    }
+}
+@keyframes question-dot-squash {
+    0%,
+    100% {
+        transform: scale(1.3, 0.7);
+    }
+    12% {
+        transform: scale(0.9, 1.1);
+    }
+    50% {
+        transform: scale(1);
+    }
+    90% {
+        transform: scale(0.92, 1.08);
+    }
+}
+
+/* stop: a candle flickers, gets puffed out into smoke, and relights. */
+@keyframes stop-flame {
+    0% {
+        transform: scale(0);
+    }
+    8% {
+        transform: scale(1.15);
+    }
+    14% {
+        transform: scale(1) skewX(0);
+    }
+    24% {
+        transform: scaleY(0.88) skewX(5deg);
+    }
+    34% {
+        transform: scaleY(1.05) skewX(-4deg);
+    }
+    44% {
+        transform: scaleY(0.92) skewX(3deg);
+    }
+    52% {
+        transform: scale(1) skewX(0);
+    }
+    58% {
+        transform: scale(0.9) skewX(14deg);
+    }
+    62%,
+    100% {
+        transform: scale(0) skewX(20deg);
+    }
+}
+@keyframes stop-puff {
+    0%,
+    46% {
+        opacity: 0;
+        transform: translateX(-2px);
+    }
+    52% {
+        opacity: 1;
+    }
+    62%,
+    100% {
+        opacity: 0;
+        transform: translateX(4px);
+    }
+}
+@keyframes stop-smoke {
+    0%,
+    60% {
+        stroke-dashoffset: 1;
+        opacity: 0.8;
+        transform: translateY(0);
+    }
+    80% {
+        stroke-dashoffset: 0;
+        opacity: 0.7;
+    }
+    96%,
+    100% {
+        stroke-dashoffset: 0;
+        opacity: 0;
+        transform: translateY(-2px);
+    }
+}
+
+/* compact: three blobs squeeze into one with `> <` eyes, then spring back. */
+@keyframes compact-top {
+    0%,
+    12%,
+    100% {
+        transform: translateY(0);
+    }
+    45%,
+    58% {
+        transform: translateY(4.5px);
+    }
+    76% {
+        transform: translateY(-0.8px);
+    }
+}
+@keyframes compact-bottom {
+    0%,
+    12%,
+    100% {
+        transform: translateY(0);
+    }
+    45%,
+    58% {
+        transform: translateY(-4.5px);
+    }
+    76% {
+        transform: translateY(0.8px);
+    }
+}
+@keyframes compact-middle {
+    0%,
+    12%,
+    100% {
+        transform: scale(1);
+    }
+    45%,
+    58% {
+        transform: scale(1.35, 0.82);
+    }
+    76% {
+        transform: scale(0.94, 1.06);
+    }
+}
+@keyframes compact-eyes-squint {
+    0%,
+    30%,
+    70%,
+    100% {
+        opacity: 0;
+    }
+    40%,
+    62% {
+        opacity: 1;
+    }
+}
+@keyframes compact-eyes-open {
+    0%,
+    30%,
+    70%,
+    100% {
+        opacity: 1;
+    }
+    40%,
+    62% {
+        opacity: 0;
+    }
+}
+
+/* A static compact glyph shows open eyes only. */
+.agent-chat-glyph .compact-eyes-squint {
+    opacity: 0;
+}
+
+.agent-chat-glyph .write-typed {
+    stroke-dasharray: 6.4;
+}
+
+.agent-chat-glyph .plan-check {
+    stroke-dasharray: 7;
+}
+
+.agent-chat-glyph .stop-smoke {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .agent-chat-glyph .glyph-blink {
+        animation: glyph-blink 2.6s ease-in-out infinite;
+    }
+
+    .agent-chat-glyph .think-orbit {
+        animation: think-orbit 2s linear infinite;
+    }
+    .agent-chat-glyph .think-pull {
+        animation: think-pull 2s ease-in-out infinite;
+    }
+    .agent-chat-glyph .think-core {
+        animation: think-core 1.7s ease-in-out infinite;
+    }
+    .agent-chat-glyph .think-speck {
+        animation: think-speck 1.4s ease-in-out calc(var(--i) * -0.5s) infinite;
+    }
+
+    .agent-chat-glyph .read-worm-tail {
+        animation: read-worm-tail 4s ease-in-out infinite;
+    }
+    .agent-chat-glyph .read-worm-middle {
+        animation: read-worm-middle 4s ease-in-out infinite;
+    }
+    .agent-chat-glyph .read-worm-head {
+        animation: read-worm-head 4s ease-in-out infinite;
+    }
+    .agent-chat-glyph .read-worm {
+        animation: read-worm 4s linear infinite;
+    }
+    .agent-chat-glyph .read-bite {
+        animation: read-bite 4s ease-out infinite;
+    }
+
+    .agent-chat-glyph .search-hop-x {
+        animation: search-hop-x 2s ease-in-out infinite;
+    }
+    .agent-chat-glyph .search-hop-y {
+        animation: search-hop-y 2s infinite;
+    }
+    .agent-chat-glyph .search-land {
+        animation: search-land 2s ease-out infinite;
+    }
+    .agent-chat-glyph .search-pupil {
+        animation: search-pupil 2s ease-in-out infinite;
+    }
+
+    .agent-chat-glyph .list-paper {
+        animation: list-paper 1.5s calc(var(--i) * 0.16s) infinite;
+    }
+    .agent-chat-glyph .list-lid {
+        animation: list-lid 1.5s ease-out infinite;
+    }
+
+    .agent-chat-glyph .edit-trail {
+        transform-box: view-box;
+        animation: edit-trail 0.9s linear infinite;
+    }
+    .agent-chat-glyph .edit-pen-bob {
+        animation: edit-pen-bob 0.9s ease-in-out infinite;
+    }
+    .agent-chat-glyph .edit-pen-rock {
+        animation: edit-pen-rock 0.45s ease-in-out infinite;
+    }
+
+    .agent-chat-glyph .write-carriage {
+        animation: write-carriage 2.4s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+    }
+    .agent-chat-glyph .write-keycap {
+        animation: write-keycap 2.4s ease-out calc(var(--i) * 0.41s + 0.14s) infinite;
+    }
+    .agent-chat-glyph .write-typed {
+        animation: write-typed 2.4s steps(4) infinite;
+    }
+    .agent-chat-glyph .write-ding {
+        animation: write-ding 2.4s ease-out infinite;
+    }
+
+    .agent-chat-glyph .command-hop {
+        animation: command-hop 0.9s infinite;
+    }
+    .agent-chat-glyph .command-squash {
+        animation: command-squash 0.9s infinite;
+    }
+    .agent-chat-glyph .command-prompt {
+        animation: command-prompt 0.9s ease-out infinite;
+    }
+    .agent-chat-glyph .command-dust {
+        animation: command-dust 0.9s ease-out infinite;
+    }
+
+    .agent-chat-glyph .agent-child {
+        animation: agent-child 2.8s cubic-bezier(0.45, 0, 0.3, 1) infinite;
+    }
+    .agent-chat-glyph .agent-child-eyes {
+        animation: agent-child-eyes 2.8s cubic-bezier(0.45, 0, 0.3, 1) infinite;
+    }
+    .agent-chat-glyph .agent-parent {
+        animation: agent-parent 2.8s ease-in-out infinite;
+    }
+
+    .agent-chat-glyph .mcp-left {
+        animation: mcp-left 1.6s cubic-bezier(0.7, 0, 0.3, 1) infinite;
+    }
+    .agent-chat-glyph .mcp-right {
+        animation: mcp-right 1.6s cubic-bezier(0.7, 0, 0.3, 1) infinite;
+    }
+    .agent-chat-glyph .mcp-spark {
+        animation: mcp-spark 1.6s ease-out infinite;
+    }
+
+    .agent-chat-glyph .wait-snail {
+        animation: wait-snail 5s linear infinite;
+    }
+    .agent-chat-glyph .wait-body {
+        animation: wait-body 1.25s ease-in-out infinite;
+    }
+    .agent-chat-glyph .wait-shell {
+        animation: wait-shell 1.25s ease-in-out infinite;
+    }
+    .agent-chat-glyph .wait-stalk {
+        animation: wait-stalk 1.6s ease-in-out infinite;
+    }
+    .agent-chat-glyph .wait-stalk-late {
+        animation-delay: -0.5s;
+    }
+    .agent-chat-glyph .wait-slime {
+        animation: wait-slime 5s linear infinite;
+    }
+
+    .agent-chat-glyph .plan-check {
+        stroke-dashoffset: 7;
+        animation: plan-check 2.7s ease-out calc(var(--i) * 0.45s) infinite;
+    }
+    .agent-chat-glyph .plan-item {
+        opacity: 0.3;
+        animation: plan-item 2.7s ease-out calc(var(--i) * 0.45s) infinite;
+    }
+
+    .agent-chat-glyph .skill-wand {
+        animation: skill-wand 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    .agent-chat-glyph .skill-star {
+        animation: skill-star 1.8s ease-out infinite;
+    }
+    .agent-chat-glyph .skill-dust {
+        animation: skill-dust 1.8s ease-out calc(var(--i) * 0.07s) infinite;
+    }
+
+    .agent-chat-glyph .image-shake {
+        animation: image-shake 2.4s ease-in-out infinite;
+    }
+    .agent-chat-glyph .image-develop {
+        animation: image-develop 2.4s ease-in-out infinite;
+    }
+
+    .agent-chat-glyph .other-key {
+        animation: other-key 2.6s ease-in-out infinite;
+    }
+    .agent-chat-glyph .other-waddle {
+        animation: other-waddle 2.6s ease-in-out infinite;
+    }
+    .agent-chat-glyph .other-foot {
+        animation: other-foot 2.6s ease-in-out infinite;
+    }
+    .agent-chat-glyph .other-foot-late {
+        animation-delay: -0.3s;
+    }
+
+    .agent-chat-glyph .browser-cursor {
+        transform-box: view-box;
+        transform-origin: 0 0;
+        animation: browser-cursor 2.2s cubic-bezier(0.5, 0, 0.3, 1) infinite;
+    }
+    .agent-chat-glyph .browser-button {
+        animation: browser-button 2.2s ease-out infinite;
+    }
+    .agent-chat-glyph .browser-ripple {
+        animation: browser-ripple 2.2s ease-out infinite;
+    }
+
+    .agent-chat-glyph .computer-cursor {
+        transform-box: view-box;
+        transform-origin: 0 0;
+        animation: computer-cursor 2.8s cubic-bezier(0.6, 0, 0.3, 1) infinite;
+    }
+    .agent-chat-glyph .computer-eyes {
+        animation: computer-eyes 2.8s cubic-bezier(0.6, 0, 0.3, 1) infinite;
+    }
+
+    .agent-chat-glyph .manage-wing {
+        animation: manage-wing 0.32s ease-in-out infinite;
+    }
+    .agent-chat-glyph .manage-letter {
+        animation: manage-letter 1.8s ease-in-out infinite;
+    }
+
+    .agent-chat-glyph .question-tilt {
+        animation: question-tilt 2.4s cubic-bezier(0.5, 0, 0.3, 1.4) infinite;
+    }
+    .agent-chat-glyph .question-dot-hop {
+        animation: question-dot-hop 0.8s infinite;
+    }
+    .agent-chat-glyph .question-dot-squash {
+        animation: question-dot-squash 0.8s infinite;
+    }
+
+    .agent-chat-glyph .stop-flame {
+        animation: stop-flame 2.8s ease-in-out infinite;
+    }
+    .agent-chat-glyph .stop-puff {
+        animation: stop-puff 2.8s ease-out infinite;
+    }
+    .agent-chat-glyph .stop-smoke {
+        animation: stop-smoke 2.8s ease-out infinite;
+    }
+
+    .agent-chat-glyph .compact-top {
+        animation: compact-top 1.8s ease-in-out infinite;
+    }
+    .agent-chat-glyph .compact-bottom {
+        animation: compact-bottom 1.8s ease-in-out infinite;
+    }
+    .agent-chat-glyph .compact-middle {
+        animation: compact-middle 1.8s ease-in-out infinite;
+    }
+    .agent-chat-glyph .compact-eyes-squint {
+        animation: compact-eyes-squint 1.8s linear infinite;
+    }
+    .agent-chat-glyph .compact-eyes-open {
+        animation: compact-eyes-open 1.8s linear infinite;
+    }
+}
+
+/*
+ * The one-shot settle of a work row's still icon once its tool finishes: a small stamp when it
+ * succeeds, a shrug when it fails. It plays only for a row the user watched run.
+ */
+@keyframes glyph-stamp {
+    0% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-1.5px);
+    }
+    70% {
+        transform: translateY(0) scale(1.08, 0.92);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+@keyframes glyph-shrug {
+    0% {
+        transform: translateX(0);
+    }
+    20% {
+        transform: translateX(-1.2px);
+    }
+    40% {
+        transform: translateX(1.2px);
+    }
+    60% {
+        transform: translateX(-0.6px);
+    }
+    100% {
+        transform: translateY(0.6px) scale(1.04, 0.94);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .agent-chat-glyph-stamp {
+        animation: glyph-stamp 280ms ease-out both;
+    }
+    .agent-chat-glyph-shrug {
+        animation: glyph-shrug 450ms ease-out both;
+    }
+}
+
+/*
+ * Buddy. Hovering boops it: the booped face replaces the idle one with a squish and a heart.
+ */
+@keyframes buddy-bob {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-0.8px);
+    }
+}
+@keyframes buddy-blink {
+    0%,
+    90%,
+    100% {
+        transform: scaleY(1);
+    }
+    94% {
+        transform: scaleY(0.1);
+    }
+}
+@keyframes buddy-look-think {
+    0%,
+    10% {
+        transform: translate(0, 0);
+    }
+    20%,
+    45% {
+        transform: translate(2.4px, -2.6px);
+    }
+    55%,
+    80% {
+        transform: translate(-2.2px, -2.4px);
+    }
+    90%,
+    100% {
+        transform: translate(0, 0);
+    }
+}
+@keyframes buddy-bubble {
+    0%,
+    15% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    35%,
+    75% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    90%,
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
+}
+@keyframes buddy-look-read {
+    0% {
+        transform: translate(-2.6px, -0.6px);
+    }
+    70% {
+        transform: translate(2.6px, -0.6px);
+    }
+    78% {
+        transform: translate(-2.6px, 0.9px);
+    }
+    100% {
+        transform: translate(-2.6px, 0.9px);
+    }
+}
+@keyframes buddy-look-search {
+    0%,
+    16% {
+        transform: translate(-2.6px, -1px);
+    }
+    22%,
+    38% {
+        transform: translate(2.4px, 1.6px);
+    }
+    44%,
+    60% {
+        transform: translate(1px, -2.6px);
+    }
+    66%,
+    82% {
+        transform: translate(-1.6px, 2px);
+    }
+    88%,
+    100% {
+        transform: translate(-2.6px, -1px);
+    }
+}
+@keyframes buddy-jog {
+    0%,
+    100% {
+        transform: translateY(0) scale(1.06, 0.94);
+    }
+    50% {
+        transform: translateY(-2px) scale(0.97, 1.03);
+    }
+}
+@keyframes buddy-sweat {
+    0% {
+        opacity: 0;
+        transform: translateY(-1px);
+    }
+    25% {
+        opacity: 1;
+    }
+    80% {
+        opacity: 1;
+        transform: translateY(3px);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(3.5px);
+    }
+}
+@keyframes buddy-squash {
+    0%,
+    100% {
+        transform: scale(1, 1);
+    }
+    50% {
+        transform: scale(1.18, 0.76);
+    }
+}
+@keyframes buddy-z {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(0.6);
+    }
+    30% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(2.5px, -5px) scale(1.1);
+    }
+}
+@keyframes buddy-yawn {
+    0%,
+    40%,
+    100% {
+        transform: scale(0.35);
+    }
+    60%,
+    76% {
+        transform: scale(1.15, 1.3);
+    }
+}
+@keyframes buddy-hat {
+    0%,
+    100% {
+        transform: rotate(-8deg);
+    }
+    50% {
+        transform: rotate(8deg);
+    }
+}
+@keyframes buddy-squish {
+    0% {
+        transform: scale(1.18, 0.8);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+@keyframes buddy-heart {
+    0% {
+        opacity: 0;
+        transform: translateY(2px) scale(0.4);
+    }
+    30% {
+        opacity: 1;
+        transform: translateY(0) scale(1.1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.9);
+    }
+}
+
+.agent-chat-buddy .buddy-body,
+.agent-chat-buddy .buddy-squish {
+    transform-origin: center bottom;
+}
+
+.agent-chat-buddy .buddy-hat {
+    transform-box: view-box;
+    transform-origin: 11px 5.4px;
+}
+
+.agent-chat-buddy .buddy-booped,
+.agent-chat-buddy .buddy-heart {
+    visibility: hidden;
+}
+
+.agent-chat-buddy:hover .buddy-idle {
+    visibility: hidden;
+}
+
+.agent-chat-buddy:hover .buddy-booped,
+.agent-chat-buddy:hover .buddy-heart {
+    visibility: visible;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .agent-chat-buddy .buddy-blink {
+        animation: buddy-blink 3.2s ease-in-out infinite;
+    }
+    .agent-chat-buddy:is(
+            [data-mood='think'],
+            [data-mood='read'],
+            [data-mood='search'],
+            [data-mood='wait']
+        )
+        .buddy-body {
+        animation: buddy-bob 2.4s ease-in-out infinite;
+    }
+    .agent-chat-buddy[data-mood='think'] .buddy-look {
+        animation: buddy-look-think 4s ease-in-out infinite;
+    }
+    .agent-chat-buddy .buddy-bubble {
+        animation: buddy-bubble 2s ease-out calc(var(--i) * 0.3s) infinite;
+    }
+    .agent-chat-buddy[data-mood='read'] .buddy-look {
+        animation: buddy-look-read 1.4s cubic-bezier(0.3, 0, 0.7, 1) infinite;
+    }
+    .agent-chat-buddy[data-mood='search'] .buddy-look {
+        animation: buddy-look-search 2.4s ease-in-out infinite;
+    }
+    .agent-chat-buddy[data-mood='run'] .buddy-body {
+        animation: buddy-jog 0.5s ease-in-out infinite;
+    }
+    .agent-chat-buddy .buddy-sweat {
+        animation: buddy-sweat 1.2s ease-in infinite;
+    }
+    .agent-chat-buddy[data-mood='compact'] .buddy-body {
+        animation: buddy-squash 1.8s ease-in-out infinite;
+    }
+    .agent-chat-buddy .buddy-z {
+        animation: buddy-z 2.4s ease-out calc(var(--i) * -1.2s) infinite;
+    }
+    .agent-chat-buddy[data-mood='tired'] .buddy-body {
+        animation: buddy-bob 3.2s ease-in-out infinite;
+    }
+    .agent-chat-buddy .buddy-yawn {
+        animation: buddy-yawn 3.2s ease-in-out infinite;
+    }
+    .agent-chat-buddy .buddy-hat {
+        animation: buddy-hat 1.2s ease-in-out infinite;
+    }
+    .agent-chat-buddy:hover .buddy-squish {
+        animation: buddy-squish 0.4s cubic-bezier(0.3, 1.8, 0.5, 1) both;
+    }
+    .agent-chat-buddy:hover .buddy-heart {
+        animation: buddy-heart 1.2s ease-out infinite;
+    }
+}
+
+/*
+ * Reply placeholder figures (`agentChat.workingIndicator`). The dots breathe on the compaction
+ * pulse's period; reduced motion leaves every figure still.
+ */
+@keyframes figure-dot {
+    0%,
+    60%,
+    100% {
+        opacity: 0.35;
+    }
+    30% {
+        opacity: 1;
+    }
+}
+@keyframes figure-arc {
+    0% {
+        stroke-dashoffset: 34.3;
+    }
+    40%,
+    60% {
+        stroke-dashoffset: 0;
+    }
+    100% {
+        stroke-dashoffset: -34.3;
+    }
+}
+@keyframes figure-caret {
+    0%,
+    49% {
+        opacity: 1;
+    }
+    50%,
+    100% {
+        opacity: 0;
+    }
+}
+@keyframes figure-braille-dot {
+    0% {
+        opacity: 1;
+    }
+    45%,
+    100% {
+        opacity: 0.12;
+    }
+}
+@keyframes figure-orbit-x {
+    0%,
+    100% {
+        transform: translateX(-8px);
+    }
+    50% {
+        transform: translateX(8px);
+    }
+}
+@keyframes figure-orbit-z {
+    0%,
+    50%,
+    100% {
+        transform: scale(0.8);
+        opacity: 0.8;
+    }
+    25% {
+        transform: scale(1.15);
+        opacity: 1;
+    }
+    75% {
+        transform: scale(0.55);
+        opacity: 0.45;
+    }
+}
+
+.agent-chat-figure .figure-dot {
+    opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .agent-chat-figure .figure-dot {
+        animation: figure-dot var(--motion-compaction-pulse) ease-in-out infinite;
+    }
+    .agent-chat-figure .figure-dot:nth-child(2) {
+        animation-delay: calc(var(--motion-compaction-pulse) / 6);
+    }
+    .agent-chat-figure .figure-dot:nth-child(3) {
+        animation-delay: calc(var(--motion-compaction-pulse) / 3);
+    }
+    .agent-chat-figure .figure-arc {
+        stroke-dasharray: 34.3;
+        animation: figure-arc 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+    .agent-chat-figure .figure-caret {
+        animation: figure-caret 1.05s steps(1) infinite;
+    }
+    .agent-chat-figure .figure-braille-dot {
+        animation: figure-braille-dot 0.96s linear calc((var(--i) - 8) * 0.12s) infinite;
+    }
+    .agent-chat-figure .figure-orbit-x {
+        animation: figure-orbit-x 1.6s ease-in-out infinite;
+    }
+    .agent-chat-figure .figure-orbit-z {
+        animation: figure-orbit-z 1.6s linear infinite;
+    }
+    .agent-chat-figure .figure-orbit-late :is(.figure-orbit-x, .figure-orbit-z) {
+        animation-delay: -0.8s;
+    }
+}

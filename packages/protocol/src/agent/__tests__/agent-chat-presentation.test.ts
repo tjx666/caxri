@@ -264,6 +264,29 @@ describe('agentChatActivity', () => {
         ).toEqual({ kind: 'waiting', text: 'Waiting for your approval' });
     });
 
+    it('names the kind of work the active turn runs', () => {
+        expect(
+            agentChatActivity(
+                {
+                    ...snapshot('ready'),
+                    activeTurnId: 'turn-1',
+                    items: [
+                        {
+                            id: 'c',
+                            turnId: 'turn-1',
+                            type: 'command',
+                            command: 'pnpm test',
+                            status: 'running',
+                            output: '',
+                            createdAt: 50,
+                        },
+                    ],
+                },
+                'Codex',
+            ),
+        ).toMatchObject({ kind: 'working', work: { kind: 'command', startedAt: 50 } });
+    });
+
     it('loads an existing conversation instead of claiming to start the Agent', () => {
         expect(agentChatActivity(undefined, 'Claude', { hasConversation: true })).toEqual({
             kind: 'starting',

@@ -738,7 +738,10 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   Once a turn ends its work and commentary fold behind `Worked for X`
   (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
   a transient retry in view. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
-  swapping its glyph for a spinner. A thought shows the latest bold title Codex opens a reasoning
+  swapping its glyph for a spinner; a row seen running animates its tool's glyph until it settles
+  (`agentChat.animatedToolIcons`), and the composer status line's indicator follows
+  `agentChat.workingIndicator` (Buddy acting out the turn's current tool from the snapshot's
+  `activity.work`, or the spinner). A thought shows the latest bold title Codex opens a reasoning
   summary part with (`Thinking Planning the fix`). Expanded command and tool output is
   painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
   `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for

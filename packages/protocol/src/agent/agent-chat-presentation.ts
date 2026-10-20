@@ -11,6 +11,8 @@ import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-la
 import { translateAgentChatLabel } from './agent-chat-labels.js';
 import { agentChatLabelsEn } from './agent-chat-labels-en.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
+import { agentChatTurnActiveWork } from './agent-chat-work.js';
+import type { AgentToolKind } from './agent-tool-presentation.js';
 
 /**
  * Presentation rules every Agent Chat client shares (the Desktop Chat pane and the phone's Chat screen). Copy that
@@ -204,7 +206,16 @@ export function agentChatWorkingVerb(
 
 export type AgentChatActivity =
     | { kind: 'starting'; text: string }
-    | { kind: 'working'; text: string; startedAt: number | undefined }
+    | {
+          kind: 'working';
+          text: string;
+          startedAt: number | undefined;
+          /**
+           * The piece of work running now (the newest running tool, else streaming reasoning), so a client can show
+           * which kind of tool runs. Absent between steps, while the Agent is only composing its reply.
+           */
+          work?: { kind: AgentToolKind; startedAt: number | undefined };
+      }
     | { kind: 'compacting'; text: string; isStoppable: boolean }
     | { kind: 'waiting'; text: string };
 
@@ -218,7 +229,10 @@ export type AgentChatActivity =
  */
 export function agentChatActivity(
     snapshot:
-        | Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'operation' | 'requests' | 'turns'>
+        | Pick<
+              AgentChatSnapshot,
+              'status' | 'activeTurnId' | 'items' | 'operation' | 'requests' | 'turns'
+          >
         | undefined,
     providerName: string,
     { hasConversation = false }: { hasConversation?: boolean } = {},
@@ -241,10 +255,12 @@ export function agentChatActivity(
             isStoppable: Boolean(turnId),
         };
     if (!turnId) return undefined;
+    const work = agentChatTurnActiveWork(snapshot.items, turnId);
     return {
         kind: 'working',
         text: `${agentChatWorkingVerb(turnId, t)}…`,
         startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
+        ...(work && { work }),
     };
 }
 

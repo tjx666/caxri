@@ -46,6 +46,26 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agentChat.longPasteThreshold.description':
         '粘贴到对话中的较长文本会保存为本地文件并在消息中引用，避免日志或转储淹没消息。调高此值即可原样粘贴这类文本；一条消息放不下的文本仍会保存为文件。',
 
+    'settings.agentChat.workingIndicator.title': '对话工作指示',
+    'settings.agentChat.workingIndicator.description':
+        'Agent 生成回复时对话中显示的动画。选择“小家伙”时，状态栏的加载图标也会换成它，并演出 Agent 正在做的事：阅读、搜索、运行命令。开启“减弱动态效果”后所有选项都会静止。',
+    'settings.agentChat.workingIndicator.option.buddy': '小家伙',
+    'settings.agentChat.workingIndicator.option.dots': '圆点',
+    'settings.agentChat.workingIndicator.option.caret': '光标',
+    'settings.agentChat.workingIndicator.option.braille': '盲文点阵',
+    'settings.agentChat.workingIndicator.option.orbit': '轨道',
+
+    'settings.agentChat.animatedToolIcons.title': '对话工具图标动画',
+    'settings.agentChat.animatedToolIcons.description':
+        '对话中正在运行的工具行会用图标动画演出当前工作，例如阅读时有只书虫在书上爬。关闭后保持静态图标。',
+
+    'settings.agentChat.statusShimmer.title': '对话状态扫光',
+    'settings.agentChat.statusShimmer.description':
+        '对话中运行状态文字的扫光方式，例如工作短语和正在运行的工具标题。',
+    'settings.agentChat.statusShimmer.option.dwell': '扫一下歇一会儿',
+    'settings.agentChat.statusShimmer.option.continuous': '持续扫光',
+    'settings.agentChat.statusShimmer.option.off': '关闭',
+
     'settings.workbench.newWorktreeBehavior.title': '新 Worktree 行为',
     'settings.workbench.newWorktreeBehavior.description':
         '选择是否跟随检测到的 Worktree。“自动继续”会直接授权新的 Worktree 文件夹，不再询问。',

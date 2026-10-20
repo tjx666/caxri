@@ -4,6 +4,7 @@ import type { AgentChatItem } from '../agent-chat-contract';
 import type { AgentChatWorkItem } from '../agent-chat-work';
 import {
     agentChatReasoningTitle,
+    agentChatTurnActiveWork,
     agentChatTurnLabel,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
@@ -375,5 +376,37 @@ describe('agentChatWorkKind', () => {
             agentChatWorkKind([command('c1'), read('x')] as AgentChatWorkItem[]),
         ).toBeUndefined();
         expect(agentChatWorkKind([thought('r')] as AgentChatWorkItem[])).toBe('thought');
+    });
+});
+
+describe('agentChatTurnActiveWork', () => {
+    const running = <T extends AgentChatItem>(item: T, createdAt: number): T =>
+        item.type === 'reasoning'
+            ? { ...item, streaming: true, createdAt }
+            : { ...item, status: 'running', createdAt };
+
+    it('names the newest running tool of the active turn and when it began', () => {
+        const items = [
+            running(command('old', 'turn-0'), 1),
+            running(thought('t', 'turn-1'), 10),
+            running(read('r', 'turn-1'), 20),
+        ];
+        expect(agentChatTurnActiveWork(items, 'turn-1')).toEqual({ kind: 'read', startedAt: 20 });
+    });
+
+    it('falls back to streaming reasoning, and to nothing between steps', () => {
+        const thinking = [command('c', 'turn-1'), running(thought('t', 'turn-1'), 30)];
+        expect(agentChatTurnActiveWork(thinking, 'turn-1')).toEqual({
+            kind: 'thought',
+            startedAt: 30,
+        });
+        expect(
+            agentChatTurnActiveWork([command('c', 'turn-1'), read('r', 'turn-1')], 'turn-1'),
+        ).toBeUndefined();
+    });
+
+    it('ignores work an earlier turn left running', () => {
+        const items = [running(command('stale', 'turn-0'), 1), thought('t', 'turn-1')];
+        expect(agentChatTurnActiveWork(items, 'turn-1')).toBeUndefined();
     });
 });

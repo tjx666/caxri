@@ -75,6 +75,7 @@ import { AgentChatSkillsContext } from './hooks/use-agent-chat-skills';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
+import { useLoadingStyle } from './loading';
 
 /**
  * The rows a sent message rises to the top with: each user message starts a turn, including one still being sent
@@ -164,6 +165,7 @@ export function AgentChatPane({
      */
     const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
     const openFile = useAgentChatOpenFile(terminalId);
+    const { statusShimmer } = useLoadingStyle();
     useAgentChatActivationFocus(inputReference, { isShown, terminalId });
     const history = useAgentChatHistory(terminalId, snapshot, {
         scrollReference,
@@ -222,6 +224,8 @@ export function AgentChatPane({
             aria-label={ariaLabel}
             // `relative` anchors the composer's whole-Chat drop tint (see `AgentChatComposer`).
             className="relative flex h-full min-h-0 flex-col bg-background"
+            // Picks the status line and running work rows' sweep (`activity-shimmer` in styles.css).
+            data-agent-chat-status-shimmer={statusShimmer}
             onDragLeave={(event) => composerDrop.current?.onDragLeave(event)}
             onDragOver={(event) => composerDrop.current?.onDragOver(event)}
             onDrop={(event) => composerDrop.current?.onDrop(event)}
@@ -281,6 +285,7 @@ export function AgentChatPane({
                                     <AgentChatTimelineBody
                                         dayBreaks={dayBreaks}
                                         editActions={editActions}
+                                        activeTurnId={snapshot?.activeTurnId}
                                         isAwaitingReply={
                                             pending.timeline.length === 0 &&
                                             isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
@@ -409,6 +414,7 @@ function LiveTimelineEntries({
  * The Chat's settled, live, and pending timelines under the contexts their rows read.
  */
 function AgentChatTimelineBody({
+    activeTurnId,
     dayBreaks,
     editActions,
     isAwaitingReply,
@@ -420,6 +426,7 @@ function AgentChatTimelineBody({
     terminalId,
     timeline,
 }: {
+    activeTurnId: string | undefined;
     dayBreaks: ReadonlyMap<string, number>;
     editActions: ComponentProps<typeof AgentChatEditContext>['value'];
     isAwaitingReply: boolean;
@@ -451,7 +458,7 @@ function AgentChatTimelineBody({
                             timeline={timeline}
                             onOpenFile={onOpenFile}
                         />
-                        {isAwaitingReply && <AgentChatReplyPlaceholder />}
+                        {isAwaitingReply && <AgentChatReplyPlaceholder turnId={activeTurnId} />}
                         <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
                     </AgentChatEditContext>
                 </AgentChatSkillsContext>
