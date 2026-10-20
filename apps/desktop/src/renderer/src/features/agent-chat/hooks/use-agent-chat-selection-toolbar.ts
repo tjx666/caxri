@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { isEditableEventTarget } from '../../../lib/keybindings';
-import { agentChatSelectionToolbarPosition } from '../agent-chat-selection';
+import { agentChatSelectionToolbarPosition } from '../messages/agent-chat-selection';
 
 /**
  * How long a selection made from the keyboard (Shift+Arrow with caret browsing, Select All) must hold still before the

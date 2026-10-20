@@ -23,7 +23,13 @@ _Avoid_: Frontend, UI owner
 A Linux machine Desktop reaches with the user's OpenSSH configuration and runs its own Server on.
 Desktop shows it in a separate window titled `SSH: <destination>`; its Projects, Terminals, and
 Agents live on that machine.
-_Avoid_: Remote, remote machine, Remote Server
+_Avoid_: Remote, remote machine, Remote Server, Remote SSH, Remote Environment
+
+**Environment**:
+The Server a Workbench window is attached to: the Server on this machine, or the Server of one SSH
+Host. A window has exactly one Environment, and features that cannot work across machines are
+offered only in the matching one.
+_Avoid_: Remote Environment, backend, Host
 
 **Session View**:
 One Client's presentation of a Session, including its pane layout, open resources, active resource, and

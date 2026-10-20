@@ -10,10 +10,7 @@ import {
 } from '../agent/agent-inbox-contract.js';
 import { agentProviderSchema } from '../agent/agents.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
-import {
-    environmentStateSchema,
-    sshDestinationSchema,
-} from '../desktop/remote-environment-contract.js';
+import { environmentStateSchema, sshDestinationSchema } from '../desktop/ssh-host-contract.js';
 import { commandIdSchema } from '../domain/commands.js';
 import {
     agentHookHealthMapSchema,

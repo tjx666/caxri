@@ -99,7 +99,7 @@ input and started no turn since launch is suspended shortly after its Session is
 (`terminal.suspendUntouchedAgents`), and an Agent idle at its prompt in a background Session is suspended after the
 configured window (`terminal.idleSuspension.*`, off by default). The selected Session and any Terminal a phone is
 observing are never touched, an Agent mid-turn or awaiting the user's approval or answer is never suspended, and Shell
-tabs are not eligible. An idle background Agent Chat is parked by the idle rule too: its provider process stops, its projection stays, and selection starts it again. The full eligibility rules, settings, and transition logs live in
+tabs are not eligible. A background Agent Chat whose provider only a read started is parked two minutes after its Session is left (`observation`, independent of the setting), and an idle one by the idle rule: its provider process stops, its projection stays, and selection starts it again. The full eligibility rules, settings, and transition logs live in
 [docs/agent-suspension.md](../../../../docs/agent-suspension.md). Archiving a Session
 or hiding its Project suspends all of its live Terminals once restores already past their spawn fence settle; a PTY
 whose Terminal Host start answers after that is parked as soon as it lands (`TerminalSuspensionService.parkLaunch`), so

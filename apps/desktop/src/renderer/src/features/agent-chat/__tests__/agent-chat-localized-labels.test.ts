@@ -15,11 +15,11 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { translate, useLocaleStore } from '../../../i18n';
+import { trackerExcerptText, trackerReferenceText } from '../tools/agent-chat-tracker-labels';
 import {
     agentChatLocalizedFileListToggle,
     agentChatVisibleEditedFiles,
-} from '../agent-chat-file-list-fold';
-import { trackerExcerptText, trackerReferenceText } from '../agent-chat-tracker-labels';
+} from '../turns/agent-chat-file-list-fold';
 
 const translateIn =
     (locale: AppLocale): typeof translate =>

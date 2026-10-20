@@ -3,7 +3,7 @@ import { agentProviderCatalog } from '@caxri/protocol';
 
 import { isPtyTerminal } from '../pty-guard';
 
-export type TerminalSuspensionReason = 'idle' | 'untouched';
+export type TerminalSuspensionReason = 'idle' | 'observation' | 'untouched';
 
 export interface TerminalSuspensionDecision {
     reason: TerminalSuspensionReason;
@@ -65,6 +65,12 @@ export interface TerminalSuspensionPolicyInput {
      * a launch or Core-delivered input, so its own projection is the authority on pending work.
      */
     isChatSuspendable?(terminalId: string): boolean;
+    /**
+     * When a read last started this Chat's provider with no input since (`AgentChatService.readLeaseAt`), or
+     * `undefined` once the Chat was used. Such a provider was started only so the Chat could be shown, so it is
+     * reclaimed after {@link CHAT_OBSERVATION_LEASE_MS} regardless of the idle-suspension setting.
+     */
+    chatReadLeaseAt?(terminalId: string): number | undefined;
     sample(terminalId: string): TerminalActivitySample | undefined;
     session(sessionId: string): SessionRecord | undefined;
 }
@@ -74,6 +80,13 @@ export interface TerminalSuspensionPolicyInput {
  * also guards the Session's own first seconds so a restore that is still booting is not judged untouched.
  */
 export const UNTOUCHED_SUSPENSION_DELAY_MS = 30_000;
+
+/**
+ * How long a provider that a read alone started may stay running once its Session is left. Browsing history must not
+ * give a Chat a long-lived process, so this lease applies by default, independent of the optional idle-suspension
+ * setting; the Chat resumes the same Agent Session on its next read or message.
+ */
+export const CHAT_OBSERVATION_LEASE_MS = 2 * 60 * 1000;
 
 const MINUTE_MS = 60 * 1000;
 
@@ -143,7 +156,8 @@ function decideTerminal(
     if (input.isObservedRemotely(terminal.id)) return undefined;
     const session = input.session(terminal.sessionId);
     if (!session || session.archivedAt !== undefined) return undefined;
-    const deselectedAt = input.deselectedAt(terminal.sessionId);
+    const readLeaseAt = isChat ? input.chatReadLeaseAt?.(terminal.id) : undefined;
+    const deselectedAt = input.deselectedAt(terminal.sessionId) ?? readLeaseAt;
     if (deselectedAt === undefined) return undefined;
     const sample = input.sample(terminal.id);
     /**
@@ -159,6 +173,12 @@ function decideTerminal(
     )
         return undefined;
     const sinceDeselected = input.now - deselectedAt;
+    // The lease runs from the later of leaving the Session and the read that started the provider.
+    if (
+        readLeaseAt !== undefined &&
+        input.now - Math.max(deselectedAt, readLeaseAt) >= CHAT_OBSERVATION_LEASE_MS
+    )
+        return 'observation';
     if (
         !isChat &&
         input.settings['terminal.suspendUntouchedAgents'] &&

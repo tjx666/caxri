@@ -150,7 +150,7 @@ export function ProcessRow({
     const content = (
         <div
             className={cn(
-                'process-row group/row grid min-h-7 outline-none hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]',
+                'process-row group/row grid min-h-7 outline-none hover:bg-state-hover-ink-quiet',
                 'focus-visible:bg-list-focus-background focus-visible:shadow-[inset_0_0_0_2px_var(--accent)]',
                 isExpandable && 'cursor-pointer',
                 node.kind === 'group' && 'min-h-8 font-semibold text-muted',

@@ -103,7 +103,7 @@ export function SourceControlBranchRow({
                             'git-repository-branch-badge shrink-0 text-[11px] whitespace-nowrap text-muted tabular-nums',
                             // A visible hover box marks the badge as clickable; `-mr-1` keeps its digits in the counts' column.
                             syncAction &&
-                                '-mr-1 rounded px-1 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] hover:text-foreground',
+                                '-mr-1 rounded px-1 hover:bg-state-hover-ink hover:text-foreground',
                         )}
                         data-branch-sync-badge={syncAction ? '' : undefined}
                     >

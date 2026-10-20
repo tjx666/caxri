@@ -118,7 +118,7 @@ export function PinnedSessionGroup({
     const revealRowId = primarySidebarRevealRowId(PINNED_GROUP_ROW_ID);
     return (
         <section className="pinned-session-group relative mb-2" data-pinned-group="">
-            <div className="pinned-heading group/pinned-heading flex min-h-7 items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]">
+            <div className="pinned-heading group/pinned-heading flex min-h-7 items-center gap-1 rounded-md text-foreground hover:bg-state-hover">
                 <Tooltip
                     content={t(
                         expanded
@@ -229,7 +229,7 @@ export function PinnedSessionGroup({
                              * disclosure chevron: this is not a collapsible branch.
                              */
                             <button
-                                className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
                                 role="treeitem"
                                 aria-label={t(
                                     nextRevealCount === 1

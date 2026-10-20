@@ -219,12 +219,12 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 install: record('shellCommand.install'),
                 uninstall: record('shellCommand.uninstall'),
             },
-            remote: {
+            sshHost: {
                 isLocalOnlyAvailable: () => true,
-                isRemote: () => true,
-                connect: record('remote.connect'),
-                reconnect: record('remote.reconnect'),
-                stopServer: record('remote.stopServer'),
+                isSshHost: () => true,
+                connect: record('sshHost.connect'),
+                reconnect: record('sshHost.reconnect'),
+                stopServer: record('sshHost.stopServer'),
             },
         },
     };
@@ -302,16 +302,16 @@ describe('executeCommand', () => {
             'shellCommand.install',
             'shellCommand.uninstall',
         ] as const;
-        const sshHostOnly = ['remote.reconnect', 'remote.stopServer'] as const;
+        const sshHostOnly = ['sshHost.reconnect', 'sshHost.stopServer'] as const;
         const local = recordingContext();
-        local.context.remote.isRemote = () => false;
+        local.context.sshHost.isSshHost = () => false;
         const remote = recordingContext();
-        remote.context.remote.isLocalOnlyAvailable = () => false;
+        remote.context.sshHost.isLocalOnlyAvailable = () => false;
 
         for (const id of [
             ...localOnly,
             ...sshHostOnly,
-            'remote.connect',
+            'sshHost.connect',
             'pathBrowser.open',
         ] as const) {
             executeCommand(id, undefined, local.context);
@@ -319,11 +319,11 @@ describe('executeCommand', () => {
         }
 
         expect(local.calls).toHaveLength(localOnly.length + 2);
-        expect(local.calls).not.toContain('remote.reconnect');
+        expect(local.calls).not.toContain('sshHost.reconnect');
         expect(remote.calls).toEqual([
-            'remote.reconnect',
-            'remote.stopServer',
-            'remote.connect',
+            'sshHost.reconnect',
+            'sshHost.stopServer',
+            'sshHost.connect',
             'dialogs.openPathBrowser',
         ]);
         // Each of these palette predicates holds only in a local window; see `commanderPaletteWhenContext`.
@@ -575,7 +575,7 @@ describe('executeCommand', () => {
 
     it('opens the Keyboard Shortcuts cheatsheet in an SSH Host window too', () => {
         const { calls, context } = recordingContext();
-        context.remote.isLocalOnlyAvailable = () => false;
+        context.sshHost.isLocalOnlyAvailable = () => false;
 
         executeCommand('help.showKeyboardShortcuts', undefined, context);
 

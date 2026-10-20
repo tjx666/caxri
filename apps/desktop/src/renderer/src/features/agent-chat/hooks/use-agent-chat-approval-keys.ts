@@ -7,7 +7,7 @@ import { isImeComposing } from '../../../lib/ime';
 import {
     agentChatApprovalKeyDecision,
     isAgentChatComposerEmpty,
-} from '../agent-chat-approval-keys';
+} from '../permissions/agent-chat-approval-keys';
 
 /**
  * The attribute the Chat pane carries, so an approval card can listen for its keys anywhere in its own pane.

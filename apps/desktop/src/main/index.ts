@@ -47,7 +47,7 @@ import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import {
     createLocalWorkbenchEnvironment,
-    createRemoteWindowMenu,
+    createSshHostWindowMenu,
 } from './local-workbench-environment';
 import { setMainLanguage } from './locale';
 import { createMainMethodHandler } from './main-methods';
@@ -56,14 +56,14 @@ import { createMenuRefreshController, createMenuStateLoader } from './menu-refre
 import { companionWindowFor, createOnDemandWindows, isZoomingWithApp } from './on-demand-windows';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
-import type { RemoteEnvironments } from './remote-environments';
 import { loadRendererEntry } from './renderer-entry';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { DesktopServerConnection } from './server-connection';
 import { resolveServerConnectionOptions } from './server-connection-options';
 import { shouldContinueStartup } from './server-startup';
-import { createSshHostEnvironments } from './ssh-host-environments';
+import { composeSshHostEnvironments } from './ssh/host-environment-composition';
+import type { SshHostEnvironments } from './ssh/host-environments';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
 import { createWorkbenchUnsavedEditors } from './unsaved-editors';
@@ -153,7 +153,7 @@ if (ownsProfileInstance) {
      * SSH Host windows, each with its own Server connection. Created once Main's logger and local connection options
      * exist; until then no window can request an SSH Host.
      */
-    let remoteEnvironments: RemoteEnvironments | undefined;
+    let sshHostEnvironments: SshHostEnvironments | undefined;
     let isForceWindowClose = false;
     let isQuitStarted = false;
     let quitIntent: AppQuitIntent = 'user';
@@ -211,7 +211,7 @@ if (ownsProfileInstance) {
             agentCommander?.openWindow(),
             benchmarkWindow?.openWindow(),
             processExplorer.openWindow(),
-            ...(remoteEnvironments?.list().map((environment) => environment.window) ?? []),
+            ...(sshHostEnvironments?.list().map((environment) => environment.window) ?? []),
         ],
     });
     function sendEvent(event: ServerEvent): void {
@@ -247,13 +247,13 @@ if (ownsProfileInstance) {
             notifications?.dispose();
         },
         closeDesktop: async () => {
-            await remoteEnvironments?.detachAll();
+            await sshHostEnvironments?.detachAll();
             await supervisor.shutdown();
         },
         ...createAppQuitPromptOptions(dialog, () => mainWindow),
         decideUnsavedEditors: () => unsavedEditors.decide('quit'),
         detachAll: async () => {
-            await remoteEnvironments?.detachTerminals();
+            await sshHostEnvironments?.detachTerminals();
             return supervisor.request('terminal.detachAll');
         },
         exit: () => app.exit(0),
@@ -435,7 +435,7 @@ if (ownsProfileInstance) {
         'local',
         createMainMethodHandler({
             ...gpuRecovery.mainMethodOptions,
-            environment: createLocalWorkbenchEnvironment(() => remoteEnvironments),
+            environment: createLocalWorkbenchEnvironment(() => sshHostEnvironments),
             logger: () => mainLogger,
             getProcessExplorer: () => processExplorer,
             getAgentCommander: () => agentCommander,
@@ -492,7 +492,7 @@ if (ownsProfileInstance) {
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             readEventLoopStalls: () => eventLoopMonitor?.summary(),
             onStartupFrame: (frame) => startupProfile.complete(frame),
-            remote: (sender) => remoteEnvironments?.route(sender),
+            sshHost: (sender) => sshHostEnvironments?.route(sender),
             onEventsReady: () => {
                 startupProfile.mark('rendererReady');
                 // eslint-disable-next-line no-void -- replays the synchronous handshake once Server Core is attached
@@ -505,7 +505,7 @@ if (ownsProfileInstance) {
         });
     }
 
-    const remoteWindowMenu = createRemoteWindowMenu(() => remoteEnvironments);
+    const sshHostWindowMenu = createSshHostWindowMenu(() => sshHostEnvironments);
     function installMenu(keybindings: Keybinding[]): void {
         const template = buildAppMenuTemplate({
             keybindings,
@@ -517,13 +517,13 @@ if (ownsProfileInstance) {
                 mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
             isFollowingAppZoom: (window) =>
                 isZoomingWithApp(window, [agentCommander, benchmarkWindow]),
-            dispatchToRemoteWindow: remoteWindowMenu.dispatch,
+            dispatchToSshHostWindow: sshHostWindowMenu.dispatch,
             focusWorkbench: () => {
                 // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
                 void focusMainWindow().catch(() => {});
             },
         });
-        remoteWindowMenu.setApplicationMenu(Menu.buildFromTemplate(template));
+        sshHostWindowMenu.setApplicationMenu(Menu.buildFromTemplate(template));
     }
 
     // Top-level await is unavailable in this bundle target, so the bootstrap sequence below is
@@ -589,7 +589,7 @@ if (ownsProfileInstance) {
                 seedAttachment: (send) => localPresence.seed(send),
             });
             const logger = mainLogger;
-            remoteEnvironments = createSshHostEnvironments({
+            sshHostEnvironments = composeSshHostEnvironments({
                 connection: connectionOptions,
                 currentDirectory,
                 isPackaged: app.isPackaged,

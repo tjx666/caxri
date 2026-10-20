@@ -45,8 +45,8 @@ export function refreshWatchSessionInBackground(
 
 /**
  * Fire-and-forget wrappers for recoverable background work (file watching, interrupted-Terminal restore) that must
- * never delay the triggering IPC response. Kept out of `create-domain-services.ts` to stay under the file's
- * physical-line budget.
+ * never delay the triggering IPC response. This module owns that policy (never await, always log failures) so call
+ * sites in the composition root cannot diverge from it.
  */
 export function createBackgroundTasks(
     logger: StructuredLogger,

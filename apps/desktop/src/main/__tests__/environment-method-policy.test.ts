@@ -10,8 +10,8 @@ describe('environment method policy', () => {
     });
 
     it('keeps SSH-only methods out of the local Workbench', () => {
-        expect(isMethodAvailable('remote.stopServer', 'local')).toBe(false);
-        expect(isMethodAvailable('remote.stopServer', 'ssh')).toBe(true);
+        expect(isMethodAvailable('sshHost.stopServer', 'local')).toBe(false);
+        expect(isMethodAvailable('sshHost.stopServer', 'ssh')).toBe(true);
     });
 
     it('lets both environments call shared and remote-override methods', () => {

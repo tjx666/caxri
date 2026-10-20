@@ -10,8 +10,10 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Toggle } from '../../components/ui/toggle';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { cn } from '../../lib/utilities';
 import { hasEntry } from './benchmark-selection';
 
 /**
@@ -35,9 +37,17 @@ function ModelRow({
     const efforts: Array<BenchmarkEntry['effort']> = [undefined, ...model.efforts];
     return (
         <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 py-1">
-            <span className="w-44 flex-none truncate text-[12px]" title={model.id}>
-                {model.displayName || model.id}
-            </span>
+            <Tooltip content={model.id}>
+                <span
+                    className={cn(
+                        'w-44 flex-none truncate text-[12px]',
+                        FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                    )}
+                    tabIndex={0}
+                >
+                    {model.displayName || model.id}
+                </span>
+            </Tooltip>
             <div className="flex flex-wrap items-center gap-1">
                 {efforts.map((effort) => {
                     const entry: BenchmarkEntry = {

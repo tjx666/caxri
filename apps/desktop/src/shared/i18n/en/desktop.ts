@@ -48,9 +48,9 @@ export const desktop = {
     'desktop.trash.detail': '{{path}}\n\nYou can recover this item from the Trash.',
     'desktop.trash.detailUnsaved':
         '{{path}}\n\nThis file has unsaved changes in the editor. Only the last saved version can be recovered from the Trash.',
-    'desktop.trash.detailRemote':
+    'desktop.trash.detailSshHost':
         "{{path}}\n\nThe item moves to the SSH Host's Trash on {{host}}, where it can be recovered.",
-    'desktop.trash.detailRemoteUnsaved':
+    'desktop.trash.detailSshHostUnsaved':
         "{{path}}\n\nThe item moves to the SSH Host's Trash on {{host}}. This file has unsaved changes in the editor; only the last saved version can be recovered.",
     'desktop.trash.confirm': 'Move to Trash',
 

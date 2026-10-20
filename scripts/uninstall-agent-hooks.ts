@@ -1,4 +1,5 @@
 import type { AgentProvider } from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 
 import type {
     AgentHookAdapter,
@@ -8,7 +9,6 @@ import type {
 import { MAX_AGENT_HOOK_CONFIG_BYTES } from '../apps/server/src/domains/agents/hooks/manager';
 import { claudeHookAdapter } from '../apps/server/src/domains/agents/providers/claude/hooks';
 import { codexHookAdapter } from '../apps/server/src/domains/agents/providers/codex/hooks';
-import { readBoundedRegularFileText } from '../apps/server/src/domains/bounded-file-reader';
 
 /**
  * Every provider whose shared config Caxri writes hook entries into. The adapters are the same modules Server Core

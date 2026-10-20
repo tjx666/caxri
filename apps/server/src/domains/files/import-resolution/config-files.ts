@@ -1,9 +1,8 @@
 import { stat } from 'node:fs/promises';
 
 import { CaxriError } from '@caxri/protocol';
-import { parseJsonc } from '@caxri/system';
+import { parseJsonc, readBoundedRegularFileText } from '@caxri/system';
 
-import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import type { ResolvedSessionPath } from '../../project';
 
 export function isMissingImportFile(error: unknown): boolean {

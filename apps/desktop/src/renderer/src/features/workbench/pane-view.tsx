@@ -20,7 +20,7 @@ import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSessionState, useTerminal } from '../../stores/selectors';
-import { AgentChatTerminalContent } from '../agent-chat/agent-chat-terminal-content';
+import { AgentChatTerminalContent } from '../agent-chat/tasks/agent-chat-terminal-content';
 import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { NewTerminalButton } from '../terminal/new-terminal-button';

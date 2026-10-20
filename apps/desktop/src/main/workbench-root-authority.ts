@@ -1,4 +1,5 @@
-import { realpath } from 'node:fs/promises';
+import type { BigIntStats } from 'node:fs';
+import { lstat, realpath } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
 
 import type { BootstrapState, MainRequest, TerminalFileLinkRefusalReason } from '@caxri/protocol';
@@ -10,9 +11,9 @@ import { readExternalFileSnapshot } from './external-file-snapshot';
 import { translateMain } from './locale';
 import type { PathBrowserOpenTarget } from './path-browser-authority';
 import { createPathBrowserAuthority } from './path-browser-authority';
-import { remotePathBrowserDirectories } from './path-browser-directories';
+import { sshHostPathBrowserDirectories } from './path-browser-directories';
 import type { PathBrowserLogger } from './path-browser-log';
-import type { ProjectRootGrants } from './root-grants';
+import type { ProjectRootGrantIdentity, ProjectRootGrants } from './root-grants';
 import type { DesktopServerConnection } from './server-connection';
 import { currentRequestWindowKey, PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
@@ -68,13 +69,33 @@ async function showMessageBox(
 }
 
 /**
+ * Captures the canonical path, device, and inode of the folder the user just picked. Server Core compares them again
+ * right before the insert, so a path replaced between the pick and `project.create` cannot persist a different
+ * directory. The stat is taken on the canonical path: a picked symlink resolves to its target here, and
+ * `project.create` is later sent that canonical path so Server Core's no-symlink identity check still passes.
+ */
+async function captureRootIdentity(selectedPath: string): Promise<ProjectRootGrantIdentity> {
+    let path: string;
+    let info: BigIntStats;
+    try {
+        path = await realpath(selectedPath);
+        info = await lstat(path, { bigint: true });
+    } catch {
+        throw new CaxriError('PATH_DENIED', 'Selected Project folder is not available');
+    }
+    if (!info.isDirectory())
+        throw new CaxriError('PATH_DENIED', 'Selected Project folder is not a directory');
+    return { path, device: info.dev.toString(), inode: info.ino.toString() };
+}
+
+/**
  * Keeps candidate paths and single-use folder grants inside Electron Main. In a local window the Renderer sees only
  * opaque candidate IDs and can never nominate a path for automatic authorization. An SSH Host window is the documented
  * exception: it has no native picker for the SSH Host's disk, so `project.create` forwards the folder the user chose in
  * the SSH Host's own folder browser, and that Server canonicalizes it.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
-    const isRemote = options.environment === 'ssh';
+    const isSshHost = options.environment === 'ssh';
     /**
      * The Session that should receive the file, or why it will not be opened. A refusal carries a reason so the
      * Renderer can say something; a user who dismissed the chooser gets `undefined` and no message, because they
@@ -156,7 +177,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 candidates: resolved.candidates,
                 truncated: resolved.truncated,
             };
-        if (isRemote && resolved.status === 'external')
+        if (isSshHost && resolved.status === 'external')
             return { canceled: true as const, reason: 'outside_projects' as const };
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
@@ -349,8 +370,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     }
 
     const pathBrowser = createPathBrowserAuthority({
-        ...(isRemote && {
-            directories: remotePathBrowserDirectories(() => options.getServer()),
+        ...(isSshHost && {
+            directories: sshHostPathBrowserDirectories(() => options.getServer()),
         }),
         getServer: () => options.getServer(),
         logger: () => options.logger(),
@@ -361,7 +382,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         async selectProjectFolder() {
             const testRoot = options.nextTestRoot();
             if (testRoot) {
-                options.grants.grant(testRoot);
+                options.grants.grant(testRoot, await captureRootIdentity(testRoot));
                 return testRoot;
             }
             const result = await chooseDirectory(options.getWindow(), {
@@ -371,7 +392,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `filePaths` is empty
             // when the dialog is dismissed without a selection.
             const path = result.filePaths.at(0);
-            if (path && !result.canceled) options.grants.grant(path);
+            if (path && !result.canceled)
+                options.grants.grant(path, await captureRootIdentity(path));
             /**
              * A dismissed or empty selection must resolve to null, never to an absent value.
              */
@@ -383,17 +405,34 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
              * The remote folder was listed by the remote Server itself (`project.browseFolders`), which canonicalizes
              * the root again in `project.create`; a local grant would describe a path on the wrong machine.
              */
-            if (isRemote)
+            if (isSshHost)
                 return options.getServer().request('project.create', {
                     rootPath: parameters.rootPath,
                 });
-            return options.grants.use(parameters.rootPath, () =>
-                options.getServer().request('project.create', parameters),
-            );
+            /**
+             * Main owns the identity: whatever `expectedRootIdentity` the Renderer sent is dropped, and the one
+             * captured at pick time is injected. The canonical path replaces the picked one so a symlinked pick still
+             * passes Server Core's no-symlink identity check. Server Core stays the final authority; a PATH_DENIED
+             * means the selected object changed, so the grant is spent instead of left for a replay.
+             */
+            return options.grants.use(parameters.rootPath, async (identity) => {
+                if (!identity)
+                    throw new CaxriError('PATH_DENIED', 'Project root selection has no identity');
+                try {
+                    return await options.getServer().request('project.create', {
+                        rootPath: identity.path,
+                        expectedRootIdentity: identity,
+                    });
+                } catch (error) {
+                    if (error instanceof CaxriError && error.code === 'PATH_DENIED')
+                        options.grants.revoke(parameters.rootPath);
+                    throw error;
+                }
+            });
         },
 
         cancelProjectCreate(parameters: CancelProjectParameters) {
-            if (isRemote) return null;
+            if (isSshHost) return null;
             options.grants.revoke(parameters.rootPath);
             return null;
         },
@@ -408,7 +447,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             const selectedPath = await options
                 .getServer()
                 .request('session.workbenchRoot.resolve', parameters);
-            if (isRemote)
+            if (isSshHost)
                 return options.getServer().request('session.workbenchRoot.authorizeSelection', {
                     sessionId: parameters.sessionId,
                     rootPath: selectedPath,
@@ -447,7 +486,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                  * Continue authorizes the exact Server-owned candidate, never a Renderer-supplied path. Server
                  * revalidates the candidate and Git topology before consuming this single-use root grant.
                  */
-                if (isRemote)
+                if (isSshHost)
                     return await server.request('session.workbenchCandidate.authorize', {
                         candidateId,
                         rootPath: candidate.rootPath,

@@ -20,11 +20,11 @@ export const configEditorClassName = 'min-w-0 min-h-0 bg-background';
 /**
  * Suspense-fallback shimmer while the lazy Monaco `ConfigEditor` loads. Kept as an `animate-[…]` utility referencing
  * the `configuration-loading` `@keyframes`, which stays in `styles.css` as global CSS: a `background-position` sweep
- * over a `color-mix` gradient isn't expressible as a Tailwind utility on its own.
+ * over a gradient isn't expressible as a Tailwind utility on its own.
  */
 export const configEditorLoadingClassName = cn(
     configEditorClassName,
-    'bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--elevated)_60%,transparent),transparent),var(--background)]',
+    'bg-[linear-gradient(90deg,transparent,var(--state-hover),transparent),var(--background)]',
     'bg-[length:180%_100%]',
     'animate-[configuration-loading_1.2s_ease_infinite]',
 );

@@ -2,7 +2,7 @@ import type { EnvironmentState, MainRequest, SshHostEntry } from '@caxri/protoco
 import { CaxriError } from '@caxri/protocol';
 
 /**
- * The calling window's environment and the SSH Host registry behind the `environment.*` and `remote.*` methods. The
+ * The calling window's environment and the SSH Host registry behind the `environment.*` and `sshHost.*` methods. The
  * local Workbench answers `environment.get` with `{ kind: 'local' }`; `environmentMethodScopes` keeps the SSH-only
  * methods from reaching it at all.
  */
@@ -12,11 +12,11 @@ export interface MainEnvironmentMethods {
     listHosts(): Promise<{ hosts: SshHostEntry[]; recent: string[] }>;
     reconnect(): Promise<void>;
     /**
-     * Ends the calling SSH Host window's reconnect backoff wait; see `remote.retryNow`.
+     * Ends the calling SSH Host window's reconnect backoff wait; see `sshHost.retryNow`.
      */
     retryNow(): boolean;
     /**
-     * Stops the calling SSH Host window's in-flight connection attempt; see `remote.cancel`.
+     * Stops the calling SSH Host window's in-flight connection attempt; see `sshHost.cancel`.
      */
     cancel(): void;
     revealSshConfig(): Promise<void>;
@@ -46,14 +46,14 @@ export const unconfiguredEnvironment: MainEnvironmentMethods = {
         Promise.reject(new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window')),
 };
 
-type EnvironmentRequest = Extract<MainRequest, { method: 'environment.get' | `remote.${string}` }>;
+type EnvironmentRequest = Extract<MainRequest, { method: 'environment.get' | `sshHost.${string}` }>;
 
 export function isEnvironmentRequest(request: MainRequest): request is EnvironmentRequest {
-    return request.method === 'environment.get' || request.method.startsWith('remote.');
+    return request.method === 'environment.get' || request.method.startsWith('sshHost.');
 }
 
 /**
- * Answers the `environment.*` and `remote.*` Main methods from the calling window's environment.
+ * Answers the `environment.*` and `sshHost.*` Main methods from the calling window's environment.
  */
 export async function handleEnvironmentRequest(
     request: EnvironmentRequest,
@@ -62,25 +62,25 @@ export async function handleEnvironmentRequest(
     switch (request.method) {
         case 'environment.get':
             return environment.get();
-        case 'remote.hosts.list':
+        case 'sshHost.hosts.list':
             return environment.listHosts();
-        case 'remote.connect':
+        case 'sshHost.connect':
             await environment.connect(request.params.destination);
             return null;
-        case 'remote.reconnect':
+        case 'sshHost.reconnect':
             await environment.reconnect();
             return null;
-        case 'remote.retryNow':
+        case 'sshHost.retryNow':
             return environment.retryNow();
-        case 'remote.cancel':
+        case 'sshHost.cancel':
             environment.cancel();
             return null;
-        case 'remote.sshConfig.reveal':
+        case 'sshHost.sshConfig.reveal':
             await environment.revealSshConfig();
             return null;
-        case 'remote.stopServer':
+        case 'sshHost.stopServer':
             return environment.stopServer();
-        case 'remote.askpass.reply':
+        case 'sshHost.askpass.reply':
             environment.replyAskpass(request.params.requestId, request.params.response);
             return null;
     }

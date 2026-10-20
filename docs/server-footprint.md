@@ -70,7 +70,7 @@ bun run benchmark:server-footprint --compare-only   # compare the last receipt a
 It needs Docker and takes about two minutes. `scripts/server-footprint.ts` builds the workspaces and
 the remote layer for Docker's own architecture, starts a disposable SSH Host with
 `scripts/ssh-lab.ts`, and runs
-`apps/desktop/src/main/ssh/__tests__/remote-footprint.integration.test.ts` against it through the
+`apps/desktop/src/main/ssh/__tests__/footprint.integration.test.ts` against it through the
 real install and launch path. That test writes a receipt to
 `test-results/receipts/server-footprint.json`, which the script compares with the baseline. Pass
 `--skip-build` to reuse `apps/server/dist/remote`, or `--keep-lab` to leave the container running.

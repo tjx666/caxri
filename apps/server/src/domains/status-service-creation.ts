@@ -7,8 +7,9 @@ import type { createRootServices } from './root-services';
 type RootServices = Awaited<ReturnType<typeof createRootServices>>;
 
 /**
- * Builds Project Status with its delivery watch and binds it to Workbench Root changes. Kept out of
- * `create-domain-services.ts` to stay under the file's physical-line budget.
+ * Owns the Project Status slice lifecycle. Create: builds Project Status and the Vercel deployment store. Start: begins
+ * the delivery watch and binds Project Status to Workbench Root changes. Close: the returned `dispose` stops the watch.
+ * Its handlers are registered by `service-handlers.ts`; the composition root only orders this slice among the others.
  */
 export function createStatusServices({
     configuration,
@@ -33,7 +34,11 @@ export function createStatusServices({
          */
         primaryVisibleSessionId: () => string | undefined;
         visibleSessionIds: () => ReadonlySet<string>;
-    }): { projectStatus: ProjectStatusService; vercel: VercelDeploymentStore } {
+    }): {
+    dispose: () => void;
+    projectStatus: ProjectStatusService;
+    vercel: VercelDeploymentStore;
+} {
     const vercel = new VercelDeploymentStore(externalStatus.run);
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
         emit: send,
@@ -61,5 +66,5 @@ export function createStatusServices({
         if (primaryVisibleSessionId() === sessionId)
             refreshWatchSessionInBackground(files, git, logger, sessionId);
     });
-    return { projectStatus, vercel };
+    return { dispose: () => projectStatus.dispose(), projectStatus, vercel };
 }

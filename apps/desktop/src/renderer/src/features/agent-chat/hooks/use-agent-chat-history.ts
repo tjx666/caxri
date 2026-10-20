@@ -5,13 +5,13 @@ import type { AgentChatOlderHistory } from '@caxri/protocol';
 import { hasOlderAgentChatHistory } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { AgentChatHistoryWindow } from '../agent-chat-history-client';
+import type { AgentChatHistoryWindow } from '../transcript/agent-chat-history-client';
 import {
     agentChatHistoryQueryKey,
     cachedAgentChatHistory,
     loadOlderAgentChatHistory,
-} from '../agent-chat-history-client';
-import { agentChatEntryAtViewTop } from '../agent-chat-view-top';
+} from '../transcript/agent-chat-history-client';
+import { agentChatEntryAtViewTop } from '../transcript/agent-chat-view-top';
 
 export interface AgentChatHistory {
     history: AgentChatOlderHistory;

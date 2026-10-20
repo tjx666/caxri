@@ -128,10 +128,10 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.developer.reportBug':
         '预览并向运行中的 Agent 发送一份保护隐私的本地问题报告',
     'commands.description.diagnostics.export': '导出一份保护隐私的诊断包',
-    'commands.description.remote.connect':
+    'commands.description.sshHost.connect':
         '打开一个新窗口，其中的项目、终端和 Agent 都运行在 SSH Host 上',
-    'commands.description.remote.reconnect': '让此窗口重新连接到 SSH Host 上的 Server',
-    'commands.description.remote.stopServer':
+    'commands.description.sshHost.reconnect': '让此窗口重新连接到 SSH Host 上的 Server',
+    'commands.description.sshHost.stopServer':
         '停止此 SSH Host 上的 Server，并结束其中运行的所有终端和 Agent',
     'commands.description.git.switchBranch': '在所选会话的仓库中检出另一个分支',
     'commands.description.git.goToNextReviewComment': '跳转到当前 Git 差异标签页中的下一条评审评论',

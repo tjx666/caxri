@@ -29,15 +29,15 @@ import * as queueActions from './chat-queue-actions';
 import type { ChatRewindHost, ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { previewChatRestore } from './chat-rewind-preview';
-import { askChatSideQuestion } from './chat-side-question';
 import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
 import { ChatStates, requireOpenChatSession } from './chat-states';
-import { compactIdleChat, isChatIdleForSuspension, suspendIdleChat } from './chat-suspension';
+import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
 import type { ChatTaskHost } from './chat-task-read';
 import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
+import { askChatSideQuestion } from './side-question/chat-side-question';
 
 /**
  * Owns every Chat Terminal's provider process and in-memory conversation projection. Processes start lazily on the
@@ -61,6 +61,8 @@ export class AgentChatService {
 
     private readonly endpoint: ChatEndpointLease;
 
+    private readonly maintenance: ChatIdleMaintenance;
+
     private isShuttingDown = false;
 
     /**
@@ -82,6 +84,12 @@ export class AgentChatService {
             enqueue: (terminalId, state, deliver) => this.enqueueOn(terminalId, state, deliver),
             onAgentStateChanged: (terminalId, state) =>
                 options.onAgentStateChanged?.(terminalId, state),
+        });
+        this.maintenance = new ChatIdleMaintenance({
+            database: options.database,
+            states: this.states,
+            hasStart: (terminalId) => this.starts.has(terminalId),
+            enqueue: (terminalId, state, deliver) => this.enqueueOn(terminalId, state, deliver),
         });
         this.taskHost = {
             database: options.database,
@@ -192,6 +200,7 @@ export class AgentChatService {
         deliver: ChatStateDelivery,
     ): Promise<void> {
         this.states.admit(terminalId, state);
+        state.readLeaseAt = undefined;
         const previous = state.sendQueue;
         const run = (async () => {
             await previous;
@@ -236,9 +245,11 @@ export class AgentChatService {
             !state.session &&
             !this.starts.has(terminalId) &&
             state.projection.snapshot.status !== 'failed'
-        )
+        ) {
+            leaseReadStart(this.options.database, state, terminalId);
             // eslint-disable-next-line no-void -- the read returns the starting projection; patches follow.
             void this.startQuietly(terminalId, state);
+        }
         state.projection.flush();
         return agentChatSnapshotSchema.parse(state.projection.snapshot);
     }
@@ -527,45 +538,30 @@ export class AgentChatService {
     }
 
     /**
-     * Whether idle suspension may stop this Chat now; see {@link isChatIdleForSuspension}.
+     * Idle suspension, its observation lease, and batch compaction live in {@link ChatIdleMaintenance}; this is whether
+     * idle suspension may stop this Chat now.
      */
     isSuspendable(terminalId: string): boolean {
-        const terminal = this.options.database.getTerminal(terminalId);
-        return (
-            !this.starts.has(terminalId) &&
-            isChatIdleForSuspension(this.states.get(terminalId), terminal)
-        );
+        return this.maintenance.isSuspendable(terminalId);
     }
 
-    /**
-     * The launch of a Chat whose provider is running and idle (see {@link isChatIdleForSuspension}), or `undefined`.
-     * Batch compaction reads it so it never wakes a stopped Chat or interrupts pending work.
-     */
+    readLeaseAt(terminalId: string): number | undefined {
+        return this.maintenance.readLeaseAt(terminalId);
+    }
+
     idleLaunchId(terminalId: string): string | undefined {
-        return this.isSuspendable(terminalId) ? this.states.get(terminalId)?.launchId : undefined;
+        return this.maintenance.idleLaunchId(terminalId);
     }
 
-    /**
-     * Batch compaction: runs the provider's native compaction on an idle Chat, through the send chain, only while the
-     * same launch is still idle when the command reaches the head of the chain. Rejects otherwise.
-     */
-    async compactIdle(terminalId: string, launchId: string): Promise<void> {
-        await compactIdleChat(this.states.get(terminalId), launchId, {
-            enqueue: (state, deliver) => this.enqueueOn(terminalId, state, deliver),
-            idleLaunchId: () => this.idleLaunchId(terminalId),
-        });
+    compactIdle(terminalId: string, launchId: string): Promise<void> {
+        return this.maintenance.compactIdle(terminalId, launchId);
     }
 
-    /**
-     * Idle suspension: stops a background Chat's provider but keeps its projection, so every Client still shows the
-     * conversation, and records the Terminal as `suspended`. It runs on the send chain, so input accepted before it is
-     * delivered first and input accepted after it starts the provider again on the same Agent Session, as does the next
-     * read or {@link resumeSuspended}. Returns the record, or `undefined` when the Chat was no longer idle.
-     */
-    async suspendIdle(terminalId: string): Promise<TerminalRecord | undefined> {
-        return suspendIdleChat(this.options.database, this.states, terminalId, () =>
-            this.isSuspendable(terminalId),
-        );
+    suspendIdle(
+        terminalId: string,
+        reason: 'idle' | 'observation' = 'idle',
+    ): Promise<TerminalRecord | undefined> {
+        return this.maintenance.suspendIdle(terminalId, reason);
     }
 
     /**

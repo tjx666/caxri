@@ -5,11 +5,12 @@ import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react'
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { Input, InputGroup } from '../../components/ui/input';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { cn } from '../../lib/utilities';
 import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
-import { useIsRemote } from '../../stores/environment';
+import { useIsSshHost } from '../../stores/environment';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { symlinkRowDescription } from '../view-containers/resource-explorer/resource-explorer-state';
 import type { PathBrowserCreateCandidate, PathBrowserMode } from './path-browser';
@@ -157,7 +158,7 @@ function PathBrowserQueryField({
      * An SSH Host window has no free mode, so it does not advertise the `/` and `~` gestures that would leave the
      * Project.
      */
-    const isRemote = useIsRemote();
+    const isSshHost = useIsSshHost();
     return (
         <InputGroup appearance="toolbar" size="palette">
             <Button
@@ -187,12 +188,17 @@ function PathBrowserQueryField({
                  * rather than the directory the user is standing in. It needs the inner element: see its rule in
                  * `styles.css`.
                  */
-                <span
-                    className="path-ellipsis-start max-w-[45%] min-w-0 flex-none overflow-hidden text-[12px] whitespace-nowrap text-muted"
-                    title={directoryLabel}
-                >
-                    <span>{directoryLabel}</span>
-                </span>
+                <Tooltip content={directoryLabel}>
+                    <span
+                        className={cn(
+                            'path-ellipsis-start max-w-[45%] min-w-0 flex-none overflow-hidden text-[12px] whitespace-nowrap text-muted',
+                            FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                        )}
+                        tabIndex={0}
+                    >
+                        <span>{directoryLabel}</span>
+                    </span>
+                </Tooltip>
             )}
             <Input
                 ref={inputReference}
@@ -200,14 +206,14 @@ function PathBrowserQueryField({
                 aria-autocomplete="list"
                 aria-busy={!isResultsReady}
                 aria-controls={isListboxRendered ? listboxId : undefined}
-                aria-describedby={isRemote ? undefined : 'path-browser-project-anchor-help'}
+                aria-describedby={isSshHost ? undefined : 'path-browser-project-anchor-help'}
                 aria-expanded={isListboxRendered}
                 aria-label={t('pathBrowser.query.inputLabel')}
                 appearance="embedded"
                 className="min-w-[80px] flex-1 px-1 text-foreground"
                 placeholder={t(
-                    isRemote
-                        ? 'pathBrowser.query.placeholderRemote'
+                    isSshHost
+                        ? 'pathBrowser.query.placeholderSshHost'
                         : isProject
                           ? 'pathBrowser.query.placeholderProject'
                           : 'pathBrowser.query.placeholderFree',
@@ -396,42 +402,43 @@ function PathBrowserOption({
     const isDisabled = isSymlink && isFreeBrowsing;
     const description = isSymlink ? symlinkRowDescription(entry, t) : undefined;
     return (
-        <button
-            id={id}
-            aria-describedby={isSymlink ? `${id}-reason` : undefined}
-            aria-disabled={isDisabled}
-            aria-selected={isSelected}
-            className={cn(
-                'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground',
-                rowStateClassName(isSelected, isDisabled),
-                isDisabled && 'cursor-not-allowed text-muted',
-            )}
-            role="option"
-            type="button"
-            disabled={isDisabled}
-            title={description}
-            onClick={onClick}
-            onMouseMove={onMouseMove}
-        >
-            <FileTypeIcon entry={entry} />
-            <span className="min-w-0 shrink truncate">{entry.name}</span>
-            {groupLabel && <span className="sr-only">{groupLabel}</span>}
-            {/* `flex-1` with a zero basis makes the Project-relative directory give up width before the file name does. */}
-            <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
-                {entry.directoryLabel ?? ''}
-            </span>
-            {isSymlink && (
-                <span id={`${id}-reason`} className="sr-only">
-                    {description}
+        <Tooltip content={description} disabled={description === undefined}>
+            <button
+                id={id}
+                aria-describedby={isSymlink ? `${id}-reason` : undefined}
+                aria-disabled={isDisabled}
+                aria-selected={isSelected}
+                className={cn(
+                    'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground',
+                    rowStateClassName(isSelected, isDisabled),
+                    isDisabled && 'cursor-not-allowed text-muted',
+                )}
+                role="option"
+                type="button"
+                disabled={isDisabled}
+                onClick={onClick}
+                onMouseMove={onMouseMove}
+            >
+                <FileTypeIcon entry={entry} />
+                <span className="min-w-0 shrink truncate">{entry.name}</span>
+                {groupLabel && <span className="sr-only">{groupLabel}</span>}
+                {/* `flex-1` with a zero basis makes the Project-relative directory give up width before the file name does. */}
+                <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
+                    {entry.directoryLabel ?? ''}
                 </span>
-            )}
-            {entry.kind === 'directory' && (
-                <CornerDownLeft
-                    aria-label={t('pathBrowser.results.directory')}
-                    className="text-muted"
-                    size={13}
-                />
-            )}
-        </button>
+                {isSymlink && (
+                    <span id={`${id}-reason`} className="sr-only">
+                        {description}
+                    </span>
+                )}
+                {entry.kind === 'directory' && (
+                    <CornerDownLeft
+                        aria-label={t('pathBrowser.results.directory')}
+                        className="text-muted"
+                        size={13}
+                    />
+                )}
+            </button>
+        </Tooltip>
     );
 }

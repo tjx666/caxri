@@ -44,6 +44,7 @@ const PARKED_AS: Record<
     archived: { state: 'suspended', cause: 'sessionArchived' },
     detached: { state: 'detached' },
     idle: { state: 'suspended', cause: 'idleSuspended' },
+    observation: { state: 'suspended', cause: 'observationExpired' },
     requested: { state: 'suspended' },
     terminated: { state: 'stopped', cause: 'userTerminated' },
     untouched: { state: 'suspended', cause: 'untouchedSuspended' },
@@ -85,7 +86,11 @@ interface TerminalSuspensionServiceOptions {
      */
     chats?: {
         isSuspendable(terminalId: string): boolean;
-        suspendIdle(terminalId: string): Promise<TerminalRecord | undefined>;
+        readLeaseAt(terminalId: string): number | undefined;
+        suspendIdle(
+            terminalId: string,
+            reason?: 'idle' | 'observation',
+        ): Promise<TerminalRecord | undefined>;
     };
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
@@ -162,6 +167,7 @@ export class TerminalSuspensionService {
             if (!database.getTerminal(terminalId)) this.parked.delete(terminalId);
         const decisions = decideTerminalSuspensions({
             deselectedAt: (sessionId) => this.deselectedAt.get(sessionId),
+            chatReadLeaseAt: (terminalId) => this.options.chats?.readLeaseAt(terminalId),
             isChatSuspendable: (terminalId) =>
                 this.options.chats?.isSuspendable(terminalId) ?? false,
             isObservedRemotely: (terminalId) =>
@@ -198,7 +204,7 @@ export class TerminalSuspensionService {
      * `idle`/`untouched` reasons are fenced.
      */
     private async suspendTerminal(terminalId: string, reason: ParkReason): Promise<boolean> {
-        const isAutomaticSweep = reason === 'idle' || reason === 'untouched';
+        const isAutomaticSweep = ['idle', 'observation', 'untouched'].includes(reason);
         // Closes the gap between one decision's teardown and the next: skip outright if the selection already
         // changed before this Terminal's own teardown even started.
         if (
@@ -213,7 +219,10 @@ export class TerminalSuspensionService {
             // Only the automatic sweep decides a Chat; explicit parks reach PTYs only (see `park`).
             const record =
                 terminal && !isPtyTerminal(terminal)
-                    ? await this.options.chats?.suspendIdle(terminalId)
+                    ? await this.options.chats?.suspendIdle(
+                          terminalId,
+                          reason === 'observation' ? 'observation' : 'idle',
+                      )
                     : await this.options.terminals.suspend(terminalId, state, cause);
             if (!record) return false;
             this.samples.delete(terminalId);
@@ -250,7 +259,7 @@ export class TerminalSuspensionService {
         terminalId: string,
         reason: ParkReason,
     ): { backgroundMs?: number; idleMs?: number } {
-        if (reason !== 'idle' && reason !== 'untouched') return {};
+        if (!['idle', 'observation', 'untouched'].includes(reason)) return {};
         const now = this.now();
         const sessionId = this.options.database.getTerminal(terminalId)?.sessionId;
         const deselectedAt = sessionId === undefined ? undefined : this.deselectedAt.get(sessionId);

@@ -10,7 +10,7 @@ import {
 import type { AgentChatWorkItem } from '@caxri/protocol';
 
 import { motionSettleTimeoutMs } from '../../../lib/motion';
-import { AgentChatExpansionState, isAgentChatExpanded } from '../agent-chat-expansion';
+import { AgentChatExpansionState, isAgentChatExpanded } from '../transcript/agent-chat-expansion';
 
 /**
  * A Chat timeline's disclosure state and what a user toggle does to scrolling, provided by the Chat pane (and by a task

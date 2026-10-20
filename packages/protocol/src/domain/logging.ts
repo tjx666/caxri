@@ -3,43 +3,20 @@ import { z } from 'zod';
 import { agentChatSubagentLogEvents } from './logging-agent-chat-subagents.js';
 import { agentCommanderLogEvents } from './logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging-benchmark.js';
-import { remoteSshLogEvents } from './logging-remote-ssh.js';
+import { mobileGatewayLogEvents } from './logging-mobile-gateway.js';
 import { sessionContextLogEvents, sessionSearchLogEvents } from './logging-session.js';
+import { sshHostLogEvents } from './logging-ssh-host.js';
 
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
  * browser-safe protocol change instead of an unchecked string scattered across Desktop processes.
  */
 export const logEventCatalog = {
-    mobileGateway: {
-        sessionReadSummary: 'mobile_gateway.session_read_summary',
-        failure: 'mobile_gateway.failure',
-        failureSummary: 'mobile_gateway.failure_summary',
-        terminalResyncSummary: 'mobile_gateway.terminal_resync_summary',
-        /**
-         * One record per Android update download request, with a closed `outcome`, served bytes, and duration.
-         */
-        updateDownload: 'mobile_gateway.update_download',
-        /**
-         * One record per update-recovery exchange from a phone whose transport version no longer matches, with a closed
-         * `outcome`.
-         */
-        updateRecovery: 'mobile_gateway.update_recovery',
-        enabled: 'mobile_gateway.enabled',
-        disabled: 'mobile_gateway.disabled',
-        /**
-         * The remembered mobile-access switch: `restored` or `restore-failed` when a Server start reopens the gateway,
-         * `write-failed` when the owner's switch could not be saved for the next start.
-         */
-        accessPersistence: 'mobile_gateway.access_persistence',
-        connectionEstablished: 'mobile_gateway.connection_established',
-        connectionEnded: 'mobile_gateway.connection_ended',
-        pairingOutcome: 'mobile_gateway.pairing_outcome',
-        pairingSummary: 'mobile_gateway.pairing_summary',
-    },
+    mobileGateway: mobileGatewayLogEvents,
     agentChat: {
         /**
-         * Provider process start outcome with a closed `outcome`/`reason`, the resume mode, and the handshake duration.
+         * Provider process start outcome with a closed `outcome`/`reason` (`refused`/`capacity` when the Terminal limit
+         * stopped the start), the resume mode, and the handshake duration.
          */
         processStarted: 'agent_chat.process_started',
         /**
@@ -361,7 +338,7 @@ export const logEventCatalog = {
         unhandledRejection: 'benchmark_window.unhandled_rejection',
         unresponsive: 'benchmark_window.unresponsive',
     },
-    remoteSsh: remoteSshLogEvents,
+    sshHost: sshHostLogEvents,
     processExplorer: {
         consoleError: 'process_explorer.console_error',
         pageException: 'process_explorer.page_exception',
@@ -504,17 +481,17 @@ export const logEventCatalog = {
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
         resumeSkipped: 'terminal.resume_skipped',
         /**
-         * An Agent launch that resumed a parked Terminal: the closed park `reason` (`idle`, `untouched`, `archived`,
-         * `detached`, `requested`), the provider, and `suspendedForMs`. An Agent an earlier Server Core left
-         * `suspended` or `detached` logs `reason: 'beforeRestart'` with `suspendedForMs: null`, since its park time was
-         * in memory.
+         * An Agent launch that resumed a parked Terminal: the closed park `reason` (`idle`, `observation`, `untouched`,
+         * `archived`, `detached`, `requested`), the provider, and `suspendedForMs`. An Agent an earlier Server Core
+         * left `suspended` or `detached` logs `reason: 'beforeRestart'` with `suspendedForMs: null`, since its park
+         * time was in memory.
          */
         resumed: 'terminal.resumed',
         suspendFailed: 'terminal.suspend_failed',
         /**
-         * One parked PTY: the closed `reason` (`idle`, `untouched`, `archived`, `detached`, `requested`, `terminated`)
-         * and the provider; the automatic `idle`/`untouched` reasons also carry `idleMs` (time since the Agent's last
-         * activity) and `backgroundMs` (time since its Session was left).
+         * One parked PTY: the closed `reason` (`idle`, `observation`, `untouched`, `archived`, `detached`, `requested`,
+         * `terminated`) and the provider; the automatic `idle`/`observation`/`untouched` reasons also carry `idleMs`
+         * (time since the Agent's last activity) and `backgroundMs` (time since its Session was left).
          */
         suspended: 'terminal.suspended',
         /**

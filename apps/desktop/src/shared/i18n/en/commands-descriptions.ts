@@ -167,10 +167,10 @@ export const commandDescriptions = {
     'commands.description.developer.reportBug':
         'Preview and send a privacy-safe local bug report to a running Agent',
     'commands.description.diagnostics.export': 'Export a privacy-safe diagnostics bundle',
-    'commands.description.remote.connect':
+    'commands.description.sshHost.connect':
         'Open a window whose Projects, Terminals, and Agents run on an SSH Host',
-    'commands.description.remote.reconnect': "Reconnect this window to its SSH Host's Server",
-    'commands.description.remote.stopServer':
+    'commands.description.sshHost.reconnect': "Reconnect this window to its SSH Host's Server",
+    'commands.description.sshHost.stopServer':
         'Stop the Server on this SSH Host, ending every Terminal and Agent running there',
     'commands.description.git.switchBranch':
         "Check out another branch in the selected Session's repository",

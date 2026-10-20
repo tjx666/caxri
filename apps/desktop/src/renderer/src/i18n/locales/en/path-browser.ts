@@ -7,7 +7,7 @@ export const pathBrowser = {
     'pathBrowser.query.inputLabel': 'File path',
     'pathBrowser.query.placeholderProject': 'Filter, or type / or ~ for any path…',
     'pathBrowser.query.placeholderFree': 'Filter, or type ./ to return to the Project…',
-    'pathBrowser.query.placeholderRemote': 'Filter, or type a path in this Project…',
+    'pathBrowser.query.placeholderSshHost': 'Filter, or type a path in this Project…',
     'pathBrowser.query.anchorHelp':
         'Type a path starting with / or ~ to browse outside the Project, or press Backspace at the start of an empty field. Type ./ to return to the Project.',
     'pathBrowser.query.projectRootRemoved': 'Project root removed. Enter any path.',

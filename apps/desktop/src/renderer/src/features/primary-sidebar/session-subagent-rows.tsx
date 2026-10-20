@@ -2,7 +2,7 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { agentChatItemStatusLabel, agentChatTaskGlyphStatus } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
-import { AgentChatStatusGlyph } from '../agent-chat/agent-chat-status-glyph';
+import { AgentChatStatusGlyph } from '../agent-chat/tools/agent-chat-status-glyph';
 import {
     primarySidebarSubagentMoreRowId,
     primarySidebarSubagentRowId,
@@ -29,7 +29,7 @@ interface SessionSubagentRowsProperties {
 }
 
 const ROW_CLASS_NAME =
-    'subagent-row flex h-6 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent pr-2 pl-8 text-left text-[12px] text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none';
+    'subagent-row flex h-6 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent pr-2 pl-8 text-left text-[12px] text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none';
 
 /**
  * The subagents a Chat Session started, as rows one level under the Session row (issue caxri#2260). Callers render it

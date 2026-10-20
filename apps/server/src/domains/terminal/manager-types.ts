@@ -14,6 +14,7 @@ export type TerminalLifecycleCause =
     | 'terminalRestart'
     | 'surfaceSwitched'
     | 'idleSuspended'
+    | 'observationExpired'
     | 'untouchedSuspended'
     | 'sessionArchived'
     | 'terminalClosed'

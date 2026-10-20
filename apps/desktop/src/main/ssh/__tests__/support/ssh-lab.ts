@@ -6,7 +6,7 @@ import type { SshConnectionOptions } from '../../ssh-connection';
 import { SshConnection } from '../../ssh-connection';
 
 /**
- * The opt-in real-`sshd` lab shared by the SSH integration suites. See `docs/remote-ssh.md#testing`.
+ * The opt-in real-`sshd` lab shared by the SSH integration suites. See `docs/ssh-host.md#testing`.
  */
 export const isSshIntegrationEnabled = process.env.CAXRI_SSH_INTEGRATION === '1';
 /**

@@ -5,21 +5,21 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import type { AgentChatComposerInput } from '../agent-chat-composer-view';
-import {
-    agentChatReferenceAttachments,
-    draftAfterEditCancel,
-    readAgentChatDraft,
-} from '../agent-chat-drafts';
-import type { AgentChatEdit } from '../agent-chat-edit';
+import type { AgentChatComposerInput } from '../composer/agent-chat-composer-view';
+import type { AgentChatEdit } from '../composer/agent-chat-edit';
 import {
     agentChatEditRemovedTurns,
     agentChatEditSendAction,
     readAgentChatEdit,
     writeAgentChatEdit,
-} from '../agent-chat-edit';
-import type { AgentChatEditBarProperties as AgentChatEditBarProperties } from '../agent-chat-edit-bar';
-import { agentChatEscapeAction, agentChatSendAction } from '../agent-chat-presentation';
+} from '../composer/agent-chat-edit';
+import type { AgentChatEditBarProperties as AgentChatEditBarProperties } from '../composer/agent-chat-edit-bar';
+import {
+    agentChatReferenceAttachments,
+    draftAfterEditCancel,
+    readAgentChatDraft,
+} from '../composer-input/agent-chat-drafts';
+import { agentChatEscapeAction, agentChatSendAction } from '../transcript/agent-chat-presentation';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import type { useAgentChatSubmit } from './use-agent-chat-submit';
 

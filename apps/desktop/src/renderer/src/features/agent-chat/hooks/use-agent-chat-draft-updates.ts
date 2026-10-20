@@ -1,7 +1,10 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useEffect } from 'react';
 
-import { subscribeAgentChatDraftUpdates, writeAgentChatDraft } from '../agent-chat-drafts';
+import {
+    subscribeAgentChatDraftUpdates,
+    writeAgentChatDraft,
+} from '../composer-input/agent-chat-drafts';
 
 /**
  * Applies what other surfaces write into this Chat's message (Add to message, a turn review comment, Paste as Text) to

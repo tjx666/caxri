@@ -23,7 +23,7 @@ export function SelectTrigger({
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
             className={cn(
-                'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] px-2 text-[13px] text-inherit transition-[border-color,box-shadow,background-color] outline-none focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:overflow-hidden [&>[data-slot=select-value]]:text-ellipsis [&>[data-slot=select-value]]:whitespace-nowrap [&>svg]:flex-none',
+                'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] px-2 text-[13px] text-inherit transition-[border-color,box-shadow,background-color] outline-none focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)] disabled:cursor-not-allowed disabled:opacity-50 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:overflow-hidden [&>[data-slot=select-value]]:text-ellipsis [&>[data-slot=select-value]]:whitespace-nowrap [&>svg]:flex-none',
                 className,
             )}
             {...properties}

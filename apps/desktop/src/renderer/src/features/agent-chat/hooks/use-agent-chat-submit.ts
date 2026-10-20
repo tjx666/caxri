@@ -14,7 +14,8 @@ import {
     didRunAgentChatCommand,
     didSendAgentChatMessage,
 } from '../agent-chat-commands';
-import type { AgentChatAttachment } from '../agent-chat-drafts';
+import { agentChatTextWithSentImageNumbers } from '../attachments/agent-chat-image-placeholders';
+import type { AgentChatAttachment } from '../composer-input/agent-chat-drafts';
 import {
     didDeliverAgentChatComposerInput,
     draftAfterSend,
@@ -22,16 +23,15 @@ import {
     isAgentChatPathAttachment,
     isAgentChatSkillAttachment,
     returnUnsentAgentChatMessage,
-} from '../agent-chat-drafts';
-import { agentChatTextWithSentImageNumbers } from '../agent-chat-image-placeholders';
+} from '../composer-input/agent-chat-drafts';
+import { askAgentChatSideQuestion } from '../side-chat/agent-chat-side-chat-commands';
+import { parseAgentChatSideQuestion } from '../side-chat/agent-chat-side-thread';
+import { openAgentChatSideChat } from '../tasks/agent-chat-task-opener';
 import {
     dropAgentChatPendingMessage,
     expireAgentChatPendingMessage,
     showAgentChatPendingMessage,
-} from '../agent-chat-pending';
-import { askAgentChatSideQuestion } from '../agent-chat-side-chat-commands';
-import { parseAgentChatSideQuestion } from '../agent-chat-side-thread';
-import { openAgentChatSideChat } from '../agent-chat-task-opener';
+} from '../transcript/agent-chat-pending';
 
 /**
  * The message `text` and `attachments` make: images ride along as images, their placeholders numbered in the order they

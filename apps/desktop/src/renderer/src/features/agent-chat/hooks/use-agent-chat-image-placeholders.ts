@@ -1,16 +1,16 @@
 import type { RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { AgentChatComposerInput } from '../agent-chat-composer-view';
-import type { AgentChatImageAttachment } from '../agent-chat-drafts';
-import { isAgentChatImageAttachment } from '../agent-chat-drafts';
 import {
     agentChatComposerImagePills,
     agentChatImagePlaceholderChanges,
     agentChatImagePlaceholderRemoval,
     draftWithoutImagePlaceholders,
     nextAgentChatImageToken,
-} from '../agent-chat-image-placeholders';
+} from '../attachments/agent-chat-image-placeholders';
+import type { AgentChatComposerInput } from '../composer/agent-chat-composer-view';
+import type { AgentChatImageAttachment } from '../composer-input/agent-chat-drafts';
+import { isAgentChatImageAttachment } from '../composer-input/agent-chat-drafts';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 
 /**

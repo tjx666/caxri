@@ -2,9 +2,13 @@ import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { isCaxriError } from '@caxri/protocol';
-import { fileIdentity, mapWithConcurrency, SingleFlight } from '@caxri/system';
+import {
+    fileIdentity,
+    mapWithConcurrency,
+    readBoundedRegularFileText,
+    SingleFlight,
+} from '@caxri/system';
 
-import { readBoundedRegularFileText } from '../../../bounded-file-reader';
 import type { AgentProbeCacheCounters } from '../../contract';
 
 export interface ClaudeSessionMetadata {

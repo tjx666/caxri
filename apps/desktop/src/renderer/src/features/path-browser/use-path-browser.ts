@@ -10,7 +10,7 @@ import { translate, useTranslation } from '../../i18n';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { isImeComposing } from '../../lib/ime';
 import { setPathBrowserOpen } from '../../stores/dialogs';
-import { isRemote } from '../../stores/environment';
+import { isSshHost } from '../../stores/environment';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
@@ -76,7 +76,7 @@ function isSnapshot(result: PathBrowserNavigationResult): result is PathBrowserS
 }
 
 function toBrowserError(value: unknown, fallback: string): Error {
-    return pathBrowserError(value, fallback, isRemote());
+    return pathBrowserError(value, fallback, isSshHost());
 }
 
 /**
@@ -358,7 +358,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         completedInputWithoutBrowse.current = null;
         inputRevision.current += 1;
         setError(undefined);
-        setInputState((current) => pathBrowserInputTransition(current, input, !isRemote()));
+        setInputState((current) => pathBrowserInputTransition(current, input, !isSshHost()));
         setSelectedIndex(0);
     };
 
@@ -517,7 +517,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
         const intent = pathBrowserKeyIntent({
-            canBrowseFree: !isRemote(),
+            canBrowseFree: !isSshHost(),
             entryCount: rows.length,
             input: inputState.input,
             isComposing: isImeComposing(event),

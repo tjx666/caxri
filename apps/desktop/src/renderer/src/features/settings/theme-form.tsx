@@ -147,32 +147,34 @@ export function ThemeForm({
                             {Object.entries(theme[section]).map(([key, value]) => (
                                 <div
                                     key={key}
-                                    className="flex min-w-0 items-center gap-2 rounded px-1 py-1 hover:bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)]"
+                                    className="flex min-w-0 items-center gap-2 rounded px-1 py-1 hover:bg-state-hover-quiet"
                                 >
-                                    <input
-                                        id={`theme-${section}-${key}`}
-                                        aria-label={t(
-                                            `settings.themeEditor.colorLabel.${section}`,
-                                            {
-                                                token: humanizeThemeTokenLabel(t, key),
-                                            },
-                                        )}
-                                        title={key}
-                                        type="color"
-                                        className="size-6 shrink-0 rounded border border-border bg-transparent p-0"
-                                        value={value.slice(0, 7)}
-                                        onChange={(event) =>
-                                            onColorChange(section, key, event.target.value)
-                                        }
-                                    />
+                                    <Tooltip content={key}>
+                                        <input
+                                            id={`theme-${section}-${key}`}
+                                            aria-label={t(
+                                                `settings.themeEditor.colorLabel.${section}`,
+                                                {
+                                                    token: humanizeThemeTokenLabel(t, key),
+                                                },
+                                            )}
+                                            type="color"
+                                            className="size-6 shrink-0 rounded border border-border bg-transparent p-0"
+                                            value={value.slice(0, 7)}
+                                            onChange={(event) =>
+                                                onColorChange(section, key, event.target.value)
+                                            }
+                                        />
+                                    </Tooltip>
                                     <span className="min-w-0 flex-1">
-                                        <label
-                                            htmlFor={`theme-${section}-${key}`}
-                                            title={key}
-                                            className="block truncate text-[11px] text-foreground"
-                                        >
-                                            {humanizeThemeTokenLabel(t, key)}
-                                        </label>
+                                        <Tooltip content={key}>
+                                            <label
+                                                htmlFor={`theme-${section}-${key}`}
+                                                className="block truncate text-[11px] text-foreground"
+                                            >
+                                                {humanizeThemeTokenLabel(t, key)}
+                                            </label>
+                                        </Tooltip>
                                         <code className="block truncate text-[10px] text-muted">
                                             {value}
                                         </code>

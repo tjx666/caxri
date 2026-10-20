@@ -13,6 +13,14 @@ import {
 } from '../tooltip-positioning';
 import { TOOLTIP_MOTION } from './overlay-motion';
 
+/**
+ * Classes for a non-interactive element that is made a keyboard tab stop (`tabIndex={0}`) only so its {@link Tooltip}
+ * opens on focus. A native `title` never shows on focus, so truncated or unique text moves to the shared Tooltip on a
+ * focusable trigger; this gives that trigger a visible focus ring.
+ */
+export const FOCUSABLE_TOOLTIP_TRIGGER_CLASS =
+    'rounded-sm focus-visible:outline focus-visible:outline-accent';
+
 export function TooltipProvider({ children }: { children: ReactNode }) {
     return (
         <TooltipPrimitive.Provider delay={500} closeDelay={80} timeout={300}>

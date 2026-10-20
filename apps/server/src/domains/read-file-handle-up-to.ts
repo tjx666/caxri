@@ -8,8 +8,9 @@ import type { FileHandle } from 'node:fs/promises';
  * back-to-back full GCs while it read thousands of small files. A file that grew after its `fstat` (or one that reports
  * size 0, like procfs) continues into a cap-sized buffer, so the result is the same as reading into the cap.
  *
- * This module imports only Node builtins: `files/project-search-worker.ts` imports it by its `.ts` path, because the
- * Worker's tests run that TypeScript source directly as a Worker.
+ * Twin of `packages/system/src/filesystem/read-file-handle-up-to.ts` (keep identical), which backs the shared
+ * `readBoundedRegularFile`. This module imports only Node builtins: `files/project-search-worker.ts` imports it by its
+ * `.ts` path, because the Worker's tests run that TypeScript source directly as a Worker.
  */
 export async function readFileHandleUpTo(
     file: Pick<FileHandle, 'read'>,

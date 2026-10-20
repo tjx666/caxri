@@ -184,6 +184,20 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   failed or detached Chat does not start on a read, and neither does a Chat whose Session is
   archived or whose Project is hidden: the admission fence refuses it, and the first read after
   the Session returns to the Workbench starts it.
+- **Capacity.** A Chat that owns no process (stopped, suspended, or failed) is not counted against the
+  Terminal limits, so starting its provider takes a slot: `startChat`, the one gate every read, send,
+  restart, and resume passes, refuses with `CAPACITY` at 16 live Terminals in the Session or 32 overall,
+  as creating a Terminal does. A read at the limit leaves the Chat stopped and shows its projection; a
+  send or restart reports the error. A PTY relaunch (`TerminalManager.relaunch`) is gated the same way.
+- **Observation lease.** The protocol needs the provider to report a bound Chat's models, commands, and
+  live state, so a read still starts it, but a provider that a read alone started holds only a lease
+  (`ChatState.readLeaseAt`). Any input ends the lease. Once its Session is left (or, when the Session
+  was never observed being left, once the read is) for `CHAT_OBSERVATION_LEASE_MS` (2 minutes), the
+  idle sweep stops the provider, with `terminal.suspended` reason `observation`, whatever the idle
+  suspension setting says. The usual guards still apply: the selected Session, a phone watching the
+  Chat, a turn, an approval or question, a running task, and a queued message all keep it. The
+  projection stays, and reopening the Chat resumes the same Agent Session. The Renderer's Chat
+  snapshot cache is separate: evicting a snapshot there never closes a provider.
 - **Resume.** A bound Chat resumes its thread with `thread/resume`, verifies the returned id, and
   rebuilds the projection from the returned history. `model` is omitted on resume so the thread
   keeps its own model and effort. A failed resume is a visible `resume_failed` failure, never a
@@ -385,7 +399,7 @@ record is the source of truth.
   an earlier history is discarded rather than stitched onto the new one.
 - Once a Desktop pane has scrolled back, it keeps the items the projection evicts so no gap opens
   between the pages read and the live view. That copy is bounded at 5,000 items
-  (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-history.ts`): past it the oldest
+  (`apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-history.ts`): past it the oldest
   kept items are dropped, never while a page is on its way, and the next scroll-back reads them again.
 - A Client that receives a patch while its own read is still in flight holds the patch (up to 200)
   and replays it once the read lands, instead of dropping it and re-reading again.
@@ -765,7 +779,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
   `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
   `git diff`/`git show`, or JSON; anything else stays plain text. Timeline folding lives in
-  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`, which takes the
+  `apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-timeline.ts`, which takes the
   fold range from `foldAgentChatTurn` in `packages/protocol/src/agent/agent-chat-turn-fold.ts`,
   shared with the phone; the work row and
   summary wording, turn labels, and output-language inference every client shares live in
@@ -789,7 +803,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   its height, so revealing it never shifts the transcript. A link preview card in a user message
   opens above the link, so it never covers that row.
   Every time carries a tooltip with the full date. Formatting and day grouping live in
-  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-time.ts`.
+  `apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-time.ts`.
 - A subagent's task tab pages its own history the same way (history head, auto-load near the top,
   position held, Retry on failure) and shows the "earlier messages are not shown" note only when
   the provider's record was cut off, never at the real start.
@@ -811,7 +825,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   ArrowDown, Home, and End move among its ticks and Enter jumps. Ticks shrink together, down to a
   6px target each, rather than scroll when a long conversation would overflow the view; past 120 messages each tick stands for an even
   stretch of the conversation, so ticks stay apart
-  (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-rail-marks.ts`).
+  (`apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-rail-marks.ts`).
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
   Jump to latest. It takes its own strip above the conversation rather than floating over it, so it
   never covers the text it searches, and its buttons' tooltips name Enter, Shift+Enter, and Escape. It reuses the Terminal's `terminal.find` command: a Chat registers itself as its
@@ -1578,7 +1592,7 @@ completion. Monitors are not listed as Chat tasks, so they do not hold it in a C
 ## Observability
 
 `agent_chat.process_started` (closed outcome `ready`, `failed`, or `abandoned` with its reason,
-resume mode, duration),
+resume mode, duration; `outcome: refused, reason: capacity` when the Terminal limit stopped a start),
 `agent_chat.process_exited` (closed end reason with lifetime aggregates of turns, server
 requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and

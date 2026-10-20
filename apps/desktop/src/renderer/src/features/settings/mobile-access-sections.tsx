@@ -6,8 +6,10 @@ import { Check, Clipboard, QrCode, Smartphone, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import type { MobilePairingState, useMobileAccessController } from './use-mobile-access-controller';
 
 /**
@@ -255,14 +257,19 @@ const MobilePairedDevicesSection = ({
                                 {t(`settings.mobileAccess.devices.role.${device.role}`)} ·{' '}
                                 {deviceStatus(t, device)}
                             </p>
-                            <p
-                                className="m-0 mt-0.5 truncate text-[11px] text-muted"
-                                title={projectAccessByDevice.get(device.deviceId)}
-                            >
-                                {t('settings.mobileAccess.devices.access', {
-                                    projects: projectAccessByDevice.get(device.deviceId) ?? '',
-                                })}
-                            </p>
+                            <Tooltip content={projectAccessByDevice.get(device.deviceId)}>
+                                <p
+                                    className={cn(
+                                        'm-0 mt-0.5 truncate text-[11px] text-muted',
+                                        FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                                    )}
+                                    tabIndex={0}
+                                >
+                                    {t('settings.mobileAccess.devices.access', {
+                                        projects: projectAccessByDevice.get(device.deviceId) ?? '',
+                                    })}
+                                </p>
+                            </Tooltip>
                         </div>
                         <Button
                             aria-label={t('settings.mobileAccess.devices.revoke', {

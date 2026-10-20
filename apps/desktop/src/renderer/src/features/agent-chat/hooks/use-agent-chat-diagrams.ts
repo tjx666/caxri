@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import type { MarkdownDiagramHost } from '../../../components/markdown/markdown-context';
 import { useTheme } from '../../../stores/selectors';
 import { renderMermaidDiagram, sizeDiagramNaturally } from '../../preview/markdown-diagrams';
-import { AgentChatDiagramZoomFrame } from '../agent-chat-diagram-zoom-frame';
+import { AgentChatDiagramZoomFrame } from '../tools/agent-chat-diagram-zoom-frame';
 
 /**
  * Mermaid lays text out at 16px; a Chat reply's prose is 14px. An inline diagram is drawn at that ratio of its natural

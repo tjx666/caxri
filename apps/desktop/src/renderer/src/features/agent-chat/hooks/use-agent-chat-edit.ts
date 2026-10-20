@@ -9,7 +9,7 @@ import {
     agentChatForkAvailability,
     agentChatRestoreAvailability,
     readAgentChatEdit,
-} from '../agent-chat-edit';
+} from '../composer/agent-chat-edit';
 import type { AgentChatComposerEditHandle } from './use-agent-chat-composer-edit';
 
 /**

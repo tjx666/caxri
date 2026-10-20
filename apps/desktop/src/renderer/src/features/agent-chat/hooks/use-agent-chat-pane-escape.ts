@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 
 import { isImeComposing } from '../../../lib/ime';
-import { shouldAgentChatPaneEscapeStop } from '../agent-chat-presentation';
+import { shouldAgentChatPaneEscapeStop } from '../transcript/agent-chat-presentation';
 import { useAgentChatStop } from './use-agent-chat-stop';
 
 /**

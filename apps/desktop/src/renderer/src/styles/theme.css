@@ -58,6 +58,17 @@
     --color-overlay: var(--overlay);
     --color-shadow: var(--shadow);
     --color-indicator: var(--indicator);
+    --color-state-hover: var(--state-hover);
+    --color-state-hover-quiet: var(--state-hover-quiet);
+    --color-state-hover-ink: var(--state-hover-ink);
+    --color-state-hover-ink-quiet: var(--state-hover-ink-quiet);
+    --color-state-selected-quiet: var(--state-selected-quiet);
+    --color-state-marker: var(--state-marker);
+    --color-state-drop-target: var(--state-drop-target);
+    --color-state-focus-ring: var(--state-focus-ring);
+    --color-state-handle-hover: var(--state-handle-hover);
+    --color-state-handle-focus: var(--state-handle-focus);
+    --color-state-handle-halo: var(--state-handle-halo);
     --color-tab-active-background: var(--tab-active-background);
     --color-tab-active-foreground: var(--tab-active-foreground);
     --color-tab-inactive-background: var(--tab-inactive-background);
@@ -134,6 +145,67 @@
     --overlay: color-mix(in srgb, var(--background) 60%, transparent);
     --shadow: #00000073;
     --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);
+    /*
+     * Interaction-state tokens: the one owner of the hover, selected, and focus washes that surfaces used to hand-mix.
+     * They derive from base roles (not stored per theme), so every built-in and imported theme gets a matching wash
+     * through the roles it already sets. Intensities differ per surface class on purpose; each name is one class.
+     * Roles with explicit theme tokens (`list.*`, `tab.*`) stay theme-owned and are not duplicated here.
+     */
+    --state-hover: color-mix(
+        in srgb,
+        var(--elevated) 60%,
+        transparent
+    ); /* Sidebar rows, Session rows, menu items. */
+    --state-hover-quiet: color-mix(
+        in srgb,
+        var(--elevated) 45%,
+        transparent
+    ); /* Settings rows and other large blocks. */
+    --state-hover-ink: color-mix(
+        in srgb,
+        var(--foreground) 10%,
+        transparent
+    ); /* Compact chrome buttons: status bar, links. */
+    --state-hover-ink-quiet: color-mix(
+        in srgb,
+        var(--foreground) 6%,
+        transparent
+    ); /* Dense data rows (process grid). */
+    --state-selected-quiet: color-mix(
+        in srgb,
+        var(--selection) 45%,
+        transparent
+    ); /* Checked option inside a form block. */
+    --state-marker: color-mix(
+        in srgb,
+        var(--accent) 60%,
+        transparent
+    ); /* Edge bar marking the focused or revealed row. */
+    --state-drop-target: color-mix(
+        in srgb,
+        var(--accent) 18%,
+        var(--elevated)
+    ); /* Row under a drag. */
+    --state-focus-ring: color-mix(
+        in srgb,
+        var(--accent) 50%,
+        transparent
+    ); /* 3px halo around focused form controls. */
+    --state-handle-hover: color-mix(
+        in srgb,
+        var(--foreground) 40%,
+        transparent
+    ); /* Resize handle hairline on hover or drag. */
+    --state-handle-focus: color-mix(
+        in srgb,
+        var(--foreground) 55%,
+        transparent
+    ); /* Resize handle hairline when focused. */
+    --state-handle-halo: color-mix(
+        in srgb,
+        var(--foreground) 25%,
+        transparent
+    ); /* Resize handle focus halo. */
 
     color: var(--foreground);
     background: var(--background);

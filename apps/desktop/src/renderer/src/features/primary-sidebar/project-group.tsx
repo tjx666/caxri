@@ -183,7 +183,7 @@ export function ProjectGroup({
                  */}
                 <div
                     ref={headingReference}
-                    className="project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:3.75rem] focus-within:pr-[var(--project-hover-actions)] hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-[[data-popup-open]]:pr-[var(--project-hover-actions)]"
+                    className="project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:3.75rem] focus-within:pr-[var(--project-hover-actions)] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-[[data-popup-open]]:pr-[var(--project-hover-actions)]"
                     data-project-id={project.id}
                     draggable
                     onDragOver={(event) => {
@@ -416,7 +416,7 @@ function ProjectRevealRow({
     const { t } = useTranslation();
     return (
         <button
-            className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+            className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
             role="treeitem"
             aria-label={t(
                 count === 1

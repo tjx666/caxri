@@ -4,13 +4,13 @@ import type { AgentChatOlderHistory, AgentChatSnapshot } from '@caxri/protocol';
 import { hasOlderAgentChatHistory, splitAgentChatHistory } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import type { AgentChatRailMark } from '../agent-chat-rail-marks';
-import { agentChatRailMarks, sampleAgentChatRailMarks } from '../agent-chat-rail-marks';
-import type { AgentChatSettledChunk } from '../agent-chat-settled-chunks';
-import { agentChatSettledChunks } from '../agent-chat-settled-chunks';
-import { agentChatDayBreaks } from '../agent-chat-time';
-import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
-import { buildAgentChatTimeline } from '../agent-chat-timeline';
+import type { AgentChatRailMark } from '../transcript/agent-chat-rail-marks';
+import { agentChatRailMarks, sampleAgentChatRailMarks } from '../transcript/agent-chat-rail-marks';
+import type { AgentChatSettledChunk } from '../transcript/agent-chat-settled-chunks';
+import { agentChatSettledChunks } from '../transcript/agent-chat-settled-chunks';
+import { agentChatDayBreaks } from '../transcript/agent-chat-time';
+import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
+import { buildAgentChatTimeline } from '../transcript/agent-chat-timeline';
 
 /**
  * What a Chat pane renders: the history read back as settled chunks, the live timeline after it, and the day breaks and

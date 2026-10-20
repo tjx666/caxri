@@ -5,7 +5,7 @@ import type { Server, Socket } from 'node:net';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 
-import type { RemoteAskpassKind, RemoteAskpassRequest } from '@caxri/protocol';
+import type { SshHostAskpassKind, SshHostAskpassRequest } from '@caxri/protocol';
 import { ensurePrivateUnixSocketDirectory } from '@caxri/system';
 
 import { shellQuote } from './shell-quote';
@@ -18,7 +18,7 @@ const MAX_REQUEST_BYTES = 16 * 1024;
 const MAX_PROMPT_LENGTH = 4000;
 
 export type AskpassHandler = (
-    request: RemoteAskpassRequest,
+    request: SshHostAskpassRequest,
     signal: AbortSignal,
 ) => Promise<string | null>;
 
@@ -26,7 +26,7 @@ export type AskpassHandler = (
  * Maps an OpenSSH prompt to the input it expects. Host-key questions need a literal `yes`/`no`; passwords, key
  * passphrases, and one-time codes are secrets that must not be echoed; anything else is shown as plain text input.
  */
-export function classifyAskpassPrompt(prompt: string): RemoteAskpassKind {
+export function classifyAskpassPrompt(prompt: string): SshHostAskpassKind {
     if (
         /are you sure you want to continue connecting/iu.test(prompt) ||
         /fingerprint/iu.test(prompt)

@@ -520,7 +520,7 @@ export const commandDefinitions: CommandDefinition[] = [
         when: 'localMachine',
     },
     {
-        id: 'remote.connect',
+        id: 'sshHost.connect',
         title: 'Connect to SSH Host…',
         category: 'SSH Host',
         description: 'Open a window whose Projects, Terminals, and Agents run on an SSH Host',
@@ -528,7 +528,7 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'project', group: 2, order: 0 },
     },
     {
-        id: 'remote.reconnect',
+        id: 'sshHost.reconnect',
         title: 'Reconnect to SSH Host',
         category: 'SSH Host',
         description: "Reconnect this window to its SSH Host's Server",
@@ -536,7 +536,7 @@ export const commandDefinitions: CommandDefinition[] = [
         when: 'sshHost',
     },
     {
-        id: 'remote.stopServer',
+        id: 'sshHost.stopServer',
         title: 'Stop Server on SSH Host',
         category: 'SSH Host',
         description:

@@ -9,6 +9,27 @@ import {
 } from '../run-ci-focused-checks';
 
 describe('focused CI checks', () => {
+    it('runs the directory density ratchet when an affected or draft source change touches a guarded directory', () => {
+        const guard = 'scripts/__tests__/directory-density-ratchet.test.ts';
+        // A new file is not imported by the ratchet (it reads the filesystem), so `vitest related` cannot reach it.
+        const added = ['apps/desktop/src/main/brand-new-module.ts'];
+        expect(focusedRegressionPaths('affected', added, added)).toEqual([guard]);
+        expect(focusedRegressionPaths('focused-source', added, added)).toEqual([guard]);
+        // A pure deletion must also run it so the baseline gets tightened.
+        expect(focusedRegressionPaths('affected', added)).toEqual([guard]);
+        expect(
+            focusedRegressionPaths('affected', ['apps/server/src/domains/agent-chat/claude-x.ts']),
+        ).toEqual([guard]);
+        expect(
+            focusedRegressionPaths('affected', [
+                'apps/desktop/src/renderer/src/features/agent-chat/new-thing.tsx',
+            ]),
+        ).toEqual([guard]);
+        expect(
+            focusedRegressionPaths('affected', ['apps/server/src/domains/git/index.ts']),
+        ).toEqual([]);
+    });
+
     it('formats and tests documentation or skill changes without a repository-wide typecheck', () => {
         expect(focusedCheckArguments(['docs/testing.md'], 'focused-docs')).toEqual([
             'run',

@@ -6,6 +6,7 @@ import type { FullStateChangeReason } from '@caxri/protocol';
 import { readActiveContext } from './active-context';
 import { chatStateStore, createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
+import { createAgentLifecycleFanOut } from './agent-lifecycle-fan-out';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
 import { createBenchmarkService } from './benchmark-service-creation';
@@ -66,6 +67,10 @@ import {
     validateWorkbenchRequestContext,
 } from './workbench';
 
+/**
+ * The single top-level composition: it only orders dependencies and fixes the close order (the database closes last).
+ * Each service slice owns its own lifecycle in its module, for example `status-service-creation.ts`.
+ */
 export async function createDomainServices(
     dependencies: DomainDependencies,
 ): Promise<DomainServices> {
@@ -98,21 +103,13 @@ export async function createDomainServices(
         database,
         dependencies,
         logger,
-        onLifecycleSignal: (signal) => {
-            compactionReadiness.observe(signal);
-            if (!signal.agentTurnContinues) suspensionState.service?.observeLifecycle(signal);
-            delegationState.service?.observe(signal, 'evidence');
-        },
-        onLifecycleApplied: (signal) => {
-            delegationState.service?.observe(signal);
-            suspensionState.service?.observeAppliedLifecycle(signal);
-            commanderHooks.lifecycleApplied(signal);
-        },
-        onSessionActivityChanged: (transition) => settlementWiring.observeActivity(transition),
-        onSignalInterrupt: (terminalId) => {
-            suspensionState.service?.observeInterrupt(terminalId);
-            commanderHooks.interrupted(terminalId);
-        },
+        ...createAgentLifecycleFanOut({
+            commanderHooks,
+            compactionReadiness,
+            delegationState,
+            settlementWiring,
+            suspensionState,
+        }),
         send,
         userDataPath,
         watchHub,
@@ -231,7 +228,7 @@ export async function createDomainServices(
         terminals,
         watchHub,
     });
-    const { projectStatus, vercel } = createStatusServices({
+    const statusServices = createStatusServices({
         configuration,
         database,
         externalStatus,
@@ -244,6 +241,7 @@ export async function createDomainServices(
         visibleSessionIds: () => presence.visibleSessionIds(),
         workbenchRoots,
     });
+    const { projectStatus, vercel } = statusServices;
     const countRunning = (sessionId?: string): number =>
         terminals.runningCount(sessionId) +
         agentChat.liveCount(sessionId) +
@@ -388,7 +386,7 @@ export async function createDomainServices(
         if (isClosed) return;
         isClosed = true;
         presenceEffects.unsubscribe();
-        projectStatus.dispose();
+        statusServices.dispose();
         settlementWiring.dispose();
         terminalRestores.close();
         commanderRestores.close();

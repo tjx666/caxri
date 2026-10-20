@@ -2,15 +2,15 @@ import { restoreAgentChatQueued } from '../features/agent-chat/agent-chat-comman
 import {
     agentChatPasteAsTextUnavailableReason,
     pasteAgentChatSavedPasteAsText,
-} from '../features/agent-chat/agent-chat-long-paste-commands';
+} from '../features/agent-chat/composer-input/agent-chat-long-paste-commands';
 import {
     restoreRemovedReviewComment,
     reviewCommentRestoreUnavailableReason,
-} from '../features/agent-chat/agent-chat-review-draft';
+} from '../features/agent-chat/turns/agent-chat-review-draft';
 import {
     agentChatRedoUnavailableReason,
     redoAgentChatTurn,
-} from '../features/agent-chat/agent-chat-undo-commands';
+} from '../features/agent-chat/turns/agent-chat-undo-commands';
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import {
     commanderInboxUndoDismissUnavailableReason,

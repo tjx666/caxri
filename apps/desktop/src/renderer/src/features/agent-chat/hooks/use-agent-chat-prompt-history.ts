@@ -9,14 +9,14 @@ import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/sugges
 import type {
     AgentChatComposerInput,
     AgentChatComposerKeyEvent,
-} from '../agent-chat-composer-view';
-import type { AgentChatPromptHistoryEntry } from '../agent-chat-prompt-history';
+} from '../composer/agent-chat-composer-view';
+import type { AgentChatPromptHistoryEntry } from '../composer-input/agent-chat-prompt-history';
 import {
     agentChatPromptHistory,
     agentChatPromptPreview,
     shouldOpenAgentChatPromptHistory,
     stepAgentChatPromptHistory,
-} from '../agent-chat-prompt-history';
+} from '../composer-input/agent-chat-prompt-history';
 
 /**
  * The composer's prompt history list (see `agent-chat-prompt-history`). The rows are read once when the list opens, so

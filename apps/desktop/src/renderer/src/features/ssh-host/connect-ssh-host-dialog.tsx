@@ -40,7 +40,7 @@ export function ConnectSshHostDialog() {
 function ConnectSshHostBody() {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
-    const hostsQuery = useCaxriQuery('remote.hosts.list', {}, { staleTime: 0 });
+    const hostsQuery = useCaxriQuery('sshHost.hosts.list', {}, { staleTime: 0 });
     const rows = buildSshHostPickerRows({
         hosts: hostsQuery.data?.hosts ?? NO_HOSTS,
         query,

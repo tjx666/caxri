@@ -1,7 +1,7 @@
 import type {
-    RemoteConnectionPhase,
-    RemoteFailureReason,
     SshEnvironmentState,
+    SshHostConnectionPhase,
+    SshHostFailureReason,
     TranslationParameters,
 } from '@caxri/protocol';
 
@@ -27,7 +27,7 @@ const phaseLabelKeys = {
     disconnected: 'sshHost.phase.disconnected',
     stopped: 'sshHost.phase.stopped',
     failed: 'sshHost.phase.failed',
-} as const satisfies Record<RemoteConnectionPhase, TranslationKey>;
+} as const satisfies Record<SshHostConnectionPhase, TranslationKey>;
 
 const failureExplanationKeys = {
     authentication: 'sshHost.failure.authentication',
@@ -43,12 +43,12 @@ const failureExplanationKeys = {
     cancelled: 'sshHost.failure.cancelled',
     connectionLost: 'sshHost.failure.connectionLost',
     unknown: 'sshHost.failure.unknown',
-} as const satisfies Record<RemoteFailureReason, TranslationKey>;
+} as const satisfies Record<SshHostFailureReason, TranslationKey>;
 
 /**
  * Phases in which a connection attempt is running, so the overlay offers Cancel.
  */
-const CANCELLABLE_PHASES: ReadonlySet<RemoteConnectionPhase> = new Set([
+const CANCELLABLE_PHASES: ReadonlySet<SshHostConnectionPhase> = new Set([
     'connecting',
     'probing',
     'installing',
@@ -60,13 +60,16 @@ const CANCELLABLE_PHASES: ReadonlySet<RemoteConnectionPhase> = new Set([
  * Phases that are still working, which the overlay marks with a spinner. `stopped` is set when Stop Server begins and
  * the window closes once the Server has stopped, so while it shows, the stop is still in progress.
  */
-const BUSY_PHASES: ReadonlySet<RemoteConnectionPhase> = new Set([...CANCELLABLE_PHASES, 'stopped']);
+const BUSY_PHASES: ReadonlySet<SshHostConnectionPhase> = new Set([
+    ...CANCELLABLE_PHASES,
+    'stopped',
+]);
 
 /**
  * Failures that reconnecting cannot fix because the SSH Host itself has to change first, so Close Window is the only
  * action left.
  */
-const HOST_REQUIREMENT_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
+const HOST_REQUIREMENT_REASONS: ReadonlySet<SshHostFailureReason> = new Set([
     'unsupportedPlatform',
     'unsupportedGlibc',
     'missingTool',
@@ -119,7 +122,7 @@ export function hostKeyResetCommand(failure: SshFailure | undefined): string | u
     return `ssh-keygen -R '${failure.knownHostsName.replaceAll("'", String.raw`'\''`)}'`;
 }
 
-export function isConnectionBusy(phase: RemoteConnectionPhase): boolean {
+export function isConnectionBusy(phase: SshHostConnectionPhase): boolean {
     return BUSY_PHASES.has(phase);
 }
 
@@ -133,7 +136,7 @@ export function canCancelConnection(state: SshEnvironmentState): boolean {
 /**
  * The phases in which the connection gave up, where focus moves to the overlay's primary action.
  */
-export function isConnectionSettled(phase: RemoteConnectionPhase): boolean {
+export function isConnectionSettled(phase: SshHostConnectionPhase): boolean {
     return phase === 'failed' || phase === 'disconnected';
 }
 

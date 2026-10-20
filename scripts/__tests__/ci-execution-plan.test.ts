@@ -81,6 +81,24 @@ describe('CI execution plan', () => {
         });
     });
 
+    it('routes pull requests touching density-guarded directories to scopes that run the ratchet', () => {
+        const changedFiles = [
+            'apps/desktop/src/main/new-module.ts',
+            'apps/server/src/domains/agent-chat/grok-new.ts',
+        ];
+        // `affected` and `focused-source` are the scopes where run-ci-focused-checks selects the ratchet by path.
+        expect(
+            evaluateCIExecutionPlan({ changedFiles, eventName: 'pull_request' }).checksScope,
+        ).toBe('affected');
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles,
+                eventName: 'pull_request',
+                pullRequestDraft: true,
+            }).checksScope,
+        ).toBe('focused-source');
+    });
+
     it('falls back to the launch smoke spec when no E2E spec is affected', () => {
         expect(
             evaluateCIExecutionPlan({

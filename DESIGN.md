@@ -101,6 +101,7 @@ roles below.
 | `--overlay`                                               | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`       |
 | `--shadow`                                                | elevation shadows: a theme value, read from `widget.shadow` on import           |
 | `--indicator`                                             | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs  |
+| `--state-*`                                               | hover, selected, and focus washes for surfaces that borrow no `--list-*` state  |
 
 Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
 place from theme colors. The status bar uses `--surface` plus a top hairline, never an accent fill.
@@ -119,6 +120,20 @@ rewritten just because it equals another role, and none of these states writes b
 popup fill. Read the decision on
 [issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135) for why each
 key was chosen.
+
+The `--state-*` tokens are the single owner of the translucent hover, selected, and focus washes
+that rows and controls outside the `--list-*` families used to hand-mix with `color-mix`. They are
+derived in `styles/theme.css` from `--elevated`, `--foreground`, `--accent`, and `--selection`
+rather than stored per theme, so built-in and imported themes get matching washes through the roles
+they already set. Each name is one intensity class, not one global value: `--state-hover` (60% of
+`--elevated`: sidebar and Session rows, menu items), `--state-hover-quiet` (45%: large Settings
+blocks), `--state-hover-ink` (10% of `--foreground`: compact chrome buttons), `--state-hover-ink-quiet`
+(6%: dense process rows), `--state-selected-quiet`, `--state-marker`, `--state-drop-target`,
+`--state-focus-ring` (the 3px halo on form controls), and `--state-handle-*` (resize seams). Use the
+closest class from Tailwind (`hover:bg-state-hover`); add a new class here instead of writing a
+`color-mix` recipe in a component. A surface that needs a different strength gets a new named token,
+not an inline percentage. `renderer-theme-contract.test.ts` fails when these recipes reappear
+outside `theme.css`.
 
 The pickers are list rows too: the command palette, the two status-bar pickers, the terminal link
 picker, the Agent actions dialog, and the `Cmd+P` path browser read `--list-*` exactly as the Files
@@ -1571,10 +1586,6 @@ popup itself hold focus until then.
 Acknowledged debt in the current spec. Entries here describe shipped reality, not an endorsement;
 resolving one requires updating the sections above in the same change.
 
-- **State tokens**: there is no `--hover` / `--selected` / `--active` layer, so components
-  hand-roll `color-mix` recipes (status bar, project rows, process explorer, panel divider). Until
-  dedicated state tokens land, reuse the closest existing recipe instead of inventing another
-  formula.
 - **Panel toggle shortcuts**: `Command+[` / `Command+]` collide with editor indent/navigate muscle
   memory. They do fire from Monaco and xterm (all three chrome toggles take the editable-target
   opt-in, which is what makes the focus handoff above necessary), so what remains open is the

@@ -12,14 +12,14 @@ import { useIsLocalOnlyAvailable } from '../../../stores/environment';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
 import { pickAgentChatPaths } from '../agent-chat-commands';
-import type { AgentChatComposerPasteEvent } from '../agent-chat-composer-view';
 import {
     agentChatDroppedImagePlan,
     agentChatImageFiles,
     agentChatImagesUnsupportedMessage,
     agentChatInsertedImagePathMessage,
     agentChatPickedImageFile,
-} from '../agent-chat-images';
+} from '../attachments/agent-chat-images';
+import type { AgentChatComposerPasteEvent } from '../composer/agent-chat-composer-view';
 
 /**
  * Whether a drag carries something the composer takes: files from another application, a Files entry, an Editor tab, or

@@ -14,6 +14,6 @@ export {
     MAX_LINK_PREVIEW_URL_LENGTH,
 } from './link-preview-contract.js';
 export * from './path-browser-contract.js';
-export * from './remote-environment-contract.js';
 export * from './shell-command-contract.js';
+export * from './ssh-host-contract.js';
 export * from './window-state-contract.js';

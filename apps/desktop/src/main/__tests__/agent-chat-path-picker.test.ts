@@ -1,15 +1,32 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import type * as FsPromises from 'node:fs/promises';
+import { mkdir, mkdtemp, open, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from '@caxri/protocol';
+import { execFileAsync } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({
     dialog: { showOpenDialog: vi.fn() },
     shell: { openPath: vi.fn(), showItemInFolder: vi.fn() },
 }));
+/**
+ * Lets one test make `stat` report a small regular file for a path that is really something else, the state a path is
+ * in when it is swapped after the pick. Every other path keeps the real `stat`.
+ */
+const statLie = vi.hoisted(() => ({ path: undefined as string | undefined }));
+vi.mock('node:fs/promises', async (importOriginal) => {
+    const actual = await importOriginal<typeof FsPromises>();
+    return {
+        ...actual,
+        stat: ((path: string, ...rest: []) =>
+            path === statLie.path
+                ? Promise.resolve({ isDirectory: () => false, isFile: () => true, size: 3 })
+                : actual.stat(path, ...rest)) as typeof actual.stat,
+    };
+});
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
 
 import { openAgentChatPathReference, selectAgentChatPaths } from '../agent-chat-path-picker';
@@ -20,6 +37,7 @@ beforeEach(async () => {
     electronMock.dialog.showOpenDialog.mockReset();
     electronMock.shell.openPath.mockReset().mockResolvedValue('');
     electronMock.shell.showItemInFolder.mockReset();
+    statLie.path = undefined;
     fixture.directory = await mkdtemp(join(tmpdir(), 'caxri-chat-path-picker-'));
 });
 
@@ -83,6 +101,42 @@ describe('selectAgentChatPaths', () => {
         expect(picked.map((entry) => [entry.path, entry.image?.mediaType])).toEqual([
             [large, 'image/webp'],
             [image, undefined],
+        ]);
+    });
+
+    it('cites a FIFO named like an image by path without waiting for a writer', async () => {
+        const fifo = join(fixture.directory, 'pipe.png');
+        await execFileAsync('mkfifo', [fifo]);
+        pick(fifo);
+        const result = await Promise.race([
+            selectAgentChatPaths(undefined, { shouldReadImages: true }),
+            new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 3000)),
+        ]);
+        expect(result).toEqual([{ path: fifo }]);
+    });
+
+    it('cites a path swapped for a FIFO after it was checked, instead of blocking on it', async () => {
+        const fifo = join(fixture.directory, 'swapped.png');
+        await execFileAsync('mkfifo', [fifo]);
+        statLie.path = fifo;
+        pick(fifo);
+        const result = await Promise.race([
+            selectAgentChatPaths(undefined, { shouldReadImages: true }),
+            new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 3000)),
+        ]);
+        if (result === 'blocked') {
+            // Release the stuck open so the test process does not keep a thread parked on the FIFO.
+            await (await open(fifo, 'r+')).close();
+        }
+        expect(result).toEqual([{ path: fifo }]);
+    });
+
+    it('cites an image one byte past the budget by path', async () => {
+        const image = join(fixture.directory, 'big.png');
+        await writeFile(image, Buffer.alloc(MAX_AGENT_CHAT_PICKED_IMAGES_BYTES + 1));
+        pick(image);
+        await expect(selectAgentChatPaths(undefined, { shouldReadImages: true })).resolves.toEqual([
+            { path: image },
         ]);
     });
 

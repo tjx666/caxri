@@ -29,7 +29,7 @@ const MANYLINUX_IMAGES: Record<LinuxArchitecture, { image: string; platform: str
 
 /**
  * Highest glibc symbol version any shipped Linux binary may reference. Checked on every build so a toolchain or
- * dependency change cannot silently raise the SSH Host baseline documented in `docs/remote-ssh.md`.
+ * dependency change cannot silently raise the SSH Host baseline documented in `docs/ssh-host.md`.
  */
 export const LINUX_GLIBC_BASELINE = '2.28';
 

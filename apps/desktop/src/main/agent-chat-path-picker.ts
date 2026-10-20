@@ -1,9 +1,10 @@
 import type { Buffer } from 'node:buffer';
-import { access, readFile, realpath, stat } from 'node:fs/promises';
+import { access, realpath, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 
 import type { AgentChatImageMediaType, MethodResult } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from '@caxri/protocol';
+import { readBoundedRegularFile } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { dialog, shell } from 'electron';
 
@@ -23,14 +24,14 @@ const IMAGE_MEDIA_TYPES = new Map<string, AgentChatImageMediaType>([
 
 /**
  * Bytes of `path` when it is an image file that fits in `budget`, or `undefined` to cite it by path. A folder named
- * like an image, a file that vanished, or one past the budget is never read.
+ * like an image, a FIFO, a file that vanished, or one past the budget is never read in full.
  */
 async function readPickedImage(path: string, budget: number): Promise<Buffer | undefined> {
     try {
-        const stats = await stat(path);
-        if (!stats.isFile() || stats.size === 0 || stats.size > budget) return undefined;
-        const bytes = await readFile(path);
-        return bytes.length <= budget ? bytes : undefined;
+        // One non-blocking handle decides regular file, size, and content, so a file replaced or grown after the pick
+        // (or a FIFO swapped in) is neither read unbounded nor waited on; any refusal falls back to a path reference.
+        const bytes = await readBoundedRegularFile(path, budget);
+        return bytes.length > 0 ? bytes : undefined;
     } catch {
         return undefined;
     }

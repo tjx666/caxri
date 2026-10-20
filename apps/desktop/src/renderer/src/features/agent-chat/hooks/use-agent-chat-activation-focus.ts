@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'react';
 import { useDialogStore } from '../../../stores/dialogs';
 import { registerTerminalFocusHandler } from '../../terminal/terminal-pane-handlers';
 import { canClaimTerminalFocus } from '../../terminal/terminal-process-focus';
-import { agentChatDraftEndCaret } from '../agent-chat-composer-caret';
-import type { AgentChatComposerInput } from '../agent-chat-composer-view';
+import { agentChatDraftEndCaret } from '../composer/agent-chat-composer-caret';
+import type { AgentChatComposerInput } from '../composer/agent-chat-composer-view';
 
 /**
  * Focuses the composer for an automatic focus claim (the Chat being shown) with the caret after the draft, so typing

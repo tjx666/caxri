@@ -13,6 +13,7 @@ import {
 } from '../../components/report-table-classes';
 import { Spinner } from '../../components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import { useContainerWidth } from '../../hooks/use-container-width';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
@@ -151,11 +152,13 @@ function PerformanceCells({ result }: { result: ConfigResult }) {
             </td>
             <td className={numericCellClass}>
                 {peakContext ? (
-                    <span title={formatTokens(peakContext.tokens)}>
-                        {peakContext.ratio === undefined
-                            ? formatTokens(peakContext.tokens)
-                            : formatPercent(peakContext.ratio)}
-                    </span>
+                    <Tooltip content={formatTokens(peakContext.tokens)}>
+                        <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
+                            {peakContext.ratio === undefined
+                                ? formatTokens(peakContext.tokens)
+                                : formatPercent(peakContext.ratio)}
+                        </span>
+                    </Tooltip>
                 ) : (
                     <Dash />
                 )}
@@ -236,24 +239,42 @@ export function BenchmarkLeaderboard({
                         )}
                         {isWidest && (
                             <>
-                                <th
-                                    className={cn(numericHeadClass, 'w-20')}
-                                    title={t('benchmark.board.firstTokenHint')}
-                                >
-                                    {t('benchmark.board.firstToken')}
-                                </th>
-                                <th
-                                    className={cn(numericHeadClass, 'w-20')}
-                                    title={t('benchmark.board.cacheHint')}
-                                >
-                                    {t('benchmark.board.cache')}
-                                </th>
-                                <th
-                                    className={cn(numericHeadClass, 'w-20')}
-                                    title={t('benchmark.board.contextHint')}
-                                >
-                                    {t('benchmark.board.context')}
-                                </th>
+                                <Tooltip content={t('benchmark.board.firstTokenHint')}>
+                                    <th
+                                        className={cn(
+                                            numericHeadClass,
+                                            'w-20',
+                                            FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                                        )}
+                                        tabIndex={0}
+                                    >
+                                        {t('benchmark.board.firstToken')}
+                                    </th>
+                                </Tooltip>
+                                <Tooltip content={t('benchmark.board.cacheHint')}>
+                                    <th
+                                        className={cn(
+                                            numericHeadClass,
+                                            'w-20',
+                                            FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                                        )}
+                                        tabIndex={0}
+                                    >
+                                        {t('benchmark.board.cache')}
+                                    </th>
+                                </Tooltip>
+                                <Tooltip content={t('benchmark.board.contextHint')}>
+                                    <th
+                                        className={cn(
+                                            numericHeadClass,
+                                            'w-20',
+                                            FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                                        )}
+                                        tabIndex={0}
+                                    >
+                                        {t('benchmark.board.context')}
+                                    </th>
+                                </Tooltip>
                             </>
                         )}
                         <th className={cn(tableHeadClass, 'pl-3', isWide ? 'w-40' : 'w-28')}>
@@ -311,9 +332,17 @@ export function BenchmarkLeaderboard({
                                                 identity={result.entry.provider}
                                                 size={14}
                                             />
-                                            <span className="truncate" title={result.entry.model}>
-                                                {name}
-                                            </span>
+                                            <Tooltip content={result.entry.model}>
+                                                <span
+                                                    className={cn(
+                                                        'truncate',
+                                                        FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                                                    )}
+                                                    tabIndex={0}
+                                                >
+                                                    {name}
+                                                </span>
+                                            </Tooltip>
                                             <span className="flex-none text-[10px] tracking-[0.06em] text-muted uppercase">
                                                 {result.entry.effort ??
                                                     t('benchmark.picker.defaultEffort')}
@@ -336,12 +365,19 @@ export function BenchmarkLeaderboard({
                                     <td className={numericCellClass}>
                                         {result.costUsd === undefined ? (
                                             result.completed > 0 ? (
-                                                <span
-                                                    className="text-muted"
-                                                    title={t('benchmark.board.costUnknownHint')}
+                                                <Tooltip
+                                                    content={t('benchmark.board.costUnknownHint')}
                                                 >
-                                                    {t('benchmark.board.costUnknown')}
-                                                </span>
+                                                    <span
+                                                        className={cn(
+                                                            'text-muted',
+                                                            FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                                                        )}
+                                                        tabIndex={0}
+                                                    >
+                                                        {t('benchmark.board.costUnknown')}
+                                                    </span>
+                                                </Tooltip>
                                             ) : (
                                                 <Dash />
                                             )
@@ -355,13 +391,24 @@ export function BenchmarkLeaderboard({
                                                 {result.totalTokens === undefined ? (
                                                     <Dash />
                                                 ) : (
-                                                    <span title={t('benchmark.board.tokensHint')}>
-                                                        {formatTokens(result.totalTokens)}
-                                                        <span className="text-muted">
-                                                            {' / '}
-                                                            {formatTokens(result.outputTokens ?? 0)}
+                                                    <Tooltip
+                                                        content={t('benchmark.board.tokensHint')}
+                                                    >
+                                                        <span
+                                                            className={
+                                                                FOCUSABLE_TOOLTIP_TRIGGER_CLASS
+                                                            }
+                                                            tabIndex={0}
+                                                        >
+                                                            {formatTokens(result.totalTokens)}
+                                                            <span className="text-muted">
+                                                                {' / '}
+                                                                {formatTokens(
+                                                                    result.outputTokens ?? 0,
+                                                                )}
+                                                            </span>
                                                         </span>
-                                                    </span>
+                                                    </Tooltip>
                                                 )}
                                             </td>
                                             <td className={numericCellClass}>

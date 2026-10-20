@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 
 import { sessionRenameTitleSchema } from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 
-import { readBoundedRegularFileText } from '../../../bounded-file-reader';
 import type { AgentEnvironment, AgentSnapshotContext, LocalAgentState } from '../../contract';
 import { canonicalPath, isOpaqueAgentSessionId } from '../../contract';
 import { grokProjectRoot } from './paths';

@@ -3,9 +3,9 @@ import { EventEmitter } from 'node:events';
 import type { BrowserWindow, Menu, MenuItem } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createRemoteWindowMenu } from '../local-workbench-environment';
+import { createSshHostWindowMenu } from '../local-workbench-environment';
 import { buildAppMenuTemplate } from '../menu';
-import type { RemoteEnvironments } from '../remote-environments';
+import type { SshHostEnvironments } from '../ssh/host-environments';
 
 vi.mock('electron', () => ({}));
 
@@ -46,8 +46,8 @@ function harness() {
     const environments = {
         forWindow: (window: BrowserWindow | undefined) =>
             window === sshWindow ? { sendEvent: vi.fn() } : undefined,
-    } as unknown as RemoteEnvironments;
-    const remoteWindowMenu = createRemoteWindowMenu(() => environments, {
+    } as unknown as SshHostEnvironments;
+    const sshHostWindowMenu = createSshHostWindowMenu(() => environments, {
         app: app as never,
         applicationMenu: () => installed,
         focusedWindow: () => focused,
@@ -64,15 +64,15 @@ function harness() {
         },
         localWindow,
         menu,
-        remoteWindowMenu,
+        sshHostWindowMenu,
         sshWindow,
     };
 }
 
 describe('remote window menu', () => {
     it('disables local-machine-only items while an SSH Host window is focused and restores them for a local window', () => {
-        const { enabled, focus, localWindow, menu, remoteWindowMenu, sshWindow } = harness();
-        remoteWindowMenu.setApplicationMenu(menu);
+        const { enabled, focus, localWindow, menu, sshHostWindowMenu, sshWindow } = harness();
+        sshHostWindowMenu.setApplicationMenu(menu);
 
         expect(enabled('diagnostics.export')).toBe(true);
         focus(sshWindow);
@@ -81,7 +81,7 @@ describe('remote window menu', () => {
         // Open File by Path browses the SSH Host's Project through the remote Server, so it stays enabled.
         expect(enabled('pathBrowser.open')).toBe(true);
         expect(enabled('commandPalette.open')).toBe(true);
-        expect(enabled('remote.connect')).toBe(true);
+        expect(enabled('sshHost.connect')).toBe(true);
 
         focus(localWindow);
         expect(enabled('diagnostics.export')).toBe(true);
@@ -89,8 +89,8 @@ describe('remote window menu', () => {
     });
 
     it('re-enables the items when the SSH Host window loses focus without another window taking it', () => {
-        const { app, enabled, focus, menu, remoteWindowMenu, sshWindow } = harness();
-        remoteWindowMenu.setApplicationMenu(menu);
+        const { app, enabled, focus, menu, sshHostWindowMenu, sshWindow } = harness();
+        sshHostWindowMenu.setApplicationMenu(menu);
         focus(sshWindow);
 
         app.emit('browser-window-blur', {}, sshWindow);
@@ -99,10 +99,10 @@ describe('remote window menu', () => {
     });
 
     it('applies the focused SSH Host window to a menu rebuilt while it is focused', () => {
-        const { enabled, focus, menu, remoteWindowMenu, sshWindow } = harness();
+        const { enabled, focus, menu, sshHostWindowMenu, sshWindow } = harness();
         focus(sshWindow);
 
-        remoteWindowMenu.setApplicationMenu(menu);
+        sshHostWindowMenu.setApplicationMenu(menu);
 
         expect(enabled('developer.reportBug')).toBe(false);
         expect(enabled('commandPalette.open')).toBe(true);

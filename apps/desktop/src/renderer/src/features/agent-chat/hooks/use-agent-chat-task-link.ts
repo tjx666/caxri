@@ -3,9 +3,9 @@ import { createContext, useContext, useMemo } from 'react';
 import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
 import { agentChatTasksByItem } from '@caxri/protocol';
 
-import { openAgentChatTaskTab, openAgentChatTurnReview } from '../agent-chat-task-opener';
-import type { AgentChatTaskLink } from '../agent-chat-tasks';
-import { agentChatTaskLinkForItem } from '../agent-chat-tasks';
+import { openAgentChatTaskTab, openAgentChatTurnReview } from '../tasks/agent-chat-task-opener';
+import type { AgentChatTaskLink } from '../tasks/agent-chat-tasks';
+import { agentChatTaskLinkForItem } from '../tasks/agent-chat-tasks';
 
 /**
  * What a Chat's timeline knows about its tasks: the tasks keyed by the item that started each and, where the host can

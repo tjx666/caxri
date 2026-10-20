@@ -29,19 +29,19 @@ const axisClassName = {
     horizontal:
         'h-1.5 min-h-1.5 cursor-row-resize ' +
         'after:inset-x-0 after:top-1/2 after:h-px after:-translate-y-1/2 ' +
-        'hover:after:h-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
-        'data-[dragging=true]:after:h-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+        'hover:after:h-[3px] hover:after:bg-state-handle-hover ' +
+        'data-[dragging=true]:after:h-[3px] data-[dragging=true]:after:bg-state-handle-hover ' +
         'focus-visible:outline-none focus-visible:after:h-[3px] ' +
-        'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] ' +
-        'focus-visible:after:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_25%,transparent)]',
+        'focus-visible:after:bg-state-handle-focus ' +
+        'focus-visible:after:shadow-[0_0_0_2px_var(--state-handle-halo)]',
     vertical:
         'w-1.5 min-w-1.5 cursor-col-resize ' +
         'after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 ' +
-        'hover:after:w-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
-        'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+        'hover:after:w-[3px] hover:after:bg-state-handle-hover ' +
+        'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-state-handle-hover ' +
         'focus-visible:outline-none focus-visible:after:w-[3px] ' +
-        'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] ' +
-        'focus-visible:after:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_25%,transparent)]',
+        'focus-visible:after:bg-state-handle-focus ' +
+        'focus-visible:after:shadow-[0_0_0_2px_var(--state-handle-halo)]',
 } as const;
 
 interface PanelDividerProperties {

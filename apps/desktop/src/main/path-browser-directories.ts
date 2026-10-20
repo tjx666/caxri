@@ -77,7 +77,7 @@ function withOutsideProjectReason(error: unknown): unknown {
  * Project root on the SSH Host. Revalidation is left to Server Core too: every `files.browse` it answers authorizes its
  * directory again, so a second round trip per keystroke would add latency without adding a check.
  */
-export function remotePathBrowserDirectories(
+export function sshHostPathBrowserDirectories(
     getServer: () => DesktopServerConnection,
 ): PathBrowserDirectories {
     async function authorizeOpen(sessionId: string, path: string) {

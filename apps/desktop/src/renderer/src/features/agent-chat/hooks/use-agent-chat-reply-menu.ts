@@ -5,8 +5,8 @@ import {
     agentChatSelectionInside,
     copyAgentChatMessageFromMenu,
     quoteAgentChatMessageFromMenu,
-} from '../agent-chat-message-menu-actions';
-import { agentChatReplyMenu } from '../agent-chat-user-message-menu';
+} from '../messages/agent-chat-message-menu-actions';
+import { agentChatReplyMenu } from '../messages/agent-chat-user-message-menu';
 import { useAgentChatTerminal } from './use-agent-chat-terminal';
 
 /**

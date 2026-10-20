@@ -28,7 +28,7 @@ description: Prepare Caxri releases and optional local unsigned macOS artifacts.
 
    Packaging also builds the Linux SSH Host layers (`build:remote-layers`), whose native addons
    compile in Docker. Without Docker, export them first and set `CAXRI_LINUX_NATIVES_DIR`; see
-   [Remote SSH](../../../docs/remote-ssh.md#building-the-remote-layers).
+   [SSH Host](../../../docs/ssh-host.md#building-the-remote-layers).
 5. When acceptance requires packaged-runtime proof but no local artifact was requested, add or
    verify the smallest packaged CI probe, run the relevant build and unpackaged local coverage, and
    report packaged validation as pending remote CI. Do not create a package solely to satisfy a

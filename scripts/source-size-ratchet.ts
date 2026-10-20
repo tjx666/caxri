@@ -240,7 +240,18 @@ export async function collectRatchetCandidates(
 ): Promise<RatchetCandidate[]> {
     const pathspecs = RATCHET_SOURCE_ROOTS;
     const [diffOutput, untrackedOutput] = await Promise.all([
-        runGit(root, ['diff', '--find-renames', '--name-status', '-z', base, '--', ...pathspecs]),
+        // `-B` breaks a rewritten file apart so its old body can pair with the new module it moved to. Without it, an
+        // `index.ts` thinned to a barrel stays a modification and the moved implementation reads as brand-new growth.
+        runGit(root, [
+            'diff',
+            '--find-renames',
+            '-B',
+            '--name-status',
+            '-z',
+            base,
+            '--',
+            ...pathspecs,
+        ]),
         runGit(root, ['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspecs]),
     ]);
 

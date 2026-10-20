@@ -6,35 +6,35 @@ import { app, BrowserWindow, Menu } from 'electron';
 import type { MainEnvironmentMethods } from './main-environment-methods';
 import { unconfiguredEnvironment } from './main-environment-methods';
 import { syncLocalMachineMenuItems } from './menu';
-import type { RemoteEnvironments } from './remote-environments';
+import type { SshHostEnvironments } from './ssh/host-environments';
 
 /**
- * The local Workbench's `environment.*` and `remote.*` methods. It is always the local environment; it reaches the SSH
+ * The local Workbench's `environment.*` and `sshHost.*` methods. It is always the local environment; it reaches the SSH
  * Host registry only to open a new SSH Host window or list hosts for the connect dialog. The registry is created once
  * Main's logger and local connection options exist, so `connect` fails as still starting until then.
  */
 export function createLocalWorkbenchEnvironment(
-    remoteEnvironments: () => RemoteEnvironments | undefined,
+    sshHostEnvironments: () => SshHostEnvironments | undefined,
 ): MainEnvironmentMethods {
     return {
         ...unconfiguredEnvironment,
         connect: async (destination) => {
-            const environments = remoteEnvironments();
+            const environments = sshHostEnvironments();
             if (!environments) throw new CaxriError('UNAVAILABLE', 'Caxri is still starting');
             await environments.connect(destination);
         },
         listHosts: () =>
-            remoteEnvironments()?.methodsFor(undefined).listHosts() ??
+            sshHostEnvironments()?.methodsFor(undefined).listHosts() ??
             Promise.resolve({ hosts: [], recent: [] }),
         revealSshConfig: async () => {
-            const environments = remoteEnvironments();
+            const environments = sshHostEnvironments();
             if (!environments) throw new CaxriError('UNAVAILABLE', 'Caxri is still starting');
             await environments.methodsFor(undefined).revealSshConfig();
         },
     };
 }
 
-export interface RemoteWindowMenu {
+export interface SshHostWindowMenu {
     /**
      * Routes an application menu command to the focused SSH Host window, which is a full Workbench of its own. Returns
      * `false` when `window` is not an SSH Host window, so the menu falls back to the local Workbench.
@@ -49,14 +49,14 @@ export interface RemoteWindowMenu {
 /**
  * The Electron surfaces the menu bar controller reads; tests substitute fakes.
  */
-export interface RemoteWindowMenuHost {
+export interface SshHostWindowMenuHost {
     app: Pick<App, 'on'>;
     applicationMenu: () => Pick<Menu, 'getMenuItemById'> | null;
     focusedWindow: () => BrowserWindow | null;
     setApplicationMenu: (menu: Menu) => void;
 }
 
-const electronMenuHost: RemoteWindowMenuHost = {
+const electronMenuHost: SshHostWindowMenuHost = {
     get app() {
         return app;
     },
@@ -70,12 +70,12 @@ const electronMenuHost: RemoteWindowMenuHost = {
  * Host window is focused and re-enables them on blur, so a window that closes without another taking focus leaves the
  * menu in its local state.
  */
-export function createRemoteWindowMenu(
-    remoteEnvironments: () => RemoteEnvironments | undefined,
-    electron: RemoteWindowMenuHost = electronMenuHost,
-): RemoteWindowMenu {
+export function createSshHostWindowMenu(
+    sshHostEnvironments: () => SshHostEnvironments | undefined,
+    electron: SshHostWindowMenuHost = electronMenuHost,
+): SshHostWindowMenu {
     const isLocalMachine = (window: BrowserWindow | null): boolean =>
-        !remoteEnvironments()?.forWindow(window ?? undefined);
+        !sshHostEnvironments()?.forWindow(window ?? undefined);
     electron.app.on('browser-window-focus', (_event, window) =>
         syncLocalMachineMenuItems(electron.applicationMenu(), isLocalMachine(window)),
     );
@@ -84,7 +84,7 @@ export function createRemoteWindowMenu(
     );
     return {
         dispatch: (window, command, isViaAccelerator) => {
-            const environment = remoteEnvironments()?.forWindow(window as BrowserWindow);
+            const environment = sshHostEnvironments()?.forWindow(window as BrowserWindow);
             if (!environment) return false;
             environment.sendEvent({
                 event: 'command.execute',

@@ -1,5 +1,5 @@
 import { getSelectedSession } from '../../stores/selectors';
-import { openAgentChatTaskTab } from '../agent-chat/agent-chat-task-opener';
+import { openAgentChatTaskTab } from '../agent-chat/tasks/agent-chat-task-opener';
 import { didSelectSession } from '../session/session-commands';
 
 /**

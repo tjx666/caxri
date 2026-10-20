@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { GitFileStatusLetter } from '../../../components/git-file-status-letter';
 import { Input } from '../../../components/ui/input';
+import { Tooltip } from '../../../components/ui/tooltip';
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { useTranslation } from '../../../i18n';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
@@ -79,7 +80,7 @@ function discard(promise: Promise<unknown>): void {
  * top of the focus fill; a theme may set the two focus colors flat, and the ring is what still says "you are here".
  */
 const treeRowClassName =
-    'tree-row relative flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer outline-none hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] aria-disabled:text-muted aria-disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-list-inactive-selection-background data-[selected=true]:text-list-inactive-selection-foreground data-[selected=true]:focus-visible:bg-list-active-selection-background data-[selected=true]:focus-visible:text-list-active-selection-foreground data-[cut=true]:opacity-50 data-[drop-target=true]:bg-[color-mix(in_srgb,var(--accent)_18%,var(--elevated))]';
+    'tree-row relative flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer outline-none hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] aria-disabled:text-muted aria-disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-list-inactive-selection-background data-[selected=true]:text-list-inactive-selection-foreground data-[selected=true]:focus-visible:bg-list-active-selection-background data-[selected=true]:focus-visible:text-list-active-selection-foreground data-[cut=true]:opacity-50 data-[drop-target=true]:bg-state-drop-target';
 
 function InlineFileName({
     depth = 0,
@@ -421,7 +422,6 @@ export function FileTreeItem({
             data-selected={selected}
             draggable={!dragBlocked}
             style={fileTreeRowStyle({ depth, isDirectory })}
-            title={fileTreeRowTooltip(entry, childRepo, t)}
             onClick={(event) =>
                 discard(
                     activateEntry({
@@ -498,5 +498,14 @@ export function FileTreeItem({
         </button>
     );
 
-    return row;
+    /**
+     * `hoverOnly` for the same reason as a Source Control row: the tree moves focus between rows programmatically
+     * through its roving `tabIndex`, so a focus-opened tooltip would pop up on every arrow-key step. Keyboard users
+     * already read a row's depth from `aria-level` and the symlink/Git qualifiers from `aria-describedby`.
+     */
+    return (
+        <Tooltip anchorMode="cursor" content={fileTreeRowTooltip(entry, childRepo, t)} hoverOnly>
+            {row}
+        </Tooltip>
+    );
 }

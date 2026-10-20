@@ -5,8 +5,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { CaxriError, isCaxriError } from '@caxri/protocol';
-
-import { readBoundedRegularFile } from '../domains/bounded-file-reader';
+import { readBoundedRegularFile } from '@caxri/system';
 
 export interface PrivateJsonMessages {
     malformed: string;

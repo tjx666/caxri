@@ -56,8 +56,8 @@ import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
 import { linkFaviconDesktopMethods } from '../desktop/link-favicon-contract.js';
 import { linkPreviewDesktopMethods } from '../desktop/link-preview-contract.js';
 import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js';
-import { remoteEnvironmentDesktopMethods } from '../desktop/remote-environment-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
+import { sshHostDesktopMethods } from '../desktop/ssh-host-contract.js';
 import {
     windowDesktopMethods,
     windowStateInternalMethods,
@@ -262,7 +262,7 @@ export const methods = {
     ...argvDesktopMethods,
     ...gpuDesktopMethods,
     ...shellCommandDesktopMethods,
-    ...remoteEnvironmentDesktopMethods,
+    ...sshHostDesktopMethods,
     ...contextMenuDesktopMethods,
     ...externalDocumentDesktopMethods,
     ...editorPromptDesktopMethods,

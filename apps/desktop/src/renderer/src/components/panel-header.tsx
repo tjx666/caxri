@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 
 import { cn } from '../lib/utilities';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from './ui/tooltip';
 
 interface PanelHeaderProperties {
     /**
@@ -16,6 +17,9 @@ interface PanelHeaderProperties {
     titleAttribute?: string;
     title: ReactNode;
 }
+
+const titleClassName =
+    'panel-caption-title min-w-0 flex-1 truncate text-[11px] font-bold tracking-[0.04em] text-foreground uppercase';
 
 /**
  * The one caption row every SecondarySidebar panel wears.
@@ -45,12 +49,18 @@ export function PanelHeader({
                 className,
             )}
         >
-            <h3
-                className="panel-caption-title min-w-0 flex-1 truncate text-[11px] font-bold tracking-[0.04em] text-foreground uppercase"
-                title={titleAttribute}
-            >
-                {title}
-            </h3>
+            {titleAttribute === undefined ? (
+                <h3 className={titleClassName}>{title}</h3>
+            ) : (
+                <Tooltip content={titleAttribute}>
+                    <h3
+                        className={cn(titleClassName, FOCUSABLE_TOOLTIP_TRIGGER_CLASS)}
+                        tabIndex={0}
+                    >
+                        {title}
+                    </h3>
+                </Tooltip>
+            )}
             {actions !== undefined && (
                 <span className="panel-caption-actions flex flex-none items-center gap-0.5">
                     {actions}

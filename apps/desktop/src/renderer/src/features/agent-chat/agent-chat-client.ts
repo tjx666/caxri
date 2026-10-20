@@ -3,20 +3,20 @@ import type {
     AgentChatSnapshot,
     AgentChatTaskPatch,
     AgentChatTaskSnapshot,
+    RevisionConvergence,
+    RevisionDecision,
 } from '@caxri/protocol';
-import { applyAgentChatPatch, applyAgentChatTaskPatch } from '@caxri/protocol';
+import {
+    applyAgentChatPatch,
+    applyAgentChatTaskPatch,
+    createRevisionConvergence,
+} from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
 import { subscribeAgentChatCacheRetention } from './agent-chat-cache-retention';
-import { subscribeAgentChatHistoryRetention } from './agent-chat-history-client';
-
-/**
- * Patches held per Chat or task while its read is in flight. Past this many the read is simply repeated, which costs
- * one round trip instead of an unbounded queue.
- */
-const MAX_BUFFERED_PATCHES = 200;
+import { subscribeAgentChatHistoryRetention } from './transcript/agent-chat-history-client';
 
 function agentChatQueryKey(terminalId: string) {
     return caxriQueryKey('agentChat.read', { terminalId });
@@ -87,35 +87,25 @@ function invalidate(queryClient: QueryClient, queryKey: readonly unknown[]): voi
 }
 
 /**
- * Folds one patch into the cached snapshot. Returns `false` when it does not continue the cached revision chain, in
- * which case the read is repeated instead of rendering a projection that silently diverged from Server Core.
+ * Carries out a core decision on the cache: the React Query adapter owns the snapshot container and invalidation, the
+ * shared revision convergence core owns every decision about the chain.
  */
-function didApplyToCache<
-    TPatch extends { revision: number },
-    TSnapshot extends { revision: number },
->(queryClient: QueryClient, channel: RevisionChannel<TPatch, TSnapshot>, patch: TPatch): boolean {
-    const queryKey = channel.queryKey(patch);
-    const snapshot = queryClient.getQueryData<TSnapshot>(queryKey);
-    // The cached read already includes this patch: Server Core captured it after the patch was emitted.
-    if (snapshot && patch.revision <= snapshot.revision) return true;
-    const next = snapshot && channel.apply(snapshot, patch);
-    if (!next) {
-        invalidate(queryClient, queryKey);
-        return false;
-    }
-    queryClient.setQueryData(queryKey, next);
-    return true;
+function runDecision<TSnapshot extends { revision: number }>(
+    queryClient: QueryClient,
+    queryKey: readonly unknown[],
+    decision: RevisionDecision<TSnapshot>,
+): void {
+    if (decision.publish) queryClient.setQueryData(queryKey, decision.publish);
+    if (decision.reread) invalidate(queryClient, queryKey);
 }
 
 /**
  * Keeps cached snapshots of one channel current from its transient patch events. The snapshot is only ever written here
- * and by the read itself, so the cache and the live stream share one revision chain.
+ * and by the read itself, so the cache and the live stream share one revision chain. The hold, replay, gap, and
+ * overflow policy is `createRevisionConvergence` (shared with Mobile); this adapter maps it onto React Query: a query's
+ * `fetchStatus` says whether a read is in flight, and its cache events say when the read settled or was dropped.
  *
- * A patch that arrives while a read is in flight is held, not dropped: Server Core may have captured the read just
- * before emitting it, and if that patch is the turn's last, nothing later would ever reveal the gap. Once the read
- * settles, held patches newer than its revision are replayed, and any break in the chain repeats the read.
- *
- * A projection nobody has open has no cached snapshot and is skipped without a read: patches for an unmounted Chat or a
+ * A projection nobody has open has no cached query and is skipped without a read: patches for an unmounted Chat or a
  * closed task tab must not wake its provider process.
  */
 function createRevisionPatchCache<
@@ -126,39 +116,50 @@ function createRevisionPatchCache<
     channel: RevisionChannel<TPatch, TSnapshot>,
 ): {
     apply: (patch: TPatch) => void;
+    /**
+     * The connection may have dropped patches: forget held ones. The caller invalidates the reads.
+     */
+    resync: () => void;
     dispose: () => void;
 } {
-    const held = new Map<string, { patches: TPatch[]; queryKey: readonly unknown[] }>();
     /**
-     * Projections whose held patches overflowed; the read is repeated once the in-flight one settles.
+     * One core per projection with held patches; released as soon as it holds nothing.
      */
-    const overflowed = new Map<string, readonly unknown[]>();
-    const replay = (key: string, hasRead: boolean): void => {
-        const patches = held.get(key)?.patches ?? [];
-        const overflowKey = overflowed.get(key);
-        held.delete(key);
-        overflowed.delete(key);
-        // A failed read has nothing to replay onto; its own retry or the next read starts a fresh chain.
-        if (!hasRead) return;
-        if (overflowKey) {
-            invalidate(queryClient, overflowKey);
-            return;
+    const cores = new Map<string, RevisionConvergence<TPatch, TSnapshot>>();
+    const coreFor = (key: string): RevisionConvergence<TPatch, TSnapshot> => {
+        let core = cores.get(key);
+        if (!core) {
+            core = createRevisionConvergence<TPatch, TSnapshot>({ apply: channel.apply });
+            cores.set(key, core);
         }
-        for (const patch of patches) if (!didApplyToCache(queryClient, channel, patch)) return;
+        return core;
+    };
+    const release = (key: string): void => {
+        const core = cores.get(key);
+        if (core && !core.hasHeld()) cores.delete(key);
     };
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-        const [method, parameters] = event.query.queryKey as readonly unknown[];
+        const queryKey = event.query.queryKey as readonly unknown[];
+        const [method, parameters] = queryKey;
         if (!isQueryMethod([method], channel.method)) return;
         const key = channel.keyOfParameters(parameters);
+        const core = cores.get(key);
+        if (!core) return;
         // A read dropped while in flight (cache retention evicting it) settles nothing, so its held patches go with it.
         if (event.type === 'removed') {
-            held.delete(key);
-            overflowed.delete(key);
+            core.abandonRead();
+            cores.delete(key);
             return;
         }
         if (event.type !== 'updated' || event.query.state.fetchStatus !== 'idle') return;
-        if (held.has(key) || overflowed.has(key))
-            replay(key, event.query.state.status === 'success');
+        if (event.query.state.status === 'success') {
+            runDecision(
+                queryClient,
+                queryKey,
+                core.settleRead(queryClient.getQueryData<TSnapshot>(queryKey)),
+            );
+        } else core.abandonRead();
+        release(key);
     });
     return {
         apply: (patch) => {
@@ -166,24 +167,26 @@ function createRevisionPatchCache<
             const queryKey = channel.queryKey(patch);
             const state = queryClient.getQueryState(queryKey);
             if (!state) return;
-            if (state.fetchStatus !== 'fetching') {
-                didApplyToCache(queryClient, channel, patch);
-                return;
-            }
-            if (overflowed.has(key)) return;
-            const entry = held.get(key) ?? { patches: [], queryKey };
-            if (entry.patches.length >= MAX_BUFFERED_PATCHES) {
-                held.delete(key);
-                overflowed.set(key, queryKey);
-                return;
-            }
-            entry.patches.push(patch);
-            held.set(key, entry);
+            const core = coreFor(key);
+            runDecision(
+                queryClient,
+                queryKey,
+                core.receivePatch(
+                    queryClient.getQueryData<TSnapshot>(queryKey),
+                    patch,
+                    state.fetchStatus === 'fetching',
+                ),
+            );
+            release(key);
+        },
+        resync: () => {
+            for (const core of cores.values()) core.reset();
+            cores.clear();
         },
         dispose: () => {
             unsubscribe();
-            held.clear();
-            overflowed.clear();
+            // Cores hold only patches, no timers or subscriptions: dropping them is the whole teardown.
+            cores.clear();
         },
     };
 }
@@ -235,6 +238,8 @@ export function subscribeAgentChatPatches(queryClient: QueryClient): () => void 
                 break;
             }
             case 'host.connectionChanged': {
+                cache.resync();
+                taskCache.resync();
                 invalidateAgentChatQueries(queryClient);
                 break;
             }

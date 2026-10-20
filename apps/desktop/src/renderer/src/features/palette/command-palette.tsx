@@ -17,7 +17,7 @@ import { commandCategory, commandDescription, commandTitle } from '../../lib/com
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
-import { useIsLocalOnlyAvailable, useIsRemote } from '../../stores/environment';
+import { useIsLocalOnlyAvailable, useIsSshHost } from '../../stores/environment';
 import { useIsSessionTabStripVisible } from '../../stores/open-sessions';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
@@ -166,7 +166,7 @@ function CommandPaletteBody() {
         activeTerminalRestartsAgent: canRestartResumeAgent(activeTerminal),
     };
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
-    const isRemote = useIsRemote();
+    const isSshHost = useIsSshHost();
     /**
      * Read fresh on each open, as the Session row menu does: the Commander takes and returns Sessions without a
      * Workbench record change. The cache entry is the one the Session row markers share.
@@ -185,7 +185,7 @@ function CommandPaletteBody() {
         }),
         localMachine: isLocalOnlyAvailable,
         openSessionStrip: isSessionTabStripVisible,
-        sshHost: isRemote,
+        sshHost: isSshHost,
         sessionHasLiveAgent:
             selectedSession !== undefined && hasLiveAgentTerminal(selectedSession.id, terminals),
         sessionHasDetachedAgent:

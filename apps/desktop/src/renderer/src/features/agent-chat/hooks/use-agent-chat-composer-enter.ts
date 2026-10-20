@@ -1,14 +1,17 @@
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { sendAgentChatQueuedNow } from '../agent-chat-commands';
-import { agentChatComposerKeyAction, isAgentChatPlainPasteKey } from '../agent-chat-composer-keys';
+import {
+    agentChatComposerKeyAction,
+    isAgentChatPlainPasteKey,
+} from '../composer/agent-chat-composer-keys';
 import {
     agentChatListContinuation,
     isAgentChatListContinuationKey,
-} from '../agent-chat-composer-list';
-import type { AgentChatComposerKeyEvent } from '../agent-chat-composer-view';
-import type { agentChatSendTooltip } from '../agent-chat-presentation';
-import { agentChatSendRefusal } from '../agent-chat-presentation';
+} from '../composer/agent-chat-composer-list';
+import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
+import type { agentChatSendTooltip } from '../transcript/agent-chat-presentation';
+import { agentChatSendRefusal } from '../transcript/agent-chat-presentation';
 import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
 
 /**

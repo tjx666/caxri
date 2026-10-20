@@ -1,0 +1,91 @@
+import { useState } from 'react';
+
+import { Package, SquareSlash } from 'lucide-react';
+
+import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
+import { Spinner } from '../../../components/ui/spinner';
+import { useTranslation } from '../../../i18n';
+import { useCaxriQuery } from '../../../queries/client';
+import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
+import { AgentChatMessage } from '../messages/agent-chat-message';
+
+/**
+ * `align-top` instead of `align-baseline`: an inline flex box takes its baseline from its first item, here the icon,
+ * whose bottom edge would then sit on the text baseline and lift the chip above the words and links beside it. The chip
+ * is one line tall (`leading-5`, as the bubble), so aligning it to the line's top lines its text up with theirs.
+ */
+const CHIP_CLASS_NAME =
+    'inline-flex max-w-full items-center gap-1 rounded-md bg-accent/15 px-1.5 align-top font-medium text-accent';
+
+/**
+ * The skill or command a sent message starts with, set apart from what the user asked of it. Clicking it opens the
+ * skill's rendered instructions in a popover, so the transcript shows what the Agent was told to follow. The file is
+ * read only while the popover is open.
+ */
+export function AgentChatInvocationChip({ invocation }: { invocation: string }) {
+    const { t } = useTranslation();
+    const terminalId = useAgentChatTerminal();
+    const [isOpen, setIsOpen] = useState(false);
+    const Icon = invocation.startsWith('$') ? Package : SquareSlash;
+    const label = (
+        <>
+            <Icon aria-hidden className="size-3.5 shrink-0" />
+            <span className="truncate">{invocation.slice(1)}</span>
+        </>
+    );
+    if (!terminalId) return <span className={CHIP_CLASS_NAME}>{label}</span>;
+    return (
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger
+                aria-label={t('agentChat.slash.showInvocation', { invocation })}
+                className={`${CHIP_CLASS_NAME} cursor-pointer border-0 text-[13px] leading-5 transition-colors hover:bg-accent/25 focus-visible:outline focus-visible:outline-accent data-popup-open:bg-accent/25`}
+            >
+                {label}
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[28rem]" side="bottom">
+                {isOpen && (
+                    <AgentChatInvocationDetails invocation={invocation} terminalId={terminalId} />
+                )}
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+/**
+ * A skill or command's description and rendered instructions, read from its file while mounted. Shared by the chip a
+ * sent message starts with and the skill a reply names in inline code.
+ */
+export function AgentChatInvocationDetails({
+    invocation,
+    terminalId,
+}: {
+    invocation: string;
+    terminalId: string;
+}) {
+    const { t } = useTranslation();
+    const action = useCaxriQuery('agentActions.read', { terminalId, invocation }, { retry: false });
+    return (
+        <div className="flex max-h-[min(28rem,var(--available-height))] flex-col">
+            <div className="flex flex-col gap-0.5 border-b border-border px-3 py-2">
+                <span className="font-mono text-[12px] text-foreground">{invocation}</span>
+                {action.data?.description && (
+                    <span className="text-[12px] leading-4 text-muted">
+                        {action.data.description}
+                    </span>
+                )}
+            </div>
+            <div className="min-h-0 overflow-y-auto px-3 py-2.5">
+                {action.isPending && <Spinner className="size-3.5" />}
+                {/* The raw error names Server Core internals; the user only needs to know the file is not readable. */}
+                {action.error && (
+                    <p className="m-0 text-[12px] text-muted">
+                        {t('agentChat.slash.instructionsUnavailable', { invocation })}
+                    </p>
+                )}
+                {action.data && (
+                    <AgentChatMessage isStreaming={false} text={action.data.markdown} />
+                )}
+            </div>
+        </div>
+    );
+}

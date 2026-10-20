@@ -126,7 +126,7 @@ describe('workbench IPC sender boundary', () => {
      * The Renderer's failure funnel stays silent for a cancellation, which is what a refusal issued while the window is
      * being torn down has to be: an outage code raised a real error notification over a closing window.
      */
-    it('runs a request under the window key of its sender, and a remote window under its own', async () => {
+    it('runs a request under the window key of its sender, and an SSH Host window under its own', async () => {
         const seen: Array<string | undefined> = [];
         const keyed = vi.fn(() => {
             seen.push(currentRequestWindowKey());
@@ -137,18 +137,18 @@ describe('workbench IPC sender boundary', () => {
                 result: null,
             } as const);
         });
-        const remote = {};
+        const sshHost = {};
         installWorkbenchIpc({
             isQuitting: () => false,
             isRecovering: () => false,
             logger: () => ({ write: vi.fn() }) as never,
-            remote: (sender) =>
-                sender === remote
+            sshHost: (sender) =>
+                sender === sshHost
                     ? ({
                           isRecovering: () => false,
                           onEventsReady: vi.fn(),
                           transport: { dispatch: keyed, negotiate },
-                          windowKey: 'remote-key',
+                          windowKey: 'ssh-host-key',
                           window: () => {},
                       } as never)
                     : undefined,
@@ -160,9 +160,9 @@ describe('workbench IPC sender boundary', () => {
         const envelope = { protocolVersion: 2, id: 'r1', method: 'app.health', params: {} };
 
         await request({ sender: renderer }, envelope);
-        await request({ sender: remote }, envelope);
+        await request({ sender: sshHost }, envelope);
 
-        expect(seen).toEqual(['main', 'remote-key']);
+        expect(seen).toEqual(['main', 'ssh-host-key']);
     });
 
     it('refuses a request queued after shutdown begins as a cancellation', async () => {

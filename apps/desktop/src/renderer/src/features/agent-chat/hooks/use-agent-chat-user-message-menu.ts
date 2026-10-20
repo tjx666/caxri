@@ -10,8 +10,8 @@ import {
     agentChatSelectionInside,
     copyAgentChatMessageFromMenu,
     quoteAgentChatMessageFromMenu,
-} from '../agent-chat-message-menu-actions';
-import { agentChatUserMessageMenu } from '../agent-chat-user-message-menu';
+} from '../messages/agent-chat-message-menu-actions';
+import { agentChatUserMessageMenu } from '../messages/agent-chat-user-message-menu';
 import { useAgentChatEdit } from './use-agent-chat-edit';
 import { useAgentChatReadBackHistory } from './use-agent-chat-read-back-history';
 import { useAgentChatTerminal } from './use-agent-chat-terminal';

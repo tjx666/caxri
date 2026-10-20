@@ -46,15 +46,15 @@ export function SshHostStatus() {
             <MenuContent side="top">
                 {/* The connection overlay covers this bar until the window is connected, so Reconnect rarely applies. */}
                 {canReconnect(environment) && (
-                    <MenuItem onClick={() => executeCommand('remote.reconnect')}>
+                    <MenuItem onClick={() => executeCommand('sshHost.reconnect')}>
                         {t('sshHost.reconnect')}
                     </MenuItem>
                 )}
-                <MenuItem onClick={() => executeCommand('remote.stopServer')}>
+                <MenuItem onClick={() => executeCommand('sshHost.stopServer')}>
                     {t('sshHost.status.stopServer')}
                 </MenuItem>
-                <MenuItem onClick={() => executeCommand('remote.connect')}>
-                    {t('commands.remote.connect')}
+                <MenuItem onClick={() => executeCommand('sshHost.connect')}>
+                    {t('commands.sshHost.connect')}
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem onClick={() => window.close()}>{t('sshHost.closeWindow')}</MenuItem>

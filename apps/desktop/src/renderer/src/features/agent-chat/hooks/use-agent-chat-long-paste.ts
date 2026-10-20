@@ -10,13 +10,13 @@ import { saveAgentChatLongPaste } from '../agent-chat-commands';
 import type {
     AgentChatComposerInput,
     AgentChatComposerPasteEvent,
-} from '../agent-chat-composer-view';
+} from '../composer/agent-chat-composer-view';
 import {
     agentChatPasteDisposition,
     canAgentChatPasteFitAsText,
     draftWithPlainPaste,
-} from '../agent-chat-long-paste';
-import { rememberAgentChatSavedPaste } from '../agent-chat-long-paste-commands';
+} from '../composer-input/agent-chat-long-paste';
+import { rememberAgentChatSavedPaste } from '../composer-input/agent-chat-long-paste-commands';
 
 /**
  * Where a saved paste's reference goes: the selection the paste replaced, as long as the input still holds `value`.

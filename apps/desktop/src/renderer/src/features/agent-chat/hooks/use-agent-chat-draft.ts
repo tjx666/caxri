@@ -3,13 +3,16 @@ import { useState } from 'react';
 
 import { agentChatDraftWithReturnedMessage, parseAgentChatPathReferences } from '@caxri/protocol';
 
-import type { AgentChatComposerInput } from '../agent-chat-composer-view';
-import type { AgentChatPathAttachment, AgentChatSkillAttachment } from '../agent-chat-drafts';
+import type { AgentChatComposerInput } from '../composer/agent-chat-composer-view';
+import type {
+    AgentChatPathAttachment,
+    AgentChatSkillAttachment,
+} from '../composer-input/agent-chat-drafts';
 import {
     agentChatReferenceAttachments,
     readAgentChatDraft,
     writeAgentChatDraft,
-} from '../agent-chat-drafts';
+} from '../composer-input/agent-chat-drafts';
 import { useAgentChatDraftUpdates } from './use-agent-chat-draft-updates';
 
 /**

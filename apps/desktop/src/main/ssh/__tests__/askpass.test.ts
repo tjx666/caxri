@@ -3,12 +3,12 @@ import { access, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { RemoteAskpassRequest } from '@caxri/protocol';
+import type { SshHostAskpassRequest } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { AskpassHandler } from '../askpass';
 import { AskpassBridge, classifyAskpassPrompt } from '../askpass';
-import { makeShortTemporaryDirectory } from './support/remote-fixtures';
+import { makeShortTemporaryDirectory } from './support/fixtures';
 
 describe('askpass', () => {
     let root: string;
@@ -68,7 +68,7 @@ describe('askpass', () => {
 
     describe('AskpassBridge', () => {
         it('forwards the prompt and prints the answer', async () => {
-            const requests: RemoteAskpassRequest[] = [];
+            const requests: SshHostAskpassRequest[] = [];
             const created = await createBridge((request) => {
                 requests.push(request);
                 return Promise.resolve('s3cret pass');
@@ -89,7 +89,7 @@ describe('askpass', () => {
         });
 
         it('marks a repeated secret prompt as a retry until the next attempt', async () => {
-            const requests: RemoteAskpassRequest[] = [];
+            const requests: SshHostAskpassRequest[] = [];
             const created = await createBridge((request) => {
                 requests.push(request);
                 return Promise.resolve(request.kind === 'confirm' ? 'yes' : 'wrong');
@@ -114,7 +114,7 @@ describe('askpass', () => {
         });
 
         it('refuses the rest of an attempt unseen once the user cancels', async () => {
-            const requests: RemoteAskpassRequest[] = [];
+            const requests: SshHostAskpassRequest[] = [];
             const created = await createBridge((request) => {
                 requests.push(request);
                 return Promise.resolve(requests.length === 1 ? null : 'pass');

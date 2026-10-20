@@ -6,6 +6,7 @@ import { AlertTriangle, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { commandTitle } from '../../lib/command-labels';
@@ -60,12 +61,15 @@ export function KeybindingRowItem({
                 {/* The command id is one Tab lookup a script author needs and every other
                     reader does not, so it stays out of the row's own text (issue
                     caxri#1289: "unbgrouped Keybindings list" also flagged this as
-                    clutter) — the title's native tooltip surfaces it on hover, and the
-                    `sr-only` span keeps it in the accessible name for anyone else. */}
-                <strong className="block truncate text-[12px] text-foreground" title={row.command}>
-                    {title}
-                    <span className="sr-only"> — {row.command}</span>
-                </strong>
+                    clutter). The shared Tooltip surfaces it on hover here and on keyboard
+                    focus of the row's shortcut button below; the `sr-only` span keeps it in
+                    the accessible name for anyone else. */}
+                <Tooltip content={row.command}>
+                    <strong className="block truncate text-[12px] text-foreground">
+                        {title}
+                        <span className="sr-only"> — {row.command}</span>
+                    </strong>
+                </Tooltip>
                 {conflict && (
                     <p
                         id={conflictId}
@@ -93,61 +97,63 @@ export function KeybindingRowItem({
                     </p>
                 )}
             </div>
-            <Button
-                aria-label={t(
-                    row.key
-                        ? 'settings.keybindingEditor.editShortcutFor'
-                        : 'settings.keybindingEditor.addShortcutFor',
-                    { command: title },
-                )}
-                aria-describedby={conflictId}
-                className="min-w-36"
-                data-keybinding-command={row.command}
-                data-keybinding-recording={isRecording || undefined}
-                size="sm"
-                variant={isRecording && recording.pending ? 'default' : 'secondary'}
-                onBlur={() => onRecordingBlur(row)}
-                onClick={() => onStartRecording(row)}
-                onKeyDown={(event) => onRecordingKey(event, row)}
-            >
-                {isRecording ? (
-                    recording.pending ? (
-                        // Deliberately distinct from a committed binding (the bug
-                        // this closes): accent chrome plus an explicit hint, so an
-                        // uncommitted chord can never be mistaken for a saved one.
-                        <span className="flex flex-col items-center gap-0.5">
-                            <ShortcutBadge
-                                shortcut={recording.pending}
-                                keyClassName="border-accent-foreground/40 bg-transparent text-accent-foreground"
-                            />
-                            {/* Capture appends a second chord into a sequence, so
+            <Tooltip content={row.command}>
+                <Button
+                    aria-label={t(
+                        row.key
+                            ? 'settings.keybindingEditor.editShortcutFor'
+                            : 'settings.keybindingEditor.addShortcutFor',
+                        { command: title },
+                    )}
+                    aria-describedby={conflictId}
+                    className="min-w-36"
+                    data-keybinding-command={row.command}
+                    data-keybinding-recording={isRecording || undefined}
+                    size="sm"
+                    variant={isRecording && recording.pending ? 'default' : 'secondary'}
+                    onBlur={() => onRecordingBlur(row)}
+                    onClick={() => onStartRecording(row)}
+                    onKeyDown={(event) => onRecordingKey(event, row)}
+                >
+                    {isRecording ? (
+                        recording.pending ? (
+                            // Deliberately distinct from a committed binding (the bug
+                            // this closes): accent chrome plus an explicit hint, so an
+                            // uncommitted chord can never be mistaken for a saved one.
+                            <span className="flex flex-col items-center gap-0.5">
+                                <ShortcutBadge
+                                    shortcut={recording.pending}
+                                    keyClassName="border-accent-foreground/40 bg-transparent text-accent-foreground"
+                                />
+                                {/* Capture appends a second chord into a sequence, so
                                 clearing needs its own key and its own hint — otherwise a
                                 mistyped first chord looks unrecoverable without leaving
                                 recording. */}
-                            <span className="text-[10px] text-accent-foreground/80">
-                                {t('settings.keybindingEditor.recordingHint')}
+                                <span className="text-[10px] text-accent-foreground/80">
+                                    {t('settings.keybindingEditor.recordingHint')}
+                                </span>
                             </span>
-                        </span>
+                        ) : (
+                            t('settings.keybindingEditor.pressShortcut')
+                        )
+                    ) : row.key ? (
+                        // Borderless: the Button above is already this chip's chrome, so the
+                        // shared `Kbd` chip's own hairline and fill would double the border
+                        // the row draws around a bound shortcut (issue caxri#1289).
+                        // `ShortcutBadge`'s `keyClassName` passes straight through to `Kbd`'s
+                        // own `className`, letting this one call site override the chip
+                        // without editing the shared `Kbd`/`ShortcutBadge` components.
+                        <ShortcutBadge
+                            keyClassName="border-transparent bg-transparent"
+                            shortcut={row.key}
+                        />
                     ) : (
-                        t('settings.keybindingEditor.pressShortcut')
-                    )
-                ) : row.key ? (
-                    // Borderless: the Button above is already this chip's chrome, so the
-                    // shared `Kbd` chip's own hairline and fill would double the border
-                    // the row draws around a bound shortcut (issue caxri#1289).
-                    // `ShortcutBadge`'s `keyClassName` passes straight through to `Kbd`'s
-                    // own `className`, letting this one call site override the chip
-                    // without editing the shared `Kbd`/`ShortcutBadge` components.
-                    <ShortcutBadge
-                        keyClassName="border-transparent bg-transparent"
-                        shortcut={row.key}
-                    />
-                ) : (
-                    <>
-                        <Pencil size={12} /> {t('settings.keybindingEditor.addShortcut')}
-                    </>
-                )}
-            </Button>
+                        <>
+                            <Pencil size={12} /> {t('settings.keybindingEditor.addShortcut')}
+                        </>
+                    )}
+                </Button>
+            </Tooltip>
             <div className="flex min-w-16 justify-end gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                 {row.bindingIndex !== undefined && (
                     <Button

@@ -8,7 +8,7 @@ import {
     MAX_AGENT_CHAT_FILE_MENTIONS,
     openFileMentions,
     rankAgentChatFileMentions,
-} from '../agent-chat-file-mentions';
+} from '../composer-input/agent-chat-file-mentions';
 
 const NO_FILES: readonly string[] = [];
 /**

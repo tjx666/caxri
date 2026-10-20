@@ -47,7 +47,7 @@ describe('stopSshHostServer', () => {
         mocks.request.mockResolvedValueOnce(undefined);
         await stopSshHostServer();
         expect(JSON.stringify(mocks.showConfirm.mock.lastCall)).toContain('devbox');
-        expect(mocks.request).toHaveBeenCalledWith('remote.stopServer');
+        expect(mocks.request).toHaveBeenCalledWith('sshHost.stopServer');
     });
 
     it('does nothing in a local window', async () => {
@@ -61,11 +61,11 @@ describe('connection actions', () => {
     it('cancels the running attempt and reveals the SSH config through Main', async () => {
         mocks.request.mockResolvedValue(null);
         await cancelSshHostConnection();
-        expect(mocks.request).toHaveBeenCalledWith('remote.cancel');
+        expect(mocks.request).toHaveBeenCalledWith('sshHost.cancel');
         await retrySshHostNow();
-        expect(mocks.request).toHaveBeenCalledWith('remote.retryNow');
+        expect(mocks.request).toHaveBeenCalledWith('sshHost.retryNow');
         await revealSshConfig();
-        expect(mocks.request).toHaveBeenCalledWith('remote.sshConfig.reveal');
+        expect(mocks.request).toHaveBeenCalledWith('sshHost.sshConfig.reveal');
     });
 });
 
@@ -73,7 +73,7 @@ describe('didReplySshHostPrompt', () => {
     it('reports whether the answer reached Main', async () => {
         mocks.request.mockResolvedValueOnce(undefined);
         await expect(didReplySshHostPrompt('request-1', 'yes')).resolves.toBe(true);
-        expect(mocks.request).toHaveBeenCalledWith('remote.askpass.reply', {
+        expect(mocks.request).toHaveBeenCalledWith('sshHost.askpass.reply', {
             requestId: 'request-1',
             response: 'yes',
         });
@@ -108,7 +108,7 @@ describe('connectToSshHost', () => {
 
         opened.resolve(undefined);
         await connecting;
-        expect(mocks.request).toHaveBeenCalledWith('remote.connect', { destination: 'work' });
+        expect(mocks.request).toHaveBeenCalledWith('sshHost.connect', { destination: 'work' });
         expect(useSshHostDialogsStore.getState()).toMatchObject({ isConnectOpen: false });
         expect(useSshHostDialogsStore.getState().connectingDestination).toBeUndefined();
     });

@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     trackerExcerptText as desktopTrackerExcerpt,
     trackerReferenceText as desktopTrackerReference,
-} from '../../features/agent-chat/agent-chat-tracker-labels';
+} from '../../features/agent-chat/tools/agent-chat-tracker-labels';
 import { documentTabPresentation } from '../../features/editor/document-tab-presentation';
 import { translate, useLocaleStore } from '..';
 import { DIFF_TAB_PATHS, TOOL_CALLS, TRACKERS } from './english-counterpart-parity.fixture';

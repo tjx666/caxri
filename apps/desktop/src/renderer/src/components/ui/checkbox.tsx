@@ -20,7 +20,7 @@ export function Checkbox({ className, ...properties }: CheckboxPrimitive.Root.Pr
                 'group flex size-4 shrink-0 cursor-pointer items-center justify-center rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] transition-[border-color,background-color,box-shadow] outline-none motion-reduce:transition-none',
                 'data-checked:border-accent data-checked:bg-accent data-checked:text-accent-foreground',
                 'data-indeterminate:border-accent data-indeterminate:bg-accent data-indeterminate:text-accent-foreground',
-                'focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]',
+                'focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)]',
                 'aria-invalid:border-danger',
                 'data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50',
                 className,

@@ -4,22 +4,11 @@ import type { AgentChatPathReference } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
+import { attachmentsWithReattached } from '../attachments/agent-chat-image-placeholders';
 import type {
-    AgentChatAttachment,
-    AgentChatImageAttachment,
-    AgentChatPathAttachment,
-    AgentChatSkillAttachment,
-} from '../agent-chat-drafts';
-import {
-    agentChatAttachmentsWithReferences,
-    attachmentsAfterSend,
-    attachmentsWithReturned,
-    isAgentChatImageAttachment,
-    readAgentChatAttachments,
-    writeAgentChatAttachments,
-} from '../agent-chat-drafts';
-import { attachmentsWithReattached } from '../agent-chat-image-placeholders';
-import type { AgentChatImageRejection, AgentChatImageReservation } from '../agent-chat-images';
+    AgentChatImageRejection,
+    AgentChatImageReservation,
+} from '../attachments/agent-chat-images';
 import {
     agentChatImageBytes,
     agentChatImageRejection,
@@ -27,7 +16,21 @@ import {
     agentChatImageReservedBytes,
     AgentChatImageTooLargeError,
     readAgentChatImage,
-} from '../agent-chat-images';
+} from '../attachments/agent-chat-images';
+import type {
+    AgentChatAttachment,
+    AgentChatImageAttachment,
+    AgentChatPathAttachment,
+    AgentChatSkillAttachment,
+} from '../composer-input/agent-chat-drafts';
+import {
+    agentChatAttachmentsWithReferences,
+    attachmentsAfterSend,
+    attachmentsWithReturned,
+    isAgentChatImageAttachment,
+    readAgentChatAttachments,
+    writeAgentChatAttachments,
+} from '../composer-input/agent-chat-drafts';
 
 /**
  * What `attachments` hold against the image limits. A file or folder card is sent as a path and counts toward neither.

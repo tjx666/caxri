@@ -95,6 +95,11 @@ export class TerminalCommandTracker {
         private readonly terminal: Terminal,
         private readonly colors: TerminalCommandColors,
         private readonly publish: (status: TerminalCommandStatus) => void,
+        /**
+         * Receives the status line of the command keyboard navigation lands on, so a screen reader hears what the
+         * pointer-only gutter glyph shows as its hover title.
+         */
+        private readonly announce?: (status: string) => void,
     ) {
         this.protocolDisposables = [133, 633].map((protocol) =>
             terminal.parser.registerOscHandler(protocol, (data) => this.handle(data)),
@@ -199,7 +204,8 @@ export class TerminalCommandTracker {
      * VS Code-style command decoration: a 16px glyph in the terminal's left gutter, drawn by CSS from the phase data
      * attribute (hollow circle while running, filled circle on success, cross on failure). The element accepts pointer
      * events only so its native `title` can show the command's exit status on hover; it has no click handler, so it
-     * never steals focus or intercepts a click intended for the terminal underneath.
+     * never steals focus or intercepts a click intended for the terminal underneath. Keyboard command navigation reads
+     * the same status through the `announce` callback.
      */
     private decorate(
         marker: IMarker,
@@ -263,8 +269,29 @@ export class TerminalCommandTracker {
             );
         const command = commands[this.navigationIndex];
         this.terminal.scrollToLine(command.startMarker.line);
+        this.announce?.(
+            command.status === undefined
+                ? terminalCommandDecorationTooltip('running')
+                : terminalCommandDecorationTooltip(
+                      command.status === 0 ? 'succeeded' : 'failed',
+                      command.status,
+                  ),
+        );
         return true;
     }
+}
+
+/**
+ * The visually hidden polite live region a terminal pane announces command results through: completion of a command and
+ * the status of the command keyboard navigation lands on.
+ */
+export function createTerminalCommandStatusElement(): HTMLElement {
+    const element = document.createElement('div');
+    element.className = 'terminal-command-status sr-only';
+    element.setAttribute('aria-atomic', 'true');
+    element.setAttribute('aria-live', 'polite');
+    element.setAttribute('role', 'status');
+    return element;
 }
 
 export function formatTerminalCommandCompletionStatus(exitStatus: number): string {
