@@ -1,9 +1,8 @@
 /**
- * Compares a Server footprint receipt (written by
- * `apps/desktop/src/main/ssh/__tests__/footprint.integration.test.ts`) with the checked-in
- * `scripts/server-footprint-baseline.json`. Every metric is a size in KiB where smaller is better: a value above the
- * baseline plus its group's tolerance fails, a value below it by more than the tolerance passes and asks for a baseline
- * update so the improvement is locked in. See `docs/server-footprint.md`.
+ * Compares a Server footprint receipt (written by `apps/desktop/src/main/ssh/__tests__/footprint.integration.test.ts`)
+ * with the checked-in `scripts/server-footprint-baseline.json`. Every metric is a size in KiB where smaller is better:
+ * a value above the baseline plus its group's tolerance fails, a value below it by more than the tolerance passes and
+ * asks for a baseline update so the improvement is locked in. See `docs/server-footprint.md`.
  */
 
 export interface FootprintReceipt {

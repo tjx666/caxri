@@ -21,8 +21,8 @@ const IMAGE = 'caxri-ssh-lab-base:bookworm';
 const DESTINATION = 'caxri-lab';
 
 /**
- * The tools `host-requirements` probes for, plus `procps` and `git` so a benchmark can read `/proc` sizes and
- * build a Git Project. `xz-utils` lets the remote installer download Node directly, as on a typical cloud host.
+ * The tools `host-requirements` probes for, plus `procps` and `git` so a benchmark can read `/proc` sizes and build a
+ * Git Project. `xz-utils` lets the remote installer download Node directly, as on a typical cloud host.
  */
 const DOCKERFILE = String.raw`FROM debian:bookworm-slim
 RUN apt-get update \
