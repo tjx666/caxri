@@ -33,6 +33,22 @@
                 "rules": ["react-doctor/prefer-dynamic-import"],
             },
             {
+                // Deliberately eager: CodeMirror is the Chat composer's message input, and Chat is the
+                // primary Agent surface, painted with the Session's first frame. Behind a lazy chunk the
+                // input would appear late and miss the focus and restored caret a Session activation
+                // gives it. The four packages add about 110 KiB gzipped to the Renderer.
+                "files": [
+                    "apps/desktop/src/renderer/src/features/agent-chat/agent-chat-composer-editor.tsx",
+                    "apps/desktop/src/renderer/src/features/agent-chat/agent-chat-composer-extensions.ts",
+                    "apps/desktop/src/renderer/src/features/agent-chat/agent-chat-composer-view.ts",
+                    // `@caxri/desktop` reports its findings relative to its own root.
+                    "src/renderer/src/features/agent-chat/agent-chat-composer-editor.tsx",
+                    "src/renderer/src/features/agent-chat/agent-chat-composer-extensions.ts",
+                    "src/renderer/src/features/agent-chat/agent-chat-composer-view.ts",
+                ],
+                "rules": ["react-doctor/prefer-dynamic-import"],
+            },
+            {
                 // Deliberate sequential awaits: each of these loops orders its awaits on
                 // purpose (lock/journal ordering, xterm parser writes, bounded retries,
                 // chunked copies). Every site carries an eslint no-await-in-loop disable

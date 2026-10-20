@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import {
     fakeClaudeChatAgentMode,
     fakeCodexChatAgentMode,
@@ -99,7 +100,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await expect(chat.getByRole('button', { name: 'Queue message' })).toBeVisible();
         await message.press('Enter');
         // The message leaves the composer at once, before Server Core answers.
-        await expect(message).toHaveValue('');
+        await expectComposerValue(message, '');
         const queue = chat.getByRole('region', { name: 'Queued messages' });
         await expect(queue.getByText('hello after this')).toBeVisible();
         await message.fill('hello second');
@@ -117,7 +118,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
         await message.fill('hello refuse');
         await message.press('ControlOrMeta+Enter');
-        await expect(message).toHaveValue('hello refuse');
+        await expectComposerValue(message, 'hello refuse');
         await expect(chat.locator('[data-agent-chat-pending]')).toHaveCount(0);
         await message.fill('hello steer');
         await message.press('ControlOrMeta+Enter');
@@ -129,7 +130,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await page.screenshot({ path: testInfo.outputPath('codex-queue-paused.png') });
         // Editing takes the message out of the queue and back into the empty composer.
         await queue.getByRole('button', { name: 'Edit queued message' }).last().click();
-        await expect(message).toHaveValue('hello edit');
+        await expectComposerValue(message, 'hello edit');
         await expect(queue.getByText('hello edit')).toHaveCount(0);
         await message.fill('');
         await queue.getByRole('button', { name: 'Delete queued message' }).last().click();
@@ -155,7 +156,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await message.press('Enter');
         await expect(queue.getByText('hello fourth')).toBeVisible();
         await expect(message).toHaveAttribute(
-            'placeholder',
+            'aria-placeholder',
             'Enter to steer the queued message, or type a follow-up',
         );
         await page.screenshot({ path: testInfo.outputPath('codex-queue-empty-enter.png') });

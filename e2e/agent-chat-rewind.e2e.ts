@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { Locator } from '@playwright/test';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import {
     fakeClaudeChatAgentMode,
     fakeCodexChatAgentMode,
@@ -66,7 +67,7 @@ test('a Claude Chat edits an earlier message and reverts its files', async ({}, 
         await userMessage(chat, 'first question').hover();
         await chat.getByRole('button', { name: 'Edit from here' }).first().click();
         const message = chat.getByRole('textbox', { name: 'Message' });
-        await expect(message).toHaveValue('first question');
+        await expectComposerValue(message, 'first question');
         await expect(chat.getByText('2 turns will be replaced', { exact: false })).toBeVisible();
         await chat.getByRole('checkbox').click();
         await page.screenshot({ path: testInfo.outputPath('claude-edit-bar.png') });
@@ -147,13 +148,13 @@ test('a Codex Chat edits only the conversation and Escape cancels', async ({}, t
 
         await userMessage(chat, 'hello there').hover();
         await chat.getByRole('button', { name: 'Edit from here' }).click();
-        await expect(message).toHaveValue('hello there');
+        await expectComposerValue(message, 'hello there');
         await expect(chat.getByRole('checkbox')).toBeDisabled();
         await expect(chat.getByRole('button', { name: 'Restore code to here' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-edit-bar.png') });
 
         await message.press('Escape');
-        await expect(message).toHaveValue('unsent draft');
+        await expectComposerValue(message, 'unsent draft');
         await expect(chat.locator('[data-agent-chat-edit-bar]')).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);

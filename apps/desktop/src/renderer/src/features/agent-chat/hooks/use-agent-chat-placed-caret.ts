@@ -1,4 +1,3 @@
-import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 
 import { mentionAtCaret } from '../../../lib/suggestion-options';
@@ -6,6 +5,10 @@ import {
     markAgentChatComposerCaretKey,
     markAgentChatComposerSelectionPlaced,
 } from '../agent-chat-composer-caret';
+import type {
+    AgentChatComposerInput,
+    AgentChatComposerKeyEvent,
+} from '../agent-chat-composer-view';
 import {
     agentChatSelectionCaret,
     isAgentChatCaretKey,
@@ -36,7 +39,7 @@ export function useAgentChatPlacedCaret(draft: string, isShown: boolean) {
          * Call from the input's change and click events: the user edited the draft or placed the caret, so the list
          * follows it, and automatic focus keeps that selection from then on.
          */
-        trackCaret: (element: HTMLTextAreaElement) => {
+        trackCaret: (element: AgentChatComposerInput) => {
             markAgentChatComposerSelectionPlaced(element);
             setCaret(element.selectionStart);
         },
@@ -45,14 +48,14 @@ export function useAgentChatPlacedCaret(draft: string, isShown: boolean) {
          * unmodified caret key, so only that key's own release moves the list (see `trackCaretKey`). Any caret key,
          * modified or not (Cmd+Up), also marks the selection as the user's, so automatic focus keeps it.
          */
-        notePressedKey: (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        notePressedKey: (event: AgentChatComposerKeyEvent) => {
             markAgentChatComposerCaretKey(event.currentTarget, event);
             pressedCaretKey.current = isAgentChatCaretKey(event) ? event.key : undefined;
         },
         /**
          * Call from the input's key-up event: a caret key the user pressed here moves the list with the caret.
          */
-        trackCaretKey: (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        trackCaretKey: (event: AgentChatComposerKeyEvent) => {
             if (!isAgentChatCaretKeyRelease(pressedCaretKey.current, event)) return;
             pressedCaretKey.current = undefined;
             setCaret(event.currentTarget.selectionStart);
@@ -61,7 +64,7 @@ export function useAgentChatPlacedCaret(draft: string, isShown: boolean) {
          * Call from the input's select event. It follows the caret only once the user has touched the draft, since
          * focus moving into the composer reports a selection too.
          */
-        followSelection: (element: HTMLTextAreaElement) =>
+        followSelection: (element: AgentChatComposerInput) =>
             setCaret((current) => agentChatSelectionCaret(current, element.selectionStart)),
     };
 }

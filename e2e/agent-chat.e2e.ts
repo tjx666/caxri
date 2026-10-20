@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import { expectDisclosuresSettled } from './support/agent-chat-disclosures.ts';
 import { fakeCodexChatAgentMode } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -67,7 +68,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         // Sent straight away, while the provider may still be starting: the first Enter must not be dropped.
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Codex. You said: hi there')).toBeVisible();
-        await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Codex');
         // The composer keeps the model and the context used in view, as the Codex app does.
         await expect(chat.getByRole('button', { name: /^Model: Fake Codex, / })).toBeVisible();
         await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
@@ -97,7 +98,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await page.screenshot({ path: testInfo.outputPath('agent-chat-approval.png') });
         await approval.getByRole('button', { name: 'Run', exact: true }).click();
         await expect(approval).toHaveCount(0);
-        await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Codex');
 
         await message.fill('ask me');
         await message.press('Enter');
@@ -225,7 +226,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
 
         // A Files entry dropped on the composer is inserted as its path, relative to where the Agent runs.
         await page.getByRole('treeitem', { name: 'app.ts', exact: true }).dragTo(message);
-        await expect(message).toHaveValue('src/app.ts ');
+        await expectComposerValue(message, 'src/app.ts ');
         // A path written as plain prose, in the user's message and in the reply, opens in the Editor; the URL shows links' accent.
         await message.fill('see src/greeting.ts:2 next to https://github.com/example/repo');
         await message.press('Enter');
@@ -260,7 +261,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         // The tab strip's `+` clones the live primary Agent on its own surface: a Chat, not a PTY.
         await chat.getByRole('button', { name: 'New Codex Chat' }).click();
         await expect(chat.getByText('You chose Blue.')).toHaveCount(0);
-        await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Codex');
         // The `+` opens its Agent menu on hover; leave it so only the New Session menu below offers "Codex Chat".
         await page.mouse.move(0, 0);
         await expect(page.getByRole('menu', { name: 'New Codex Chat' })).toHaveCount(0);
@@ -285,7 +286,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         expect(state.terminals.filter((terminal) => terminal.sessionId === sessionId)).toEqual([
             expect.objectContaining({ surface: 'chat' }),
         ]);
-        await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Codex');
         await message.fill('from a new Session');
         await message.press('Enter');
         await expect(

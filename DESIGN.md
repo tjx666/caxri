@@ -1096,7 +1096,11 @@ tile holds a folder or file glyph beside the name and a `--muted` `Folder` or `F
 path in a tooltip; every item carries a 20px round remove control on its top-right corner; clicking
 a thumbnail previews the full image in a dialog, and an image that takes
 noticeably long to read holds a placeholder tile with a spinner, so a disabled Send has a visible
-cause), a borderless auto-growing textarea, and one action row in `--muted`, split like the Codex
+cause), a borderless auto-growing message input that renders its Markdown in place (headings at
+17/15/13px semibold, bold, italics, strikethrough, inline and fenced code on a `--border` 45% tint in
+the editor font, `--muted` bullets drawn as `•` with wrapped text hanging after them, quotes with a
+3px `--selection` rule; syntax reappears in `--muted` where the caret touches it, like the Codex
+app and Obsidian), and one action row in `--muted`, split like the Codex
 app's composer. Leading on the left: `+` (a round ghost icon, tooltip `Add files and more`, that
 turns into a spinner while picked images are read, a long paste is saved, or a Session reference is
 written), a Plan chip (a bulb and `Plan` in `--foreground` on the `--selection` fill with a `--border`

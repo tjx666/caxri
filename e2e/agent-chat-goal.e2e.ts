@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -45,9 +46,9 @@ test('a Codex Chat sets, pauses, resumes, and clears a goal', async ({}, testInf
             pressed: true,
         });
         await expect(goalChip).toBeVisible();
-        await expect(message).toHaveValue('');
+        await expectComposerValue(message, '');
         await expect(message).toHaveAttribute(
-            'placeholder',
+            'aria-placeholder',
             'Describe your goal, define measurable outcomes for best results',
         );
         await form.screenshot({ path: testInfo.outputPath('goal-mode.png') });
@@ -60,7 +61,7 @@ test('a Codex Chat sets, pauses, resumes, and clears a goal', async ({}, testInf
         await chat.getByRole('button', { name: 'Add files and more' }).click();
         await page.getByRole('menuitem', { name: /^Goal/u }).click();
         await expect(goalChip).toBeVisible();
-        await expect(message).toHaveValue('');
+        await expectComposerValue(message, '');
 
         await message.fill('hold the line until the fixtures pass');
         await message.press('Enter');

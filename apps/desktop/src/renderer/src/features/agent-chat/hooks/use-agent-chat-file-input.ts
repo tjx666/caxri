@@ -1,4 +1,4 @@
-import type { ClipboardEvent, DragEvent } from 'react';
+import type { DragEvent } from 'react';
 import { useState } from 'react';
 
 import type { AgentChatPathReference } from '@caxri/protocol';
@@ -12,6 +12,7 @@ import { useIsLocalOnlyAvailable } from '../../../stores/environment';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
 import { pickAgentChatPaths } from '../agent-chat-commands';
+import type { AgentChatComposerPasteEvent } from '../agent-chat-composer-view';
 import {
     agentChatDroppedImagePlan,
     agentChatImageFiles,
@@ -66,7 +67,7 @@ export function useAgentChatFileInput({
     /**
      * Returns whether it took the paste's text (`useAgentChatLongPaste`).
      */
-    takeLongPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => boolean;
+    takeLongPaste: (event: AgentChatComposerPasteEvent) => boolean;
 }) {
     const [isDragOver, setDragOver] = useState(false);
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
@@ -153,7 +154,7 @@ export function useAgentChatFileInput({
                 routeFiles(event, [...event.dataTransfer.files]);
             },
         },
-        onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => {
+        onPaste: (event: AgentChatComposerPasteEvent) => {
             const pasted = [...event.clipboardData.files];
             /**
              * Files and folders copied in Finder paste as files on disk, which attach like a drop of them; the file

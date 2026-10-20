@@ -27,7 +27,7 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
 
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
-        await expect(message).toHaveAttribute('placeholder', 'Message Grok Build');
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Grok Build');
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('You said: hi there')).toBeVisible();

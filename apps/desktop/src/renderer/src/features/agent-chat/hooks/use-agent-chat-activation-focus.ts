@@ -5,18 +5,19 @@ import { useDialogStore } from '../../../stores/dialogs';
 import { registerTerminalFocusHandler } from '../../terminal/terminal-pane-handlers';
 import { canClaimTerminalFocus } from '../../terminal/terminal-process-focus';
 import { agentChatDraftEndCaret } from '../agent-chat-composer-caret';
+import type { AgentChatComposerInput } from '../agent-chat-composer-view';
 
 /**
  * Focuses the composer for an automatic focus claim (the Chat being shown) with the caret after the draft, so typing
- * continues a restored draft instead of prepending to it. React writes a restored draft as the textarea's initial
- * value, which leaves Chromium's selection at 0 until something moves it.
+ * continues a restored draft instead of prepending to it. The editor takes a restored draft with its caret at 0, where
+ * it stays until something moves it.
  *
  * Only that untouched 0..0 selection moves; a selection the user placed, including a caret deliberately put at the
  * start of the draft, is kept (see `agentChatDraftEndCaret`). This sets the DOM selection only, never the caret
  * `useAgentChatPlacedCaret` follows, so a restored draft ending in `@word` still waits for the user before opening the
  * Sessions list.
  */
-function focusComposerAtDraftEnd(input: HTMLTextAreaElement): void {
+function focusComposerAtDraftEnd(input: AgentChatComposerInput): void {
     input.focus();
     const caret = agentChatDraftEndCaret(input);
     if (caret !== undefined) input.setSelectionRange(caret, caret);
@@ -40,7 +41,7 @@ function focusComposerAtDraftEnd(input: HTMLTextAreaElement): void {
  * a focus command) lands in the composer with the same draft-end caret.
  */
 export function useAgentChatActivationFocus(
-    inputReference: RefObject<HTMLTextAreaElement | null>,
+    inputReference: RefObject<AgentChatComposerInput | null>,
     { isShown, terminalId }: { isShown: boolean; terminalId: string },
 ): void {
     const isShownOnMount = useRef(isShown);
@@ -52,7 +53,7 @@ export function useAgentChatActivationFocus(
                     const input = inputReference.current;
                     if (input) focusComposerAtDraftEnd(input);
                 },
-                () => inputReference.current,
+                () => inputReference.current?.element ?? null,
             ),
         [inputReference, terminalId],
     );

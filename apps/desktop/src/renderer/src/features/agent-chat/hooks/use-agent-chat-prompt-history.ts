@@ -1,4 +1,4 @@
-import type { KeyboardEvent, RefObject } from 'react';
+import type { RefObject } from 'react';
 import { useEffect, useId, useState } from 'react';
 
 import type { AgentChatItem } from '@caxri/protocol';
@@ -6,6 +6,10 @@ import type { AgentChatItem } from '@caxri/protocol';
 import { isImeComposing } from '../../../lib/ime';
 import type { SuggestionOption } from '../../../lib/suggestion-options';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
+import type {
+    AgentChatComposerInput,
+    AgentChatComposerKeyEvent,
+} from '../agent-chat-composer-view';
 import type { AgentChatPromptHistoryEntry } from '../agent-chat-prompt-history';
 import {
     agentChatPromptHistory,
@@ -32,7 +36,7 @@ export function useAgentChatPromptHistory({
      * image, which is never what ArrowUp meant.
      */
     hasAttachments: boolean;
-    inputReference: RefObject<HTMLTextAreaElement | null>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
     /**
      * "Edit from here" owns the input: recalling a sent prompt would overwrite the message being edited.
      */
@@ -62,10 +66,7 @@ export function useAgentChatPromptHistory({
      * Runs before the command and `@` menus' keys; an open menu keeps ArrowUp for its own rows. Returns whether the key
      * was the history's, so the composer skips its own handling.
      */
-    const didHandleKey = (
-        event: KeyboardEvent<HTMLTextAreaElement>,
-        isMenuOpen: boolean,
-    ): boolean => {
+    const didHandleKey = (event: AgentChatComposerKeyEvent, isMenuOpen: boolean): boolean => {
         const isComposing = isImeComposing(event);
         if (!open) {
             if (isMenuOpen || hasAttachments || isEditing) return false;

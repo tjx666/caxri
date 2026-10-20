@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { agentChatDraftWithReturnedMessage, parseAgentChatPathReferences } from '@caxri/protocol';
 
+import type { AgentChatComposerInput } from '../agent-chat-composer-view';
 import type { AgentChatPathAttachment, AgentChatSkillAttachment } from '../agent-chat-drafts';
 import {
     agentChatReferenceAttachments,
@@ -25,7 +26,7 @@ export function useAgentChatDraft({
      * Attaches the file, folder, and skill cards of a queued message pulled back for editing.
      */
     addCards: (cards: ReadonlyArray<AgentChatPathAttachment | AgentChatSkillAttachment>) => unknown;
-    inputReference: RefObject<HTMLTextAreaElement | null>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
     terminalId: string;
 }) {
     const [draft, setDraftState] = useState(() => readAgentChatDraft(terminalId));

@@ -34,7 +34,7 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await chooseTerminalFromCreateMenu(page, 'Claude Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
-        await expect(message).toHaveAttribute('placeholder', 'Message Claude');
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Claude');
         await expect(
             chat.getByRole('button', { name: 'Model: Default, Medium effort', exact: true }),
         ).toBeVisible();

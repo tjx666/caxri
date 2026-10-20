@@ -1,5 +1,3 @@
-import type { KeyboardEvent } from 'react';
-
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 import {
     AGENT_CHAT_GOAL_COMMAND,
@@ -7,6 +5,7 @@ import {
     completeAgentChatAction,
 } from '@caxri/protocol';
 
+import type { AgentChatComposerKeyEvent } from '../agent-chat-composer-view';
 import { agentChatCompactCommand } from '../agent-chat-context';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
 import {
@@ -175,7 +174,7 @@ export function useAgentChatComposerSend({
         /**
          * Backspace in an empty input leaves Goal mode, as deleting a chip does in the Codex app.
          */
-        didHandleKey: (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+        didHandleKey: (event: AgentChatComposerKeyEvent): boolean => {
             if (!isGoalMode || draft !== '' || event.key !== 'Backspace') return false;
             event.preventDefault();
             exitGoalMode();

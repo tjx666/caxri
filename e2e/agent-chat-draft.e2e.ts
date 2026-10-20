@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -34,11 +35,11 @@ test('typing after a reload continues the restored Chat draft without opening th
         await message.fill(draft);
 
         await page.reload();
-        await expect(message).toHaveValue(draft);
+        await expectComposerValue(message, draft);
         await expect(message).toBeFocused();
         await expect(sessions).toHaveCount(0);
         await page.keyboard.type(' Hi');
-        await expect(message).toHaveValue(`${draft} Hi`);
+        await expectComposerValue(message, `${draft} Hi`);
         await expect(sessions).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);

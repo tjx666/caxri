@@ -1,4 +1,4 @@
-import type { KeyboardEvent, RefObject } from 'react';
+import type { RefObject } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import { isImeComposing } from '../../../lib/ime';
@@ -7,6 +7,10 @@ import { useProjects, useSessions } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 import { searchSessionReferences } from '../../session/session-reference';
 import { prepareSessionReference } from '../../session/session-reference-commands';
+import type {
+    AgentChatComposerInput,
+    AgentChatComposerKeyEvent,
+} from '../agent-chat-composer-view';
 import { draftWithInsertion } from '../agent-chat-drafts';
 import {
     agentChatSessionEmptyText,
@@ -38,7 +42,7 @@ export function useAgentChatSessionMenu({
 }: {
     currentSessionId: string | undefined;
     draft: string;
-    inputReference: RefObject<HTMLTextAreaElement | null>;
+    inputReference: RefObject<AgentChatComposerInput | null>;
     isInputFocused: boolean;
     /**
      * Whether the Chat is on screen in the active pane. A Chat stays mounted while its Session is hidden, so hiding it
@@ -100,9 +104,9 @@ export function useAgentChatSessionMenu({
         setPreparing(candidate.title);
         const reference = await prepareSessionReference(candidate.sessionId);
         setPreparing(undefined);
-        const textarea = inputReference.current;
-        if (!reference || !textarea) return;
-        const current = textarea.value;
+        const input = inputReference.current;
+        if (!reference || !input) return;
+        const current = input.value;
         const target =
             current.slice(range.start, range.end) === typed
                 ? range
@@ -113,8 +117,8 @@ export function useAgentChatSessionMenu({
         // inserted `@<path>` and reopens the list on its "No Sessions match" row.
         setCaret(inserted.caret);
         requestAnimationFrame(() => {
-            textarea.focus();
-            textarea.setSelectionRange(inserted.caret, inserted.caret);
+            input.focus();
+            input.setSelectionRange(inserted.caret, inserted.caret);
         });
     };
 
@@ -157,11 +161,11 @@ export function useAgentChatSessionMenu({
          * Cites a Session chosen outside the `@` list (the Add menu) at the input's caret, replacing any selection.
          */
         reference: (candidate: SessionReferenceCandidate): void => {
-            const textarea = inputReference.current;
-            if (isPreparing || !textarea) return;
-            const range = { start: textarea.selectionStart, end: textarea.selectionEnd };
+            const input = inputReference.current;
+            if (isPreparing || !input) return;
+            const range = { start: input.selectionStart, end: input.selectionEnd };
             // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
-            void insertReference(candidate, range, textarea.value.slice(range.start, range.end));
+            void insertReference(candidate, range, input.value.slice(range.start, range.end));
         },
         highlight: (index: number) => setActive({ query: mention?.query, index }),
         chooseAt: (index: number) => {
@@ -173,7 +177,7 @@ export function useAgentChatSessionMenu({
          * Returns whether the key was the list's, so the composer skips its own handling (Enter must not send the
          * half-typed `@word`).
          */
-        didHandleKey: (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+        didHandleKey: (event: AgentChatComposerKeyEvent): boolean => {
             if (isImeComposing(event)) return false;
             // While the chosen Session's reference is written, Enter would send the half-typed `@word` and the
             // reference would then land in the next message.

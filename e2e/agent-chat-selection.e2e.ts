@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { composerSelection, composerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -99,7 +100,7 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
         await expect(toolbar).toBeHidden();
         await expect(message).toBeFocused();
         // Every line of the selection is quoted, ending with the reply's text, and the caret waits on a new paragraph.
-        const draft = await message.inputValue();
+        const draft = await composerValue(message);
         expect(draft.endsWith('\n\n')).toBe(true);
         expect(
             draft
@@ -109,9 +110,7 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
         ).toBe(true);
         expect(draft).toMatch(/^> (hi )?there\n/);
         expect(draft).toMatch(/> Hello from fake Codex\. You said: hi there\n\n$/);
-        expect(await message.evaluate((input: HTMLTextAreaElement) => input.selectionStart)).toBe(
-            draft.length,
-        );
+        expect((await composerSelection(message)).start).toBe(draft.length);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-selection-quoted.png') });
     } finally {
         await closeAppQuietly(running.app);

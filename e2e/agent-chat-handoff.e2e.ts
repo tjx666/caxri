@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeClaudeChatAgentMode } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -79,7 +80,7 @@ test('an expired Claude Code Chat continues in a new Chat that reads its transcr
         await expect(
             chat.getByText('Hello from fake Claude. You said: hi there, large context'),
         ).toBeVisible();
-        await expect(message).toHaveValue('');
+        await expectComposerValue(message, '');
         await page.getByRole('tab', { name: 'Claude (Chat)' }).last().click();
         await expect(chat.getByText('The subagent finished.')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-handoff.png') });

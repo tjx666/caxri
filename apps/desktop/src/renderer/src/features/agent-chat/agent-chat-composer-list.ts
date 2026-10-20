@@ -54,7 +54,7 @@ export function isAgentChatListContinuationKey(key: AgentChatComposerKey): boole
  * What Shift+Enter does on a Markdown list line, as in the Codex app's composer (Enter still sends): the newline starts
  * the next item with the same indent and marker (`2.` after `1.`, `- [ ]` after a task), carrying the text after the
  * caret into it, and renumbers the ordered items below. On an item with no text it ends the list by clearing the
- * marker. `undefined` leaves the key to the textarea: no list line, a selection across lines, or a caret inside the
+ * marker. `undefined` leaves the key to the editor: no list line, a selection across lines, or a caret inside the
  * marker.
  */
 export function agentChatListContinuation(

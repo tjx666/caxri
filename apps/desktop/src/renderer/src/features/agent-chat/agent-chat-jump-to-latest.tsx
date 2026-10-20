@@ -20,7 +20,7 @@ export function AgentChatJumpToLatest({
     isLatestInView,
     onJump,
 }: {
-    focusTarget: RefObject<HTMLElement | null>;
+    focusTarget: RefObject<{ focus: (options?: FocusOptions) => void } | null>;
     isLatestInView: boolean;
     onJump: () => void;
 }) {
