@@ -459,6 +459,26 @@ ended` count expands the ended ones. The strip is live status, not a log: it dis
   phone; see [Mobile](#mobile)). A finished task stays reachable from its
   timeline row.
 
+### Subagent rows in the sidebar
+
+A Chat's subagents also show as indented child rows under their Session in the primary sidebar, so
+a running subagent is visible without opening the Chat. The sidebar never reads a Chat (an
+`agentChat.read` would start an idle provider), so Server Core persists a minimal summary per
+subagent in `agent_chat_subagents` (task id, title, agent type, closed status, start and end
+times; no transcript content). `ChatProjection` reports a changed task list through
+`onTasksChanged`; `ChatSubagentSummaries` upserts the summaries, keeps the first-seen start time,
+keeps at most 50 per Chat (running rows are evicted last), and publishes a `records` state change.
+`createLiveTerminalRecord` projects the rows onto `TerminalRecord.subagents` for Chat Terminals
+only; the PTY surface and Grok never get them.
+
+- Stale-running rule: tasks are in memory only, so a Server Core start marks every persisted
+  `running` row `stopped` (`agent_chat.subagents_reconciled`, closed reason `serverStart`, with a
+  terminal count and no titles). A resumed Chat that reports the task again rewrites the row.
+- The Renderer shows running subagents first, then the rest by recency, newest 3 by default with a
+  `Show N more` row that expands the Session's list. The setting `primarySidebar.showSubagents`
+  (default on) hides them.
+- Clicking a row selects its Session first, then opens the subagent's task tab.
+
 ## Follow-up queue
 
 A message sent while a turn runs waits in Server Core's queue by default and goes out once the Chat
@@ -1574,7 +1594,7 @@ reason, the error code, provider, turns whose file changes were undone, duration
 `agent_chat.side_question` (closed outcome `answered`, `refused`, or `failed`, closed reason, history length,
 duration), `agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
 fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), whether a failure
-left the provider's forked record `orphaned`, duration), and `agent_chat.fork_release_failed` (debug
+left the provider's forked record `orphaned`, duration), `agent_chat.subagents_reconciled` (closed reason `serverStart`, terminals marked stopped), and `agent_chat.fork_release_failed` (debug
 level, closed reason `rejected`, `timedOut`, or `stopped` when Codex could not unsubscribe from a
 fork it loaded). A refusal names its reason; a driver that lacks file restore although its catalog
 entry offers it logs `failed` with reason `capability`. None of them carries

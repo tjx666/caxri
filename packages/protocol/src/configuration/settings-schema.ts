@@ -178,6 +178,7 @@ export const appSettingsSchema = z.object({
     'primarySidebar.autoCollapseProjects': z
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),
+    'primarySidebar.showSubagents': booleanField(spec['primarySidebar.showSubagents']),
     'primarySidebar.translucent': booleanField(spec['primarySidebar.translucent']),
     'statusBar.usage.showFiveHourLimit': booleanField(spec['statusBar.usage.showFiveHourLimit']),
     'window.zoomLevel': integerField(spec['window.zoomLevel']),

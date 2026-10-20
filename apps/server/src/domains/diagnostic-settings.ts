@@ -158,6 +158,7 @@ const settingsProjection: SettingsProjection = {
     'workbench.newWorktreeBehavior': exportAsIs,
     'workbench.confirmWorktreeAuthorization': exportAsIs,
     'primarySidebar.autoCollapseProjects': exportAsIs,
+    'primarySidebar.showSubagents': exportAsIs,
     'primarySidebar.translucent': exportAsIs,
     'statusBar.usage.showFiveHourLimit': exportAsIs,
     'window.zoomLevel': exportAsIs,

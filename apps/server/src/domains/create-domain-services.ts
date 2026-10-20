@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { FullStateChangeReason, TerminalRecord } from '@caxri/protocol';
+import type { FullStateChangeReason } from '@caxri/protocol';
 
 import { readActiveContext } from './active-context';
-import { createAgentChatHandlers } from './agent-chat';
+import { chatStateStore, createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
@@ -59,6 +59,7 @@ import {
 import { createWindowStateHandlers } from './window-state-handlers';
 import * as provenance from './workbench';
 import {
+    createLiveTerminalRecord,
     createWorkbenchRootHandlers,
     createWorkbenchSnapshots,
     validateWorkbenchRequestContext,
@@ -253,11 +254,6 @@ export async function createDomainServices(
         () => watchHub.snapshot(),
     );
     const introspection = createIntrospectionServices(database, logger);
-    const liveTerminalRecord = (terminal: TerminalRecord): TerminalRecord => ({
-        ...terminal,
-        agentOperation: coordinator.agentOperation(terminal.id),
-        processId: terminals.processId(terminal.id),
-    });
     const forgetSessionRuntime = createSessionRuntimeForgetter({
         agentChat,
         agentRuntime,
@@ -274,7 +270,11 @@ export async function createDomainServices(
         automaticNamingNotices: () => agentRuntime.automaticNaming.automaticNamingNotices(),
         configuration,
         database,
-        liveTerminalRecord,
+        liveTerminalRecord: createLiveTerminalRecord(
+            coordinator,
+            terminals,
+            chatStateStore(database).subagents,
+        ),
     });
     const { createAndStartTerminal, newTerminalWorkingDirectory, terminalWorkingDirectory } =
         createTerminalCreation({ configuration, coordinator, database, terminals });

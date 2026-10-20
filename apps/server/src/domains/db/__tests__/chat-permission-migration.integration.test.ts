@@ -31,9 +31,9 @@ describe('Chat permission choices', () => {
         raw.exec('DROP TABLE benchmark_runs');
         raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
         raw.exec(
-            'DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
+            'DROP TABLE agent_chat_subagents; DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
         );
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 4}`);
+        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 5}`);
         raw.close();
 
         const upgraded = new CaxriDatabase(path);

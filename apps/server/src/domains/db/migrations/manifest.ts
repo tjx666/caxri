@@ -12,6 +12,7 @@ import chatPermissionModesMigrationSql from './0006_chat_permission_modes.sql?ra
 import benchmarkRunsMigrationSql from './0007_benchmark_runs.sql?raw';
 import sessionCreatorMigrationSql from './0008_session_creator.sql?raw';
 import agentChatPersistenceMigrationSql from './0009_agent_chat_persistence.sql?raw';
+import agentChatSubagentsMigrationSql from './0010_agent_chat_subagents.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -58,6 +59,7 @@ export const migrationManifest = [
     { tag: '0007_benchmark_runs', sql: benchmarkRunsMigrationSql },
     { tag: '0008_session_creator', sql: sessionCreatorMigrationSql },
     { tag: '0009_agent_chat_persistence', sql: agentChatPersistenceMigrationSql },
+    { tag: '0010_agent_chat_subagents', sql: agentChatSubagentsMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

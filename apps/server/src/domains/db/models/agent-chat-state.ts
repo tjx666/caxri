@@ -6,21 +6,25 @@ import * as schema from '../full-schema';
 import { terminals } from '../schema';
 import { AgentChatAnsweredNoticesModel } from './agent-chat-answered-notices';
 import { AgentChatProcessGroupsModel } from './agent-chat-process-groups';
+import { AgentChatSubagentsModel } from './agent-chat-subagents';
 
 /**
  * Agent Chat state that no provider history can rebuild, for the Agent Chat domain to read through the Server's open
  * SQLite handle (like `BenchmarkRunsModel`): the `Answered: ...` notices, the process groups of live provider children,
- * and a rewound Claude Chat's resume point. The migration runner has already created the tables on that handle.
+ * the subagent summaries the sidebar lists, and a rewound Claude Chat's resume point. The migration runner has already
+ * created the tables on that handle.
  */
 export class AgentChatStateModel {
     private readonly database;
     readonly answeredNotices: AgentChatAnsweredNoticesModel;
     readonly processGroups: AgentChatProcessGroupsModel;
+    readonly subagents: AgentChatSubagentsModel;
 
     constructor(connection: Database.Database) {
         this.database = drizzle(connection, { schema });
         this.answeredNotices = new AgentChatAnsweredNoticesModel(this.database);
         this.processGroups = new AgentChatProcessGroupsModel(this.database);
+        this.subagents = new AgentChatSubagentsModel(this.database);
     }
 
     /**

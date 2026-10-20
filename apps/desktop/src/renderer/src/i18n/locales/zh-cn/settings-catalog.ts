@@ -85,6 +85,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.primarySidebar.autoCollapseProjects.option.30m': '30 分钟后',
     'settings.primarySidebar.autoCollapseProjects.option.2h': '2 小时后',
 
+    'settings.primarySidebar.showSubagents.title': '在会话下显示子 Agent',
+    'settings.primarySidebar.showSubagents.description':
+        '在主侧边栏中，把 Chat Agent 启动的子 Agent 作为缩进行列在其会话下方',
+
     'settings.primarySidebar.translucent.title': '半透明侧边栏',
     'settings.primarySidebar.translucent.description':
         '在 macOS 上，主题与系统的浅色或深色外观一致时，侧边栏透出模糊的桌面，呈磨砂玻璃效果。',

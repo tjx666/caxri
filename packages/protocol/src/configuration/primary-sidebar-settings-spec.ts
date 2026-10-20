@@ -21,6 +21,16 @@ export const primarySidebarSettingsSpec = [
     },
     {
         kind: 'boolean',
+        key: 'primarySidebar.showSubagents',
+        title: 'Show subagents under Sessions',
+        description:
+            'Lists the subagents a Chat Agent started as indented rows under its Session in the Primary Side Bar',
+        category: 'general',
+        keywords: ['primarySidebar', 'subagent', 'nested', 'task', 'child', 'hide'],
+        default: true,
+    },
+    {
+        kind: 'boolean',
         key: 'primarySidebar.translucent',
         title: 'Translucent sidebar',
         description:

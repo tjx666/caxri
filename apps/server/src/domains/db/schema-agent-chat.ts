@@ -1,6 +1,8 @@
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { TerminalSubagentSummary } from '@caxri/protocol';
+import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import { terminals } from './schema';
+import { closedValues, isOneOf } from './schema-constraints';
 
 /**
  * Agent Chat state that no provider history can rebuild. Kept beside `./schema` like the Commander tables;
@@ -47,3 +49,37 @@ export const agentChatProcessGroups = sqliteTable('agent_chat_process_groups', {
     leaderStartedAt: text('leader_started_at').notNull(),
     recordedAt: integer('recorded_at').notNull(),
 });
+
+const subagentStatuses = closedValues<TerminalSubagentSummary['status']>()([
+    'running',
+    'completed',
+    'failed',
+    'stopped',
+]);
+
+/**
+ * The content-free summary of each native subagent a Chat Agent started (`kind: 'agent'` Chat task), so the sidebar can
+ * list them after a Server Core restart without starting any provider. One row per Terminal and task, bounded per Chat
+ * (`MAX_TERMINAL_SUBAGENT_SUMMARIES`, oldest ended rows dropped first), and cascaded away with the Terminal. A row
+ * persisted as `running` is rewritten to `stopped` when Server Core starts, because the provider process that ran it
+ * did not survive. `title` is the subagent's short description, never its conversation.
+ */
+export const agentChatSubagents = sqliteTable(
+    'agent_chat_subagents',
+    {
+        terminalId: text('terminal_id')
+            .notNull()
+            .references(() => terminals.id, { onDelete: 'cascade' }),
+        taskId: text('task_id').notNull(),
+        title: text('title').notNull(),
+        agentType: text('agent_type'),
+        status: text('status').notNull(),
+        startedAt: integer('started_at').notNull(),
+        endedAt: integer('ended_at'),
+    },
+    (table) => [
+        primaryKey({ columns: [table.terminalId, table.taskId] }),
+        index('agent_chat_subagents_terminal').on(table.terminalId, table.startedAt),
+        check('agent_chat_subagents_status', isOneOf(table.status, subagentStatuses)),
+    ],
+);

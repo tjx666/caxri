@@ -68,9 +68,9 @@ describe('Session creator', () => {
         raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
         // `0009_agent_chat_persistence` came after this column, so that version predates it too.
         raw.exec(
-            'DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
+            'DROP TABLE agent_chat_subagents; DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
         );
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 2}`);
+        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 3}`);
         raw.close();
 
         const upgraded = new CaxriDatabase(path);

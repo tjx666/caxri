@@ -1,3 +1,4 @@
+export { createLiveTerminalRecord } from './live-terminal-record';
 export {
     handleAgentLifecycleSignal,
     primeAgentWorkbenchProvenance,

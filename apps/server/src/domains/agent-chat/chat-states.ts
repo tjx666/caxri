@@ -10,6 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
 import { delegatedTaskSource } from './chat-delegated-task';
@@ -18,6 +19,7 @@ import { ChatProjection } from './chat-projection';
 import type { AgentChatProviderSession } from './chat-provider';
 import { ChatFollowUpQueue } from './chat-queue';
 import { chatStateStore } from './chat-state-store';
+import { ChatSubagentSummaries } from './chat-subagent-summaries';
 import { forgetTaskRevisions } from './chat-task-projections';
 
 export type ChatTerminal = TerminalRecord & { provider: AgentProvider };
@@ -107,7 +109,29 @@ export class ChatStates {
      */
     private readonly taskRevisionFloors = new Map<string, number>();
 
-    constructor(private readonly options: ChatStatesOptions) {}
+    /**
+     * The durable subagent summaries the sidebar lists; see {@link ChatSubagentSummaries}.
+     */
+    private readonly subagents: ChatSubagentSummaries;
+
+    constructor(private readonly options: ChatStatesOptions) {
+        this.subagents = new ChatSubagentSummaries(options.database, (terminalId) =>
+            this.publish(terminalId),
+        );
+        this.reconcileSubagentsOnStart();
+    }
+
+    /**
+     * Runs once when Server Core builds this registry: persisted `running` subagents lost their provider with the
+     * previous Server Core. Marks them `stopped` and logs how many rows that touched.
+     */
+    private reconcileSubagentsOnStart(): void {
+        const terminalIds = this.subagents.reconcileOnStart();
+        if (terminalIds.length === 0) return;
+        this.options.logger.write('info', logEventCatalog.agentChatSubagents.reconciled, {
+            fields: { reason: 'serverStart', terminals: terminalIds.length },
+        });
+    }
 
     get(terminalId: string): ChatState | undefined {
         return this.states.get(terminalId);
@@ -139,6 +163,7 @@ export class ChatStates {
                 logger: this.options.logger,
                 send: (event) => this.options.send(event),
                 onChange: () => state.followUps.dispatch(),
+                onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
                 delegatedTaskSource: (delegationId) =>
                     delegatedTaskSource(this.options.database, delegationId),
                 answeredNotices: {
@@ -193,6 +218,7 @@ export class ChatStates {
         if (state) {
             this.revisionFloors.set(terminalId, state.projection.retire());
             this.states.delete(terminalId);
+            this.subagents.forget(terminalId);
         }
         if (isClosed) forgetTaskRevisions(this.taskRevisionFloors, terminalId);
     }

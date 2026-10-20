@@ -222,6 +222,7 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('agentChat.animatedToolIcons'),
     specRow('agentChat.statusShimmer'),
     specRow('primarySidebar.autoCollapseProjects'),
+    specRow('primarySidebar.showSubagents'),
     specRow('primarySidebar.translucent'),
     specRow('statusBar.usage.showFiveHourLimit'),
     specRow('workbench.newWorktreeBehavior'),

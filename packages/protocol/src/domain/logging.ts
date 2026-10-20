@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentChatSubagentLogEvents } from './logging-agent-chat-subagents.js';
 import { agentCommanderLogEvents } from './logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging-benchmark.js';
 import { remoteSshLogEvents } from './logging-remote-ssh.js';
@@ -343,6 +344,7 @@ export const logEventCatalog = {
         eventLoopStall: 'process.event_loop_stall',
     },
     agentCommander: agentCommanderLogEvents,
+    agentChatSubagents: agentChatSubagentLogEvents,
     benchmark: benchmarkLogEvents,
     /**
      * The Benchmark window's own Renderer lifecycle, kept apart from the Workbench's so a crash loop in this optional

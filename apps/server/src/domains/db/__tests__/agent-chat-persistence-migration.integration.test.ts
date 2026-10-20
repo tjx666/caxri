@@ -16,7 +16,7 @@ async function openDatabase(): Promise<{ path: string; database: CaxriDatabase }
 }
 
 describe('Agent Chat persistence tables', () => {
-    it('adds the tables and the resume column when upgrading from the previous schema version', async () => {
+    it('adds the tables and the resume column when upgrading from the schema version before them', async () => {
         const { path, database } = await openDatabase();
         const project = database.createProject(join(path, '..', 'project'));
         const { session } = database.createSession(project.id, null);
@@ -24,9 +24,10 @@ describe('Agent Chat persistence tables', () => {
         database.close();
         const raw = new Database(path);
         raw.exec(
-            'DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
+            'DROP TABLE agent_chat_subagents; DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
         );
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        // The persistence migration is followed by the subagent summaries migration, so both are pending here.
+        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 2}`);
         raw.close();
 
         const upgraded = new CaxriDatabase(path);

@@ -89,6 +89,10 @@ export const settingsCatalog = {
     'settings.primarySidebar.autoCollapseProjects.option.30m': 'After 30 minutes',
     'settings.primarySidebar.autoCollapseProjects.option.2h': 'After 2 hours',
 
+    'settings.primarySidebar.showSubagents.title': 'Show subagents under Sessions',
+    'settings.primarySidebar.showSubagents.description':
+        'Lists the subagents a Chat Agent started as indented rows under its Session in the Primary Side Bar',
+
     'settings.primarySidebar.translucent.title': 'Translucent sidebar',
     'settings.primarySidebar.translucent.description':
         'On macOS, blur the desktop through the sidebar like frosted glass when the theme matches the system light or dark appearance.',

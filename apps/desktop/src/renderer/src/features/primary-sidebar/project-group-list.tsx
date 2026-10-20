@@ -21,6 +21,7 @@ interface ProjectGroupListProperties {
     selectedSessionId?: string;
     sessionOrder: SessionOrderController;
     sessionRename: SessionRenameController;
+    showSubagents: boolean;
     terminals: TerminalRecord[];
     /**
      * Workbench Root Projects keyed by Session id, for Sessions working outside their own Project.
@@ -44,6 +45,7 @@ export function ProjectGroupList({
     selectedSessionId,
     sessionOrder,
     sessionRename,
+    showSubagents,
     terminals,
     worktreeProjects,
 }: ProjectGroupListProperties) {
@@ -87,6 +89,7 @@ export function ProjectGroupList({
                 rovingRowId={rovingRowId}
                 selectedSessionId={selectedSessionId}
                 sessionOrder={sessionOrder}
+                showSubagents={showSubagents}
                 terminals={terminals}
                 visibleSessions={visibleSessions}
                 worktreeProjects={worktreeProjects}
