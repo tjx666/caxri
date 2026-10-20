@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -19,8 +19,8 @@ import {
     createRemoteHostSupervisor,
     SSH_CONFIG_ENVIRONMENT_KEY,
 } from './ssh/remote-host-supervisor';
-import type { RemoteSeedConfig } from './ssh/remote-server-supervisor-options';
 import { resolveSshHostWindowKey } from './ssh/resolve-destination';
+import { readSeedConfig } from './ssh/seed-config';
 import { listSshConfigHosts, RecentSshDestinations } from './ssh/ssh-config';
 import { mainWindowChromeOptions, zoomFactorForLevel } from './window-chrome';
 import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
@@ -209,25 +209,4 @@ async function revealSshConfig(): Promise<void> {
         throw new CaxriError('NOT_FOUND', 'The SSH config folder does not exist');
     const failure = await shell.openPath(directory);
     if (failure) throw new CaxriError('IO', failure);
-}
-
-async function readOptionalFile(path: string): Promise<string | undefined> {
-    try {
-        return await readFile(path, 'utf8');
-    } catch {
-        return undefined;
-    }
-}
-
-/**
- * Reads the local profile's settings, keybindings, and theme so a first connect to an SSH Host starts from the same
- * Workbench. A missing file is skipped; the SSH Host never overwrites a file it already has.
- */
-async function readSeedConfig(configDirectory: string): Promise<RemoteSeedConfig> {
-    const [settings, keybindings, theme] = await Promise.all([
-        readOptionalFile(join(configDirectory, 'settings.jsonc')),
-        readOptionalFile(join(configDirectory, 'keybindings.jsonc')),
-        readOptionalFile(join(configDirectory, 'theme.json')),
-    ]);
-    return { keybindings, settings, theme };
 }
