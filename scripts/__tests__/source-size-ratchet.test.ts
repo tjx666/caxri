@@ -279,6 +279,30 @@ describe('collectRatchetCandidates (real Git plumbing)', () => {
         expect(moved?.headLines).toBe(moved?.baseLines);
     });
 
+    it('does not flag implementation moved out of an index.ts that stays behind as a barrel', async () => {
+        const root = await temporaryRepo();
+        const git = (...arguments_: string[]): void => {
+            execFileSync('git', arguments_, { cwd: root, stdio: 'ignore' });
+        };
+        await mkdir(join(root, 'scripts', 'domain'), { recursive: true });
+        await writeFile(join(root, 'scripts', 'domain', 'index.ts'), linesOf(650, 'z'));
+        git('add', '.');
+        git('commit', '-m', 'base');
+        const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim();
+
+        // Plain rename detection misses this: index.ts is modified, not deleted, so the moved body would read as a
+        // brand-new 650-line file.
+        git('mv', 'scripts/domain/index.ts', 'scripts/domain/service.ts');
+        await writeFile(
+            join(root, 'scripts', 'domain', 'index.ts'),
+            "export { service } from './service';\n",
+        );
+        git('add', '.');
+
+        const candidates = await collectRatchetCandidates(root, base);
+        expect(evaluateRatchet(candidates)).toEqual([]);
+    });
+
     it('flags a new untracked file that starts at or above the threshold', async () => {
         const root = await temporaryRepo();
         const git = (...arguments_: string[]): void => {
