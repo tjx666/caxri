@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 import type { AgentEnvironment } from '../../contract';
 import type { AgentOpenFilesProbe, AgentOpenFilesProbeFailure } from '../../process-detection';
 import { detectAgentOpenFiles } from '../../process-detection';
-import { codexSessionIdsFromOpenFiles } from './index';
+import { codexSessionIdsFromOpenFiles } from './open-files';
 import { resolveCodexHome } from './paths';
 import { CODEX_ROLLOUT_NAME_PATTERN } from './rollouts';
 

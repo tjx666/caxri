@@ -17,6 +17,8 @@ const THIN_BARREL_INDEXES = [
     'apps/server/src/domains/config/index.ts',
     'apps/server/src/domains/project-status/index.ts',
     'apps/server/src/domains/theme/index.ts',
+    'apps/server/src/domains/agents/providers/claude/index.ts',
+    'apps/server/src/domains/agents/providers/codex/index.ts',
     'packages/extension-api/src/index.ts',
 ] as const;
 
