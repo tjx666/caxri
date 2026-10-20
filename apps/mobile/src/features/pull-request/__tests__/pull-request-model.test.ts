@@ -8,6 +8,7 @@ import {
     pullRequestConfirmation,
     pullRequestMergeAction,
     pullRequestMergeErrorMessage,
+    pullRequestMergeMethodNote,
     pullRequestReadiness,
     pullRequestTone,
 } from '../pull-request-model';
@@ -111,5 +112,20 @@ describe('mobile pull request merge model', () => {
                 translate,
             ),
         ).toBe('GitHub did not merge this pull request. Required status check "lint" is expected.');
+    });
+
+    it('names the method and target branch the merge will use, as Desktop does', () => {
+        expect(
+            pullRequestMergeMethodNote(
+                pr({ mergeMethod: 'squash', baseBranch: 'main' }),
+                translate,
+            ),
+        ).toBe('Squash and merge into main.');
+        expect(pullRequestMergeMethodNote(pr({ mergeMethod: 'rebase' }), translate)).toBe(
+            'Rebase and merge. This repository allows neither squash merging nor merge commits.',
+        );
+        expect(pullRequestMergeMethodNote(pr(), translate)).toBe(
+            'Squash and merge when the repository allows it, otherwise a merge commit, then rebase.',
+        );
     });
 });

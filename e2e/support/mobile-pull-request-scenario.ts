@@ -94,6 +94,7 @@ async function writeFakeGh(
             statusCheckRollup: rollup,
             headRefOid: head,
             headRefName: BRANCH,
+            baseRefName: 'main',
             mergeable: 'MERGEABLE',
             mergeStateStatus,
             ...(state === 'MERGED' && { mergeCommit: { oid: 'c'.repeat(40) } }),

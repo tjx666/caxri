@@ -41,6 +41,12 @@ const mobilePullRequestSchema = z.strictObject({
         .regex(/^[0-9a-f]{40}$/)
         .optional(),
     mergeBlocker: pullRequestMergeBlockerSchema.optional(),
+    /**
+     * The branch the pull request merges into, and the method the merge would use right now; both absent when Project
+     * Status could not read them.
+     */
+    baseBranch: z.string().min(1).max(255).optional(),
+    mergeMethod: z.enum(['merge', 'rebase', 'squash']).optional(),
 });
 
 /**

@@ -48,6 +48,8 @@ export function projectMobilePullRequest(
         failedCheckCount: failed.length,
         ...(pullRequest.headSha && { headSha: pullRequest.headSha }),
         ...(pullRequest.mergeBlocker && { mergeBlocker: pullRequest.mergeBlocker }),
+        ...(pullRequest.baseBranch && { baseBranch: pullRequest.baseBranch }),
+        ...(pullRequest.mergeMethod && { mergeMethod: pullRequest.mergeMethod }),
     };
 }
 

@@ -15,6 +15,7 @@ import {
     pullRequestChecksSummary,
     pullRequestConfirmation,
     pullRequestMergeAction,
+    pullRequestMergeMethodNote,
     pullRequestReadiness,
     pullRequestTone,
     pullRequestToneColor,
@@ -233,13 +234,13 @@ const MergeArea = ({
                 variant={action.kind === 'merge' ? 'success' : isOverride ? 'danger' : 'secondary'}
             />
             <Text style={[styles.caption, { color: theme.muted }]}>
-                {t(
-                    deviceRole === 'control'
-                        ? isConnected
-                            ? 'pullRequest.mergeMethod'
-                            : 'pullRequest.offline'
-                        : 'pullRequest.needsControl',
-                )}
+                {deviceRole === 'control' && isConnected
+                    ? pullRequestMergeMethodNote(pullRequest, t)
+                    : t(
+                          deviceRole === 'control'
+                              ? 'pullRequest.offline'
+                              : 'pullRequest.needsControl',
+                      )}
             </Text>
         </View>
     );
@@ -273,7 +274,7 @@ const MergeConfirmation = ({
                 {pullRequestConfirmation(pullRequest, action.blocker, t)}
             </Text>
             <Text style={[styles.confirmText, { color: theme.muted }]}>
-                {`${t('pullRequest.mergeMethod')} ${t('pullRequest.confirm.undo')}`}
+                {`${pullRequestMergeMethodNote(pullRequest, t)} ${t('pullRequest.confirm.undo')}`}
             </Text>
             <View style={styles.buttons}>
                 <View style={styles.buttonSlot}>

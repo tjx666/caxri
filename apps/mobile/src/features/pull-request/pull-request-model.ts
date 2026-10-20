@@ -117,6 +117,25 @@ export function pullRequestReadiness(pullRequest: MobilePullRequest, t: Translat
  * The checks line: `3 of 9 checks failed: lint, e2e, docs, and 1 more`, `9 checks passed`, `Checks running`, or nothing
  * when the pull request has no checks. Names come from the rollup after ignored checks were filtered out.
  */
+/**
+ * The sentence saying what the merge will do, as Desktop's Status merge button says it: the method Server Core reported
+ * for this repository and the branch it merges into, plus why when it is not squash (the first choice). Without a
+ * reported method it states the selection order instead.
+ */
+export function pullRequestMergeMethodNote(
+    pullRequest: Pick<MobilePullRequest, 'baseBranch' | 'mergeMethod'>,
+    t: Translate,
+): string {
+    const { baseBranch, mergeMethod } = pullRequest;
+    if (!mergeMethod) return t('pullRequest.mergeMethod');
+    const action = t(`pullRequest.method.${mergeMethod}`);
+    const sentence = baseBranch
+        ? t('pullRequest.method.into', { action, base: baseBranch })
+        : t('pullRequest.method.plain', { action });
+    if (mergeMethod === 'squash') return sentence;
+    return `${sentence} ${t(mergeMethod === 'merge' ? 'pullRequest.method.noSquash' : 'pullRequest.method.noSquashOrMerge')}`;
+}
+
 export function pullRequestChecksSummary(
     pullRequest: MobilePullRequest,
     t: Translate,

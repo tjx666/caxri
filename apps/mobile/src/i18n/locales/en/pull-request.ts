@@ -27,6 +27,14 @@ export const pullRequest = {
     'pullRequest.merging': 'Merging…',
     'pullRequest.mergeMethod':
         'Squash and merge when the repository allows it, otherwise a merge commit, then rebase.',
+    'pullRequest.method.squash': 'Squash and merge',
+    'pullRequest.method.merge': 'Create a merge commit',
+    'pullRequest.method.rebase': 'Rebase and merge',
+    'pullRequest.method.into': '{{action}} into {{base}}.',
+    'pullRequest.method.plain': '{{action}}.',
+    'pullRequest.method.noSquash': 'This repository does not allow squash merging.',
+    'pullRequest.method.noSquashOrMerge':
+        'This repository allows neither squash merging nor merge commits.',
     'pullRequest.confirm.title': 'Merge #{{number}}?',
     'pullRequest.confirm.checksFailed': 'Checks did not pass.',
     'pullRequest.confirm.checksRunning': 'Checks are still running.',
