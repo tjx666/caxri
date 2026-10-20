@@ -50,3 +50,29 @@ _Researched 2026-09-05 at `1dbbce1da524efa885a751381426f1591a9f41c1`._
   `FILE_CHANGES_HANDLER_DELAY` coalescing pass. The useful shape is that every window is a bound on
   work per unit time, not a bound on staleness, the same reason Caxri's window may exceed
   `@parcel/watcher`'s 500ms forced-flush ceiling.
+
+## Multi-tab and multi-window (2026-10-21)
+
+Findings from the Open Session tab strip research (clone inspected, no commit pinned):
+
+- Auxiliary windows share the main window's JS context: the opener calls `window.open('about:blank')`
+  and the editor part is mounted into the new document, so services and state are not duplicated.
+- Dragging a tab out is detected from the cursor's screen point landing outside every window, not
+  from a DOM drop target.
+- Editor part layout persists in `editorparts.state`, one entry per part; services are scoped per
+  editor part.
+- The active part is derived from focus plus a most-recently-used order, not stored as a flag.
+
+For Caxri this supports a per-window working set persisted by window key, and "current" derived from
+focus with an MRU fallback ([docs/open-sessions.md](../../../../docs/open-sessions.md)).
+
+### Products without their own note
+
+LobeHub and Cherry Studio are not in the landscape table, so their findings live here.
+
+- **LobeHub**: `TabHost` keeps one router per tab under React `<Activity>`, with a live cap of 5;
+  tab state persists in `localStorage` per scope. Popup windows are deduplicated by a unique ID, with a
+  `TopicPopupGuard` stopping the same topic opening twice. The tab strip hides below two tabs and
+  offers Open in New Tab.
+- **Cherry Studio**: a tab can detach into a `SubWindow` and re-attach; dormant tabs are managed LRU
+  (10 dormant, cap 22).

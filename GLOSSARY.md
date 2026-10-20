@@ -26,8 +26,9 @@ Agents live on that machine.
 _Avoid_: Remote, remote machine, Remote Server
 
 **Session View**:
-One Client's presentation of a Session, including its pane layout, open resources, selection, and
-an optional Workbench Root override. It never owns the resources it presents.
+One Client's presentation of a Session, including its pane layout, open resources, active resource, and
+an optional Workbench Root override. It never owns the resources it presents. Which Sessions a window
+keeps open is separate: see Open Session.
 _Avoid_: Session state, Desktop state
 
 ## Work

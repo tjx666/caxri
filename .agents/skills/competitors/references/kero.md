@@ -26,3 +26,8 @@ _Researched 2026-08-10._
 
 - deepakness.com review (2026-08-02) favors Kero over cmux for built-in files/git, but notes friction: no drag-to-reposition tabs, `cmd +/-` doesn't zoom text.
 - Positioned by reviewers as the "more Mac-native alternative to Electron-heavy terminal workspaces": the direct performance-narrative competitor to Electron apps like Caxri.
+
+## Multi-tab and multi-window (2026-10-21)
+
+Kero keeps a single global "viewed" pointer. With more than one window it is wrong for every window
+but the last to write, so Caxri treats it as the anti-pattern its per-window presence replaces.

@@ -21,3 +21,9 @@ _Researched 2026-08-06._
 - File tree pane (⌘E) with inline preview for markdown/HTML/media/PDF/Office formats plus CodeMirror editing.
 - Theme packs via the third-party CodexThemes marketplace; system-wide summon hotkey.
 - Roadmap: inline AI command suggestion/diagnosis, cloud container-per-session backend.
+
+## Multi-tab and multi-window (2026-10-21)
+
+View state is keyed by window label. `PageClaims` allows one page per window, so a page never renders
+in two windows at once. Relevant to the later tear-off window rule that one Session is viewed by
+one window.

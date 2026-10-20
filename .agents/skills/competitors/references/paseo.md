@@ -67,3 +67,11 @@ _Researched 2026-10-11 from source `b63a325`._
 - Model and thinking choice: on a phone the composer's model trigger opens a bottom sheet with `Model` and `Thinking` sections that apply on tap; a running turn keeps its model. Caxri mirrors this as the Agent Chat model sheet.
 - Images: user messages show 48 px thumbnails; tapping opens a full-screen lightbox with pinch zoom (reanimated plus gesture-handler) that closes on tap or an X button.
 - Offline reads: an `expo-sqlite` replica cache stores rows keyed by `(server_id, kind, id)` with a JSON payload, keeps the last 50 timeline items per Agent, caps the database at 32 MiB, and evicts whole hosts least-recently-used first. Catch-up shows "Updating messages" and "Reconnecting" banners instead of blanking the timeline.
+
+## Multi-tab and multi-window (2026-10-21)
+
+The app sends a `client_heartbeat` carrying `appVisible` and `focusedAgentId`; the server uses it
+to suppress attention notifications for an agent a client is already looking at. The mounted tab
+set is capped at 3 and retains dirty tabs (see the retention section above). Caxri's presence model
+(visible versus focused, per window) follows this split; Caxri reports from native window state
+rather than the DOM.
