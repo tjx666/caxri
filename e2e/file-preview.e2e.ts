@@ -226,16 +226,18 @@ test('previews PDF, CSV, and Mermaid files', async () => {
         await pageField.fill('2');
         await pageField.press('Enter');
         await expect(pageField).toHaveValue('2');
+        // Scoped to the PDF tab: the hidden window zoom HUD also has a `Zoom In` button.
+        const pdfPanel = page.getByRole('tabpanel', { name: 'manual.pdf' });
         const zoom = page.getByRole('button', { name: /^Zoom: \d+%$/u });
         const fitted = await zoom.getAttribute('aria-label');
-        await page.getByRole('button', { name: 'Zoom In' }).click();
+        await pdfPanel.getByRole('button', { name: 'Zoom In' }).click();
         await expect(zoom).not.toHaveAttribute('aria-label', fitted ?? '');
         await zoom.click();
         await page.getByRole('menuitemradio', { name: 'Fit Width' }).click();
         await expect(zoom).toHaveAttribute('aria-label', fitted ?? '');
 
         // Regenerating the file on disk swaps the new copy in without a click, at the reader's page and zoom.
-        await page.getByRole('button', { name: 'Zoom In' }).click();
+        await pdfPanel.getByRole('button', { name: 'Zoom In' }).click();
         await expect(zoom).not.toHaveAttribute('aria-label', fitted ?? '');
         const zoomed = await zoom.getAttribute('aria-label');
         await pdf.evaluate((element) => {

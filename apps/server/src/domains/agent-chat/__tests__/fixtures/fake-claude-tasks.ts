@@ -138,9 +138,10 @@ function recordSubagent(io: FakeClaudeIo, agentId: string, meta: Json, messages:
             ...(type === 'system'
                 ? record
                 : {
-                      // Billed like a real subagent response, so the task tab can price the subagent from this file.
+                      // Billed like a real subagent response, so the task tab can price the subagent from this file. A
+                      // mod's output is recorded as an assistant entry but is no model response, so it bills nothing.
                       message:
-                          type === 'assistant'
+                          type === 'assistant' && !('local_command_run' in record)
                               ? {
                                     ...record,
                                     model: SUBAGENT_MODEL,

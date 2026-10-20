@@ -55,24 +55,24 @@ test('typing @ in Agent Chat completes Project files and inserts a Project-relat
         const list = chat.getByRole('listbox', { name: 'Files and Sessions' });
         await expect(list.getByText('Files', { exact: true })).toBeVisible();
         await expect(list.getByText('Sessions', { exact: true })).toBeVisible();
-        // Files come first (the name match with the shorter name leads), then the Session.
+        // Files come first in quick open's ranking (the shallower path leads an equal name match), then the Session.
         await expect(list.getByRole('option')).toHaveCount(3);
-        await expect(list.getByRole('option').first()).toContainText('invoice-totals.ts');
-        await expect(list.getByRole('option').first()).toContainText('src/billing');
-        await expect(list.getByRole('option').nth(1)).toContainText('invoice notes.md');
+        await expect(list.getByRole('option').first()).toContainText('invoice notes.md');
+        await expect(list.getByRole('option').nth(1)).toContainText('invoice-totals.ts');
+        await expect(list.getByRole('option').nth(1)).toContainText('src/billing');
         await expect(list.getByRole('option').nth(2)).toContainText('Invoice review plan');
         await page.screenshot({ path: testInfo.outputPath('chat-file-mention.png') });
 
+        // A path with whitespace is quoted so the mention does not end at the space.
         await message.press('Enter');
         await expect(list).toHaveCount(0);
-        await expect(message).toHaveValue('read @src/billing/invoice-totals.ts ');
+        await expect(message).toHaveValue('read @"docs/invoice notes.md" ');
 
-        // A path with whitespace is quoted so the mention does not end at the space.
-        await message.fill('@notes');
+        await message.fill('@totals');
         await expect(list.getByRole('option')).toHaveCount(1);
         await expect(list.getByText('Sessions', { exact: true })).toHaveCount(0);
         await message.press('Tab');
-        await expect(message).toHaveValue('@"docs/invoice notes.md" ');
+        await expect(message).toHaveValue('@src/billing/invoice-totals.ts ');
 
         // A word nothing matches leaves the list closed, and Escape dismisses it until the next edit.
         await message.fill('@zzzz-no-such-file');
