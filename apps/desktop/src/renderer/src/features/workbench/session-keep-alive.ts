@@ -3,13 +3,16 @@ import { createStore } from '../../lib/store';
 /**
  * How many Sessions keep a live Workbench at once, the selected one included.
  *
- * The ceiling is a GPU budget, not a memory guess. Chromium allows a page roughly 16 live WebGL contexts and
- * force-loses the oldest beyond that, which `../gpu/gpu-incident-budget.ts` banks as a real incident and eventually
- * uses to pin every Terminal to the DOM renderer. A retained Session only holds a context while it is on screen
- * (`TerminalRendererController.suspend` releases the rest), so three is a deliberately conservative bound that leaves
- * the visible Session's splits room to grow without the retained ones competing for contexts at all.
+ * The ceiling is a memory budget. GPU contexts do not bound it: a retained Session only holds a WebGL context while it
+ * is on screen (`TerminalRendererController.suspend` releases the rest), so the live contexts follow the visible
+ * Session's splits whatever this is. A hidden Session is skipped by style, layout, and paint (`content-visibility:
+ * hidden`) and a hidden Chat stops following its stream (`agentChatReadFollowOptions`), but each one still keeps its
+ * DOM, xterm buffers, and editor models, and a hidden Terminal still parses its PTY output. A sixteen-turn
+ * Markdown-heavy Chat measured about 6 MB of heap and 4,300 DOM nodes, while switching back to it mounted took about 27
+ * ms instead of 65 ms for a remount (`docs/renderer-performance.md`). Five covers the usual back and forth across a
+ * handful of Sessions; each Session beyond that buys less and keeps one more hidden Terminal parsing.
  */
-export const SESSION_KEEP_ALIVE_LIMIT = 3;
+export const SESSION_KEEP_ALIVE_LIMIT = 5;
 
 interface SessionKeepAliveState {
     /**

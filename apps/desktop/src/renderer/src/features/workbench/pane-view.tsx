@@ -124,6 +124,7 @@ function PaneContent({
         if (isChatTerminal(terminal))
             return (
                 <AgentChatTerminalContent
+                    isSessionVisible={isVisible}
                     isShown={isActivePane && isVisible}
                     key={terminal.id}
                     terminal={terminal}

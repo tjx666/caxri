@@ -16,7 +16,7 @@ import { describeFailure, isCancelledRequest, pushToast } from '../stores/toasts
 export const EXTENSION_TREE_GC_TIME_MS = 30 * 60_000;
 
 /**
- * The two query-key namespaces more than one module has to agree on, owned here because the data layer owns key shapes.
+ * The query-key namespaces more than one module has to agree on, owned here because the data layer owns key shapes.
  *
  * A cache predicate that spells the method out as a bare string never fails loudly: rename the method or reshape the
  * key and the comparison simply stops matching anything, which is how two `viewContainers.treeChildren` predicates
@@ -27,6 +27,7 @@ export const EXTENSION_TREE_GC_TIME_MS = 30 * 60_000;
 export const CONTROLLED_VIEW_QUERY_METHOD = 'viewContainers.viewOperation' satisfies CaxriMethod;
 export const EXTENSION_TREE_CHILDREN_QUERY_METHOD =
     'viewContainers.treeChildren' satisfies CaxriMethod;
+export const AGENT_CHAT_READ_QUERY_METHOD = 'agentChat.read' satisfies CaxriMethod;
 
 /**
  * Server-state defaults tuned for a local-IPC app rather than a network API: there is no other client to race with over
@@ -50,6 +51,8 @@ export function createCaxriQueryClient(): QueryClient {
     client.setQueryDefaults([EXTENSION_TREE_CHILDREN_QUERY_METHOD], {
         gcTime: EXTENSION_TREE_GC_TIME_MS,
     });
+    // Chat snapshots are retained by recency instead; see `subscribeAgentChatCacheRetention`.
+    client.setQueryDefaults([AGENT_CHAT_READ_QUERY_METHOD], { gcTime: Infinity });
     return client;
 }
 

@@ -11,6 +11,7 @@ import { AgentChatPane } from './agent-chat-pane';
 export function AgentChatTerminalContent({
     ariaLabel,
     host = 'workbench',
+    isSessionVisible = true,
     isShown,
     terminal,
 }: {
@@ -22,6 +23,10 @@ export function AgentChatTerminalContent({
      * The window mounting the Chat, which gates the actions it cannot carry out (`agentChatHostCapabilities`).
      */
     host?: AgentChatHost;
+    /**
+     * Whether the Session holding the Chat is the one on screen. Defaults to `true` for a host with no hidden Sessions.
+     */
+    isSessionVisible?: boolean;
     isShown: boolean;
     terminal: TerminalRecord;
 }) {
@@ -30,6 +35,7 @@ export function AgentChatTerminalContent({
         <AgentChatPane
             ariaLabel={ariaLabel ?? terminal.title}
             host={host}
+            isSessionVisible={isSessionVisible}
             isShown={isShown}
             providerName={provider?.displayName ?? 'the Agent'}
             supportsImages={provider?.capabilities.chatImages ?? false}

@@ -27,8 +27,10 @@ percentiles, missed-frame estimates, Long Animation Frame, and Event Timing valu
 Component-level fiber trees stay outside the build and durable receipt because subtree-inclusive timings
 cannot supply an additive component budget.
 
-The Workbench keeps the three most recently selected Sessions (the visible one included) mounted in a
+The Workbench keeps the five most recently selected Sessions (the visible one included) mounted in a
 stable id order and hides the off-screen ones with `content-visibility: hidden` plus `inert`, never `display: none`, so a Chat or
-Terminal returns at its own scroll offset without a programmatic scroll. `benchmark:chat-switch`
+Terminal returns at its own scroll offset without a programmatic scroll. A hidden Chat stays subscribed to its
+cached conversation but is not notified of its stream, and cached Chat conversations are retained by
+count rather than time. `benchmark:chat-switch`
 guards that path and the cold Chat load; its scenarios and gates are documented in
 [Agent Chat Session switch](../../../../docs/renderer-performance.md#agent-chat-session-switch).

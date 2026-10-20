@@ -34,6 +34,20 @@ const MAXIMUM_SAMPLED_FRAMES = 600;
  */
 const SETTLING_FRAMES = 30;
 
+/**
+ * Newer Sessions created before the Chat counts as never evicted from keep-alive; far above its limit.
+ */
+const MAXIMUM_NEWER_SESSIONS = 12;
+/**
+ * The hidden window is sampled while the fake Codex's `longstream` reply streams, which takes about thirty seconds.
+ */
+const HIDDEN_STREAM_WINDOW_MS = 5000;
+/**
+ * Workbench React work while a hidden kept-alive Chat streams for {@link HIDDEN_STREAM_WINDOW_MS}. Following the stream
+ * measured 1,368 renders and 134 ms on 2026-10-21; a frozen Chat measured 5 renders and 0.6 ms.
+ */
+const HIDDEN_STREAM_BUDGET = { renders: 40, actualDurationMs: 10 };
+
 type RendererSurface = keyof RendererPerformanceScenarioDiagnostic['react']['surfaces'];
 type ChatSwitchScenario = 'keptAlive' | 'cached' | 'uncached';
 
@@ -157,6 +171,41 @@ async function countChatReads(userData: string): Promise<number> {
     return new Set(requests).size;
 }
 
+/**
+ * React work the Workbench commits over a quiet window with no interaction, bracketed as a Renderer scenario.
+ */
+async function measureWindow(
+    page: Page,
+    durationMs: number,
+): Promise<{ commitCount: number; workbench: { renders: number; actualDurationMs: number } }> {
+    return page.evaluate(async (duration) => {
+        const performanceApi = (globalThis as RendererPerformanceWindow).caxriPerformance;
+        if (!performanceApi) throw new Error('Renderer performance API is unavailable');
+        const scenarioId = performanceApi.begin('session.switch');
+        await new Promise((resolve) => setTimeout(resolve, duration));
+        const diagnostic = performanceApi.end(scenarioId);
+        const { workbench } = diagnostic.react.surfaces;
+        return {
+            commitCount: diagnostic.react.commitCount,
+            workbench: {
+                renders: workbench.profiledRenderCount,
+                actualDurationMs: Math.round(workbench.actualDurationTotalMs * 10) / 10,
+            },
+        };
+    }, durationMs);
+}
+
+/**
+ * The Primary Sidebar lists a Project's five most recently active Sessions; the Chat falls behind its "Show more" row
+ * once enough newer Sessions push it out of keep-alive.
+ */
+async function revealSessionCard(page: Page, sessionId: string): Promise<void> {
+    if ((await sessionCard(page, sessionId).count()) === 0) {
+        await page.getByRole('treeitem', { name: /^Show \d+ more Sessions? in / }).click();
+    }
+    await expect(sessionCard(page, sessionId)).toBeVisible();
+}
+
 async function switchAndSettle(page: Page, sessionId: string): Promise<void> {
     await sessionCard(page, sessionId).click();
     await expect.poll(() => selectedSessionId(page)).toBe(sessionId);
@@ -176,6 +225,7 @@ async function measureSwitch(
     userData: string,
     chatSessionId: string,
 ): Promise<ChatSwitchSample> {
+    await revealSessionCard(page, chatSessionId);
     const readsBefore = await countChatReads(userData);
     const sample = await page.evaluate(
         async ({ sessionId, maximumFrames, settlingFrames }) => {
@@ -342,23 +392,40 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
             });
         }
 
-        // Three newer Sessions push the Chat out of keep-alive; its conversation stays in the Renderer's cache.
+        // Newer Sessions push the Chat out of keep-alive, however many it retains; its conversation stays in the
+        // Renderer's cache.
         const otherSessionIds: string[] = [];
-        for (let count = 0; count < 3; count += 1) {
+        const chatWorkbench = page.locator(`[data-workbench-session-id="${chatSessionId}"]`);
+        // eslint-disable-next-line no-await-in-loop -- eviction is observed after each new Session
+        while ((await chatWorkbench.count()) > 0) {
+            expect(otherSessionIds.length, 'keep-alive never evicted the Chat').toBeLessThan(
+                MAXIMUM_NEWER_SESSIONS,
+            );
             // eslint-disable-next-line no-await-in-loop -- each creation targets the newly selected Session
             await createAdditionalShellSession(page);
             // eslint-disable-next-line no-await-in-loop -- see above
             otherSessionIds.push(await selectedSessionId(page));
         }
-        await expect(page.locator(`[data-workbench-session-id="${chatSessionId}"]`)).toHaveCount(0);
         const cached = await measureSwitch(page, userData, chatSessionId);
 
         await switchAndSettle(page, otherSessionIds.at(-1)!);
         const keptAlive = await measureSwitch(page, userData, chatSessionId);
 
+        // A long reply streams into the Chat while its Session is kept alive behind another one.
+        await message.fill('longstream please');
+        await message.press('Enter');
+        // The reply thinks quietly first; the window starts once its text is arriving.
+        await expect(chat.getByText(/^Paragraph 01:/u)).toBeVisible({ timeout: 30_000 });
+        await switchAndSettle(page, otherSessionIds.at(-1)!);
+        const hiddenStreaming = await measureWindow(page, HIDDEN_STREAM_WINDOW_MS);
+        const keptAliveStreaming = await measureSwitch(page, userData, chatSessionId);
+        await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0, {
+            timeout: 60_000,
+        });
+
         await switchAndSettle(page, otherSessionIds.at(-1)!);
         await page.reload();
-        await expect(sessionCard(page, chatSessionId)).toBeVisible();
+        await revealSessionCard(page, chatSessionId);
         await expect(page.locator(VISIBLE_SESSION)).toHaveAttribute(
             'data-workbench-session-id',
             otherSessionIds.at(-1)!,
@@ -370,6 +437,7 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
             kind: 'agent-chat-session-switch',
             turnCount: TURN_COUNT,
             scenarios: { keptAlive, cached, uncached },
+            hiddenStreaming: { ...hiddenStreaming, keptAliveStreaming },
         };
         const receiptDirectory = join(process.cwd(), 'test-results', 'receipts');
         await mkdir(receiptDirectory, { recursive: true });
@@ -414,6 +482,19 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
         expect(cached.placeholderMs).toBeNull();
         expect(cached.readRequests).toBe(0);
         expect(uncached.readRequests).toBe(1);
+        // A hidden kept-alive Chat does no React work for its stream, and still comes back drawn at once.
+        expect(
+            hiddenStreaming.workbench.renders,
+            'hidden streaming Workbench renders',
+        ).toBeLessThanOrEqual(HIDDEN_STREAM_BUDGET.renders);
+        expect(
+            hiddenStreaming.workbench.actualDurationMs,
+            'hidden streaming Workbench React duration',
+        ).toBeLessThanOrEqual(HIDDEN_STREAM_BUDGET.actualDurationMs);
+        expect(keptAliveStreaming.blankFrames).toBe(0);
+        expect(keptAliveStreaming.placeholderMs).toBeNull();
+        expect(keptAliveStreaming.contentMs).toBe(keptAliveStreaming.shownMs);
+        expect(keptAliveStreaming.readRequests).toBe(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

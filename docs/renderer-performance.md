@@ -95,10 +95,10 @@ The fake Codex Chat answers sixteen Markdown-heavy turns (tables and highlighted
 transcript is many screens tall, and the user leaves it following the latest reply. One Session-card
 click back to that Chat is then measured from each state a Session can be in:
 
-- `keptAlive`: the Chat is still among the three most recently selected Sessions (the visible one
+- `keptAlive`: the Chat is still among the five most recently selected Sessions (the visible one
   included) whose Workbench stays mounted;
-- `cached`: three newer Sessions evicted it from keep-alive, while the Renderer's query cache still
-  holds its conversation;
+- `cached`: newer Sessions evicted it from keep-alive, while the Renderer's query cache still holds
+  its conversation;
 - `uncached`: after a Renderer reload nothing is cached, and the switch reads the conversation from
   Server Core.
 
@@ -121,21 +121,60 @@ stays within the render and duration budget in `e2e/agent-chat-switch.performanc
 kept-alive Workbench budget is the one that catches a switch back rendering the transcript again.
 Times and frame gaps stay diagnostic.
 
-Three local profiling runs on 2026-10-20 (Apple Silicon, hidden window) measured, in milliseconds
-from the click:
+A fourth measurement covers a Chat that keeps working while the user looks elsewhere. The fake
+Codex streams a long reply into the Chat while its Session is kept alive behind another one, and the
+Workbench's React work over five seconds of that stream must stay within `HIDDEN_STREAM_BUDGET`.
+Switching back to the still-streaming Chat must draw its turns in the first frame, with no
+placeholder and no read. The receipt records both under `hiddenStreaming`.
+
+Three local profiling runs on 2026-10-21 (Apple Silicon, hidden window, five kept-alive Sessions)
+measured, in milliseconds from the click:
 
 | Scenario    | Session shown | Placeholder | Conversation | Longest frame gap | `agentChat.read` | Workbench renders | Workbench React |
 | ----------- | ------------: | ----------: | -----------: | ----------------: | ---------------: | ----------------: | --------------: |
-| `keptAlive` |     23.2–25.3 |        none |    23.2–25.3 |         23.2–25.3 |                0 |                 4 |         0.5–0.6 |
-| `cached`    |     52.6–55.3 |        none |    52.6–55.3 |         52.6–55.3 |                0 |                 8 |       15.0–15.6 |
-| `uncached`  |     42.7–50.6 |   42.7–50.6 |   93.2–103.4 |         44.0–49.1 |                1 |             12–13 |       27.3–29.2 |
+| `keptAlive` |     26.3–28.3 |        none |    26.3–28.3 |         20.7–27.5 |                0 |                 4 |         0.7–1.1 |
+| `cached`    |     60.0–64.7 |        none |    60.0–64.7 |         53.2–64.7 |                0 |                10 |       15.5–19.4 |
+| `uncached`  |     30.1–51.8 |   30.1–51.8 |    73.5–96.2 |         43.4–57.8 |                1 |             12–13 |       24.7–38.6 |
 
-The Primary Sidebar rendered twice in every run, and the Secondary Sidebar four to six times, each
-under `1 ms` in total. Three production-build runs of this benchmark against the previous Renderer
-the same day showed what the gates now reject: every `keptAlive` switch fired one programmatic
+While the Chat streamed hidden, the Workbench rendered 5 times in 0.3 ms of React per five seconds
+in every run, and switching back to it drew its turns in `30.3–32.7 ms` with no read.
+
+The Primary Sidebar rendered twice in every run, and the Secondary Sidebar three to six times, each
+under `1 ms` in total. Three production-build runs of this benchmark against an earlier Renderer on
+2026-10-20 showed what the gates now reject: every `keptAlive` switch fired one programmatic
 `scroll` event (the overlay scrollbar flashing), and every `uncached` switch painted one or two blank
 frames before the turns arrived, with no placeholder. Its conversation times were `25.9–26.6`,
 `54.6–58.3`, and `95.7–103.7`, so the repair did not trade speed for those invariants.
+
+### Retention and hidden Chats
+
+Three choices, measured on 2026-10-21 against the previous Renderer in the same profiling build, keep
+these paths fast. They follow T3 Code's Session-switch work (see the competitors skill's feature
+references).
+
+- **Five kept-alive Sessions.** Switching back to the fourth most recent Session (the sixteen-turn
+  Chat) took `64.8 ms` with 21 ms of Workbench React as a remount, and `26.6 ms` with 1 ms while it
+  was still mounted. Each retained Chat of that size costs about 6 MB of JS heap and 4,300 DOM
+  nodes. GPU contexts do not bound the limit, because a hidden Session releases its WebGL contexts;
+  `SESSION_KEEP_ALIVE_LIMIT` in
+  `apps/desktop/src/renderer/src/features/workbench/session-keep-alive.ts` documents the budget.
+- **A hidden Chat stops following its stream.** Before, a kept-alive Chat streaming out of sight
+  cost the Workbench as much as a visible one: 1,368 renders and 134 ms of React per five seconds.
+  Its pane now keeps observing the cached conversation without being notified of each change
+  (`agentChatReadFollowOptions`), which measured 5 renders and 0.6 ms. `agentChat.patch` keeps the
+  cache current, so showing the Session renders the latest conversation once. Only the Chat pane does this; a Context,
+  task, or turn review tab of the same Chat open in a hidden Session still follows it.
+- **Sixteen cached conversations instead of five minutes.** React Query's default dropped a Chat's
+  cached conversation five minutes after its pane unmounted, so returning later showed the
+  placeholder turns and read it again. `agentChat.read` snapshots now stay cached until sixteen
+  other Chats nobody is observing were left after them
+  (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-cache-retention.ts`). Each one is
+  bounded by the projection limits, and a kept-alive Chat still counts as observed.
+
+Prefetching the most recent Chats after a Renderer reload was measured and not adopted. It removed
+the placeholder from the first switch (`59.5–70.9 ms` against `64.6–85.2 ms`), but `agentChat.read`
+starts a Chat's provider when it is not running, and after an ordinary relaunch none is, so a
+prefetch would start Agent processes for Chats the user never opens.
 
 A kept-alive Session stays laid out off screen (`content-visibility: hidden`, see
 `apps/desktop/src/renderer/src/features/workbench/workbench.tsx`), which is why it returns on the

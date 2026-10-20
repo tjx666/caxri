@@ -9,6 +9,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
+import { subscribeAgentChatCacheRetention } from './agent-chat-cache-retention';
 import { subscribeAgentChatHistoryRetention } from './agent-chat-history-client';
 
 /**
@@ -146,10 +147,16 @@ function createRevisionPatchCache<
         for (const patch of patches) if (!didApplyToCache(queryClient, channel, patch)) return;
     };
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-        if (event.type !== 'updated' || event.query.state.fetchStatus !== 'idle') return;
         const [method, parameters] = event.query.queryKey as readonly unknown[];
         if (!isQueryMethod([method], channel.method)) return;
         const key = channel.keyOfParameters(parameters);
+        // A read dropped while in flight (cache retention evicting it) settles nothing, so its held patches go with it.
+        if (event.type === 'removed') {
+            held.delete(key);
+            overflowed.delete(key);
+            return;
+        }
+        if (event.type !== 'updated' || event.query.state.fetchStatus !== 'idle') return;
         if (held.has(key) || overflowed.has(key))
             replay(key, event.query.state.status === 'success');
     });
@@ -216,6 +223,7 @@ export function subscribeAgentChatPatches(queryClient: QueryClient): () => void 
     const cache = createAgentChatPatchCache(queryClient);
     const taskCache = createAgentChatTaskPatchCache(queryClient);
     const unsubscribeHistory = subscribeAgentChatHistoryRetention(queryClient);
+    const unsubscribeRetention = subscribeAgentChatCacheRetention(queryClient);
     const unsubscribe = caxri.onEvent((event) => {
         switch (event.event) {
             case 'agentChat.patch': {
@@ -238,6 +246,7 @@ export function subscribeAgentChatPatches(queryClient: QueryClient): () => void 
     return () => {
         unsubscribe();
         unsubscribeHistory();
+        unsubscribeRetention();
         cache.dispose();
         taskCache.dispose();
     };

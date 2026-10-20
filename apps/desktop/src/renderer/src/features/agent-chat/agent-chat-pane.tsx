@@ -16,6 +16,7 @@ import {
     switchTerminalSurfaceTo,
 } from '../terminal/terminal-surface-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { agentChatReadFollowOptions } from './agent-chat-cache-retention';
 import { recoverAgentChat } from './agent-chat-commands';
 import { AgentChatComposer } from './agent-chat-composer';
 import type { AgentChatComposerInput } from './agent-chat-composer-view';
@@ -84,26 +85,19 @@ import { useLoadingStyle } from './loading';
  */
 const AGENT_CHAT_TURN_SELECTOR = `[${AGENT_CHAT_USER_MESSAGE_ATTRIBUTE}], [data-agent-chat-pending]`;
 
-/**
- * The structured surface of a Chat Terminal (ADR 0012): the conversation Server Core projects from the provider's own
- * protocol, rendered in place of a terminal grid. The projection lives in the shared query cache and is kept current by
- * `agentChat.patch` (see `agent-chat-client.ts`), so this view only reads it. Mounted per Terminal (keyed by its id),
- * so scroll-follow state never carries from one Chat to another.
- */
-export function AgentChatPane({
-    ariaLabel,
-    host,
-    isShown,
-    providerName,
-    supportsImages,
-    supportsRewindFiles,
-    terminalId,
-}: {
+interface AgentChatPaneProperties {
     ariaLabel: string;
     /**
      * The window mounting the Chat; its `agentChatHostCapabilities` gate "Fork from here" and "Use as Project default".
      */
     host: AgentChatHost;
+    /**
+     * Whether the Session holding the Chat is on screen. A kept-alive Session behind the visible one stops following
+     * its Chat's stream: re-rendering every streamed patch and every paced-text frame of a transcript nobody can see
+     * cost as much React work as the visible Chat (measured in `docs/renderer-performance.md`). The cache stays current
+     * through `agentChat.patch`, so showing the Session again renders the latest snapshot once.
+     */
+    isSessionVisible: boolean;
     /**
      * Whether the Chat is on screen in the active pane, so mounting it is the user activating it.
      */
@@ -121,9 +115,30 @@ export function AgentChatPane({
      */
     supportsRewindFiles: boolean;
     terminalId: string;
-}) {
+}
+
+/**
+ * The structured surface of a Chat Terminal (ADR 0012): the conversation Server Core projects from the provider's own
+ * protocol, rendered in place of a terminal grid. The projection lives in the shared query cache and is kept current by
+ * `agentChat.patch` (see `agent-chat-client.ts`), so this view only reads it. Mounted per Terminal (keyed by its id),
+ * so scroll-follow state never carries from one Chat to another.
+ */
+export function AgentChatPane({
+    ariaLabel,
+    host,
+    isSessionVisible,
+    isShown,
+    providerName,
+    supportsImages,
+    supportsRewindFiles,
+    terminalId,
+}: AgentChatPaneProperties) {
     const { t } = useTranslation();
-    const query = useCaxriQuery('agentChat.read', { terminalId }, { staleTime: Infinity });
+    const query = useCaxriQuery(
+        'agentChat.read',
+        { terminalId },
+        { staleTime: Infinity, ...agentChatReadFollowOptions(isSessionVisible) },
+    );
     const snapshot = query.data;
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<AgentChatComposerInput | null>(null);
