@@ -4,6 +4,7 @@ import type {
     AgentChatSkillReference,
 } from '@caxri/protocol';
 import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
+import { notifyListeners } from '@caxri/utils';
 import { debounce } from 'es-toolkit';
 
 import { translate } from '../../i18n';
@@ -229,7 +230,10 @@ const draftChangeListeners = new Map<string, Set<() => void>>();
 function notifyDraftChange(terminalId: string): void {
     const listeners = draftChangeListeners.get(terminalId);
     if (!listeners) return;
-    for (const listener of listeners) listener();
+    // One throwing surface cannot stop the others from hearing the write; Desktop mirrors `console.error` into its log.
+    notifyListeners(listeners, undefined, (error) =>
+        console.error('agentChat.draft listener failed', error),
+    );
 }
 
 export function writeAgentChatDraft(terminalId: string, text: string): void {
