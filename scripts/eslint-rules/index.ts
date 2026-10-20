@@ -3,6 +3,7 @@ import type { ESLint } from 'eslint';
 import architectureBoundaries from './architecture-boundaries';
 import featureDirectoryStructure from './feature-directory-structure';
 import filenameExportMapping from './filename-export-mapping';
+import listenerFanoutIsolation from './listener-fanout-isolation';
 import registeredColorUtilities from './registered-color-utilities';
 import serverReadsThroughQuery from './server-reads-through-query';
 
@@ -15,6 +16,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'architecture-boundaries': architectureBoundaries,
         'feature-directory-structure': featureDirectoryStructure,
         'filename-export-mapping': filenameExportMapping,
+        'listener-fanout-isolation': listenerFanoutIsolation,
         'registered-color-utilities': registeredColorUtilities,
         'server-reads-through-query': serverReadsThroughQuery,
     },

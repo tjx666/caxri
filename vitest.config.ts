@@ -136,6 +136,12 @@ export default defineConfig({
         testTimeout: 15_000,
         hookTimeout: 15_000,
         coverage: { reporter: ['text', 'json-summary'] },
+        /**
+         * Vitest replaces every CSS import with an empty string unless `css.include` matches it, and that includes
+         * `theme.css?raw`. Contract tests import the stylesheets they assert on with `?raw` so the changed-file check
+         * and watch mode see the dependency; matching only the raw query keeps ordinary style imports empty.
+         */
+        css: { include: [/[?&]raw(?:&|$)/] },
         projects: [
             {
                 extends: true,

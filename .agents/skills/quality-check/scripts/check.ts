@@ -27,14 +27,6 @@ import {
     walkVitestTestFiles,
 } from './source-imports';
 
-export {
-    directImportTestCandidates,
-    hasDirectSourceImport,
-    IMPORT_PATH_ALIASES,
-    relatedE2ESpecs,
-    VITEST_SOURCE_ROOTS,
-} from './source-imports';
-
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
 const CODE_EXTENSIONS = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);

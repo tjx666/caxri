@@ -1,13 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import process from 'node:process';
-
 import { describe, expect, it } from 'vitest';
 
-const sourceControlRoot = join(
-    process.cwd(),
-    'apps/desktop/src/renderer/src/features/view-containers/source-control',
-);
+import source from '../../apps/desktop/src/renderer/src/features/view-containers/source-control/source-control-history.tsx?raw';
 
 /**
  * `NAVIGABLE_TREE_ITEM_SELECTOR` excludes both `[disabled]` and `[aria-disabled="true"]`, so a row that marks itself
@@ -22,11 +15,7 @@ const sourceControlRoot = join(
  * it, the same way this directory's other Renderer contracts are.
  */
 describe('Source Control background refresh', () => {
-    it('never binds a row `disabled` to a transient refresh state', async () => {
-        const source = await readFile(
-            join(sourceControlRoot, 'source-control-history.tsx'),
-            'utf8',
-        );
+    it('never binds a row `disabled` to a transient refresh state', () => {
         const disabledBindings = source.match(/disabled=\{[^}]*\}/g) ?? [];
         expect(disabledBindings.length).toBeGreaterThan(0);
         for (const binding of disabledBindings)

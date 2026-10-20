@@ -144,6 +144,7 @@
                     "scripts/fixtures/eslint/architecture/**/*.ts",
                     "scripts/fixtures/eslint/view-container-reads/**/*.ts",
                     "scripts/fixtures/eslint/color-utilities/**/*.ts",
+                    "scripts/fixtures/eslint/listener-fanout/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
                     "scripts/run-e2e-pools.ts",
                     "scripts/surface-matrix.ts"

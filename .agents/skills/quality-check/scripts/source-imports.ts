@@ -52,6 +52,76 @@ function resolveImportPaths(
     );
 }
 
+/**
+ * Splits a Vite query (`?raw`, `?inline`, `?url`) off an import specifier. A queried import loads that exact file,
+ * extension included, rather than resolving a module, so it is matched by path instead of by module key.
+ */
+function splitImportQuery(specifier: string): { path: string; query: boolean } {
+    const index = specifier.indexOf('?');
+    return index === -1
+        ? { path: specifier, query: false }
+        : { path: specifier.slice(0, index), query: true };
+}
+
+function isModuleSource(path: string): boolean {
+    return TEST_EXTENSIONS.some((extension) => path.endsWith(extension)) && !path.endsWith('.d.ts');
+}
+
+/**
+ * String patterns of every `import.meta.glob(...)` call in a test. Vite resolves `./` and `../` against the importing
+ * file and a leading `/` against the project root; a `!` prefix excludes matches
+ * (https://vite.dev/guide/features#glob-import).
+ */
+function importMetaGlobPatterns(parsedTest: ts.SourceFile): string[] {
+    const patterns: string[] = [];
+    const literalText = (node: ts.Node): string | undefined =>
+        ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
+            ? node.text
+            : undefined;
+    const visit = (node: ts.Node): void => {
+        if (
+            ts.isCallExpression(node) &&
+            ts.isPropertyAccessExpression(node.expression) &&
+            node.expression.name.text === 'glob' &&
+            ts.isMetaProperty(node.expression.expression) &&
+            node.expression.expression.keywordToken === ts.SyntaxKind.ImportKeyword
+        ) {
+            const argument = node.arguments.at(0);
+            const elements =
+                argument && ts.isArrayLiteralExpression(argument) ? argument.elements : [argument];
+            for (const element of elements) {
+                const text = element ? literalText(element) : undefined;
+                if (text !== undefined) patterns.push(text);
+            }
+        }
+        ts.forEachChild(node, visit);
+    };
+    visit(parsedTest);
+    return patterns;
+}
+
+function isMatchedByImportMetaGlob(
+    testFile: string,
+    patterns: readonly string[],
+    sourceFile: string,
+    workspaceEntries: ReadonlyMap<string, string>,
+): boolean {
+    /**
+     * A bare negative pattern (Vite documents a globstar exclusion of `bar.js`) is neither relative nor aliased; it
+     * applies to the path as written.
+     */
+    const resolve = (pattern: string) => {
+        if (pattern.startsWith('/')) return [pattern.slice(1)];
+        const resolved = resolveImportPaths(testFile, pattern, workspaceEntries);
+        return resolved.length > 0 ? resolved : [pattern];
+    };
+    const matches = (pattern: string) =>
+        resolve(pattern).some((resolved) => posix.matchesGlob(sourceFile, resolved));
+    const included = patterns.filter((pattern) => !pattern.startsWith('!'));
+    const excluded = patterns.filter((pattern) => pattern.startsWith('!'));
+    return included.some(matches) && excluded.every((pattern) => !matches(pattern.slice(1)));
+}
+
 function isSourceModuleMatch(
     imported: string,
     source: string,
@@ -88,6 +158,10 @@ function isSourceModuleMatch(
 /**
  * Matches static test imports through workspace entries or at most two pure re-export barrels. Ordinary imported
  * modules are not traversed, keeping a focused check bounded even for widely shared contracts.
+ *
+ * A test that asserts on a file's text imports it with a Vite query (`theme.css?raw`) or `import.meta.glob` instead of
+ * reading it with `fs`, so the dependency is visible here and to Vitest's own module graph. Those match the exact file,
+ * which is also the only way a non-module source such as a stylesheet can select a test.
  */
 export function hasDirectSourceImport(
     testFile: string,
@@ -97,6 +171,15 @@ export function hasDirectSourceImport(
 ): boolean {
     const normalizedTest = testFile.replaceAll('\\', '/');
     const normalizedSource = sourceFile.replaceAll('\\', '/');
+    const isSourceIsModule = isModuleSource(normalizedSource);
+    // A non-module file (Markdown, a stylesheet) can only be named by a queried import or a glob, so skip parsing
+    // every test for it unless the text could contain one.
+    if (
+        !isSourceIsModule &&
+        !testContents.includes(posix.basename(normalizedSource)) &&
+        !testContents.includes('import.meta.glob')
+    )
+        return false;
 
     const syntax = testFile.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
     const parsedTest = ts.createSourceFile(
@@ -112,7 +195,17 @@ export function hasDirectSourceImport(
                 ? statement.moduleSpecifier
                 : undefined;
         if (!moduleSpecifier || !ts.isStringLiteral(moduleSpecifier)) continue;
-        const specifier = moduleSpecifier.text;
+        const { path: specifier, query } = splitImportQuery(moduleSpecifier.text);
+        if (query) {
+            if (
+                resolveImportPaths(normalizedTest, specifier, resolution.workspaceEntries).includes(
+                    normalizedSource,
+                )
+            )
+                return true;
+            continue;
+        }
+        if (!isSourceIsModule) continue;
         if (
             resolveImportPaths(normalizedTest, specifier, resolution.workspaceEntries).some(
                 (imported) =>
@@ -128,7 +221,15 @@ export function hasDirectSourceImport(
             return true;
         }
     }
-    return false;
+    return (
+        testContents.includes('import.meta.glob') &&
+        isMatchedByImportMetaGlob(
+            normalizedTest,
+            importMetaGlobPatterns(parsedTest),
+            normalizedSource,
+            resolution.workspaceEntries,
+        )
+    );
 }
 
 async function workspacePackageEntries(root: string): Promise<Map<string, string>> {
@@ -236,11 +337,10 @@ export async function directImportTestCandidates(
     root: string,
     sourceFiles: string[],
 ): Promise<string[]> {
+    // Any non-test file can be a dependency: modules through ordinary imports, and every file (stylesheets included)
+    // through a `?raw` import or `import.meta.glob`.
     const sources = sourceFiles.filter(
-        (file) =>
-            !VITEST_TEST_FILE.test(file) &&
-            TEST_EXTENSIONS.some((extension) => file.endsWith(extension)) &&
-            !file.endsWith('.d.ts'),
+        (file) => !VITEST_TEST_FILE.test(file) && !file.endsWith('.d.ts'),
     );
     if (sources.length === 0) return [];
 

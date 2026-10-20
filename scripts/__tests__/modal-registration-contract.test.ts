@@ -1,10 +1,7 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import process from 'node:process';
-
 import { describe, expect, it } from 'vitest';
 
-const uiRoot = join(process.cwd(), 'apps/desktop/src/renderer/src/components/ui');
+import dialogSource from '../../apps/desktop/src/renderer/src/components/ui/dialog.tsx?raw';
+import menuSource from '../../apps/desktop/src/renderer/src/components/ui/menu.tsx?raw';
 
 /**
  * Overlays that trap focus and block outside pointer interaction. While one is open the surface behind it is neither
@@ -18,12 +15,13 @@ const uiRoot = join(process.cwd(), 'apps/desktop/src/renderer/src/components/ui'
  * menus are native OS menus (`lib/context-menu.ts`); AppKit's menu tracking loop already withholds key events from the
  * page while one is open, so they need no registration.
  */
-const MODAL_WRAPPERS = ['dialog.tsx', 'menu.tsx'];
+const MODAL_WRAPPERS = [
+    ['dialog.tsx', dialogSource],
+    ['menu.tsx', menuSource],
+] as const;
 
 describe('shared overlay modal registration', () => {
-    it.each(MODAL_WRAPPERS)('registers %s with the shared modal registry', async (fileName) => {
-        const source = await readFile(join(uiRoot, fileName), 'utf8');
-
+    it.each(MODAL_WRAPPERS)('registers %s with the shared modal registry', (_fileName, source) => {
         expect(source).toContain("from '@/hooks/use-modal-registration'");
         expect(source).toMatch(/useModalRegistration\(/);
     });

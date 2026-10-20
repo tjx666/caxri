@@ -1,27 +1,27 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import process from 'node:process';
+import { posix } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const sourceControlRoot = join(
-    process.cwd(),
-    'apps/desktop/src/renderer/src/features/view-containers/source-control',
+import operationClient from '../../apps/desktop/src/renderer/src/features/view-containers/view-operation-client.ts?raw';
+
+/**
+ * Imported rather than read from disk so the changed-file check and Vitest's watch mode both see these files as this
+ * test's dependencies. Only the directory's own files match, the same set a non-recursive `readdir` listed.
+ */
+const sourceControlFiles = import.meta.glob<string>(
+    '../../apps/desktop/src/renderer/src/features/view-containers/source-control/*.{ts,tsx}',
+    { eager: true, import: 'default', query: '?raw' },
 );
 
 describe('generic controlled Renderer surfaces', () => {
-    it('keeps Git product semantics and command orchestration out of source-control', async () => {
-        const productionFiles = (await readdir(sourceControlRoot))
-            .filter((name) => /\.(?:ts|tsx)$/.test(name))
-            .toSorted((left, right) => left.localeCompare(right));
+    it('keeps Git product semantics and command orchestration out of source-control', () => {
+        const sources = Object.entries(sourceControlFiles)
+            .map(([path, source]) => ({ name: posix.basename(path), source }))
+            .toSorted((left, right) => left.name.localeCompare(right.name));
+        const productionFiles = sources.map(({ name }) => name);
+        expect(productionFiles.length).toBeGreaterThan(0);
         expect(productionFiles.filter((name) => name.startsWith('git-'))).toEqual([]);
         expect(productionFiles.filter((name) => name.includes('repository'))).toEqual([]);
-        const sources = await Promise.all(
-            productionFiles.map(async (name) => ({
-                name,
-                source: await readFile(join(sourceControlRoot, name), 'utf8'),
-            })),
-        );
         const forbidden = [
             'caxri.git',
             'Working Tree Changes',
@@ -67,10 +67,6 @@ describe('generic controlled Renderer surfaces', () => {
         expect(providerSection).not.toContain('actions.at(0)');
         expect(treeItems).not.toContain('actions?.[0]');
 
-        const operationClient = await readFile(
-            join(sourceControlRoot, '..', 'view-operation-client.ts'),
-            'utf8',
-        );
         for (const operation of [
             'git.summary',
             'git.sync',
