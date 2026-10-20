@@ -104,8 +104,8 @@ export function trashPrompt(item: {
         detail: item.host
             ? t(
                   item.hasUnsavedChanges
-                      ? 'desktop.trash.detailRemoteUnsaved'
-                      : 'desktop.trash.detailRemote',
+                      ? 'desktop.trash.detailSshHostUnsaved'
+                      : 'desktop.trash.detailSshHost',
                   { host: item.host, path: item.path },
               )
             : t(item.hasUnsavedChanges ? 'desktop.trash.detailUnsaved' : 'desktop.trash.detail', {

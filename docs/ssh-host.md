@@ -45,9 +45,9 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
   and `theme.json` are copied into the remote profile when it has none. After that the SSH Host's
   configuration is its own; Desktop never overwrites an existing remote file.
 
-### What a remote window cannot do
+### What an SSH Host window cannot do
 
-Actions that would act on this computer's disk or OS are hidden or refused in a remote window,
+Actions that would act on this computer's disk or OS are hidden or refused in an SSH Host window,
 because a remote path that happens to exist locally is a different file. The Main side enforces this
 with one exhaustive per-method table (`apps/desktop/src/main/environment-method-policy.ts`); the
 Renderer hides the matching commands through the `localMachine` command condition.
@@ -159,9 +159,9 @@ and upgrading to a new build under 1 s.
 
 ## Diagnostics
 
-Structured log events live under `logEventCatalog.remoteSsh` (`ssh_host.*` in Main's log): phase
+Structured log events live under `logEventCatalog.sshHost` (`ssh_host.*` in Main's log): phase
 transitions with durations, the probe result, install source, ControlMaster lifetime, forward setup,
-attach failures with a closed `RemoteFailureReason`, and askpass outcomes. Records never carry the
+attach failures with a closed `SshHostFailureReason`, and askpass outcomes. Records never carry the
 destination, a prompt answer, or remote file contents. The SSH Host Server's own logs stay in
 `~/.caxri-server/profile/logs/` on that machine.
 

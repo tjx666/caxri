@@ -24,7 +24,7 @@ export interface DesktopActionDependencies {
  * Each handler receives a path Server Core already validated against the requesting Session's authorized Project root
  * and Main re-confirmed through `desktop-target.consume`; none of them may be reached with a Renderer-supplied path.
  */
-function refuseRemotePath(): never {
+function refuseSshHostPath(): never {
     throw new CaxriError(
         'UNAVAILABLE',
         'This file is on the SSH Host and cannot be opened on this computer',
@@ -61,7 +61,7 @@ export function createDesktopActions({
                 },
             }),
         openInEditor: async (path, editorCommand) => {
-            if (isSshHost) refuseRemotePath();
+            if (isSshHost) refuseSshHostPath();
             await launchExternalEditor(editorCommand, path);
         },
         /**
@@ -70,12 +70,12 @@ export function createDesktopActions({
          * type" into a Renderer toast instead of a click that silently does nothing.
          */
         openWithDefaultApp: async (path) => {
-            if (isSshHost) refuseRemotePath();
+            if (isSshHost) refuseSshHostPath();
             const failure = await shell.openPath(path);
             if (failure) throw new Error(failure);
         },
         reveal: (path) => {
-            if (isSshHost) refuseRemotePath();
+            if (isSshHost) refuseSshHostPath();
             shell.showItemInFolder(path);
         },
         status: () => {

@@ -48,9 +48,9 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.trash.detail': '{{path}}\n\n你可以从废纸篓中恢复此项目。',
     'desktop.trash.detailUnsaved':
         '{{path}}\n\n此文件在编辑器中有未保存的更改。从废纸篓只能恢复最后一次保存的版本。',
-    'desktop.trash.detailRemote':
+    'desktop.trash.detailSshHost':
         '{{path}}\n\n此项目会移到 SSH Host {{host}} 的废纸篓，之后可以从那里恢复。',
-    'desktop.trash.detailRemoteUnsaved':
+    'desktop.trash.detailSshHostUnsaved':
         '{{path}}\n\n此项目会移到 SSH Host {{host}} 的废纸篓。此文件在编辑器中有未保存的更改，只能恢复最后一次保存的版本。',
     'desktop.trash.confirm': '移到废纸篓',
 

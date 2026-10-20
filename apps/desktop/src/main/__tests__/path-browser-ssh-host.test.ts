@@ -2,7 +2,7 @@ import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPathBrowserAuthority } from '../path-browser-authority';
-import { remotePathBrowserDirectories } from '../path-browser-directories';
+import { sshHostPathBrowserDirectories } from '../path-browser-directories';
 import type { DesktopServerConnection } from '../server-connection';
 
 /**
@@ -61,7 +61,7 @@ function remoteAuthority() {
     const { request, server } = remoteServer();
     const openFile = vi.fn(() => Promise.resolve({ opened: true as const }));
     const authority = createPathBrowserAuthority({
-        directories: remotePathBrowserDirectories(() => server),
+        directories: sshHostPathBrowserDirectories(() => server),
         getServer: () => server,
         logger: () => {},
         openFile,

@@ -207,7 +207,7 @@ function PathBrowserQueryField({
                 className="min-w-[80px] flex-1 px-1 text-foreground"
                 placeholder={t(
                     isSshHost
-                        ? 'pathBrowser.query.placeholderRemote'
+                        ? 'pathBrowser.query.placeholderSshHost'
                         : isProject
                           ? 'pathBrowser.query.placeholderProject'
                           : 'pathBrowser.query.placeholderFree',

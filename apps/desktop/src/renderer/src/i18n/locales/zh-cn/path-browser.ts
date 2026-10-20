@@ -11,7 +11,7 @@ export const pathBrowser: TranslatedNamespace<typeof source> = {
     'pathBrowser.query.inputLabel': '文件路径',
     'pathBrowser.query.placeholderProject': '筛选，或输入 / 或 ~ 访问任意路径…',
     'pathBrowser.query.placeholderFree': '筛选，或输入 ./ 返回项目…',
-    'pathBrowser.query.placeholderRemote': '筛选，或输入此项目中的路径…',
+    'pathBrowser.query.placeholderSshHost': '筛选，或输入此项目中的路径…',
     'pathBrowser.query.anchorHelp':
         '输入以 / 或 ~ 开头的路径可浏览项目以外的位置，也可在输入框为空时于开头按 Backspace。输入 ./ 返回项目。',
     'pathBrowser.query.projectRootRemoved': '已移除项目根目录。可输入任意路径。',
