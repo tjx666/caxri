@@ -48,7 +48,9 @@ async function didRequestSelection(sessionId: string): Promise<boolean> {
         return false;
     }
     await convergence.promise;
-    return true;
+    // Another window owns the Session: the Server activated it there and left this window as it was, so there is no
+    // selection here to record in the visit history.
+    return selected.ownerWindowKey === undefined;
 }
 
 /**

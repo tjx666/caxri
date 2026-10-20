@@ -11,6 +11,7 @@ export const sessionTabs = {
     'sessionTabs.openInNewTab': '在新标签页中打开',
     'sessionTabs.tooltip': '{{project}} 中的 {{title}}',
     'sessionTabs.errors.openFailed': '无法在新标签页中打开会话',
+    'sessionTabs.errors.tearOffFailed': '无法将会话移到新窗口',
     'sessionTabs.errors.closeFailed': '无法关闭标签页',
     'sessionTabs.errors.reorderFailed': '无法调整标签页顺序',
 } as const;

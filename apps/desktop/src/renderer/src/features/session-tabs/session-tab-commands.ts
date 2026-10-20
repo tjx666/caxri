@@ -82,15 +82,17 @@ export function activateSessionTab(sessionId: string): void {
 
 /**
  * Cmd+click and "Open in New Tab": adds the Session to the strip without leaving the current one's place, then shows
- * it. A Session that is already open is only activated.
+ * it. A Session that is already open is only activated, and one that another window owns brings that window forward.
  */
 export async function openSessionInNewTab(sessionId: string): Promise<void> {
     if (!getOpenSessionIds().includes(sessionId)) {
-        await editOpenSessions(translate('sessionTabs.errors.openFailed'), (ids) =>
-            appendOpenSession(ids, sessionId),
+        const wasStored = await editOpenSessions(
+            translate('sessionTabs.errors.openFailed'),
+            (ids) => appendOpenSession(ids, sessionId),
         );
-        // Nothing to show if the append failed; the edit already told the user why.
-        if (!getOpenSessionIds().includes(sessionId)) return;
+        // A failed append already told the user why. A stored strip that still lacks the Session means another window
+        // owns it, and selecting it brings that window forward.
+        if (!wasStored) return;
     }
     activateSessionTab(sessionId);
 }
@@ -126,6 +128,25 @@ export async function reorderSessionTab(
     await editOpenSessions(translate('sessionTabs.errors.reorderFailed'), (ids) =>
         moveOpenSession(ids, sessionId, targetIndex),
     );
+}
+
+/**
+ * Drag-out: asks Main to open a new window for a tab released outside every window. Main owns the placement and the
+ * Server move, and refuses a release over a Workbench window, so a refused tear-off simply leaves the strip as it was.
+ * This window's strip then converges through the `window.openSessions` state change, but the snapshot is re-read
+ * explicitly so the tab leaves the strip even when that event is replayed late.
+ *
+ * `screenPoint` is where the drag ended, in screen coordinates; it is omitted when the platform reported none, and Main
+ * falls back to the cursor.
+ */
+export async function tearOffSessionTab(
+    sessionId: string,
+    screenPoint?: { x: number; y: number },
+): Promise<void> {
+    const result = await tryCommand(translate('sessionTabs.errors.tearOffFailed'), () =>
+        caxri.request('window.tearOffSession', { sessionId, ...(screenPoint && { screenPoint }) }),
+    );
+    if (result?.opened) await refreshWorkbench();
 }
 
 export async function shiftSessionTab(sessionId: string, direction: -1 | 1): Promise<void> {

@@ -1,9 +1,10 @@
 import type { DragEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import { getOpenSessionIds } from '../../stores/open-sessions';
 import { resolveTabDropIndex } from '../workbench/pane-drop-zone';
-import { reorderSessionTab } from './session-tab-commands';
-import { SESSION_TAB_DRAG_TYPE } from './session-tabs-state';
+import { reorderSessionTab, tearOffSessionTab } from './session-tab-commands';
+import { SESSION_TAB_DRAG_TYPE, shouldTearOffSessionTab } from './session-tabs-state';
 
 function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(SESSION_TAB_DRAG_TYPE);
@@ -45,6 +46,7 @@ function dropGeometry(
  */
 export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null>): {
     dropIndicatorLeft: number | undefined;
+    onDragEnd: (event: DragEvent<HTMLDivElement>) => void;
     onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
     onDragOver: (event: DragEvent<HTMLDivElement>) => void;
     onDragStart: (event: DragEvent<HTMLDivElement>) => void;
@@ -71,6 +73,27 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
             draggedIdReference.current = sessionId;
             event.dataTransfer.setData(SESSION_TAB_DRAG_TYPE, sessionId);
             event.dataTransfer.effectAllowed = 'move';
+        },
+        onDragEnd: (event) => {
+            const sessionId = sessionTabIdAt(event.target);
+            if (
+                !sessionId ||
+                !shouldTearOffSessionTab({
+                    dropEffect: event.dataTransfer.dropEffect,
+                    tabCount: getOpenSessionIds().length,
+                })
+            )
+                return;
+            // Chromium reports a `dragend` that left the window with `screenX/Y` of `0,0` on some platforms (a long-standing
+            // quirk VS Code works around the same way in its tab drag handler), so a zero point means "unknown" and Main
+            // uses the cursor position instead of opening the window at the screen corner.
+            const hasPoint = event.screenX !== 0 || event.screenY !== 0;
+            // Fire-and-forget: the command toasts its own failure.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard
+            void tearOffSessionTab(
+                sessionId,
+                hasPoint ? { x: event.screenX, y: event.screenY } : undefined,
+            );
         },
         onDragLeave: (event) => {
             if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
