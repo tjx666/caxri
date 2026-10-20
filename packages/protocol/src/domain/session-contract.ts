@@ -30,6 +30,7 @@ import { terminalKindSchema, terminalRecordSchema } from './terminal-record.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
 import {
     openSessionIdsSchema,
+    sessionPlacementSchema,
     windowKeyParameter,
     windowOpenSessionsSchema,
 } from './window-presence-contract.js';
@@ -110,6 +111,11 @@ export const sessionMethods = {
              * The window that becomes active on the new Session. Supplied by Desktop Main.
              */
             ...windowKeyParameter,
+            /**
+             * `newTab` appends the new Session to the window's Open Sessions; omitted, creation replaces the active
+             * entry like a plain select.
+             */
+            placement: sessionPlacementSchema.optional(),
         }),
         result: z.object({
             session: sessionRecordSchema,

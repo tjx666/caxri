@@ -261,6 +261,8 @@ export function createConnectionPresence(
 ): WindowPresenceRegistry {
     return new WindowPresenceRegistry({
         closePresence: (windowKey) => connection().request('window.closePresence', { windowKey }),
+        // A presence row Main could not deliver to a connected Server; a lost connection is excluded because the
+        // reseed on re-attach covers it.
         onSendError: (error) =>
             logger()?.write('warn', logEventCatalog.window.presenceReportFailed, {
                 fields: { error: errorMessage(error, 'unknown') },

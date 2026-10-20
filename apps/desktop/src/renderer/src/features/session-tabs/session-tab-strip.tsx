@@ -15,6 +15,7 @@ import { useActiveTabReveal } from '../workbench/pane-tab-reveal';
 import { SessionTab } from './session-tab';
 import { activateSessionTab, shiftSessionTab } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
+import { SessionTabNewButton } from './session-tab-new-button';
 import { useSessionTabDrag } from './use-session-tab-drag';
 
 /**
@@ -126,6 +127,7 @@ function SessionTabStripBar() {
                                 onShift={shift}
                             />
                         ))}
+                        <SessionTabNewButton />
                         <span
                             ref={endSentinel}
                             aria-hidden="true"

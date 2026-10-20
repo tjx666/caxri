@@ -1,4 +1,4 @@
-import type { AgentProvider } from '@caxri/protocol';
+import type { AgentProvider, SessionPlacement } from '@caxri/protocol';
 
 import { createStore } from '../lib/store';
 
@@ -75,7 +75,15 @@ interface DialogState {
      * claim the same menu and stack two popups over one choice. Kept in the store rather than in the row so the
      * `session.create` command opens the same menu the pointer does, instead of a second, centered picker.
      */
-    createSessionMenu?: { anchor: CreateSessionAnchor; projectId: string };
+    createSessionMenu?: {
+        anchor: CreateSessionAnchor;
+        /**
+         * The tab strip's `+` opens this menu when no default Agent is configured; its choice still has to open a new
+         * tab.
+         */
+        placement?: SessionPlacement;
+        projectId: string;
+    };
     /**
      * A pending request to rename one Session, carried as a bumped revision rather than a boolean so asking twice for
      * the same Session still re-opens the editor. Renaming is local React state inside the Primary Side Bar's row, and
@@ -128,7 +136,11 @@ interface DialogState {
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
-    openCreateSessionMenu(projectId: string, anchor: CreateSessionAnchor): void;
+    openCreateSessionMenu(
+        projectId: string,
+        anchor: CreateSessionAnchor,
+        placement?: SessionPlacement,
+    ): void;
     requestSessionRename(sessionId: string, options?: { suggest?: boolean }): void;
     clearSessionRenameRequest(): void;
     openStatusBarPicker(picker: StatusBarPicker): void;
@@ -199,7 +211,8 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
     askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
-    openCreateSessionMenu: (projectId, anchor) => set({ createSessionMenu: { anchor, projectId } }),
+    openCreateSessionMenu: (projectId, anchor, placement) =>
+        set({ createSessionMenu: { anchor, projectId, ...(placement && { placement }) } }),
     closeCreateSessionMenu: () => set({ createSessionMenu: undefined }),
     requestSessionRename: (sessionId, options) =>
         set((state) => ({

@@ -19,8 +19,15 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
   own state by ID. A crowded strip scrolls instead of shrinking tabs below a minimum width.
 - Plain click on a Session row selects it. That **replaces the active entry** when the Session is not
   already open (like navigating inside a browser tab), or activates it when it already is, so browsing
-  the sidebar never grows the strip. Cmd+click, or **Open in New Tab** in the Session row menu, opens
-  it as an additional tab. Creating a Session and moving a Terminal into a new Session also append.
+  the sidebar never grows the strip. Only an explicit open adds a tab: Cmd+click, **Open in New Tab** in
+  the Session row menu, and the strip's trailing **+** button (a new Session in the active Session's
+  Project, started like Cmd+N, with `placement: 'newTab'`). Every other creation path (Cmd+N,
+  the sidebar's New Session, moving a Terminal into a new Session, side-chat conversion) behaves like
+  a plain select: it activates the Session, replacing the active entry, or becoming the only entry
+  of an empty list.
+- The **+** sticks to the right edge of the tab rail, so it stays reachable when tabs overflow. The
+  strip's empty area to the right of it remains a window drag region. A Session with no tabs in its
+  Workbench shows no pane tab bar under the strip, only the empty state.
 - Tabs reorder by drag. Closing a tab never archives the Session; it only leaves the working set.
   Closing the active tab activates its neighbor, then another Session of the same Project, then none.
 - A full strip (100 entries) drops its oldest non-active entry rather than refusing the Session the

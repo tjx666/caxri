@@ -1,4 +1,4 @@
-import type { TerminalKind } from '@caxri/protocol';
+import type { SessionPlacement, TerminalKind } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -13,7 +13,11 @@ import { pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
 import { selectProject } from './session-commands';
 
-async function createSession(projectId: string, defaultAgent: TerminalKind | null): Promise<void> {
+async function createSession(
+    projectId: string,
+    defaultAgent: TerminalKind | null,
+    placement?: SessionPlacement,
+): Promise<void> {
     await tryCommand(
         translate('session.errors.createFailed'),
         async () => {
@@ -31,6 +35,7 @@ async function createSession(projectId: string, defaultAgent: TerminalKind | nul
                 projectId,
                 defaultAgent,
                 ...(surface === 'chat' && { surface }),
+                ...(placement && { placement }),
             });
             clearPendingSession();
         },
@@ -63,29 +68,37 @@ async function createProjectSession(
  * palette would otherwise mark a Project whose row is not mounted and do nothing visible. Revealing the bar first keeps
  * the keyboard path leading to the same picker as the pointer path, the way `activateSecondarySidebarViewContainer`
  * already reveals its panel before selecting a view.
+ *
+ * `placement` is `newTab` only for the Open Session strip's `+`; every other entry replaces the active Open Session
+ * like a plain select, so creating a Session never grows the strip by itself.
  */
 export function beginSessionCreation(
     projectId: string,
     anchor: CreateSessionAnchor = 'heading',
+    placement?: SessionPlacement,
 ): void {
     const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
     if (defaultAgent) {
         // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void createSession(projectId, defaultAgent);
+        void createSession(projectId, defaultAgent, placement);
         return;
     }
-    openSessionCreationMenu(projectId, anchor);
+    openSessionCreationMenu(projectId, anchor, placement);
 }
 
 /**
  * Opens the anchored Agent list even when a default Agent is configured: the Project heading's button creates the
  * default on press and opens this list on hover, the same split the tab strip's `+` makes.
  */
-export function openSessionCreationMenu(projectId: string, anchor: CreateSessionAnchor): void {
+export function openSessionCreationMenu(
+    projectId: string,
+    anchor: CreateSessionAnchor,
+    placement?: SessionPlacement,
+): void {
     if (!useChromeLayoutStore.getState().primarySidebarVisible)
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
-    useDialogStore.getState().openCreateSessionMenu(projectId, anchor);
+    useDialogStore.getState().openCreateSessionMenu(projectId, anchor, placement);
 }
 
 /**
@@ -93,10 +106,11 @@ export function openSessionCreationMenu(projectId: string, anchor: CreateSession
  * recorded as a preference, since it names no Terminal the menu could lead with next time.
  */
 export function chooseSessionTerminalKind(projectId: string, kind: TerminalKind | null): void {
+    const placement = useDialogStore.getState().createSessionMenu?.placement;
     useDialogStore.getState().closeCreateSessionMenu();
     // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void createSession(projectId, kind);
+    void createSession(projectId, kind, placement);
 }
 
 /**

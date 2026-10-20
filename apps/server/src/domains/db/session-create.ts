@@ -1,4 +1,9 @@
-import type { SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
+import type {
+    SessionPlacement,
+    SessionRecord,
+    TerminalKind,
+    TerminalRecord,
+} from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
@@ -20,6 +25,10 @@ export interface CreateSessionOptions {
      * "last Project" cell moves, which is how a Session created for no particular window stays out of every strip.
      */
     windowKey?: string;
+    /**
+     * `newTab` appends the Session to the window's Open Sessions; otherwise creation behaves like a plain select.
+     */
+    placement?: SessionPlacement;
     /**
      * The Session whose Agent asked for this one. Recorded once at creation and never inherited by a fork or move, so
      * only an Agent-created Session carries a creator.
@@ -67,7 +76,12 @@ export function createSession(
     if (options.selection !== 'preserve') {
         database.appState.set('lastSelectedProjectId', projectId);
         if (options.windowKey)
-            activateSessionInWindow(database, options.windowKey, session.id, 'open');
+            activateSessionInWindow(
+                database,
+                options.windowKey,
+                session.id,
+                options.placement ?? 'navigate',
+            );
     }
     database.projects.touchLastOpened(projectId);
     return {

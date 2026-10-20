@@ -1,5 +1,6 @@
 export const sessionTabs = {
     'sessionTabs.listLabel': 'Open Sessions',
+    'sessionTabs.new': 'New Session',
     'sessionTabs.close': 'Close Tab',
     'sessionTabs.closeNamed': 'Close {{title}}',
     'sessionTabs.moveLeft': 'Move Tab Left',

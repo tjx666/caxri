@@ -14,7 +14,10 @@ function fixture() {
     databases.push(database);
     const project = database.createProject('/synthetic/open-sessions');
     const create = () =>
-        database.createSession(project.id, 'shell', undefined, { windowKey: 'main' }).session;
+        database.createSession(project.id, 'shell', undefined, {
+            windowKey: 'main',
+            placement: 'newTab',
+        }).session;
     return { create, database, project };
 }
 
@@ -22,11 +25,21 @@ const strip = (database: CaxriDatabase, windowKey = 'main') =>
     database.windowOpenSessions.get(windowKey);
 
 describe('Open Sessions per window', () => {
-    it('appends a created Session and makes it active', () => {
+    it('appends a Session created with the explicit newTab placement and makes it active', () => {
         const { create, database } = fixture();
         const a = create();
         const b = create();
         expect(strip(database)).toEqual({ openSessionIds: [a.id, b.id], activeSessionId: b.id });
+    });
+
+    it('creates a Session like a plain select: the only entry first, then replacing the active one', () => {
+        const { database, project } = fixture();
+        const createPlain = () =>
+            database.createSession(project.id, 'shell', undefined, { windowKey: 'main' }).session;
+        const a = createPlain();
+        expect(strip(database)).toEqual({ openSessionIds: [a.id], activeSessionId: a.id });
+        const b = createPlain();
+        expect(strip(database)).toEqual({ openSessionIds: [b.id], activeSessionId: b.id });
     });
 
     it('activates an already open Session without reordering the strip', () => {
@@ -134,13 +147,13 @@ describe('Open Sessions per window', () => {
         expect(strip(database, 'other').openSessionIds).not.toContain(a.id);
     });
 
-    it('moves a Terminal into a new Session that opens in the requesting window', () => {
+    it('moves a Terminal into a new Session that replaces the active entry in the requesting window', () => {
         const { create, database } = fixture();
         const a = create();
         const terminal = database.listTerminals(a.id)[0];
         const moved = database.moveTerminalToNewSession(terminal.id, 'main');
         expect(strip(database)).toEqual({
-            openSessionIds: [a.id, moved.session.id],
+            openSessionIds: [moved.session.id],
             activeSessionId: moved.session.id,
         });
     });

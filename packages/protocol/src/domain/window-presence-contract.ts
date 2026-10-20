@@ -25,6 +25,14 @@ export type WindowKey = z.infer<typeof windowKeySchema>;
 export const windowKeyParameter = { windowKey: windowKeySchema.optional() };
 
 /**
+ * Where a Session created for a window lands in its Open Sessions. Creation behaves like a plain select by default (an
+ * open Session is activated, otherwise the active entry is replaced), so creating a Session never grows the strip on
+ * its own. `newTab` is the explicit opt-in used by the tab strip's `+` button, which appends the new Session.
+ */
+export const sessionPlacementSchema = z.enum(['newTab']);
+export type SessionPlacement = z.infer<typeof sessionPlacementSchema>;
+
+/**
  * Requests that act for one Desktop window. Desktop Main injects the sender's {@link WindowKey} into exactly these
  * (overwriting anything a Renderer supplied), so a Renderer can never act as another window. A caller without a window,
  * such as the CLI, omits the key and gets no per-window effect.

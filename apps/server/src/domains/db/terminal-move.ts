@@ -53,7 +53,7 @@ export function moveTerminalToNewSession(
     if (assignment) database.sessions.setPrimaryAgent(newSession.id, assignment);
     database.sessions.insertInitialState(newSession.id, movedTerminal.id);
 
-    if (windowKey) activateSessionInWindow(database, windowKey, newSession.id, 'open');
+    if (windowKey) activateSessionInWindow(database, windowKey, newSession.id, 'navigate');
     database.appState.set('lastSelectedProjectId', project.id);
     database.projects.touchLastOpened(project.id);
     database.sessions.touchLastOpened(newSession.id);

@@ -35,7 +35,8 @@ function writeWindow(
  *
  * - `navigate` (a plain select) activates the entry when it is already open, and otherwise replaces the active entry the
  *   way a browser navigates inside the current tab, so selecting through the sidebar never grows the strip.
- * - `open` (Session creation, moving a Terminal into a new Session) always appends: the new Session is an addition.
+ * - `newTab` (only the strip's explicit `+`) appends. Session creation and moving a Terminal into a new Session use
+ *   `navigate` too: only explicit opens add tabs.
  *
  * A full strip drops its oldest non-active entry instead of refusing the Session the user just asked for.
  */
@@ -43,7 +44,7 @@ export function activateSessionInWindow(
     database: OpenSessionsDatabase,
     windowKey: string,
     sessionId: string,
-    mode: 'navigate' | 'open',
+    placement: 'navigate' | 'newTab',
 ): WindowOpenSessions {
     const { openSessionIds, activeSessionId } = readWindowOpenSessions(database, windowKey);
     if (openSessionIds.includes(sessionId))
@@ -52,7 +53,7 @@ export function activateSessionInWindow(
             : writeWindow(database, windowKey, { openSessionIds, activeSessionId: sessionId });
     const activeIndex = activeSessionId === null ? -1 : openSessionIds.indexOf(activeSessionId);
     const next =
-        mode === 'navigate' && activeIndex !== -1
+        placement === 'navigate' && activeIndex !== -1
             ? openSessionIds.with(activeIndex, sessionId)
             : [...openSessionIds, sessionId];
     while (next.length > MAX_OPEN_SESSIONS_PER_WINDOW) {

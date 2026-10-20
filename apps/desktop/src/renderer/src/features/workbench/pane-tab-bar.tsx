@@ -407,6 +407,13 @@ export function PaneTabBar({
         activeTab?.resource.kind === 'terminal' ? activeTab.resource.terminalId : '',
     );
     useActiveTabReveal(listReference, activeTabId, isDropTarget);
+    /**
+     * With the strip owning the title bar, a Session whose Workbench holds no tab at all has nothing left for this bar:
+     * no tabs to list, no actions (`PaneTabActions` renders nothing for an empty pane), no drag region to keep, and no
+     * other pane to drop a tab from. Rendering it would leave an empty band under the strip above the empty state.
+     */
+    if (!hasTabsToSwitch && isRootBar && isSessionTabStripVisible && pane.tabs.length === 0)
+        return null;
     return (
         <div
             className={cn(

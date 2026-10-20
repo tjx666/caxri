@@ -17,6 +17,9 @@ now tracks two things per Desktop window, keyed `(Connection ID, window key)`:
   on the Server (one `app_state` cell keyed by window key, so it needs no SQL migration) and is a working
   set, never a source of truth for existence: archive, delete, and hide drop IDs from every strip, and
   readers filter unknown IDs again.
+  Only an explicit open adds an entry (Cmd+click, **Open in New Tab**, and the strip's **+** through
+  `session.create` with `placement: 'newTab'`). Selecting, creating a Session, and moving a Terminal into a new
+  Session all activate an open entry or replace the active one, so creating a Session never grows the strip.
 - **Presence**: which Session the window renders, plus its native focus and visibility. This is memory
   only. Desktop Main is the only writer; it supplies focus, visibility, and minimize state from the native
   window, and the Renderer contributes only the viewed Session. Main mints the window key, injects it from
