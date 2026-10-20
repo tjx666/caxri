@@ -77,14 +77,17 @@ or cancels the delivery, or a concrete blocker requires their input.
    [Fast merge without CI](#fast-merge-without-ci) or a failed case qualifies for the CI-only parity
    exception below.
    Repair the owning branch and refresh the exact-head state instead of merging
-   stale evidence. Watch checks with `bun run scripts/watch-ci.ts --run <id>` using the
-   harness-specific ownership rules in the reference below. Concurrent sessions, including other
+   stale evidence. Right after a push, watch checks with `bun run scripts/watch-ci.ts --pr <number>`
+   using the harness-specific ownership rules in the reference below: it waits for the new head's
+   runs, watches every workflow, and fails at once when the PR conflicts with its base, which starts
+   no CI. Use `--run <id>` for a single known run. Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
    new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling
-   survives offline windows with capped backoff. The command exits 0/1 with the run conclusion.
+   survives offline windows with capped backoff. The command exits 0 only when every watched run
+   succeeded.
    In Claude Code, execute the watcher in a background shell. Redirect its output to a run-specific
-   path such as `/tmp/watch-ci-<run-id>.log`, never a generic name like `/tmp/watch-ci.log`:
+   path such as `/tmp/watch-ci-<run-id>.log` or `/tmp/watch-ci-pr-<number>.log`, never a generic name like `/tmp/watch-ci.log`:
    sibling sessions write their own watchers there too, and an overwritten log reports another
    PR's run as yours.
    In Codex, read and follow [Codex Watch Await](../../references/codex-watch-await.md)

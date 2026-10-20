@@ -21,8 +21,10 @@
  * - Offline resilience: polling errors are treated as transient and retried forever with capped exponential backoff; the
  *   watcher only exits when the run reaches a terminal status.
  *
- * Usage: `bun run scripts/watch-ci.ts [--run <id>] [--branch <name>] [--quiet]` Defaults to the newest run on the
- * current git branch. Exits 0 on success, 1 otherwise.
+ * Usage: `bun run scripts/watch-ci.ts [--pr <number> | --run <id> | --branch <name>] [--quiet]` `--pr` waits for every
+ * workflow run of the pull request's current head and watches them all, failing fast when the pull request conflicts
+ * with its base (GitHub then starts no CI). Defaults to the newest run on the current git branch. Exits 0 when every
+ * watched run succeeded, 1 otherwise.
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -33,6 +35,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
 import { execFileAsync } from './exec';
+import { resolvePrRuns } from './watch-ci-pr';
 
 const POLL_INTERVAL_MS = 20_000;
 /**
@@ -347,6 +350,7 @@ async function resolveRunId(branchOverride: string | undefined): Promise<string>
 
 interface CliOptions {
     branch?: string;
+    pr?: string;
     quiet: boolean;
     run?: string;
 }
@@ -361,6 +365,10 @@ function applyArgument(options: CliOptions, argument: string, value: string | un
     }
     if (argument === '--run') {
         options.run = value;
+        return 2;
+    }
+    if (argument === '--pr') {
+        options.pr = value;
         return 2;
     }
     if (argument === '--branch') {
@@ -433,9 +441,10 @@ async function pollOnce(runId: string, previous: WatchState | undefined): Promis
     return state;
 }
 
-async function main(): Promise<void> {
-    const options = parseArguments(process.argv.slice(2));
-    const runId = options.run ?? (await resolveRunId(options.branch));
+/**
+ * Watches one run until it reaches a terminal status and returns whether it succeeded.
+ */
+async function didRunSucceed(runId: string, isQuiet: boolean): Promise<boolean> {
     console.log(`watching run ${runId} (state: ${statePath(runId)})`);
 
     let backoffMs = INITIAL_BACKOFF_MS;
@@ -464,19 +473,33 @@ async function main(): Promise<void> {
 
         observedAttempt = Math.max(observedAttempt ?? 0, state.attempt);
         const summary = formatRunSummary(state);
-        if (summary !== lastPrinted && !options.quiet) {
+        if (summary !== lastPrinted && !isQuiet) {
             console.log(summary);
             lastPrinted = summary;
         }
         if (state.status === 'completed') {
-            const isOk = state.conclusion === 'success';
             // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
             await notify(formatCiNotification(state), state.url);
-            process.exit(isOk ? 0 : 1);
+            return state.conclusion === 'success';
         }
         // eslint-disable-next-line no-await-in-loop -- watch loop: fixed poll cadence
         await sleep(POLL_INTERVAL_MS);
     }
+}
+
+async function main(): Promise<void> {
+    const options = parseArguments(process.argv.slice(2));
+    let runIds: string[];
+    try {
+        runIds = options.pr
+            ? await resolvePrRuns(options.pr)
+            : [options.run ?? (await resolveRunId(options.branch))];
+    } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+    }
+    const results = await Promise.all(runIds.map((runId) => didRunSucceed(runId, options.quiet)));
+    process.exit(results.every(Boolean) ? 0 : 1);
 }
 
 if (import.meta.main) {
