@@ -86,21 +86,6 @@ export function SessionTab({
                 data-session-tab-id={sessionId}
                 data-tab-active={isActive || undefined}
                 draggable
-                // Middle-click closes, matching pane tabs and every browser; the mousedown guard stops the platform's
-                // autoscroll cursor from taking the click first.
-                onMouseDown={(event: MouseEvent) => {
-                    if (event.button === 1) event.preventDefault();
-                }}
-                onAuxClick={(event: MouseEvent) => {
-                    if (event.button !== 1) {
-                        return;
-                    }
-
-                    event.preventDefault();
-                    // Fire-and-forget: closing toasts its own failure.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard
-                    void closeSessionTabs(sessionId);
-                }}
             >
                 <Tooltip content={tooltip} hoverOnly triggerId={sessionTabDomId(sessionId)}>
                     <button
@@ -114,6 +99,18 @@ export function SessionTab({
                         className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
                         onClick={() => activateSessionTab(sessionId)}
                         onKeyDown={onKeyDown}
+                        // Middle-click closes, matching pane tabs and every browser; the mousedown guard stops the
+                        // platform's autoscroll cursor from taking the click first.
+                        onMouseDown={(event: MouseEvent) => {
+                            if (event.button === 1) event.preventDefault();
+                        }}
+                        onAuxClick={(event: MouseEvent) => {
+                            if (event.button !== 1) return;
+                            event.preventDefault();
+                            // Fire-and-forget: closing toasts its own failure.
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard
+                            void closeSessionTabs(sessionId);
+                        }}
                     >
                         <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={13} />
                         <span className="tab-label min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">

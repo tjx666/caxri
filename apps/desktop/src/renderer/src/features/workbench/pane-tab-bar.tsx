@@ -346,14 +346,26 @@ function PaneTabList({
  * One pane's own tab bar. Every pane has one, split or not, and the bar never branches on what its tabs hold: the two
  * tab components differ only in what they render inside the same `WorkTab`.
  */
-export function PaneTabBar({
-    hasTabsToSwitch,
-    isOnlySessionTerminal,
-    isRootBar,
-    pane,
-    tabListLabel,
-    spansWindowWidth,
-}: {
+/**
+ * How the Open Session strip reshapes a pane bar. While the strip shows it is the window's title bar, so the root pane
+ * bar becomes an ordinary surface: no drag region, no traffic-light inset, no title-bar fill, and no accent (the
+ * strip's active tab already carries the screen's one durable accent, DESIGN.md principle 2). A boolean selector, so
+ * every retained Workbench re-renders only when the strip appears or disappears.
+ *
+ * With the strip owning the title bar, a Session whose Workbench holds no tab at all has nothing left for the root bar:
+ * no tabs to list, no actions (`PaneTabActions` renders nothing for an empty pane), no drag region to keep, and no
+ * other pane to drop a tab from. Rendering it would leave an empty band under the strip above the empty state.
+ */
+function usePaneTabBarChrome(isRootBar: boolean, hasAnyTab: boolean) {
+    const isSessionTabStripVisible = useIsSessionTabStripVisible();
+    return {
+        isHidden: isRootBar && isSessionTabStripVisible && !hasAnyTab,
+        isSessionTabStripVisible,
+        isTitleBar: isRootBar && !isSessionTabStripVisible,
+    };
+}
+
+interface PaneTabBarProperties {
     /**
      * Whether the Workbench holds more than one tab. The active accent and close buttons have no choice to express
      * below that; the New Terminal action remains reachable on hover or keyboard focus so a second Agent can start in
@@ -369,17 +381,34 @@ export function PaneTabBar({
      * drag corner below would otherwise sit in the middle of the window rather than in it.
      */
     spansWindowWidth: boolean;
-}) {
+}
+
+export function PaneTabBar(properties: PaneTabBarProperties) {
+    const chrome = usePaneTabBarChrome(
+        properties.isRootBar,
+        properties.hasTabsToSwitch || properties.pane.tabs.length > 0,
+    );
+    if (chrome.isHidden) return null;
+    return (
+        <PaneTabBarContent
+            {...properties}
+            isSessionTabStripVisible={chrome.isSessionTabStripVisible}
+            isTitleBar={chrome.isTitleBar}
+        />
+    );
+}
+
+function PaneTabBarContent({
+    hasTabsToSwitch,
+    isOnlySessionTerminal,
+    isSessionTabStripVisible,
+    isTitleBar,
+    pane,
+    tabListLabel,
+    spansWindowWidth,
+}: PaneTabBarProperties & { isSessionTabStripVisible: boolean; isTitleBar: boolean }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
-    /**
-     * While the Open Session strip shows it is the window's title bar, so the root pane bar becomes an ordinary
-     * surface: no drag region, no traffic-light inset, no title-bar fill, and no accent (the strip's active tab already
-     * carries the screen's one durable accent, DESIGN.md principle 2). A boolean selector, so every retained Workbench
-     * re-renders only when the strip appears or disappears.
-     */
-    const isSessionTabStripVisible = useIsSessionTabStripVisible();
-    const isTitleBar = isRootBar && !isSessionTabStripVisible;
     const listReference = useRef<HTMLDivElement>(null);
     const {
         dropIndicatorLeft,
@@ -407,13 +436,6 @@ export function PaneTabBar({
         activeTab?.resource.kind === 'terminal' ? activeTab.resource.terminalId : '',
     );
     useActiveTabReveal(listReference, activeTabId, isDropTarget);
-    /**
-     * With the strip owning the title bar, a Session whose Workbench holds no tab at all has nothing left for this bar:
-     * no tabs to list, no actions (`PaneTabActions` renders nothing for an empty pane), no drag region to keep, and no
-     * other pane to drop a tab from. Rendering it would leave an empty band under the strip above the empty state.
-     */
-    if (!hasTabsToSwitch && isRootBar && isSessionTabStripVisible && pane.tabs.length === 0)
-        return null;
     return (
         <div
             className={cn(

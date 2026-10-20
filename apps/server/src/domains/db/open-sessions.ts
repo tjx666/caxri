@@ -85,7 +85,8 @@ function replaceWindowOpenSessions(
             ...previous.openSessionIds.slice(index + 1),
             ...previous.openSessionIds.slice(0, Math.max(index, 0)).toReversed(),
         ];
-        activeSessionId = neighbors.find((id) => openSessionIds.includes(id)) ?? null;
+        const openSet = new Set(openSessionIds);
+        activeSessionId = neighbors.find((id) => openSet.has(id)) ?? null;
     }
     activeSessionId ??= openSessionIds[0] ?? null;
     return writeWindow(database, windowKey, { openSessionIds, activeSessionId });

@@ -89,7 +89,8 @@ export function activeAfterEdit(
                 ...previousIds.slice(index + 1),
                 ...previousIds.slice(0, index).toReversed(),
             ];
-            const neighbor = neighbors.find((id) => nextIds.includes(id));
+            const nextSet = new Set(nextIds);
+            const neighbor = neighbors.find((id) => nextSet.has(id));
             if (neighbor !== undefined) return neighbor;
         }
     }

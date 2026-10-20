@@ -45,8 +45,8 @@ export class ResidentPoll {
         try {
             // One Session at a time keeps the `gh`/`vc` budget flat.
             for (const sessionId of this.sessionIds)
-                // eslint-disable-next-line no-await-in-loop -- sequential by design, see above
-                await this.pollSession(sessionId);
+                // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential by design, see above
+                await this.pollSession(sessionId); // eslint-disable-line no-await-in-loop -- see above
         } finally {
             this.isRunning = false;
             this.schedule();

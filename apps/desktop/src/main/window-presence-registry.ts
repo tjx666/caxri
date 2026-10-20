@@ -219,8 +219,8 @@ export class WindowPresenceRegistry {
     ): Promise<void> {
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             const revision = this.revision;
-            // eslint-disable-next-line no-await-in-loop -- each snapshot must land before a racing change is checked
-            await sendSeed({ windows: this.snapshot() });
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop -- each snapshot must land before a racing change is checked
+            await sendSeed({ windows: this.snapshot() }); // eslint-disable-line no-await-in-loop -- see above
             if (revision === this.revision) return;
         }
     }
