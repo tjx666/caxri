@@ -89,6 +89,29 @@ describe('Android content-free receipts', () => {
         ).toEqual({ exists: true, focused: true, textMatches: false });
     });
 
+    it('matches any copy of a repeated test ID when comparing text', () => {
+        const source = `<hierarchy>
+          <node resource-id="agent-chat-answered-answer-0" package="com.caxri.mobile" focused="false" text="Blue" />
+          <node resource-id="agent-chat-answered-answer-0" package="com.caxri.mobile" focused="true" text="Per request" />
+        </hierarchy>`;
+        expect(
+            observeAndroidNodeFromUiAutomator(source, 'agent-chat-answered-answer-0', {
+                kind: 'equals',
+                value: 'Per request',
+            }),
+        ).toEqual({ exists: true, focused: true, textMatches: true });
+        expect(
+            observeAndroidNodeFromUiAutomator(source, 'agent-chat-answered-answer-0', {
+                kind: 'equals',
+                value: 'Free only',
+            }),
+        ).toEqual({ exists: true, focused: false, textMatches: false });
+        expect(observeAndroidNodeFromUiAutomator(source, 'agent-chat-answered-answer-0')).toEqual({
+            exists: true,
+            focused: false,
+        });
+    });
+
     it('rejects an empty includes predicate even when the node exists', () => {
         const source =
             '<node resource-id="session-composer-input" package="com.caxri.mobile" text="private" />';

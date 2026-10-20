@@ -102,6 +102,10 @@ export const semanticNodesFromUiAutomator = (
 /**
  * Evaluates a single Caxri test ID inside the device dump. Only the structural and comparison booleans may leave this
  * boundary; the decoded text and raw XML remain local to this function.
+ *
+ * A list can repeat a test ID (two answered question groups each have `agent-chat-answered-answer-0`), and which copy
+ * the dump lists first depends on scroll position. With an expected text, the first copy whose text matches wins, so an
+ * older copy scrolled above the viewport cannot mask the one under test; without a match, the first copy reports.
  */
 export const observeAndroidNodeFromUiAutomator = (
     source: string,
@@ -113,6 +117,7 @@ export const observeAndroidNodeFromUiAutomator = (
     if (expectedText?.kind === 'includes' && expectedText.value.length === 0)
         throw new Error('Android includes text must not be empty');
 
+    let firstObservation: AndroidNodeObservation | undefined;
     for (const match of source.matchAll(/<node\s[^>]*>/gu)) {
         const node = match[0];
         if (attribute(node, 'package') !== expectedPackage) continue;
@@ -123,21 +128,23 @@ export const observeAndroidNodeFromUiAutomator = (
             exists: true,
             focused: attribute(node, 'focused') === 'true',
         };
-        if (expectedText) {
-            const text = decodeXmlAttribute(attribute(node, 'text') ?? '');
-            observation.textMatches =
-                expectedText.kind === 'equals'
-                    ? text === expectedText.value
-                    : text.includes(expectedText.value);
-        }
-        return observation;
+        if (!expectedText) return observation;
+        const text = decodeXmlAttribute(attribute(node, 'text') ?? '');
+        observation.textMatches =
+            expectedText.kind === 'equals'
+                ? text === expectedText.value
+                : text.includes(expectedText.value);
+        if (observation.textMatches) return observation;
+        firstObservation ??= observation;
     }
 
-    return {
-        exists: false,
-        focused: false,
-        ...(expectedText && { textMatches: false }),
-    };
+    return (
+        firstObservation ?? {
+            exists: false,
+            focused: false,
+            ...(expectedText && { textMatches: false }),
+        }
+    );
 };
 
 export const resumedPackageFromWindowDump = (source: string): string | undefined =>
