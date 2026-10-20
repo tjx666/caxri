@@ -69,28 +69,31 @@ async function ghApi(path: string, jq: string): Promise<string> {
  */
 async function readPrHead(
     pr: string,
+    workflow: string | undefined,
 ): Promise<{ headSha: string; mergeableState: string | undefined; runIds: string[] }> {
     const [headSha = '', mergeableState] = (
         await ghApi(`pulls/${pr}`, '.head.sha + " " + .mergeable_state')
     ).split(' ', 2);
     const runIds = await ghApi(
         `actions/runs?head_sha=${headSha}&per_page=20`,
-        '.workflow_runs[].id',
+        workflow
+            ? `.workflow_runs[] | select(.name == ${JSON.stringify(workflow)}) | .id`
+            : '.workflow_runs[].id',
     );
     return { headSha, mergeableState, runIds: runIds.split('\n').filter(Boolean) };
 }
 
 /**
- * Waits for the current head of pull request `pr` to have workflow runs and returns their IDs. Throws when the pull
- * request conflicts with its base or no run starts in time.
+ * Waits for the current head of pull request `pr` to have workflow runs, only those named `workflow` when given, and
+ * returns their IDs. Throws when the pull request conflicts with its base or no run starts in time.
  */
 
-export async function resolvePrRuns(pr: string): Promise<string[]> {
+export async function resolvePrRuns(pr: string, workflow?: string): Promise<string[]> {
     const startedAt = Date.now();
     let previousRunIds: string[] | undefined;
     for (;;) {
         // eslint-disable-next-line no-await-in-loop -- startup poll: each iteration observes then sleeps
-        const { headSha, mergeableState, runIds } = await readPrHead(pr);
+        const { headSha, mergeableState, runIds } = await readPrHead(pr, workflow);
         const step = prStartupStep({
             mergeableState,
             previousRunIds,

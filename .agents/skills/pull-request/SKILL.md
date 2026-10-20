@@ -80,7 +80,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    stale evidence. Right after a push, watch checks with `bun run scripts/watch-ci.ts --pr <number>`
    using the harness-specific ownership rules in the reference below: it waits for the new head's
    runs, watches every workflow, and fails at once when the PR conflicts with its base, which starts
-   no CI. Use `--run <id>` for a single known run. Concurrent sessions, including other
+   no CI. A diff that qualifies for [Fast merge without CI](#fast-merge-without-ci) adds
+   `--workflow Guards`, so the watcher returns as soon as the required check does instead of
+   waiting on the slower `checks` job. Use `--run <id>` for a single known run. Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
    new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling
