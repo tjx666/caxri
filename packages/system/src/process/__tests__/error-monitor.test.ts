@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { serverEventSchema, sourceControlViewStatesSchema } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ProcessErrorTarget, ProcessErrorWriter } from '../error-monitor';
+import type { ProcessErrorWriter } from '../error-monitor';
 import { installProcessErrorMonitor } from '../error-monitor';
 
 function createWriter() {
@@ -19,7 +19,7 @@ describe('installProcessErrorMonitor', () => {
         const writer = createWriter();
         const monitor = installProcessErrorMonitor({
             processName: 'server-core',
-            target: target as ProcessErrorTarget,
+            target,
         });
         monitor.attach(writer);
         const parsed = serverEventSchema.safeParse({
@@ -55,7 +55,7 @@ describe('installProcessErrorMonitor', () => {
         const writer = createWriter();
         const monitor = installProcessErrorMonitor({
             processName: 'server-core',
-            target: target as ProcessErrorTarget,
+            target,
         });
         monitor.attach(writer);
         const parsed = sourceControlViewStatesSchema.safeParse({ privateCredentialName: {} });
@@ -75,7 +75,7 @@ describe('installProcessErrorMonitor', () => {
         const writer = createWriter();
         const monitor = installProcessErrorMonitor({
             processName: 'server-core',
-            target: target as ProcessErrorTarget,
+            target,
         });
 
         target.emit('uncaughtExceptionMonitor', new Error('startup failed'), 'uncaughtException');
@@ -100,7 +100,7 @@ describe('installProcessErrorMonitor', () => {
         installProcessErrorMonitor({
             bootstrapWriter: () => writer,
             processName: 'desktop',
-            target: target as ProcessErrorTarget,
+            target,
         });
 
         target.emit('uncaughtExceptionMonitor', 'rejected', 'unhandledRejection');
@@ -122,7 +122,7 @@ describe('installProcessErrorMonitor', () => {
         const target = new EventEmitter();
         const monitor = installProcessErrorMonitor({
             processName: 'desktop',
-            target: target as ProcessErrorTarget,
+            target,
         });
 
         expect(target.listenerCount('uncaughtExceptionMonitor')).toBe(1);

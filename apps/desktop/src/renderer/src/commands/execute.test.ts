@@ -575,7 +575,7 @@ describe('executeCommand', () => {
 
     it('opens the Keyboard Shortcuts cheatsheet in an SSH Host window too', () => {
         const { calls, context } = recordingContext();
-        context.remote.isLocalOnlyAvailable = () => false;
+        context.sshHost.isLocalOnlyAvailable = () => false;
 
         executeCommand('help.showKeyboardShortcuts', undefined, context);
 

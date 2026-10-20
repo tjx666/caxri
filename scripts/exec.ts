@@ -30,7 +30,7 @@ export function waitForChildExit(
     }
     return new Promise<number>((resolve, reject) => {
         child.once('error', reject);
-        child.once(event, (code, signal) =>
+        child.once(event, (code: number | null, signal: NodeJS.Signals | null) =>
             resolve(code ?? (signal ? 1 : (options.nullExitCode ?? 0))),
         );
     });
