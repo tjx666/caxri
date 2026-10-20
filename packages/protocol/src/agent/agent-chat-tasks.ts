@@ -78,6 +78,22 @@ export function agentChatTaskIdentity(
 }
 
 /**
+ * The provider's progress or final summary line, or `undefined` when it is blank or only restates how the task ended
+ * (`Stopped` beside a stopped status), which the status glyph and label already say.
+ */
+export function agentChatTaskSummary(
+    task: Pick<AgentChatTask, 'status' | 'summary'>,
+    statusLabel?: string,
+): string | undefined {
+    const summary = task.summary?.trim();
+    if (!summary) return undefined;
+    const restated = summary.toLowerCase();
+    return restated === task.status || restated === statusLabel?.toLowerCase()
+        ? undefined
+        : summary;
+}
+
+/**
  * What a running task is doing now, for its timeline row and strip entry: the provider's progress line, else the tool
  * it last used. An ended task shows its final summary.
  */
@@ -85,7 +101,7 @@ export function agentChatTaskActivity(
     task: Pick<AgentChatTask, 'lastToolName' | 'status' | 'summary'>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string | undefined {
-    const summary = task.summary?.trim();
+    const summary = agentChatTaskSummary(task);
     if (summary) return summary;
     if (task.status === 'running' && task.lastToolName)
         return t('agentChat.tasks.usingTool', { tool: task.lastToolName });

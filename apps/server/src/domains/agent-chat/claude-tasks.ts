@@ -305,7 +305,18 @@ export class ClaudeTasks {
             if (!id) this.known.delete(claudeId);
             return;
         }
-        const usage = claudeTaskUsage(message.usage);
+        // A stop can report zero tokens and tool uses; it must not erase what progress frames already counted.
+        const reported = claudeTaskUsage(message.usage);
+        const prior = this.list.get(id)?.usage;
+        const usage =
+            prior && !reported?.totalTokens && !reported?.toolUses
+                ? {
+                      ...prior,
+                      ...(reported?.durationMs !== undefined && {
+                          durationMs: reported.durationMs,
+                      }),
+                  }
+                : reported;
         const summary = stringField(message.summary);
         this.finish(id, status, { ...(usage && { usage }), ...(summary && { summary }) });
         if (this.list.get(id)?.kind === 'shell') this.shellOutput.readFinal(id);

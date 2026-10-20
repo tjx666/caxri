@@ -10,6 +10,7 @@ import {
     agentChatTasksLatestEnd,
     agentChatTaskStrip,
     agentChatTaskStripView,
+    agentChatTaskSummary,
     agentChatTaskUsageSummary,
     canStopAgentChatTask,
     findAgentChatTask,
@@ -236,5 +237,16 @@ describe('task presentation', () => {
         expect(
             agentChatTaskActivity({ status: 'completed', lastToolName: 'Grep' }),
         ).toBeUndefined();
+        expect(agentChatTaskActivity({ status: 'stopped', summary: 'Stopped' })).toBeUndefined();
+    });
+
+    it('drops a summary that only restates how the task ended', () => {
+        expect(agentChatTaskSummary({ status: 'stopped', summary: ' Stopped ' })).toBeUndefined();
+        expect(
+            agentChatTaskSummary({ status: 'completed', summary: 'Done' }, 'Done'),
+        ).toBeUndefined();
+        expect(
+            agentChatTaskSummary({ status: 'completed', summary: 'Found 3 issues' }, 'Done'),
+        ).toBe('Found 3 issues');
     });
 });

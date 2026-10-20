@@ -7,6 +7,7 @@ import type {
 import {
     agentChatTaskElapsedMs,
     agentChatTaskStripView,
+    agentChatTaskSummary,
     canStopAgentChatTask,
     formatNoticeableDuration,
     isAgentChatTaskTitleCommand,
@@ -105,8 +106,7 @@ export function agentChatTaskRow(
     const title = task.title || kindLabel;
     const statusLabel = t(STATUS_LABELS[task.status]);
     const elapsed = formatNoticeableDuration(agentChatTaskElapsedMs(task, now), t) ?? undefined;
-    // An all-whitespace summary is no summary.
-    const summary = task.summary?.trim() ? task.summary.trim() : undefined;
+    const summary = agentChatTaskSummary(task, statusLabel);
     return {
         title,
         isCommandTitle: isAgentChatTaskTitleCommand(task),
