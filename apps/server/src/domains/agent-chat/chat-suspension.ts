@@ -11,7 +11,7 @@ import type { ChatState, ChatStateDelivery, ChatStates } from './chat-states';
  * an Agent Session it can resume, and no turn, approval, operation, background task, or queued message is pending. A
  * Chat that is not bound yet has no conversation to resume, so stopping it would only discard its draft settings.
  */
-export function isChatIdleForSuspension(
+function isChatIdleForSuspension(
     state: ChatState | undefined,
     terminal: Pick<TerminalRecord, 'agentSessionId'> | undefined,
 ): boolean {
