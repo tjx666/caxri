@@ -159,6 +159,40 @@ describe('buildAgentChatTimeline', () => {
         expect(expanded[1]).toMatchObject({ fold: 'expanded' });
     });
 
+    it('keeps the subagents a collapsed turn started in reach of its row', () => {
+        const subagent: AgentChatItem = {
+            id: 'toolu-1',
+            turnId: 't1',
+            type: 'toolCall',
+            name: 'Agent',
+            status: 'completed',
+        };
+        const timeline: Timeline = {
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Watch the build' },
+                command('c1', 'completed'),
+                subagent,
+                {
+                    id: 'a1',
+                    turnId: 't1',
+                    type: 'agentMessage',
+                    text: 'Started.',
+                    streaming: false,
+                },
+            ],
+            turns: [{ id: 't1', status: 'completed' }],
+        };
+        expect(buildAgentChatTimeline(timeline)[1]).toMatchObject({
+            kind: 'turn',
+            fold: 'collapsed',
+            subagents: [subagent],
+        });
+        // Expanded, the subagent draws in its place among the work, and the row lists none.
+        expect(buildAgentChatTimeline(timeline, new Set(['t1']))[1]).not.toHaveProperty(
+            'subagents',
+        );
+    });
+
     it('expands only the turns the user opened', () => {
         const turn = (id: string): AgentChatItem[] => [
             { id: `u-${id}`, turnId: id, type: 'userMessage', text: 'Go' },

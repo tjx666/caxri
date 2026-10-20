@@ -177,6 +177,13 @@ describe('Claude Code background work in Agent Chat', () => {
                 ),
             ).toBe(true);
         });
+        // A running subagent's `task_progress` names the tool it last used and what it has spent so far.
+        const progressed = await until((snapshot) => snapshot.tasks?.[0]?.lastToolName === 'Grep');
+        expect(progressed.tasks?.[0]).toMatchObject({
+            agentType: 'general-purpose',
+            model: 'fake-haiku',
+            usage: { totalTokens: 12_300, toolUses: 2 },
+        });
 
         await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) =>

@@ -45,13 +45,26 @@ export async function executeMobileChatSubagentScenario(
 
         await typeChatDraft(serial, 'background agent');
         await tapMobileCheck(serial, 'agent-chat-composer-send');
-        const started = await waitForMobile(
-            () => chat.read(),
-            (snapshot) =>
-                !snapshot.activeTurnId &&
-                subagent(snapshot)?.status === 'running' &&
-                subagent(snapshot)?.lastToolName === 'Grep',
-        );
+        let latest: AgentChatSnapshot | undefined;
+        let started: AgentChatSnapshot;
+        try {
+            started = await waitForMobile(
+                async () => {
+                    latest = await chat.read();
+                    return latest;
+                },
+                (snapshot) =>
+                    !snapshot.activeTurnId &&
+                    subagent(snapshot)?.status === 'running' &&
+                    subagent(snapshot)?.lastToolName === 'Grep',
+            );
+        } catch (error) {
+            // The task list is synthetic fixture metadata, safe to report.
+            throw new Error(
+                `The subagent never reported its progress: ${JSON.stringify({ activeTurnId: latest?.activeTurnId, tasks: latest?.tasks })}`,
+                { cause: error },
+            );
+        }
         const task = subagent(started);
         if (!task?.itemId) throw new Error('The subagent has no timeline row');
         const rowId = `agent-chat-work-${task.itemId}`;

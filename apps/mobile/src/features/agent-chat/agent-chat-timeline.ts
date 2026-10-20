@@ -17,6 +17,7 @@ import {
     foldAgentChatTurn,
     isAgentChatAwaitingReply,
     isAgentChatItemVisible,
+    isAgentChatSubagentItem,
     isAgentChatWorkItem,
     splitAgentChatWork,
 } from '@caxri/protocol';
@@ -87,6 +88,11 @@ export type AgentChatTimelineEntry =
            * turn had nothing to fold (a prompt and its reply), so the row only says how the turn went.
            */
           fold?: 'collapsed' | 'expanded';
+          /**
+           * The subagents a collapsed fold hides, in timeline order, so the row can reopen each without being expanded,
+           * as Desktop's fold does (issue caxri#1613). A background subagent can outlive its turn.
+           */
+          subagents?: readonly AgentChatWorkItem[];
       }
     | {
           /**
@@ -224,7 +230,16 @@ function finishedTurnEntries(
     const entries: AgentChatTimelineEntry[] = [];
     for (const part of parts) {
         if (part.kind === 'fold') {
-            entries.push(row(isExpanded ? 'expanded' : 'collapsed'));
+            const subagents = isExpanded
+                ? []
+                : part.items.filter(
+                      (item): item is AgentChatWorkItem =>
+                          isAgentChatWorkItem(item) && isAgentChatSubagentItem(item),
+                  );
+            entries.push({
+                ...row(isExpanded ? 'expanded' : 'collapsed'),
+                ...(subagents.length > 0 && { subagents }),
+            });
             if (isExpanded) entries.push(...groupEntries(part.items, t, taskItemIds));
             continue;
         }
