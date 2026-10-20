@@ -176,8 +176,15 @@ describe('pending Editor intent', () => {
     });
 
     it('expires so an Editor that never mounts cannot disable focus recovery for the session', () => {
+        // Measure from the moment the intent was queued: reading `Date.now()` again later lets a slow runner
+        // drift past the 2s grace before the first assertion.
+        const queuedAt = Date.now();
+        vi.spyOn(Date, 'now').mockReturnValue(queuedAt);
+        onTestFinished(() => {
+            vi.restoreAllMocks();
+        });
         focusEditor('/project/never-mounts.ts');
-        expect(hasPendingEditorIntent(Date.now() + 1_999)).toBe(true);
-        expect(hasPendingEditorIntent(Date.now() + 2_001)).toBe(false);
+        expect(hasPendingEditorIntent(queuedAt + 1_999)).toBe(true);
+        expect(hasPendingEditorIntent(queuedAt + 2_001)).toBe(false);
     });
 });
