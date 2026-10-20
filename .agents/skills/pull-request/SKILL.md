@@ -171,7 +171,16 @@ Run the gates that actually cover the changed files first, and require them to p
 | Any `.md`                          | `bun run lint:markdown`, `bun run format:check`                                      |
 | `.agents/skills/**` or `AGENTS.md` | plus `bunx vitest run scripts/__tests__/skill-invocation.test.ts`                    |
 | Renderer styling                   | `bun run lint`, the change's own test, and the CDP visual check `AGENTS.md` requires |
-| Locally verified code change       | `check --lint --test --type --knip`, the `CI-E2E-Tests` specs, and the CDP check     |
+| Locally verified code change       | `check --lint --test --type --knip`, `vitest related` (below), `CI-E2E-Tests`, CDP   |
+
+`check --test` selects only tests that import a changed file directly, so a test reaching it through
+another module is skipped: `status-merge.test.ts` imports `status-tree.ts`, which reaches
+`status-agent-actions.ts`, and a stale assertion there merged under this class and turned `main`'s
+hosted `checks` red. Before a fast merge of a code change, also run the transitive importers of every
+changed non-test source file with `bunx vitest related --run --silent=passed-only <files...>` (a
+44-file Renderer and Mobile diff selected 325 test files and ran in about two minutes). When the diff
+touches `package.json`, a Vitest config, or another file that makes the selection the whole suite,
+skip this class and wait for the hosted `checks` result instead of running the full suite locally.
 
 A documentation diff is not automatically test-free: `skill-invocation.test.ts` asserts skill
 frontmatter, the `.claude/skills` symlink, the explicit-only invocation list, and how skills may
