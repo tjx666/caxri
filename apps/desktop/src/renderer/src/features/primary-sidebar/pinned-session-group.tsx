@@ -16,6 +16,7 @@ import {
     primarySidebarPinnedRowId,
     primarySidebarRevealRowId,
 } from './primary-sidebar-tree';
+import { rovingSubagentRowId } from './session-subagents';
 
 const PINNED_DISCLOSURE_ID = 'pinned-sessions-group';
 
@@ -62,6 +63,10 @@ interface PinnedSessionGroupProperties {
      * membership rather than what happens to be on screen.
      */
     sessions: SessionRecord[];
+    /**
+     * Whether Chat Sessions list their subagents under them (`primarySidebar.showSubagents`).
+     */
+    showSubagents: boolean;
     terminals: TerminalRecord[];
     /**
      * The pinned Sessions the window currently renders.
@@ -102,6 +107,7 @@ export function PinnedSessionGroup({
     selectedSessionId,
     sessionOrder,
     sessions,
+    showSubagents,
     terminals,
     visibleSessions,
     worktreeProjects,
@@ -205,6 +211,11 @@ export function PinnedSessionGroup({
                                     session={session}
                                     sessionOrder={sessionOrder}
                                     showProjectName
+                                    showSubagents={showSubagents}
+                                    subagentRovingRowId={rovingSubagentRowId(
+                                        rovingRowId,
+                                        session.id,
+                                    )}
                                     terminal={sessionAgentTerminal(session, terminals)}
                                     visibleSessionIds={visibleSessionIds}
                                     worktreeProject={worktreeProjects?.[session.id]}

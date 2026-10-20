@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { PrimarySidebarProjectNode } from '../primary-sidebar-tree';
+import type {
+    PrimarySidebarProjectNode,
+    PrimarySidebarSubagentNode,
+} from '../primary-sidebar-tree';
 import {
     flattenPrimarySidebarRows,
     nextPrimarySidebarRowId,
@@ -10,6 +13,8 @@ import {
     primarySidebarHorizontalIntent,
     primarySidebarPinnedRowId,
     primarySidebarRevealRowId,
+    primarySidebarSubagentMoreRowId,
+    primarySidebarSubagentRowId,
     rovingPrimarySidebarRowId,
 } from '../primary-sidebar-tree';
 
@@ -370,5 +375,85 @@ describe('primarySidebarArchiveIntent', () => {
         };
         expect(primarySidebarArchiveIntent(createRow, 'Delete')).toBeUndefined();
         expect(primarySidebarArchiveIntent(createRow, 'Backspace')).toBeUndefined();
+    });
+});
+
+describe('subagent rows', () => {
+    const subagents = new Map<string, PrimarySidebarSubagentNode>([
+        ['alpha-1', { hasToggle: true, taskIds: ['t1', 't2'], terminalId: 'chat-1' }],
+        ['pinned-1', { hasToggle: false, taskIds: ['p1'], terminalId: 'chat-p' }],
+    ]);
+
+    it('nests a Session subagents and its toggle row directly under the Session row', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, undefined, subagents);
+        expect(rows.map((row) => row.id)).toEqual([
+            'alpha',
+            'alpha-1',
+            primarySidebarSubagentRowId('alpha-1', 't1'),
+            primarySidebarSubagentRowId('alpha-1', 't2'),
+            primarySidebarSubagentMoreRowId('alpha-1'),
+            'alpha-2',
+            'beta',
+            'beta-1',
+            'gamma',
+            gammaCreateRowId,
+        ]);
+        expect(rows.find((row) => row.kind === 'subagent')).toMatchObject({
+            parentRowId: 'alpha-1',
+            projectId: 'alpha',
+            sessionId: 'alpha-1',
+            taskId: 't1',
+            terminalId: 'chat-1',
+        });
+    });
+
+    it('leaves subagent rows out of a collapsed Project and when none are given', () => {
+        expect(
+            flattenPrimarySidebarRows(projects, (id) => id !== 'alpha', undefined, subagents).some(
+                (row) => row.kind === 'subagent' || row.kind === 'subagentMore',
+            ),
+        ).toBe(false);
+        expect(
+            flattenPrimarySidebarRows(projects, () => true).some((row) => row.kind === 'subagent'),
+        ).toBe(false);
+    });
+
+    it('nests a pinned Session subagents under its namespaced Pinned row', () => {
+        const rows = flattenPrimarySidebarRows(
+            [],
+            () => true,
+            {
+                expanded: true,
+                sessionIds: ['pinned-1'],
+            },
+            subagents,
+        );
+        expect(rows.map((row) => row.id)).toEqual([
+            PINNED_GROUP_ROW_ID,
+            primarySidebarPinnedRowId('pinned-1'),
+            primarySidebarSubagentRowId('pinned-1', 'p1'),
+        ]);
+        expect(rows[2].parentRowId).toBe(primarySidebarPinnedRowId('pinned-1'));
+    });
+
+    it('sends Left from a subagent row to its Session row, and gives it no other horizontal move', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, undefined, subagents);
+        const subagent = rows.find((row) => row.kind === 'subagent');
+        const toggle = rows.find((row) => row.kind === 'subagentMore');
+        if (!subagent || !toggle) throw new Error('expected subagent rows');
+        expect(primarySidebarHorizontalIntent(rows, subagent, true, 'ArrowLeft')).toEqual({
+            focusRowId: 'alpha-1',
+        });
+        expect(primarySidebarHorizontalIntent(rows, toggle, true, 'ArrowLeft')).toEqual({
+            focusRowId: 'alpha-1',
+        });
+        expect(primarySidebarHorizontalIntent(rows, subagent, true, 'ArrowRight')).toEqual({});
+    });
+
+    it('does not archive from a subagent row', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, undefined, subagents);
+        const subagent = rows.find((row) => row.kind === 'subagent');
+        if (!subagent) throw new Error('expected a subagent row');
+        expect(primarySidebarArchiveIntent(subagent, 'Delete')).toBeUndefined();
     });
 });

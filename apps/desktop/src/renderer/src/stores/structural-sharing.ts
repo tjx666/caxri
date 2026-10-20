@@ -20,7 +20,7 @@ function isPlainObject(value: unknown): value is PlainObject {
  */
 function elementKey(value: unknown): string | undefined {
     if (!isPlainObject(value)) return undefined;
-    for (const field of ['id', 'sessionId', 'path'] as const) {
+    for (const field of ['id', 'sessionId', 'taskId', 'path'] as const) {
         const candidate = value[field];
         if (typeof candidate === 'string') return `${field}:${candidate}`;
     }

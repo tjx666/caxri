@@ -47,6 +47,11 @@ interface ChatProjectionOptions {
      */
     delegatedTaskSource(delegationId: string): AgentChatDelegatedTaskSource | undefined;
     /**
+     * Runs when the task list changed, with the new list (`undefined` once a `reset` cleared it). The sidebar's durable
+     * subagent summaries follow it; see `ChatSubagentSummaries`.
+     */
+    onTasksChanged?(tasks: readonly AgentChatTask[] | undefined): void;
+    /**
      * Where `answered` notices outlive this Server Core process; see {@link AnsweredNoticeStore}.
      */
     answeredNotices?: AnsweredNoticeStore;
@@ -400,7 +405,10 @@ export class ChatProjection {
             if (original.op === 'state' && original.state.truncated === true)
                 this.history.isIncomplete = true;
         }
-        if (this.snapshot.tasks !== previousTasks) this.logFinishedTasks(previousTasks ?? []);
+        if (this.snapshot.tasks !== previousTasks) {
+            this.logFinishedTasks(previousTasks ?? []);
+            this.options.onTasksChanged?.(this.snapshot.tasks);
+        }
         this.queued.push(...this.withoutEvictedItems(applied, evictedInBatch));
         this.scheduleFlush();
         this.options.onChange();

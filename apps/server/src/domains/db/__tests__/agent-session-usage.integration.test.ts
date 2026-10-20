@@ -112,6 +112,7 @@ describe('Agent Session usage ledger', () => {
             'commander_inbox_replies',
             'commander_inbox_items',
             'benchmark_runs',
+            'agent_chat_subagents',
             'agent_chat_answered_notices',
             'agent_chat_process_groups',
         ];

@@ -18,7 +18,11 @@ export interface PrimarySidebarProjectNode {
 
 export interface PrimarySidebarTreeRow {
     id: string;
-    kind: 'project' | 'session' | 'reveal' | 'createSession';
+    /**
+     * `subagent` and `subagentMore` rows sit one level under their Session row: a Chat's subagent, and the row that
+     * shows the rest of that Chat's subagents (or folds them again).
+     */
+    kind: 'project' | 'session' | 'reveal' | 'createSession' | 'subagent' | 'subagentMore';
     /**
      * The owning group's heading row id; equals `id` itself for a Project row, and `PINNED_GROUP_ROW_ID` for everything
      * inside the Pinned group. Named for the Project because that is what it is everywhere except that one group.
@@ -30,6 +34,16 @@ export interface PrimarySidebarTreeRow {
      * itself.
      */
     sessionId?: string;
+    /**
+     * The Session row a `subagent` or `subagentMore` row nests under, which Left returns to. Its own id rather than a
+     * Session id because a pinned Session's row carries a namespaced one.
+     */
+    parentRowId?: string;
+    /**
+     * The Chat Terminal and task a `subagent` row opens.
+     */
+    terminalId?: string;
+    taskId?: string;
 }
 
 /**
@@ -65,6 +79,37 @@ export function primarySidebarCreateSessionRowId(projectId: string): string {
     return `create-session:${projectId}`;
 }
 
+/**
+ * Row id of one subagent row. A Session lists the subagents of one Chat, so the Session id plus the task id is unique,
+ * and the Session id lets a row list tell cheaply whether the roving row is its own.
+ */
+export function primarySidebarSubagentRowId(sessionId: string, taskId: string): string {
+    return `subagent:${sessionId}:${taskId}`;
+}
+
+/**
+ * Row id of the row that shows the rest of a Session's subagents, or folds them again. Namespaced like the reveal row.
+ */
+export function primarySidebarSubagentMoreRowId(sessionId: string): string {
+    return `subagent-more:${sessionId}`;
+}
+
+/**
+ * The subagent rows one Session shows under it, already ordered and windowed (see `session-subagents.ts`).
+ */
+export interface PrimarySidebarSubagentNode {
+    /**
+     * True when the Session has more subagents than the collapsed window, which puts the show-more/show-fewer row after
+     * the subagent rows.
+     */
+    hasToggle: boolean;
+    /**
+     * The Session's rendered subagents, in display order.
+     */
+    taskIds: readonly string[];
+    terminalId: string;
+}
+
 export interface PrimarySidebarPinnedNode {
     expanded: boolean;
     /**
@@ -88,6 +133,9 @@ export interface PrimarySidebarPinnedNode {
  * collapses it, Right opens it and steps inside, and `PINNED_GROUP_ROW_ID` stands in for the Project id it has no owner
  * for.
  *
+ * A Session that shows subagents (`subagents`, keyed by Session id) follows its own row with their rows and, when it
+ * has more than the collapsed window, the show-more row, all one level deeper than the Session.
+ *
  * An expanded Project with no visible Sessions renders the "New Session" row in place of that list, so it takes the
  * Session rows' place here too. The condition is read straight off `sessionIds` rather than a separate emptiness flag:
  * `ProjectGroup` renders that row on exactly the same test, and two sources of truth for one row would eventually
@@ -97,8 +145,35 @@ export function flattenPrimarySidebarRows(
     projects: readonly PrimarySidebarProjectNode[],
     isExpanded: (projectId: string) => boolean,
     pinned?: PrimarySidebarPinnedNode,
+    subagents?: ReadonlyMap<string, PrimarySidebarSubagentNode>,
 ): PrimarySidebarTreeRow[] {
     const rows: PrimarySidebarTreeRow[] = [];
+    /**
+     * A Session's subagent rows follow its own row, one level deeper. The Session's row id is passed in because a
+     * pinned Session's differs from its id.
+     */
+    const pushSubagentRows = (sessionId: string, sessionRowId: string, projectId: string): void => {
+        const node = subagents?.get(sessionId);
+        if (!node) return;
+        for (const taskId of node.taskIds)
+            rows.push({
+                id: primarySidebarSubagentRowId(sessionId, taskId),
+                kind: 'subagent',
+                parentRowId: sessionRowId,
+                projectId,
+                sessionId,
+                taskId,
+                terminalId: node.terminalId,
+            });
+        if (node.hasToggle)
+            rows.push({
+                id: primarySidebarSubagentMoreRowId(sessionId),
+                kind: 'subagentMore',
+                parentRowId: sessionRowId,
+                projectId,
+                sessionId,
+            });
+    };
     if (pinned && pinned.sessionIds.length > 0) {
         rows.push({
             id: PINNED_GROUP_ROW_ID,
@@ -106,13 +181,19 @@ export function flattenPrimarySidebarRows(
             projectId: PINNED_GROUP_ROW_ID,
         });
         if (pinned.expanded) {
-            for (const sessionId of pinned.sessionIds)
+            for (const sessionId of pinned.sessionIds) {
                 rows.push({
                     id: primarySidebarPinnedRowId(sessionId),
                     kind: 'session',
                     projectId: PINNED_GROUP_ROW_ID,
                     sessionId,
                 });
+                pushSubagentRows(
+                    sessionId,
+                    primarySidebarPinnedRowId(sessionId),
+                    PINNED_GROUP_ROW_ID,
+                );
+            }
             if (pinned.hasHiddenSessions)
                 rows.push({
                     id: primarySidebarRevealRowId(PINNED_GROUP_ROW_ID),
@@ -124,8 +205,10 @@ export function flattenPrimarySidebarRows(
     for (const project of projects) {
         rows.push({ id: project.id, kind: 'project', projectId: project.id });
         if (!isExpanded(project.id)) continue;
-        for (const sessionId of project.sessionIds)
+        for (const sessionId of project.sessionIds) {
             rows.push({ id: sessionId, kind: 'session', projectId: project.id, sessionId });
+            pushSubagentRows(sessionId, sessionId, project.id);
+        }
         if (project.hasHiddenSessions)
             rows.push({
                 id: primarySidebarRevealRowId(project.id),
@@ -193,8 +276,8 @@ function firstPrimarySidebarChildRowId(
 /**
  * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project and
  * steps into the first row of an already open one, Left closes an open Project. A Session, reveal, or "New Session" row
- * has no children of its own, so Left instead moves focus to its owning Project heading: only a Project is a
- * collapse/expand target, and Right on one of those rows does nothing.
+ * has no children of its own, so Left instead moves focus to its owning Project heading (a subagent row's Left goes to
+ * its Session row): only a Project is a collapse/expand target, and Right on one of those rows does nothing.
  *
  * Right on an already expanded Project used to be a dead key, which is the half of the pattern that leaves a user who
  * opened a Project with the arrow keys no way to continue into it with the same key.
@@ -205,7 +288,8 @@ export function primarySidebarHorizontalIntent(
     isExpanded: boolean,
     key: 'ArrowLeft' | 'ArrowRight',
 ): PrimarySidebarHorizontalIntent {
-    if (row.kind !== 'project') return key === 'ArrowLeft' ? { focusRowId: row.projectId } : {};
+    if (row.kind !== 'project')
+        return key === 'ArrowLeft' ? { focusRowId: row.parentRowId ?? row.projectId } : {};
     if (key === 'ArrowLeft') return isExpanded ? { expanded: false } : {};
     if (!isExpanded) return { expanded: true };
     const firstChildRowId = firstPrimarySidebarChildRowId(rows, row);

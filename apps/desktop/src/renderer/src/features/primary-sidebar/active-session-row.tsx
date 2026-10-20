@@ -18,6 +18,7 @@ import { SessionRowActions } from './session-row-actions';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowTrigger } from './session-row-trigger';
 import { SessionStatusIndicator } from './session-status-indicator';
+import { SessionSubagentRows } from './session-subagent-rows';
 
 interface ActiveSessionRowProperties {
     sessionOrder: SessionOrderController;
@@ -65,6 +66,14 @@ interface ActiveSessionRowProperties {
     rowId?: string;
     selected: boolean;
     session: SessionRecord;
+    /**
+     * Whether Chat Sessions list their subagents under the row (`primarySidebar.showSubagents`).
+     */
+    showSubagents?: boolean;
+    /**
+     * The roving row id when it is one of this Session's subagent rows, so a focus move elsewhere keeps this memo.
+     */
+    subagentRovingRowId?: string;
     terminal?: TerminalRecord;
     /**
      * Workbench Root Project when this Session works in a linked worktree instead of its own Project root. Absent for
@@ -116,6 +125,8 @@ export function ActiveSessionRow({
     rowId,
     selected,
     session,
+    showSubagents = false,
+    subagentRovingRowId,
     terminal,
     worktreeProject,
 }: ActiveSessionRowProperties) {
@@ -282,17 +293,34 @@ export function ActiveSessionRow({
             {!renaming && <SessionRowActions session={session} />}
         </div>
     );
-    if (renaming) return row;
+    const subagentRows = (
+        <SessionSubagentRows
+            rovingRowId={subagentRovingRowId}
+            sessionId={session.id}
+            showSubagents={showSubagents}
+            terminal={terminal}
+        />
+    );
+    if (renaming)
+        return (
+            <>
+                {row}
+                {subagentRows}
+            </>
+        );
     return (
-        <SessionRowMenu
-            onBeginRename={beginRename}
-            onSuggestRename={suggestRename}
-            onOpenChange={setMenuOpen}
-            project={project}
-            pullRequest={pullRequest}
-            session={session}
-        >
-            {row}
-        </SessionRowMenu>
+        <>
+            <SessionRowMenu
+                onBeginRename={beginRename}
+                onSuggestRename={suggestRename}
+                onOpenChange={setMenuOpen}
+                project={project}
+                pullRequest={pullRequest}
+                session={session}
+            >
+                {row}
+            </SessionRowMenu>
+            {subagentRows}
+        </>
     );
 }

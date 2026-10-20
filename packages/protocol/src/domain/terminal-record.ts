@@ -35,6 +35,27 @@ const terminalFailureReasonSchema = z.enum([
     'agent_session_unavailable',
 ]);
 
+/**
+ * Subagent summaries one Chat Terminal keeps durably (and projects on its record). Matches the in-memory task budget,
+ * so a restart never shows fewer subagents than the Chat held.
+ */
+export const MAX_TERMINAL_SUBAGENT_SUMMARIES = 50;
+
+/**
+ * The durable, content-free summary of one native subagent a Chat Agent started: just what a sidebar row needs. It
+ * mirrors the Chat task's closed `status` values but lives here so this module stays a leaf.
+ */
+export const terminalSubagentSummarySchema = z.strictObject({
+    taskId: z.string().min(1).max(200),
+    title: z.string().max(1_000),
+    agentType: z.string().max(200).optional(),
+    status: z.enum(['running', 'completed', 'failed', 'stopped']),
+    startedAt: z.number(),
+    endedAt: z.number().optional(),
+});
+
+export type TerminalSubagentSummary = z.infer<typeof terminalSubagentSummarySchema>;
+
 export const terminalRecordSchema = z.object({
     id: identifierSchema,
     sessionId: identifierSchema,
@@ -70,6 +91,16 @@ export const terminalRecordSchema = z.object({
      * subagent, workflow, or monitor) that wakes the Agent again, so the Session still counts as running.
      */
     agentOperation: agentOperationSchema.optional(),
+    /**
+     * Present only on a Chat Terminal that has started subagents: their persisted summaries, in no particular order.
+     * Projected from the `agent_chat_subagents` table when the record is read, never stored on the Terminal row, so
+     * listing them starts no provider (unlike `agentChat.read`). Running ones are marked `stopped` on Server Core
+     * start, because their provider process did not survive it.
+     */
+    subagents: z
+        .array(terminalSubagentSummarySchema)
+        .max(MAX_TERMINAL_SUBAGENT_SUMMARIES)
+        .optional(),
     lastAgentProcessState: processStateSchema.optional(),
     lastProcessState: processStateSchema,
     /**

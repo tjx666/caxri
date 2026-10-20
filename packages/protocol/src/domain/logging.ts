@@ -71,6 +71,12 @@ export const logEventCatalog = {
          */
         taskFinished: 'agent_chat.task_finished',
         /**
+         * Server Core start rewrote persisted `running` subagent summaries to `stopped`, because their provider process
+         * ended with the previous Server Core. Carries a closed `reason` (`serverStart`) and the `count` of rows and
+         * `terminals` touched; never titles.
+         */
+        subagentsReconciled: 'agent_chat.subagents_reconciled',
+        /**
          * One "Edit from here" with a closed `outcome` (`rewound`, `refused`, `failed`, or `resendFailed` when the
          * record was rewound but the restart or the edited message's send failed), a closed `reason` for a refusal or
          * capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the error

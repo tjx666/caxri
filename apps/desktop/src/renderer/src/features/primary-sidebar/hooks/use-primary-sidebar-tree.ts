@@ -1,7 +1,7 @@
 import type { FocusEvent, RefObject } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
-import type { PrimarySidebarTreeRow } from '../primary-sidebar-tree';
+import type { PrimarySidebarSubagentNode, PrimarySidebarTreeRow } from '../primary-sidebar-tree';
 import {
     flattenPrimarySidebarRows,
     PINNED_GROUP_ROW_ID,
@@ -27,6 +27,10 @@ interface PrimarySidebarTreeInput {
     projectWindows: readonly ProjectSessionWindow[];
     selectedProjectId: string | undefined;
     selectedSessionId: string | undefined;
+    /**
+     * The subagent rows each rendered Session shows, keyed by Session id; empty when the Setting is off.
+     */
+    subagentNodes: ReadonlyMap<string, PrimarySidebarSubagentNode>;
     /**
      * The `role="tree"` element. Owned by the caller because it is the element the caller renders; the hook only reads
      * it, inside `focusRow`, to find a row by `data-row-id`.
@@ -65,6 +69,7 @@ export function usePrimarySidebarTree({
     projectWindows,
     selectedProjectId,
     selectedSessionId,
+    subagentNodes,
     treeReference,
 }: PrimarySidebarTreeInput): PrimarySidebarTreeModel {
     /**
@@ -89,6 +94,7 @@ export function usePrimarySidebarTree({
                     hasHiddenSessions: hasHiddenPinnedSessions,
                     sessionIds: pinnedSessionIds,
                 },
+                subagentNodes,
             ),
         [
             projectWindows,
@@ -96,6 +102,7 @@ export function usePrimarySidebarTree({
             hasHiddenPinnedSessions,
             isPinnedExpanded,
             pinnedSessionIds,
+            subagentNodes,
         ],
     );
 

@@ -29,6 +29,7 @@ import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
 import { summarizeSessionStatuses } from './session-status';
+import { rovingSubagentRowId } from './session-subagents';
 
 /**
  * Rows render through a memo boundary so a Session switch renders only the rows whose selection moved; the props this
@@ -79,6 +80,10 @@ interface ProjectGroupProperties {
      */
     rovingRowId?: string;
     selectedSessionId?: string;
+    /**
+     * Whether Chat Sessions list their subagents under them (`primarySidebar.showSubagents`).
+     */
+    showSubagents: boolean;
     terminals: TerminalRecord[];
     /**
      * Sessions the window renders, in durable sidebar order (frozen while dragging).
@@ -122,6 +127,7 @@ export function ProjectGroup({
     renamingRowId,
     rovingRowId,
     selectedSessionId,
+    showSubagents,
     terminals,
     visibleSessions,
     worktreeProjects,
@@ -360,6 +366,8 @@ export function ProjectGroup({
                                 roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}
                                 session={session}
+                                showSubagents={showSubagents}
+                                subagentRovingRowId={rovingSubagentRowId(rovingRowId, session.id)}
                                 terminal={sessionAgentTerminal(session, terminals)}
                                 worktreeProject={worktreeProjects?.[session.id]}
                             />

@@ -28,6 +28,7 @@ import { useSelectedSessionReveal } from './hooks/use-selected-session-reveal';
 import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
+import { useSessionSubagentNodes } from './hooks/use-session-subagent-nodes';
 import { PinnedSessionGroup } from './pinned-session-group';
 import { unpinnedSessions } from './pinned-session-order';
 import { PINNED_GROUP_ROW_ID, primarySidebarPinnedRowId } from './primary-sidebar-tree';
@@ -144,6 +145,14 @@ export function PrimarySidebarProjectTree() {
         () => pinnedGroup.visibleSessions.map((session) => session.id),
         [pinnedGroup.visibleSessions],
     );
+    const renderedSessions = useMemo(
+        () => [
+            ...projectWindows.flatMap((entry) => entry.visibleSessions),
+            ...pinnedGroup.visibleSessions,
+        ],
+        [pinnedGroup.visibleSessions, projectWindows],
+    );
+    const { showSubagents, subagentNodes } = useSessionSubagentNodes(renderedSessions, terminals);
     const treeReference = useRef<HTMLDivElement>(null);
     const projectListReference = useRef<HTMLDivElement>(null);
     useScrollEdge(projectListReference);
@@ -161,6 +170,7 @@ export function PrimarySidebarProjectTree() {
         projectWindows,
         selectedProjectId,
         selectedSessionId,
+        subagentNodes,
         treeReference,
     });
 
@@ -278,6 +288,7 @@ export function PrimarySidebarProjectTree() {
                         selectedSessionId={selectedSessionId}
                         sessionOrder={pinnedGroup.sessionOrder}
                         sessions={pinnedGroup.sessions}
+                        showSubagents={showSubagents}
                         terminals={terminals}
                         visibleSessions={pinnedGroup.visibleSessions}
                         worktreeProjects={pinnedGroup.worktreeProjects}
@@ -294,6 +305,7 @@ export function PrimarySidebarProjectTree() {
                         selectedSessionId={selectedSessionId}
                         sessionOrder={sessionOrder}
                         sessionRename={sessionRename}
+                        showSubagents={showSubagents}
                         terminals={terminals}
                         worktreeProjects={worktreeProjects}
                     />
