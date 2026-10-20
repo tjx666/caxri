@@ -73,7 +73,7 @@ describe('Claude Code background work in Agent Chat', () => {
         });
         expect(task.items[4]).toMatchObject({
             type: 'notice',
-            kind: 'warning',
+            kind: 'output',
             title: 'review-tools · /check-read',
             message: 'Subagent mod output.',
         });
@@ -105,7 +105,7 @@ describe('Claude Code background work in Agent Chat', () => {
         });
         expect(task.items[4]).toMatchObject({
             type: 'notice',
-            kind: 'warning',
+            kind: 'output',
             title: 'review-tools · /check-read',
             message: 'Subagent mod output.',
         });
