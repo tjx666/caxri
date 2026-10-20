@@ -1,5 +1,6 @@
 import type { PaneLayout } from '@caxri/protocol';
 import {
+    agentSideChatTabPath,
     agentTaskTabPath,
     agentTurnReviewTabPath,
     createPaneLayout,
@@ -70,6 +71,14 @@ describe('planAgentChatTaskTabPlacement', () => {
         expect(
             planAgentChatTaskTabPlacement(layout, 'chat', agentTurnReviewTabPath('chat', 'turn-1')),
         ).toEqual({ kind: 'open', paneId: sidePane?.id });
+    });
+
+    it('opens a side chat in the side pane the task tabs use', () => {
+        const { layout } = withTaskSidePane();
+        const sidePane = findResourceTabs(layout, { kind: 'file', path: firstTask }).at(0)?.pane;
+        expect(planAgentChatTaskTabPlacement(layout, 'chat', agentSideChatTabPath('chat'))).toEqual(
+            { kind: 'open', paneId: sidePane?.id },
+        );
     });
 
     it('splits again when the pane to the right holds no task tab', () => {

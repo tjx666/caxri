@@ -93,6 +93,12 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+.', command: 'agentChat.changePermissionMode' },
     { key: 'cmd+alt+p', command: 'agentChat.togglePlanMode' },
     /**
+     * `Cmd+;` opens the side chat, the chord Claude Code's desktop app spends on its side chat (`/btw`). It fires only
+     * while the active tab is a Chat whose provider answers side questions, so an editor's own use of the key is
+     * untouched.
+     */
+    { key: 'cmd+;', command: 'agentChat.openSideChat' },
+    /**
      * `Cmd+\` provides the requested iTerm2-style split-terminal behavior: preserve the active Terminal and open a
      * fresh Shell in a new pane to its right. The generic Split Right command remains available in the command palette
      * for moving an existing tab.
@@ -337,5 +343,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+k cmd+r', command: 'help.showKeyboardShortcuts' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+;', command: 'agentChat.openSideChat' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

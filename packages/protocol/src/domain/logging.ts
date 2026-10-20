@@ -92,6 +92,13 @@ export const logEventCatalog = {
          */
         forkReleaseFailed: 'agent_chat.fork_release_failed',
         /**
+         * One side question (`/btw`) with a closed `outcome` (`answered`, `refused`, `failed`), a closed `reason` when
+         * it was not answered (`unsupported`, `notRunning`, `timeout`, `empty`, `providerError`, else null), the
+         * provider, how many earlier exchanges it carried (`historyLength`), and the duration. Never carries question
+         * or answer text.
+         */
+        sideQuestion: 'agent_chat.side_question',
+        /**
          * One "Restore code to here" with a closed `outcome` (`restored`, `refused`, `failed`), a closed `reason` for a
          * refusal or capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the
          * error `code` (null on success), the provider, the turns whose file changes were undone, and the duration.

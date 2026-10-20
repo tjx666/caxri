@@ -1,8 +1,13 @@
 import { useState } from 'react';
 
 import type { AgentChatCommand, AgentChatMessageInput } from '@caxri/protocol';
-import { agentChatTextWithPathReferences, parseAgentChatCommand } from '@caxri/protocol';
+import {
+    agentChatTextWithPathReferences,
+    agentProviderCatalog,
+    parseAgentChatCommand,
+} from '@caxri/protocol';
 
+import { useTerminal } from '../../../stores/selectors';
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import {
     didRewindAgentChat,
@@ -24,6 +29,9 @@ import {
     expireAgentChatPendingMessage,
     showAgentChatPendingMessage,
 } from '../agent-chat-pending';
+import { askAgentChatSideQuestion } from '../agent-chat-side-chat-commands';
+import { parseAgentChatSideQuestion } from '../agent-chat-side-thread';
+import { openAgentChatSideChat } from '../agent-chat-task-opener';
 
 /**
  * The message `text` and `attachments` make: images ride along as images, their placeholders numbered in the order they
@@ -54,7 +62,8 @@ function agentChatMessageInput(
  * failed send takes the pending row away and puts its text and images back. A command and an edit leave the composer at
  * once too, while Send says the composer is sending until Server Core answers, and come back if it refuses them
  * (`didDeliverAgentChatComposerInput`). Each clears only what was actually sent, so text typed or images attached while
- * they are in flight survive them.
+ * they are in flight survive them. A `/btw <question>` draft, for a provider with side chats, is asked in the Chat's
+ * side chat instead and never reaches the main conversation.
  */
 export function useAgentChatSubmit({
     attachments,
@@ -81,6 +90,11 @@ export function useAgentChatSubmit({
     terminalId: string;
 }) {
     const [isSending, setSending] = useState(false);
+    const terminal = useTerminal(terminalId);
+    const hasSideChat =
+        terminal !== undefined &&
+        terminal.kind !== 'shell' &&
+        agentProviderCatalog[terminal.kind].capabilities.chatSideQuestion;
     const didDeliver = async (
         delivery: Parameters<typeof didDeliverAgentChatComposerInput>[0],
     ): Promise<boolean> => {
@@ -118,6 +132,15 @@ export function useAgentChatSubmit({
      * waits in the queue, because a command cannot join a running turn.
      */
     const submit = async (sent: string, delivery?: 'queue' | 'steer'): Promise<void> => {
+        // `/btw <question>` goes to the side chat, not the main turn, at any time: it never queues or steers.
+        const sideQuestion = hasSideChat ? parseAgentChatSideQuestion(sent) : undefined;
+        if (sideQuestion) {
+            setDraft((current) => draftAfterSend(current, sent));
+            onSent?.();
+            openAgentChatSideChat(terminalId);
+            await askAgentChatSideQuestion(terminalId, sideQuestion);
+            return;
+        }
         const command = parseAgentChatCommand(sent, commands);
         if (command) {
             await runCommand(sent, command);

@@ -19,6 +19,7 @@ export function createAgentChatHandlers(
     },
 ): Pick<
     DomainHandlers,
+    | 'agentChat.askSideQuestion'
     | 'agentChat.configure'
     | 'agentChat.fork'
     | 'agentChat.interrupt'
@@ -42,6 +43,8 @@ export function createAgentChatHandlers(
     | 'agentChat.takeQueued'
 > {
     return {
+        'agentChat.askSideQuestion': ({ terminalId, question, history }) =>
+            agentChat.askSideQuestion(terminalId, question, history),
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
         'agentChat.send': async ({ terminalId, text, images, delivery }) => {
             await agentChat.send(terminalId, { text, ...(images && { images }) }, delivery);

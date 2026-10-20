@@ -1,9 +1,9 @@
 /**
- * The composer controls a command can reach: the model picker, the permission menu, the plan mode toggle, and sending
- * the message (used by the turn review's "Back to Chat and Send").
+ * The composer controls a command can reach: the model picker, the permission menu, the plan mode toggle, the side
+ * chat, and sending the message (used by the turn review's "Back to Chat and Send").
  */
 export type AgentChatComposerCommand =
-    'changeModel' | 'changePermissionMode' | 'send' | 'togglePlanMode';
+    'changeModel' | 'changePermissionMode' | 'openSideChat' | 'send' | 'togglePlanMode';
 
 /**
  * Each mounted Chat composer registers the controls its provider offers, keyed by Terminal id, so a command reaches the

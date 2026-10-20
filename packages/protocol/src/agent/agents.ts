@@ -110,6 +110,11 @@ export interface AgentProviderCatalogEntry {
          * the files as they are, because Caxri does not snapshot the worktree itself.
          */
         chatRewindFiles: boolean;
+        /**
+         * Whether an Agent Chat with this provider answers a side question (`agentChat.askSideQuestion`, Claude Code's
+         * `/btw`) from its context without adding it to the conversation.
+         */
+        chatSideQuestion: boolean;
         messaging: boolean;
         nativeRename: boolean;
     };
@@ -152,6 +157,10 @@ export const agentProviderCatalog = {
              * Claude Code's SDK file checkpointing (`rewindFiles`).
              */
             chatRewindFiles: true,
+            /**
+             * The SDK's `Query.askSideQuestion`, the control request behind Claude Code's `/btw`.
+             */
+            chatSideQuestion: true,
             messaging: true,
             nativeRename: true,
         },
@@ -172,6 +181,10 @@ export const agentProviderCatalog = {
              * App-server's `thread/revert` changes only the conversation; Codex keeps no file checkpoints.
              */
             chatRewindFiles: false,
+            /**
+             * An ephemeral, read-only `thread/fork` that answers one turn; the source thread is never touched.
+             */
+            chatSideQuestion: true,
             messaging: true,
             nativeRename: true,
         },
@@ -199,6 +212,10 @@ export const agentProviderCatalog = {
              * Grok Build's `_x.ai/rewind/execute` restores its own per-prompt file snapshots.
              */
             chatRewindFiles: true,
+            /**
+             * Grok Build's ACP agent has no side-question request.
+             */
+            chatSideQuestion: false,
             messaging: false,
             nativeRename: false,
         },

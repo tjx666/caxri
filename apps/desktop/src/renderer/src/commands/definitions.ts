@@ -83,6 +83,10 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
         when: (context) => context.agentChat.canRun('togglePlanMode'),
     }),
+    fromCatalog('agentChat.openSideChat', (context) => context.agentChat.run('openSideChat'), {
+        allowInEditable: true,
+        when: (context) => context.agentChat.canRun('openSideChat'),
+    }),
     /**
      * `Cmd+O` must work from anywhere, including a focused Terminal or editor: it opens a native folder dialog and
      * types nothing into the editable surface.

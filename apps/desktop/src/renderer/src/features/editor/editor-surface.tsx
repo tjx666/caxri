@@ -13,6 +13,7 @@ import type { VirtualEditorTabScheme } from '@caxri/protocol';
 import {
     isExternalEditorTabPath,
     parseAgentContextTab,
+    parseAgentSideChatTab,
     parseAgentStatusTab,
     parseAgentTaskTab,
     parseAgentTranscriptTab,
@@ -79,6 +80,11 @@ const AgentStatusPage = lazy(async () => {
 const AgentContextPage = lazy(async () => {
     const module = await import('../agent-chat/context/agent-context-page');
     return { default: module.AgentContextPage };
+});
+
+const AgentChatSideChatTab = lazy(async () => {
+    const module = await import('../agent-chat/agent-chat-side-chat-tab');
+    return { default: module.AgentChatSideChatTab };
 });
 
 /**
@@ -273,6 +279,10 @@ const VIRTUAL_TAB_SURFACES: Record<
     agentContext: ({ path }) => {
         const tab = parseAgentContextTab(path);
         return tab && <AgentContextPage key={path} terminalId={tab.terminalId} />;
+    },
+    agentSideChat: ({ path }) => {
+        const tab = parseAgentSideChatTab(path);
+        return tab && <AgentChatSideChatTab key={path} tab={tab} />;
     },
     external: ({ paneId, path }) => <FileEditorSurface paneId={paneId} path={path} />,
     filePreview: ({ paneId, path }) => {

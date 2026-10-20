@@ -71,6 +71,7 @@ export const editor = {
     'editor.load.loadingChanges': 'Loading changes…',
     'editor.load.loadingAgentStatus': 'Loading Agent status…',
     'editor.load.loadingAgentContext': 'Loading context…',
+    'editor.load.loadingAgentSideChat': 'Loading side chat…',
     'editor.load.loadingSettings': 'Loading Settings…',
     'editor.load.loadingUsage': 'Loading Usage…',
 
@@ -127,6 +128,7 @@ export const editor = {
     'editor.tab.subagent': 'Subagent',
     'editor.tab.agentStatus': '{{agent}} Status',
     'editor.tab.agentContext': 'Context',
+    'editor.tab.agentSideChat': 'Side chat',
     'editor.tab.preview': 'Preview: {{name}}',
     'editor.tab.settings': 'Settings',
     'editor.tab.usage': 'Usage',

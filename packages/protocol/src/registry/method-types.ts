@@ -79,6 +79,7 @@ export const effectfulCommandRecovery = {
     'benchmark.cancel': 'durable',
     'benchmark.delete': 'durable',
     'agentChat.send': 'memory',
+    'agentChat.askSideQuestion': 'memory',
     'agentChat.interrupt': 'memory',
     'agentChat.respond': 'memory',
     'agentChat.runCommand': 'memory',

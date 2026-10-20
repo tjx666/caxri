@@ -9,12 +9,7 @@ import type {
     AgentChatTaskSnapshot,
     TerminalRecord,
 } from '@caxri/protocol';
-import {
-    agentChatSnapshotSchema,
-    agentProviderCatalog,
-    CaxriError,
-    resolveAgentChatModelChange,
-} from '@caxri/protocol';
+import { agentChatSnapshotSchema, CaxriError, resolveAgentChatModelChange } from '@caxri/protocol';
 import { assertE2EAgentChatInput, readE2EAgentPolicy, SingleFlight } from '@caxri/system';
 
 import { AgentRunAutonomy } from '../agents';
@@ -29,15 +24,16 @@ import { isAgentChatCommandListed } from './chat-items';
 import { requireChatTerminal } from './chat-launch';
 import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
-import type { AgentChatProviderSession } from './chat-provider';
+import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
 import type { ChatRewindHost, ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { previewChatRestore } from './chat-rewind-preview';
+import { askChatSideQuestion } from './chat-side-question';
 import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
-import { ChatStates } from './chat-states';
+import { ChatStates, requireOpenChatSession } from './chat-states';
 import { compactIdleChat, isChatIdleForSuspension, suspendIdleChat } from './chat-suspension';
 import type { ChatTaskHost } from './chat-task-read';
 import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
@@ -124,13 +120,7 @@ export class AgentChatService {
             );
         // A teardown may have begun while the start was in flight; its session is about to close.
         this.states.admit(terminalId, state);
-        if (!state.session?.isOpen)
-            throw new CaxriError(
-                'UNAVAILABLE',
-                state.projection.snapshot.failure?.detail ??
-                    `${agentProviderCatalog[terminal.provider].displayName} Chat is not running`,
-            );
-        return state.session;
+        return requireOpenChatSession(state, terminal.provider);
     }
 
     /**
@@ -367,6 +357,11 @@ export class AgentChatService {
     async readPlanLimits(terminalId: string) {
         const session = this.states.get(terminalId)?.session;
         return session?.isOpen ? session.readPlanLimits?.() : undefined;
+    }
+
+    askSideQuestion(terminalId: string, question: string, history: readonly ChatSideExchange[]) {
+        const session = this.states.get(terminalId)?.session;
+        return askChatSideQuestion(this.options, terminalId, session, question, history);
     }
 
     async stopTask(terminalId: string, taskId: string): Promise<void> {

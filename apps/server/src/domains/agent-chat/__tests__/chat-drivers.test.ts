@@ -51,6 +51,16 @@ describe('agentChatDrivers', () => {
     );
 
     it.each(agentProviderIds.filter((provider) => agentChatDrivers[provider]))(
+        'gives a %s session askSideQuestion exactly when the catalog offers chatSideQuestion',
+        (provider) => {
+            const session = agentChatDrivers[provider]!.create(unstartedHost(provider));
+            expect(typeof session.askSideQuestion === 'function').toBe(
+                agentProviderCatalog[provider].capabilities.chatSideQuestion,
+            );
+        },
+    );
+
+    it.each(agentProviderIds.filter((provider) => agentChatDrivers[provider]))(
         'gives a %s session restoreFiles exactly when the catalog offers chatRewindFiles',
         (provider) => {
             const session = agentChatDrivers[provider]!.create(unstartedHost(provider));

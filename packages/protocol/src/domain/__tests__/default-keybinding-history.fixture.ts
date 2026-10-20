@@ -519,6 +519,7 @@ export const releasedDefaultKeybindingGenerations = [
             { key: 'cmd+/', command: 'agentChat.changeModel' },
             { key: 'cmd+.', command: 'agentChat.changePermissionMode' },
             { key: 'cmd+alt+p', command: 'agentChat.togglePlanMode' },
+            { key: 'cmd+;', command: 'agentChat.openSideChat' },
             { key: 'cmd+\\', command: 'terminal.newInSplit' },
             { key: 'cmd+alt+arrowleft', command: 'workbench.focusPaneLeft' },
             { key: 'cmd+alt+arrowright', command: 'workbench.focusPaneRight' },

@@ -1,4 +1,9 @@
-import { agentContextTabPath, agentTaskTabPath, agentTurnReviewTabPath } from '@caxri/protocol';
+import {
+    agentContextTabPath,
+    agentSideChatTabPath,
+    agentTaskTabPath,
+    agentTurnReviewTabPath,
+} from '@caxri/protocol';
 
 import { openEditorTab } from '../editor/document-commands';
 import { focusTerminalById } from '../terminal/terminal-pane-handlers';
@@ -32,6 +37,14 @@ export function openAgentChatTurnReview(terminalId: string, turnId: string): voi
  */
 export function openAgentChatContext(terminalId: string): void {
     openBesideAgentChat(terminalId, agentContextTabPath(terminalId));
+}
+
+/**
+ * Opens a Chat's side chat beside it, where task tabs open, or focuses it when already open. The main conversation is
+ * untouched, so this works mid-turn.
+ */
+export function openAgentChatSideChat(terminalId: string): void {
+    openBesideAgentChat(terminalId, agentSideChatTabPath(terminalId));
 }
 
 function openBesideAgentChat(terminalId: string, tabPath: string): void {

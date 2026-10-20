@@ -29,6 +29,7 @@ import type {
     ChatInputOptions,
     ChatProcessEnd,
     ChatRewindTarget,
+    ChatSideExchange,
     ChatTaskHistory,
 } from './chat-provider';
 import { chatTextDigest } from './chat-turn-answer';
@@ -43,6 +44,7 @@ import {
     codexUserInput,
     isSteerTargetGone,
 } from './codex-input';
+import { didInterruptTimeout } from './codex-interrupt';
 import { loadCodexItemTimes } from './codex-item-times';
 import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan, mapCodexUsage } from './codex-items';
 import { readCodexMcpServer } from './codex-mcp-servers';
@@ -50,16 +52,11 @@ import { CodexModelSettings } from './codex-models';
 import { codexOpeningSettings, CodexPermissions } from './codex-permissions';
 import { CodexRequestBroker } from './codex-requests';
 import { forkCodexThread, revertCodexThread } from './codex-rewind';
+import { CodexSideQuestions } from './codex-side-question';
 import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
-
-/**
- * The interrupt response is held until the turn actually aborts. A provider that never answers is stopped instead so
- * the Chat cannot stay stuck in a running turn.
- */
-const INTERRUPT_TIMEOUT_MS = 10_000;
 
 type Json = Record<string, unknown>;
 
@@ -101,6 +98,8 @@ class CodexChatSession implements AgentChatProviderSession {
     private readonly permissions: CodexPermissions;
 
     private readonly goals: CodexGoals;
+
+    private readonly sideQuestions = new CodexSideQuestions();
 
     constructor(private readonly options: AgentChatSessionHost) {
         const opening = codexOpeningSettings(options);
@@ -203,6 +202,8 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private onNotification(method: string, parameters: Json): void {
         const threadId = stringField(parameters.threadId);
+        // A side question's fork is a thread of its own; keep it away from the subagent routing below.
+        if (this.sideQuestions.onNotification(threadId, method, parameters)) return;
         /**
          * Server requests of a subagent are answered through the Chat like its own, so their resolution is too.
          */
@@ -546,19 +547,7 @@ class CodexChatSession implements AgentChatProviderSession {
         const { activeTurnId } = this.options.read();
         if (!activeTurnId) return;
         await this.goals.pauseForInterrupt(connection);
-        try {
-            await connection.request(
-                'turn/interrupt',
-                { threadId: this.threadId, turnId: activeTurnId },
-                INTERRUPT_TIMEOUT_MS,
-            );
-        } catch (error) {
-            if (error instanceof CaxriError && error.code === 'TIMEOUT') {
-                await this.close();
-                return;
-            }
-            // The turn already ended between the read and the request; `turn/completed` settles the projection.
-        }
+        if (await didInterruptTimeout(connection, this.threadId, activeTurnId)) await this.close();
     }
 
     async refreshTasks(): Promise<void> {
@@ -574,6 +563,18 @@ class CodexChatSession implements AgentChatProviderSession {
     async readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
         if (!this.connection?.isOpen || !this.threadId) return undefined;
         return this.tasks.readTaskHistory(taskId);
+    }
+
+    askSideQuestion(question: string, history: readonly ChatSideExchange[]): Promise<string> {
+        const { threadId } = this;
+        const connection = this.requireConnection();
+        return this.sideQuestions.ask(
+            connection,
+            threadId!,
+            this.options.read(),
+            question,
+            history,
+        );
     }
 
     readMcpServer(name: string) {

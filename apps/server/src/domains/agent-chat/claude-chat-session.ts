@@ -28,6 +28,7 @@ import type {
     ChatRestorePreview,
     ChatResumePoint,
     ChatRewindTarget,
+    ChatSideExchange,
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
@@ -63,6 +64,7 @@ import {
 import { reportClaudeSessionEnd } from './claude-session-end';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { withClaudeShellHooks } from './claude-shell-hooks';
+import { askClaudeSideQuestion } from './claude-side-question';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
 import {
@@ -555,6 +557,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     readContext() {
         return this.context.read(this.requireOpen());
+    }
+
+    askSideQuestion(question: string, history: readonly ChatSideExchange[]) {
+        return askClaudeSideQuestion(this.requireOpen(), question, history);
     }
 
     readPlanLimits() {

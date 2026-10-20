@@ -71,6 +71,8 @@ export const commandDescriptions = {
     'commands.description.agentChat.changePermissionMode':
         "Open the active Chat's permission level menu",
     'commands.description.agentChat.togglePlanMode': 'Turn plan mode on or off for the active Chat',
+    'commands.description.agentChat.openSideChat':
+        'Ask a quick question about the active Chat beside it, without adding it to the conversation',
     'commands.description.terminal.close': 'Close the active Terminal',
     'commands.description.workbench.closeActiveTab': 'Close the active Terminal or file tab',
     'commands.description.workbench.nextTab': 'Activate the next Terminal or file tab',
