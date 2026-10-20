@@ -1,46 +1,16 @@
-import type { FocusEvent, ReactElement } from 'react';
+import type { FocusEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Minus, Plus } from 'lucide-react';
-
-import { Button } from '../../components/ui/button';
-import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
-import type { WindowZoomStep } from './window-zoom-commands';
-import { stepWindowZoom, WINDOW_ZOOM_BOUNDS, windowZoomPercent } from './window-zoom-commands';
+import { windowZoomIndicator } from './window-zoom-commands';
+import { WindowZoomControls } from './window-zoom-controls';
 
 /**
  * How long the HUD stays after the last zoom change while nothing holds it.
  */
 const HUD_VISIBLE_MS = 1500;
-
-function HudIconButton({
-    disabled,
-    icon,
-    label,
-    step,
-}: {
-    disabled: boolean;
-    icon: ReactElement;
-    label: string;
-    step: WindowZoomStep;
-}) {
-    return (
-        <Tooltip content={label}>
-            <Button
-                aria-label={label}
-                disabled={disabled}
-                size="icon"
-                variant="ghost"
-                onClick={() => stepWindowZoom(step)}
-            >
-                {icon}
-            </Button>
-        </Tooltip>
-    );
-}
 
 /**
  * The zoom HUD, as the ChatGPT desktop app shows one: after any change to `window.zoomLevel` (a shortcut, the View
@@ -71,7 +41,7 @@ export function WindowZoomHud() {
         if (previousLevel.current === level) return;
         const wasLoaded = previousLevel.current !== undefined;
         previousLevel.current = level;
-        if (!wasLoaded) return;
+        if (!wasLoaded || windowZoomIndicator.isOpen) return;
         setShown(true);
         scheduleHide();
         // scheduleHide only reads refs and the stable setter.
@@ -79,7 +49,6 @@ export function WindowZoomHud() {
     useEffect(() => () => clearTimeout(hideTimer.current), []);
 
     if (level === undefined) return null;
-    const percent = windowZoomPercent(level);
     const release = (hold: 'isHovered' | 'isFocused'): void => {
         holds.current[hold] = false;
         scheduleHide();
@@ -111,35 +80,7 @@ export function WindowZoomHud() {
             }}
             onPointerLeave={() => release('isHovered')}
         >
-            <span
-                aria-label={t('windowZoom.hud.percent', { percent })}
-                aria-live="polite"
-                className="mr-1 min-w-10 text-center font-medium tabular-nums"
-                role="status"
-            >
-                {percent}%
-            </span>
-            <HudIconButton
-                disabled={level <= WINDOW_ZOOM_BOUNDS.min}
-                icon={<Minus aria-hidden="true" size={14} />}
-                label={t('windowZoom.hud.zoomOut')}
-                step="out"
-            />
-            <HudIconButton
-                disabled={level >= WINDOW_ZOOM_BOUNDS.max}
-                icon={<Plus aria-hidden="true" size={14} />}
-                label={t('windowZoom.hud.zoomIn')}
-                step="in"
-            />
-            <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
-            <Button
-                disabled={level === 0}
-                size="sm"
-                variant="ghost"
-                onClick={() => stepWindowZoom('reset')}
-            >
-                {t('windowZoom.hud.reset')}
-            </Button>
+            <WindowZoomControls level={level} />
         </div>
     );
 }

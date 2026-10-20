@@ -12,6 +12,7 @@ import { cn } from '../../lib/utilities';
 import { useIsFullScreen, useTerminal } from '../../stores/selectors';
 import { AgentSurfaceToggle } from '../terminal/agent-surface-toggle';
 import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands';
+import { WindowZoomIndicator } from '../window-zoom/window-zoom-indicator';
 import { CommanderAgentMenu } from './commander-agent-menu';
 import { setCommanderBoardVisible, useCommanderBoardUiStore } from './commander-board-store';
 import { useAgentCommanderStore } from './commander-client';
@@ -20,6 +21,12 @@ import { openCommanderInboxCount } from './commander-inbox';
 import { setCommanderInboxVisible, useCommanderInboxUiStore } from './commander-inbox-store';
 import { CommanderMoreMenu } from './commander-more-menu';
 import { useCommanderInbox } from './hooks/use-commander-inbox';
+
+/**
+ * The zoom indicator in the title bar matches the ghost `sm` buttons beside it, muted like the Hand Over button.
+ */
+const HEADER_ZOOM_TRIGGER =
+    'inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[11px] text-muted outline-none hover:bg-[var(--selection)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]';
 
 /**
  * The window's whole title bar, and its drag region. Its left padding clears the macOS `hiddenInset` traffic lights,
@@ -68,6 +75,7 @@ export function AgentCommanderHeader() {
                 </div>
             )}
             <div className="ml-auto flex flex-none items-center gap-2 [-webkit-app-region:no-drag]">
+                <WindowZoomIndicator side="bottom" triggerClassName={HEADER_ZOOM_TRIGGER} />
                 <CommanderColumnToggle
                     className="agent-commander-board-toggle"
                     icon={<PanelLeft size={13} />}
