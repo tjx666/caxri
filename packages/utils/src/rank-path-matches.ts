@@ -1,4 +1,4 @@
-import { sortedCopy } from './sorted-copy';
+import { sortedCopy } from './sorted-copy.js';
 
 function basename(path: string): string {
     return path.slice(path.lastIndexOf('/') + 1);
