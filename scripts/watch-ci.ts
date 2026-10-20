@@ -21,10 +21,10 @@
  * - Offline resilience: polling errors are treated as transient and retried forever with capped exponential backoff; the
  *   watcher only exits when the run reaches a terminal status.
  *
- * Usage: `bun run scripts/watch-ci.ts [--pr <number> | --run <id> | --branch <name>] [--quiet]` `--pr` waits for every
- * workflow run of the pull request's current head and watches them all, failing fast when the pull request conflicts
- * with its base (GitHub then starts no CI). Defaults to the newest run on the current git branch. Exits 0 when every
- * watched run succeeded, 1 otherwise.
+ * Usage: `bun run scripts/watch-ci.ts [--pr <number> [--workflow <name>] | --run <id> | --branch <name>] [--quiet]`
+ * `--pr` waits for every workflow run of the pull request's current head (only `--workflow`'s, when given) and watches
+ * them all, failing fast when the pull request conflicts with its base (GitHub then starts no CI). Defaults to the
+ * newest run on the current git branch. Exits 0 when every watched run succeeded, 1 otherwise.
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -353,6 +353,10 @@ interface CliOptions {
     pr?: string;
     quiet: boolean;
     run?: string;
+    /**
+     * With `--pr`, watch only the runs of this workflow, such as `Guards`, the one check `main` requires.
+     */
+    workflow?: string;
 }
 
 /**
@@ -365,6 +369,10 @@ function applyArgument(options: CliOptions, argument: string, value: string | un
     }
     if (argument === '--run') {
         options.run = value;
+        return 2;
+    }
+    if (argument === '--workflow') {
+        options.workflow = value;
         return 2;
     }
     if (argument === '--pr') {
@@ -492,7 +500,7 @@ async function main(): Promise<void> {
     let runIds: string[];
     try {
         runIds = options.pr
-            ? await resolvePrRuns(options.pr)
+            ? await resolvePrRuns(options.pr, options.workflow)
             : [options.run ?? (await resolveRunId(options.branch))];
     } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
