@@ -186,7 +186,7 @@ no background of its own keeps its default dark text readable.
 
 ```text
 ┌───────────────────────────────┐
-│ ‹ ✳ fix-login          ●  ⋮   │  ⋮ = Mark read
+│ ‹ ✳ fix-login    (⇡ #42) ●  ⋮ │  ⋮ = Mark read; (⇡ #42) = pull request
 │ (💬 Conversation) (>_) (± 3) (▯)│  icon tabs; only the selected one is labeled
 ├───────────────────────────────┤
 │              segment body     │
@@ -214,6 +214,15 @@ no background of its own keeps its default dark text readable.
   only way to answer.
 - Mark read happens automatically when the Session screen is visible and fresh; the menu keeps a
   manual action for accessibility.
+- When the Session's work has a pull request, the header shows a chip with its glyph and number,
+  tinted by readiness: green when ready, red for failed checks, conflicts, or a closed pull request,
+  amber when branch protection or a stale base may make GitHub refuse, gray while checks run or for
+  a draft, and purple once merged. Tapping it opens a sheet with the title, a status card
+  (readiness and the failed check names), a Merge button, and Open on GitHub. A ready pull request
+  merges with one tap. Any other blocker adds a confirmation page that names it, and failed checks
+  turn the button into Merge anyway; conflicts and drafts disable it with the reason. Only a
+  connected `control` device can merge, and the sheet says why otherwise. Android Acceptance
+  `MOB-CHAT-24` and `MOB-CHAT-25` cover the failed-checks confirmation and the one-tap merge.
 
 ### Composer
 

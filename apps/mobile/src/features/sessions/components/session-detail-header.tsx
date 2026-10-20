@@ -23,6 +23,7 @@ import { isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
+import { PullRequestChip } from '../../pull-request/pull-request-chip';
 import { useSavedClock } from '../../read-cache/use-saved-age';
 import type { MobileSessionItem } from '../session-model';
 import { sessionStateLabel, sessionTitleForDisplay } from '../session-row-model';
@@ -165,6 +166,7 @@ const SessionSegmentTab = ({
 
 export const SessionDetailHeader = ({
     changesCount,
+    deviceRole,
     isCompacting,
     isConnected,
     onBack,
@@ -178,6 +180,7 @@ export const SessionDetailHeader = ({
     theme,
 }: {
     changesCount: number | null;
+    deviceRole: 'view' | 'reply' | 'control' | null;
     /**
      * Whether the Session's Chat is compacting its context; its timeline shows that, so the title does not spin too.
      */
@@ -263,6 +266,12 @@ export const SessionDetailHeader = ({
                             theme={theme}
                         />
                     </View>
+                    <PullRequestChip
+                        deviceRole={deviceRole}
+                        isConnected={isConnected}
+                        sessionId={session.id}
+                        theme={theme}
+                    />
                     <View collapsable={false} ref={menuAnchor}>
                         <IconButton
                             accessibilityLabel={t('sessions.detail.menu')}

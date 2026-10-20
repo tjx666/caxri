@@ -28,6 +28,7 @@ import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
 import { mobileHostDisplayName } from './host-display-name';
 import { invokeMobilePanelRequest } from './panel-requests';
 import { createMobilePairing, invokeMobileProjectRequest } from './project-requests';
+import { mergeMobilePullRequest, readMobilePullRequest } from './pull-request-requests';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
 import {
     applyMobileSessionManagement,
@@ -417,6 +418,23 @@ export const openMobileAccessController = async (options: {
                         },
                         (principal, signal) =>
                             applyMobileSessionManagement(domainService, principal, request, signal),
+                        (principal) => currentPairedPrincipal(principal, request.method),
+                    );
+                }
+                case 'mobile.pullRequest.read': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    const result = await readMobilePullRequest(domainService, principal, request);
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
+                }
+                case 'mobile.pullRequest.merge': {
+                    return runRevocableOperation(
+                        () => {
+                            assertOpen();
+                            return currentPairedPrincipal(context.principal, request.method);
+                        },
+                        (principal, signal) =>
+                            mergeMobilePullRequest(domainService, principal, request, signal),
                         (principal) => currentPairedPrincipal(principal, request.method),
                     );
                 }

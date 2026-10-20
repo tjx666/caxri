@@ -1,0 +1,115 @@
+import type { MobilePullRequest } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import { translate } from '../../../i18n';
+import { MobileGatewayRequestError } from '../../connection/mobile-gateway-errors';
+import {
+    pullRequestChecksSummary,
+    pullRequestConfirmation,
+    pullRequestMergeAction,
+    pullRequestMergeErrorMessage,
+    pullRequestReadiness,
+    pullRequestTone,
+} from '../pull-request-model';
+
+const pr = (overrides: Partial<MobilePullRequest> = {}): MobilePullRequest => ({
+    repositoryId: 'primary',
+    number: 42,
+    title: 'Delivery',
+    url: 'https://github.com/owner/example/pull/42',
+    lifecycle: 'open',
+    checks: 'success',
+    checkCount: 9,
+    failedChecks: [],
+    failedCheckCount: 0,
+    headSha: 'a'.repeat(40),
+    ...overrides,
+});
+
+describe('mobile pull request merge model', () => {
+    it('merges a ready pull request in one tap, like the Desktop Status panel', () => {
+        expect(pullRequestMergeAction(pr())).toEqual({ kind: 'merge' });
+        expect(pullRequestTone(pr())).toBe('success');
+        expect(pullRequestReadiness(pr(), translate)).toBe('Ready to merge');
+    });
+
+    it('asks first for every blocker but a conflict, and names failed checks as an override', () => {
+        expect(pullRequestMergeAction(pr({ mergeBlocker: 'checks-failed' }))).toEqual({
+            kind: 'confirm',
+            blocker: 'checks-failed',
+            isOverride: true,
+        });
+        for (const blocker of [
+            'checks-running',
+            'branch-protection',
+            'behind',
+            'mergeability-unknown',
+        ] as const)
+            expect(pullRequestMergeAction(pr({ mergeBlocker: blocker }))).toMatchObject({
+                kind: 'confirm',
+                isOverride: false,
+            });
+        expect(pullRequestMergeAction(pr({ mergeBlocker: 'conflicting' }))).toEqual({
+            kind: 'refused',
+        });
+    });
+
+    it('offers no merge for a draft, an unreported head, or a finished pull request', () => {
+        expect(pullRequestMergeAction(pr({ lifecycle: 'draft' }))).toEqual({ kind: 'draft' });
+        expect(pullRequestMergeAction(pr({ headSha: undefined }))).toEqual({ kind: 'waiting' });
+        expect(pullRequestMergeAction(pr({ lifecycle: 'merged' }))).toEqual({ kind: 'none' });
+        expect(pullRequestMergeAction(pr({ lifecycle: 'closed' }))).toEqual({ kind: 'none' });
+        expect(pullRequestTone(pr({ lifecycle: 'merged' }))).toBe('merged');
+        expect(pullRequestReadiness(pr({ lifecycle: 'closed' }), translate)).toBe(
+            'Closed without merging',
+        );
+    });
+
+    it('colors a blocker by whether the user has something to fix', () => {
+        expect(pullRequestTone(pr({ mergeBlocker: 'checks-failed' }))).toBe('danger');
+        expect(pullRequestTone(pr({ mergeBlocker: 'behind' }))).toBe('warning');
+        expect(pullRequestTone(pr({ mergeBlocker: 'checks-running' }))).toBe('neutral');
+    });
+
+    it('summarizes checks with a few failed names and a count of the rest', () => {
+        const failing = pr({
+            checks: 'failure',
+            mergeBlocker: 'checks-failed',
+            failedChecks: ['lint', 'e2e', 'docs'],
+            failedCheckCount: 4,
+        });
+        expect(pullRequestChecksSummary(failing, translate)).toBe(
+            '4 of 9 checks failed: lint, e2e, docs, and 1 more',
+        );
+        expect(pullRequestConfirmation(failing, 'checks-failed', translate)).toBe(
+            '4 of 9 checks failed: lint, e2e, docs, and 1 more',
+        );
+        expect(pullRequestChecksSummary(pr(), translate)).toBe('9 checks passed');
+        expect(pullRequestChecksSummary(pr({ checkCount: 1 }), translate)).toBe('1 check passed');
+        expect(pullRequestChecksSummary(pr({ checks: 'pending' }), translate)).toBe(
+            'Checks running',
+        );
+        expect(pullRequestChecksSummary(pr({ checks: 'failure' }), translate)).toBe(
+            'Some checks did not pass',
+        );
+        expect(pullRequestChecksSummary(pr({ checkCount: 0 }), translate)).toBeUndefined();
+    });
+
+    it("explains a refused merge, keeping GitHub's own reason", () => {
+        expect(
+            pullRequestMergeErrorMessage(new MobileGatewayRequestError('CONFLICT', 'x'), translate),
+        ).toBe('This pull request now has conflicts.');
+        expect(
+            pullRequestMergeErrorMessage(
+                new MobileGatewayRequestError('NOT_FOUND', 'x'),
+                translate,
+            ),
+        ).toBe('This pull request changed. Review it again before merging.');
+        expect(
+            pullRequestMergeErrorMessage(
+                new MobileGatewayRequestError('GIT', 'Required status check "lint" is expected.'),
+                translate,
+            ),
+        ).toBe('GitHub did not merge this pull request. Required status check "lint" is expected.');
+    });
+});

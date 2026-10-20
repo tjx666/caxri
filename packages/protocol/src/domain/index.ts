@@ -34,6 +34,7 @@ export * from './project-customization.js';
 export * from './project-folder-browse-contract.js';
 export * from './project-path.js';
 export * from './project-status.js';
+export * from './pull-request-merge-readiness.js';
 export * from './session.js';
 export * from './session-activity-group.js';
 export * from './session-compaction.js';

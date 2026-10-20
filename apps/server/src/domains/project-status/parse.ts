@@ -5,7 +5,7 @@ import type {
     PullRequestMergeState,
     SessionPullRequestState,
 } from '@caxri/protocol';
-import { isIgnoredCheck } from '@caxri/protocol';
+import { isIgnoredCheck, pullRequestMergeBlocker } from '@caxri/protocol';
 import { z } from 'zod';
 
 import { parseExternalJson } from '../external-status';
@@ -248,6 +248,12 @@ export function parseGitHubPullRequest(
     checks.sort((a, b) => CHECK_ORDER.indexOf(a.state) - CHECK_ORDER.indexOf(b.state));
     const mergeState = pullRequestMergeState(raw.mergeable, raw.mergeStateStatus);
     const lifecycle = pullRequestLifecycle(raw.state, raw.isDraft);
+    const state =
+        checks.length === 0 &&
+        (lifecycle === 'merged' || lifecycle === 'closed' || rollup.length > 0)
+            ? 'neutral'
+            : aggregateChecks(checks);
+    const mergeBlocker = pullRequestMergeBlocker({ mergeState, state });
     return {
         body: raw.body ?? '',
         mergeCommit:
@@ -268,11 +274,7 @@ export function parseGitHubPullRequest(
              * TTL and holds the delivery watch on its 60s cadence, which production logs showed running all day for one
              * merged pull request in a repository without CI.
              */
-            state:
-                checks.length === 0 &&
-                (lifecycle === 'merged' || lifecycle === 'closed' || rollup.length > 0)
-                    ? 'neutral'
-                    : aggregateChecks(checks),
+            state,
             checks,
             hiddenCheckCount: rollup.length - visible.length,
             ...(raw.headRefOid &&
@@ -280,6 +282,7 @@ export function parseGitHubPullRequest(
             ...(raw.headRefName && { headBranch: raw.headRefName }),
             ...(raw.baseRefName && { baseBranch: raw.baseRefName }),
             ...(mergeState && { mergeState }),
+            ...(mergeBlocker && { mergeBlocker }),
         },
     };
 }

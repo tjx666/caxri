@@ -5,7 +5,6 @@ import {
     currentBranchMerge,
     failedChecksSummary,
     MERGE_PULL_REQUEST_COMMAND,
-    mergeBlocker,
     mergeReadinessLabel,
 } from '../status-merge';
 import { buildRepoNode } from '../status-tree';
@@ -84,11 +83,12 @@ describe('Status panel merge action', () => {
     });
 
     it.each([
-        [{ state: 'pending' }, 'Checks are still running.'],
-        [{ state: 'failure' }, 'Some checks did not pass.'],
+        [{ state: 'pending', mergeBlocker: 'checks-running' }, 'Checks are still running.'],
+        [{ state: 'failure', mergeBlocker: 'checks-failed' }, 'Some checks did not pass.'],
         [
             {
                 state: 'failure',
+                mergeBlocker: 'checks-failed',
                 checks: [
                     { name: 'lint', state: 'failure' },
                     { name: 'unit', state: 'success' },
@@ -97,9 +97,15 @@ describe('Status panel merge action', () => {
             },
             '2 of 3 checks failed: lint, e2e.',
         ],
-        [{ mergeState: 'blocked' }, 'branch protection requirement'],
-        [{ mergeState: 'behind' }, 'behind its base'],
-        [{ mergeState: 'unknown' }, 'has not finished checking'],
+        [
+            { mergeState: 'blocked', mergeBlocker: 'branch-protection' },
+            'branch protection requirement',
+        ],
+        [{ mergeState: 'behind', mergeBlocker: 'behind' }, 'behind its base'],
+        [
+            { mergeState: 'unknown', mergeBlocker: 'mergeability-unknown' },
+            'has not finished checking',
+        ],
     ] as const)('asks before merging when %o', (pullRequest, reason) => {
         const confirmation = mergeButton(
             pullRequestRow(pullRequest as Parameters<typeof pullRequestRow>[0]),
@@ -136,7 +142,12 @@ describe('Status panel merge action', () => {
             expect(clean.tooltip).toBe(note);
 
             const blocked = mergeButton(
-                pullRequestRow({ baseBranch: 'main', mergeMethod, mergeState: 'blocked' }),
+                pullRequestRow({
+                    baseBranch: 'main',
+                    mergeMethod,
+                    mergeState: 'blocked',
+                    mergeBlocker: 'branch-protection',
+                }),
             )!;
             expect(blocked.confirmation?.message).toContain(note);
             expect(blocked.confirmation?.confirmLabel).toBe(confirmLabel);
@@ -145,19 +156,32 @@ describe('Status panel merge action', () => {
 
     it('keeps the override label when merging past failed checks, with the method in the message', () => {
         const action = mergeButton(
-            pullRequestRow({ state: 'failure', baseBranch: 'main', mergeMethod: 'squash' }),
+            pullRequestRow({
+                state: 'failure',
+                mergeBlocker: 'checks-failed',
+                baseBranch: 'main',
+                mergeMethod: 'squash',
+            }),
         )!;
         expect(action.confirmation?.confirmLabel).toBe('Merge Anyway');
         expect(action.confirmation?.message).toContain('Squash and merge into main.');
     });
 
     it.each([
-        [{ state: 'failure' }, 'Checks did not pass', 'danger'],
+        [{ state: 'failure', mergeBlocker: 'checks-failed' }, 'Checks did not pass', 'danger'],
         // Settles by itself, so it is not a warning the user has to act on.
-        [{ state: 'pending' }, 'Checks still running', 'neutral'],
-        [{ mergeState: 'blocked' }, 'Blocked by branch protection', 'warning'],
-        [{ mergeState: 'behind' }, 'Behind its base branch', 'warning'],
-        [{ mergeState: 'unknown' }, 'Checking mergeability', 'neutral'],
+        [{ state: 'pending', mergeBlocker: 'checks-running' }, 'Checks still running', 'neutral'],
+        [
+            { mergeState: 'blocked', mergeBlocker: 'branch-protection' },
+            'Blocked by branch protection',
+            'warning',
+        ],
+        [{ mergeState: 'behind', mergeBlocker: 'behind' }, 'Behind its base branch', 'warning'],
+        [
+            { mergeState: 'unknown', mergeBlocker: 'mergeability-unknown' },
+            'Checking mergeability',
+            'neutral',
+        ],
     ] as const)('flags a blocked merge %o and names why', (pullRequest, reason, tone) => {
         const action = mergeButton(pullRequestRow(pullRequest));
         // A blocked merge is not the next step, so it is a colored glyph and leaves the row's width to the title.
@@ -172,6 +196,7 @@ describe('Status panel merge action', () => {
     it("puts the Agent's Fix before the merge glyph when checks failed, and only then", () => {
         const failed = pullRequestRow({
             state: 'failure',
+            mergeBlocker: 'checks-failed',
             checks: [
                 {
                     name: 'lint',
@@ -188,15 +213,18 @@ describe('Status panel merge action', () => {
         expect(failed.actions?.[0]?.command.command).toBe('caxri.sendToAgent');
         for (const pullRequest of [
             {},
-            { state: 'pending' },
-            { mergeState: 'conflicting' },
+            { state: 'pending', mergeBlocker: 'checks-running' },
+            { mergeState: 'conflicting', mergeBlocker: 'conflicting' },
         ] as const)
             expect(
                 pullRequestRow(pullRequest).actions?.map(
                     (action) => action.label ?? action.icon.id,
                 ),
             ).not.toContain('Fix');
-        expect(pullRequestRow({ state: 'failure', lifecycle: 'draft' }).actions).toHaveLength(1);
+        expect(
+            pullRequestRow({ state: 'failure', mergeBlocker: 'checks-failed', lifecycle: 'draft' })
+                .actions,
+        ).toHaveLength(1);
     });
 
     it('keeps an explaining button for a draft that opens GitHub instead of merging', () => {
@@ -213,7 +241,8 @@ describe('Status panel merge action', () => {
     });
 
     it("offers the Agent's Resolve button for a conflict instead of a merge GitHub would refuse", () => {
-        const action = pullRequestRow({ mergeState: 'conflicting' }).actions?.[0];
+        const action = pullRequestRow({ mergeState: 'conflicting', mergeBlocker: 'conflicting' })
+            .actions?.[0];
         expect(action).toMatchObject({
             label: 'Resolve',
             tone: 'danger',
@@ -225,7 +254,8 @@ describe('Status panel merge action', () => {
 
     it('names a conflict in the row accessible label', () => {
         expect(
-            pullRequestRow({ mergeState: 'conflicting' }).accessibilityInformation?.label,
+            pullRequestRow({ mergeState: 'conflicting', mergeBlocker: 'conflicting' })
+                .accessibilityInformation?.label,
         ).toContain('has conflicts');
     });
 
@@ -237,7 +267,7 @@ describe('Status panel merge action', () => {
     );
 });
 
-describe('mergeBlocker', () => {
+describe('mergeReadinessLabel', () => {
     const base: PullRequest = {
         number: 42,
         title: 'Delivery',
@@ -251,22 +281,23 @@ describe('mergeBlocker', () => {
     };
 
     it.each([
-        [{}, undefined, 'Ready to merge'],
-        [{ mergeState: 'unstable' }, undefined, 'Ready to merge'],
-        [{ mergeState: 'conflicting', state: 'failure' }, 'conflicting', 'Has conflicts'],
-        [{ state: 'cancelled' }, 'checks-failed', 'Checks did not pass'],
-        [{ state: 'queued' }, 'checks-running', 'Checks still running'],
-        [{ mergeState: 'blocked' }, 'branch-protection', 'Blocked by branch protection'],
-        [{ mergeState: 'behind' }, 'behind', 'Behind its base branch'],
-        [{ mergeState: 'unknown' }, 'mergeability-unknown', 'Checking mergeability'],
-    ] as const)('reads %o as %s', (pullRequest, blocker, label) => {
-        expect(mergeBlocker({ ...base, ...pullRequest })).toBe(blocker);
-        expect(mergeReadinessLabel({ ...base, ...pullRequest })).toBe(label);
+        [undefined, 'Ready to merge'],
+        ['conflicting', 'Has conflicts'],
+        ['checks-failed', 'Checks did not pass'],
+        ['checks-running', 'Checks still running'],
+        ['branch-protection', 'Blocked by branch protection'],
+        ['behind', 'Behind its base branch'],
+        ['mergeability-unknown', 'Checking mergeability'],
+    ] as const)('labels %s as %s', (mergeBlocker, label) => {
+        expect(mergeReadinessLabel({ ...base, mergeBlocker })).toBe(label);
     });
 
     it('names the failing checks in the hover card even when GitHub calls the branch clean', () => {
         expect(
-            (pullRequestRow({ state: 'failure' }).tooltip as TreeItemRichTooltip).rows,
+            (
+                pullRequestRow({ state: 'failure', mergeBlocker: 'checks-failed' })
+                    .tooltip as TreeItemRichTooltip
+            ).rows,
         ).toContainEqual({
             label: 'merge',
             value: 'Checks did not pass',
@@ -321,8 +352,11 @@ describe('currentBranchMerge', () => {
     it.each([
         [undefined, 'has no pull request'],
         [{ lifecycle: 'draft' }, 'is a draft'],
-        [{ mergeState: 'conflicting' }, 'has conflicts'],
-        [{ state: 'failure' }, 'Use the merge button in the Status panel'],
+        [{ mergeState: 'conflicting', mergeBlocker: 'conflicting' }, 'has conflicts'],
+        [
+            { state: 'failure', mergeBlocker: 'checks-failed' },
+            'Use the merge button in the Status panel',
+        ],
     ] as const)('refuses %o instead of merging without a confirmation', (pullRequest, message) => {
         const decision = currentBranchMerge([repo(pullRequest)]);
         expect(decision.kind).toBe('refuse');

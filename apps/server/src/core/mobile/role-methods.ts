@@ -7,6 +7,7 @@ const mobileEveryRoleMethods = [
     'mobile.files.read',
     'mobile.files.search',
     'mobile.attention.list',
+    'mobile.pullRequest.read',
     /**
      * Every paired role may update its own app; the bundle is Desktop's public build artifact, not Project data.
      */
@@ -122,6 +123,11 @@ const mobileGatewayMethodsByRole = {
         'mobile.session.archive',
         'mobile.session.restore',
         'mobile.session.setPinned',
+        /**
+         * Merging publishes the Session's work on GitHub and cannot be undone from Caxri, so it carries the control
+         * grant, like archiving the Session that produced it.
+         */
+        'mobile.pullRequest.merge',
         'mobile.terminal.takeOver',
         'mobile.terminal.release',
         'mobile.terminal.input',
