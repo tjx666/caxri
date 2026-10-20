@@ -1123,6 +1123,10 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   reference would no longer fit in the message is refused with a prompt to shorten it. A toast
   names the saved paste and offers Paste as Text, which replaces the reference with the text when
   it fits; Cmd+Shift+V pastes as text from the start, skipping the save.
+- **List continuation.** Enter sends; Shift+Enter on a Markdown list line (`-`, `*`, `+`, `1.`,
+  `1)`, or a `- [ ]` task) starts the next item with the same indent and marker, as the Codex app's
+  composer does, and renumbers the ordered items below it. On an item with no text it ends the list
+  instead. The edit goes through the textarea's undo stack, so Cmd+Z takes it back.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
   queue. Codex also lists `/goal` (see [Goals](#goals)).
