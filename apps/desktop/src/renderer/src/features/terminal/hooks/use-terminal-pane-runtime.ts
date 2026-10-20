@@ -22,6 +22,7 @@ import {
     recordRendererPerformanceTerminalAttachment,
 } from '../../renderer-performance/controller';
 import {
+    createTerminalCommandStatusElement,
     formatTerminalCommandCompletionStatus,
     registerTerminalCommandNavigation,
     terminalCommandDecorationDefaultColor,
@@ -232,11 +233,7 @@ export function useTerminalPaneRuntime({
             latest: () => latestReference.current,
             search,
         });
-        const commandStatusElement = document.createElement('div');
-        commandStatusElement.className = 'terminal-command-status sr-only';
-        commandStatusElement.setAttribute('aria-atomic', 'true');
-        commandStatusElement.setAttribute('aria-live', 'polite');
-        commandStatusElement.setAttribute('role', 'status');
+        const commandStatusElement = createTerminalCommandStatusElement();
         container.append(commandStatusElement);
         let previousCompletedCommandCount = 0;
         const commandTracker = new TerminalCommandTracker(
@@ -260,6 +257,7 @@ export function useTerminalPaneRuntime({
                         formatTerminalCommandCompletionStatus(lastExitStatus);
                 previousCompletedCommandCount = completedCount;
             },
+            (status) => (commandStatusElement.textContent = status),
         );
         const unregisterCommandNavigation = registerTerminalCommandNavigation(
             terminalId,

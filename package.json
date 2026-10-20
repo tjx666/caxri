@@ -120,6 +120,7 @@
                     "scripts/reporters/e2e-receipt-reporter.ts",
                     "scripts/fixtures/e2e-census.fixture.ts",
                     "scripts/fixtures/playwright-census.config.ts",
+                    "scripts/fixtures/eslint/native-title/native-title-fixture.jsx",
                     "scripts/fixtures/eslint/type-aware-violation.ts",
                     "scripts/fixtures/eslint/anti-slop-violation.ts",
                     "scripts/fixtures/eslint/no-sync-fixture.ts",

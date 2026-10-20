@@ -3,6 +3,7 @@ import { agentTranscriptTabPath } from '@caxri/protocol';
 import { capitalize } from 'es-toolkit';
 import { CircleDot } from 'lucide-react';
 
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../../../components/ui/tooltip';
 import type { TranslationKey } from '../../../../i18n';
 import { useTranslation } from '../../../../i18n';
 import { resolveAgentIcon } from '../../../../icons/agents/agent-icon-registry';
@@ -57,18 +58,21 @@ function TerminalTranscriptRow({ terminal }: { terminal: TerminalRecord }) {
         <>
             <dt className="text-muted">{t('panel.terminalInfo.transcript')}</dt>
             <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
-                <button
-                    type="button"
-                    className="cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline"
-                    title={t(
+                <Tooltip
+                    content={t(
                         transcript.data.exists
                             ? 'panel.terminalInfo.openTranscript'
                             : 'panel.terminalInfo.transcriptMissing',
                     )}
-                    onClick={() => openEditorTab(agentTranscriptTabPath(terminal.id))}
                 >
-                    {transcript.data.path}
-                </button>
+                    <button
+                        type="button"
+                        className="cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline"
+                        onClick={() => openEditorTab(agentTranscriptTabPath(terminal.id))}
+                    >
+                        {transcript.data.path}
+                    </button>
+                </Tooltip>
             </dd>
         </>
     );
@@ -111,12 +115,17 @@ export function TerminalInfoPanel() {
                                     {terminal.title}
                                 </strong>
                                 {terminal.ptyTitle && terminal.ptyTitle !== terminal.title && (
-                                    <span
-                                        className="block truncate text-[11px] text-muted"
-                                        title={terminal.ptyTitle}
-                                    >
-                                        {terminal.ptyTitle}
-                                    </span>
+                                    <Tooltip content={terminal.ptyTitle}>
+                                        <span
+                                            className={cn(
+                                                'block truncate text-[11px] text-muted',
+                                                FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                                            )}
+                                            tabIndex={0}
+                                        >
+                                            {terminal.ptyTitle}
+                                        </span>
+                                    </Tooltip>
                                 )}
                             </div>
                             {isPrimary && (
@@ -170,11 +179,12 @@ export function TerminalInfoPanel() {
                                 </>
                             )}
                             <dt className="text-muted">{t('panel.terminalInfo.directory')}</dt>
-                            <dd
-                                className="m-0 min-w-0 [overflow-wrap:anywhere]"
-                                title={terminal.cwd}
-                            >
-                                {terminal.cwd}
+                            <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
+                                <Tooltip content={terminal.cwd}>
+                                    <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
+                                        {terminal.cwd}
+                                    </span>
+                                </Tooltip>
                             </dd>
                             {terminal.agentSessionId && (
                                 <>
@@ -188,18 +198,20 @@ export function TerminalInfoPanel() {
                             )}
                             <TerminalTranscriptRow terminal={terminal} />
                             <dt className="text-muted">{t('panel.terminalInfo.created')}</dt>
-                            <dd
-                                className="m-0 min-w-0 [overflow-wrap:anywhere]"
-                                title={new Date(terminal.createdAt).toISOString()}
-                            >
-                                {new Date(terminal.createdAt).toLocaleString()}
+                            <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
+                                <Tooltip content={new Date(terminal.createdAt).toISOString()}>
+                                    <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
+                                        {new Date(terminal.createdAt).toLocaleString()}
+                                    </span>
+                                </Tooltip>
                             </dd>
                             <dt className="text-muted">{t('panel.terminalInfo.updated')}</dt>
-                            <dd
-                                className="m-0 min-w-0 [overflow-wrap:anywhere]"
-                                title={new Date(terminal.updatedAt).toISOString()}
-                            >
-                                {new Date(terminal.updatedAt).toLocaleString()}
+                            <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
+                                <Tooltip content={new Date(terminal.updatedAt).toISOString()}>
+                                    <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
+                                        {new Date(terminal.updatedAt).toLocaleString()}
+                                    </span>
+                                </Tooltip>
                             </dd>
                         </dl>
                     </section>

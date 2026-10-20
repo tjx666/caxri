@@ -1,8 +1,10 @@
 import type { BenchmarkAttempt, BenchmarkContextUsage } from '@caxri/protocol';
 import { formatShortDuration, formatTokens } from '@caxri/protocol';
 
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import { formatLatency, formatPercent, formatTokensPerSecond } from './benchmark-presentation';
 import { cacheHitRate, contextRatio, tokensPerSecond } from './benchmark-results';
 
@@ -126,16 +128,31 @@ export function BenchmarkAttemptMetrics({ attempt }: { attempt: BenchmarkAttempt
             className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-x-4 gap-y-2"
             data-benchmark-attempt-metrics
         >
-            {rows.map((row) => (
-                <div key={row.key} className="min-w-0" title={row.hint}>
-                    <div className="truncate text-[11px] text-muted">{row.label}</div>
-                    <div className="truncate text-[12px] tabular-nums">
-                        {row.value ?? (
-                            <span className="text-muted">{t('benchmark.detail.unavailable')}</span>
-                        )}
+            {rows.map((row) => {
+                const cell = (
+                    <div
+                        key={row.key}
+                        className={cn('min-w-0', row.hint && FOCUSABLE_TOOLTIP_TRIGGER_CLASS)}
+                        tabIndex={row.hint ? 0 : undefined}
+                    >
+                        <div className="truncate text-[11px] text-muted">{row.label}</div>
+                        <div className="truncate text-[12px] tabular-nums">
+                            {row.value ?? (
+                                <span className="text-muted">
+                                    {t('benchmark.detail.unavailable')}
+                                </span>
+                            )}
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+                return row.hint ? (
+                    <Tooltip key={row.key} content={row.hint}>
+                        {cell}
+                    </Tooltip>
+                ) : (
+                    cell
+                );
+            })}
         </section>
     );
 }

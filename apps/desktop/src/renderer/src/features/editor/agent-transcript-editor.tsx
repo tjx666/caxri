@@ -5,8 +5,10 @@ import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
@@ -52,11 +54,12 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
         );
     return (
         <div className="agent-transcript-editor flex h-full min-h-0 flex-col">
-            <div
-                className="flex h-7 flex-none items-center gap-2 bg-surface px-3 text-[11px] text-muted"
-                title={query.data.path}
-            >
-                <span className="truncate">{query.data.path}</span>
+            <div className="flex h-7 flex-none items-center gap-2 bg-surface px-3 text-[11px] text-muted">
+                <Tooltip content={query.data.path}>
+                    <span className={cn('truncate', FOCUSABLE_TOOLTIP_TRIGGER_CLASS)} tabIndex={0}>
+                        {query.data.path}
+                    </span>
+                </Tooltip>
                 {query.data.truncated && (
                     <span className="ml-auto flex-none text-warning">
                         {t('editor.transcript.truncated')}

@@ -4,6 +4,7 @@ import architectureBoundaries from './architecture-boundaries';
 import featureDirectoryStructure from './feature-directory-structure';
 import filenameExportMapping from './filename-export-mapping';
 import listenerFanoutIsolation from './listener-fanout-isolation';
+import nativeTitle from './native-title';
 import registeredColorUtilities from './registered-color-utilities';
 import serverReadsThroughQuery from './server-reads-through-query';
 
@@ -17,6 +18,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'feature-directory-structure': featureDirectoryStructure,
         'filename-export-mapping': filenameExportMapping,
         'listener-fanout-isolation': listenerFanoutIsolation,
+        'native-title': nativeTitle,
         'registered-color-utilities': registeredColorUtilities,
         'server-reads-through-query': serverReadsThroughQuery,
     },

@@ -210,6 +210,30 @@ describe('TerminalCommandTracker', () => {
         expect(host.scrollToLine).toHaveBeenNthCalledWith(3, 14);
     });
 
+    it('announces the status of the command keyboard navigation lands on', async () => {
+        const host = createTerminalHost();
+        const announce = vi.fn<(status: string) => void>();
+        const tracker = new TerminalCommandTracker(host.terminal, colors, vi.fn(), announce);
+        for (const status of [0, 23]) {
+            // Sequential on purpose: each OSC event mutates shared tracker state in order.
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
+            await host.handlers.get(133)?.('C');
+            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
+            await host.handlers.get(133)?.(`D;${status}`);
+        }
+        await host.handlers.get(133)?.('C');
+
+        tracker.navigate('previous');
+        tracker.navigate('previous');
+        tracker.navigate('previous');
+
+        expect(announce.mock.calls.flat()).toEqual([
+            'Command running',
+            'Command failed (exit 23)',
+            'Command succeeded (exit 0)',
+        ]);
+    });
+
     it('ignores finish and oversized metadata without a command boundary', () => {
         const host = createTerminalHost();
         const publish = vi.fn();

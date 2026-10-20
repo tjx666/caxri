@@ -166,8 +166,8 @@ export function SessionSearchResults({
                             <MatchLine entry={entry} />
                             <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
                                 {entry.cwd && (
-                                    <span className="truncate" title={entry.cwd}>
-                                        {shortFolder(entry.cwd)}
+                                    <span className="truncate">
+                                        {isSelected ? entry.cwd : shortFolder(entry.cwd)}
                                     </span>
                                 )}
                                 {entry.match.messageCount !== undefined &&

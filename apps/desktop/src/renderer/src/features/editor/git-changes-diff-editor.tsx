@@ -190,21 +190,22 @@ function GitChangesDiffItem({
     return (
         <section ref={containerRef} className="git-multi-diff-item border-b border-border">
             <div className="git-multi-diff-heading sticky top-0 z-10 flex h-9 items-center gap-1 border-b border-border bg-surface pr-2 pl-1.5">
-                <button
-                    type="button"
-                    className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[11px] font-semibold text-foreground"
-                    aria-expanded={expanded}
-                    title={label}
-                    onClick={() => setExpanded((value) => !value)}
-                >
-                    {expanded ? (
-                        <ChevronDown className="shrink-0" size={13} />
-                    ) : (
-                        <ChevronRight className="shrink-0" size={13} />
-                    )}
-                    <FileTypeIcon entry={{ kind: 'file', name: fileName }} />
-                    <span className="truncate">{label}</span>
-                </button>
+                <Tooltip content={label}>
+                    <button
+                        type="button"
+                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[11px] font-semibold text-foreground"
+                        aria-expanded={expanded}
+                        onClick={() => setExpanded((value) => !value)}
+                    >
+                        {expanded ? (
+                            <ChevronDown className="shrink-0" size={13} />
+                        ) : (
+                            <ChevronRight className="shrink-0" size={13} />
+                        )}
+                        <FileTypeIcon entry={{ kind: 'file', name: fileName }} />
+                        <span className="truncate">{label}</span>
+                    </button>
+                </Tooltip>
                 {repositoryRootPath && file.kind !== 'deleted' && (
                     <Tooltip content={t('editor.gitDiff.openFile')}>
                         <Button

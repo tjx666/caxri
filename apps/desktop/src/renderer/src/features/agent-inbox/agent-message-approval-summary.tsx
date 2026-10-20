@@ -1,5 +1,6 @@
 import type { AgentHeldMessage } from '@caxri/protocol';
 
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { heldMessageDeadlineLabel } from './agent-message-approval-state';
 
@@ -32,8 +33,12 @@ export function AgentMessageApprovalSummary({
             <dt className="text-muted">{t('agentInbox.summary.permission')}</dt>
             <dd className="m-0">{message.from.permissionClass}</dd>
             <dt className="text-muted">{t('agentInbox.summary.endpoint')}</dt>
-            <dd className="m-0 truncate font-mono" title={endpointReference}>
-                {endpointReference}
+            <dd className="m-0 truncate font-mono">
+                <Tooltip content={endpointReference}>
+                    <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
+                        {endpointReference}
+                    </span>
+                </Tooltip>
             </dd>
             <dt className="text-muted">
                 {t(isExpired ? 'agentInbox.summary.expired' : 'agentInbox.summary.expires')}

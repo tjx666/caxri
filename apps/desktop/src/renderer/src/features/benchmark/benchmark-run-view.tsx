@@ -8,9 +8,10 @@ import { ReportCard, StatTile } from '../../components/report-card';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
-import { Tooltip } from '../../components/ui/tooltip';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import { BenchmarkChart } from './benchmark-chart';
 import { BenchmarkLeaderboard } from './benchmark-leaderboard';
 import { judgeModelLabel, metricLabel, modelLabel } from './benchmark-presentation';
@@ -122,9 +123,17 @@ export function BenchmarkRunView({
         >
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                    <h1 className="m-0 truncate text-[15px] font-semibold" title={run.prompt}>
-                        {run.title}
-                    </h1>
+                    <Tooltip content={run.prompt}>
+                        <h1
+                            className={cn(
+                                'm-0 truncate text-[15px] font-semibold',
+                                FOCUSABLE_TOOLTIP_TRIGGER_CLASS,
+                            )}
+                            tabIndex={0}
+                        >
+                            {run.title}
+                        </h1>
+                    </Tooltip>
                     <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
                         {runCaption(t, run, catalog)}
                     </p>

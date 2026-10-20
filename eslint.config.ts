@@ -602,4 +602,23 @@ export default defineConfig(
             'caxri/registered-color-utilities': 'error',
         },
     },
+    /**
+     * A native `title` tooltip appears only on mouse hover, so a title that carries unique or truncated content (a full
+     * path, a command ID, an exit status) is invisible to keyboard users. Titles that merely repeat visible text are
+     * inventoried in `scripts/eslint-rules/native-title-inventory.ts`; everything else goes through the shared
+     * Tooltip.
+     */
+    {
+        files: [
+            'apps/desktop/src/renderer/src/**/*.{ts,tsx}',
+            'scripts/fixtures/eslint/native-title/**/*.jsx',
+        ],
+        ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/native-title': 'error',
+        },
+    },
 );
