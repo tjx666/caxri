@@ -789,7 +789,9 @@ layer:
 2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions): every
    user-triggered section disclosure: PrimarySidebar Project, Files search groups, Git
    repository/history, Project Status sections. The measured SecondarySidebar/Settings
-   chrome tab indicator also uses a native transform/width transition.
+   chrome tab indicator also uses a native transform/width transition, but only for a move to
+   another tab of the same owner: a Session switch (each Session keeps its own container), the
+   first placement, and a resize put it in place at once.
    `components/disclosure-motion.tsx` is the thin presence wrapper: it mounts content in the
    commit that flips `data-expanded` and releases collapsed DOM once the height transition
    settles, so collapse never retains hidden queries, watchers, or large subtrees.
