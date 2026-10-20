@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentChatSubagentLogEvents } from './logging-agent-chat-subagents.js';
 import { agentCommanderLogEvents } from './logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging-benchmark.js';
 import { remoteSshLogEvents } from './logging-remote-ssh.js';
@@ -70,12 +71,6 @@ export const logEventCatalog = {
          * A subagent or background shell reached a final status, with its `kind`, closed `status`, and duration.
          */
         taskFinished: 'agent_chat.task_finished',
-        /**
-         * Server Core start rewrote persisted `running` subagent summaries to `stopped`, because their provider process
-         * ended with the previous Server Core. Carries a closed `reason` (`serverStart`) and the `count` of rows and
-         * `terminals` touched; never titles.
-         */
-        subagentsReconciled: 'agent_chat.subagents_reconciled',
         /**
          * One "Edit from here" with a closed `outcome` (`rewound`, `refused`, `failed`, or `resendFailed` when the
          * record was rewound but the restart or the edited message's send failed), a closed `reason` for a refusal or
@@ -349,6 +344,7 @@ export const logEventCatalog = {
         eventLoopStall: 'process.event_loop_stall',
     },
     agentCommander: agentCommanderLogEvents,
+    agentChatSubagents: agentChatSubagentLogEvents,
     benchmark: benchmarkLogEvents,
     /**
      * The Benchmark window's own Renderer lifecycle, kept apart from the Workbench's so a crash loop in this optional

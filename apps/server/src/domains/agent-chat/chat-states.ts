@@ -128,7 +128,7 @@ export class ChatStates {
     private reconcileSubagentsOnStart(): void {
         const terminalIds = this.subagents.reconcileOnStart();
         if (terminalIds.length === 0) return;
-        this.options.logger.write('info', logEventCatalog.agentChat.subagentsReconciled, {
+        this.options.logger.write('info', logEventCatalog.agentChatSubagents.reconciled, {
             fields: { reason: 'serverStart', terminals: terminalIds.length },
         });
     }
