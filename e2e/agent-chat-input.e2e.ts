@@ -156,6 +156,19 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         await expect(commands).toHaveCount(0);
         await expect(chat.getByText('Context compacted')).toBeVisible();
         await expect(message).toHaveValue('');
+
+        // A reply's inline code naming a discovered skill shows the skill icon; hovering it reads the instructions.
+        await message.fill('Load `review-pr` first, then `/review-pr`, but not `missing-skill`.');
+        await message.press('Enter');
+        const reply = chat.locator('[data-agent-chat-reply]').filter({ hasText: 'missing-skill' });
+        const skill = reply.getByRole('button', { name: 'Show $review-pr' });
+        await expect(skill).toHaveCount(2);
+        await expect(reply.locator('code', { hasText: 'missing-skill' })).toBeVisible();
+        await skill.first().hover();
+        const card = page.locator('[data-slot="hover-card-content"]');
+        await expect(card.getByText('Review the open pull request')).toBeVisible();
+        await expect(card.getByText('Review it.')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-inline-skill.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

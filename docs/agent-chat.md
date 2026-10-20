@@ -804,6 +804,12 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
 - A file path the Agent cites in inline code or a link (a `path:line` code span, or a link whose destination is a relative path with an optional `#L` anchor)
   opens in the editor through the same resolver and Project candidate picker as a Terminal file
   link.
+- Inline code that names a skill the [Agent Commands & Skills](agent-actions.md) discovery found for
+  this Terminal (`commit`, `$commit`, or `/commit`) keeps its code chip and gains the `$skill` chip's
+  icon. Hovering or focusing it opens a card with the skill's description and its `agentActions.read`
+  instructions, read only while the card is open. Discovery shares the composer menu's
+  `agentActions.list` query, which answers only for a running Agent; a list read earlier stays
+  cached after the Agent stops, so an idle Chat keeps its marks. Commands are not marked.
 - A file change collapses to `N files changed` with its `+A -D` line totals. Expanded, and in a
   file-change approval card, it lists one block per file: the Git status letter (`A`, `D`, `M`) in
   the file's `--git-*` color, the Project-relative path, the file's line counts, and a disclosed

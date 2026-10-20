@@ -17,7 +17,7 @@ import { agentChatActionSuggestion } from '../agent-chat-suggestions';
  * Discovered skills stay fresh enough while the user types a run of invocations, and a new search after a pause
  * re-reads the skill folders the way the picker does on open.
  */
-const DISCOVERY_STALE_MS = 30_000;
+export const AGENT_ACTION_DISCOVERY_STALE_MS = 30_000;
 
 /**
  * Suggestion state for a draft that is a bare `/name` or `$name`. The list stays open with a `No matching command or
@@ -47,7 +47,10 @@ export function useAgentChatCommandMenu({
     const discovery = useCaxriQuery(
         'agentActions.list',
         { terminalId },
-        { enabled: isAgentRunning && query !== undefined, staleTime: DISCOVERY_STALE_MS },
+        {
+            enabled: isAgentRunning && query !== undefined,
+            staleTime: AGENT_ACTION_DISCOVERY_STALE_MS,
+        },
     );
     const actions = useMemo(
         () => agentChatMenuActions(commands, discovery.data?.actions),

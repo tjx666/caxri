@@ -28,6 +28,21 @@ export interface MarkdownDiagramHost {
 }
 
 /**
+ * Recognizes inline code that names a skill the host's Agent can use and draws it. Supplied by the host, as diagrams
+ * are, so this shared renderer knows nothing about Agents.
+ */
+export interface MarkdownSkillHost {
+    /**
+     * The invocation (such as `$commit`) an inline code span names, or `undefined` when it names no known skill.
+     */
+    match(code: string): string | undefined;
+    /**
+     * Draws a matched span; `className` carries the renderer's inline code style.
+     */
+    Reference: ComponentType<{ className: string; code: string; invocation: string }>;
+}
+
+/**
  * Host-specific rendering choices and actions, shared by every block of one Markdown tree. Read through context so a
  * memoized block skips re-rendering on a streamed delta without each level threading the callbacks down.
  */
@@ -50,6 +65,10 @@ export interface MarkdownRenderContext {
      * Draws `mermaid` fences as diagrams in the transcript variant. Without it they stay code.
      */
     diagrams?: MarkdownDiagramHost;
+    /**
+     * Marks inline code that names a known skill. Without it, such code stays plain.
+     */
+    skills?: MarkdownSkillHost;
 }
 
 export const MarkdownContext = createContext<MarkdownRenderContext>({

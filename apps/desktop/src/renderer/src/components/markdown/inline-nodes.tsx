@@ -18,7 +18,7 @@ export function InlineNodes({ nodes }: { nodes: readonly MarkdownInline[] }) {
 
 function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> }) {
     const { t } = useTranslation();
-    const { onOpenFile, variant } = useMarkdownContext();
+    const { onOpenFile, skills, variant } = useMarkdownContext();
     /**
      * A transcript sits on the pane background, where a `--surface` chip reads as a hole; the lifted `--elevated` chip
      * matches how the Codex app sets code apart in its Dracula transcript. Compact hover cards already sit on
@@ -29,6 +29,13 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
         variant === 'transcript' ? 'bg-elevated text-[12px]' : 'bg-surface text-[11px]',
     );
     const { file } = node;
+    /**
+     * A skill name wins over a path reading: `/commit` parses as an absolute path, but next to a known skill it is the
+     * invocation an Agent cites, and a skill name never carries the extension a bare file name needs.
+     */
+    const invocation = skills?.match(node.value);
+    if (skills && invocation)
+        return <skills.Reference className={className} code={node.value} invocation={invocation} />;
     if (!file || !onOpenFile) return <code className={className}>{node.value}</code>;
     /**
      * A cited path reads as code first and as a link on hover, so prose full of paths does not turn into a wall of
