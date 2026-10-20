@@ -472,7 +472,7 @@ export class GitService {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         return mergeGitHubPullRequest(repo, parameters, {
             forget: (owner, repoName, number) =>
-                this.externalStatus.github.forget(owner, repoName, number),
+                this.externalStatus.forgetPullRequest(owner, repoName, number),
             logger: this.logger,
             originRemote: (rootPath) => this.originRemote(rootPath),
             run: this.externalStatus.run,

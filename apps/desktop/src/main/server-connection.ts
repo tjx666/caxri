@@ -23,6 +23,7 @@ import { CaxriError, errorMessage, isCaxriMethod, isDesktopServerOperation } fro
 import { computeBuildFingerprint, logEventCatalog } from '@caxri/system';
 
 import { desktopCommandCallbackError } from './desktop-command-scope';
+import { ReconnectBackoff, RECOVERY_WINDOW_MS } from './reconnect-backoff';
 import type { DesktopServerConnectionOptions, DesktopServerSupervisor } from './server-attachment';
 import { connectDesktopAttachment, waitForServerExit } from './server-attachment';
 import { buildServerLaunchEnvironment } from './server-launch-environment';
@@ -40,17 +41,6 @@ interface UntypedServerClient {
 }
 
 /**
- * How long an outage may be treated as the reconnect window; see {@link DesktopServerConnection.isRecovering}. The case
- * this classification exists for is a sleep/wake reattach, which settles in seconds, but the bound is sized against the
- * loop's worst case instead: a single attempt may burn the supervisor's 15s readiness deadline before failing, and the
- * backoff between attempts grows to a 10s cap, so a reattach that only succeeds on its sixth attempt still completes
- * inside two minutes. A tighter bound would report a slow but healthy recovery as a fault, which is the noise this
- * classification was added to remove. The bound exists only so an outage that never resolves stops being downgraded
- * forever.
- */
-const RECOVERY_WINDOW_MS = 120_000;
-
-/**
  * Desktop-side client facade for typed Server operations and recovery.
  */
 export class DesktopServerConnection extends EventTarget {
@@ -61,6 +51,7 @@ export class DesktopServerConnection extends EventTarget {
     private serverPid?: number;
     private starting?: Promise<void>;
     private reconnectTask?: Promise<void>;
+    private readonly backoff = new ReconnectBackoff();
     private lifecycle: ServerConnectionState = initialServerConnectionState;
     /**
      * Once this connection has replaced one stale Server, further mismatches only warn. Without this instance-level
@@ -333,7 +324,7 @@ export class DesktopServerConnection extends EventTarget {
                 ? 0
                 : Math.min(500 * 2 ** (attempt - 1), 10_000);
             // eslint-disable-next-line no-await-in-loop -- sequential backoff between retries.
-            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+            await this.backoff.wait(backoffMs);
             if (this.lifecycle !== waiting) continue;
             this.lifecycle = transitionServerConnection(this.lifecycle, {
                 type: 'backoff-elapsed',
@@ -451,6 +442,14 @@ export class DesktopServerConnection extends EventTarget {
 
     serverProcessId(): number | undefined {
         return this.serverPid;
+    }
+
+    /**
+     * Ends the reconnect loop's current backoff wait so the next attempt starts now, for a user who knows the network
+     * is back. Returns whether a wait was pending; during an attempt, or with no outage, it does nothing.
+     */
+    retryNow(): boolean {
+        return this.backoff.wake();
     }
 
     start(): Promise<void> {

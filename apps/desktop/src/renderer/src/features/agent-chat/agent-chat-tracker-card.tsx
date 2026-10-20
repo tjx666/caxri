@@ -3,6 +3,7 @@ import { ArrowUpRight, CircleDot, ClipboardCheck, GitPullRequest, ListChecks } f
 
 import { useLinkContextMenu } from '../../components/markdown/link-context-menu';
 import { PULL_REQUEST_ICONS } from '../../components/markdown/pull-request-icons';
+import { useReferencePreview } from '../../components/markdown/reference-preview-query';
 import type { Translate, TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
@@ -10,7 +11,6 @@ import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
 import { pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
-import { useCaxriQuery } from '../../queries/client';
 import { pushToast } from '../../stores/toasts';
 import {
     trackerExcerptText,
@@ -75,18 +75,7 @@ function useTrackerPreview(artifact: AgentChatTrackerArtifact): {
 } {
     const terminalId = useAgentChatTerminal();
     const reference = trackerPreviewRequest(artifact);
-    const preview = useCaxriQuery(
-        'terminal.reference.preview',
-        {
-            terminalId: terminalId ?? '',
-            reference: reference ?? { kind: 'github', owner: '', repo: '', number: 1 },
-        },
-        {
-            enabled: terminalId !== undefined && reference !== undefined,
-            retry: false,
-            staleTime: 5 * 60_000,
-        },
-    );
+    const preview = useReferencePreview(terminalId, reference);
     if (!reference) return { title: undefined, pullState: undefined };
     return {
         title: artifact.title === undefined ? trackerPreviewTitle(preview.data) : undefined,

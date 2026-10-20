@@ -5,6 +5,7 @@ import { agentChatLabelsZhCN } from '../agent-chat-labels-zh-cn.js';
 import type { AgentChatPendingSelection } from '../agent-chat-models.js';
 import {
     agentChatEffortLabel,
+    agentChatMenuModel,
     agentChatModelLabel,
     agentChatSelectionView,
     findAgentChatModel,
@@ -276,5 +277,19 @@ describe('Agent Chat model selection', () => {
         expect(
             agentChatSelectionView({ ...onDeep, fast: true }, pending({ model: 'fast' })),
         ).toMatchObject({ model: 'fast', fast: false });
+    });
+});
+
+describe('agentChatMenuModel', () => {
+    const fallback: AgentChatModel = { id: 'default', displayName: 'Default', efforts: ['medium'] };
+
+    it('checks the provider default alias while no model is reported', () => {
+        expect(agentChatMenuModel({ model: undefined, models: [SOL, fallback] })).toBe(fallback);
+        expect(agentChatMenuModel({ model: undefined, models: [SOL] })).toBeUndefined();
+    });
+
+    it('follows the reported model once there is one', () => {
+        expect(agentChatMenuModel({ model: 'sol', models: [SOL, fallback] })).toBe(SOL);
+        expect(agentChatMenuModel({ model: 'unlisted', models: [fallback] })).toBeUndefined();
     });
 });

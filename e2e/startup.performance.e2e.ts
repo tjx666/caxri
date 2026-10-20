@@ -22,6 +22,7 @@ const thresholdMs = 3_000;
 
 interface PerformanceLog {
     event?: string;
+    level?: string;
     durationMs?: number;
     fields?: Record<string, string | number | boolean | null>;
 }
@@ -324,7 +325,9 @@ exit 2
             (record) => record.event === 'pty.first_input' && Number(record.fields?.inputBytes) > 0,
         );
         const ipcFailures = records.filter(
-            (record) => record.event === 'ipc.request_failed',
+            (record) =>
+                record.event === 'ipc.request_failed' &&
+                (record.level === 'error' || record.level === 'fatal'),
         ).length;
         const highFrequencyIpcLogs = records.filter(
             (record) =>

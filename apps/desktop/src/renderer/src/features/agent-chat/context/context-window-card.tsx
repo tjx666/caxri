@@ -5,7 +5,7 @@ import { ReportCard } from '../../../components/report-card';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { agentChatContextPercent } from '../agent-chat-context';
+import { agentChatContextLimit, agentChatContextPercent } from '../agent-chat-context';
 import { contextCategoryLabel } from './category-labels';
 import { autoCompactAt, contextWindowSegments, segmentShade } from './composition';
 
@@ -34,6 +34,8 @@ export function ContextWindowCard({
         .filter((row) => row.kind === 'deferred')
         .reduce((sum, row) => sum + row.tokens, 0);
     const threshold = autoCompactAt(composition);
+    // The headline shares the composer meter's denominator; the bar below still spans the whole window.
+    const limit = agentChatContextLimit(window, threshold);
     const share = (tokens: number) => formatPercent(window > 0 ? tokens / window : 0);
     return (
         <ReportCard
@@ -51,8 +53,8 @@ export function ContextWindowCard({
                     {formatTokens(composition.totalTokens)}
                 </span>
                 <span className="text-[12px] text-muted tabular-nums">
-                    / {formatTokens(window)} ·{' '}
-                    {agentChatContextPercent(composition.totalTokens, window)}%
+                    / {formatTokens(limit)} ·{' '}
+                    {agentChatContextPercent(composition.totalTokens, limit)}%
                 </span>
             </div>
             <div className="relative mt-3">

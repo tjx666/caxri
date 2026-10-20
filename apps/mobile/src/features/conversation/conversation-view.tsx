@@ -195,6 +195,7 @@ export const ConversationList = <Entry extends { id: string }>({
     followKey,
     isConnected,
     isTurnStart,
+    onFollowingChange,
     onRetry,
     renderEntry,
     theme,
@@ -217,6 +218,11 @@ export const ConversationList = <Entry extends { id: string }>({
      * viewport at the list's end; when unset, the list simply ends at its last row. Keep it a stable function.
      */
     isTurnStart?: (entry: Entry) => boolean;
+    /**
+     * Reports whether the list follows its end, so a caller can tell a reader parked on earlier content from one
+     * tracking the latest output. Starts as `true`.
+     */
+    onFollowingChange?: (isFollowing: boolean) => void;
     onRetry: () => void;
     renderEntry: (entry: Entry) => ReactNode;
     theme: MobileTheme;
@@ -224,7 +230,14 @@ export const ConversationList = <Entry extends { id: string }>({
 }) => {
     const { t } = useTranslation();
     const list = useRef<FlashListRef<Entry>>(null);
-    const [isAtBottom, setIsAtBottom] = useState(true);
+    const [isAtBottom, setIsAtBottomState] = useState(true);
+    const setIsAtBottom = useCallback(
+        (isFollowing: boolean): void => {
+            setIsAtBottomState(isFollowing);
+            onFollowingChange?.(isFollowing);
+        },
+        [onFollowingChange],
+    );
     const viewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
     const followHoldUntil = useRef(0);
@@ -307,7 +320,7 @@ export const ConversationList = <Entry extends { id: string }>({
             );
             setIsAtBottom(follower.recordScroll(isNearEnd));
         },
-        [follower],
+        [follower, setIsAtBottom],
     );
     const onScrollBeginDrag = useCallback((): void => {
         followHoldUntil.current = 0;
@@ -354,7 +367,7 @@ export const ConversationList = <Entry extends { id: string }>({
         setIsAtBottom(true);
         measureSpacer();
         list.current?.scrollToEnd({ animated: true });
-    }, [follower, measureSpacer]);
+    }, [follower, measureSpacer, setIsAtBottom]);
     const lastFollowKey = useRef(followKey);
     useEffect(() => {
         const previous = lastFollowKey.current;

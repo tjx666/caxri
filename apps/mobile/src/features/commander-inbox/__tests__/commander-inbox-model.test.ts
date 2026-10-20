@@ -108,7 +108,7 @@ describe('Commander Inbox mobile model', () => {
 
     it('falls back to a plain reply failure message', () => {
         expect(commanderInboxReplyErrorMessage(new Error('Inbox item is closed'))).toBe(
-            'Inbox item is closed',
+            'Unable to send the reply.',
         );
         expect(commanderInboxReplyErrorMessage('nope')).toBe('Unable to send the reply.');
     });

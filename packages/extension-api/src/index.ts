@@ -408,6 +408,15 @@ export interface ProjectStatusRepository {
          */
         headBranch?: string;
         /**
+         * The branch the pull request would merge into; absent when the provider omitted it.
+         */
+        baseBranch?: string;
+        /**
+         * The method `workspace.git.mergePullRequest` would use right now; absent when the repository settings were not
+         * read or the pull request is not open.
+         */
+        mergeMethod?: 'merge' | 'rebase' | 'squash';
+        /**
          * Whether GitHub would merge right now; absent when the provider omitted it.
          */
         mergeState?: PullRequestMergeState;

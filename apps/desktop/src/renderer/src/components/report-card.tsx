@@ -23,8 +23,10 @@ export function ReportCard({
             className={cn('min-w-0 rounded-md border border-border bg-surface p-4', className)}
         >
             <div className="mb-3 flex items-baseline justify-between gap-3">
-                <h2 className="m-0 text-[13px] font-semibold">{title}</h2>
-                {caption && <span className="truncate text-[11px] text-muted">{caption}</span>}
+                <h2 className="m-0 shrink-0 text-[13px] font-semibold">{title}</h2>
+                {caption && (
+                    <span className="min-w-0 truncate text-[11px] text-muted">{caption}</span>
+                )}
             </div>
             {children}
         </section>

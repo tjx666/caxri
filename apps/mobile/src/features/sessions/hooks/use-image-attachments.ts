@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
+import { mobileErrorMessage, MobileLocalizedError } from '../../connection/mobile-error-message';
 import {
     CHAT_THUMBNAIL_QUALITIES,
     chatThumbnailSize,
@@ -61,15 +62,13 @@ const renderChatThumbnail = async (
         if (thumbnail.base64 && isWithinChatThumbnailLimit(thumbnail.base64))
             return thumbnail.base64;
     }
-    throw new Error(t('sessions.image.previewFailed'));
+    throw new MobileLocalizedError(t('sessions.image.previewFailed'));
 };
 
 export type ImageSource = 'library' | 'camera' | 'clipboard';
 
 const failureMessage = (error: unknown, t: Translate): string =>
-    error instanceof Error && error.message.length > 0
-        ? error.message
-        : t('sessions.image.uploadFailed');
+    mobileErrorMessage(error, t('sessions.image.uploadFailed'), t);
 
 /**
  * The pending images of one composer. They live in `imageAttachmentStore` rather than component state, so leaving the
@@ -119,7 +118,7 @@ export const useImageAttachments = (
 
     const upload = async (item: ImageAttachment) => {
         try {
-            if (!item.base64) throw new Error(t('sessions.image.unavailable'));
+            if (!item.base64) throw new MobileLocalizedError(t('sessions.image.unavailable'));
             const parts = [
                 { id: item.id, chunks: splitMobileImage(item.base64, t) },
                 ...(item.thumbnail?.base64
@@ -189,7 +188,7 @@ export const useImageAttachments = (
                 compress: 0.75,
                 base64: true,
             });
-            if (!image.base64) throw new Error(t('sessions.image.prepareFailed'));
+            if (!image.base64) throw new MobileLocalizedError(t('sessions.image.prepareFailed'));
             uri = image.uri;
             base64 = image.base64;
             size = { width: image.width, height: image.height };
@@ -214,7 +213,7 @@ export const useImageAttachments = (
             let picked: { uri: string; width: number; height: number; base64?: string };
             if (source === 'clipboard') {
                 const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
-                if (!image) throw new Error(t('sessions.image.clipboardEmpty'));
+                if (!image) throw new MobileLocalizedError(t('sessions.image.clipboardEmpty'));
                 picked = {
                     uri: image.data,
                     base64: image.data.replace(/^data:image\/jpeg;base64,/u, ''),
@@ -250,7 +249,7 @@ export const useImageAttachments = (
                 imageAttachmentsBase64Length(imageAttachmentStore.get(key), id) + base64Length >
                     maxTotal.base64Length
             )
-                throw new Error(maxTotal.message);
+                throw new MobileLocalizedError(maxTotal.message);
             const item: ImageAttachment = {
                 id,
                 progress: 0,
@@ -270,7 +269,7 @@ export const useImageAttachments = (
             update((current) => removeImageAttachment(current, id));
             Alert.alert(
                 t('sessions.image.attachFailedTitle'),
-                error instanceof Error ? error.message : t('sessions.image.attachFailedBody'),
+                mobileErrorMessage(error, t('sessions.image.attachFailedBody'), t),
             );
         }
     };

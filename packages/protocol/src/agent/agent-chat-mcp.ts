@@ -3,13 +3,26 @@ import { z } from 'zod';
 /**
  * MCP servers a Chat's tool calls named; one entry per server the provider described.
  */
-export const MAX_AGENT_CHAT_MCP_SERVERS = 50;
+export const MAX_AGENT_CHAT_MCP_SERVERS = 20;
 
 /**
  * An icon a server ships inline as a data URL is read only up to this length, so one server cannot bloat every
  * snapshot; a larger one is dropped and the row falls back to the server's site icon.
  */
 export const MAX_AGENT_CHAT_MCP_ICON_SRC_LENGTH = 24 * 1024;
+
+/**
+ * Inline (`data:`) icons across all of a Chat's servers share this many characters, because the whole `mcpServers`
+ * array rides in every snapshot and is re-sent by each `state` patch. A server whose inline icon no longer fits keeps
+ * its HTTPS icons and `siteOrigins`, so its row falls back to the site icon or the generic glyph.
+ */
+export const MAX_AGENT_CHAT_MCP_INLINE_ICON_CHARS = 64 * 1024;
+
+/**
+ * An HTTPS icon URL longer than this is dropped by Server Core; real icon URLs are far shorter, and the bound keeps the
+ * worst case of the array small.
+ */
+export const MAX_AGENT_CHAT_MCP_HTTPS_ICON_LENGTH = 2048;
 
 const httpsOriginSchema = z
     .string()

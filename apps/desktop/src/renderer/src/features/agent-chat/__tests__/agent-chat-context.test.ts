@@ -4,6 +4,7 @@ import {
     agentChatCompactCommand,
     agentChatContextAlerts,
     agentChatContextAnnouncement,
+    agentChatContextLimit,
     agentChatContextPercent,
     agentChatContextUsage,
     agentChatUndismissedContextAlerts,
@@ -22,6 +23,7 @@ describe('agentChatContextUsage', () => {
             used: 0.25,
             totalTokens: 25_000,
             window: 100_000,
+            limit: 100_000,
             tone: 'normal',
             breakdown: [],
         });
@@ -46,6 +48,22 @@ describe('agentChatContextUsage', () => {
             tone: 'warning',
             breakdown: [{ label: 'Messages', tokens: 190_000 }],
         });
+    });
+
+    it('measures against the auto-compact threshold when the provider reports one', () => {
+        const usage = agentChatContextUsage({
+            usage: {
+                totalTokens: 83_500,
+                contextWindow: 200_000,
+                compactWindow: 200_000,
+                autoCompactThreshold: 167_000,
+            },
+        });
+        expect(usage).toMatchObject({ window: 200_000, limit: 167_000, compactAt: 167_000 });
+        expect(usage?.used).toBeCloseTo(0.5);
+        expect(agentChatContextPercent(83_500, usage?.limit ?? 0)).toBe(50);
+        expect(agentChatContextLimit(200_000, 167_000)).toBe(167_000);
+        expect(agentChatContextLimit(200_000, undefined)).toBe(200_000);
     });
 
     it('warns from 60% of the window and stays a warning past 85%, since a full context is advice', () => {

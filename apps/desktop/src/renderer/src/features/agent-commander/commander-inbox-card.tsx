@@ -231,11 +231,7 @@ function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
                 size="sm"
                 variant="ghost"
                 className="commander-inbox-dismiss text-muted"
-                onClick={() => {
-                    // Fire-and-forget: the dismiss command reports its own failure through a toast.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                    void dismissCommanderInboxItem(item);
-                }}
+                onClick={() => dismissCommanderInboxItem(item)}
             >
                 {t('common.dismiss')}
             </Button>

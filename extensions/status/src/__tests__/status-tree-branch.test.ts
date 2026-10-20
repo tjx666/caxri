@@ -74,3 +74,56 @@ describe('Status extension branch row', () => {
         ).toBe(false);
     });
 });
+
+/**
+ * A Session keeps its last delivery on the repository row after moving to a new branch; the retained pull request is
+ * history and must not color the current branch (#2147).
+ */
+describe('Status extension branch row ownership of the pull request lifecycle', () => {
+    const build = (headBranch: string | undefined, lifecycle: 'merged' | 'open' | 'closed') =>
+        buildRepoNode({
+            id: 'repo',
+            kind: 'primary',
+            name: 'Project',
+            branch: 'feat/current',
+            acceptances: [],
+            linearIssues: [],
+            errors: [],
+            pullRequest: {
+                number: 7,
+                title: 'Previous delivery',
+                url: 'https://github.com/a/b/pull/7',
+                lifecycle,
+                state: 'success',
+                hiddenCheckCount: 0,
+                checks: [],
+                ...(headBranch && { headBranch }),
+            },
+        });
+    const rows = (root: ReturnType<typeof buildRepoNode>) => ({
+        branch: root.children!.find((node) => node.item.id?.endsWith(':branch'))!,
+        pr: root.children!.find((node) => node.item.id?.endsWith(':pr'))!,
+    });
+
+    it.each([['feat/previous'], [undefined]])(
+        'keeps the plain branch glyph for a merged pull request from %s',
+        (headBranch) => {
+            const { branch, pr } = rows(build(headBranch, 'merged'));
+            expect(branch.item.iconPath?.id).toBe('git-branch');
+            expect(branch.item.accessibilityInformation?.label).not.toContain('Merged');
+            expect(JSON.stringify(branch.item.tooltip)).not.toContain('Merged');
+            // The pull request row keeps its own real state rather than degrading to "Not reported".
+            expect(pr.item.accessibilityInformation?.label).toContain('Merged');
+            expect(JSON.stringify(pr.item.tooltip)).not.toContain('Not reported');
+        },
+    );
+
+    it.each([
+        ['merged', 'git-merge'],
+        ['open', 'git-pull-request-open'],
+        ['closed', 'git-pull-request-closed'],
+    ] as const)('wears the %s glyph when the head is the current branch', (lifecycle, icon) => {
+        const { branch } = rows(build('feat/current', lifecycle));
+        expect(branch.item.iconPath?.id).toBe(icon);
+    });
+});

@@ -36,6 +36,21 @@ export function browserDisplayHost(url: string): string {
     return host.startsWith('www.') ? host.slice(4) : host;
 }
 
+/**
+ * The text of the toolbar pill. A page without a title (or one still loading, when the title is the URL) is named by
+ * its host, as X's pill does. While the load has failed the WebView still reports Chromium's own error page title (for
+ * example `Webpage not available`), which the app's error view has replaced, so the pill keeps the host.
+ */
+export function browserPillTitle(page: {
+    hasLoadFailed: boolean;
+    title: string;
+    url: string;
+}): string {
+    const host = browserDisplayHost(page.url);
+    if (page.hasLoadFailed) return host;
+    return page.title && page.title !== page.url ? page.title : host;
+}
+
 export function isSecurePage(url: string): boolean {
     return parseUrl(url)?.protocol === 'https:';
 }

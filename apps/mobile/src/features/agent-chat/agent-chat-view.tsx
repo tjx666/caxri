@@ -36,7 +36,9 @@ import { createAgentChatEntryStabilizer } from './agent-chat-stable-entries';
 import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
 import {
+    agentChatRunningTurnIds,
     buildAgentChatTimeline,
+    holdEndedTurnsOpen,
     isAgentChatTurnStart,
     toggleAgentChatExpansion,
     withAgentChatAwaitingReply,
@@ -89,6 +91,22 @@ const AgentChatBody = ({
         (turnId: string) => setExpandedIds((current) => toggleAgentChatExpansion(current, turnId)),
         [],
     );
+    /**
+     * Whether the list follows its end. A turn that ends while the reader is parked on earlier content stays open, so
+     * finishing never folds away the work they were reading (`holdEndedTurnsOpen`).
+     */
+    const [isFollowing, setFollowing] = useState(true);
+    const [runningTurnIds, setRunningTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+    if (snapshot) {
+        const running = agentChatRunningTurnIds(snapshot);
+        if (
+            running.size !== runningTurnIds.size ||
+            [...running].some((id) => !runningTurnIds.has(id))
+        ) {
+            setRunningTurnIds(running);
+            setExpandedIds(holdEndedTurnsOpen(expandedIds, runningTurnIds, snapshot, isFollowing));
+        }
+    }
     const built = useMemo(
         () => (snapshot ? buildAgentChatTimeline(snapshot, expandedIds, t) : []),
         [expandedIds, snapshot, t],
@@ -145,6 +163,7 @@ const AgentChatBody = ({
                     followKey={pending.sendCount}
                     isConnected={isConnected}
                     isTurnStart={isAgentChatTurnStart}
+                    onFollowingChange={setFollowing}
                     onRetry={chat.refresh}
                     renderEntry={renderEntry}
                     theme={theme}

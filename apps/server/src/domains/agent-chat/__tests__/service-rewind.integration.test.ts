@@ -73,6 +73,40 @@ describe('AgentChatService rewind', () => {
         },
     );
 
+    it('edits a Grok conversation after a steered message, which has no rewind point of its own (#1721)', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'grok' });
+        await service.send(terminal.id, { text: 'slow first' });
+        await until((snapshot) =>
+            snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
+        );
+        await service.send(terminal.id, { text: 'steered in' }, 'steer');
+        await until((snapshot) =>
+            snapshot.items.some(
+                (item) => item.type === 'agentMessage' && item.text.includes('Heard: steered in'),
+            ),
+        );
+        await service.interrupt(terminal.id);
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
+        await service.send(terminal.id, { text: 'second' });
+        await until((snapshot) => snapshot.turns.length === 2 && !snapshot.activeTurnId);
+        // After a restart the interjection replays inside the first turn, so both live and resumed Chats map turns onto
+        // Grok Build's points one to one.
+        await service.restart(terminal.id);
+        const second = service
+            .read(terminal.id)
+            .items.find((item) => item.type === 'userMessage' && item.text === 'second');
+        if (!second) throw new Error('The second message is missing');
+        await service.rewind(terminal.id, {
+            itemId: second.id,
+            restoreFiles: false,
+            message: { text: 'second, rewritten' },
+        });
+        const edited = await until(
+            (snapshot) => snapshot.turns.length === 2 && !snapshot.activeTurnId,
+        );
+        expect(userTexts(edited)).toEqual(['slow first', 'steered in', 'second, rewritten']);
+    });
+
     it('restores Claude files through the prompt checkpoint', async () => {
         const { service, terminal, until, secondId, fakeLog } = await threeTurns('claude');
         await service.rewind(terminal.id, {

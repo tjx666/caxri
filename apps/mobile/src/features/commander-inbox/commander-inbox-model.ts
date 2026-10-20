@@ -8,6 +8,7 @@ import {
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { mobileErrorMessage } from '../connection/mobile-error-message';
 import { sessionAgeLabel } from '../sessions/session-row-model';
 
 export interface CommanderInboxCardModel {
@@ -96,7 +97,5 @@ export const commanderInboxScreenState = ({
     return isError ? { kind: 'error' } : { kind: 'loading' };
 };
 
-export const commanderInboxReplyErrorMessage = (
-    error: unknown,
-    t: Translate = translate,
-): string => (error instanceof Error && error.message ? error.message : t('inbox.replyFailed'));
+export const commanderInboxReplyErrorMessage = (error: unknown, t: Translate = translate): string =>
+    mobileErrorMessage(error, t('inbox.replyFailed'), t);

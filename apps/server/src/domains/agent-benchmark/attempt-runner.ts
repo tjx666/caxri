@@ -33,7 +33,8 @@ export interface AttemptRunnerContext {
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
     cliVersion(provider: AgentProvider): Promise<string | undefined>;
     /**
-     * Where a Project-mode run clones from; absent for an empty-folder run.
+     * Where a Project-mode run clones from: the root of the Git repository holding the Project; absent for an
+     * empty-folder run.
      */
     projectRoot?: string;
 }
@@ -99,7 +100,7 @@ export async function runAttempt(
     }
     attempt.status = 'running';
     observer.changed(true);
-    const cwd = context.workspaces.attemptDirectory(run.id, attempt.id);
+    const cwd = context.workspaces.attemptWorkingDirectory(run.id, attempt.id, run.projectSubpath);
     const outcome = await runHeadlessTurn(context.turn, {
         id: attempt.id,
         entry,
@@ -117,7 +118,12 @@ export async function runAttempt(
     applyOutcome(attempt, outcome);
     await measureUsage(context, entry, attempt, cwd);
     try {
-        attempt.diff = await context.workspaces.diffStat(run.id, attempt.id, attemptBase(run));
+        attempt.diff = await context.workspaces.diffStat(
+            run.id,
+            attempt.id,
+            attemptBase(run),
+            run.projectSubpath,
+        );
     } catch {
         // A folder the Agent broke (a removed `.git`) leaves the diff unknown rather than failing the Attempt.
     }
@@ -131,6 +137,7 @@ export async function runAttempt(
             run.settings.checkCommand,
             Math.min(timeoutMs, MAX_CHECK_TIMEOUT_MS),
             signal,
+            run.projectSubpath,
         );
     }
     // Stopped while the check ran: the Agent's turn completed, but the user withdrew the Attempt from the comparison.
@@ -302,7 +309,9 @@ async function readDiff(
     attempt: BenchmarkAttempt,
 ): Promise<string | undefined> {
     try {
-        return (await context.workspaces.diff(run.id, attempt.id, attemptBase(run))).diff;
+        return (
+            await context.workspaces.diff(run.id, attempt.id, attemptBase(run), run.projectSubpath)
+        ).diff;
     } catch {
         return undefined;
     }

@@ -192,7 +192,10 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   that turn. The notices are not persisted, so a Server Core restart loses them.
 - **Grok Build resume.** `session/load` replays the conversation as `session/update` frames before
   it answers, with `turn_completed` marking where each turn ended; the Chat folds them into one
-  reset. An unknown session id fails `session/load`, which is `resume_failed`.
+  reset. An unknown session id fails `session/load`, which is `resume_failed`. A replayed
+  `_x.ai/interject` is its own `user_message_chunk` inside the turn it joined, wrapped for the model
+  with what the user typed in `content._meta.displayText`; the Chat shows that text as a steered
+  message of the same turn (verified on Grok Build 1.0.62).
 - **Stop.** Closing or deleting the Terminal, switching it to a PTY, or archiving or detaching the
   Session stops the child (stdin EOF, then SIGTERM and SIGKILL on its process group).
   `terminal.restart` restarts it; a fresh restart drops the thread binding first. A failed Chat
@@ -456,7 +459,10 @@ User messages record how they arrived (`delivery: 'queued' | 'steered'`). The ma
 provider's own record, so a resume after a restart still shows it: Codex keeps it as the
 `clientUserMessageId` prefix (`queued:<uuid>`) its user message echoes as `clientId`; Claude Code
 records a steered message as a `queued_command` attachment, and a queued one carries a version-8
-uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messages show none.
+uuid whose third group is `8c01`. Grok Build replays an interjection with `_meta.displayText`, which marks it steered, and
+echoes the `promptId` it was sent with as `prompt_id` on the replayed `turn_completed`; a queued
+prompt's id carries the same uuid marker as Claude Code's (`queued-prompt-uuid.ts`), so a resume
+shows both marks. Grok Build does not echo the `interjectionId`, which is not needed.
 
 - The snapshot's `queue` lists each entry's text, image count, and command; image data stays on
   Server Core. At most 20 entries and 256 KiB of text.
@@ -556,7 +562,9 @@ File checkpoints are taken only from prompts sent with checkpointing on, so a Ch
 it was enabled, or a message older than the transcript tail Caxri reads, refuses to revert files
 with the reason. Grok Build names a prompt by its index in the whole session, which the Chat may
 not hold in full, so Caxri counts back from the newest of `_x.ai/rewind/points` and checks that the
-point's preview matches the message before rewinding. Mobile does not offer the action.
+point's preview matches the message before rewinding. An `_x.ai/interject` adds no point of its
+own (verified on Grok Build 1.0.62: one interjection and two prompts list two points), so a steered
+message does not shift the count. Mobile does not offer the action.
 
 ## Fork from here
 
@@ -688,7 +696,8 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   `mcpServerStatus()`), keeps its title, `serverInfo.icons`, and website or endpoint origins in the
   snapshot's `mcpServers`, and retries a server that was still connecting after a minute, at most
   three times. Main fetches a remote icon through `links.favicon`, falling back to the sites'
-  `/favicon.ico`. The phone receives no `mcpServers` and keeps the server name in the label. A command the Agent
+  `/favicon.ico`. `mcpServers` keeps the newest 20 servers, and inline `data:` icons share 64 KiB across them (a server
+  whose icon no longer fits keeps its HTTPS icons and site origins); an HTTPS icon URL over 2048 characters is dropped. The phone receives no `mcpServers` and keeps the server name in the label. A command the Agent
   described (Claude Code's `Bash` description) is titled by that description, and its command line
   moves into the expanded view. A row shows its duration once it reaches a second, a non-zero `Exit N`, and a
   `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
@@ -1313,8 +1322,12 @@ while on, like the Plan chip, show the pressed `--selection` fill, never the acc
   keyword in a message still opts that one turn in, since the text reaches Claude Code verbatim.
 - **Grok Build** lists models in the `session/new` or `session/load` result's `models`
   (`availableModels`, `currentModelId`). A switch applies in place with `session/set_model`, and
-  the usage meter takes the new model's `totalContextTokens`. Its reasoning efforts are not
-  offered yet, so every Grok Build model lists no `efforts`.
+  the usage meter takes the new model's `totalContextTokens`. A model that sets
+  `_meta.supportsReasoningEffort` lists its efforts in `_meta.reasoningEfforts` (highest first; the
+  menu lowest first) with `_meta.reasoningEffort` as the default. The current effort is the
+  `reasoning_effort` entry of the result's `configOptions`, and `session/set_config_option
+{ configId: 'reasoning_effort', value }` switches it (the answer and a `config_option_update`
+  carry the new `configOptions`); Grok Build keeps the effort across a model switch.
 
 ## Permission level and plan mode
 
@@ -1381,6 +1394,12 @@ mid-Chat differs per provider:
   update to the chosen level, so plan mode ends straight at that level and no tool call runs in a
   mode Claude Code picked; Caxri then turns plan mode off and saves that. A launch
   `--permission-mode plan` is not carried over; plan mode is only the composer's toggle.
+- **Grok Build** always launches with an explicit level, `--permission-mode default` for Ask when
+  neither the launch settings nor the Chat choose one. Without it Grok Build follows the user's
+  `[ui] permission_mode` in `~/.grok/config.toml`, so an `always-approve` there would run tools
+  unasked while the Chat reads Ask; with the flag Grok Build 1.0.62 still sends
+  `session/request_permission` under that config (verified against the real CLI with the same
+  argv Caxri uses).
 - **Grok Build** fixes its permission at launch, so a level switch restarts the Agent on the same
   conversation (`session/load`) with the new options. A running turn would be cut short, so the
   switch fails with `CONFLICT` until it finishes. Input sent while the switch is pending waits for
@@ -1497,7 +1516,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 ## Not yet supported
 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
-plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
+plan mode and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
 Chat shows no plan or context usage yet,
 cannot edit or fork from an earlier message, older history beyond the window stays on

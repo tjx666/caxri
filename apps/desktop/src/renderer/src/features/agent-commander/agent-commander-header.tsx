@@ -150,7 +150,8 @@ function InboxToggle() {
     const { t } = useTranslation();
     const isVisible = useCommanderInboxUiStore((state) => state.isVisible);
     const { data } = useCommanderInbox();
-    const count = data ? openCommanderInboxCount(data.items) : 0;
+    const dismissingIds = useCommanderInboxUiStore((state) => state.dismissingIds);
+    const count = data ? openCommanderInboxCount(data.items, dismissingIds) : 0;
     return (
         <CommanderColumnToggle
             badge={

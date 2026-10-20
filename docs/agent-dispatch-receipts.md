@@ -43,6 +43,9 @@ Reasons distinguish launch readiness/failure, process failure/exit, Host or Term
 idle or untouched suspension, Session archive, and user detach. Logs exclude executable paths,
 arguments, prompts, Terminal contents, and Endpoint credentials.
 
+Before a Claude Code PTY launch, `agent_dispatch.claude_trust_prepared` records the closed outcome of marking the
+validated working directory trusted in Claude Code's config (warn unless `granted` or `already_trusted`).
+
 Idle suspension cannot use Server age as evidence against an Agent still starting without an
 activation timestamp. Such a launch is governed by its launch timeout. After activation, the
 ordinary idle and untouched rules use the new launch timestamp and retain their existing delays.

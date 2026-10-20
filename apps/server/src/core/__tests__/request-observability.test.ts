@@ -22,6 +22,11 @@ describe('requestFailureLogLevel', () => {
         expect(requestFailureLogLevel('files.read', 'IO')).toBe('error');
     });
 
+    it('records unavailable PR auto-detection as a caller-handled outcome', () => {
+        expect(requestFailureLogLevel('git.pullRequestChanges', 'UNAVAILABLE')).toBe('warn');
+        expect(requestFailureLogLevel('git.pullRequestChanges', 'GIT')).toBe('error');
+    });
+
     it('keeps NOT_FOUND an error for methods whose caller cannot expect it', () => {
         expect(requestFailureLogLevel('terminal.attach', 'NOT_FOUND')).toBe('error');
         expect(requestFailureLogLevel('session.updateState', 'CONFLICT')).toBe('warn');

@@ -1,5 +1,10 @@
 export const chat = {
     'chat.attachment': 'Attachment {{number}}',
+    'chat.answered.askedOne': 'Asked a question',
+    'chat.answered.askedOther': 'Asked {{count}} questions',
+    'chat.answered.hideAnswers': 'Hides the answers',
+    'chat.answered.showAnswers': 'Shows the answers',
+    'chat.answered.skipped': 'Skipped',
     'chat.changes.hideChanges':
         '{{title}}. Hide changes, {{additions}} lines added, {{deletions}} removed',
     'chat.changes.hideDiff':

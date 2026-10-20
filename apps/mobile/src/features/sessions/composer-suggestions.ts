@@ -24,8 +24,15 @@ export function insertComposerSuggestion(draft: string, token: string, value: st
 }
 
 /**
- * The slash menu also contains skills whose Agent invocation starts with `$`.
+ * The `mobile.agent.actions` parameters for a typed slash query. The Server ranks the Terminal's whole action list by
+ * the query before keeping its bounded top slice (the same request the Agent Chat menu makes), so a skill past the
+ * first page is still found. The query omits the leading `/` so `$` skills match too; an empty query asks for the
+ * unranked list.
  */
-export function isComposerActionMatch(invocation: string, query: string): boolean {
-    return invocation.slice(1).toLowerCase().includes(query.toLowerCase());
+export function composerActionsRequest(
+    sessionId: string,
+    terminalId: string,
+    query: string,
+): { sessionId: string; terminalId: string; query?: string } {
+    return query ? { sessionId, terminalId, query } : { sessionId, terminalId };
 }

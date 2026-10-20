@@ -35,9 +35,13 @@ test('an expired Claude Code Chat continues in a new Chat that reads its transcr
         await expect(
             chat.getByRole('button', { name: 'Model: Default, Medium effort', exact: true }),
         ).toBeVisible();
-        await message.fill('hi there');
+        // A cache notice needs a context worth re-reading (`isAgentChatCacheRewriteNoticeable`); the fake Claude reports
+        // 140k cached tokens for a turn that mentions a large context.
+        await message.fill('hi there, large context');
         await message.press('Enter');
-        await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
+        await expect(
+            chat.getByText('Hello from fake Claude. You said: hi there, large context'),
+        ).toBeVisible();
 
         /*
          * Only the Renderer's wall clock moves past the one-hour cache lifetime; the fake Claude keeps real time. This
@@ -72,7 +76,9 @@ test('an expired Claude Code Chat continues in a new Chat that reads its transcr
         );
         // The draft went with the handoff, so the expired Chat no longer holds it.
         await page.getByRole('tab', { name: 'Claude (Chat)' }).first().click();
-        await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
+        await expect(
+            chat.getByText('Hello from fake Claude. You said: hi there, large context'),
+        ).toBeVisible();
         await expect(message).toHaveValue('');
         await page.getByRole('tab', { name: 'Claude (Chat)' }).last().click();
         await expect(chat.getByText('The subagent finished.')).toBeVisible();

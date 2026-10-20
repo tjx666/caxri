@@ -1,5 +1,5 @@
 import type { AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
-import { agentChatEffortLabel, agentChatModelLabel, findAgentChatModel } from '@caxri/protocol';
+import { agentChatEffortLabel, agentChatMenuModel, agentChatModelLabel } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
@@ -90,7 +90,7 @@ export const agentChatModelOptions = (
     t: Translate = translate,
 ): { models: AgentChatModelOption[]; efforts: AgentChatEffortOption[] } => {
     const models = snapshot?.models ?? [];
-    const current = findAgentChatModel(models, snapshot?.model);
+    const current = snapshot ? agentChatMenuModel({ model: snapshot.model, models }) : undefined;
     return {
         models: models.map((model) => ({
             id: model.id,
@@ -124,7 +124,8 @@ export const agentChatEffortHint = (
     snapshot: ModelSnapshot | undefined,
     t: Translate = translate,
 ): string | undefined =>
-    (snapshot?.models?.length ?? 0) > 0 && !findAgentChatModel(snapshot?.models, snapshot?.model)
+    (snapshot?.models?.length ?? 0) > 0 &&
+    !(snapshot && agentChatMenuModel({ model: snapshot.model, models: snapshot.models }))
         ? t('chat.model.chooseModelForEffort')
         : undefined;
 

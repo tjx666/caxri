@@ -24,25 +24,14 @@ import { launchChat, prepareDelegatedChat } from './chat-launch';
 import { currentAgentLaunchId, isAgentLive, requireDispatchChats } from './chat-target';
 import { DispatchWaiters } from './dispatch-waiters';
 import { dispatchFingerprint, launchProjection } from './launch-projection';
+import { prepareLaunchBestEffort } from './prepare-launch';
+import type { DispatchReason, TransitionReason } from './receipt-status';
 import { isSettled, terminalStatePatch } from './receipt-status';
 import type {
     AgentDispatchResumeOptions,
     AgentDispatchServiceOptions,
     AgentDispatchStartOptions,
 } from './service-options';
-
-type DispatchReason = AgentDispatchFailure['reason'];
-type TransitionReason =
-    | TerminalLifecycleCause
-    | 'created'
-    | 'launchStarted'
-    | 'launchReady'
-    | 'launchFailed'
-    | 'processFailed'
-    | 'agentExit'
-    | 'terminalSuspended'
-    | 'userDetached'
-    | 'processInterrupted';
 
 /**
  * Server-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
@@ -86,6 +75,7 @@ export class AgentDispatchService {
                 authorizedRoots: [ownerProject.rootPath, session.rootPath],
                 defaultRoot: options?.cwd ?? session.rootPath,
             });
+            await prepareLaunchBestEffort(this.options, input.provider, cwd, options?.surface);
             const identity = await this.options.terminalDirectoryIdentity(cwd);
             options?.beforeCreate?.();
             const previousLayout = this.options.database.getSessionState(

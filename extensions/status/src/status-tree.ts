@@ -83,6 +83,14 @@ function buildRepoChildren(
     const lifecycle = repo.pullRequest?.lifecycle
         ? pullRequestPresentation[repo.pullRequest.lifecycle]
         : undefined;
+    /**
+     * Only a pull request whose head is this branch may speak for the branch. A Session keeps its last delivery (or one
+     * made from another worktree or repository) attached to the repository row, so after the Session moves to a new
+     * branch the retained pull request is history: its `merged` state must not color the current branch (#2147). A
+     * missing `headBranch` proves nothing, so it never counts as a match. The pull request row keeps using `lifecycle`,
+     * which is the pull request's own truth.
+     */
+    const branchLifecycle = repo.pullRequest?.headBranch === repo.branch ? lifecycle : undefined;
     const branchPublication = publication ? publicationLabel(publication) : undefined;
     /**
      * `Synced` is the expected steady state and asks nothing of the reader, so the row stays quiet about it; only a
@@ -102,12 +110,12 @@ function buildRepoChildren(
             icon:
                 publication?.state === 'checking'
                     ? stateIcons.pending
-                    : (lifecycle?.icon ?? 'git-branch'),
+                    : (branchLifecycle?.icon ?? 'git-branch'),
             accessibilityLabel: [
                 repo.branch,
                 branchDescription.length > 0 ? branchDescription : undefined,
-                lifecycle && repo.pullRequest
-                    ? `pull request #${repo.pullRequest.number} ${lifecycle.label}`
+                branchLifecycle && repo.pullRequest
+                    ? `pull request #${repo.pullRequest.number} ${branchLifecycle.label}`
                     : undefined,
                 // The trailing "No origin" is terse; the spoken row says what it needs, as the hover card does.
                 publication?.state === 'no-origin'
@@ -123,11 +131,11 @@ function buildRepoChildren(
                 }),
                 description: publication ? publicationDescription(publication.state) : undefined,
                 rows: [
-                    ...(lifecycle && repo.pullRequest
+                    ...(branchLifecycle && repo.pullRequest
                         ? [
                               {
                                   label: 'pull request',
-                                  value: `#${repo.pullRequest.number} ${lifecycle.label}`,
+                                  value: `#${repo.pullRequest.number} ${branchLifecycle.label}`,
                               },
                           ]
                         : []),

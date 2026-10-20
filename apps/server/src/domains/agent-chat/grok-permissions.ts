@@ -34,6 +34,13 @@ function withoutOption(arguments_: readonly string[], option: string): string[] 
     return kept;
 }
 
+function hasExplicitPermission(settings: GrokChatSettings): boolean {
+    return (
+        settings.agentArgs.includes(GROK_ALWAYS_APPROVE) ||
+        settings.rootArgs.includes(GROK_PERMISSION_OPTION)
+    );
+}
+
 /**
  * Replaces the permission options of Grok Build's launch arguments with `mode`'s.
  */
@@ -64,7 +71,14 @@ export function grokOpeningSettings(host: Pick<AgentChatSessionHost, 'launch' | 
     permissionMode: AgentChatPermissionMode | undefined;
 } {
     const launched = grokChatSettings(host.launch);
-    const chosen = supportedChatPermission('grok', host.permission).permissionMode;
+    /**
+     * Without an explicit level Grok Build falls back to the user's `[ui] permission_mode` config, which may be
+     * `always-approve` while the Chat reports Ask. An explicit `--permission-mode default` overrides that config
+     * (verified on Grok Build 1.0.62), so Ask is always passed rather than left to the config.
+     */
+    const chosen =
+        supportedChatPermission('grok', host.permission).permissionMode ??
+        (hasExplicitPermission(launched) ? undefined : 'ask');
     const settings = chosen ? withGrokPermission(launched, chosen) : launched;
     return { settings, permissionMode: grokPermissionMode(settings) };
 }

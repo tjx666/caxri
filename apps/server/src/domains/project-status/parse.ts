@@ -36,6 +36,7 @@ const githubCheckSchema = z.object({
 type GitHubCheck = z.infer<typeof githubCheckSchema>;
 
 export const githubPullRequestSchema = z.object({
+    baseRefName: z.string().optional(),
     body: z.string().optional(),
     headRefName: z.string().optional(),
     headRefOid: z.string().optional(),
@@ -277,6 +278,7 @@ export function parseGitHubPullRequest(
             ...(raw.headRefOid &&
                 /^[\da-f]{40}$/.test(raw.headRefOid) && { headSha: raw.headRefOid }),
             ...(raw.headRefName && { headBranch: raw.headRefName }),
+            ...(raw.baseRefName && { baseBranch: raw.baseRefName }),
             ...(mergeState && { mergeState }),
         },
     };

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    composerActionsRequest,
     composerSuggestionTrigger,
     insertComposerSuggestion,
-    isComposerActionMatch,
 } from './composer-suggestions';
 
 describe('composer suggestions', () => {
@@ -27,9 +27,19 @@ describe('composer suggestions', () => {
         );
     });
 
-    it('finds slash commands and dollar-prefixed skills from the same menu', () => {
-        expect(isComposerActionMatch('/model', 'mod')).toBe(true);
-        expect(isComposerActionMatch('$mobile-skill', 'mobile')).toBe(true);
-        expect(isComposerActionMatch('$mobile-skill', 'model')).toBe(false);
+    it('asks the Server to rank actions by the typed name, without the leading slash', () => {
+        const trigger = composerSuggestionTrigger('/mobile-sk');
+        expect(composerActionsRequest('session-1', 'terminal-1', trigger!.query)).toEqual({
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            query: 'mobile-sk',
+        });
+    });
+
+    it('omits the query for a bare slash', () => {
+        expect(composerActionsRequest('session-1', 'terminal-1', '')).toEqual({
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+        });
     });
 });

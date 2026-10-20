@@ -70,6 +70,8 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.closeWindow': '关闭窗口',
     'sshHost.copyDetails': '复制详细信息',
     'sshHost.copyCommand': '复制命令',
+    'sshHost.retryNow': '立即重试',
+    'sshHost.retryNow.failed': '无法立即重试',
     'sshHost.reconnect.failed': '无法重新连接到 SSH Host',
     'sshHost.cancel.failed': '无法取消连接',
 
@@ -103,6 +105,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.folderPicker.loading': '正在加载文件夹',
     'sshHost.folderPicker.gitRepository': 'Git',
     'sshHost.folderPicker.gitRepositoryDescription': 'Git 仓库',
+    'sshHost.folderPicker.noMatch': '没有与输入匹配的文件夹。',
     'sshHost.folderPicker.empty': '此文件夹中没有子文件夹。',
     'sshHost.folderPicker.truncated': '仅列出了前 {{count}} 个文件夹。输入路径可继续深入。',
     'sshHost.folderPicker.loadFailed': '无法列出此文件夹。{{message}}',

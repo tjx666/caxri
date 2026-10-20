@@ -227,11 +227,8 @@ export const agentCommander = {
 
     // Inbox commands
     'agentCommander.inboxCommands.replyFailed': 'Unable to send the reply',
-    'agentCommander.inboxCommands.dismissTitle': 'Dismiss this item?',
-    'agentCommander.inboxCommands.dismissMergeMessage':
-        'The Commander is told you will not merge this pull request from the Inbox. The pull request itself stays open.',
-    'agentCommander.inboxCommands.dismissQuestionMessage':
-        'The Commander is told you dismissed this question without an answer.',
+    'agentCommander.inboxCommands.dismissed': 'Dismissed',
+    'agentCommander.inboxCommands.dismissUndoExpired': 'This Dismiss can no longer be undone',
     'agentCommander.inboxCommands.dismissFailed': 'Unable to dismiss this item',
     'agentCommander.inboxCommands.mergeTitle': 'Merge {{pullRequest}}?',
     'agentCommander.inboxCommands.mergeMessage':

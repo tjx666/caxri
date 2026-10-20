@@ -5,7 +5,7 @@ import { isQueryMethod } from './client';
 
 /**
  * Invalidations for Server events that each name exactly one read, split out of `invalidation.ts`, which keeps the
- * multi-read sweeps (files, Git, delivery status, Session removal) and the event subscription that dispatches here.
+ * multi-read sweeps (files, Git, Session removal) and the event subscription that dispatches here.
  */
 
 /**

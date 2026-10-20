@@ -68,6 +68,8 @@ export const sshHost = {
     'sshHost.closeWindow': 'Close Window',
     'sshHost.copyDetails': 'Copy Details',
     'sshHost.copyCommand': 'Copy Command',
+    'sshHost.retryNow': 'Retry Now',
+    'sshHost.retryNow.failed': 'Unable to retry now',
     'sshHost.reconnect.failed': 'Unable to reconnect to the SSH Host',
     'sshHost.cancel.failed': 'Unable to cancel the connection',
 
@@ -101,6 +103,7 @@ export const sshHost = {
     'sshHost.folderPicker.loading': 'Loading folders',
     'sshHost.folderPicker.gitRepository': 'Git',
     'sshHost.folderPicker.gitRepositoryDescription': 'Git repository',
+    'sshHost.folderPicker.noMatch': 'No folders match what you typed.',
     'sshHost.folderPicker.empty': 'This folder has no subfolders.',
     'sshHost.folderPicker.truncated':
         'Only the first {{count}} folders are listed. Type a path to go further.',

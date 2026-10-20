@@ -155,6 +155,21 @@ export function canReconnect(state: SshEnvironmentState): boolean {
 }
 
 /**
+ * Retry Now is offered while Main reconnects automatically, to cut short the wait between two attempts.
+ */
+export function canRetryNow(state: SshEnvironmentState): boolean {
+    return state.phase === 'reconnecting';
+}
+
+/**
+ * Whether an automatic attempt is running right now. Main reports the failure of the attempt that just ended while it
+ * waits to try again, and clears it when the next attempt starts, so no failure means Retry Now has nothing to skip.
+ */
+export function isRetryAttemptRunning(state: SshEnvironmentState): boolean {
+    return state.phase === 'reconnecting' && state.failure === undefined;
+}
+
+/**
  * The Reconnect button's label: after another Desktop took the Server over, reconnecting takes it back from that
  * window.
  */

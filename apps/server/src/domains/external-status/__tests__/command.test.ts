@@ -100,6 +100,27 @@ describe('runExternalStatusCommand', () => {
         ).rejects.toMatchObject({ command: 'vc', kind });
     });
 
+    it('classifies gh exit code 4 under CI=1 as not-logged-in', async () => {
+        await expect(
+            runExternalStatusCommand('gh', ['pr', 'view'], '/repo', {
+                resolveExecutable: () => Promise.resolve('/bin/gh'),
+                run: () =>
+                    Promise.reject(
+                        Object.assign(new Error('Command failed'), {
+                            code: 4,
+                            stderr: 'gh: To use GitHub CLI in automation, set the GH_TOKEN environment variable.',
+                        }),
+                    ),
+            }),
+        ).rejects.toMatchObject({ command: 'gh', kind: 'not-logged-in' });
+        await expect(
+            runExternalStatusCommand('vc', ['ls'], '/repo', {
+                resolveExecutable: () => Promise.resolve('/bin/vc'),
+                run: () => Promise.reject(Object.assign(new Error('x'), { code: 4, stderr: 'x' })),
+            }),
+        ).rejects.toMatchObject({ command: 'vc', kind: 'other' });
+    });
+
     it('reads the gh token once for concurrent calls and passes it to each call', async () => {
         const run = vi.fn<NonNullable<ExternalStatusCommandDependencies['run']>>(
             (_file, arguments_) =>

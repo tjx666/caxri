@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     autoCompactAt,
+    contextTileFigures,
     contextWindowSegments,
     inRequestOrder,
     mcpServerUsage,
@@ -91,5 +92,24 @@ describe('autoCompactAt', () => {
         expect(autoCompactAt(composition())).toBe(167_000);
         expect(autoCompactAt(composition({ autoCompactThreshold: undefined }))).toBe(200_000);
         expect(autoCompactAt(composition({ isAutoCompactEnabled: false }))).toBeUndefined();
+    });
+
+    it('measures the Context tile against the auto-compact threshold, falling back to the window', () => {
+        expect(contextTileFigures(composition(), undefined)).toEqual({
+            value: '60k / 167k',
+            percent: 36,
+            threshold: 167_000,
+        });
+        expect(contextTileFigures(composition({ isAutoCompactEnabled: false }), undefined)).toEqual(
+            { value: '60k / 200k', percent: 30 },
+        );
+        expect(
+            contextTileFigures(undefined, {
+                totalTokens: 50_000,
+                compactWindow: 200_000,
+                autoCompactThreshold: 100_000,
+            }),
+        ).toEqual({ value: '50k / 100k', percent: 50, threshold: 100_000 });
+        expect(contextTileFigures(undefined, undefined)).toEqual({});
     });
 });

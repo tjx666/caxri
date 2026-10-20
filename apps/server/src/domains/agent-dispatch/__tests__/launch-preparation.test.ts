@@ -53,4 +53,29 @@ describe('AgentDispatchService launch preparation', () => {
         running.resolve();
         await expect(dispatching).resolves.toMatchObject({ status: 'running' });
     });
+
+    it('prepares the validated working directory before a PTY launch and survives a failed preparation', async () => {
+        const database = await openDatabase();
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session } = database.createSession(project.id, 'shell');
+        const prepareLaunch = vi.fn(() => Promise.reject(new Error('config locked')));
+        const service = createService(
+            database,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            { prepareLaunch },
+        );
+        const receipt = await service.start('prepared', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            provider: 'claude',
+        });
+
+        expect(prepareLaunch).toHaveBeenCalledExactlyOnceWith('claude', project.rootPath);
+        expect(receipt.status).not.toBe('failed');
+    });
 });

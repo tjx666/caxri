@@ -32,6 +32,13 @@ function git(cwd: string, arguments_: string[], maxBuffer = GIT_MAX_BUFFER) {
 }
 
 /**
+ * Limits a Git command to a Project's subfolder; `--` keeps the path from reading as an option or revision.
+ */
+function pathspec(subpath: string | undefined): string[] {
+    return subpath ? ['--', subpath] : [];
+}
+
+/**
  * Git's empty tree. An empty-folder Attempt starts from an empty commit, so diffing against the empty tree covers
  * everything the Agent created, including commits it made itself.
  */
@@ -54,24 +61,51 @@ export class BenchmarkWorkspaces {
      * Stages everything the Agent left (new, changed, deleted, and committed files) so the diff against `base` covers
      * all of it. Ignored files stay out, as they would in a review.
      */
-    private async stageAll(directory: string): Promise<void> {
-        await git(directory, ['add', '--all']);
+    private async stageAll(directory: string, subpath: string | undefined): Promise<void> {
+        await git(directory, ['add', '--all', ...pathspec(subpath)]);
     }
 
     runDirectory(runId: string): string {
         return join(this.root, runId);
     }
 
+    /**
+     * The Attempt's clone: always a whole Git repository, even when the Project is a subfolder of one.
+     */
     attemptDirectory(runId: string, attemptId: string): string {
         return join(this.root, runId, attemptId);
     }
 
     /**
-     * The commit a Project-mode run starts every Attempt from: the Project's `HEAD` when the run starts.
+     * Where the Agent and the check command work: the clone itself, or the Project's folder inside it when the Project
+     * is a subfolder of its repository.
      */
-    async projectHead(projectRoot: string): Promise<string> {
-        const { stdout } = await git(projectRoot, ['rev-parse', 'HEAD']);
-        return stdout.trim();
+    attemptWorkingDirectory(runId: string, attemptId: string, subpath?: string): string {
+        const directory = this.attemptDirectory(runId, attemptId);
+        return subpath ? join(directory, subpath) : directory;
+    }
+
+    /**
+     * Finds what a Project-mode run starts every Attempt from: the Project's `HEAD` when the run starts, the root of
+     * the repository holding the Project (the thing `git clone` accepts), and the Project's folder relative to that
+     * root (`undefined` when the Project is the root). Rejects when the Project has no commit or its folder is not in
+     * `HEAD`, because the clone could not contain it.
+     */
+    async locateProject(
+        projectRoot: string,
+    ): Promise<{ head: string; repoRoot: string; subpath?: string }> {
+        const [{ stdout: head }, { stdout: repoRoot }, { stdout: prefix }] = await Promise.all([
+            git(projectRoot, ['rev-parse', 'HEAD']),
+            git(projectRoot, ['rev-parse', '--show-toplevel']),
+            git(projectRoot, ['rev-parse', '--show-prefix']),
+        ]);
+        const subpath = prefix.trim().replace(/\/+$/, '');
+        if (subpath) await git(projectRoot, ['cat-file', '-e', `HEAD:${subpath}`]);
+        return {
+            head: head.trim(),
+            repoRoot: repoRoot.trim(),
+            ...(subpath && { subpath }),
+        };
     }
 
     /**
@@ -105,10 +139,21 @@ export class BenchmarkWorkspaces {
         await git(directory, ['commit', '--quiet', '--allow-empty', '-m', 'Benchmark start']);
     }
 
-    async diffStat(runId: string, attemptId: string, base: string): Promise<BenchmarkDiffStat> {
+    async diffStat(
+        runId: string,
+        attemptId: string,
+        base: string,
+        subpath?: string,
+    ): Promise<BenchmarkDiffStat> {
         const directory = this.attemptDirectory(runId, attemptId);
-        await this.stageAll(directory);
-        const { stdout } = await git(directory, ['diff', '--cached', '--numstat', base]);
+        await this.stageAll(directory, subpath);
+        const { stdout } = await git(directory, [
+            'diff',
+            '--cached',
+            '--numstat',
+            base,
+            ...pathspec(subpath),
+        ]);
         const stat: BenchmarkDiffStat = { files: 0, additions: 0, deletions: 0 };
         for (const line of stdout.split('\n')) {
             const fields = line.split('\t', 2);
@@ -126,13 +171,14 @@ export class BenchmarkWorkspaces {
         runId: string,
         attemptId: string,
         base: string,
+        subpath?: string,
     ): Promise<{ diff: string; truncated: boolean }> {
         const directory = this.attemptDirectory(runId, attemptId);
-        await this.stageAll(directory);
+        await this.stageAll(directory, subpath);
         try {
             const { stdout } = await git(
                 directory,
-                ['diff', '--cached', '--no-color', base],
+                ['diff', '--cached', '--no-color', base, ...pathspec(subpath)],
                 MAX_ATTEMPT_DIFF_BYTES * 4,
             );
             return stdout.length > MAX_ATTEMPT_DIFF_BYTES
@@ -159,6 +205,7 @@ export class BenchmarkWorkspaces {
         command: string,
         timeoutMs: number,
         signal: AbortSignal,
+        subpath?: string,
     ): Promise<BenchmarkCheckResult> {
         const startedAt = Date.now();
         const durationMs = () => Date.now() - startedAt;
@@ -166,7 +213,7 @@ export class BenchmarkWorkspaces {
             executable: 'sh',
             // One combined stream, so the tail interleaves output the way a terminal shows it.
             args: ['-c', `exec 2>&1\n${command}`],
-            cwd: this.attemptDirectory(runId, attemptId),
+            cwd: this.attemptWorkingDirectory(runId, attemptId, subpath),
             environment: process.env,
         });
         shell.child.stdin.end();

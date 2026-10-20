@@ -42,14 +42,22 @@ const CACHE_EXPIRY_LEAD_MS = 10 * 60_000;
  */
 export interface AgentChatContextUsage {
     /**
-     * Share of {@link window} in use, from 0 to 1.
+     * Share of `window` in use, from 0 to 1.
      */
     used: number;
     totalTokens: number;
     /**
-     * The window pressure is measured against: the provider's compaction window when it is smaller than the model's.
+     * The window the breakdown fills: the provider's compaction window when it is smaller than the model's.
      */
     window: number;
+    /**
+     * The denominator of `used` and of every percentage: `compactAt` when the provider reports one, otherwise `window`.
+     */
+    limit: number;
+    /**
+     * Where the provider compacts on its own, when it says so.
+     */
+    compactAt?: number;
     /**
      * The model's own window, when the compaction window is smaller than it.
      */
@@ -66,17 +74,29 @@ export function agentChatContextPercent(tokens: number, window: number): number 
     return window > 0 ? Math.round(Math.min(tokens / window, 1) * 100) : 0;
 }
 
+/**
+ * The denominator every context percentage uses: where the provider compacts on its own when it says so, otherwise the
+ * window pressure is measured against. The composer meter and the Context tab both read it here, so one Chat never
+ * shows `85%` in one place and `71%` in the other for the same tokens.
+ */
+export function agentChatContextLimit(window: number, autoCompactAt: number | undefined): number {
+    return autoCompactAt !== undefined && autoCompactAt > 0 ? autoCompactAt : window;
+}
+
 export function agentChatContextUsage(
     snapshot: Pick<AgentChatSnapshot, 'usage'> | undefined,
 ): AgentChatContextUsage | undefined {
     const usage = snapshot?.usage;
     const window = usage?.compactWindow ?? usage?.contextWindow;
     if (!usage || !window) return undefined;
-    const share = usage.totalTokens / window;
+    const limit = agentChatContextLimit(window, usage.autoCompactThreshold);
+    const share = usage.totalTokens / limit;
     return {
         used: Math.min(share, 1),
         totalTokens: usage.totalTokens,
         window,
+        limit,
+        ...(usage.autoCompactThreshold && { compactAt: usage.autoCompactThreshold }),
         ...(usage.compactWindow &&
             usage.contextWindow &&
             usage.contextWindow > usage.compactWindow && { modelWindow: usage.contextWindow }),
@@ -155,14 +175,15 @@ export function agentChatContextAlerts(
         }
     }
     const window = usage.compactWindow ?? usage.contextWindow;
-    if (window && usage.totalTokens / window >= HIGH_CONTEXT_SHARE)
+    const limit = window && agentChatContextLimit(window, usage.autoCompactThreshold);
+    if (limit && usage.totalTokens / limit >= HIGH_CONTEXT_SHARE)
         alerts.pressure = {
             text: translate('agentChat.context.pressureText', {
                 tokens,
-                window: formatTokens(window),
+                window: formatTokens(limit),
             }),
             detail: translate('agentChat.context.pressureDetail', {
-                percent: Math.round((usage.totalTokens / window) * 100),
+                percent: agentChatContextPercent(usage.totalTokens, limit),
             }),
         };
     return alerts;

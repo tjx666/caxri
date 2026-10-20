@@ -5,11 +5,14 @@ import { clip, closeDanglingItem, isRecord, MAX_TRACKED_TURNS, stringField } fro
 import type { GrokToolCall } from './grok-items';
 import {
     grokCommands,
+    grokDisplayText,
+    grokEffort,
     grokToolCallId,
     mapGrokPlan,
     mapGrokToolCall,
     mergeGrokToolCall,
 } from './grok-items';
+import { isQueuedPromptUuid } from './queued-prompt-uuid';
 
 type Json = Record<string, unknown>;
 
@@ -149,10 +152,26 @@ export class GrokUpdates {
     /**
      * A replayed user message opens a history turn; Grok Build replays it as one or more chunks.
      */
-    private replayUserMessage(replay: Replay, text: string): void {
+    private replayUserMessage(replay: Replay, text: string, displayText: string | undefined): void {
         const last = replay.turns.at(-1);
+        if (displayText !== undefined) {
+            // An `_x.ai/interject` replays as its own user message inside the turn it joined, wrapped for the model;
+            // `_meta.displayText` is what the user typed. Verified on Grok Build 1.0.62 (#1705, #1721).
+            if (!last) return;
+            this.closeStreaming();
+            const id = this.nextItemId(last.id, 'user');
+            replay.items.set(id, {
+                id,
+                turnId: last.id,
+                type: 'userMessage',
+                text: clip(displayText, MAX_AGENT_CHAT_TEXT_LENGTH),
+                delivery: 'steered',
+                ...(this.eventTime !== undefined && { createdAt: this.eventTime }),
+            });
+            return;
+        }
         const lastItem = replay.items.values().toArray().at(-1);
-        if (last && lastItem?.type === 'userMessage' && lastItem.turnId === last.id) {
+        if (last && lastItem?.type === 'userMessage' && lastItem.id === `${last.id}:user`) {
             replay.items.set(lastItem.id, {
                 ...lastItem,
                 text: clip(lastItem.text + text, MAX_AGENT_CHAT_TEXT_LENGTH),
@@ -259,7 +278,8 @@ export class GrokUpdates {
             }
             case 'user_message_chunk': {
                 // Live user messages are Caxri's own echo; only a replayed one carries history.
-                if (text && this.replay) this.replayUserMessage(this.replay, text);
+                if (text && this.replay)
+                    this.replayUserMessage(this.replay, text, grokDisplayText(content));
                 return;
             }
             case 'tool_call':
@@ -284,8 +304,13 @@ export class GrokUpdates {
                     ]);
                 return;
             }
+            case 'config_option_update': {
+                const effort = grokEffort(update.configOptions);
+                if (effort && !this.replay) this.emit([{ op: 'state', state: { effort } }]);
+                return;
+            }
             default: {
-                // Mode, config option, and session info updates are not conversation content.
+                // Mode and session info updates are not conversation content.
             }
         }
     }
@@ -300,6 +325,11 @@ export class GrokUpdates {
                 if (!turn) return;
                 this.closeStreaming();
                 turn.status = stopReasonStatus(update.stop_reason);
+                // The replayed `prompt_id` is the `promptId` the prompt was sent with, which carries a queued mark.
+                const promptId = stringField(update.prompt_id);
+                const message = this.replay?.items.get(`${turn.id}:user`);
+                if (promptId && isQueuedPromptUuid(promptId) && message?.type === 'userMessage')
+                    this.replay?.items.set(message.id, { ...message, delivery: 'queued' });
                 if (typeof update.elapsed_ms === 'number' && update.elapsed_ms >= 0)
                     turn.durationMs = update.elapsed_ms;
                 return;

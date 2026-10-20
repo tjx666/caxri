@@ -6,6 +6,7 @@ import { errorMessage, isCaxriError } from '@caxri/protocol';
 import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
 
+import { ToastCopyLabel } from '../components/toast-copy-label';
 import type { TranslationKey } from '../i18n';
 import { translate, useLocaleStore } from '../i18n';
 import { caxri } from '../lib/caxri';
@@ -19,6 +20,7 @@ import {
 } from './notifications';
 import type { ToastAction } from './toast-actions';
 import { runToastAction, toastActionLabelKeys } from './toast-actions';
+import { copyFeedbackKeyOf, isCopyToastAction } from './toast-copy-feedback';
 
 const activeReminderToasts = new Map<string | number, NotificationType>();
 const openReminderMenus = new Set<string | number>();
@@ -91,7 +93,12 @@ export interface ToastOptions {
  * Sonner's label for a follow-up: the visible word, plus a screen-reader name when the word alone is ambiguous.
  */
 function toastButtonLabel(action: ToastAction): ReactNode {
-    const label = translate(toastActionLabelKeys[action.id]);
+    const idleLabel = translate(toastActionLabelKeys[action.id]);
+    const feedbackKey = copyFeedbackKeyOf(action);
+    // A copy follow-up acknowledges the click on the button itself (Copied, then back), so its label is stateful.
+    const label = feedbackKey
+        ? createElement(ToastCopyLabel, { feedbackKey, idleLabel })
+        : idleLabel;
     if (!action.accessibleLabel) return label;
     return [
         createElement('span', { className: 'sr-only', key: 'accessible' }, action.accessibleLabel),
@@ -194,7 +201,10 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
                 // user dismisses it, so acting on it must not be the thing that takes it away: the GPU crash card's action
                 // opens a confirmation the user can still cancel, and deleting the card first would leave Cancel with no
                 // way back to the offer.
-                if (options.persist) event.preventDefault();
+                // A copy follow-up is held for the same reason: removing the toast on click would take its `Copied`
+                // acknowledgement away before it can be read. The normal timeout still ends it.
+                if (options.persist || (options.action && isCopyToastAction(options.action)))
+                    event.preventDefault();
                 if (
                     options.action &&
                     didRunLiveToastAction(options.action) &&

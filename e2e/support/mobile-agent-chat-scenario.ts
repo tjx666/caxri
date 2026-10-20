@@ -40,6 +40,7 @@ import {
 import {
     androidBounds,
     mobileSemantics,
+    observeMobileNode,
     setMobileNetworkAvailable,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -49,6 +50,19 @@ import { executeMobilePlanLimitsScenario } from './mobile-plan-limits-scenario';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
 import { executeMobileReplyPlaceholderScenario } from './mobile-reply-placeholder-scenario';
 import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
+
+/**
+ * Waits for the answered question list's `index`th answer to read `answer`.
+ */
+const waitForAnsweredText = (serial: string, index: number, answer: string) =>
+    waitForMobile(
+        () =>
+            observeMobileNode(serial, `agent-chat-answered-answer-${index}`, {
+                kind: 'equals',
+                value: answer,
+            }),
+        ({ exists, textMatches }) => exists && textMatches === true,
+    );
 
 /**
  * The on-screen height of check `id`, or `undefined` while it is not laid out.
@@ -201,7 +215,7 @@ async function executeMobileAgentChatScenario(
         await waitForCheck(serial, 'agent-chat-question-1-option-1');
         await tapMobileCheckByBounds(serial, 'agent-chat-question-1-option-1');
         await waitForCheck(serial, 'agent-chat-question-2-other');
-        await capture(environment, 'questions-answered', artifacts);
+        await capture(environment, 'questions-filled', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
         await waitForMobile(
             () => chat.read(),
@@ -210,6 +224,13 @@ async function executeMobileAgentChatScenario(
                 !snapshot.activeTurnId,
         );
         await waitForNoCheck(serial, 'agent-chat-request');
+        // The timeline lists each question over its answer, as Desktop does (MOB-CHAT-ANSWERED-01); the third question
+        // was left unanswered and reads `Skipped`.
+        await waitForCheck(serial, 'agent-chat-answered-question-0');
+        await waitForAnsweredText(serial, 0, 'Per request');
+        await waitForAnsweredText(serial, 1, 'Free only');
+        await waitForAnsweredText(serial, 2, 'Skipped');
+        await capture(environment, 'questions-answered', artifacts);
 
         await sendFromPhone(serial, 'crash');
         await waitForCheck(serial, 'agent-chat-failed-action');

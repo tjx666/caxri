@@ -224,11 +224,8 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
 
     // Inbox commands
     'agentCommander.inboxCommands.replyFailed': '无法发送回复',
-    'agentCommander.inboxCommands.dismissTitle': '忽略此事项？',
-    'agentCommander.inboxCommands.dismissMergeMessage':
-        '将告知 Commander 你不会从收件箱合并此 Pull Request。Pull Request 本身仍保持打开。',
-    'agentCommander.inboxCommands.dismissQuestionMessage':
-        '将告知 Commander 你未作回答就忽略了此问题。',
+    'agentCommander.inboxCommands.dismissed': '已忽略',
+    'agentCommander.inboxCommands.dismissUndoExpired': '此忽略已无法撤销',
     'agentCommander.inboxCommands.dismissFailed': '无法忽略此事项',
     'agentCommander.inboxCommands.mergeTitle': '合并 {{pullRequest}}？',
     'agentCommander.inboxCommands.mergeMessage':

@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusRunner } from '../../external-status';
 import { ExternalStatusCliError } from '../../external-status';
-import { chooseMergeMethod, mergeGitHubPullRequest } from '../pull-request-merge';
+import { chooseMergeMethod } from '../../external-status/merge-method';
+import { mergeGitHubPullRequest } from '../pull-request-merge';
 
 const HEAD = 'a'.repeat(40);
 const repo = { rootPath: '/workspace/widget' } as GitRepositorySummary;

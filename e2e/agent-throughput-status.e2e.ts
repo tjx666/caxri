@@ -229,7 +229,7 @@ test('the status bar shows the active Agent Terminal output speed and usage from
         await expect(statusPage.getByRole('heading', { name: 'Claude Status' })).toBeVisible();
         await expect(statusPage).toContainText('300 tokens in 2.0s · 150 tok/s');
         await expect(
-            statusPage.getByRole('list', { name: 'Output speed of the last 3 responses' }),
+            statusPage.getByRole('img', { name: /^Output speed of the last 3 responses/u }),
         ).toBeVisible();
         await expect(statusPage).toContainText('Claude API (api.anthropic.com)');
         await expect(statusPage).toContainText('Identified · Degraded performance · Claude Code');

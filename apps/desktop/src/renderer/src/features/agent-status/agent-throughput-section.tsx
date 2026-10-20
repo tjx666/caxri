@@ -8,6 +8,7 @@ import {
     numericHeadClass,
     tableHeadClass,
 } from '../../components/report-table-classes';
+import { HorizontalScrollArea } from '../../components/scroll-fade';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useChartKeyboardCursor } from '../../hooks/use-chart-keyboard-cursor';
@@ -201,34 +202,37 @@ function ThroughputByModel({ variants }: { variants: readonly AgentThroughputVar
             title={t('agentStatus.throughput.byModel')}
             caption={t('agentStatus.throughput.byModelCaption')}
         >
-            <table className="w-full table-fixed border-collapse">
-                <thead>
-                    <tr>
-                        {BY_MODEL_COLUMNS.map((column) => (
-                            <th
-                                key={column.key}
-                                className={cn(
-                                    column.isNumeric ? numericHeadClass : tableHeadClass,
-                                    column.width,
-                                )}
-                            >
-                                {t(`agentStatus.throughput.byModel.${column.key}`)}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {variants.map((variant) => (
-                        <tr key={`${variant.model ?? ''}:${variant.speed ?? ''}`}>
+            {/* The model column keeps at least 10rem beside the four figures; a narrower pane scrolls the table sideways. */}
+            <HorizontalScrollArea>
+                <table className="w-full min-w-[38rem] table-fixed border-collapse">
+                    <thead>
+                        <tr>
                             {BY_MODEL_COLUMNS.map((column) => (
-                                <td key={column.key} className={column.cellClassName(variant)}>
-                                    {column.value(variant, t)}
-                                </td>
+                                <th
+                                    key={column.key}
+                                    className={cn(
+                                        column.isNumeric ? numericHeadClass : tableHeadClass,
+                                        column.width,
+                                    )}
+                                >
+                                    {t(`agentStatus.throughput.byModel.${column.key}`)}
+                                </th>
                             ))}
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {variants.map((variant) => (
+                            <tr key={`${variant.model ?? ''}:${variant.speed ?? ''}`}>
+                                {BY_MODEL_COLUMNS.map((column) => (
+                                    <td key={column.key} className={column.cellClassName(variant)}>
+                                        {column.value(variant, t)}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </HorizontalScrollArea>
             {variants.some((variant) => variant.speed === undefined) && (
                 <p className="mt-3 mb-0 text-[11px] leading-snug text-muted">
                     {t('agentStatus.throughput.byModel.unknownNote')}
@@ -279,51 +283,54 @@ export function AgentThroughputSection({
     const recent = throughputRate(throughput.recent);
     return (
         <>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
-                <StatTile
-                    label={t('agentStatus.throughput.recentAverage')}
-                    value={rateValue(recent)}
-                    detail={recentAverageLabel(throughput.recent.responseCount, t)}
-                />
-                <StatTile
-                    label={t('agentStatus.throughput.lastResponse')}
-                    value={rateValue(throughputRate(state.latest))}
-                    detail={
-                        <>
-                            {describeThroughputSample(state.latest, t)}
-                            {lastResponseAgo && (
-                                <span className="whitespace-nowrap">, {lastResponseAgo}</span>
-                            )}
-                        </>
-                    }
-                />
-                <StatTile
-                    label={t('agentStatus.throughput.thisTurn')}
-                    value={rateValue(throughputRate(throughput.turn))}
-                    detail={
-                        throughput.turn.responseCount > 0
-                            ? describeThroughputAggregate(throughput.turn, t)
-                            : t('agentStatus.throughput.noResponseThisTurn')
-                    }
-                />
-                <StatTile
-                    label={t('agentStatus.throughput.firstToken')}
-                    value={
-                        throughput.turnTimeToFirstTokenMs === undefined
-                            ? undefined
-                            : formatThroughputDuration(throughput.turnTimeToFirstTokenMs)
-                    }
-                    detail={t(
-                        throughput.turnTimeToFirstTokenMs === undefined
-                            ? 'agentStatus.throughput.firstTokenNotReported'
-                            : 'agentStatus.throughput.firstTokenLastTurn',
-                    )}
-                />
-                <StatTile
-                    label={t('agentStatus.throughput.agentSession')}
-                    value={rateValue(throughputRate(throughput.session))}
-                    detail={describeThroughputAggregate(throughput.session, t)}
-                />
+            {/* Fixed breakpoints (2 / 3 / 5 columns) so five tiles never wrap 4+1; auto-fill let width alone pick the count. */}
+            <div className="@container">
+                <div className="grid grid-cols-2 gap-2 @xl:grid-cols-3 @4xl:grid-cols-5">
+                    <StatTile
+                        label={t('agentStatus.throughput.recentAverage')}
+                        value={rateValue(recent)}
+                        detail={recentAverageLabel(throughput.recent.responseCount, t)}
+                    />
+                    <StatTile
+                        label={t('agentStatus.throughput.lastResponse')}
+                        value={rateValue(throughputRate(state.latest))}
+                        detail={
+                            <>
+                                {describeThroughputSample(state.latest, t)}
+                                {lastResponseAgo && (
+                                    <span className="whitespace-nowrap">, {lastResponseAgo}</span>
+                                )}
+                            </>
+                        }
+                    />
+                    <StatTile
+                        label={t('agentStatus.throughput.thisTurn')}
+                        value={rateValue(throughputRate(throughput.turn))}
+                        detail={
+                            throughput.turn.responseCount > 0
+                                ? describeThroughputAggregate(throughput.turn, t)
+                                : t('agentStatus.throughput.noResponseThisTurn')
+                        }
+                    />
+                    <StatTile
+                        label={t('agentStatus.throughput.firstToken')}
+                        value={
+                            throughput.turnTimeToFirstTokenMs === undefined
+                                ? undefined
+                                : formatThroughputDuration(throughput.turnTimeToFirstTokenMs)
+                        }
+                        detail={t(
+                            throughput.turnTimeToFirstTokenMs === undefined
+                                ? 'agentStatus.throughput.firstTokenNotReported'
+                                : 'agentStatus.throughput.firstTokenLastTurn',
+                        )}
+                    />
+                    <StatTile
+                        label={t('agentStatus.throughput.agentSession')}
+                        value={rateValue(throughputRate(throughput.session))}
+                        detail={describeThroughputAggregate(throughput.session, t)}
+                    />
+                </div>
             </div>
             <ReportCard
                 title={t('agentStatus.throughput.title')}

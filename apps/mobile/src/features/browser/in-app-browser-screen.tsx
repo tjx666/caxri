@@ -27,7 +27,12 @@ import { useTranslation } from '../../i18n';
 import { openExternalLink } from '../../lib/open-external-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
-import { browserDisplayHost, browserNavigation, isSecurePage } from './browser-url';
+import {
+    browserDisplayHost,
+    browserNavigation,
+    browserPillTitle,
+    isSecurePage,
+} from './browser-url';
 
 /**
  * What a browser paints behind a page that sets no background of its own (the CSS canvas default). The app's dark theme
@@ -89,6 +94,10 @@ export const InAppBrowserScreen = () => {
     });
     const [progress, setProgress] = useState(0);
     /**
+     * True from a failed load until the next one starts; the pill must not show Chromium's error page title meanwhile.
+     */
+    const [hasLoadFailed, setHasLoadFailed] = useState(false);
+    /**
      * Remounts the WebView after Android kills its renderer, as the Terminal does.
      */
     const [generation, setGeneration] = useState(0);
@@ -135,8 +144,7 @@ export const InAppBrowserScreen = () => {
     );
 
     const host = browserDisplayHost(page.url);
-    // A page without a title (or one still loading) is named by its host, as X's pill does.
-    const title = page.title && page.title !== page.url ? page.title : host;
+    const title = browserPillTitle({ ...page, hasLoadFailed });
     return (
         <View
             style={[styles.root, { backgroundColor: theme.background, paddingTop: insets.top }]}
@@ -161,6 +169,8 @@ export const InAppBrowserScreen = () => {
                 allowsBackForwardNavigationGestures
                 allowsInlineMediaPlayback
                 javaScriptCanOpenWindowsAutomatically={false}
+                onError={() => setHasLoadFailed(true)}
+                onLoadStart={() => setHasLoadFailed(false)}
                 onLoadProgress={(event) => setProgress(event.nativeEvent.progress)}
                 onNavigationStateChange={onNavigationStateChange}
                 onRenderProcessGone={() => setGeneration((current) => current + 1)}

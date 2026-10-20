@@ -131,12 +131,19 @@ export function failureReason(error: unknown): FailureReason {
 }
 
 function classifyCliFailure(
+    source: ExternalStatusSource,
     /**
      * A caught value is not guaranteed to be an `Error` with a populated message.
      */
     error: { code?: string | number; killed?: boolean; message?: string; stderr?: string },
 ): CliFailureKind {
     if (error.code === 'ENOENT') return 'not-found';
+    /*
+     * `gh` documents exit code 4 as "authentication required". Under `CI=1` (always set for these spawns) it prints an
+     * automation-specific message ("set the GH_TOKEN environment variable") instead of naming `gh auth login`, so the
+     * exit code is the stable signal.
+     */
+    if (source === 'gh' && error.code === 4) return 'not-logged-in';
     const stderr = error.stderr?.length ? error.stderr : (error.message ?? '');
     const reason = failureReason(error);
     if (reason === 'network' || reason === 'tls') return reason;
@@ -150,7 +157,7 @@ function classifyCliFailure(
          * Run 'lh login' ... or set LOBEHUB_CLI_API_KEY.") down the `other` branch, where the panel could say nothing
          * more useful than "Something went wrong", instead of naming the one command that fixes it.
          */
-        /auth(?:entication)? required|no authentication|\b[\w-]+ login\b|not logged in|login required|no api key/i.test(
+        /auth(?:entication)? required|no authentication|set the GH_TOKEN environment variable|\b[\w-]+ login\b|not logged in|login required|no api key/i.test(
             stderr,
         )
     )
@@ -221,7 +228,7 @@ function externalStatusCliError(
     };
     return new ExternalStatusCliError(
         source,
-        classifyCliFailure(failure),
+        classifyCliFailure(source, failure),
         // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty stderr also carries no useful detail
         failure.stderr || failure.message || 'External status command failed',
         typeof failure.code === 'number' && Number.isSafeInteger(failure.code) && failure.code >= 0

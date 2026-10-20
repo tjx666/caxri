@@ -13,6 +13,7 @@ import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../../te
 import { InFlightLaunches } from '../../terminal/in-flight-launches';
 import type { DispatchChats } from '../chat-target';
 import { AgentDispatchService } from '../service';
+import type { AgentDispatchServiceOptions } from '../service-options';
 
 export const PRINCIPAL: Principal = { kind: 'human-cli', id: 'human-cli:test' };
 
@@ -123,6 +124,7 @@ export function createService(
     ) => Promise.resolve({ device: '1', inode: '1', path }),
     emit: (event: ServerEvent) => void = vi.fn(),
     agentChat?: DispatchChats,
+    overrides: Partial<AgentDispatchServiceOptions> = {},
 ) {
     // Every TerminalManager owns this registry; an inline fake only lists the calls its test observes.
     if (!('launches' in terminals)) Object.assign(terminals, { launches: new InFlightLaunches() });
@@ -141,6 +143,7 @@ export function createService(
         terminalWorkingDirectory: ({ defaultRoot }) => Promise.resolve(defaultRoot),
         emit,
         agentChat,
+        ...overrides,
     });
     services.push(service);
     return service;

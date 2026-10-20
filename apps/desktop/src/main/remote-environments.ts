@@ -322,6 +322,15 @@ class SshEnvironmentController implements RemoteEnvironment {
     }
 
     /**
+     * Skips the rest of the automatic reconnect backoff, so the next attempt (and its attempt count) starts now.
+     */
+    retryNow(): boolean {
+        return (
+            !this.isDisposed && this.current.phase === 'reconnecting' && this.connection.retryNow()
+        );
+    }
+
+    /**
      * Stops a connect, install, or reconnect the user no longer wants. The window stays open on a `cancelled` failure
      * so Reconnect can start over.
      */
@@ -463,6 +472,11 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
                 if (!environment)
                     throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
                 await environment.reconnect();
+            },
+            retryNow: () => {
+                if (!environment)
+                    throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
+                return environment.retryNow();
             },
             cancel: () => {
                 if (!environment)

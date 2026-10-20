@@ -32,7 +32,7 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
         await message.press('Enter');
         await expect(chat.getByText('You said: hi there')).toBeVisible();
         const picker = chat.getByRole('button', { name: /^Model: / });
-        await expect(picker).toHaveAccessibleName('Model: Grok Fake');
+        await expect(picker).toHaveAccessibleName('Model: Grok Fake, High effort');
         await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('grok-chat-reply.png') });
 
@@ -64,9 +64,14 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
         ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('grok-chat-question-answered.png') });
 
-        // A model without effort control opens straight on the model list.
+        // Grok Build lists efforts for its default model, so the picker opens on the effort; the model name opens the list.
         await picker.click();
         const list = page.getByRole('dialog');
+        await expect(list.getByRole('slider', { name: 'Reasoning effort' })).toHaveAttribute(
+            'aria-valuetext',
+            'High',
+        );
+        await list.getByRole('button', { name: 'Grok Fake, choose model' }).click();
         await expect(list.getByRole('radio')).toHaveText(['Grok Fake', 'Grok Fake Fast']);
         await list.getByRole('radio', { name: 'Grok Fake Fast' }).click();
         await expect(picker).toHaveAccessibleName('Model: Grok Fake Fast');

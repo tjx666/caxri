@@ -141,6 +141,12 @@ export const logEventCatalog = {
         transitioned: 'agent_delegation.transitioned',
     },
     agentDispatch: {
+        /**
+         * Preparing a Claude Code launch marked its working directory trusted in Claude Code's config. `fields.outcome`
+         * is the closed `ClaudeFolderTrustOutcome`; anything but `granted` or `already_trusted` means the Agent opens
+         * on Claude Code's trust prompt and the task waits at startup.
+         */
+        claudeTrustPrepared: 'agent_dispatch.claude_trust_prepared',
         transitioned: 'agent_dispatch.transitioned',
     },
     agentEndpoint: {

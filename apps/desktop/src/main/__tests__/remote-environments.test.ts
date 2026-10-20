@@ -28,7 +28,11 @@ class FakeWindow extends EventEmitter {
 }
 
 interface Harness {
-    connection: { start: ReturnType<typeof vi.fn>; resume: ReturnType<typeof vi.fn> };
+    connection: {
+        start: ReturnType<typeof vi.fn>;
+        resume: ReturnType<typeof vi.fn>;
+        retryNow: ReturnType<typeof vi.fn>;
+    };
     events: ServerEvent[];
     hooks: RemoteEnvironmentHooks;
     supervisor: {
@@ -53,6 +57,7 @@ function setup(
             const connection = {
                 start: vi.fn(() => start(harnesses.at(-1)!)),
                 resume: vi.fn(() => Promise.resolve()),
+                retryNow: vi.fn(() => true),
                 close: vi.fn(),
                 onEvent: vi.fn(() => () => {}),
                 stopServer: vi.fn(() => Promise.resolve()),
@@ -320,6 +325,22 @@ describe('SSH Host environments', () => {
         methods.cancel();
         expect(harness.supervisor.cancel).toHaveBeenCalledOnce();
         expect(() => environments.methodsFor({} as never).cancel()).toThrow();
+    });
+
+    it('skips the reconnect backoff only while the window is reconnecting', async () => {
+        const { environments, harnesses } = setup();
+        await environments.connect('dev@build-box');
+        const harness = harnesses[0];
+        const methods = environments.methodsFor(harness.window.webContents as never);
+        await vi.waitFor(() => expect(lastState(harness).phase).toBe('connected'));
+
+        expect(methods.retryNow()).toBe(false);
+        expect(harness.connection.retryNow).not.toHaveBeenCalled();
+
+        harness.hooks.update({ phase: 'reconnecting', attempt: 1 });
+        expect(methods.retryNow()).toBe(true);
+        expect(harness.connection.retryNow).toHaveBeenCalledOnce();
+        expect(() => environments.methodsFor({} as never).retryNow()).toThrow();
     });
 
     it('detaches without stopping the remote Server when the window closes', async () => {

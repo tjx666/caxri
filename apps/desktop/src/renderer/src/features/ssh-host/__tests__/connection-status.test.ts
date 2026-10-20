@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     canCancelConnection,
     canReconnect,
+    canRetryNow,
     connectionFailureCopy,
     connectionFailureDetail,
     connectionFailureTone,
@@ -12,6 +13,7 @@ import {
     installProgressPercent,
     isConnectionBusy,
     isConnectionOverlayVisible,
+    isRetryAttemptRunning,
     reconnectLabelKey,
 } from '../connection-status';
 
@@ -41,6 +43,18 @@ describe('connection status', () => {
         expect(isConnectionBusy('reconnecting')).toBe(true);
         expect(isConnectionBusy('failed')).toBe(false);
         expect(isConnectionBusy('stopped')).toBe(true);
+    });
+
+    it('offers Retry Now only while reconnecting, disabled during an attempt', () => {
+        const waiting = state({
+            phase: 'reconnecting',
+            failure: { reason: 'unreachable', message: '' },
+        });
+        expect(canRetryNow(waiting)).toBe(true);
+        expect(isRetryAttemptRunning(waiting)).toBe(false);
+        expect(isRetryAttemptRunning(state({ phase: 'reconnecting', attempt: 2 }))).toBe(true);
+        expect(canRetryNow(state({ phase: 'failed' }))).toBe(false);
+        expect(canRetryNow(state({ phase: 'connecting' }))).toBe(false);
     });
 
     it('offers only Close Window when the SSH Host does not meet the Server requirements', () => {

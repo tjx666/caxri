@@ -75,6 +75,15 @@ export class ExternalStatusHub {
         }
     }
 
+    /**
+     * Drops a pull request from every store that holds it, so a merge or close is not outlived by a stale open record
+     * in the Status panel's store or in the transcript link and tracker card previews.
+     */
+    forgetPullRequest(owner: string, repo: string, number: number): void {
+        this.github.forget(owner, repo, number);
+        this.githubReferences.forget(owner, repo, number);
+    }
+
     clear(): void {
         this.github.clear();
         this.githubReferences.clear();

@@ -54,6 +54,12 @@ export function shouldLogSuccessfulRequest(boundary: RequestLogBoundary, method:
  */
 const CALLER_HANDLED_METHOD_FAILURES: Partial<Record<ServerOperation, ReadonlySet<string>>> = {
     'files.read': new Set(['NOT_FOUND']),
+    /**
+     * PR auto-detection calls this for every clean named-branch repository on open; `gh` missing, signed out, or rate
+     * limited is an expected `UNAVAILABLE` outcome the caller already absorbs
+     * (https://github.com/tjx666/caxri/issues/2041).
+     */
+    'git.pullRequestChanges': new Set(['UNAVAILABLE']),
 };
 
 export function requestFailureLogLevel(method: string, code: string): 'error' | 'warn' {

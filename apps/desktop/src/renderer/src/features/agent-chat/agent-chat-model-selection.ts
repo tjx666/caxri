@@ -1,8 +1,10 @@
 import type { AgentChatModel, AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
-import { agentChatEffortLabel, findAgentChatModel } from '@caxri/protocol';
+import { agentChatEffortLabel } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+
+export { agentChatMenuModel } from '@caxri/protocol';
 
 /**
  * The toast title for a failed switch, naming what the user tried to change.
@@ -19,19 +21,6 @@ export function agentChatConfigureFailureMessage(change: AgentChatModelRequest):
             ? 'agentChat.model.ultracodeOnFailed'
             : 'agentChat.model.ultracodeOffFailed',
     );
-}
-
-/**
- * The listed model the menu checks and offers efforts for. Claude Code names the model in use only with a turn's init
- * message, so a new Chat reports none while the trigger already reads "Default" with the effort it will apply; the
- * provider's `default` alias is that model, so the menu checks it and shows its efforts instead of an unchecked list.
- */
-export function agentChatMenuModel(
-    snapshot: Pick<AgentChatSnapshot, 'model' | 'models'>,
-): AgentChatModel | undefined {
-    if (snapshot.model === undefined)
-        return snapshot.models?.find((candidate) => candidate.id === 'default');
-    return findAgentChatModel(snapshot.models, snapshot.model);
 }
 
 /**

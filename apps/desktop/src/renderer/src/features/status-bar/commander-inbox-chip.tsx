@@ -5,6 +5,7 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 import { useTranslation } from '../../i18n';
 import { openCommanderInbox } from '../agent-commander/commander-commands';
 import { openCommanderInboxCount } from '../agent-commander/commander-inbox';
+import { useCommanderInboxUiStore } from '../agent-commander/commander-inbox-store';
 import { useCommanderManagedSessions } from '../agent-commander/hooks/use-commander-managed-sessions';
 import { commanderInboxChipCopy } from './commander-status-label';
 import { StatusItem } from './status-item';
@@ -38,7 +39,11 @@ export function CommanderInboxChip() {
             intervalMs: COMMANDER_INBOX_FALLBACK_REFETCH_INTERVAL_MS,
         },
     );
-    const copy = commanderInboxChipCopy(data ? openCommanderInboxCount(data.items) : 0, t);
+    const dismissingIds = useCommanderInboxUiStore((state) => state.dismissingIds);
+    const copy = commanderInboxChipCopy(
+        data ? openCommanderInboxCount(data.items, dismissingIds) : 0,
+        t,
+    );
     if (!copy) return null;
     return (
         <StatusItem

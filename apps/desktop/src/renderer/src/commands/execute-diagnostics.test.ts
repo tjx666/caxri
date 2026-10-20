@@ -55,7 +55,10 @@ describe('diagnostics export recovery', () => {
             throw new Error('Expected diagnostics recovery action');
         }
         expect(typeof notification.action.onClick).toBe('function');
-        notification.action.onClick({} as MouseEvent<HTMLButtonElement>);
+        const preventDefault = vi.fn();
+        notification.action.onClick({ preventDefault } as unknown as MouseEvent<HTMLButtonElement>);
+        // Held on screen so the button can show its in-place `Copied` acknowledgement.
+        expect(preventDefault).toHaveBeenCalled();
         await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(failure.message));
     });
 });

@@ -74,4 +74,53 @@ describe('GrokUpdates replay', () => {
             status: 'failed',
         });
     });
+
+    it('replays an interjection as a steered message inside its turn and marks a queued prompt', () => {
+        const updates = new GrokUpdates({
+            apply: () => {},
+            activeTurnId: () => {},
+            onInteractionResolved: () => {},
+        });
+        updates.beginReplay();
+        updates.onSessionUpdate({ sessionUpdate: 'user_message_chunk', ...text('first') });
+        updates.onSessionUpdate({ sessionUpdate: 'agent_message_chunk', ...text('Working. ') });
+        // Grok Build 1.0.62 wraps the interjection for the model and keeps what the user typed in `displayText`.
+        updates.onSessionUpdate({
+            sessionUpdate: 'user_message_chunk',
+            content: {
+                type: 'text',
+                text: 'The user sent a message: also this',
+                _meta: { displayText: 'also this' },
+            },
+        });
+        updates.onSessionUpdate({ sessionUpdate: 'agent_message_chunk', ...text('Done.') });
+        updates.onExtensionUpdate({
+            sessionUpdate: 'turn_completed',
+            prompt_id: '6b1d3a52-1c5e-4f7e-9d0a-2f6c0a1b2c3d',
+            stop_reason: 'end_turn',
+        });
+        updates.onSessionUpdate({ sessionUpdate: 'user_message_chunk', ...text('second') });
+        updates.onExtensionUpdate({
+            sessionUpdate: 'turn_completed',
+            prompt_id: '6b1d3a52-1c5e-8c01-9d0a-2f6c0a1b2c3d',
+            stop_reason: 'end_turn',
+        });
+        const operations = updates.endReplay(true);
+        const items = operations.flatMap((operation) =>
+            operation.op === 'upsertItem' ? [operation.item] : [],
+        );
+        const turns = operations.flatMap((operation) =>
+            operation.op === 'state' ? (operation.state.turns ?? []) : [],
+        );
+        expect(turns).toHaveLength(2);
+        expect(
+            items
+                .filter((item) => item.type === 'userMessage')
+                .map((item) => [item.text, item.delivery, item.turnId]),
+        ).toEqual([
+            ['first', undefined, turns[0].id],
+            ['also this', 'steered', turns[0].id],
+            ['second', 'queued', turns[1].id],
+        ]);
+    });
 });

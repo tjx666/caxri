@@ -62,6 +62,10 @@ interface CommanderInboxUiState {
      */
     pendingActions: Readonly<Record<string, CommanderInboxPendingAction>>;
     /**
+     * Items the user dismissed whose request is still waiting for Undo or in flight; the list hides them.
+     */
+    dismissingIds: Readonly<Record<string, true>>;
+    /**
      * Set when the status bar's `N need you` chip asked for the Inbox; the list moves focus to its first open item once
      * it has rendered, then clears it.
      */
@@ -75,6 +79,7 @@ export const useCommanderInboxUiStore = createStore<CommanderInboxUiState>(
         width: storedWidth(),
         focusEpoch: 0,
         pendingActions: {},
+        dismissingIds: {},
         isFocusRequested: false,
     }),
 );
@@ -102,6 +107,18 @@ export async function runCommanderInboxAction<Result>(
             return { pendingActions };
         });
     }
+}
+
+/**
+ * Hides or shows an item's card while its dismissal waits for Undo.
+ */
+export function setCommanderInboxDismissing(itemId: string, isDismissing: boolean): void {
+    useCommanderInboxUiStore.setState((state) => {
+        const dismissingIds = { ...state.dismissingIds };
+        if (isDismissing) dismissingIds[itemId] = true;
+        else delete dismissingIds[itemId];
+        return { dismissingIds };
+    });
 }
 
 export function setCommanderInboxVisible(isVisible: boolean): void {

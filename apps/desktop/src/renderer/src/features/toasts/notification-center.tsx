@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { ToastCopyLabel } from '../../components/toast-copy-label';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -26,6 +27,7 @@ import {
 } from '../../stores/notifications';
 import type { ToastAction } from '../../stores/toast-actions';
 import { runToastAction, toastActionLabelKeys } from '../../stores/toast-actions';
+import { copyFeedbackKeyOf, isCopyToastAction } from '../../stores/toast-copy-feedback';
 import { muteNotification } from '../../stores/toasts';
 
 /**
@@ -87,7 +89,8 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
             setRefused({ action, reason });
             return;
         }
-        useNotificationStore.getState().setOpen(false);
+        // A copy follow-up answers on its own button; closing the center would hide the `Copied` it just showed.
+        if (!isCopyToastAction(action)) useNotificationStore.getState().setOpen(false);
     };
     /**
      * The button the click started on has just been removed, which would drop focus to the document body and restart
@@ -137,7 +140,14 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                                     aria-label={action.accessibleLabel}
                                     onClick={() => runAction(action)}
                                 >
-                                    {t(toastActionLabelKeys[action.id])}
+                                    {copyFeedbackKeyOf(action) ? (
+                                        <ToastCopyLabel
+                                            feedbackKey={copyFeedbackKeyOf(action)!}
+                                            idleLabel={t(toastActionLabelKeys[action.id])}
+                                        />
+                                    ) : (
+                                        t(toastActionLabelKeys[action.id])
+                                    )}
                                 </Button>
                             ))}
                         </div>

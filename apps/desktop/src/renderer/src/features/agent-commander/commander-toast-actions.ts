@@ -5,6 +5,10 @@ import {
 } from '../agent-chat/agent-chat-long-paste-commands';
 import { terminalToastActionHandlers } from '../terminal/terminal-toast-actions';
 import { openWorkbenchSettings } from './commander-commands';
+import {
+    commanderInboxUndoDismissUnavailableReason,
+    undoCommanderInboxDismissal,
+} from './commander-inbox-commands';
 
 /**
  * Installs the follow-ups a notification in this window can run. The window shows only the Commander Terminal, so it
@@ -19,6 +23,10 @@ export function configureCommanderToastActions(): void {
         'agentChat.pasteAsText': {
             unavailable: agentChatPasteAsTextUnavailableReason,
             run: pasteAgentChatSavedPasteAsText,
+        },
+        'agentCommander.undoDismiss': {
+            unavailable: ({ itemId }) => commanderInboxUndoDismissUnavailableReason(itemId),
+            run: ({ itemId }) => undoCommanderInboxDismissal(itemId),
         },
         'settings.openHardwareAcceleration': { run: openWorkbenchSettings },
     });

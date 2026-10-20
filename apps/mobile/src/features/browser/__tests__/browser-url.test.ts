@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { browserDisplayHost, browserNavigation, isSecurePage, linkTarget } from '../browser-url';
+import {
+    browserDisplayHost,
+    browserNavigation,
+    browserPillTitle,
+    isSecurePage,
+    linkTarget,
+} from '../browser-url';
 
 describe('linkTarget', () => {
     it('opens web pages in the app and hands every other scheme to the system', () => {
@@ -33,5 +39,24 @@ describe('isSecurePage', () => {
     it('is true only for https', () => {
         expect(isSecurePage('https://example.com')).toBe(true);
         expect(isSecurePage('http://localhost:8080')).toBe(false);
+    });
+});
+
+describe('browserPillTitle', () => {
+    const url = 'https://www.example.com/a';
+
+    it('shows the page title once it has loaded', () => {
+        expect(browserPillTitle({ hasLoadFailed: false, title: 'Example', url })).toBe('Example');
+    });
+
+    it('names a page without a title, or whose title is its URL, by its host', () => {
+        expect(browserPillTitle({ hasLoadFailed: false, title: '', url })).toBe('example.com');
+        expect(browserPillTitle({ hasLoadFailed: false, title: url, url })).toBe('example.com');
+    });
+
+    it('keeps the host instead of the error page title after a failed load', () => {
+        expect(browserPillTitle({ hasLoadFailed: true, title: 'Webpage not available', url })).toBe(
+            'example.com',
+        );
     });
 });
