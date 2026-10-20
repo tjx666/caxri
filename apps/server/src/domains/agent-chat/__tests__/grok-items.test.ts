@@ -48,6 +48,48 @@ describe('mergeGrokToolCall', () => {
 });
 
 describe('mapGrokToolCall', () => {
+    it('names a file tool the way every Chat surface presents it instead of by its titled path', () => {
+        expect(
+            mapGrokToolCall(
+                call({
+                    kind: 'read',
+                    status: 'completed',
+                    title: 'Read `/repo/docs/long-running-tasks/SKILL.md`',
+                    rawInput: { target_file: '/repo/docs/long-running-tasks/SKILL.md' },
+                }),
+                't1',
+                false,
+            ),
+        ).toMatchObject({
+            type: 'toolCall',
+            name: 'Read',
+            summary: '/repo/docs/long-running-tasks/SKILL.md',
+        });
+        expect(
+            mapGrokToolCall(
+                call({ title: 'List `/repo/src`', status: 'failed' }),
+                undefined,
+                false,
+            ),
+        ).toMatchObject({ name: 'LS', summary: '/repo/src', status: 'failed' });
+    });
+
+    it('names a replayed file tool by the same name as its live call', () => {
+        expect(
+            mapGrokToolCall(
+                call({ title: 'read_file', rawInput: { target_file: '/repo/README.md' } }),
+                undefined,
+                false,
+            ),
+        ).toMatchObject({ name: 'Read', summary: '/repo/README.md' });
+    });
+
+    it('keeps the subject out of the name for a titled tool it does not know', () => {
+        expect(
+            mapGrokToolCall(call({ title: 'Inspect `/repo/a.ts`' }), undefined, false),
+        ).toMatchObject({ name: 'Inspect', summary: '/repo/a.ts' });
+    });
+
     it('reads a shell command from the title when the raw input lacks it', () => {
         expect(
             mapGrokToolCall(call({ kind: 'execute', title: 'Execute `git status`' }), 't1', false),

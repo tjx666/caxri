@@ -57,6 +57,8 @@ const TOOL_CALL_ID_LENGTH = 200;
 const TOOL_SUBJECT_FIELDS = [
     'command',
     'file_path',
+    'target_file',
+    'target_directory',
     'path',
     'pattern',
     'url',
@@ -142,6 +144,43 @@ function toolSummary(input: Json): string | undefined {
 }
 
 /**
+ * Grok Build titles a file tool by its action and subject (`Read `/repo/app.ts` `, `List `/repo/src` `), and names it
+ * by its own identifier (`read_file`, `list_dir`) when it replays a conversation. Both become the tool names every Chat
+ * surface already presents (`Read app.ts`), because a raw title holding a path otherwise reads as an MCP
+ * `<server>/<tool>` name. Verified against Grok Build 1.0.62.
+ */
+const GROK_TOOL_NAMES: Readonly<Record<string, string>> = {
+    Read: 'Read',
+    read_file: 'Read',
+    List: 'LS',
+    list_dir: 'LS',
+    get_command_or_subagent_output: 'BashOutput',
+};
+
+const GROK_TITLE_SUBJECT = /^([A-Z][A-Za-z ]{0,40}) `([^`]+)`$/u;
+
+/**
+ * The name and subject a generic tool row shows. A title of the form `Verb `subject` ` splits into the two, even for a
+ * verb this table does not know yet, so its subject never lands in the name.
+ */
+function toolNameAndSubject(call: GrokToolCall): { name: string; subject?: string } {
+    const inputSubject = toolSummary(call.rawInput);
+    const titled = GROK_TITLE_SUBJECT.exec(call.title);
+    if (titled) {
+        const [, verb = '', subject = ''] = titled;
+        return {
+            name: GROK_TOOL_NAMES[verb] ?? verb,
+            subject: inputSubject ?? clip(subject, 1_000),
+        };
+    }
+    const title = call.title || call.kind;
+    return {
+        name: GROK_TOOL_NAMES[title] ?? title,
+        ...(inputSubject && { subject: inputSubject }),
+    };
+}
+
+/**
  * Grok Build titles a shell call `Execute `command` `; the raw input carries the command itself.
  */
 function shellCommand(call: GrokToolCall): string {
@@ -204,13 +243,13 @@ export function mapGrokToolCall(
     }
     const changes = diffChanges(call.content);
     if (changes.length > 0) return { ...base, type: 'fileChange', status, changes };
-    const summary = toolSummary(call.rawInput);
+    const { name, subject } = toolNameAndSubject(call);
     return {
         ...base,
         type: 'toolCall',
-        name: clip(call.title || call.kind, 200),
+        name: clip(name, 200),
         status,
-        ...(summary && { summary }),
+        ...(subject && { summary: subject }),
         ...(output && { output: tail(output, MAX_AGENT_CHAT_OUTPUT_LENGTH) }),
     };
 }
@@ -258,12 +297,12 @@ export function mapGrokPermission(call: GrokToolCall, options: unknown): AgentCh
     }
     if (call.kind === 'edit' || diffChanges(call.content).length > 0)
         return { ...base, kind: 'fileChange' };
-    const summary = toolSummary(call.rawInput);
+    const { name, subject } = toolNameAndSubject(call);
     return {
         ...base,
         kind: 'tool',
-        name: clip(call.title || call.kind, 200),
-        ...(summary && { summary }),
+        name: clip(name, 200),
+        ...(subject && { summary: subject }),
     };
 }
 

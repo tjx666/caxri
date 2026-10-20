@@ -1,5 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useRef } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import {
     ActivityIndicator,
     Platform,
@@ -16,6 +17,7 @@ import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { isScrolledToBottom } from './agent-chat-task-output';
 import { AgentChatTaskTranscript } from './agent-chat-task-transcript';
 import type { AgentChatTaskDetailContent } from './agent-chat-tasks';
 import {
@@ -113,24 +115,30 @@ export const AgentChatTaskStopButton = ({
 
 /**
  * A shell's output tail in a monospace box capped at 320dp that scrolls, following the newest line while the reader
- * stays at the bottom.
+ * stays at the bottom. Only the reader's own scrolls decide whether they left the bottom: `onScroll` also fires while
+ * new lines grow the content, measured against the old offset, so a burst taller than the slack (the last lines and the
+ * exit line arriving as a task ends) used to read as the reader scrolling away and the box stopped short of them.
  */
 const TaskOutput = ({ text, theme }: { text: string; theme: MobileTheme }) => {
     const scroll = useRef<ScrollView>(null);
     const isAtBottom = useRef(true);
+    const onReaderScrolled = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+        isAtBottom.current = isScrolledToBottom(nativeEvent);
+    };
     return (
         <ScrollView
             nestedScrollEnabled
-            onContentSizeChange={() => {
-                if (isAtBottom.current) scroll.current?.scrollToEnd({ animated: false });
+            onContentSizeChange={(_width, height) => {
+                if (!isAtBottom.current) return;
+                // `scrollToEnd` here still measured the previous content on Android and stopped short of the newest
+                // lines; scrolling to the reported height a frame later lands on the real end (the view clamps it).
+                requestAnimationFrame(() =>
+                    scroll.current?.scrollTo({ animated: false, y: height }),
+                );
             }}
-            onScroll={({ nativeEvent }) => {
-                const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
-                isAtBottom.current =
-                    contentOffset.y + layoutMeasurement.height >= contentSize.height - 24;
-            }}
+            onMomentumScrollEnd={onReaderScrolled}
+            onScrollEndDrag={onReaderScrolled}
             ref={scroll}
-            scrollEventThrottle={100}
             style={[styles.output, { backgroundColor: theme.elevated }]}
             testID="agent-chat-task-output"
         >
