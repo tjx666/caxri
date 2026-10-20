@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     flattenVisibleRows,
+    loadingPlaceholderDepths,
     loadingPlaceholderRowCount,
-    ROOT_LOADING_SKELETON_ROWS,
 } from '../extension-tree-rows';
 
 const ROOT = 'root';
@@ -113,7 +113,7 @@ describe('flattenVisibleRows', () => {
 });
 
 describe('loadingPlaceholderRowCount', () => {
-    it('fills the view on its first load and keeps a nested branch to one row', () => {
+    it('draws the first load as a parent over its children and a nested branch as one row', () => {
         const rows = flatten(
             new Map([[ROOT, [item('folder', 'expanded')]]]),
             new Set(['folder']),
@@ -123,9 +123,8 @@ describe('loadingPlaceholderRowCount', () => {
         const nested = rows.find((row) => row.kind === 'loading');
         expect(nested && loadingPlaceholderRowCount(nested)).toBe(1);
         const [root] = flatten(new Map(), new Set(), undefined, { loading: new Set([ROOT]) });
-        expect(root.kind === 'loading' && loadingPlaceholderRowCount(root)).toBe(
-            ROOT_LOADING_SKELETON_ROWS,
-        );
+        expect(root.kind === 'loading' && loadingPlaceholderDepths(root)).toEqual([0, 1, 1]);
+        expect(root.kind === 'loading' && loadingPlaceholderRowCount(root)).toBe(3);
         expect(loadingPlaceholderRowCount({ kind: 'empty', depth: 0, parentHandle: ROOT })).toBe(1);
     });
 });
