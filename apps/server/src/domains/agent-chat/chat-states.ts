@@ -51,6 +51,12 @@ export interface ChatState {
      * instead of `stopped`, whenever the exit lands. The next start clears it.
      */
     suspending?: boolean;
+    /**
+     * When a read started this Chat's provider, cleared by any input, so a provider that only exists because someone
+     * looked at the Chat can be reclaimed (`CHAT_OBSERVATION_LEASE_MS`). Survives a reclaim, so the next read-started
+     * provider of the same unused Chat is reclaimed too.
+     */
+    readLeaseAt?: number;
 }
 
 /**
@@ -327,6 +333,8 @@ export class ChatStates {
     }
 
     clearDetached(terminalId: string): void {
+        // An explicit hand-back is use, not browsing.
+        if (this.states.get(terminalId)) this.states.get(terminalId)!.readLeaseAt = undefined;
         this.options.database.updateTerminalState(terminalId, 'stopped');
         this.options.database.updateAgentProcessState(terminalId, 'stopped');
         this.publish(terminalId);

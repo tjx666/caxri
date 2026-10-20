@@ -14,10 +14,9 @@ import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { terminals } from '../schema';
+import { assertTerminalCapacity } from '../terminal-capacity';
 import type { AgentSessionUsageModel } from './agent-session-usage';
 
-export const MAX_TERMINALS_PER_SESSION = 16;
-export const MAX_TERMINALS_GLOBAL = 32;
 const LIVE_PROCESS_STATES: readonly ProcessState[] = ['starting', 'running'];
 
 interface TerminalRow {
@@ -223,7 +222,10 @@ export class TerminalsModel {
     }
 
     /**
-     * `failureReason` is only meaningful alongside `state === 'failed'`; every other state clears it.
+     * `failureReason` is only meaningful alongside `state === 'failed'`; every other state clears it. Moving a Terminal
+     * that owns no process (stopped, interrupted, suspended, detached, failed, dead) to `starting` takes a slot, so it
+     * passes the same Session and global limits as creating one and throws `CAPACITY` at them. Every relaunch, restore,
+     * and Chat provider start writes `starting` before it spawns, which makes this the one gate for all of them.
      */
     updateState(
         id: string,
@@ -232,6 +234,11 @@ export class TerminalsModel {
         failureDetail?: string,
         now = Date.now(),
     ): void {
+        if (state === 'starting') {
+            const current = this.get(id);
+            if (current && !LIVE_PROCESS_STATES.includes(current.lastProcessState))
+                assertTerminalCapacity(this, current.sessionId);
+        }
         this.database
             .update(terminals)
             .set({

@@ -1,15 +1,20 @@
 import { CaxriError } from '@caxri/protocol';
 
-import type { TerminalsModel } from './models/terminals';
-import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
+export const MAX_TERMINALS_PER_SESSION = 16;
+export const MAX_TERMINALS_GLOBAL = 32;
+
+/**
+ * The live-Terminal counts the limits are checked against; see `TerminalsModel.countAll`.
+ */
+interface TerminalCounts {
+    countAll(): number;
+    countForSession(sessionId: string): number;
+}
 
 /**
  * Enforces the shared Terminal limits before either single-Terminal or bulk creation mutates the database.
  */
-export function assertTerminalCapacity(
-    terminals: Pick<TerminalsModel, 'countAll' | 'countForSession'>,
-    sessionId?: string,
-): void {
+export function assertTerminalCapacity(terminals: TerminalCounts, sessionId?: string): void {
     if (terminals.countAll() >= MAX_TERMINALS_GLOBAL)
         throw new CaxriError(
             'CAPACITY',

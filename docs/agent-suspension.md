@@ -112,9 +112,9 @@ parked it.
 
 Both transitions are logged without any Terminal or transcript content:
 
-- `terminal.suspended`: the closed `reason` (`idle`, `untouched`, `archived`, `detached`,
-  `requested`, `terminated`), the provider, and for the automatic reasons `idleMs` (since the last
-  activity) and `backgroundMs` (since the Session was left).
+- `terminal.suspended`: the closed `reason` (`idle`, `observation`, `untouched`, `archived`,
+  `detached`, `requested`, `terminated`), the provider, and for the automatic reasons `idleMs` (since
+  the last activity) and `backgroundMs` (since the Session was left).
 - `terminal.resumed`: the Agent launch that brought back a parked Terminal, with the original
   `reason`, the provider, and `suspendedForMs`. The park time and reason are kept in memory only,
   so an Agent an earlier Server Core left `suspended` or `detached` resumes with
@@ -137,6 +137,12 @@ Session, and no turn, approval or question, operation (compaction), running back
 queued message remains. An unbound Chat is never parked, because it has no conversation to resume.
 A Chat a paired phone has open (an `agentChat` subscription) counts as viewed, like a phone-watched
 Conversation, so a reply sent from the phone never finds its provider stopped.
+
+A Chat whose provider only a read started also holds an observation lease
+(`AgentChatService.readLeaseAt`): it is parked with reason `observation` two minutes
+(`CHAT_OBSERVATION_LEASE_MS`) after its Session is left, even with idle suspension off, so browsing
+history never leaves a resident provider. Any input to the Chat ends the lease, and the park
+re-checks it when it reaches the head of the send chain. The same exemptions as the idle rule apply.
 
 Parking a Chat (`AgentChatService.suspendIdle`) runs on its send chain, so input accepted first is
 delivered first. It stops the provider process but keeps the in-memory conversation, so every

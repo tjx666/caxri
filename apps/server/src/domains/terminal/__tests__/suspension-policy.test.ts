@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TerminalActivitySample, TerminalSuspensionPolicyInput } from '../suspension-policy';
 import {
+    CHAT_OBSERVATION_LEASE_MS,
     decideTerminalSuspensions,
     idleSuspensionDelayMs,
     UNTOUCHED_SUSPENSION_DELAY_MS,
@@ -47,6 +48,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 
 interface Scenario {
     deselectedAt?: number;
+    chatReadLeaseAt?: number;
     isChatSuspendable?: boolean;
     isObservedRemotely?: boolean;
     sample?: TerminalActivitySample;
@@ -60,6 +62,7 @@ function decide(scenario: Scenario = {}) {
     const record = scenario.terminal ?? terminal();
     const sessionRecord = 'session' in scenario ? scenario.session : session();
     return decideTerminalSuspensions({
+        chatReadLeaseAt: () => scenario.chatReadLeaseAt,
         deselectedAt: () => scenario.deselectedAt,
         isChatSuspendable: () => scenario.isChatSuspendable ?? false,
         isObservedRemotely: () => scenario.isObservedRemotely ?? false,
@@ -365,5 +368,41 @@ describe('decideTerminalSuspensions: idle rule', () => {
                 settings: idleOn,
             }),
         ).toEqual([{ reason: 'untouched', terminalId: 'terminal-1' }]);
+    });
+});
+
+describe('decideTerminalSuspensions: Chat observation lease', () => {
+    const chat = terminal({ kind: 'codex', provider: 'codex', surface: 'chat' });
+    const leased = {
+        terminal: chat,
+        isChatSuspendable: true,
+        chatReadLeaseAt: NOW - CHAT_OBSERVATION_LEASE_MS,
+        deselectedAt: NOW - CHAT_OBSERVATION_LEASE_MS,
+    };
+
+    it('reclaims a provider that only a read started once its Session has been left, with idle suspension off', () => {
+        expect(decide(leased)).toEqual([{ reason: 'observation', terminalId: 'terminal-1' }]);
+    });
+
+    it('counts the lease from the later of leaving the Session and the read', () => {
+        expect(decide({ ...leased, chatReadLeaseAt: leased.chatReadLeaseAt + 1 })).toEqual([]);
+        expect(decide({ ...leased, deselectedAt: leased.deselectedAt + 1 })).toEqual([]);
+    });
+
+    it('uses the read alone when the Session was never observed being left', () => {
+        expect(decide({ ...leased, deselectedAt: undefined })).toEqual([
+            { reason: 'observation', terminalId: 'terminal-1' },
+        ]);
+    });
+
+    it('keeps a Chat that is selected, watched by a phone, busy, or no longer leased', () => {
+        expect(decide({ ...leased, selectedSessionId: 'session-a' })).toEqual([]);
+        expect(decide({ ...leased, isObservedRemotely: true })).toEqual([]);
+        expect(decide({ ...leased, isChatSuspendable: false })).toEqual([]);
+        expect(decide({ ...leased, chatReadLeaseAt: undefined })).toEqual([]);
+    });
+
+    it('never applies a lease to a PTY Terminal', () => {
+        expect(decide({ ...leased, terminal: terminal() })).toEqual([]);
     });
 });

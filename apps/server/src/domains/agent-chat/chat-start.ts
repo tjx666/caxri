@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
@@ -49,10 +50,20 @@ export async function startChat(
     const { provider } = terminal;
     const launchId = randomUUID();
     const startedAt = Date.now();
+    // Every provider spawn or resume writes `starting` here, first: a stopped, suspended, or failed Chat takes a slot
+    // under the Terminal limits (`TerminalsModel.updateState`), and a refusal must leave the Chat untouched.
+    try {
+        states.writeProcessState(terminalId, 'starting');
+    } catch (error) {
+        if (error instanceof CaxriError && error.code === 'CAPACITY')
+            logger.write('warn', logEventCatalog.agentChat.processStarted, {
+                fields: { terminalId, outcome: 'refused', reason: 'capacity', provider },
+            });
+        throw error;
+    }
     state.launchId = launchId;
     state.suspending = undefined;
     states.setStatus(terminalId, 'starting');
-    states.writeProcessState(terminalId, 'starting');
     states.publish(terminalId);
     options.coordinator.beginTerminalLaunch(terminalId, launchId);
     const isCurrent = () => state.launchId === launchId && states.get(terminalId) === state;

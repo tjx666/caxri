@@ -151,6 +151,7 @@ export function createHarness(
         },
     });
     return {
+        now: () => now,
         advance: (ms: number) => {
             now += ms;
         },

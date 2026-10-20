@@ -39,7 +39,8 @@ export const logEventCatalog = {
     },
     agentChat: {
         /**
-         * Provider process start outcome with a closed `outcome`/`reason`, the resume mode, and the handshake duration.
+         * Provider process start outcome with a closed `outcome`/`reason` (`refused`/`capacity` when the Terminal limit
+         * stopped the start), the resume mode, and the handshake duration.
          */
         processStarted: 'agent_chat.process_started',
         /**
@@ -504,17 +505,17 @@ export const logEventCatalog = {
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
         resumeSkipped: 'terminal.resume_skipped',
         /**
-         * An Agent launch that resumed a parked Terminal: the closed park `reason` (`idle`, `untouched`, `archived`,
-         * `detached`, `requested`), the provider, and `suspendedForMs`. An Agent an earlier Server Core left
-         * `suspended` or `detached` logs `reason: 'beforeRestart'` with `suspendedForMs: null`, since its park time was
-         * in memory.
+         * An Agent launch that resumed a parked Terminal: the closed park `reason` (`idle`, `observation`, `untouched`,
+         * `archived`, `detached`, `requested`), the provider, and `suspendedForMs`. An Agent an earlier Server Core
+         * left `suspended` or `detached` logs `reason: 'beforeRestart'` with `suspendedForMs: null`, since its park
+         * time was in memory.
          */
         resumed: 'terminal.resumed',
         suspendFailed: 'terminal.suspend_failed',
         /**
-         * One parked PTY: the closed `reason` (`idle`, `untouched`, `archived`, `detached`, `requested`, `terminated`)
-         * and the provider; the automatic `idle`/`untouched` reasons also carry `idleMs` (time since the Agent's last
-         * activity) and `backgroundMs` (time since its Session was left).
+         * One parked PTY: the closed `reason` (`idle`, `observation`, `untouched`, `archived`, `detached`, `requested`,
+         * `terminated`) and the provider; the automatic `idle`/`observation`/`untouched` reasons also carry `idleMs`
+         * (time since the Agent's last activity) and `backgroundMs` (time since its Session was left).
          */
         suspended: 'terminal.suspended',
         /**

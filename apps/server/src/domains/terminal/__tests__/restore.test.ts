@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentDelegationReceipt, TerminalRecord } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
@@ -74,7 +75,7 @@ async function fixture() {
             providerSessionId: 'conversation-1',
         });
     };
-    return { delegate, restart, restore: () => restore(session.id) };
+    return { database, delegate, restart, restore: () => restore(session.id), terminal: terminal! };
 }
 
 describe('Interrupted Terminal restore of a delegated Agent', () => {
@@ -198,5 +199,16 @@ describe('Interrupted Terminal restore of a Claude Code Agent', () => {
             resumeAgentSessionId: f.agentSessionId,
         });
         expect(f.coordinator.prepareTerminalResume).toHaveBeenCalledOnce();
+    });
+});
+
+describe('Interrupted Terminal restore at the Terminal limit', () => {
+    it('leaves a refused Terminal parked for a later restore instead of marking it failed', async () => {
+        const f = await fixture();
+        f.restart.mockRejectedValueOnce(new CaxriError('CAPACITY', 'Caxri supports at most 32'));
+
+        await f.restore();
+
+        expect(f.database.getTerminal(f.terminal.id)?.lastProcessState).toBe('interrupted');
     });
 });

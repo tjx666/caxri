@@ -1,5 +1,5 @@
 import type { AgentLaunchSettings, ServerEvent, TerminalRecord } from '@caxri/protocol';
-import { isDelegationActive, visiblePaneTerminalIds } from '@caxri/protocol';
+import { CaxriError, isDelegationActive, visiblePaneTerminalIds } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -204,7 +204,10 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                             : undefined,
                     });
                     if (restarted.lastProcessState !== 'running') return false;
-                } catch {
+                } catch (error) {
+                    // Over the Terminal limit the record stays parked and restores once a slot frees, rather than
+                    // being marked failed for a reason that has nothing to do with its directory.
+                    if (error instanceof CaxriError && error.code === 'CAPACITY') return false;
                     const current = database.getTerminal(terminal.id);
                     if (
                         current?.lastProcessState === 'interrupted' ||

@@ -184,6 +184,20 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   failed or detached Chat does not start on a read, and neither does a Chat whose Session is
   archived or whose Project is hidden: the admission fence refuses it, and the first read after
   the Session returns to the Workbench starts it.
+- **Capacity.** A Chat that owns no process (stopped, suspended, or failed) is not counted against the
+  Terminal limits, so starting its provider takes a slot: `startChat`, the one gate every read, send,
+  restart, and resume passes, refuses with `CAPACITY` at 16 live Terminals in the Session or 32 overall,
+  as creating a Terminal does. A read at the limit leaves the Chat stopped and shows its projection; a
+  send or restart reports the error. A PTY relaunch (`TerminalManager.relaunch`) is gated the same way.
+- **Observation lease.** The protocol needs the provider to report a bound Chat's models, commands, and
+  live state, so a read still starts it, but a provider that a read alone started holds only a lease
+  (`ChatState.readLeaseAt`). Any input ends the lease. Once its Session is left (or, when the Session
+  was never observed being left, once the read is) for `CHAT_OBSERVATION_LEASE_MS` (2 minutes), the
+  idle sweep stops the provider, with `terminal.suspended` reason `observation`, whatever the idle
+  suspension setting says. The usual guards still apply: the selected Session, a phone watching the
+  Chat, a turn, an approval or question, a running task, and a queued message all keep it. The
+  projection stays, and reopening the Chat resumes the same Agent Session. The Renderer's Chat
+  snapshot cache is separate: evicting a snapshot there never closes a provider.
 - **Resume.** A bound Chat resumes its thread with `thread/resume`, verifies the returned id, and
   rebuilds the projection from the returned history. `model` is omitted on resume so the thread
   keeps its own model and effort. A failed resume is a visible `resume_failed` failure, never a
@@ -1578,7 +1592,7 @@ completion. Monitors are not listed as Chat tasks, so they do not hold it in a C
 ## Observability
 
 `agent_chat.process_started` (closed outcome `ready`, `failed`, or `abandoned` with its reason,
-resume mode, duration),
+resume mode, duration; `outcome: refused, reason: capacity` when the Terminal limit stopped a start),
 `agent_chat.process_exited` (closed end reason with lifetime aggregates of turns, server
 requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and
