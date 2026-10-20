@@ -74,7 +74,10 @@ Unrecognized codes decay to `INTERNAL`, and only `INTERNAL` failures log a stack
 
 The workbench preload exposes one `request` method backed by a fixed method union plus `onEvent` and
 a content-free `reportError` classifier. The Process Explorer preload has the same error classifier
-beside its read-only snapshot/theme methods. Renderer entries report only `page-exception` or
+beside its snapshot, theme, and language methods and one narrow action, `stopTerminal(terminalId)`.
+`stopTerminal` has a dedicated channel; Main checks the sender and the identifier, then calls
+`terminal.suspend` for that one Terminal. It is not a request bridge and does not terminate arbitrary
+processes. Renderer entries report only `page-exception` or
 `unhandled-rejection`; exception values never cross the bridge. Main validates both the sender and
 kind, then writes stable structured events. The Agent Commander window reuses the workbench preload;
 Main identifies it as the companion sender and applies `AgentCommanderRendererPolicy` before dispatch

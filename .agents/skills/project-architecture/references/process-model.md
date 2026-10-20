@@ -28,7 +28,7 @@ Preload
 
 Renderer
   -> React, xterm.js, Monaco, shadcn/ui on Base UI
-  -> separate Process Explorer entry with a snapshot-only preload
+  -> separate Process Explorer entry with a narrow preload (snapshot, theme, language, and `stopTerminal`)
   -> separate Agent Commander entry (board + Commander Terminal) on the Workbench preload
 
 Extension Host child process
@@ -104,7 +104,7 @@ directory keeps the archive stable when invoked from a linked worktree. A succes
 archive replaces older completed archives, while failed, empty, unsafe, unrecognized, and newer
 concurrent archive entries are retained. Project roots and user files are never targets.
 
-The Process Explorer is a singleton Desktop Main-owned window with its own Renderer entry and narrow Preload. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Server process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Server or PTY lifecycle.
+The Process Explorer is a singleton Desktop Main-owned window with its own Renderer entry and narrow Preload. Besides the snapshot, theme, language, and error-classifier methods, the Preload offers one action, `stopTerminal(terminalId)`, on a dedicated channel; Main validates the sender and identifier and suspends that one Terminal through `terminal.suspend` (the process tree exits, the Session and Agent conversation stay resumable). It cannot terminate arbitrary processes. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Server process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. Apart from `stopTerminal`, it cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Server or PTY lifecycle.
 
 The Agent Commander is a second singleton Desktop Main-owned window (`agent-commander-window.ts`). Unlike the Process Explorer it loads the Workbench preload and shares Main's single Desktop connection, so Main, not the preload, is its authority boundary: `AgentCommanderRendererPolicy` admits a fixed request list plus Terminal requests naming only the Commander Terminal, and routes relay messages per window (durable envelopes to both, Terminal-scoped transient events to the viewing window, the reconnect and pull-request announcements to both, other transient events to the Workbench only). Closing or reloading it detaches the Commander Terminal view without stopping its PTY; closing the main window closes it first. See `docs/agent-commander.md`.
 

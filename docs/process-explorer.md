@@ -62,6 +62,11 @@ then samples every second instead of every 10 seconds. Production launches ignor
 
 ## Process Explorer
 
+The window is read-only except for one action: a Terminal's **Stop** button calls the dedicated
+`stopTerminal` preload method, which Main validates (trusted sender, valid identifier) and forwards
+as `terminal.suspend` for that Terminal only. It is not a general request bridge and cannot end
+arbitrary processes. Closing the window never changes Server or PTY lifecycle.
+
 Open it from **View > Open Process Explorer**, the Command Palette, the status bar memory chip, or
 a resource alert. Desktop Main samples the window every 2 seconds
 (`apps/desktop/src/main/process-explorer.ts`). It combines Electron's app metrics, the `ps` tree
