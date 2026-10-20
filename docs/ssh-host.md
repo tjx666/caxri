@@ -159,7 +159,7 @@ and upgrading to a new build under 1 s.
 
 ## Diagnostics
 
-Structured log events live under `logEventCatalog.remoteSsh` (`remote_ssh.*` in Main's log): phase
+Structured log events live under `logEventCatalog.remoteSsh` (`ssh_host.*` in Main's log): phase
 transitions with durations, the probe result, install source, ControlMaster lifetime, forward setup,
 attach failures with a closed `RemoteFailureReason`, and askpass outcomes. Records never carry the
 destination, a prompt answer, or remote file contents. The SSH Host Server's own logs stay in

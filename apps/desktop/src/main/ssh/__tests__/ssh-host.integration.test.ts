@@ -256,14 +256,14 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
             expect(status.buildId).toBe(await computeBuildFingerprint(localBundles));
             expect(first.states.map((state) => state.phase)).toContain('installing');
             expect(first.states.at(-1)?.phase).toBe('connected');
-            const installed = eventsSince(eventIndex, 'remote_ssh.installed').at(0);
+            const installed = eventsSince(eventIndex, 'ssh_host.installed').at(0);
             expect(installed).toBeDefined();
             if (expectedRuntimeSource) expect(installed?.runtimeSource).toBe(expectedRuntimeSource);
             report.cold = {
                 architecture,
                 installed,
                 stdinBytes: first.stdinBytes(),
-                launched: eventsSince(eventIndex, 'remote_ssh.launched'),
+                launched: eventsSince(eventIndex, 'ssh_host.launched'),
             };
             const remote = await inventory(firstPid);
             expect(remote.builds).toEqual([layer.descriptor.buildId]);
@@ -428,7 +428,7 @@ CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
             report.updateMs = Date.now() - startedAt;
             const status = await client.request('host.status');
             expect(status.pid).not.toBe(firstPid);
-            const installed = eventsSince(eventIndex, 'remote_ssh.installed').at(0);
+            const installed = eventsSince(eventIndex, 'ssh_host.installed').at(0);
             expect(installed?.runtimeSource).toBe('cached');
             // Only the application layer travels; the 120 MB runtime stays cached on the host.
             expect(updater.stdinBytes()).toBe(
@@ -454,9 +454,7 @@ CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
             const thirdClient = await next.supervisor.ensure(30_000);
             report.secondUpdateMs = Date.now() - startedAt;
             const thirdStatus = await thirdClient.request('host.status');
-            expect(eventsSince(eventIndex, 'remote_ssh.installed')[0]?.runtimeSource).toBe(
-                'cached',
-            );
+            expect(eventsSince(eventIndex, 'ssh_host.installed')[0]?.runtimeSource).toBe('cached');
             remote = await inventory(thirdStatus.pid);
             expect(remote.pidBuild).toBe(third.buildId);
             // GC kept the current and the most recent previous build and removed the original one.

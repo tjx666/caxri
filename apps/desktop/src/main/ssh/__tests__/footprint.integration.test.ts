@@ -341,7 +341,7 @@ describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on a
                 electronExecutable: process.execPath,
                 logger: {
                     write: (_level, event, options) => {
-                        if (event === 'remote_ssh.installed') installed.push(options?.fields ?? {});
+                        if (event === 'ssh_host.installed') installed.push(options?.fields ?? {});
                     },
                 },
                 onState: (update) => states.push(update),

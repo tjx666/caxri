@@ -8,39 +8,39 @@ export const sshHostLogEvents = {
      * An askpass prompt settled. `fields.kind` is the `SshHostAskpassKind`, `fields.outcome` is `answered` or
      * `cancelled`, with the time the user took.
      */
-    askpassPrompted: 'remote_ssh.askpass_prompted',
+    askpassPrompted: 'ssh_host.askpass_prompted',
     /**
      * `ensure` failed. `fields.reason` is a closed `SshHostFailureReason` and `fields.phase` the phase that failed.
      */
-    attachFailed: 'remote_ssh.attach_failed',
+    attachFailed: 'ssh_host.attach_failed',
     /**
      * The local loopback forward to the remote Server endpoint was established, with attempts and duration.
      */
-    forwarded: 'remote_ssh.forwarded',
+    forwarded: 'ssh_host.forwarded',
     /**
      * An application layer was installed. `fields.runtimeSource` is `cached`, `remote-download`, or `local-upload`.
      */
-    installed: 'remote_ssh.installed',
+    installed: 'ssh_host.installed',
     /**
      * A remote Server is attachable. `fields.outcome` is `adopted` (already running) or `started`.
      */
-    launched: 'remote_ssh.launched',
+    launched: 'ssh_host.launched',
     /**
      * The ControlMaster exited. `fields.wasReady` separates a connection loss from a failed connect.
      */
-    masterClosed: 'remote_ssh.master_closed',
+    masterClosed: 'ssh_host.master_closed',
     /**
      * The ControlMaster became ready, with the time from spawn to the first successful `-O check`.
      */
-    masterReady: 'remote_ssh.master_ready',
+    masterReady: 'ssh_host.master_ready',
     /**
      * An SSH Host window's connection phase changed. `fields.phase` and `fields.previousPhase` are
      * `SshHostConnectionPhase` values, `fields.reason` the failure's `SshHostFailureReason` (or null), and `durationMs`
      * the time spent in the previous phase.
      */
-    phaseChanged: 'remote_ssh.phase_changed',
+    phaseChanged: 'ssh_host.phase_changed',
     /**
      * The SSH Host was probed: architecture, glibc version, and whether the build and runtime were already present.
      */
-    probed: 'remote_ssh.probed',
+    probed: 'ssh_host.probed',
 } as const;

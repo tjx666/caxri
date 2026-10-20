@@ -73,9 +73,9 @@ export interface WorkbenchIpcOptions {
     /**
      * Finds the SSH Host window a sender belongs to. Each SSH Host window has its own Server connection, so its
      * requests use that environment's transport and never reach the local Server; its diagnostics are tagged `window:
-     * 'remote'`.
+     * 'ssh-host'`.
      */
-    remote?(sender: WebContents): SshHostRendererRoute | undefined;
+    sshHost?(sender: WebContents): SshHostRendererRoute | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
     /**
      * The window key of a Workbench sender, which Main injects into the requests that act for a window. A Renderer
@@ -99,7 +99,7 @@ export interface SshHostRendererRoute {
  * Which window a Renderer diagnostic came from, logged as the closed `window` field so a Terminal failure in the Agent
  * Commander window is told apart from one in the Workbench.
  */
-export type RendererWindow = 'benchmark' | 'commander' | 'remote' | 'workbench';
+export type RendererWindow = 'benchmark' | 'commander' | 'ssh-host' | 'workbench';
 
 /**
  * The diagnostics the Terminal pane emits, which both windows mount. Every other kind describes the Workbench itself
@@ -138,14 +138,14 @@ export interface CompanionRendererPolicy {
  * Installs the authenticated Electron transport without leaking Electron into the protocol.
  */
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
-    function senderRole(sender: WebContents): 'companion' | 'remote' | 'workbench' | undefined {
+    function senderRole(sender: WebContents): 'companion' | 'ssh-host' | 'workbench' | undefined {
         if (options.renderer() && sender === options.renderer()) return 'workbench';
         if (options.companion?.(sender)) return 'companion';
-        if (options.remote?.(sender)) return 'remote';
+        if (options.sshHost?.(sender)) return 'ssh-host';
         return undefined;
     }
 
-    function assertSender(sender: WebContents): 'companion' | 'remote' | 'workbench' {
+    function assertSender(sender: WebContents): 'companion' | 'ssh-host' | 'workbench' {
         const role = senderRole(sender);
         if (!role) throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
         return role;
@@ -158,7 +158,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             companion.onRendererError(rawKind);
             return;
         }
-        if (event.sender !== options.renderer() && !options.remote?.(event.sender)) return;
+        if (event.sender !== options.renderer() && !options.sshHost?.(event.sender)) return;
         options
             .logger()
             ?.write(
@@ -185,7 +185,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
          * Startup frames and performance scenarios measure the local Workbench's boot; an SSH Host window's would skew
          * them with network latency.
          */
-        if (role === 'remote' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
+        if (role === 'ssh-host' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
         const rendererWindow: RendererWindow =
             role === 'companion'
                 ? (options.companion?.(event.sender)?.rendererWindow ?? 'commander')
@@ -426,8 +426,8 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             options.companion?.(event.sender)?.onEventsReady();
             return;
         }
-        if (role === 'remote') {
-            options.remote?.(event.sender)?.onEventsReady();
+        if (role === 'ssh-host') {
+            options.sshHost?.(event.sender)?.onEventsReady();
             return;
         }
         options.onEventsReady?.();
@@ -439,7 +439,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             const role = assertSender(event.sender);
             const companion = role === 'companion' ? options.companion?.(event.sender) : undefined;
             companion?.admit(raw);
-            const remote = role === 'remote' ? options.remote?.(event.sender) : undefined;
+            const remote = role === 'ssh-host' ? options.sshHost?.(event.sender) : undefined;
             if (remote) isRecovering = () => remote.isRecovering();
             isTrustedRenderer = true;
             /**
@@ -514,7 +514,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     ipcMain.handle('caxri:negotiate', (event, hello: unknown) => {
         const role = assertSender(event.sender);
         const transport =
-            (role === 'remote' ? options.remote?.(event.sender)?.transport : undefined) ??
+            (role === 'ssh-host' ? options.sshHost?.(event.sender)?.transport : undefined) ??
             options.transport;
         return transport.negotiate(hello);
     });

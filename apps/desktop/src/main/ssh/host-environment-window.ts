@@ -183,7 +183,7 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
             if (isMainFrame) relay.rendererPending();
         });
         window.once('ready-to-show', () => window.show());
-        installRendererGuards(window, { logger: options.logger, window: 'remote' });
+        installRendererGuards(window, { logger: options.logger, window: 'ssh-host' });
         let isForceClose = false;
         window.on('close', (event) => {
             if (isForceClose || options.isQuitting()) return;

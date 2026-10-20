@@ -94,8 +94,8 @@ describe('isCommandVisibleInPalette', () => {
 
     it('shows local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {
         const processExplorer = commandDefinitions.find(({ id }) => id === 'processExplorer.open');
-        const stopServer = commandDefinitions.find(({ id }) => id === 'remote.stopServer');
-        const connect = commandDefinitions.find(({ id }) => id === 'remote.connect');
+        const stopServer = commandDefinitions.find(({ id }) => id === 'sshHost.stopServer');
+        const connect = commandDefinitions.find(({ id }) => id === 'sshHost.connect');
         if (!processExplorer || !stopServer || !connect)
             throw new Error('environment-gated commands are missing from the catalog');
         const session = {

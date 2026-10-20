@@ -2,7 +2,7 @@ import type { DragEvent } from 'react';
 
 import type { TerminalRecord } from '@caxri/protocol';
 
-import { isRemote } from '../stores/environment';
+import { isSshHost } from '../stores/environment';
 import { isAgentProcessRunning } from './terminal-agent-runtime';
 
 /**
@@ -79,7 +79,7 @@ export function osFilePaths(files: Iterable<File>): string[] {
  * carry SSH Host paths and still insert; images still attach because they upload their bytes.
  */
 export function isOsFileReferenceRefused(): boolean {
-    return isRemote();
+    return isSshHost();
 }
 
 export function hasTerminalDraggedPath(event: DragEvent): boolean {

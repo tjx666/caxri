@@ -131,7 +131,7 @@ import { isEditableEventTarget } from '../lib/keybindings';
 import { isAgentProcessRunning } from '../lib/terminal-agent-runtime';
 import { useChromeLayoutStore } from '../stores/chrome-layout';
 import { useDialogStore } from '../stores/dialogs';
-import { isLocalOnlyAvailable, isRemote } from '../stores/environment';
+import { isLocalOnlyAvailable, isSshHost } from '../stores/environment';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
 import { useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
@@ -487,9 +487,9 @@ const commandContext: CommandContext = {
     },
     updates: { check: checkForUpdates },
     shellCommand: { install: installShellCommand, uninstall: uninstallShellCommand },
-    remote: {
+    sshHost: {
         isLocalOnlyAvailable: () => isLocalOnlyAvailable(),
-        isRemote: () => isRemote(),
+        isSshHost: () => isSshHost(),
         connect: openConnectSshHostDialog,
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         reconnect: () => void reconnectSshHost(),

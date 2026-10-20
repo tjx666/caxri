@@ -172,7 +172,7 @@ export interface CommandContext {
     diagnostics: { export(): void };
     updates: { check(): void };
     shellCommand: { install(): void; uninstall(): void };
-    remote: {
+    sshHost: {
         /**
          * True only in a window whose Server runs on this Mac. Gates every command that reaches a Main method
          * classified `local-only` (see `main/environment-method-policy.ts`), which an SSH Host window must not offer.
@@ -182,7 +182,7 @@ export interface CommandContext {
          * True in an SSH Host window, the only window whose connection can be reconnected or whose Server can be
          * stopped.
          */
-        isRemote(): boolean;
+        isSshHost(): boolean;
         connect(): void;
         reconnect(): void;
         stopServer(): void;

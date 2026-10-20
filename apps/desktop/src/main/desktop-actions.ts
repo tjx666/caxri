@@ -37,7 +37,7 @@ export function createDesktopActions({
     getMainWindow,
     sendEvent,
 }: DesktopActionDependencies): DesktopOperationHandlers {
-    const isRemote = environment === 'ssh';
+    const isSshHost = environment === 'ssh';
     return {
         confirmGitDiscard: async (target) => {
             const result = await dialog.showMessageBox(
@@ -61,7 +61,7 @@ export function createDesktopActions({
                 },
             }),
         openInEditor: async (path, editorCommand) => {
-            if (isRemote) refuseRemotePath();
+            if (isSshHost) refuseRemotePath();
             await launchExternalEditor(editorCommand, path);
         },
         /**
@@ -70,12 +70,12 @@ export function createDesktopActions({
          * type" into a Renderer toast instead of a click that silently does nothing.
          */
         openWithDefaultApp: async (path) => {
-            if (isRemote) refuseRemotePath();
+            if (isSshHost) refuseRemotePath();
             const failure = await shell.openPath(path);
             if (failure) throw new Error(failure);
         },
         reveal: (path) => {
-            if (isRemote) refuseRemotePath();
+            if (isSshHost) refuseRemotePath();
             shell.showItemInFolder(path);
         },
         status: () => {

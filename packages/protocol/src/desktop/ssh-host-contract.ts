@@ -192,7 +192,7 @@ export const sshHostDesktopMethods = {
         params: noParameters,
         result: environmentStateSchema,
     },
-    'remote.hosts.list': {
+    'sshHost.hosts.list': {
         ...desktopRead,
         params: noParameters,
         result: z.object({
@@ -200,12 +200,12 @@ export const sshHostDesktopMethods = {
             recent: z.array(sshDestinationSchema).max(20),
         }),
     },
-    'remote.connect': {
+    'sshHost.connect': {
         ...desktopControl,
         params: z.object({ destination: sshDestinationSchema }),
         result: z.null(),
     },
-    'remote.reconnect': {
+    'sshHost.reconnect': {
         ...desktopControl,
         params: noParameters,
         result: z.null(),
@@ -214,16 +214,16 @@ export const sshHostDesktopMethods = {
      * Ends the calling window's automatic reconnect backoff so the next attempt starts now. Answers `true` when a wait
      * was ended and `false` when none was pending (an attempt is already running, or the window is not reconnecting).
      */
-    'remote.retryNow': {
+    'sshHost.retryNow': {
         ...desktopControl,
         params: noParameters,
         result: z.boolean(),
     },
     /**
      * Stops the calling window's in-flight connect, install, or reconnect. The window stays open in the `failed` phase
-     * with a `cancelled` failure, and `remote.reconnect` starts again.
+     * with a `cancelled` failure, and `sshHost.reconnect` starts again.
      */
-    'remote.cancel': {
+    'sshHost.cancel': {
         ...desktopControl,
         params: noParameters,
         result: z.null(),
@@ -232,17 +232,17 @@ export const sshHostDesktopMethods = {
      * Shows this Mac's SSH config file (the one every `ssh` call reads) in Finder, or its folder when the file does not
      * exist yet.
      */
-    'remote.sshConfig.reveal': {
+    'sshHost.sshConfig.reveal': {
         ...desktopControl,
         params: noParameters,
         result: z.null(),
     },
-    'remote.stopServer': {
+    'sshHost.stopServer': {
         ...desktopWrite,
         params: noParameters,
         result: z.object({ canceled: z.boolean() }),
     },
-    'remote.askpass.reply': {
+    'sshHost.askpass.reply': {
         ...desktopControl,
         params: z.object({
             requestId: z.string().min(1).max(64),

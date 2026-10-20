@@ -492,7 +492,7 @@ if (ownsProfileInstance) {
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             readEventLoopStalls: () => eventLoopMonitor?.summary(),
             onStartupFrame: (frame) => startupProfile.complete(frame),
-            remote: (sender) => sshHostEnvironments?.route(sender),
+            sshHost: (sender) => sshHostEnvironments?.route(sender),
             onEventsReady: () => {
                 startupProfile.mark('rendererReady');
                 // eslint-disable-next-line no-void -- replays the synchronous handshake once Server Core is attached

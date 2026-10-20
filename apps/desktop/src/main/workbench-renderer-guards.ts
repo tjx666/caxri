@@ -13,7 +13,7 @@ import { observeRendererHangs } from './renderer-hang-observer';
  */
 export function installRendererGuards(
     window: BrowserWindow,
-    options: { logger: () => StructuredLogger | undefined; window?: 'remote' },
+    options: { logger: () => StructuredLogger | undefined; window?: 'ssh-host' },
 ): void {
     /**
      * Passive page content never inherits authority from an explicitly trusted Terminal link.

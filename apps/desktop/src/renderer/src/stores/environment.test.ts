@@ -24,7 +24,7 @@ vi.mock('../lib/caxri', () => ({
 import {
     getSshEnvironment,
     isLocalOnlyAvailable,
-    isRemote,
+    isSshHost,
     subscribeEnvironment,
     useEnvironmentStore,
 } from './environment';
@@ -55,15 +55,15 @@ afterEach(() => {
 
 describe('environment predicates', () => {
     it('treats an unread environment as neither local nor remote', () => {
-        expect(isRemote(undefined)).toBe(false);
+        expect(isSshHost(undefined)).toBe(false);
         expect(isLocalOnlyAvailable(undefined)).toBe(false);
     });
 
     it('offers local-only actions only in a local window', () => {
         expect(isLocalOnlyAvailable({ kind: 'local' })).toBe(true);
-        expect(isRemote({ kind: 'local' })).toBe(false);
+        expect(isSshHost({ kind: 'local' })).toBe(false);
         expect(isLocalOnlyAvailable(connected)).toBe(false);
-        expect(isRemote(connected)).toBe(true);
+        expect(isSshHost(connected)).toBe(true);
     });
 });
 

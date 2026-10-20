@@ -5,7 +5,7 @@ import { caxri } from '../../lib/caxri';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
-import { isLocalOnlyAvailable, isRemote } from '../../stores/environment';
+import { isLocalOnlyAvailable, isSshHost } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
@@ -132,7 +132,7 @@ async function restoreHiddenProject(rootPath: string): Promise<void> {
  */
 function selectProjectFolder(): Promise<string | null | undefined> {
     if (isLocalOnlyAvailable()) return caxri.request('dialog.selectDirectory');
-    return isRemote() ? pickSshHostFolder() : Promise.resolve(undefined);
+    return isSshHost() ? pickSshHostFolder() : Promise.resolve(undefined);
 }
 
 export async function chooseProjectFolder(): Promise<void> {

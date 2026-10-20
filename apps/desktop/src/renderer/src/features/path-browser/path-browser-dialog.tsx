@@ -9,7 +9,7 @@ import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { cn } from '../../lib/utilities';
 import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
-import { useIsRemote } from '../../stores/environment';
+import { useIsSshHost } from '../../stores/environment';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { symlinkRowDescription } from '../view-containers/resource-explorer/resource-explorer-state';
 import type { PathBrowserCreateCandidate, PathBrowserMode } from './path-browser';
@@ -157,7 +157,7 @@ function PathBrowserQueryField({
      * An SSH Host window has no free mode, so it does not advertise the `/` and `~` gestures that would leave the
      * Project.
      */
-    const isRemote = useIsRemote();
+    const isSshHost = useIsSshHost();
     return (
         <InputGroup appearance="toolbar" size="palette">
             <Button
@@ -200,13 +200,13 @@ function PathBrowserQueryField({
                 aria-autocomplete="list"
                 aria-busy={!isResultsReady}
                 aria-controls={isListboxRendered ? listboxId : undefined}
-                aria-describedby={isRemote ? undefined : 'path-browser-project-anchor-help'}
+                aria-describedby={isSshHost ? undefined : 'path-browser-project-anchor-help'}
                 aria-expanded={isListboxRendered}
                 aria-label={t('pathBrowser.query.inputLabel')}
                 appearance="embedded"
                 className="min-w-[80px] flex-1 px-1 text-foreground"
                 placeholder={t(
-                    isRemote
+                    isSshHost
                         ? 'pathBrowser.query.placeholderRemote'
                         : isProject
                           ? 'pathBrowser.query.placeholderProject'

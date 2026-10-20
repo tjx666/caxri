@@ -105,7 +105,7 @@ export const commandDefinitions: CommandDefinition[] = [
     ),
     fromCatalog('project.hide', (context) => context.project.hideSelected()),
     fromCatalog('project.openInEditor', (context) => context.project.openInExternalEditor(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog('project.customizeIcon', (context, arguments_) =>
         context.project.customizeIcon(projectIdArgument(arguments_)),
@@ -394,10 +394,10 @@ export const commandDefinitions: CommandDefinition[] = [
     ),
     fromCatalog('updates.check', (context) => context.updates.check()),
     fromCatalog('shellCommand.install', (context) => context.shellCommand.install(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog('shellCommand.uninstall', (context) => context.shellCommand.uninstall(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog('pathBrowser.open', (context) => context.dialogs.openPathBrowser(), {
         allowInEditable: true,
@@ -422,21 +422,21 @@ export const commandDefinitions: CommandDefinition[] = [
         { allowInEditable: true },
     ),
     fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog('agentCommander.open', (context) => context.windows.openAgentCommander(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog('agentCommander.stop', (context) => context.windows.stopAgentCommander(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog('agentCommander.handOver', (context) => context.dialogs.openCommanderHandover(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog(
         'agentCommander.takeBack',
         (context) => context.session.takeBackSelectedFromCommander(),
-        { when: (context) => context.remote.isLocalOnlyAvailable() },
+        { when: (context) => context.sshHost.isLocalOnlyAvailable() },
     ),
     fromCatalog(
         'developer.toggleScreencastMode',
@@ -447,19 +447,19 @@ export const commandDefinitions: CommandDefinition[] = [
     ),
     fromCatalog('developer.reportBug', (context) => context.developer.reportBug(), {
         allowInEditable: true,
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
     fromCatalog('diagnostics.export', (context) => context.diagnostics.export(), {
-        when: (context) => context.remote.isLocalOnlyAvailable(),
+        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
-    fromCatalog('remote.connect', (context) => context.remote.connect(), {
+    fromCatalog('sshHost.connect', (context) => context.sshHost.connect(), {
         allowInEditable: true,
     }),
-    fromCatalog('remote.reconnect', (context) => context.remote.reconnect(), {
-        when: (context) => context.remote.isRemote(),
+    fromCatalog('sshHost.reconnect', (context) => context.sshHost.reconnect(), {
+        when: (context) => context.sshHost.isSshHost(),
     }),
-    fromCatalog('remote.stopServer', (context) => context.remote.stopServer(), {
-        when: (context) => context.remote.isRemote(),
+    fromCatalog('sshHost.stopServer', (context) => context.sshHost.stopServer(), {
+        when: (context) => context.sshHost.isSshHost(),
     }),
     fromCatalog('editor.openImportLink', (context) => context.editor.openImportLink(), {
         allowInEditable: true,

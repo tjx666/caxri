@@ -18,7 +18,7 @@ export async function connectToSshHost(destination: string): Promise<void> {
     useSshHostDialogsStore.setState({ connectingDestination: destination });
     try {
         await tryCommand(translate('sshHost.connect.failed'), () =>
-            caxri.request('remote.connect', { destination }),
+            caxri.request('sshHost.connect', { destination }),
         );
     } finally {
         // The user may have closed the picker meanwhile; only the picker still waiting on this connect closes.
@@ -29,7 +29,7 @@ export async function connectToSshHost(destination: string): Promise<void> {
 
 export async function reconnectSshHost(): Promise<void> {
     await tryCommand(translate('sshHost.reconnect.failed'), () =>
-        caxri.request('remote.reconnect'),
+        caxri.request('sshHost.reconnect'),
     );
 }
 
@@ -37,14 +37,14 @@ export async function reconnectSshHost(): Promise<void> {
  * Ends the wait before the next automatic reconnect attempt so it starts now.
  */
 export async function retrySshHostNow(): Promise<void> {
-    await tryCommand(translate('sshHost.retryNow.failed'), () => caxri.request('remote.retryNow'));
+    await tryCommand(translate('sshHost.retryNow.failed'), () => caxri.request('sshHost.retryNow'));
 }
 
 /**
  * Stops the connect, install, or reconnect in progress; the window stays open so Reconnect can start over.
  */
 export async function cancelSshHostConnection(): Promise<void> {
-    await tryCommand(translate('sshHost.cancel.failed'), () => caxri.request('remote.cancel'));
+    await tryCommand(translate('sshHost.cancel.failed'), () => caxri.request('sshHost.cancel'));
 }
 
 /**
@@ -52,7 +52,7 @@ export async function cancelSshHostConnection(): Promise<void> {
  */
 export async function revealSshConfig(): Promise<void> {
     await tryCommand(translate('sshHost.connect.openConfigFailed'), () =>
-        caxri.request('remote.sshConfig.reveal'),
+        caxri.request('sshHost.sshConfig.reveal'),
     );
 }
 
@@ -69,7 +69,7 @@ export async function stopSshHostServer(): Promise<void> {
         confirmLabel: translate('sshHost.stop.confirm'),
     });
     if (!isConfirmed) return;
-    await tryCommand(translate('sshHost.stop.failed'), () => caxri.request('remote.stopServer'));
+    await tryCommand(translate('sshHost.stop.failed'), () => caxri.request('sshHost.stopServer'));
 }
 
 /**
@@ -82,7 +82,7 @@ export async function didReplySshHostPrompt(
     response: string | null,
 ): Promise<boolean> {
     const isDelivered = await tryCommand(translate('sshHost.askpass.failed'), async () => {
-        await caxri.request('remote.askpass.reply', { requestId, response });
+        await caxri.request('sshHost.askpass.reply', { requestId, response });
         return true;
     });
     return isDelivered === true;

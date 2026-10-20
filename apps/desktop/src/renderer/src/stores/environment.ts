@@ -70,7 +70,7 @@ function sshEnvironment(state: EnvironmentState | undefined): SshEnvironmentStat
 /**
  * True in an SSH Host window.
  */
-export function isRemote(state = useEnvironmentStore.getState().state): boolean {
+export function isSshHost(state = useEnvironmentStore.getState().state): boolean {
     return state?.kind === 'ssh';
 }
 
@@ -88,8 +88,8 @@ export function getSshEnvironment(): SshEnvironmentState | undefined {
     return sshEnvironment(useEnvironmentStore.getState().state);
 }
 
-export function useIsRemote(): boolean {
-    return useEnvironmentStore((store) => isRemote(store.state));
+export function useIsSshHost(): boolean {
+    return useEnvironmentStore((store) => isSshHost(store.state));
 }
 
 export function useIsLocalOnlyAvailable(): boolean {

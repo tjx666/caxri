@@ -6,7 +6,7 @@ import { startFilePathDrag } from '../../../lib/file-drag';
 import type { AgentChatPathPill } from '../agent-chat-path-pills';
 import { agentChatDropPathPills, agentChatPathPillRanges } from '../agent-chat-path-pills';
 
-vi.mock('../../../stores/environment', () => ({ isRemote: () => false }));
+vi.mock('../../../stores/environment', () => ({ isSshHost: () => false }));
 
 function transfer(): DataTransfer {
     const data = new Map<string, string>();

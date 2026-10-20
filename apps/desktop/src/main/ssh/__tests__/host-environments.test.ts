@@ -365,11 +365,11 @@ describe('SSH Host environments', () => {
         harnesses[0].hooks.update({ phase: 'probing' });
 
         const phaseChange = logger.write.mock.calls.find(
-            (call) => call[1] === 'remote_ssh.phase_changed',
+            (call) => call[1] === 'ssh_host.phase_changed',
         );
         expect(phaseChange).toMatchObject([
             'info',
-            'remote_ssh.phase_changed',
+            'ssh_host.phase_changed',
             { fields: { phase: 'probing', previousPhase: 'connecting' } },
         ]);
     });

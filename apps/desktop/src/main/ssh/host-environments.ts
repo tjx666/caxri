@@ -116,7 +116,7 @@ interface PendingPrompt {
 const USER_ACTION_REASONS = new Set<SshHostFailureReason>(['authentication', 'hostKey']);
 
 /**
- * Phases in which a connection attempt is running and `remote.cancel` can stop it.
+ * Phases in which a connection attempt is running and `sshHost.cancel` can stop it.
  */
 const CANCELLABLE_PHASES = new Set<SshEnvironmentState['phase']>([
     'connecting',
@@ -352,7 +352,7 @@ class SshHostEnvironmentController implements SshHostEnvironment {
 
     /**
      * Ends the remote Server with its Terminals and Agents, then closes the window: the connection is disposed and a
-     * new `remote.connect` starts a fresh Server.
+     * new `sshHost.connect` starts a fresh Server.
      */
     async stopServer(): Promise<void> {
         this.update({ phase: 'stopped', needsUserAction: false });
@@ -454,7 +454,7 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
         } catch {
             // A recents file that cannot be written must not block connecting.
         }
-        // The window shows the connection progress itself; `remote.connect` returns once the window exists.
+        // The window shows the connection progress itself; `sshHost.connect` returns once the window exists.
         // eslint-disable-next-line no-void -- `start` reports failures through the window's environment state
         void environment.start();
     }

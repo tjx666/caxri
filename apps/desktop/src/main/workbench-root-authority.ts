@@ -95,7 +95,7 @@ async function captureRootIdentity(selectedPath: string): Promise<ProjectRootGra
  * the SSH Host's own folder browser, and that Server canonicalizes it.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
-    const isRemote = options.environment === 'ssh';
+    const isSshHost = options.environment === 'ssh';
     /**
      * The Session that should receive the file, or why it will not be opened. A refusal carries a reason so the
      * Renderer can say something; a user who dismissed the chooser gets `undefined` and no message, because they
@@ -177,7 +177,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 candidates: resolved.candidates,
                 truncated: resolved.truncated,
             };
-        if (isRemote && resolved.status === 'external')
+        if (isSshHost && resolved.status === 'external')
             return { canceled: true as const, reason: 'outside_projects' as const };
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
@@ -370,7 +370,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     }
 
     const pathBrowser = createPathBrowserAuthority({
-        ...(isRemote && {
+        ...(isSshHost && {
             directories: remotePathBrowserDirectories(() => options.getServer()),
         }),
         getServer: () => options.getServer(),
@@ -405,7 +405,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
              * The remote folder was listed by the remote Server itself (`project.browseFolders`), which canonicalizes
              * the root again in `project.create`; a local grant would describe a path on the wrong machine.
              */
-            if (isRemote)
+            if (isSshHost)
                 return options.getServer().request('project.create', {
                     rootPath: parameters.rootPath,
                 });
@@ -432,7 +432,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         },
 
         cancelProjectCreate(parameters: CancelProjectParameters) {
-            if (isRemote) return null;
+            if (isSshHost) return null;
             options.grants.revoke(parameters.rootPath);
             return null;
         },
@@ -447,7 +447,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             const selectedPath = await options
                 .getServer()
                 .request('session.workbenchRoot.resolve', parameters);
-            if (isRemote)
+            if (isSshHost)
                 return options.getServer().request('session.workbenchRoot.authorizeSelection', {
                     sessionId: parameters.sessionId,
                     rootPath: selectedPath,
@@ -486,7 +486,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                  * Continue authorizes the exact Server-owned candidate, never a Renderer-supplied path. Server
                  * revalidates the candidate and Git topology before consuming this single-use root grant.
                  */
-                if (isRemote)
+                if (isSshHost)
                     return await server.request('session.workbenchCandidate.authorize', {
                         candidateId,
                         rootPath: candidate.rootPath,

@@ -9,7 +9,7 @@ import { syncLocalMachineMenuItems } from './menu';
 import type { SshHostEnvironments } from './ssh/host-environments';
 
 /**
- * The local Workbench's `environment.*` and `remote.*` methods. It is always the local environment; it reaches the SSH
+ * The local Workbench's `environment.*` and `sshHost.*` methods. It is always the local environment; it reaches the SSH
  * Host registry only to open a new SSH Host window or list hosts for the connect dialog. The registry is created once
  * Main's logger and local connection options exist, so `connect` fails as still starting until then.
  */
