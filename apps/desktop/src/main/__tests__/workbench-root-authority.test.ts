@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { lstat, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -13,14 +13,21 @@ import { workbenchRootHarness } from './support/workbench-root-harness';
 
 const { authority, server, temporaryDirectory } = workbenchRootHarness(electronMock.dialog);
 
+async function rootIdentity(path: string) {
+    const canonical = await realpath(path);
+    const info = await lstat(canonical, { bigint: true });
+    return { path: canonical, device: info.dev.toString(), inode: info.ino.toString() };
+}
+
 describe('selectProjectFolder', () => {
     it('grants a single-use root from the injected test root without opening a dialog', async () => {
         const grants = new ProjectRootGrants();
-        const { instance } = authority({ grants, nextTestRoot: () => '/test/root' });
+        const testRoot = await temporaryDirectory();
+        const { instance } = authority({ grants, nextTestRoot: () => testRoot });
 
-        await expect(instance.selectProjectFolder()).resolves.toBe('/test/root');
+        await expect(instance.selectProjectFolder()).resolves.toBe(testRoot);
         expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
-        await expect(grants.use('/test/root', () => Promise.resolve('created'))).resolves.toBe(
+        await expect(grants.use(testRoot, () => Promise.resolve('created'))).resolves.toBe(
             'created',
         );
     });
@@ -28,13 +35,14 @@ describe('selectProjectFolder', () => {
     it('grants the chosen folder and passes the window to the native dialog', async () => {
         const grants = new ProjectRootGrants();
         const window = { id: 'main-window' };
+        const chosen = await temporaryDirectory();
         electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
             canceled: false,
-            filePaths: ['/chosen/root'],
+            filePaths: [chosen],
         });
         const { instance } = authority({ grants, window });
 
-        await expect(instance.selectProjectFolder()).resolves.toBe('/chosen/root');
+        await expect(instance.selectProjectFolder()).resolves.toBe(chosen);
         expect(electronMock.dialog.showOpenDialog).toHaveBeenCalledWith(
             window,
             expect.objectContaining({
@@ -42,9 +50,7 @@ describe('selectProjectFolder', () => {
                 properties: ['openDirectory', 'createDirectory'],
             }),
         );
-        await expect(grants.use('/chosen/root', () => Promise.resolve('created'))).resolves.toBe(
-            'created',
-        );
+        await expect(grants.use(chosen, () => Promise.resolve('created'))).resolves.toBe('created');
     });
 
     it('resolves to null and grants nothing when the dialog is dismissed', async () => {
@@ -78,21 +84,38 @@ describe('selectProjectFolder', () => {
 describe('createProject / cancelProjectCreate orchestration', () => {
     it('consumes the matching grant and forwards to the Server', async () => {
         const grants = new ProjectRootGrants();
-        grants.grant('/project');
+        const project = await temporaryDirectory();
+        const identity = await rootIdentity(project);
+        grants.grant(project, identity);
         const request = vi.fn(() => Promise.resolve({ id: 'project-1' }));
         const { instance } = authority({ getServer: server(request), grants });
 
-        await expect(instance.createProject({ rootPath: '/project' })).resolves.toEqual({
+        await expect(instance.createProject({ rootPath: project })).resolves.toEqual({
             id: 'project-1',
         });
-        expect(request).toHaveBeenCalledWith('project.create', { rootPath: '/project' });
+        expect(request).toHaveBeenCalledWith('project.create', {
+            rootPath: project,
+            expectedRootIdentity: identity,
+        });
         /**
          * The grant is single-use: a second creation attempt for the same root must be denied even though the first one
          * succeeded.
          */
-        await expect(instance.createProject({ rootPath: '/project' })).rejects.toThrow(
+        await expect(instance.createProject({ rootPath: project })).rejects.toThrow(
             'was not selected',
         );
+    });
+
+    it('denies a grant that carries no captured identity before reaching the Server', async () => {
+        const grants = new ProjectRootGrants();
+        grants.grant('/project');
+        const request = vi.fn(() => Promise.resolve({ id: 'project-1' }));
+        const { instance } = authority({ getServer: server(request), grants });
+
+        await expect(instance.createProject({ rootPath: '/project' })).rejects.toMatchObject({
+            code: 'PATH_DENIED',
+        });
+        expect(request).not.toHaveBeenCalled();
     });
 
     it('rejects Project creation for a root the Renderer never had authorized', async () => {

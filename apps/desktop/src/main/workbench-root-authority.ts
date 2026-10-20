@@ -1,4 +1,5 @@
-import { realpath } from 'node:fs/promises';
+import type { BigIntStats } from 'node:fs';
+import { lstat, realpath } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
 
 import type { BootstrapState, MainRequest, TerminalFileLinkRefusalReason } from '@caxri/protocol';
@@ -12,7 +13,7 @@ import type { PathBrowserOpenTarget } from './path-browser-authority';
 import { createPathBrowserAuthority } from './path-browser-authority';
 import { remotePathBrowserDirectories } from './path-browser-directories';
 import type { PathBrowserLogger } from './path-browser-log';
-import type { ProjectRootGrants } from './root-grants';
+import type { ProjectRootGrantIdentity, ProjectRootGrants } from './root-grants';
 import type { DesktopServerConnection } from './server-connection';
 import { currentRequestWindowKey, PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
@@ -65,6 +66,26 @@ async function showMessageBox(
     options: Electron.MessageBoxOptions,
 ): Promise<Electron.MessageBoxReturnValue> {
     return window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
+}
+
+/**
+ * Captures the canonical path, device, and inode of the folder the user just picked. Server Core compares them again
+ * right before the insert, so a path replaced between the pick and `project.create` cannot persist a different
+ * directory. The stat is taken on the canonical path: a picked symlink resolves to its target here, and
+ * `project.create` is later sent that canonical path so Server Core's no-symlink identity check still passes.
+ */
+async function captureRootIdentity(selectedPath: string): Promise<ProjectRootGrantIdentity> {
+    let path: string;
+    let info: BigIntStats;
+    try {
+        path = await realpath(selectedPath);
+        info = await lstat(path, { bigint: true });
+    } catch {
+        throw new CaxriError('PATH_DENIED', 'Selected Project folder is not available');
+    }
+    if (!info.isDirectory())
+        throw new CaxriError('PATH_DENIED', 'Selected Project folder is not a directory');
+    return { path, device: info.dev.toString(), inode: info.ino.toString() };
 }
 
 /**
@@ -361,7 +382,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         async selectProjectFolder() {
             const testRoot = options.nextTestRoot();
             if (testRoot) {
-                options.grants.grant(testRoot);
+                options.grants.grant(testRoot, await captureRootIdentity(testRoot));
                 return testRoot;
             }
             const result = await chooseDirectory(options.getWindow(), {
@@ -371,7 +392,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `filePaths` is empty
             // when the dialog is dismissed without a selection.
             const path = result.filePaths.at(0);
-            if (path && !result.canceled) options.grants.grant(path);
+            if (path && !result.canceled)
+                options.grants.grant(path, await captureRootIdentity(path));
             /**
              * A dismissed or empty selection must resolve to null, never to an absent value.
              */
@@ -387,9 +409,26 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 return options.getServer().request('project.create', {
                     rootPath: parameters.rootPath,
                 });
-            return options.grants.use(parameters.rootPath, () =>
-                options.getServer().request('project.create', parameters),
-            );
+            /**
+             * Main owns the identity: whatever `expectedRootIdentity` the Renderer sent is dropped, and the one
+             * captured at pick time is injected. The canonical path replaces the picked one so a symlinked pick still
+             * passes Server Core's no-symlink identity check. Server Core stays the final authority; a PATH_DENIED
+             * means the selected object changed, so the grant is spent instead of left for a replay.
+             */
+            return options.grants.use(parameters.rootPath, async (identity) => {
+                if (!identity)
+                    throw new CaxriError('PATH_DENIED', 'Project root selection has no identity');
+                try {
+                    return await options.getServer().request('project.create', {
+                        rootPath: identity.path,
+                        expectedRootIdentity: identity,
+                    });
+                } catch (error) {
+                    if (error instanceof CaxriError && error.code === 'PATH_DENIED')
+                        options.grants.revoke(parameters.rootPath);
+                    throw error;
+                }
+            });
         },
 
         cancelProjectCreate(parameters: CancelProjectParameters) {

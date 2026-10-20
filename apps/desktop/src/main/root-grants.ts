@@ -1,7 +1,22 @@
 import { CaxriError } from '@caxri/protocol';
 
+/**
+ * The filesystem object a native folder selection named, captured by Main at pick time. `device` and `inode` are
+ * decimal strings of the `bigint` stat fields, matching `project.create`'s `expectedRootIdentity`.
+ */
+export interface ProjectRootGrantIdentity {
+    path: string;
+    device: string;
+    inode: string;
+}
+
+interface RootGrant {
+    expiresAt: number;
+    identity: ProjectRootGrantIdentity | undefined;
+}
+
 export class ProjectRootGrants {
-    private readonly roots = new Map<string, number>();
+    private readonly roots = new Map<string, RootGrant>();
     /**
      * Monotonic per-root counter, bumped by every `grant()`/`revoke()` and by `use()` right before it awaits
      * `create()`. `use()` reads this counter to tell, once `create()` settles, whether anything else changed this
@@ -20,8 +35,12 @@ export class ProjectRootGrants {
         return next;
     }
 
-    grant(rootPath: string): void {
-        this.roots.set(rootPath, Date.now() + this.timeToLiveMs);
+    /**
+     * `identity` is the object the user actually selected. `use()` hands it to the creator so Main, never the Renderer,
+     * decides which filesystem object Server Core must still find at the path.
+     */
+    grant(rootPath: string, identity?: ProjectRootGrantIdentity): void {
+        this.roots.set(rootPath, { expiresAt: Date.now() + this.timeToLiveMs, identity });
         this.bumpGeneration(rootPath);
     }
 
@@ -38,18 +57,21 @@ export class ProjectRootGrants {
      * unchanged, so a `revoke()` or a new `grant()` that lands while `create()` is in flight always wins over this
      * reservation's stale deadline.
      */
-    async use<T>(rootPath: string, create: () => Promise<T>): Promise<T> {
-        const expiresAt = this.roots.get(rootPath);
-        if (expiresAt === undefined)
+    async use<T>(
+        rootPath: string,
+        create: (identity: ProjectRootGrantIdentity | undefined) => Promise<T>,
+    ): Promise<T> {
+        const reserved = this.roots.get(rootPath);
+        if (reserved === undefined)
             throw new CaxriError('PATH_DENIED', 'Project root was not selected by the user');
         this.roots.delete(rootPath);
-        if (expiresAt <= Date.now())
+        if (reserved.expiresAt <= Date.now())
             throw new CaxriError('PATH_DENIED', 'Project root selection expired');
         const generation = this.bumpGeneration(rootPath);
         try {
-            return await create();
+            return await create(reserved.identity);
         } catch (error) {
-            if (this.generations.get(rootPath) === generation) this.roots.set(rootPath, expiresAt);
+            if (this.generations.get(rootPath) === generation) this.roots.set(rootPath, reserved);
             throw error;
         }
     }
