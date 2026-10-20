@@ -5,6 +5,7 @@ import { isAbsolute, normalize, resolve, sep } from 'node:path';
 import process from 'node:process';
 
 import type { CIChecksScope } from './ci-execution-plan';
+import { DIRECTORY_DENSITY_TEST, isDirectoryDensityPath } from './directory-density-baseline';
 import { runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -88,6 +89,16 @@ export function focusedRegressionPaths(
     const deletedFiles = changedFiles.filter((path) => !currentFileSet.has(path));
     if (shouldRunSkillRegressions(scope)) {
         paths.add('.agents/skills');
+    }
+    /**
+     * The directory density ratchet counts files on disk, so `vitest related` never links it to an added or removed
+     * module. Select it by path for source scopes, including pure deletions that must tighten the baseline.
+     */
+    if (
+        (scope === 'affected' || scope === 'focused-source') &&
+        changedFiles.some(isDirectoryDensityPath)
+    ) {
+        paths.add(DIRECTORY_DENSITY_TEST);
     }
     if (deletedFiles.some(isSkillContractPath)) {
         paths.add(SKILL_INVOCATION_CONTRACT_TEST);
