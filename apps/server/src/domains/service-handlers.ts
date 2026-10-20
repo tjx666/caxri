@@ -169,7 +169,8 @@ type ServiceHandlerMethods =
 
 /**
  * Handlers that only delegate to an already-constructed Server service, with no dependency on the composition root's
- * own closures. Kept out of `create-domain-services.ts` to stay under the file's physical-line budget.
+ * own closures. Handlers that need those closures (selection, parking, deletion, Terminal lifecycle) are registered by
+ * their own slices instead.
  */
 export function createServiceHandlers(services: {
     acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;

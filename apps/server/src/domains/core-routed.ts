@@ -17,8 +17,7 @@ export function coreRouted(method: ServerOperation): never {
 /**
  * Core-answered methods that `DomainHandlers` still names because the protocol owner metadata cannot tell them apart
  * from domain-served Server methods. Desktop-owned methods are excluded from `DomainOperation` and need no entry here.
- * Listed here rather than as one handler line each in `create-domain-services.ts` to keep that file under its
- * physical-line budget.
+ * One list with one shared rejection keeps the Core-answered set reviewable in a single place.
  */
 const CORE_ROUTED_METHODS = [
     'extensions.retry',

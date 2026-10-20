@@ -7,8 +7,7 @@ import type { MobileTerminalMutationQueue } from '../mobile';
 import type { TerminalManager } from './manager';
 
 /**
- * Kept out of `create-domain-services.ts` to stay under the file's physical-line budget, matching
- * `../service-handlers.ts`. and `../workbench/roots.ts`'s precedent for extracted handler groups.
+ * Registers `terminal.moveToNewSession`, which moves a Terminal into a fresh Session and selects it.
  */
 export function createTerminalMoveHandler(dependencies: {
     coordinator: AgentCoordinator;
