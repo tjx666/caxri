@@ -10,10 +10,11 @@ import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
  * The Session hover-action chip, shared with the Activity row's mark-read button so a Session's pointer actions look
- * the same in either body of the Primary Side Bar.
+ * the same in either body of the Primary Side Bar. At rest it is a bare glyph on the hovered row, as in Codex's
+ * sidebar; an opaque tile beside the title's fade read as a block covering the text. Only the pointed button fills.
  */
 export const sessionRowActionButton =
-    'grid size-5 cursor-pointer place-items-center rounded border-0 bg-elevated p-0 text-muted hover:text-foreground';
+    'grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground';
 
 /**
  * The Session row's hover actions. Both buttons are `tabIndex={-1}`: the tree has one roving Tab stop, and the keyboard

@@ -200,7 +200,10 @@ test('long Session titles scroll at a readable speed and reset across pointer an
         await expect(title).toHaveCSS('text-overflow', 'clip');
         const sessionCopy = card.locator('.session-copy');
         await expect(sessionCopy).toHaveClass(/overflow-fade/);
-        await expect(sessionCopy).not.toHaveAttribute('data-overflow-fade', 'off');
+        // Leaving cancels the edge animation, so the resting right-edge fade is back and the left edge is unmasked.
+        await expect
+            .poll(() => sessionCopy.evaluate((element) => element.getAnimations().length))
+            .toBe(0);
 
         // Arrow navigation supplies keyboard modality, so the Session row's :focus-visible path is exercised.
         await running.page.locator('.project-select').focus();
