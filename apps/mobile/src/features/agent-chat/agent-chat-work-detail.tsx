@@ -152,6 +152,73 @@ const SubagentOutput = ({
     );
 };
 
+const CommandDetail = ({
+    item,
+    theme,
+}: {
+    item: Extract<AgentChatWorkItem, { type: 'command' }>;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            <CodeBlock code={unwrapShellCommand(item.command)} language="bash" theme={theme} />
+            <Output language={agentChatOutputLanguage(item)} text={item.output} theme={theme} />
+            {item.exitCode === undefined ? null : (
+                <Text
+                    style={[
+                        styles.note,
+                        { color: item.exitCode === 0 ? theme.muted : theme.danger },
+                    ]}
+                >
+                    {t('chat.work.exitCode', { code: item.exitCode })}
+                </Text>
+            )}
+            {item.background ? (
+                <>
+                    <Text style={[styles.note, { color: theme.muted }]}>
+                        {t('chat.work.movedToBackground')}
+                    </Text>
+                    <LinkedTask itemId={item.id} theme={theme} />
+                </>
+            ) : null}
+        </>
+    );
+};
+
+const ToolCallDetail = ({
+    item,
+    theme,
+}: {
+    item: Extract<AgentChatWorkItem, { type: 'toolCall' }>;
+    theme: MobileTheme;
+}) => {
+    const output = item.output ?? '';
+    const argumentsText = agentChatToolCallArguments(item);
+    return (
+        <>
+            {argumentsText ? (
+                <Text selectable style={[styles.summary, { color: theme.muted }]}>
+                    {argumentsText}
+                </Text>
+            ) : null}
+            {isAgentChatSubagentItem(item) ? (
+                <SubagentOutput item={item} theme={theme} />
+            ) : (
+                <Output
+                    language={agentChatOutputLanguage(item)}
+                    text={
+                        describeAgentChatWork(item).kind === 'read'
+                            ? stripLineNumberGutter(output)
+                            : output
+                    }
+                    theme={theme}
+                />
+            )}
+        </>
+    );
+};
+
 const AgentChatWorkDetailBody = ({
     item,
     onClose,
@@ -161,7 +228,6 @@ const AgentChatWorkDetailBody = ({
     onClose: () => void;
     theme: MobileTheme;
 }) => {
-    const { t } = useTranslation();
     switch (item.type) {
         case 'reasoning': {
             return (
@@ -173,64 +239,10 @@ const AgentChatWorkDetailBody = ({
             );
         }
         case 'command': {
-            return (
-                <>
-                    <CodeBlock
-                        code={unwrapShellCommand(item.command)}
-                        language="bash"
-                        theme={theme}
-                    />
-                    <Output
-                        language={agentChatOutputLanguage(item)}
-                        text={item.output}
-                        theme={theme}
-                    />
-                    {item.exitCode === undefined ? null : (
-                        <Text
-                            style={[
-                                styles.note,
-                                { color: item.exitCode === 0 ? theme.muted : theme.danger },
-                            ]}
-                        >
-                            {t('chat.work.exitCode', { code: item.exitCode })}
-                        </Text>
-                    )}
-                    {item.background ? (
-                        <>
-                            <Text style={[styles.note, { color: theme.muted }]}>
-                                {t('chat.work.movedToBackground')}
-                            </Text>
-                            <LinkedTask itemId={item.id} theme={theme} />
-                        </>
-                    ) : null}
-                </>
-            );
+            return <CommandDetail item={item} theme={theme} />;
         }
         case 'toolCall': {
-            const output = item.output ?? '';
-            const argumentsText = agentChatToolCallArguments(item);
-            return (
-                <>
-                    {argumentsText ? (
-                        <Text selectable style={[styles.summary, { color: theme.muted }]}>
-                            {argumentsText}
-                        </Text>
-                    ) : null}
-                    {isAgentChatSubagentItem(item) ? (
-                        <SubagentOutput item={item} theme={theme} />
-                    ) : (
-                        <Output
-                            language={agentChatOutputLanguage(item)}
-                            text={
-                                describeAgentChatWork(item).kind === 'read'
-                                    ? stripLineNumberGutter(output)
-                                    : output
-                            }
-                            theme={theme}
-                        />
-                    )}
-                </>
-            );
+            return <ToolCallDetail item={item} theme={theme} />;
         }
         case 'fileChange': {
             return <AgentChatFileChanges changes={item.changes} theme={theme} />;
