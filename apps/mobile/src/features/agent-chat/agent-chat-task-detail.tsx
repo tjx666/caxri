@@ -220,7 +220,7 @@ export const AgentChatTaskDetailBody = ({
     const row = agentChatTaskRow(task, now, t);
     const { detail, isError, isLoading } = useAgentChatTaskDetail(terminalId, task);
     const content = detail ? agentChatTaskDetailContent(task, detail, t) : undefined;
-    const stopError = stopper.errorFor(task.id);
+    const stopError = stopper.errorFor(task);
     const command = task.command ?? (row.isCommandTitle ? task.title : undefined);
     const facts = [
         task.kind === 'agent' ? agentChatTaskIdentity(task) : undefined,

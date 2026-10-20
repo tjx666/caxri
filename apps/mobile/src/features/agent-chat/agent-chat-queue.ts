@@ -102,6 +102,14 @@ export const agentChatQueueCardLayout = ({
  * The screen reader hints for a queued row's Send now and Edit buttons: why a button is unavailable, or what Steer
  * does. A message still on its way holds both until Server Core lists it.
  */
+/**
+ * The queue row's visible button text, translated from the protocol's English label kind.
+ */
+export const agentChatQueueSendNowText = (
+    entry: Pick<AgentChatQueueRow, 'sendNowLabel'>,
+    t: Translate = translate,
+): string => t(entry.sendNowLabel === 'Steer' ? 'chat.queue.steerShort' : 'chat.queue.sendNow');
+
 export const agentChatQueueRowHints = (
     entry: AgentChatQueueRow,
     imagesUnsupported: string,

@@ -153,6 +153,11 @@ export function agentChatTaskRow(
  */
 export const agentChatTaskStopError = (t: Translate = translate): string =>
     t('chat.tasks.stopError');
+/**
+ * The stop request went through but the Chat never reported the task ended.
+ */
+export const agentChatTaskStopUnconfirmed = (t: Translate = translate): string =>
+    t('chat.tasks.stopUnconfirmed');
 export const agentChatTaskReadError = (t: Translate = translate): string =>
     t('chat.tasks.readError');
 

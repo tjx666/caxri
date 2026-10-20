@@ -17,8 +17,8 @@ const BRANCH = 'feature/phone-merge';
 const SLUG = 'owner/example';
 
 /**
- * The pull request the fake `gh` reports. `failing` has two failed checks among four, so the phone asks before merging
- * anyway; `ready` has passing checks and a clean merge state, so one tap merges it.
+ * The pull request the fake `gh` reports. `failing` has two failed checks among four, so the phone's confirmation names
+ * them; `ready` has passing checks and a clean merge state, so its confirmation names only the pull request.
  */
 type PullRequestFixture = 'failing' | 'ready';
 
@@ -124,9 +124,9 @@ esac
 
 /**
  * `MOB-CHAT-24` / `MOB-CHAT-25`: the Session header shows the Session's pull request as a chip; its sheet tells the
- * user whether it is ready and merges it from the phone. A pull request with failed checks asks for a second
- * confirmation that names them (`failing`); a ready one merges with one tap (`ready`). Both pin GitHub's merge to the
- * head the phone showed.
+ * user whether it is ready and merges it from the phone. Every merge asks for a confirmation, because one stray tap on
+ * a phone must not merge: with failed checks it names them (`failing`), and a ready one names only the pull request
+ * (`ready`). Both pin GitHub's merge to the head the phone showed.
  */
 export async function executeMobilePullRequestScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -167,11 +167,9 @@ export async function executeMobilePullRequestScenario(
         await capture(environment, 'sheet', artifacts);
 
         await tapMobileCheck(serial, 'pull-request-merge');
-        if (fixture === 'failing') {
-            await waitForCheck(serial, 'pull-request-confirm-merge');
-            await capture(environment, 'confirmation', artifacts);
-            await tapMobileCheck(serial, 'pull-request-confirm-merge');
-        }
+        await waitForCheck(serial, 'pull-request-confirm-merge');
+        await capture(environment, 'confirmation', artifacts);
+        await tapMobileCheck(serial, 'pull-request-confirm-merge');
         await waitForCheck(serial, 'pull-request-merge-outcome');
         // A merged pull request no longer offers Merge, even before Project Status reads it back as merged.
         await waitForMobile(
@@ -185,7 +183,7 @@ export async function executeMobilePullRequestScenario(
         if (merges.length !== 1 || merges[0] !== expected)
             throw new Error(`GitHub merge calls did not match: ${JSON.stringify(merges)}`);
         await finish(environment, artifacts, {
-            confirmation: fixture === 'failing' ? 'required' : 'skipped',
+            confirmation: fixture === 'failing' ? 'names-failed-checks' : 'names-pull-request',
             merge: 'squash-pinned-to-head',
         });
     } finally {
