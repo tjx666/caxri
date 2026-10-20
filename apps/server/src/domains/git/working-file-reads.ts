@@ -2,9 +2,7 @@ import type { Buffer } from 'node:buffer';
 import { lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { AsyncSemaphore } from '@caxri/system';
-
-import { readBoundedRegularFile } from '../bounded-file-reader';
+import { AsyncSemaphore, readBoundedRegularFile } from '@caxri/system';
 
 /**
  * One descriptor budget for every working-tree file Git consumers read directly: mobile Changes patches and the

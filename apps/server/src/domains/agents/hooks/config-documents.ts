@@ -1,6 +1,6 @@
 import type { AgentProvider } from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 
-import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import type { AgentHookConfigTarget, AgentHookDocuments } from './contract';
 
 export function isFileSystemError(error: unknown, code: string): boolean {

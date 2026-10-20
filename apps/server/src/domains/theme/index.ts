@@ -11,11 +11,10 @@ import {
     themeTokensSchema as themeSchema,
     upgradeThemeColors,
 } from '@caxri/protocol';
-import { parseJsonc } from '@caxri/system';
+import type { BoundedRegularFileReadOptions } from '@caxri/system';
+import { parseJsonc, readBoundedRegularFileText } from '@caxri/system';
 import { contrastRatio, relativeLuminance } from '@caxri/utils';
 
-import type { BoundedRegularFileReadOptions } from '../bounded-file-reader';
-import { readBoundedRegularFileText } from '../bounded-file-reader';
 import {
     applyVsCodeControlColors,
     applyVsCodeTokenColors,

@@ -2,10 +2,9 @@ import { readdir, stat } from 'node:fs/promises';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, readBoundedRegularFileText } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 
-import { readBoundedRegularFileText } from '../bounded-file-reader';
 import { isOutsideRoot } from '../path-security';
 import type { WatchHandle } from '../watch';
 import { WatchHub } from '../watch';

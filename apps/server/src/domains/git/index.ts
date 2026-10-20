@@ -19,9 +19,8 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { AsyncSemaphore, SingleFlight } from '@caxri/system';
+import { AsyncSemaphore, readBoundedRegularFile, SingleFlight } from '@caxri/system';
 
-import { readBoundedRegularFile } from '../bounded-file-reader';
 import { ExternalStatusHub } from '../external-status';
 import { assertInsideRoot, isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project';

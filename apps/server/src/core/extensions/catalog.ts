@@ -20,8 +20,8 @@ import {
     viewCatalogSnapshotSchema,
     workbenchCoreContributions,
 } from '@caxri/protocol';
+import { readBoundedRegularFile } from '@caxri/system';
 
-import { readBoundedRegularFile } from '../../domains/bounded-file-reader';
 import type { DiscoveredExtension, RejectedExtension } from './discovery';
 
 const builtinContainers: ViewContainerDescriptor[] = [

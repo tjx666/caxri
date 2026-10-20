@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { CaxriError } from '@caxri/protocol';
-import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { readBoundedRegularFile, readBoundedRegularFileText } from '../bounded-file-reader';
+import { execFileAsync } from '../exec';
 
 const temporaryDirectories: string[] = [];
 

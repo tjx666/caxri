@@ -5,9 +5,8 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import type { ExtensionError, ExtensionManifest } from '@caxri/protocol';
 import { extensionIdSchema, extensionManifestSchema } from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 import { satisfies } from 'semver';
-
-import { readBoundedRegularFileText } from '../../domains/bounded-file-reader';
 
 export interface DiscoveredExtension {
     extensionId: string;

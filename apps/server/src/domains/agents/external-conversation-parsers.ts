@@ -5,9 +5,9 @@ import { open } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 
+import { readBoundedRegularFileText } from '@caxri/system';
 import Database from 'better-sqlite3';
 
-import { readBoundedRegularFileText } from '../bounded-file-reader';
 import type { AgentEnvironment } from './contract';
 import { claudeTranscriptRoot } from './providers/claude/paths';
 import { resolveCodexStateDirectories } from './providers/codex/paths';

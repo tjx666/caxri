@@ -1,8 +1,7 @@
 import type { Stats } from 'node:fs';
 
 import { isCaxriError, MAX_CONFIGURATION_SOURCE_BYTES } from '@caxri/protocol';
-
-import { readBoundedRegularFileText } from '../bounded-file-reader';
+import { readBoundedRegularFileText } from '@caxri/system';
 
 /**
  * Raised by {@link readBoundedConfigSource} when a configuration file cannot be read as a bounded, regular file. Carries

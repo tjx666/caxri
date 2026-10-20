@@ -2,8 +2,9 @@ import { access, mkdir, realpath, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { readBoundedRegularFileText } from '@caxri/system';
+
 import { atomicWriteUserConfig } from '../../../atomic-file';
-import { readBoundedRegularFileText } from '../../../bounded-file-reader';
 import type { AgentEnvironment } from '../../contract';
 import { resolveClaudeConfigDirectory } from './paths';
 
