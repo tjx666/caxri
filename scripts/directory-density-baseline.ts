@@ -3,23 +3,29 @@
  *
  * `source-layout` says a cohesive cluster of three or more modules belongs in its own directory, but the Renderer
  * feature lint rule and the Server domain-root structure test only cover their own roots. These owners kept growing
- * flat because nothing counted them. The caps below record the current number of direct production modules
- * (`*.ts` / `*.tsx`, excluding tests) so adding a file fails, and removing one demands tightening the cap in the
- * same change (`scripts/__tests__/directory-density-ratchet.test.ts`).
+ * flat because nothing counted them. The caps below record the current number of direct production modules (`*.ts` /
+ * `*.tsx`, excluding tests) so adding a file fails, and removing one demands tightening the cap in the same change
+ * (`scripts/__tests__/directory-density-ratchet.test.ts`).
  *
- * To lower a cap after moving files into a subdirectory, edit the number here. Never raise one: place the new module
- * in a cohesive subdirectory instead.
+ * To lower a cap after moving files into a subdirectory, edit the number here. Never raise one: place the new module in
+ * a cohesive subdirectory instead.
  */
 
 export interface DirectoryDensityOwner {
-    /** Maximum (and current) direct production module count. */
+    /**
+     * Maximum (and current) direct production module count.
+     */
     cap: number;
-    /** Repository-relative directory. */
+    /**
+     * Repository-relative directory.
+     */
     directory: string;
 }
 
 export interface DirectoryDensityFamily extends DirectoryDensityOwner {
-    /** Filename prefix (including the trailing hyphen) that identifies the flat family. */
+    /**
+     * Filename prefix (including the trailing hyphen) that identifies the flat family.
+     */
     prefix: string;
 }
 
@@ -43,12 +49,12 @@ export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
 ];
 
 /**
- * True when a changed path can alter a guarded directory's count. Used by CI routing: the ratchet reads the
- * filesystem, so `vitest related` never links it to the files it counts.
+ * True when a changed path can alter a guarded directory's count. Used by CI routing: the ratchet reads the filesystem,
+ * so `vitest related` never links it to the files it counts.
  */
 export function isDirectoryDensityPath(path: string): boolean {
-    return [...DIRECTORY_DENSITY_OWNERS, ...DIRECTORY_DENSITY_FAMILIES].some(
-        ({ directory }) => path.startsWith(`${directory}/`),
+    return [...DIRECTORY_DENSITY_OWNERS, ...DIRECTORY_DENSITY_FAMILIES].some(({ directory }) =>
+        path.startsWith(`${directory}/`),
     );
 }
 

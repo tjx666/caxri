@@ -45,7 +45,10 @@ describe('directory density ratchet', () => {
         'keeps the $prefix* family in $directory at its recorded count',
         ({ cap, directory, prefix }) => {
             const count = listModules(directory, prefix).length;
-            expect(count, `${directory}/${prefix}* is no longer a 3+ module family`).toBeGreaterThanOrEqual(3);
+            expect(
+                count,
+                `${directory}/${prefix}* is no longer a 3+ module family`,
+            ).toBeGreaterThanOrEqual(3);
             expectAtCap(`${directory}/${prefix}*`, count, cap);
         },
     );

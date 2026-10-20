@@ -25,9 +25,9 @@ describe('focused CI checks', () => {
                 'apps/desktop/src/renderer/src/features/agent-chat/new-thing.tsx',
             ]),
         ).toEqual([guard]);
-        expect(focusedRegressionPaths('affected', ['apps/server/src/domains/git/index.ts'])).toEqual(
-            [],
-        );
+        expect(
+            focusedRegressionPaths('affected', ['apps/server/src/domains/git/index.ts']),
+        ).toEqual([]);
     });
 
     it('formats and tests documentation or skill changes without a repository-wide typecheck', () => {

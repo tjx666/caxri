@@ -91,8 +91,11 @@ describe('CI execution plan', () => {
             evaluateCIExecutionPlan({ changedFiles, eventName: 'pull_request' }).checksScope,
         ).toBe('affected');
         expect(
-            evaluateCIExecutionPlan({ changedFiles, eventName: 'pull_request', pullRequestDraft: true })
-                .checksScope,
+            evaluateCIExecutionPlan({
+                changedFiles,
+                eventName: 'pull_request',
+                pullRequestDraft: true,
+            }).checksScope,
         ).toBe('focused-source');
     });
 
