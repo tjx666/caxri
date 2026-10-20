@@ -9,6 +9,7 @@ import { useTranslation } from '../../i18n';
 import {
     agentChatComposerExtensions,
     agentChatImagePills,
+    agentChatPathPills,
     externalDraft,
 } from './agent-chat-composer-extensions';
 import type {
@@ -24,6 +25,7 @@ import {
     agentChatDraftTransaction,
     isAgentChatEditorTextDrop,
 } from './agent-chat-composer-view';
+import type { AgentChatPathPill } from './agent-chat-path-pills';
 import type { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { useAgentChatComposerEnter } from './hooks/use-agent-chat-composer-enter';
 import type { useAgentChatComposerSend } from './hooks/use-agent-chat-composer-send';
@@ -56,7 +58,8 @@ interface ComposerHandlers {
  * Goal mode, and finally Enter and Escape; a key an owner prevents never reaches the editor's own keymap. The history
  * list's highlighted prompt replaces the placeholder while it is open. An attached image's `[Image #N]` placeholder
  * shows as a pill (`imagePlaceholders.pills`); clicking one opens its preview, and `imagePlaceholders.onEdit` hears
- * every edit the user makes so a deleted pill takes its image along.
+ * every edit the user makes so a deleted pill takes its image along. A dropped Files entry's path shows as a pill with
+ * its icon and name (`pathPills`).
  */
 export function AgentChatComposerEditor({
     composerKeys,
@@ -68,6 +71,7 @@ export function AgentChatComposerEditor({
     isEditing,
     menu,
     menuActions,
+    pathPills,
     placeholder,
     sessionMenu,
     setDraft,
@@ -87,6 +91,10 @@ export function AgentChatComposerEditor({
     isEditing: boolean;
     menu: ReturnType<typeof useAgentChatCommandMenu>;
     menuActions: Pick<ComposerSend, 'choose' | 'complete'>;
+    /**
+     * Paths dropped into the draft by token, drawn as pills (`useAgentChatComposerInput`).
+     */
+    pathPills: ReadonlyMap<string, AgentChatPathPill>;
     placeholder: string;
     sessionMenu: ReturnType<typeof useAgentChatSessionMenu>;
     setDraft: (update: (current: string) => string) => void;
@@ -107,6 +115,7 @@ export function AgentChatComposerEditor({
     const [compartments] = useState(() => ({
         attributes: new Compartment(),
         imagePills: new Compartment(),
+        pathPills: new Compartment(),
         placeholder: new Compartment(),
     }));
     const [{ attach, input }] = useState(agentChatComposerInput);
@@ -186,6 +195,7 @@ export function AgentChatComposerEditor({
                     compartments.placeholder.of([]),
                     compartments.attributes.of([]),
                     compartments.imagePills.of([]),
+                    compartments.pathPills.of([]),
                     EditorView.updateListener.of((update) => {
                         if (update.transactions.some((tr) => tr.annotation(externalDraft))) return;
                         if (update.docChanged) handlers.current?.onChange(input);
@@ -248,6 +258,11 @@ export function AgentChatComposerEditor({
         );
         viewReference.current?.dispatch({ effects });
     }, [compartments, imagePills]);
+
+    useLayoutEffect(() => {
+        const effects = compartments.pathPills.reconfigure(agentChatPathPills.of(pathPills));
+        viewReference.current?.dispatch({ effects });
+    }, [compartments, pathPills]);
 
     return <div ref={hostReference} data-slot="agent-chat-composer-editor" />;
 }

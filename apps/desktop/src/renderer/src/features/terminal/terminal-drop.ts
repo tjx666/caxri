@@ -63,21 +63,19 @@ export function didPasteDropIntoTerminal(
 
 /**
  * The text a drop inserts for a Terminal: a Project root stays absolute; an Editor tab, a Files entry, or files from
- * another application are each spelled relative to where the Terminal stands, space-separated. `files` narrows which
- * dropped files count, for an Agent Chat that attaches images rather than citing them.
+ * another application are each spelled relative to where the Terminal stands, space-separated.
  */
-export function terminalDropInput(
+function terminalDropInput(
     event: DragEvent,
     terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
     workbenchRoot?: string,
-    files?: Iterable<File>,
 ): string | undefined {
     const { dataTransfer } = event;
     const projectInput = projectTerminalInput(dataTransfer);
     if (projectInput) return projectInput;
     const editorPath = dataTransfer.getData(EDITOR_PATH_DRAG_TYPE);
     return terminalPathsInput(
-        editorPath ? [editorPath] : terminalDragPaths(event, files),
+        editorPath ? [editorPath] : terminalDragPaths(event),
         terminal,
         workbenchRoot,
     );

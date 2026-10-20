@@ -1,13 +1,17 @@
 import { agentChatImageTokenRanges } from '@caxri/protocol';
+import { pathBasename } from '@caxri/utils';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
 import type { Extension, Range } from '@codemirror/state';
 import { Annotation, EditorState, Facet } from '@codemirror/state';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
 
+import { resolveFileIcon } from '../../icons/files/file-icon-resolver';
 import type { AgentChatMarkdownMark } from './agent-chat-composer-markdown';
 import { agentChatMarkdownMarks } from './agent-chat-composer-markdown';
 import { agentChatLimitedChange } from './agent-chat-composer-view';
+import type { AgentChatPathPill } from './agent-chat-path-pills';
+import { agentChatPathPillRanges } from './agent-chat-path-pills';
 
 /**
  * Marks a transaction that writes a draft set from outside the editor, so the change listener does not store it back.
@@ -193,6 +197,81 @@ const imagePills = ViewPlugin.fromClass(
     },
 );
 
+/**
+ * The paths dropped into this composer by their token; a token no drop wrote stays plain text, so a path the user types
+ * never turns into a pill mid-word.
+ */
+export const agentChatPathPills = Facet.define<
+    ReadonlyMap<string, AgentChatPathPill>,
+    ReadonlyMap<string, AgentChatPathPill>
+>({
+    combine: (values) => values[0] ?? new Map(),
+});
+
+class PathPillWidget extends WidgetType {
+    constructor(private readonly pill: AgentChatPathPill) {
+        super();
+    }
+
+    override eq(other: PathPillWidget): boolean {
+        return other.pill.token === this.pill.token && other.pill.kind === this.pill.kind;
+    }
+
+    override toDOM(): HTMLElement {
+        const name = pathBasename(this.pill.path) || this.pill.path;
+        const pill = document.createElement('span');
+        pill.className = 'cm-path-pill';
+        pill.dataset.pathPill = this.pill.path;
+        pill.title = this.pill.path;
+        const icon = document.createElement('img');
+        icon.alt = '';
+        icon.src = resolveFileIcon({ kind: this.pill.kind, name }).src;
+        pill.append(icon, name);
+        return pill;
+    }
+}
+
+function pathPillDecorations(state: EditorState): DecorationSet {
+    const pills = state.facet(agentChatPathPills);
+    if (pills.size === 0) return Decoration.none;
+    return Decoration.set(
+        agentChatPathPillRanges(state.doc.toString(), pills).map(({ from, pill, to }) =>
+            Decoration.replace({ widget: new PathPillWidget(pill) }).range(from, to),
+        ),
+    );
+}
+
+/**
+ * Draws each dropped Files entry, Editor tab, or Project path as a pill with its file-type icon and name, the way
+ * LobeHub's composer shows a dragged folder. Like an image pill it is atomic, and the document keeps the absolute path,
+ * which is what the Agent receives; hovering the pill shows that path.
+ */
+const pathPills = ViewPlugin.fromClass(
+    class {
+        decorations: DecorationSet;
+
+        constructor(view: EditorView) {
+            this.decorations = pathPillDecorations(view.state);
+        }
+
+        update(update: ViewUpdate): void {
+            if (
+                update.docChanged ||
+                update.startState.facet(agentChatPathPills) !==
+                    update.state.facet(agentChatPathPills)
+            )
+                this.decorations = pathPillDecorations(update.state);
+        }
+    },
+    {
+        decorations: (plugin) => plugin.decorations,
+        provide: (plugin) =>
+            EditorView.atomicRanges.of(
+                (view) => view.plugin(plugin)?.decorations ?? Decoration.none,
+            ),
+    },
+);
+
 const MONO = "var(--editor-font-family, ui-monospace, 'Caxri JetBrains Mono', monospace)";
 const CODE_BACKGROUND = 'color-mix(in srgb, var(--border) 45%, transparent)';
 
@@ -252,6 +331,21 @@ const composerTheme = EditorView.theme({
     '.cm-image-pill:hover': {
         backgroundColor: 'color-mix(in srgb, var(--border) 75%, transparent)',
     },
+    '.cm-path-pill': {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        height: '18px',
+        margin: '0 1px',
+        padding: '0 6px 0 3px',
+        borderRadius: 'var(--radius-sm)',
+        backgroundColor: CODE_BACKGROUND,
+        fontSize: '12px',
+        lineHeight: '18px',
+        verticalAlign: 'text-bottom',
+        userSelect: 'none',
+    },
+    '.cm-path-pill img': { width: '14px', height: '14px' },
     '.cm-image-pill img': {
         width: '14px',
         height: '14px',
@@ -278,6 +372,7 @@ export function agentChatComposerExtensions(maxLength: number): Extension {
         ),
         livePreview,
         imagePills,
+        pathPills,
         composerTheme,
     ];
 }

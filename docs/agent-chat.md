@@ -1147,8 +1147,10 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   sent message shows each reference as a chip under its images. Clicking a chip calls the Desktop
   method `agentChat.openPathReference`, which opens a folder in Finder and reveals a file (or an
   app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
-  Editor tab, or a Project dragged from inside Caxri is still inserted at the caret as its path,
-  relative to the Agent's directory and quoted the way a Terminal drop is.
+  Editor tab, or a Project dragged from inside Caxri is inserted at the caret as its absolute path
+  (shell-quoted only when needed), drawn as an atomic pill with its file-type icon and name; the
+  message carries the path itself (`agent-chat-path-pills.ts`). A Terminal drop still writes the
+  path relative to where the Terminal stands.
 - **Caxri skill.** Caxri skill in `+` attaches a skill card to the tray (an icon tile, `Caxri
 skill`, and `Skill`), so a request such as "open a Session for this" needs no prompt about the
   CLI. The row is a checkbox: choosing it again removes the card, and one message carries the card
