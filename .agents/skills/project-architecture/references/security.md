@@ -50,7 +50,7 @@ Every path that registers a Project is one of these authorities; a new one belon
   Renderer submits the folder chosen in the browser that `project.browseFolders` serves, and Main
   forwards it to the SSH Host's own Server without a grant; that Server canonicalizes it. The window's
   account can already read that folder, so the authority is the user's choice in that browser; see
-  [Remote SSH](../../../../docs/remote-ssh.md).
+  [SSH Host](../../../../docs/ssh-host.md).
 - Commander hand-over of an Agent conversation started outside Caxri. Server Core adds the
   conversation's folder as a Project when no visible Project contains it. Only the owner's Desktop and
   human CLI may call `commander.session.handOver`; Server Core refuses every other principal, including

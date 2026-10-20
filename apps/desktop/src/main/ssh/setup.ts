@@ -1,15 +1,15 @@
-import type { RemoteFailureReason } from '@caxri/protocol';
+import type { SshHostFailureReason } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 
-import type { RemoteScript } from './remote-scripts';
-import { parseRemoteResult } from './remote-scripts';
+import type { SshHostScript } from './scripts';
+import { parseSshHostResult } from './scripts';
 import type { SshConnectionCloseInfo, SshExecOptions, SshExecResult } from './ssh-connection';
 import { SshConnectionError } from './ssh-connection';
 
 /**
  * The transport surface the supervisor needs; `SshConnection` in production and a local fake in tests.
  */
-export interface RemoteTransport {
+export interface SshHostTransport {
     readonly isOpen: boolean;
     cancelForward(localPort: number): Promise<void>;
     exec(script: string, options: SshExecOptions): Promise<SshExecResult>;
@@ -24,7 +24,7 @@ export interface RemoteTransport {
  * user chooses Reconnect. Only `authentication` and `hostKey` also report `needsUserAction`, because only those are
  * resolved by answering a prompt.
  */
-export const TERMINAL_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
+export const TERMINAL_REASONS: ReadonlySet<SshHostFailureReason> = new Set([
     'authentication',
     'hostKey',
     'unsupportedPlatform',
@@ -34,7 +34,7 @@ export const TERMINAL_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
     'profileInUse',
     'cancelled',
 ]);
-export const USER_ACTION_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
+export const USER_ACTION_REASONS: ReadonlySet<SshHostFailureReason> = new Set([
     'authentication',
     'hostKey',
 ]);
@@ -44,9 +44,9 @@ export const CANCELLED_FAILURE = { reason: 'cancelled', message: 'Connection can
  * A failure classified into the protocol's closed reason. Thrown to `DesktopServerConnection` as a `CaxriError` so its
  * logging and retry paths stay unchanged.
  */
-export class RemoteSetupError extends CaxriError {
+export class SshHostSetupError extends CaxriError {
     constructor(
-        readonly reason: RemoteFailureReason,
+        readonly reason: SshHostFailureReason,
         message: string,
         /**
          * For `profileInUse`: the hostname of the machine whose Server holds the shared profile.
@@ -57,9 +57,9 @@ export class RemoteSetupError extends CaxriError {
     }
 }
 
-export interface RemoteFailure {
+export interface SshHostFailure {
     message: string;
-    reason: RemoteFailureReason;
+    reason: SshHostFailureReason;
     holder?: string;
 }
 
@@ -68,17 +68,17 @@ export type ScriptOutput = SshExecResult & { result?: Map<string, string> };
 /**
  * Runs one remote script over the transport and parses its marker-delimited result block.
  */
-export async function runRemoteScript(
-    connection: RemoteTransport,
-    script: RemoteScript,
+export async function runSshHostScript(
+    connection: SshHostTransport,
+    script: SshHostScript,
     options: SshExecOptions,
 ): Promise<ScriptOutput> {
     const output = await connection.exec(script.script, options);
-    return { ...output, result: parseRemoteResult(output.stdout, script.marker) };
+    return { ...output, result: parseSshHostResult(output.stdout, script.marker) };
 }
 
-export function toFailure(error: unknown): RemoteFailure {
-    if (error instanceof RemoteSetupError)
+export function toFailure(error: unknown): SshHostFailure {
+    if (error instanceof SshHostSetupError)
         return {
             message: error.message.slice(0, 2000),
             reason: error.reason,

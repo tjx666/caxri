@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import {
     isCaxriError,
     logEventCatalog,
-    REMOTE_PROFILE_IN_USE_MARKER,
     resolveLogLevel,
     SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
     serverDesktopLaunchSchema,
+    SSH_HOST_PROFILE_IN_USE_MARKER,
 } from '@caxri/protocol';
 import {
     computeBuildFingerprint,
@@ -128,7 +128,7 @@ try {
     // One machine-readable line for the SSH Host launch script; the rejection still prints its usual stack below.
     if (isCaxriError(error) && error.details?.reason === 'profileInUse')
         process.stderr.write(
-            `${REMOTE_PROFILE_IN_USE_MARKER} host=${String(error.details.hostname)}\n`,
+            `${SSH_HOST_PROFILE_IN_USE_MARKER} host=${String(error.details.hostname)}\n`,
         );
     throw error;
 }

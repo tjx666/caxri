@@ -1,29 +1,29 @@
 import type {
     EnvironmentState,
-    RemoteAskpassRequest,
-    RemoteFailureReason,
     ServerDesktopCredential,
     ServerEvent,
     ServerManifest,
     SshEnvironmentState,
+    SshHostAskpassRequest,
     SshHostEntry,
+    SshHostFailureReason,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow, WebContents } from 'electron';
 
-import type { MainEnvironmentMethods } from './main-environment-methods';
-import type { DesktopServerSupervisor } from './server-attachment';
-import type { DesktopServerConnection } from './server-connection';
-import { knownHostsNameOf } from './ssh/destination';
-import type { RemoteRendererRoute } from './workbench-ipc';
+import type { MainEnvironmentMethods } from '../main-environment-methods';
+import type { DesktopServerSupervisor } from '../server-attachment';
+import type { DesktopServerConnection } from '../server-connection';
+import type { SshHostRendererRoute } from '../workbench-ipc';
+import { knownHostsNameOf } from './destination';
 
 /**
  * The SSH transport below one SSH Host window: it owns the ControlMaster, installs and launches the remote Server, and
  * forwards its endpoint. `DesktopServerConnection` drives it exactly like the local artifact supervisor.
  */
-export interface RemoteHostSupervisor extends DesktopServerSupervisor {
+export interface SshHostSupervisor extends DesktopServerSupervisor {
     /**
      * The remote Server's manifest (endpoint rewritten to the local forward) and Desktop credential.
      */
@@ -42,16 +42,18 @@ export interface RemoteHostSupervisor extends DesktopServerSupervisor {
     dispose(): Promise<void>;
 }
 
-type RemoteStatePatch = Partial<Omit<SshEnvironmentState, 'destination' | 'hostIdentity' | 'kind'>>;
+type SshHostStatePatch = Partial<
+    Omit<SshEnvironmentState, 'destination' | 'hostIdentity' | 'kind'>
+>;
 
 /**
  * One SSH Host window and everything it is attached through.
  */
-export interface RemoteEnvironment {
+export interface SshHostEnvironment {
     readonly destination: string;
     readonly connection: DesktopServerConnection;
     readonly window: BrowserWindow;
-    route: RemoteRendererRoute;
+    route: SshHostRendererRoute;
     state(): SshEnvironmentState;
     /**
      * Sends a Server event or Main-originated event to this window only.
@@ -59,32 +61,32 @@ export interface RemoteEnvironment {
     sendEvent: (event: ServerEvent) => void;
 }
 
-export interface RemoteEnvironmentParts {
+export interface SshHostEnvironmentParts {
     connection: DesktopServerConnection;
-    route: Omit<RemoteRendererRoute, 'window'>;
+    route: Omit<SshHostRendererRoute, 'window'>;
     sendEvent: (event: ServerEvent) => void;
-    supervisor: RemoteHostSupervisor;
+    supervisor: SshHostSupervisor;
     window: BrowserWindow;
 }
 
-export interface RemoteEnvironmentHooks {
+export interface SshHostEnvironmentHooks {
     /**
      * Shows one OpenSSH prompt in the window and resolves with the user's answer, or `null` when it was cancelled or
      * the helper gave up (`signal`).
      */
-    askpass(request: RemoteAskpassRequest, signal: AbortSignal): Promise<string | null>;
+    askpass(request: SshHostAskpassRequest, signal: AbortSignal): Promise<string | null>;
     /**
      * The supervisor reports phase, progress, platform, and failures through this.
      */
-    update(patch: RemoteStatePatch): void;
+    update(patch: SshHostStatePatch): void;
 }
 
-export interface RemoteEnvironmentsOptions {
+export interface SshHostEnvironmentsOptions {
     /**
      * Builds the window, supervisor, connection, and transport for one destination. Kept in the composition root
      * because it reuses Main's window chrome, Renderer loading, and Main method wiring.
      */
-    create(destination: string, hooks: RemoteEnvironmentHooks): RemoteEnvironmentParts;
+    create(destination: string, hooks: SshHostEnvironmentHooks): SshHostEnvironmentParts;
     listHosts(): Promise<SshHostEntry[]>;
     logger(): Pick<StructuredLogger, 'write'> | undefined;
     recent: {
@@ -103,7 +105,7 @@ export interface RemoteEnvironmentsOptions {
 }
 
 interface PendingPrompt {
-    request: RemoteAskpassRequest;
+    request: SshHostAskpassRequest;
     resolve(response: string | null): void;
 }
 
@@ -111,7 +113,7 @@ interface PendingPrompt {
  * Failure reasons only the user's answer can resolve; automatic reconnection stops at them. `cancelled` stops it too,
  * but the user chose that outcome, so nothing is left waiting for them.
  */
-const USER_ACTION_REASONS = new Set<RemoteFailureReason>(['authentication', 'hostKey']);
+const USER_ACTION_REASONS = new Set<SshHostFailureReason>(['authentication', 'hostKey']);
 
 /**
  * Phases in which a connection attempt is running and `remote.cancel` can stop it.
@@ -124,17 +126,17 @@ const CANCELLABLE_PHASES = new Set<SshEnvironmentState['phase']>([
     'reconnecting',
 ]);
 
-class SshEnvironmentController implements RemoteEnvironment {
+class SshHostEnvironmentController implements SshHostEnvironment {
     private current: SshEnvironmentState;
     private phaseStartedAt = performance.now();
     private readonly prompts: PendingPrompt[] = [];
-    private readonly supervisor: RemoteHostSupervisor;
+    private readonly supervisor: SshHostSupervisor;
     private readonly attached = Promise.withResolvers<void>();
     private hasAttached = false;
     private isDisposed = false;
     readonly connection: DesktopServerConnection;
     readonly window: BrowserWindow;
-    route: RemoteRendererRoute;
+    route: SshHostRendererRoute;
     readonly sendEvent: (event: ServerEvent) => void;
 
     /**
@@ -147,7 +149,7 @@ class SshEnvironmentController implements RemoteEnvironment {
     constructor(
         readonly destination: string,
         private readonly key: string,
-        private readonly options: RemoteEnvironmentsOptions,
+        private readonly options: SshHostEnvironmentsOptions,
     ) {
         this.current = {
             kind: 'ssh',
@@ -206,7 +208,7 @@ class SshEnvironmentController implements RemoteEnvironment {
 
     private fail(error: unknown): void {
         if (this.isDisposed || this.current.phase === 'stopped') return;
-        const reason: RemoteFailureReason =
+        const reason: SshHostFailureReason =
             this.current.failure?.reason ??
             (error instanceof CaxriError && error.code === 'CANCELLED' ? 'cancelled' : 'unknown');
         const message =
@@ -219,14 +221,14 @@ class SshEnvironmentController implements RemoteEnvironment {
         });
     }
 
-    private prompt(request: RemoteAskpassRequest, signal: AbortSignal): Promise<string | null> {
+    private prompt(request: SshHostAskpassRequest, signal: AbortSignal): Promise<string | null> {
         if (this.isDisposed || signal.aborted) return Promise.resolve(null);
         const startedAt = performance.now();
         return new Promise<string | null>((resolve) => {
             const onAbort = (): void => this.reply(request.requestId, null);
             const settle = (response: string | null): void => {
                 signal.removeEventListener('abort', onAbort);
-                this.options.logger()?.write('info', logEventCatalog.remoteSsh.askpassPrompted, {
+                this.options.logger()?.write('info', logEventCatalog.sshHost.askpassPrompted, {
                     durationMs: performance.now() - startedAt,
                     fields: {
                         kind: request.kind,
@@ -247,11 +249,11 @@ class SshEnvironmentController implements RemoteEnvironment {
         });
     }
 
-    private update(patch: RemoteStatePatch): void {
+    private update(patch: SshHostStatePatch): void {
         if (this.isDisposed) return;
         const previous = this.current;
         const next: SshEnvironmentState = { ...previous, ...patch };
-        for (const key of Object.keys(patch) as Array<keyof RemoteStatePatch>)
+        for (const key of Object.keys(patch) as Array<keyof SshHostStatePatch>)
             if (patch[key] === undefined) delete next[key];
         if (next.failure?.reason === 'hostKey' && next.failure.knownHostsName === undefined) {
             const knownHostsName = knownHostsNameOf(this.key);
@@ -264,7 +266,7 @@ class SshEnvironmentController implements RemoteEnvironment {
                 .logger()
                 ?.write(
                     next.phase === 'failed' ? 'warn' : 'info',
-                    logEventCatalog.remoteSsh.phaseChanged,
+                    logEventCatalog.sshHost.phaseChanged,
                     {
                         durationMs: now - this.phaseStartedAt,
                         fields: {
@@ -395,17 +397,17 @@ async function emptyOnFailure<T>(read: () => Promise<T[]>): Promise<T[]> {
  * Owns every SSH Host window. Each destination has at most one window and one Server connection; IPC from a window is
  * routed to its own environment by the sending `WebContents`.
  */
-export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
-    const environments = new Map<string, SshEnvironmentController>();
+export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
+    const environments = new Map<string, SshHostEnvironmentController>();
 
-    function byWebContents(sender: WebContents): SshEnvironmentController | undefined {
+    function byWebContents(sender: WebContents): SshHostEnvironmentController | undefined {
         for (const environment of environments.values())
             if (!environment.window.isDestroyed() && environment.window.webContents === sender)
                 return environment;
         return undefined;
     }
 
-    function focus(environment: SshEnvironmentController): void {
+    function focus(environment: SshHostEnvironmentController): void {
         const { window } = environment;
         if (window.isDestroyed()) return;
         if (window.isMinimized()) window.restore();
@@ -413,7 +415,10 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
         window.focus();
     }
 
-    async function reveal(existing: SshEnvironmentController, destination: string): Promise<void> {
+    async function reveal(
+        existing: SshHostEnvironmentController,
+        destination: string,
+    ): Promise<void> {
         focus(existing);
         // Another spelling or alias of the same SSH Host: say why this window came forward instead of a new one.
         if (existing.destination !== destination)
@@ -437,7 +442,7 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
         // Nothing below awaits until the new environment is registered, so concurrent connects cannot both miss.
         const existing = environments.get(key);
         if (existing) return reveal(existing, destination);
-        const environment = new SshEnvironmentController(destination, key, options);
+        const environment = new SshHostEnvironmentController(destination, key, options);
         environments.set(key, environment);
         environment.window.once('closed', () => {
             if (environments.get(key) === environment) environments.delete(key);
@@ -457,7 +462,9 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
     /**
      * The Main methods one window answers for its own environment. The local Workbench passes `undefined`.
      */
-    function methodsFor(environment: SshEnvironmentController | undefined): MainEnvironmentMethods {
+    function methodsFor(
+        environment: SshHostEnvironmentController | undefined,
+    ): MainEnvironmentMethods {
         return {
             connect,
             get: (): EnvironmentState => environment?.state() ?? { kind: 'local' },
@@ -502,22 +509,24 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
          */
         methodsFor: (sender: WebContents | undefined) =>
             methodsFor(sender ? byWebContents(sender) : undefined),
-        methodsForEnvironment: (environment: RemoteEnvironment) =>
-            methodsFor(environment instanceof SshEnvironmentController ? environment : undefined),
-        route(sender: WebContents): RemoteRendererRoute | undefined {
+        methodsForEnvironment: (environment: SshHostEnvironment) =>
+            methodsFor(
+                environment instanceof SshHostEnvironmentController ? environment : undefined,
+            ),
+        route(sender: WebContents): SshHostRendererRoute | undefined {
             return byWebContents(sender)?.route;
         },
         /**
          * The environment that owns `window`, for menu commands that must act on the focused window's Server.
          */
-        forWindow(window: BrowserWindow | undefined): RemoteEnvironment | undefined {
+        forWindow(window: BrowserWindow | undefined): SshHostEnvironment | undefined {
             if (!window) return undefined;
             for (const environment of environments.values())
                 if (environment.window === window) return environment;
             return undefined;
         },
-        whenAttached(environment: RemoteEnvironment): Promise<void> {
-            return environment instanceof SshEnvironmentController
+        whenAttached(environment: SshHostEnvironment): Promise<void> {
+            return environment instanceof SshHostEnvironmentController
                 ? environment.whenAttached()
                 : Promise.resolve();
         },
@@ -540,10 +549,10 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
                     .map((environment) => environment.connection.request('terminal.detachAll')),
             );
         },
-        list(): RemoteEnvironment[] {
+        list(): SshHostEnvironment[] {
             return environments.values().toArray();
         },
     };
 }
 
-export type RemoteEnvironments = ReturnType<typeof createRemoteEnvironments>;
+export type SshHostEnvironments = ReturnType<typeof createSshHostEnvironments>;

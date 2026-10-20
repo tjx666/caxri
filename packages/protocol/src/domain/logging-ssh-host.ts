@@ -1,16 +1,16 @@
 /**
- * SSH Host events of the structured-log registry (`logEventCatalog.remoteSsh` in `./logging.ts`), written by Desktop
- * Main while it connects to, installs, and launches a Server on an SSH Host. Records carry closed enums, durations, and
- * byte counts only: never a destination, prompt answer, or remote file content.
+ * SSH Host events of the structured-log registry (`logEventCatalog.sshHost` in `./logging.ts`), written by Desktop Main
+ * while it connects to, installs, and launches a Server on an SSH Host. Records carry closed enums, durations, and byte
+ * counts only: never a destination, prompt answer, or remote file content.
  */
-export const remoteSshLogEvents = {
+export const sshHostLogEvents = {
     /**
-     * An askpass prompt settled. `fields.kind` is the `RemoteAskpassKind`, `fields.outcome` is `answered` or
+     * An askpass prompt settled. `fields.kind` is the `SshHostAskpassKind`, `fields.outcome` is `answered` or
      * `cancelled`, with the time the user took.
      */
     askpassPrompted: 'remote_ssh.askpass_prompted',
     /**
-     * `ensure` failed. `fields.reason` is a closed `RemoteFailureReason` and `fields.phase` the phase that failed.
+     * `ensure` failed. `fields.reason` is a closed `SshHostFailureReason` and `fields.phase` the phase that failed.
      */
     attachFailed: 'remote_ssh.attach_failed',
     /**
@@ -35,7 +35,7 @@ export const remoteSshLogEvents = {
     masterReady: 'remote_ssh.master_ready',
     /**
      * An SSH Host window's connection phase changed. `fields.phase` and `fields.previousPhase` are
-     * `RemoteConnectionPhase` values, `fields.reason` the failure's `RemoteFailureReason` (or null), and `durationMs`
+     * `SshHostConnectionPhase` values, `fields.reason` the failure's `SshHostFailureReason` (or null), and `durationMs`
      * the time spent in the previous phase.
      */
     phaseChanged: 'remote_ssh.phase_changed',

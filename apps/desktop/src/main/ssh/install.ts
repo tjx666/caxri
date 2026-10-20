@@ -2,37 +2,32 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { RemoteLayer } from './remote-layers';
-import { ensureLocalRuntime, gzipProgressStream, progressStream } from './remote-layers';
-import type { RemoteProbe } from './remote-scripts';
-import {
-    fetchRuntimeScript,
-    gcScript,
-    installAppScript,
-    uploadRuntimeScript,
-} from './remote-scripts';
-import type { RemoteTransport } from './remote-setup';
-import { bestEffort, lastLine, RemoteSetupError, runRemoteScript } from './remote-setup';
+import type { RemoteLayer } from './layers';
+import { ensureLocalRuntime, gzipProgressStream, progressStream } from './layers';
+import type { SshHostProbe } from './scripts';
+import { fetchRuntimeScript, gcScript, installAppScript, uploadRuntimeScript } from './scripts';
+import type { SshHostTransport } from './setup';
+import { bestEffort, lastLine, runSshHostScript, SshHostSetupError } from './setup';
 
 const GC_TIMEOUT_MS = 60_000;
 const RUNTIME_FETCH_TIMEOUT_MS = 10 * 60_000;
 const UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const PROGRESS_INTERVAL_MS = 200;
 
-interface RemoteInstallProgress {
+interface SshHostInstallProgress {
     completedBytes: number;
     totalBytes: number;
 }
 
-export interface RemoteInstallOptions {
-    connection: RemoteTransport;
+export interface SshHostInstallOptions {
+    connection: SshHostTransport;
     layer: RemoteLayer;
     logger: Pick<StructuredLogger, 'write'>;
     /**
      * Throttled to one call per `PROGRESS_INTERVAL_MS`, plus the first and final values.
      */
-    onProgress: (progress: RemoteInstallProgress) => void;
-    probe: RemoteProbe;
+    onProgress: (progress: SshHostInstallProgress) => void;
+    probe: SshHostProbe;
     runtimeCacheDirectory: string;
 }
 
@@ -46,14 +41,14 @@ interface ProgressSink {
  * and internet access; otherwise Desktop streams its own verified copy.
  */
 async function installRuntime(
-    options: RemoteInstallOptions,
+    options: SshHostInstallOptions,
     progress: ProgressSink,
 ): Promise<'cached' | 'local-upload' | 'remote-download'> {
     const { connection, probe } = options;
     const { runtime } = options.layer.descriptor;
     if (probe.runtimes.has(runtime.sha256)) return 'cached';
     if (probe.tools.curl === true || probe.tools.wget === true) {
-        const fetched = await runRemoteScript(
+        const fetched = await runSshHostScript(
             connection,
             fetchRuntimeScript({
                 member: runtime.source.member,
@@ -73,13 +68,13 @@ async function installRuntime(
             runtime,
         });
     } catch (error) {
-        throw new RemoteSetupError(
+        throw new SshHostSetupError(
             'installFailed',
             `Could not prepare the Node runtime: ${errorMessage(error, 'unknown error')}`,
         );
     }
     progress.addTotal(runtime.bytes);
-    const uploaded = await runRemoteScript(
+    const uploaded = await runSshHostScript(
         connection,
         uploadRuntimeScript({ runtimeSha256: runtime.sha256 }),
         {
@@ -89,7 +84,7 @@ async function installRuntime(
     );
     const status = uploaded.result?.get('status');
     if (status !== 'installed' && status !== 'present')
-        throw new RemoteSetupError(
+        throw new SshHostSetupError(
             'installFailed',
             `Uploading the Node runtime failed (${status ?? (lastLine(uploaded.stderr) || 'no result')})`,
         );
@@ -100,7 +95,7 @@ async function installRuntime(
  * Installs the application layer (and its Node runtime when the remote cache lacks it) on the SSH Host, then
  * garbage-collects older builds. Returns the probe updated with the newly installed build and runtime.
  */
-export async function installRemoteBuild(options: RemoteInstallOptions): Promise<RemoteProbe> {
+export async function installSshHostBuild(options: SshHostInstallOptions): Promise<SshHostProbe> {
     const { connection, layer, probe } = options;
     const startedAt = Date.now();
     const { descriptor } = layer;
@@ -127,7 +122,7 @@ export async function installRemoteBuild(options: RemoteInstallOptions): Promise
     const runtimeSource = await installRuntime(options, progress);
     // Sequential on purpose: the app install script refuses to run until the runtime it points at exists remotely.
     // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
-    const installed = await runRemoteScript(
+    const installed = await runSshHostScript(
         connection,
         installAppScript({
             appSha256: descriptor.app.sha256,
@@ -142,23 +137,23 @@ export async function installRemoteBuild(options: RemoteInstallOptions): Promise
     );
     const status = installed.result?.get('status');
     if (status !== 'installed' && status !== 'present')
-        throw new RemoteSetupError(
+        throw new SshHostSetupError(
             'installFailed',
             `Installing the remote Server failed (${status ?? (lastLine(installed.stderr) || 'no result')})`,
         );
     completedBytes = totalBytes;
     report(true);
-    const updated: RemoteProbe = {
+    const updated: SshHostProbe = {
         ...probe,
         builds: new Set([...probe.builds, descriptor.buildId]),
         runtimes: new Set([...probe.runtimes, descriptor.runtime.sha256]),
     };
-    options.logger.write('info', logEventCatalog.remoteSsh.installed, {
+    options.logger.write('info', logEventCatalog.sshHost.installed, {
         fields: { bytes: totalBytes, durationMs: Date.now() - startedAt, runtimeSource },
     });
     // A failed cleanup leaves old builds behind but never blocks the attach.
     await bestEffort(() =>
-        runRemoteScript(
+        runSshHostScript(
             connection,
             gcScript({
                 buildId: descriptor.buildId,

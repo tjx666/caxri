@@ -9,7 +9,7 @@ import {
     RecentSshDestinations,
     tokenizeConfigLine,
 } from '../ssh-config';
-import { makeShortTemporaryDirectory } from './support/remote-fixtures';
+import { makeShortTemporaryDirectory } from './support/fixtures';
 
 describe('ssh config', () => {
     let home: string;

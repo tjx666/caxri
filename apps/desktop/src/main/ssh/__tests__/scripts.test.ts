@@ -11,32 +11,32 @@ import {
     installAppScript,
     launchScript,
     parseProbe,
-    parseRemoteResult,
+    parseSshHostResult,
     probeScript,
     seedConfigScript,
     stopWaitScript,
-} from '../remote-scripts';
-import { launchFailureDetail } from '../remote-setup';
-import type { LayerFixture } from './support/remote-fixtures';
-import { buildLayerFixture, runLocalScript, writeShims } from './support/remote-fixtures';
-import { RemoteScriptHost } from './support/remote-script-host';
+} from '../scripts';
+import { launchFailureDetail } from '../setup';
+import type { LayerFixture } from './support/fixtures';
+import { buildLayerFixture, runLocalScript, writeShims } from './support/fixtures';
+import { SshHostScriptHost } from './support/script-host';
 
 /**
  * Result parsing, input validation, and the probe, launch, stop-wait, and seed-config scripts. The install and cache
  * scripts are covered in `remote-scripts-install.test.ts`.
  */
 describe('remote scripts', () => {
-    let host: RemoteScriptHost;
+    let host: SshHostScriptHost;
 
     beforeEach(async () => {
-        host = await RemoteScriptHost.create();
+        host = await SshHostScriptHost.create();
     });
 
     afterEach(async () => {
         await host.dispose();
     });
 
-    describe('parseRemoteResult', () => {
+    describe('parseSshHostResult', () => {
         it('reads only the block between its own markers', () => {
             const stdout = [
                 'Welcome to the host',
@@ -51,14 +51,14 @@ describe('remote scripts', () => {
                 '__CAXRI_abc_END__',
                 'bye',
             ].join('\n');
-            expect(parseRemoteResult(stdout, 'abc')).toEqual(
+            expect(parseSshHostResult(stdout, 'abc')).toEqual(
                 new Map([
                     ['status', 'installed'],
                     ['manifest', 'eyJhIjoxfQ=='],
                 ]),
             );
-            expect(parseRemoteResult('__CAXRI_abc_BEGIN__\nstatus=x\n', 'abc')).toBeUndefined();
-            expect(parseRemoteResult('nothing', 'abc')).toBeUndefined();
+            expect(parseSshHostResult('__CAXRI_abc_BEGIN__\nstatus=x\n', 'abc')).toBeUndefined();
+            expect(parseSshHostResult('nothing', 'abc')).toBeUndefined();
         });
     });
 
@@ -158,7 +158,7 @@ describe('remote scripts', () => {
                 host.environment,
             );
             const probe = parseProbe(
-                parseRemoteResult(output.stdout, script.marker) ?? new Map<string, string>(),
+                parseSshHostResult(output.stdout, script.marker) ?? new Map<string, string>(),
             );
             expect([...probe.builds]).toEqual([fixture.descriptor.buildId]);
             expect([...probe.runtimes]).toEqual([fixture.descriptor.runtime.sha256]);

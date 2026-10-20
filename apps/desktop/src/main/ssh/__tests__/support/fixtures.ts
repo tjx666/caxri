@@ -7,7 +7,7 @@ import process from 'node:process';
 import type { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 
-import type { RemoteLayerDescriptor } from '../../remote-layers';
+import type { RemoteLayerDescriptor } from '../../layers';
 import { shellQuote } from '../../shell-quote';
 import type { SshExecOptions, SshExecResult } from '../../ssh-connection';
 

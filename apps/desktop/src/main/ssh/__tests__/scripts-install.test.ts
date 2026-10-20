@@ -8,15 +8,10 @@ import { gzipSync } from 'node:zlib';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-    fetchRuntimeScript,
-    gcScript,
-    installAppScript,
-    uploadRuntimeScript,
-} from '../remote-scripts';
-import type { LayerFixture } from './support/remote-fixtures';
-import { buildLayerFixture, sha256, writeShims } from './support/remote-fixtures';
-import { RemoteScriptHost } from './support/remote-script-host';
+import { fetchRuntimeScript, gcScript, installAppScript, uploadRuntimeScript } from '../scripts';
+import type { LayerFixture } from './support/fixtures';
+import { buildLayerFixture, sha256, writeShims } from './support/fixtures';
+import { SshHostScriptHost } from './support/script-host';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,10 +19,10 @@ const execFileAsync = promisify(execFile);
  * The scripts that install and garbage-collect build layers and the Node runtime cache on the SSH Host.
  */
 describe('remote install scripts', () => {
-    let host: RemoteScriptHost;
+    let host: SshHostScriptHost;
 
     beforeEach(async () => {
-        host = await RemoteScriptHost.create();
+        host = await SshHostScriptHost.create();
     });
 
     afterEach(async () => {

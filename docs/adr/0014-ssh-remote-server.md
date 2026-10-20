@@ -71,4 +71,4 @@ attaches to it exactly like a local Server. Everything above the transport is un
   connecting to the same SSH Host replaces the first one's lease.
 - Remote Agents need their CLIs installed and logged in on the SSH Host; Caxri does not manage remote credentials.
 - On hosts where `systemd-logind` uses `KillUserProcesses=yes`, the SSH Host's Server dies with the last SSH session
-  unless the user enables lingering; [Remote SSH](../remote-ssh.md) documents this operator step.
+  unless the user enables lingering; [SSH Host](../ssh-host.md) documents this operator step.

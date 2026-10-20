@@ -3,7 +3,7 @@
 For the product-level why behind this topology, see
 [Server architecture](../../../../docs/server-architecture.md#server-process-ownership). SSH Host
 windows, their per-environment Main method policy, and the remote install layout are in
-[Remote SSH](../../../../docs/remote-ssh.md).
+[SSH Host](../../../../docs/ssh-host.md).
 
 ```text
 Desktop Main

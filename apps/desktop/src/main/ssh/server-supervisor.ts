@@ -3,9 +3,9 @@ import { Readable } from 'node:stream';
 
 import { ServerClient } from '@caxri/client/supervise';
 import type {
-    RemoteConnectionPhase,
     ServerDesktopCredential,
     ServerManifest,
+    SshHostConnectionPhase,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
@@ -14,35 +14,29 @@ import type { DesktopServerSupervisor } from '../server-attachment';
 import { AskpassBridge } from './askpass';
 import type { SshDestination } from './destination';
 import { parseSshDestination } from './destination';
-import { validateRemoteProbe } from './remote-host-requirements';
-import { installRemoteBuild } from './remote-install';
-import { parseLaunchOutput } from './remote-launch-output';
-import type { RemoteArchitecture, RemoteLayer } from './remote-layers';
-import { readRemoteLayer } from './remote-layers';
-import type { RemoteProbe, SeedableConfigFile } from './remote-scripts';
-import {
-    launchScript,
-    parseProbe,
-    probeScript,
-    seedConfigScript,
-    stopWaitScript,
-} from './remote-scripts';
+import { validateSshHostProbe } from './host-requirements';
+import { installSshHostBuild } from './install';
+import { parseLaunchOutput } from './launch-output';
+import type { RemoteArchitecture, RemoteLayer } from './layers';
+import { readRemoteLayer } from './layers';
+import type { SeedableConfigFile, SshHostProbe } from './scripts';
+import { launchScript, parseProbe, probeScript, seedConfigScript, stopWaitScript } from './scripts';
 import type {
-    RemoteSeedConfig,
-    RemoteServerSupervisorOptions,
-    RemoteStateUpdate,
-} from './remote-server-supervisor-options';
-import type { RemoteFailure, RemoteTransport } from './remote-setup';
+    SshHostSeedConfig,
+    SshHostServerSupervisorOptions,
+    SshHostStateUpdate,
+} from './server-supervisor-options';
+import type { SshHostFailure, SshHostTransport } from './setup';
 import {
     bestEffort,
     CANCELLED_FAILURE,
     lastLine,
-    RemoteSetupError,
-    runRemoteScript,
+    runSshHostScript,
+    SshHostSetupError,
     TERMINAL_REASONS,
     toFailure,
     USER_ACTION_REASONS,
-} from './remote-setup';
+} from './setup';
 import type { SshConnectionCloseInfo, SshConnectionOptions } from './ssh-connection';
 import { SshConnection } from './ssh-connection';
 
@@ -68,13 +62,13 @@ interface AttachTarget {
  * A lost master clears every cached remote fact and reports `reconnecting`; the WebSockets through the forward close
  * with it, so `DesktopServerConnection`'s existing reconnect loop calls `ensure()` again, which starts a new master.
  */
-export class RemoteServerSupervisor implements DesktopServerSupervisor {
+export class SshHostServerSupervisor implements DesktopServerSupervisor {
     private askpass?: Pick<AskpassBridge, 'beginAttempt' | 'close' | 'environment'>;
-    private connection?: RemoteTransport;
+    private connection?: SshHostTransport;
     /**
      * The master whose `start()` is still waiting for OpenSSH, so `cancel()` can stop it before it is ready.
      */
-    private pendingConnection?: RemoteTransport;
+    private pendingConnection?: SshHostTransport;
     /**
      * Automatic attempts since an attached connection dropped, reported as `attempt` while `reconnecting`.
      */
@@ -89,19 +83,19 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     private forward?: { localPort: number; remotePort: number };
     private hasAttached = false;
     private isDisposed = false;
-    private platform?: RemoteStateUpdate['platform'];
-    private probe?: RemoteProbe;
+    private platform?: SshHostStateUpdate['platform'];
+    private probe?: SshHostProbe;
     private setup?: Promise<AttachTarget>;
-    private terminalFailure?: RemoteSetupError;
+    private terminalFailure?: SshHostSetupError;
     private readonly destination: SshDestination;
 
-    constructor(private readonly options: RemoteServerSupervisorOptions) {
+    constructor(private readonly options: SshHostServerSupervisorOptions) {
         this.destination = parseSshDestination(options.destination);
     }
 
     private emit(
-        phase: RemoteConnectionPhase,
-        extra: Partial<Omit<RemoteStateUpdate, 'phase'>> = {},
+        phase: SshHostConnectionPhase,
+        extra: Partial<Omit<SshHostStateUpdate, 'phase'>> = {},
     ): void {
         // Every key is present so a patch-merging consumer clears a previous phase's failure or progress.
         this.options.onState({
@@ -127,7 +121,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     }
 
     private async runSetup(): Promise<AttachTarget> {
-        let phase: RemoteConnectionPhase = this.hasAttached ? 'reconnecting' : 'connecting';
+        let phase: SshHostConnectionPhase = this.hasAttached ? 'reconnecting' : 'connecting';
         try {
             if (this.hasAttached) {
                 this.reconnectAttempt += 1;
@@ -140,7 +134,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             const probe = await this.ensureProbe(connection, layers);
             const layer = layers.get(probe.architecture as RemoteArchitecture);
             if (!layer)
-                throw new RemoteSetupError(
+                throw new SshHostSetupError(
                     'installFailed',
                     `This Caxri build has no remote Server for linux-${probe.architecture}`,
                 );
@@ -168,15 +162,15 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         }
     }
 
-    private fail(error: unknown, phase: RemoteConnectionPhase): RemoteSetupError {
-        const failure: RemoteFailure = this.isCancelled ? CANCELLED_FAILURE : toFailure(error);
-        this.options.logger.write('warn', logEventCatalog.remoteSsh.attachFailed, {
+    private fail(error: unknown, phase: SshHostConnectionPhase): SshHostSetupError {
+        const failure: SshHostFailure = this.isCancelled ? CANCELLED_FAILURE : toFailure(error);
+        this.options.logger.write('warn', logEventCatalog.sshHost.attachFailed, {
             fields: { phase, reason: failure.reason },
         });
         const setupError =
-            error instanceof RemoteSetupError && error.reason === failure.reason
+            error instanceof SshHostSetupError && error.reason === failure.reason
                 ? error
-                : new RemoteSetupError(failure.reason, failure.message, failure.holder);
+                : new SshHostSetupError(failure.reason, failure.message, failure.holder);
         const isTerminal = TERMINAL_REASONS.has(failure.reason);
         if (isTerminal) this.terminalFailure = setupError;
         if (this.isDisposed) return setupError;
@@ -210,7 +204,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
      */
     private stoppedDuringHandshake(): Error | undefined {
         if (this.isDisposed) return new CaxriError('CANCELLED', 'SSH Host connection was closed');
-        if (this.isCancelled) return new RemoteSetupError('cancelled', CANCELLED_FAILURE.message);
+        if (this.isCancelled) return new SshHostSetupError('cancelled', CANCELLED_FAILURE.message);
         return undefined;
     }
 
@@ -233,7 +227,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         return askpass.environment();
     }
 
-    private async ensureConnection(): Promise<RemoteTransport> {
+    private async ensureConnection(): Promise<SshHostTransport> {
         if (this.connection?.isOpen) return this.connection;
         const stale = this.connection;
         this.connection = undefined;
@@ -262,7 +256,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             await connection.stop();
             throw new CaxriError('CANCELLED', 'SSH Host connection was closed');
         }
-        this.options.logger.write('info', logEventCatalog.remoteSsh.masterReady, {
+        this.options.logger.write('info', logEventCatalog.sshHost.masterReady, {
             fields: { durationMs: Date.now() - startedAt },
         });
         this.connection = connection;
@@ -272,13 +266,13 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     }
 
     private handleConnectionClosed(
-        connection: RemoteTransport,
+        connection: SshHostTransport,
         info: SshConnectionCloseInfo,
     ): void {
         if (this.connection !== connection) return;
         this.connection = undefined;
         this.forgetRemoteState();
-        this.options.logger.write('warn', logEventCatalog.remoteSsh.masterClosed, {
+        this.options.logger.write('warn', logEventCatalog.sshHost.masterClosed, {
             fields: {
                 exitCode: info.code,
                 signal: info.signal,
@@ -308,9 +302,9 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     }
 
     private async ensureProbe(
-        connection: RemoteTransport,
+        connection: SshHostTransport,
         layers: Map<RemoteArchitecture, RemoteLayer>,
-    ): Promise<RemoteProbe> {
+    ): Promise<SshHostProbe> {
         if (this.probe) return this.probe;
         const startedAt = Date.now();
         const descriptors = Array.from(layers.values(), (layer) => layer.descriptor);
@@ -318,13 +312,13 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             buildIds: descriptors.map((descriptor) => descriptor.buildId),
             runtimeSha256s: descriptors.map((descriptor) => descriptor.runtime.sha256),
         });
-        const { result, stderr } = await runRemoteScript(connection, script, {
+        const { result, stderr } = await runSshHostScript(connection, script, {
             timeoutMs: PROBE_TIMEOUT_MS,
         });
         if (!result) {
             if (/base64/iu.test(stderr) && /not found|no such file/iu.test(stderr))
-                throw new RemoteSetupError('missingTool', 'The SSH Host has no "base64" command');
-            throw new RemoteSetupError(
+                throw new SshHostSetupError('missingTool', 'The SSH Host has no "base64" command');
+            throw new SshHostSetupError(
                 'unknown',
                 lastLine(stderr) || 'Could not inspect the SSH Host',
             );
@@ -337,8 +331,8 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
                 hostname: probe.hostname,
             };
         const layer = layers.get(probe.architecture as RemoteArchitecture);
-        validateRemoteProbe(probe, layer?.descriptor.glibcBaseline);
-        this.options.logger.write('info', logEventCatalog.remoteSsh.probed, {
+        validateSshHostProbe(probe, layer?.descriptor.glibcBaseline);
+        this.options.logger.write('info', logEventCatalog.sshHost.probed, {
             fields: {
                 architecture: probe.architecture,
                 durationMs: Date.now() - startedAt,
@@ -352,11 +346,11 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     }
 
     private async install(
-        connection: RemoteTransport,
-        probe: RemoteProbe,
+        connection: SshHostTransport,
+        probe: SshHostProbe,
         layer: RemoteLayer,
     ): Promise<void> {
-        const installed = await installRemoteBuild({
+        const installed = await installSshHostBuild({
             connection,
             layer,
             logger: this.options.logger,
@@ -372,8 +366,8 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
      * Copies Desktop's config into a remote profile that has none yet, so the first remote window looks like the local
      * one. Failures are ignored: the remote Server creates defaults on its own.
      */
-    private async seed(connection: RemoteTransport): Promise<void> {
-        let seed: RemoteSeedConfig = {};
+    private async seed(connection: SshHostTransport): Promise<void> {
+        let seed: SshHostSeedConfig = {};
         await bestEffort(async () => {
             seed = (await this.options.seedConfig?.()) ?? {};
         });
@@ -388,7 +382,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
                 .filter((entry): entry is [SeedableConfigFile, string] => entry[1] !== undefined)
                 .map(([file, content]) =>
                     bestEffort(() =>
-                        runRemoteScript(connection, seedConfigScript({ file }), {
+                        runSshHostScript(connection, seedConfigScript({ file }), {
                             stdin: Readable.from([Buffer.from(content, 'utf8')]),
                             timeoutMs: SMALL_SCRIPT_TIMEOUT_MS,
                         }),
@@ -399,11 +393,11 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     }
 
     private async launch(
-        connection: RemoteTransport,
+        connection: SshHostTransport,
         layer: RemoteLayer,
     ): Promise<{ credential: ServerDesktopCredential; manifest: ServerManifest }> {
         const startedAt = Date.now();
-        const { result, stderr } = await runRemoteScript(
+        const { result, stderr } = await runSshHostScript(
             connection,
             launchScript({
                 buildId: layer.descriptor.buildId,
@@ -412,13 +406,13 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             { timeoutMs: LAUNCH_TIMEOUT_MS },
         );
         const { credential, manifest, outcome } = parseLaunchOutput(result, stderr);
-        this.options.logger.write('info', logEventCatalog.remoteSsh.launched, {
+        this.options.logger.write('info', logEventCatalog.sshHost.launched, {
             fields: { durationMs: Date.now() - startedAt, outcome },
         });
         return { credential, manifest };
     }
 
-    private async ensureForward(connection: RemoteTransport, remotePort: number): Promise<number> {
+    private async ensureForward(connection: SshHostTransport, remotePort: number): Promise<number> {
         if (this.forward?.remotePort === remotePort) return this.forward.localPort;
         const previous = this.forward;
         this.forward = undefined;
@@ -426,7 +420,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         const startedAt = Date.now();
         const localPort = await connection.forwardLocal(remotePort);
         this.forward = { localPort, remotePort };
-        this.options.logger.write('info', logEventCatalog.remoteSsh.forwarded, {
+        this.options.logger.write('info', logEventCatalog.sshHost.forwarded, {
             fields: { durationMs: Date.now() - startedAt },
         });
         return localPort;
@@ -472,7 +466,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     cancel(): void {
         if (this.isDisposed) return;
         this.isCancelled = true;
-        this.terminalFailure = new RemoteSetupError('cancelled', CANCELLED_FAILURE.message);
+        this.terminalFailure = new SshHostSetupError('cancelled', CANCELLED_FAILURE.message);
         const connections = [this.connection, this.pendingConnection];
         this.connection = undefined;
         this.pendingConnection = undefined;
@@ -490,7 +484,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         this.setup ??= this.sharedSetup();
         const target = await this.setup;
         // A cancel that lands after setup finished but before the handshake still wins over attaching.
-        if (this.isCancelled) throw new RemoteSetupError('cancelled', CANCELLED_FAILURE.message);
+        if (this.isCancelled) throw new SshHostSetupError('cancelled', CANCELLED_FAILURE.message);
         const connect =
             this.options.connectOperator ??
             ((manifest: ServerManifest, timeout: number) =>
@@ -541,7 +535,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         if (!connection?.isOpen) return;
         const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
         await bestEffort(() =>
-            runRemoteScript(connection, stopWaitScript({ pid, timeoutSeconds }), {
+            runSshHostScript(connection, stopWaitScript({ pid, timeoutSeconds }), {
                 timeoutMs: timeoutMs + 10_000,
             }),
         );

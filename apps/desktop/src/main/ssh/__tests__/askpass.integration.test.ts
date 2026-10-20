@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AskpassBridge } from '../askpass';
 import { parseSshDestination } from '../destination';
 import { SshConnection, SshConnectionError } from '../ssh-connection';
-import { makeShortTemporaryDirectory } from './support/remote-fixtures';
+import { makeShortTemporaryDirectory } from './support/fixtures';
 import { isSshIntegrationEnabled, labConfigFile, labDestination } from './support/ssh-lab';
 
 const execFileAsync = promisify(execFile);

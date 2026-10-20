@@ -4,29 +4,29 @@ import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindowConstructorOptions } from 'electron';
 import { BrowserWindow, dialog } from 'electron';
 
-import { createDesktopActions } from './desktop-actions';
-import { createDesktopOperationHandler } from './desktop-operations';
-import { guardEnvironmentMethods } from './environment-method-policy';
-import { createMainEventRelay } from './event-relay';
-import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
-import type {
-    RemoteEnvironmentHooks,
-    RemoteEnvironmentParts,
-    RemoteHostSupervisor,
-} from './remote-environments';
-import { DesktopServerConnection } from './server-connection';
-import type { SharedServerConnectionOptions } from './server-connection-options';
-import { createWorkbenchUnsavedEditors } from './unsaved-editors';
-import { defaultWindowState } from './window-placement';
-import type { WindowPresenceRegistry } from './window-presence-registry';
+import { createDesktopActions } from '../desktop-actions';
+import { createDesktopOperationHandler } from '../desktop-operations';
+import { guardEnvironmentMethods } from '../environment-method-policy';
+import { createMainEventRelay } from '../event-relay';
+import { createElectronIpcCommandAdapter } from '../ipc-command-adapter';
+import { DesktopServerConnection } from '../server-connection';
+import type { SharedServerConnectionOptions } from '../server-connection-options';
+import { createWorkbenchUnsavedEditors } from '../unsaved-editors';
+import { defaultWindowState } from '../window-placement';
+import type { WindowPresenceRegistry } from '../window-presence-registry';
 import {
     createConnectionPresence,
     forwardAsRequestWindow,
     PRIMARY_WINDOW_KEY,
-} from './window-presence-registry';
-import { installRendererGuards } from './workbench-renderer-guards';
+} from '../window-presence-registry';
+import { installRendererGuards } from '../workbench-renderer-guards';
+import type {
+    SshHostEnvironmentHooks,
+    SshHostEnvironmentParts,
+    SshHostSupervisor,
+} from './host-environments';
 
-interface RemoteMainHandlerInput {
+interface SshHostMainHandlerInput {
     connection: DesktopServerConnection;
     focusWindow: () => Promise<void>;
     onUnsavedEditorsReply: ReturnType<typeof createWorkbenchUnsavedEditors>['reply'];
@@ -35,7 +35,7 @@ interface RemoteMainHandlerInput {
     windowPresence: WindowPresenceRegistry;
 }
 
-export interface RemoteEnvironmentWindowOptions {
+export interface SshHostEnvironmentWindowOptions {
     /**
      * Window chrome and `webPreferences` shared with the local Workbench window.
      */
@@ -45,8 +45,8 @@ export interface RemoteEnvironmentWindowOptions {
      * local artifact (for the build fingerprint) and replaces discovery and supervision.
      */
     connection: SharedServerConnectionOptions;
-    createMainHandler(input: RemoteMainHandlerInput): (request: MainRequest) => Promise<unknown>;
-    createSupervisor(destination: string, hooks: RemoteEnvironmentHooks): RemoteHostSupervisor;
+    createMainHandler(input: SshHostMainHandlerInput): (request: MainRequest) => Promise<unknown>;
+    createSupervisor(destination: string, hooks: SshHostEnvironmentHooks): SshHostSupervisor;
     isQuitting(): boolean;
     loadRenderer(window: BrowserWindow): void;
     logger: () => StructuredLogger;
@@ -60,8 +60,8 @@ export interface RemoteEnvironmentWindowOptions {
  * Builds the window, Server connection, event relay, and IPC transport for one SSH Host. Everything the local Workbench
  * window has is rebuilt per environment so no request, event, or native prompt can cross to the wrong Server.
  */
-export function createRemoteEnvironmentParts(options: RemoteEnvironmentWindowOptions) {
-    return (destination: string, hooks: RemoteEnvironmentHooks): RemoteEnvironmentParts => {
+export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowOptions) {
+    return (destination: string, hooks: SshHostEnvironmentHooks): SshHostEnvironmentParts => {
         const window = new BrowserWindow({
             ...defaultWindowState.bounds,
             minWidth: 960,

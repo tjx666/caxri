@@ -4,8 +4,8 @@ import process from 'node:process';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AskpassHandler } from './askpass';
-import { RemoteServerSupervisor } from './remote-server-supervisor';
-import type { RemoteSeedConfig, RemoteStateUpdate } from './remote-server-supervisor-options';
+import { SshHostServerSupervisor } from './server-supervisor';
+import type { SshHostSeedConfig, SshHostStateUpdate } from './server-supervisor-options';
 import { defaultSshControlDirectory } from './ssh-connection';
 
 /**
@@ -14,7 +14,7 @@ import { defaultSshControlDirectory } from './ssh-connection';
  */
 export const SSH_CONFIG_ENVIRONMENT_KEY = 'CAXRI_SSH_CONFIG';
 
-export interface RemoteHostSupervisorFactoryOptions {
+export interface SshHostSupervisorFactoryOptions {
     destination: string;
     electronExecutable: string;
     /**
@@ -23,7 +23,7 @@ export interface RemoteHostSupervisorFactoryOptions {
     environment?: NodeJS.ProcessEnv;
     hooks: {
         askpass: AskpassHandler;
-        update(patch: RemoteStateUpdate): void;
+        update(patch: SshHostStateUpdate): void;
     };
     inspect?: boolean;
     logger: Pick<StructuredLogger, 'write'>;
@@ -34,18 +34,18 @@ export interface RemoteHostSupervisorFactoryOptions {
      */
     privateDirectory: string;
     remoteLayersRoot: string;
-    seedConfig?: () => Promise<RemoteSeedConfig>;
+    seedConfig?: () => Promise<SshHostSeedConfig>;
 }
 
 /**
  * Composition-root factory for one SSH Host window's supervisor.
  */
-export function createRemoteHostSupervisor(
-    options: RemoteHostSupervisorFactoryOptions,
-): RemoteServerSupervisor {
+export function createSshHostSupervisor(
+    options: SshHostSupervisorFactoryOptions,
+): SshHostServerSupervisor {
     const environment = options.environment ?? process.env;
     const configFile = environment[SSH_CONFIG_ENVIRONMENT_KEY];
-    return new RemoteServerSupervisor({
+    return new SshHostServerSupervisor({
         askpass: options.hooks.askpass,
         ...(configFile !== undefined && configFile !== '' && { configFile }),
         destination: options.destination,

@@ -8,13 +8,8 @@ import { gunzipSync } from 'node:zlib';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-    ensureLocalRuntime,
-    gzipProgressStream,
-    progressStream,
-    readRemoteLayer,
-} from '../remote-layers';
-import { buildLayerFixture, makeShortTemporaryDirectory, sha256 } from './support/remote-fixtures';
+import { ensureLocalRuntime, gzipProgressStream, progressStream, readRemoteLayer } from '../layers';
+import { buildLayerFixture, makeShortTemporaryDirectory, sha256 } from './support/fixtures';
 
 const execFileAsync = promisify(execFile);
 

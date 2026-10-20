@@ -46,7 +46,6 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [process-explorer.md](process-explorer.md)                         | Process Explorer, resource thresholds, and runaway alerts      |
 | [provider-messaging.md](provider-messaging.md)                     | Peer Inbox provider-messaging support and the verified matrix  |
 | [quality-toolchain.md](quality-toolchain.md)                       | Unified mechanical-quality tooling                             |
-| [remote-ssh.md](remote-ssh.md)                                     | SSH Host windows: connect, install, lifecycle, remote layers   |
 | [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                             |
 | [secondary-sidebar-trees.md](secondary-sidebar-trees.md)           | Files/Source Control/extension tree rendering                  |
 | [startup-performance.md](startup-performance.md)                   | Launch milestone log, packaged startup runner, rejected tricks |
@@ -55,6 +54,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [session-compaction.md](session-compaction.md)                     | Batch Session compaction command                               |
 | [session-search.md](session-search.md)                             | Session search across Caxri and external Agent conversations   |
 | [session-conversation-context.md](session-conversation-context.md) | Reading a Session's own Agent conversation                     |
+| [ssh-host.md](ssh-host.md)                                         | SSH Host windows: connect, install, lifecycle, remote layers   |
 | [terminal-reference-preview.md](terminal-reference-preview.md)     | Terminal commit/reference hover previews                       |
 | [type-aware-linting.md](type-aware-linting.md)                     | ESLint (syntactic) + oxlint/tsgolint (typed) split             |
 | [usage.md](usage.md)                                               | Usage page: token, cost, and delivery statistics               |

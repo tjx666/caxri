@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLocalWorkbenchEnvironment } from '../local-workbench-environment';
 import type { MainEnvironmentMethods } from '../main-environment-methods';
 import { handleEnvironmentRequest, isEnvironmentRequest } from '../main-environment-methods';
-import type { RemoteEnvironments } from '../remote-environments';
+import type { SshHostEnvironments } from '../ssh/host-environments';
 
 function environmentMethods() {
     const connect = vi.fn<MainEnvironmentMethods['connect']>(() => Promise.resolve());
@@ -79,7 +79,7 @@ describe('Main environment methods', () => {
     it('hands the local Workbench connect to the SSH Host registry once it exists', async () => {
         const connect = vi.fn(() => Promise.resolve());
         const local = createLocalWorkbenchEnvironment(
-            () => ({ connect }) as unknown as RemoteEnvironments,
+            () => ({ connect }) as unknown as SshHostEnvironments,
         );
 
         await local.connect('dev@build-box');

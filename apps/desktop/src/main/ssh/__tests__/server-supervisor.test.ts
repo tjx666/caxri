@@ -8,11 +8,11 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RemoteServerSupervisor } from '../remote-server-supervisor';
-import type { RemoteStateUpdate } from '../remote-server-supervisor-options';
-import { RemoteSetupError } from '../remote-setup';
+import { SshHostServerSupervisor } from '../server-supervisor';
+import type { SshHostStateUpdate } from '../server-supervisor-options';
+import { SshHostSetupError } from '../setup';
 import { SshConnectionError } from '../ssh-connection';
-import type { LayerFixture } from './support/remote-fixtures';
+import type { LayerFixture } from './support/fixtures';
 import {
     buildLayerFixture,
     captureRejection,
@@ -22,7 +22,7 @@ import {
     LocalTransport,
     makeShortTemporaryDirectory,
     writeShims,
-} from './support/remote-fixtures';
+} from './support/fixtures';
 
 const REMOTE_PORT = 45_678;
 
@@ -32,7 +32,7 @@ describe('remote server supervisor', () => {
     let shims: string;
     let layers: string;
     let fixture: LayerFixture;
-    let states: RemoteStateUpdate[];
+    let states: SshHostStateUpdate[];
     let transports: LocalTransport[];
     let startFailure: Error | undefined;
     let logger: { write: ReturnType<typeof vi.fn<StructuredLogger['write']>> };
@@ -65,9 +65,9 @@ describe('remote server supervisor', () => {
     });
 
     function createSupervisor(
-        overrides: Partial<ConstructorParameters<typeof RemoteServerSupervisor>[0]> = {},
-    ): RemoteServerSupervisor {
-        return new RemoteServerSupervisor({
+        overrides: Partial<ConstructorParameters<typeof SshHostServerSupervisor>[0]> = {},
+    ): SshHostServerSupervisor {
+        return new SshHostServerSupervisor({
             askpass: () => Promise.resolve(null),
             connectOperator: (manifest) => {
                 operatorManifests.push(manifest);
@@ -101,7 +101,7 @@ describe('remote server supervisor', () => {
 
     const loggedEvents = (): string[] => logger.write.mock.calls.map((call) => call[1] as string);
 
-    describe('RemoteServerSupervisor', () => {
+    describe('SshHostServerSupervisor', () => {
         it('installs, starts, forwards, and attaches on a fresh SSH Host', async () => {
             const supervisor = createSupervisor();
             await supervisor.ensure();
@@ -143,11 +143,11 @@ describe('remote server supervisor', () => {
                 ),
             ).toBe('');
             expect(loggedEvents()).toEqual([
-                logEventCatalog.remoteSsh.masterReady,
-                logEventCatalog.remoteSsh.probed,
-                logEventCatalog.remoteSsh.installed,
-                logEventCatalog.remoteSsh.launched,
-                logEventCatalog.remoteSsh.forwarded,
+                logEventCatalog.sshHost.masterReady,
+                logEventCatalog.sshHost.probed,
+                logEventCatalog.sshHost.installed,
+                logEventCatalog.sshHost.launched,
+                logEventCatalog.sshHost.forwarded,
             ]);
             expect(JSON.stringify(logger.write.mock.calls)).not.toContain(home);
         });
@@ -191,7 +191,7 @@ describe('remote server supervisor', () => {
             );
             const supervisor = createSupervisor();
             const error = await captureRejection(supervisor.ensure());
-            expect(error).toBeInstanceOf(RemoteSetupError);
+            expect(error).toBeInstanceOf(SshHostSetupError);
             expect(error).toMatchObject({ code: 'UNAVAILABLE', reason: 'authentication' });
             expect(supervisor.isFailed()).toBe(true);
             expect(states.at(-1)).toEqual({

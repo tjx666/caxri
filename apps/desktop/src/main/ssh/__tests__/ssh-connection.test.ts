@@ -17,7 +17,7 @@ import {
     SshConnectionError,
 } from '../ssh-connection';
 import { writeFakeSsh } from './support/fake-ssh';
-import { captureRejection, makeShortTemporaryDirectory } from './support/remote-fixtures';
+import { captureRejection, makeShortTemporaryDirectory } from './support/fixtures';
 
 describe('ssh connection', () => {
     let root: string;

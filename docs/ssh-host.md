@@ -3,7 +3,7 @@ kind: living
 status: current
 ---
 
-# Remote SSH
+# SSH Host
 
 Desktop can open a window whose Projects, Terminals, and Agents run on an **SSH Host**: a Linux
 machine reached with the user's own OpenSSH configuration. The SSH Host runs the same standalone
@@ -143,8 +143,8 @@ manifest's endpoint to the local forward, so the WebSocket clients, Desktop cred
 Desktop lease are the local code paths. Each SSH Host window has its own `DesktopServerConnection`,
 event relay, IPC transport, and Main method handler, and Main routes Renderer IPC by the sending
 `WebContents`, so no request or event crosses environments. The code lives in
-`apps/desktop/src/main/ssh/`, `apps/desktop/src/main/remote-environments.ts`, and
-`apps/desktop/src/main/remote-environment-window.ts`.
+`apps/desktop/src/main/ssh/` (the SSH Host window registry is `host-environments.ts`, its window and
+connection builder is `host-environment-window.ts`).
 
 Periodic `/tmp` cleanup does not break a live connection: macOS's cleaner removes only regular files, and
 `systemd-tmpfiles` skips sockets in use, so the ControlMaster socket survives as long as its

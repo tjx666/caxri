@@ -5,9 +5,9 @@ import { gzipSync } from 'node:zlib';
 
 import { expect } from 'vitest';
 
-import type { RemoteScript } from '../../remote-scripts';
-import { installAppScript, parseRemoteResult, uploadRuntimeScript } from '../../remote-scripts';
-import type { LayerFixture } from './remote-fixtures';
+import type { SshHostScript } from '../../scripts';
+import { installAppScript, parseSshHostResult, uploadRuntimeScript } from '../../scripts';
+import type { LayerFixture } from './fixtures';
 import {
     hostEnvironment,
     killRemoteServer,
@@ -15,9 +15,9 @@ import {
     makeShortTemporaryDirectory,
     runLocalScript,
     writeShims,
-} from './remote-fixtures';
+} from './fixtures';
 
-export interface RemoteScriptRun {
+export interface SshHostScriptRun {
     code: number | null;
     result: Map<string, string> | undefined;
     stderr: string;
@@ -27,14 +27,14 @@ export interface RemoteScriptRun {
  * A disposable stand-in SSH Host for the remote script tests: a temporary `$HOME`, a shim directory placed first on
  * `PATH` that makes the local machine look like a Linux host, and helpers that run scripts with the local `/bin/sh`.
  */
-export class RemoteScriptHost {
-    static async create(): Promise<RemoteScriptHost> {
+export class SshHostScriptHost {
+    static async create(): Promise<SshHostScriptHost> {
         const root = await makeShortTemporaryDirectory('scr');
         const home = join(root, 'home');
         const shims = join(root, 'shims');
         await mkdir(home);
         await writeShims(shims, linuxShims());
-        return new RemoteScriptHost(root, home, shims);
+        return new SshHostScriptHost(root, home, shims);
     }
 
     /**
@@ -55,11 +55,11 @@ export class RemoteScriptHost {
         await rm(this.root, { force: true, recursive: true });
     }
 
-    async run(script: RemoteScript, stdin?: Buffer): Promise<RemoteScriptRun> {
+    async run(script: SshHostScript, stdin?: Buffer): Promise<SshHostScriptRun> {
         const output = await runLocalScript(script.script, this.environment, stdin);
         return {
             code: output.code,
-            result: parseRemoteResult(output.stdout, script.marker),
+            result: parseSshHostResult(output.stdout, script.marker),
             stderr: output.stderr,
         };
     }

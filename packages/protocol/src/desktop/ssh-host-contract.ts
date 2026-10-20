@@ -30,7 +30,7 @@ export const sshDestinationSchema = z
 /**
  * Ordered connection phases of an SSH Host window. `installing` is the only phase that reports transfer progress.
  */
-export const remoteConnectionPhases = [
+export const sshHostConnectionPhases = [
     'connecting',
     'probing',
     'installing',
@@ -42,8 +42,8 @@ export const remoteConnectionPhases = [
     'failed',
 ] as const;
 
-export const remoteConnectionPhaseSchema = z.enum(remoteConnectionPhases);
-export type RemoteConnectionPhase = z.infer<typeof remoteConnectionPhaseSchema>;
+export const sshHostConnectionPhaseSchema = z.enum(sshHostConnectionPhases);
+export type SshHostConnectionPhase = z.infer<typeof sshHostConnectionPhaseSchema>;
 
 /**
  * Closed causes for a failed or interrupted SSH Host connection. `authentication` and `hostKey` stop automatic
@@ -52,7 +52,7 @@ export type RemoteConnectionPhase = z.infer<typeof remoteConnectionPhaseSchema>;
  * `takenOver` means another Caxri Desktop attached to the same Server and replaced this window's lease; nothing retries
  * it, because reconnecting would take the Server back from that window.
  */
-export const remoteFailureReasons = [
+export const sshHostFailureReasons = [
     'authentication',
     'hostKey',
     'unreachable',
@@ -68,22 +68,22 @@ export const remoteFailureReasons = [
     'unknown',
 ] as const;
 
-export const remoteFailureReasonSchema = z.enum(remoteFailureReasons);
+export const sshHostFailureReasonSchema = z.enum(sshHostFailureReasons);
 
 /**
  * Prefix of the one stderr line a Server prints when a Server on another host sharing the home directory holds its
  * profile, followed by ` host=<hostname>`. The SSH Host launch script reads it from the Server's stdio log to report
  * `profileInUse` with the holder's name instead of a generic `launchFailed`.
  */
-export const REMOTE_PROFILE_IN_USE_MARKER = 'CAXRI_PROFILE_IN_USE';
-export type RemoteFailureReason = z.infer<typeof remoteFailureReasonSchema>;
+export const SSH_HOST_PROFILE_IN_USE_MARKER = 'CAXRI_PROFILE_IN_USE';
+export type SshHostFailureReason = z.infer<typeof sshHostFailureReasonSchema>;
 
-export const remoteAskpassKindSchema = z.enum(['secret', 'confirm', 'text']);
-export type RemoteAskpassKind = z.infer<typeof remoteAskpassKindSchema>;
+export const sshHostAskpassKindSchema = z.enum(['secret', 'confirm', 'text']);
+export type SshHostAskpassKind = z.infer<typeof sshHostAskpassKindSchema>;
 
-export const remoteAskpassRequestSchema = z.object({
+export const sshHostAskpassRequestSchema = z.object({
     requestId: z.string().min(1).max(64),
-    kind: remoteAskpassKindSchema,
+    kind: sshHostAskpassKindSchema,
     /**
      * OpenSSH's prompt text, such as `user@host's password:` or the host-key fingerprint question.
      */
@@ -95,15 +95,15 @@ export const remoteAskpassRequestSchema = z.object({
     retry: z.number().int().positive().optional(),
 });
 
-export type RemoteAskpassRequest = z.infer<typeof remoteAskpassRequestSchema>;
+export type SshHostAskpassRequest = z.infer<typeof sshHostAskpassRequestSchema>;
 
-const remoteProgressSchema = z.object({
+const sshHostProgressSchema = z.object({
     completedBytes: z.number().int().nonnegative(),
     totalBytes: z.number().int().nonnegative(),
 });
 
-const remoteFailureSchema = z.object({
-    reason: remoteFailureReasonSchema,
+const sshHostFailureSchema = z.object({
+    reason: sshHostFailureReasonSchema,
     /**
      * Short user-readable detail, such as OpenSSH's last stderr line. Never contains credentials: askpass replies are
      * not logged or echoed.
@@ -120,7 +120,7 @@ const remoteFailureSchema = z.object({
     knownHostsName: z.string().max(300).optional(),
 });
 
-const remotePlatformSchema = z.object({
+const sshHostPlatformSchema = z.object({
     architecture: z.enum(['x64', 'arm64']),
     glibc: z.string().max(32),
     hostname: z.string().max(255),
@@ -141,16 +141,16 @@ export const environmentStateSchema = z.discriminatedUnion('kind', [
          * `destination`.
          */
         hostIdentity: z.string().min(1).max(1024),
-        phase: remoteConnectionPhaseSchema,
+        phase: sshHostConnectionPhaseSchema,
         /**
          * Bytes of the application layer (and, when the SSH Host cannot download it, the runtime) uploaded so far.
          */
-        progress: remoteProgressSchema.optional(),
+        progress: sshHostProgressSchema.optional(),
         /**
          * While `reconnecting`: which automatic attempt is running since the connection dropped, starting at 1.
          */
         attempt: z.number().int().positive().optional(),
-        failure: remoteFailureSchema.optional(),
+        failure: sshHostFailureSchema.optional(),
         /**
          * True when automatic reconnection stopped because the user must act (a password, 2FA code, or host key).
          */
@@ -159,11 +159,11 @@ export const environmentStateSchema = z.discriminatedUnion('kind', [
          * The OpenSSH prompt waiting for the user, if any. It is part of the state rather than a separate event so a
          * window that loads after the prompt was raised still shows it.
          */
-        askpass: remoteAskpassRequestSchema.optional(),
+        askpass: sshHostAskpassRequestSchema.optional(),
         /**
          * The remote machine as reported by the probe, once known.
          */
-        platform: remotePlatformSchema.optional(),
+        platform: sshHostPlatformSchema.optional(),
     }),
 ]);
 
@@ -186,7 +186,7 @@ export type SshHostEntry = z.infer<typeof sshHostEntrySchema>;
  * Main-owned methods for SSH Host environments. Every Workbench window may call `environment.get`; the remaining
  * methods act on the calling window's own environment or open a new one.
  */
-export const remoteEnvironmentDesktopMethods = {
+export const sshHostDesktopMethods = {
     'environment.get': {
         ...desktopRead,
         params: noParameters,

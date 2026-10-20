@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import type { ServerDesktopCredential, ServerManifest } from '@caxri/protocol';
 import { serverDesktopCredentialSchema, serverManifestSchema } from '@caxri/protocol';
 
-import { launchFailureDetail, RemoteSetupError } from './remote-setup';
+import { launchFailureDetail, SshHostSetupError } from './setup';
 
 export interface LaunchedRemoteServer {
     credential: ServerDesktopCredential;
@@ -17,8 +17,8 @@ function decodeBase64Json(value: string | undefined): unknown {
 }
 
 /**
- * Reads the launch script's result block: the Server it adopted or started, or the `RemoteSetupError` that explains why
- * there is none. A profile another machine holds names that machine (`holder`) so the window can say which.
+ * Reads the launch script's result block: the Server it adopted or started, or the `SshHostSetupError` that explains
+ * why there is none. A profile another machine holds names that machine (`holder`) so the window can say which.
  */
 export function parseLaunchOutput(
     result: Map<string, string> | undefined,
@@ -29,10 +29,14 @@ export function parseLaunchOutput(
         // The launch script prints an empty holder when the lock names no host.
         const reported = result?.get('holder');
         const holder = reported === '' ? undefined : reported;
-        throw new RemoteSetupError('profileInUse', `In use by ${holder ?? 'another host'}`, holder);
+        throw new SshHostSetupError(
+            'profileInUse',
+            `In use by ${holder ?? 'another host'}`,
+            holder,
+        );
     }
     if (outcome !== 'adopted' && outcome !== 'started')
-        throw new RemoteSetupError(
+        throw new SshHostSetupError(
             'launchFailed',
             launchFailureDetail(stderr) ||
                 `The remote Server did not start (${outcome ?? 'no result'})`,
@@ -45,12 +49,15 @@ export function parseLaunchOutput(
             decodeBase64Json(result?.get('credential')),
         );
     } catch {
-        throw new RemoteSetupError('launchFailed', 'The remote Server discovery files are invalid');
+        throw new SshHostSetupError(
+            'launchFailed',
+            'The remote Server discovery files are invalid',
+        );
     }
     if (
         credential.profileId !== manifest.profileId ||
         credential.processIdentity !== manifest.processIdentity
     )
-        throw new RemoteSetupError('launchFailed', 'The remote Server discovery files disagree');
+        throw new SshHostSetupError('launchFailed', 'The remote Server discovery files disagree');
     return { credential, manifest, outcome };
 }

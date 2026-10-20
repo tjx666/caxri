@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-import type { RemoteAskpassRequest } from '@caxri/protocol';
+import type { SshHostAskpassRequest } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -40,7 +40,7 @@ function AskpassPrompt({
     request,
 }: {
     destination: string;
-    request: RemoteAskpassRequest;
+    request: SshHostAskpassRequest;
 }) {
     const { t } = useTranslation();
     const contentReference = useRef<HTMLDivElement>(null);

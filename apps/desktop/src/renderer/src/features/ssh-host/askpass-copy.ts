@@ -1,4 +1,4 @@
-import type { RemoteAskpassRequest } from '@caxri/protocol';
+import type { SshHostAskpassRequest } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
 
@@ -8,7 +8,7 @@ import type { TranslationKey } from '../../i18n';
  * code, a keyboard-interactive question) keeps the generic one.
  */
 export function askpassTitleKey(
-    request: Pick<RemoteAskpassRequest, 'kind' | 'prompt'>,
+    request: Pick<SshHostAskpassRequest, 'kind' | 'prompt'>,
 ): TranslationKey {
     if (request.kind === 'confirm') return 'sshHost.askpass.verifyTitle';
     if (/passphrase/iu.test(request.prompt)) return 'sshHost.askpass.passphraseTitle';

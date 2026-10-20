@@ -7,24 +7,21 @@ import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { shell } from 'electron';
 
-import type { MainMethodHandlerOptions } from './main-methods';
-import { createMainMethodHandler } from './main-methods';
-import type { RemoteEnvironmentWindowOptions } from './remote-environment-window';
-import { createRemoteEnvironmentParts } from './remote-environment-window';
-import type { RemoteEnvironments } from './remote-environments';
-import { createRemoteEnvironments } from './remote-environments';
-import { loadRendererEntry } from './renderer-entry';
-import { ProjectRootGrants } from './root-grants';
-import {
-    createRemoteHostSupervisor,
-    SSH_CONFIG_ENVIRONMENT_KEY,
-} from './ssh/remote-host-supervisor';
-import { resolveSshHostWindowKey } from './ssh/resolve-destination';
-import { readSeedConfig } from './ssh/seed-config';
-import { listSshConfigHosts, RecentSshDestinations } from './ssh/ssh-config';
-import { mainWindowChromeOptions, zoomFactorForLevel } from './window-chrome';
-import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
-import { createWorkbenchRootAuthority } from './workbench-root-authority';
+import type { MainMethodHandlerOptions } from '../main-methods';
+import { createMainMethodHandler } from '../main-methods';
+import { loadRendererEntry } from '../renderer-entry';
+import { ProjectRootGrants } from '../root-grants';
+import { mainWindowChromeOptions, zoomFactorForLevel } from '../window-chrome';
+import { PRIMARY_WINDOW_KEY } from '../window-presence-registry';
+import { createWorkbenchRootAuthority } from '../workbench-root-authority';
+import type { SshHostEnvironmentWindowOptions } from './host-environment-window';
+import { createSshHostEnvironmentParts } from './host-environment-window';
+import type { SshHostEnvironments } from './host-environments';
+import { createSshHostEnvironments } from './host-environments';
+import { createSshHostSupervisor, SSH_CONFIG_ENVIRONMENT_KEY } from './host-supervisor';
+import { resolveSshHostWindowKey } from './resolve-destination';
+import { readSeedConfig } from './seed-config';
+import { listSshConfigHosts, RecentSshDestinations } from './ssh-config';
 
 /**
  * Main method options that do not depend on which window asked: the local Workbench's process-wide controllers.
@@ -41,8 +38,8 @@ type SharedMainMethodOptions = Pick<
     | 'restartInGpuSafeMode'
 >;
 
-export interface SshHostEnvironmentsOptions {
-    connection: RemoteEnvironmentWindowOptions['connection'];
+export interface SshHostEnvironmentCompositionOptions {
+    connection: SshHostEnvironmentWindowOptions['connection'];
     /**
      * Main's own output directory, used to find the Renderer entry and, unpackaged, the built remote layers.
      */
@@ -63,10 +60,12 @@ export interface SshHostEnvironmentsOptions {
  * Builds the SSH Host registry. Each SSH Host window gets its own Main method handler bound to its own Server
  * connection and window, guarded by `environmentMethodScopes`.
  */
-export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): RemoteEnvironments {
+export function composeSshHostEnvironments(
+    options: SshHostEnvironmentCompositionOptions,
+): SshHostEnvironments {
     const recentDestinations = new RecentSshDestinations(options.userDataPath);
-    const environments: RemoteEnvironments = createRemoteEnvironments({
-        create: createRemoteEnvironmentParts({
+    const environments: SshHostEnvironments = createSshHostEnvironments({
+        create: createSshHostEnvironmentParts({
             chrome: () => {
                 const zoomFactor = zoomFactorForLevel(options.zoomLevel());
                 return {
@@ -133,7 +132,7 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
                 });
             },
             createSupervisor: (destination, hooks) =>
-                createRemoteHostSupervisor({
+                createSshHostSupervisor({
                     destination,
                     electronExecutable: process.execPath,
                     hooks,

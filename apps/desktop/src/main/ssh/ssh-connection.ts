@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 import type { Readable } from 'node:stream';
 
-import type { RemoteFailureReason } from '@caxri/protocol';
+import type { SshHostFailureReason } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { ensurePrivateUnixSocketDirectory } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
@@ -62,7 +62,7 @@ export function defaultSshControlDirectory(): string {
 
 export class SshConnectionError extends Error {
     constructor(
-        readonly reason: RemoteFailureReason,
+        readonly reason: SshHostFailureReason,
         message: string,
     ) {
         super(message);
@@ -74,7 +74,7 @@ export class SshConnectionError extends Error {
  * Lines OpenSSH prints for each failure class. Matching is on stable fragments that have not changed across OpenSSH 7.x
  * to 10.x; anything else is `unknown` and still shows OpenSSH's own last line.
  */
-const FAILURE_PATTERNS: ReadonlyArray<readonly [RemoteFailureReason, RegExp]> = [
+const FAILURE_PATTERNS: ReadonlyArray<readonly [SshHostFailureReason, RegExp]> = [
     [
         'hostKey',
         /host key verification failed|remote host identification has changed|host key for .* has changed|no .*host key is known/iu,
@@ -104,7 +104,7 @@ function lastMeaningfulLine(stderr: string): string {
  */
 export function classifySshFailure(stderr: string): {
     message: string;
-    reason: RemoteFailureReason;
+    reason: SshHostFailureReason;
 } {
     const message = lastMeaningfulLine(stderr) || 'SSH exited without an error message';
     for (const [reason, pattern] of FAILURE_PATTERNS)

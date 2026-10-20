@@ -7,11 +7,11 @@ import { connectDesktopWithCredential } from '@caxri/client/supervise';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { parseSshDestination } from '../destination';
-import { readRemoteLayer } from '../remote-layers';
-import { RemoteServerSupervisor } from '../remote-server-supervisor';
-import type { RemoteStateUpdate } from '../remote-server-supervisor-options';
+import { readRemoteLayer } from '../layers';
+import { SshHostServerSupervisor } from '../server-supervisor';
+import type { SshHostStateUpdate } from '../server-supervisor-options';
 import { SshConnection } from '../ssh-connection';
-import { makeShortTemporaryDirectory } from './support/remote-fixtures';
+import { makeShortTemporaryDirectory } from './support/fixtures';
 import {
     createCountingConnection,
     isSshIntegrationEnabled,
@@ -178,7 +178,7 @@ function parseProcessSamples(stdout: string): ProcessSample[] {
 describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on an SSH Host', () => {
     let root: string;
     let control: SshConnection | undefined;
-    let supervisor: RemoteServerSupervisor | undefined;
+    let supervisor: SshHostServerSupervisor | undefined;
     const openClients: ServerClient[] = [];
 
     async function remote(script: string, timeoutMs = 30_000): Promise<string> {
@@ -331,10 +331,10 @@ describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on a
     it(
         'measures install size, transfer, and per-process memory',
         async () => {
-            const states: RemoteStateUpdate[] = [];
+            const states: SshHostStateUpdate[] = [];
             const installed: Array<Record<string, unknown>> = [];
             let uploadBytes = 0;
-            supervisor = new RemoteServerSupervisor({
+            supervisor = new SshHostServerSupervisor({
                 askpass: () => Promise.resolve(null),
                 ...(labConfigFile !== undefined && { configFile: labConfigFile }),
                 destination: labDestination,

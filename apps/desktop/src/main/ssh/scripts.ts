@@ -1,4 +1,4 @@
-import { REMOTE_PROFILE_IN_USE_MARKER } from '@caxri/protocol';
+import { SSH_HOST_PROFILE_IN_USE_MARKER } from '@caxri/protocol';
 
 import {
     assertHex,
@@ -8,7 +8,7 @@ import {
     LOCK_FUNCTIONS,
     nonce,
     prologue,
-} from './remote-script-shell';
+} from './script-shell';
 import { shellQuote } from './shell-quote';
 
 /**
@@ -26,7 +26,7 @@ import { shellQuote } from './shell-quote';
  * - `install.lock/`: `mkdir`-based install lock holding the owner's pid.
  */
 
-export interface RemoteScript {
+export interface SshHostScript {
     marker: string;
     script: string;
 }
@@ -46,7 +46,7 @@ export interface ProbeInput {
 /**
  * Reports the platform, tool availability, whether the wanted build and runtime are installed, and the running Server.
  */
-export function probeScript(input: ProbeInput): RemoteScript {
+export function probeScript(input: ProbeInput): SshHostScript {
     const marker = nonce();
     const script = String.raw`${prologue(marker)}${DISCOVERY_FUNCTIONS}
 caxri_os=$(uname -s 2>/dev/null || echo unknown)
@@ -88,7 +88,7 @@ export interface InstallAppInput {
  * the absence of unlisted files are all verified before the build is renamed into place, so a partial or tampered
  * upload never becomes a build. Exit codes: 3 runtime missing, 4 archive checksum, 5 extract, 6 file checksum, 7 lock.
  */
-export function installAppScript(input: InstallAppInput): RemoteScript {
+export function installAppScript(input: InstallAppInput): SshHostScript {
     const marker = nonce();
     const script = String.raw`${prologue(marker)}${LOCK_FUNCTIONS}
 caxri_build=${shellQuote(assertHex(input.buildId, 'buildId'))}
@@ -178,7 +178,7 @@ export interface RuntimeSourceInput {
  * at most two 10 s (curl) or 15 s (wget) connect attempts, and a stalled transfer aborts instead of holding the attach
  * until the 10-minute script timeout. `wget` needs an explicit `-t 2` because its default is 20 tries.
  */
-export function fetchRuntimeScript(input: RuntimeSourceInput): RemoteScript {
+export function fetchRuntimeScript(input: RuntimeSourceInput): SshHostScript {
     if (!/^https:\/\/[^\s'"]+$/u.test(input.url)) throw new Error('Runtime URL must be https');
     const marker = nonce();
     const script = `${prologue(marker)}
@@ -237,7 +237,7 @@ caxri_result status=installed
  * Receives the gzip-compressed `node` binary on stdin (the SSH Host could not download it) and caches it after
  * verifying its hash. Exit codes: 23 decompress, 24 checksum.
  */
-export function uploadRuntimeScript(input: { runtimeSha256: string }): RemoteScript {
+export function uploadRuntimeScript(input: { runtimeSha256: string }): SshHostScript {
     const marker = nonce();
     const script = `${prologue(marker)}
 caxri_node_sha=${shellQuote(assertHex(input.runtimeSha256, 'runtimeSha256'))}
@@ -289,7 +289,7 @@ export interface LaunchInput {
  * session's process group, survives the channel closing, and does not keep the channel open. Exit codes: 30 missing
  * build, 31 the Server exited, 32 timed out.
  */
-export function launchScript(input: LaunchInput): RemoteScript {
+export function launchScript(input: LaunchInput): SshHostScript {
     const marker = nonce();
     const readyIterations = assertPositiveInteger(input.readySeconds ?? 20, 'readySeconds') * 5;
     const script = String.raw`${prologue(marker)}${DISCOVERY_FUNCTIONS}
@@ -333,8 +333,8 @@ fi
 # Only lines this launch appends count, so a marker left by an earlier refused start cannot misreport this one.
 caxri_log_start=$(( $(wc -c < "$caxri_log" 2>/dev/null || echo 0) + 1 ))
 caxri_profile_holder() {
-    tail -c "+$caxri_log_start" "$caxri_log" 2>/dev/null | grep -a '^${REMOTE_PROFILE_IN_USE_MARKER} host=' | tail -n 1 |
-        sed 's/^${REMOTE_PROFILE_IN_USE_MARKER} host=//' | tr -cd 'A-Za-z0-9._-'
+    tail -c "+$caxri_log_start" "$caxri_log" 2>/dev/null | grep -a '^${SSH_HOST_PROFILE_IN_USE_MARKER} host=' | tail -n 1 |
+        sed 's/^${SSH_HOST_PROFILE_IN_USE_MARKER} host=//' | tr -cd 'A-Za-z0-9._-'
 }
 cd "$HOME"
 if command -v setsid >/dev/null 2>&1; then
@@ -382,7 +382,7 @@ exit 32
 /**
  * Waits until a remote pid is gone, for Desktop's stale-build replacement and Stop Remote Server.
  */
-export function stopWaitScript(input: { pid: number; timeoutSeconds: number }): RemoteScript {
+export function stopWaitScript(input: { pid: number; timeoutSeconds: number }): SshHostScript {
     const marker = nonce();
     const pid = assertPositiveInteger(input.pid, 'pid');
     const limit = assertPositiveInteger(input.timeoutSeconds, 'timeoutSeconds') * 5;
@@ -406,7 +406,7 @@ caxri_result state=exited
  * process was started from, then runtimes no remaining build references. It skips entirely while an install holds the
  * lock rather than waiting for it.
  */
-export function gcScript(input: { buildId: string; runtimeSha256: string }): RemoteScript {
+export function gcScript(input: { buildId: string; runtimeSha256: string }): SshHostScript {
     const marker = nonce();
     const script = String.raw`${prologue(marker)}${LOCK_FUNCTIONS}
 caxri_current=${shellQuote(assertHex(input.buildId, 'buildId'))}
@@ -459,7 +459,7 @@ caxri_result "removedBuilds=$caxri_removed_builds" "removedRuntimes=$caxri_remov
  * hard link, which fails instead of overwriting when a file appeared meanwhile, so a user's remote settings are never
  * replaced.
  */
-export function seedConfigScript(input: { file: SeedableConfigFile }): RemoteScript {
+export function seedConfigScript(input: { file: SeedableConfigFile }): SshHostScript {
     if (!SEEDABLE_CONFIG_FILES.includes(input.file)) throw new Error('Unknown config file');
     const marker = nonce();
     const script = `${prologue(marker)}
@@ -487,7 +487,10 @@ fi
  * Extracts the `key=value` lines between a script's marker lines. Returns `undefined` when the block is absent, which
  * means the script died before reporting (for example `set -e` on a full disk).
  */
-export function parseRemoteResult(stdout: string, marker: string): Map<string, string> | undefined {
+export function parseSshHostResult(
+    stdout: string,
+    marker: string,
+): Map<string, string> | undefined {
     const lines = stdout.split(/\r?\n/u);
     const begin = lines.lastIndexOf(`__CAXRI_${marker}_BEGIN__`);
     if (begin === -1) return undefined;
@@ -504,7 +507,7 @@ export function parseRemoteResult(stdout: string, marker: string): Map<string, s
     return result;
 }
 
-export interface RemoteProbe {
+export interface SshHostProbe {
     /**
      * `x64`/`arm64` for supported machines, otherwise `uname -m` verbatim.
      */
@@ -530,7 +533,7 @@ const ARCHITECTURE_ALIASES: Readonly<Record<string, string>> = {
     x86_64: 'x64',
 };
 
-export function parseProbe(result: Map<string, string>): RemoteProbe {
+export function parseProbe(result: Map<string, string>): SshHostProbe {
     const tools: Record<string, boolean> = {};
     const builds = new Set<string>();
     const runtimes = new Set<string>();

@@ -3,21 +3,21 @@ import type { ServerManifest, SshEnvironmentState } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AskpassBridge, AskpassHandler } from './askpass';
-import type { RemoteTransport } from './remote-setup';
+import type { SshHostTransport } from './setup';
 import type { SshConnectionOptions } from './ssh-connection';
 
 /**
  * The SSH-specific part of the window's environment state; Main adds `kind` and `destination`.
  */
-export type RemoteStateUpdate = Omit<SshEnvironmentState, 'kind' | 'destination' | 'hostIdentity'>;
+export type SshHostStateUpdate = Omit<SshEnvironmentState, 'kind' | 'destination' | 'hostIdentity'>;
 
-export interface RemoteSeedConfig {
+export interface SshHostSeedConfig {
     keybindings?: string;
     settings?: string;
     theme?: string;
 }
 
-export interface RemoteServerSupervisorOptions {
+export interface SshHostServerSupervisorOptions {
     askpass: AskpassHandler;
     /**
      * `ssh -F` override; Main sets it from `CAXRI_SSH_CONFIG` for tests and acceptance.
@@ -30,7 +30,7 @@ export interface RemoteServerSupervisorOptions {
      */
     inspect?: boolean;
     logger: Pick<StructuredLogger, 'write'>;
-    onState: (update: RemoteStateUpdate) => void;
+    onState: (update: SshHostStateUpdate) => void;
     /**
      * Private (0700, current-user, short) directory for ControlMaster sockets and the askpass bridge.
      */
@@ -43,7 +43,7 @@ export interface RemoteServerSupervisorOptions {
     /**
      * Desktop config to copy into a fresh remote profile; files that already exist remotely are never overwritten.
      */
-    seedConfig?: () => Promise<RemoteSeedConfig>;
+    seedConfig?: () => Promise<SshHostSeedConfig>;
     sshExecutable?: string;
     /**
      * Test seam for the operator handshake.
@@ -52,7 +52,7 @@ export interface RemoteServerSupervisorOptions {
     /**
      * Test seam for the SSH transport.
      */
-    createTransport?: (options: SshConnectionOptions) => RemoteTransport;
+    createTransport?: (options: SshConnectionOptions) => SshHostTransport;
     /**
      * Test seam for the askpass bridge; production uses `AskpassBridge.create`.
      */

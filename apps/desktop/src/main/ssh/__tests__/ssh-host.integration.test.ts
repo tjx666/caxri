@@ -11,14 +11,14 @@ import { computeBuildFingerprint } from '@caxri/system';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { parseSshDestination } from '../destination';
-import type { RemoteArchitecture, RemoteLayerDescriptor } from '../remote-layers';
-import { readRemoteLayer } from '../remote-layers';
-import { parseRemoteResult } from '../remote-scripts';
-import { RemoteServerSupervisor } from '../remote-server-supervisor';
-import type { RemoteStateUpdate } from '../remote-server-supervisor-options';
+import type { RemoteArchitecture, RemoteLayerDescriptor } from '../layers';
+import { readRemoteLayer } from '../layers';
+import { parseSshHostResult } from '../scripts';
+import { SshHostServerSupervisor } from '../server-supervisor';
+import type { SshHostStateUpdate } from '../server-supervisor-options';
 import type { SshConnectionOptions } from '../ssh-connection';
 import { SshConnection } from '../ssh-connection';
-import { makeShortTemporaryDirectory } from './support/remote-fixtures';
+import { makeShortTemporaryDirectory } from './support/fixtures';
 import {
     createCountingConnection,
     isSshIntegrationEnabled,
@@ -75,8 +75,8 @@ interface Harness {
      * Bytes written to remote stdin (uploads) through every transport of this supervisor.
      */
     stdinBytes: () => number;
-    states: RemoteStateUpdate[];
-    supervisor: RemoteServerSupervisor;
+    states: SshHostStateUpdate[];
+    supervisor: SshHostServerSupervisor;
     transports: SshConnection[];
 }
 
@@ -114,7 +114,7 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
             .digest('hex')
             .slice(0, 16);
         const { stdout } = await control!.exec(inventoryScript(marker, pid), { timeoutMs: 30_000 });
-        const result = parseRemoteResult(stdout, marker);
+        const result = parseSshHostResult(stdout, marker);
         return {
             alive: result?.get('alive') === '1',
             builds: splitList(result?.get('builds')),
@@ -124,10 +124,10 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
     }
 
     function createHarness(layers = layersRoot): Harness {
-        const states: RemoteStateUpdate[] = [];
+        const states: SshHostStateUpdate[] = [];
         const transports: SshConnection[] = [];
         let stdinBytes = 0;
-        const supervisor = new RemoteServerSupervisor({
+        const supervisor = new SshHostServerSupervisor({
             askpass: () => Promise.resolve(null),
             ...(labConfigFile !== undefined && { configFile: labConfigFile }),
             destination: labDestination,

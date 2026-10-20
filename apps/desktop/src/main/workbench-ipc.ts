@@ -75,7 +75,7 @@ export interface WorkbenchIpcOptions {
      * requests use that environment's transport and never reach the local Server; its diagnostics are tagged `window:
      * 'remote'`.
      */
-    remote?(sender: WebContents): RemoteRendererRoute | undefined;
+    remote?(sender: WebContents): SshHostRendererRoute | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
     /**
      * The window key of a Workbench sender, which Main injects into the requests that act for a window. A Renderer
@@ -84,7 +84,7 @@ export interface WorkbenchIpcOptions {
     windowKey?(sender: WebContents): string | undefined;
 }
 
-export interface RemoteRendererRoute {
+export interface SshHostRendererRoute {
     isRecovering(): boolean;
     onEventsReady(): void;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;

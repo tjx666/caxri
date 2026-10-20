@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { agentChatSubagentLogEvents } from './logging-agent-chat-subagents.js';
 import { agentCommanderLogEvents } from './logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging-benchmark.js';
-import { remoteSshLogEvents } from './logging-remote-ssh.js';
 import { sessionContextLogEvents, sessionSearchLogEvents } from './logging-session.js';
+import { sshHostLogEvents } from './logging-ssh-host.js';
 
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
@@ -361,7 +361,7 @@ export const logEventCatalog = {
         unhandledRejection: 'benchmark_window.unhandled_rejection',
         unresponsive: 'benchmark_window.unresponsive',
     },
-    remoteSsh: remoteSshLogEvents,
+    sshHost: sshHostLogEvents,
     processExplorer: {
         consoleError: 'process_explorer.console_error',
         pageException: 'process_explorer.page_exception',

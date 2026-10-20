@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseLaunchOutput } from '../remote-launch-output';
+import { parseLaunchOutput } from '../launch-output';
 
 describe('parseLaunchOutput', () => {
     it('names the machine that holds the profile', () => {

@@ -4,13 +4,13 @@ import type { ServerEvent, SshEnvironmentState } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { DesktopServerConnection } from '../../server-connection';
 import type {
-    RemoteEnvironmentHooks,
-    RemoteEnvironmentsOptions,
-    RemoteHostSupervisor,
-} from '../remote-environments';
-import { createRemoteEnvironments } from '../remote-environments';
-import type { DesktopServerConnection } from '../server-connection';
+    SshHostEnvironmentHooks,
+    SshHostEnvironmentsOptions,
+    SshHostSupervisor,
+} from '../host-environments';
+import { createSshHostEnvironments } from '../host-environments';
 
 // eslint-disable-next-line unicorn/prefer-event-target -- stands in for Electron's BrowserWindow, an EventEmitter
 class FakeWindow extends EventEmitter {
@@ -34,7 +34,7 @@ interface Harness {
         retryNow: ReturnType<typeof vi.fn>;
     };
     events: ServerEvent[];
-    hooks: RemoteEnvironmentHooks;
+    hooks: SshHostEnvironmentHooks;
     supervisor: {
         cancel: ReturnType<typeof vi.fn>;
         dispose: ReturnType<typeof vi.fn>;
@@ -46,11 +46,11 @@ interface Harness {
 
 function setup(
     start: (harness: Harness) => Promise<void> = () => Promise.resolve(),
-    keyOf: RemoteEnvironmentsOptions['keyOf'] = (destination) => destination.replace(/:22$/u, ''),
+    keyOf: SshHostEnvironmentsOptions['keyOf'] = (destination) => destination.replace(/:22$/u, ''),
 ) {
     const harnesses: Harness[] = [];
     const logger = { write: vi.fn() };
-    const options: RemoteEnvironmentsOptions = {
+    const options: SshHostEnvironmentsOptions = {
         create: (_destination, hooks) => {
             const window = new FakeWindow();
             const events: ServerEvent[] = [];
@@ -79,7 +79,7 @@ function setup(
                     transport: {} as never,
                 },
                 sendEvent: (event) => events.push(event),
-                supervisor: supervisor as unknown as RemoteHostSupervisor,
+                supervisor: supervisor as unknown as SshHostSupervisor,
                 window: window as never,
             };
         },
@@ -92,7 +92,7 @@ function setup(
         },
         revealSshConfig: () => Promise.resolve(),
     };
-    return { environments: createRemoteEnvironments(options), harnesses, logger };
+    return { environments: createSshHostEnvironments(options), harnesses, logger };
 }
 
 function lastState(harness: Harness): SshEnvironmentState {
