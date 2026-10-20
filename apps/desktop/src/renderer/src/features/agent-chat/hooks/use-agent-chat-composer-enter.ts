@@ -4,6 +4,11 @@ import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { sendAgentChatQueuedNow } from '../agent-chat-commands';
 import { agentChatComposerKeyAction, isAgentChatPlainPasteKey } from '../agent-chat-composer-keys';
+import type { AgentChatTextEdit } from '../agent-chat-composer-list';
+import {
+    agentChatListContinuation,
+    isAgentChatListContinuationKey,
+} from '../agent-chat-composer-list';
 import type { agentChatSendTooltip } from '../agent-chat-presentation';
 import { agentChatSendRefusal } from '../agent-chat-presentation';
 import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
@@ -14,6 +19,7 @@ import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
  * queued message, and Enter on a draft submits it. A draft the composer cannot send yet says why in the strip
  * (`agentChatSendRefusal`) instead of doing nothing; `notice` carries that line. Cmd+Shift+V pastes the clipboard as
  * plain text (`pastePlainText`), skipping the long-paste conversion; no suggestion list or history claims it.
+ * Shift+Enter on a Markdown list line starts the next item (`agentChatListContinuation`).
  */
 export function useAgentChatComposerEnter({
     cancelEdit,
@@ -65,26 +71,37 @@ export function useAgentChatComposerEnter({
             void pastePlainText();
             return;
         }
-        const action = agentChatComposerKeyAction(
-            {
-                key: event.key,
-                altKey: event.altKey,
-                ctrlKey: event.ctrlKey,
-                isComposing: isImeComposing(event),
-                metaKey: event.metaKey,
-                repeat: event.repeat,
-                shiftKey: event.shiftKey,
-            },
-            {
-                isBusy,
-                isEditing,
-                isTurnRunning,
-                nextQueuedId:
-                    isEditing || hasPendingQueue || sendState.hasContent || sendState.isSending
-                        ? undefined
-                        : nextQueuedId,
-            },
-        );
+        const key = {
+            key: event.key,
+            altKey: event.altKey,
+            ctrlKey: event.ctrlKey,
+            isComposing: isImeComposing(event),
+            metaKey: event.metaKey,
+            repeat: event.repeat,
+            shiftKey: event.shiftKey,
+        };
+        if (isAgentChatListContinuationKey(key)) {
+            const input = event.currentTarget;
+            const edit = agentChatListContinuation(
+                input.value,
+                input.selectionStart,
+                input.selectionEnd,
+            );
+            if (edit) {
+                event.preventDefault();
+                applyTextEdit(input, edit);
+            }
+            return;
+        }
+        const action = agentChatComposerKeyAction(key, {
+            isBusy,
+            isEditing,
+            isTurnRunning,
+            nextQueuedId:
+                isEditing || hasPendingQueue || sendState.hasContent || sendState.isSending
+                    ? undefined
+                    : nextQueuedId,
+        });
         if (!action) return;
         event.preventDefault();
         switch (action.kind) {
@@ -106,4 +123,18 @@ export function useAgentChatComposerEnter({
         }
     };
     return { notice: refusalNotice.notice, onKeyDown };
+}
+
+/**
+ * Applies an edit as typing would. `execCommand` is deprecated but remains the only way to change a textarea that keeps
+ * the edit on the native undo stack, so Cmd+Z takes back a continued list item; it also fires the `input` event the
+ * controlled textarea's `onChange` stores.
+ */
+function applyTextEdit(input: HTMLTextAreaElement, edit: AgentChatTextEdit): void {
+    input.setSelectionRange(edit.from, edit.to);
+    // An empty `insertText` does not delete the selection; ending a list removes the marker with `delete`.
+    const [command, text] = edit.text ? ['insertText', edit.text] : ['delete', undefined];
+    // oxlint-disable-next-line typescript/no-deprecated -- see the JSDoc above
+    if (edit.from < edit.to || edit.text) document.execCommand(command, false, text);
+    input.setSelectionRange(edit.caret, edit.caret);
 }
