@@ -32,6 +32,12 @@ export interface PresenceWindow {
 }
 
 interface WindowPresenceRegistryOptions {
+    /**
+     * Counts a window that was never shown as on screen. Only a hidden E2E launch sets it: its Workbench stays off
+     * screen so it cannot take the developer's focus, yet it stands for a window a user is looking at. Without it the
+     * Server sees no visible Session, so the file watcher never starts and Project Status never polls.
+     */
+    isUnshownWindowVisible?: boolean;
     now?: () => number;
     /**
      * Reports a failure other than the connection being between attachments, which the reseed already covers.
@@ -113,7 +119,8 @@ export class WindowPresenceRegistry {
     private row(windowKey: string, entry: PresenceEntry): WindowPresenceReport {
         const { window } = entry;
         const isLive = !window.isDestroyed();
-        const isVisible = isLive && window.isVisible() && !window.isMinimized();
+        const isShown = window.isVisible() || this.options.isUnshownWindowVisible === true;
+        const isVisible = isLive && isShown && !window.isMinimized();
         return {
             windowKey,
             viewingSessionId: entry.viewingSessionId,
@@ -258,8 +265,10 @@ export function forwardAsRequestWindow(
 export function createConnectionPresence(
     connection: () => Pick<DesktopServerConnection, 'request'>,
     logger: () => StructuredLogger | undefined,
+    isUnshownWindowVisible = false,
 ): WindowPresenceRegistry {
     return new WindowPresenceRegistry({
+        isUnshownWindowVisible,
         closePresence: (windowKey) => connection().request('window.closePresence', { windowKey }),
         // A presence row Main could not deliver to a connected Server; a lost connection is excluded because the
         // reseed on re-attach covers it.

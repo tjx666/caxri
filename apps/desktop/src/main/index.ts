@@ -159,6 +159,7 @@ if (ownsProfileInstance) {
     let quitIntent: AppQuitIntent = 'user';
     const grantedRoots = new ProjectRootGrants();
     const rendererReadiness = new RendererReadiness();
+    const e2eWindowMode = resolveE2EWindowMode(process.env);
     /**
      * Presence of the local Workbench windows on the local Server; see `WindowPresenceRegistry`. `supervisor` is read
      * lazily because the registry is built before the connection exists.
@@ -166,6 +167,7 @@ if (ownsProfileInstance) {
     const localPresence = createConnectionPresence(
         () => supervisor,
         () => mainLogger,
+        e2eWindowMode === 'hidden',
     );
     const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
     const workbenchRootAuthority = createWorkbenchRootAuthority({
@@ -177,10 +179,6 @@ if (ownsProfileInstance) {
         focusWindow: async () => {
             await focusMainWindow();
         },
-    });
-    const e2eWindowMode = resolveE2EWindowMode({
-        isE2E: process.env.CAXRI_E2E === '1',
-        requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
     });
     const e2eAgentPolicy = readE2EAgentPolicy();
     const menuRefreshController = createMenuRefreshController({
