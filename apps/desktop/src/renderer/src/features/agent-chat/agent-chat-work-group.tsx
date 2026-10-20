@@ -1,7 +1,7 @@
-import type { ComponentType, CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { memo, useContext, useId, useMemo, useRef } from 'react';
 
-import type { AgentChatTask, AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
+import type { AgentChatTask, AgentChatWorkItem } from '@caxri/protocol';
 import {
     agentChatFileChangesStat,
     agentChatOutputLanguage,
@@ -20,76 +20,27 @@ import {
     summarizeAgentChatWork,
     unwrapShellCommand,
 } from '@caxri/protocol';
-import {
-    BookOpen,
-    Bot,
-    Brain,
-    ChevronRight,
-    CircleStop,
-    Command,
-    FilePenLine,
-    FilePlus,
-    FolderOpen,
-    Globe,
-    Hourglass,
-    Image,
-    ListTodo,
-    MessageCircleQuestionMark,
-    Search,
-    Sparkles,
-    SquareTerminal,
-    Wrench,
-} from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { CodeView } from '../../components/markdown/code-view';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { useTranslation } from '../../i18n';
-import { McpConnectorIcon } from '../../icons/mcp-connector-icon';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { agentChatItemExpansionKey, agentChatSummaryExpansionKey } from './agent-chat-expansion';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
-import { AgentChatMcpGlyph } from './agent-chat-mcp-glyph';
 import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from './agent-chat-task-open-button';
 import { AgentChatToolArguments } from './agent-chat-tool-arguments';
 import { AgentChatWorkFileLink } from './agent-chat-work-file-link';
+import { AgentChatWorkGlyph } from './agent-chat-work-glyph';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
-import { useAgentChatMcpServer } from './hooks/use-agent-chat-mcp-server';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
-
-/**
- * One glyph per tool kind, following the Codex app's work glyphs: an open book for a read, and four connected nodes for
- * an MCP call whose server has no icon of its own (see `AgentChatMcpGlyph`). A new tool kind is added to the shared
- * table in `@caxri/protocol` and given its glyph here.
- */
-const WORK_ICONS: Record<AgentToolKind, ComponentType<{ className?: string }>> = {
-    agent: Bot,
-    manage: Bot,
-    browser: Globe,
-    command: SquareTerminal,
-    computer: Command,
-    edit: FilePenLine,
-    image: Image,
-    list: FolderOpen,
-    mcp: McpConnectorIcon,
-    other: Wrench,
-    plan: ListTodo,
-    question: MessageCircleQuestionMark,
-    read: BookOpen,
-    search: Search,
-    skill: Sparkles,
-    stop: CircleStop,
-    thought: Brain,
-    wait: Hourglass,
-    web: Globe,
-    write: FilePlus,
-};
 
 /**
  * An expanded file change shows every file's diff when it touches only a few files; a wider change starts as headers.
@@ -106,9 +57,9 @@ const TIMELINE_EXPANDED_FILE_LIMIT = 3;
 const OUTPUT_CLASS_NAME = 'max-h-80 overflow-y-auto select-text';
 
 /**
- * Work still running keeps its tool glyph and sweeps a highlight across its whole title instead of swapping in a
- * spinner, so a column of rows does not flicker as each one starts and ends. The sweep clips to the title's text, so a
- * running title renders plain text only (no file control).
+ * Work still running animates its tool glyph (`AgentChatWorkGlyph`) and sweeps a highlight across its whole title
+ * instead of swapping in a spinner, so a column of rows does not flicker as each one starts and ends. The sweep clips
+ * to the title's text, so a running title renders plain text only (no file control).
  */
 const RUNNING_TITLE_CLASS_NAME = 'activity-shimmer';
 
@@ -224,20 +175,6 @@ function DisclosureRow({
             </DisclosureMotion>
         </div>
     );
-}
-
-/**
- * A work row's glyph. An MCP call shows its server's icon once the provider described the server (`mcpToolName` names
- * the call); every other kind shows its fixed glyph.
- */
-function WorkGlyph({ kind, mcpToolName }: { kind: AgentToolKind; mcpToolName?: string }) {
-    if (kind === 'mcp') return <McpWorkGlyph toolName={mcpToolName} />;
-    const Icon = WORK_ICONS[kind];
-    return <Icon aria-hidden="true" className="size-3.5" />;
-}
-
-function McpWorkGlyph({ toolName }: { toolName: string | undefined }) {
-    return <AgentChatMcpGlyph server={useAgentChatMcpServer(toolName)} />;
 }
 
 /**
@@ -453,7 +390,9 @@ const AgentChatWorkRow = memo(
                 disclosureKind="agent-chat-item"
                 expansionKey={agentChatItemExpansionKey(item.id)}
                 glyph={
-                    <WorkGlyph
+                    <AgentChatWorkGlyph
+                        isFailed={item.type !== 'reasoning' && item.status === 'failed'}
+                        isRunning={isRunning}
                         kind={presentation.kind}
                         mcpToolName={item.type === 'toolCall' ? item.name : undefined}
                     />
@@ -532,14 +471,22 @@ function AgentChatWorkSummary({
     const failureStatus = agentChatWorkGroupFailure(items);
     const summary = summarizeAgentChatWork(items, t);
     const glyph = agentChatWorkSummaryGlyph(items);
+    const isRunning = items.some(isAgentChatWorkRunning);
     return (
         <DisclosureRow
             containedItems={items}
             disclosureKind="agent-chat-work-group"
             expansionKey={agentChatSummaryExpansionKey(anchorItems)}
-            glyph={<WorkGlyph kind={glyph.kind} mcpToolName={glyph.mcpToolName} />}
+            glyph={
+                <AgentChatWorkGlyph
+                    isFailed={failureStatus !== undefined}
+                    isRunning={isRunning}
+                    kind={glyph.kind}
+                    mcpToolName={glyph.mcpToolName}
+                />
+            }
             // Like a single running row, the live summary sweeps its title instead of trailing a spinner.
-            isRunning={items.some(isAgentChatWorkRunning)}
+            isRunning={isRunning}
             title={<span className="min-w-0 truncate">{summary}</span>}
             trailing={
                 <>

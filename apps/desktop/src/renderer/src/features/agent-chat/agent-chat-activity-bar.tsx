@@ -7,6 +7,32 @@ import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useClockTick } from './hooks/use-clock-tick';
+import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from './loading';
+
+/**
+ * What leads the working row: Buddy acting out the turn's current work, the live glyph of the tool it runs, or the
+ * plain spinner, per `agentChat.workingIndicator` and `agentChat.animatedToolIcons`.
+ */
+function WorkingIndicatorGlyph({
+    activity,
+    turnId,
+}: {
+    activity: Exclude<AgentChatActivity, { kind: 'waiting' }>;
+    turnId: string | undefined;
+}) {
+    const indicator = stripIndicator(activity, useLoadingStyle());
+    if (indicator.kind === 'buddy') {
+        return <WorkingBuddy activity={activity} size={16} turnId={turnId} />;
+    }
+    if (indicator.kind === 'glyph') {
+        return (
+            <span className="inline-flex shrink-0 text-foreground">
+                <ToolGlyph kind={indicator.glyph} size={14} />
+            </span>
+        );
+    }
+    return <Spinner className="size-3.5 shrink-0" role="presentation" />;
+}
 
 function ElapsedTime({ startedAt }: { startedAt: number }) {
     const { t } = useTranslation();
@@ -32,6 +58,7 @@ export function AgentChatActivityBar({
     notice,
     onStop,
     showsDeliveryHint,
+    turnId,
 }: {
     activity: AgentChatActivity | undefined;
     /**
@@ -43,6 +70,10 @@ export function AgentChatActivityBar({
      * A turn is running and the draft has content, so Enter queues and Cmd+Enter steers.
      */
     showsDeliveryHint: boolean;
+    /**
+     * The running turn, which seeds Buddy's rare party hat so it stays on for the whole turn.
+     */
+    turnId: string | undefined;
 }) {
     const { t } = useTranslation();
     return (
@@ -64,7 +95,7 @@ export function AgentChatActivityBar({
                     {activity.kind === 'waiting' ? (
                         <MessageCircleQuestionMark className="size-3.5 shrink-0 text-warning" />
                     ) : (
-                        <Spinner className="size-3.5 shrink-0" role="presentation" />
+                        <WorkingIndicatorGlyph activity={activity} turnId={turnId} />
                     )}
                     <span className="min-w-0 truncate">
                         <span

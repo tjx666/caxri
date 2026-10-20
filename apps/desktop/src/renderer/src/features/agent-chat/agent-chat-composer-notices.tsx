@@ -11,6 +11,7 @@ import { AgentChatPlanPaceAlert } from './agent-chat-plan-pace-alert';
  * alerts give way to the activity row and the edit bar, which own the strip while they show.
  */
 export function AgentChatComposerNotices({
+    activeTurnId,
     activity,
     delivery,
     edit,
@@ -23,6 +24,7 @@ export function AgentChatComposerNotices({
     terminalId,
     usage,
 }: {
+    activeTurnId: string | undefined;
     activity: AgentChatActivity | undefined;
     /**
      * Whether a draft typed during a running turn is being steered into it, which the activity row hints at.
@@ -45,6 +47,7 @@ export function AgentChatComposerNotices({
                 activity={activity}
                 notice={notice}
                 showsDeliveryHint={delivery}
+                turnId={activeTurnId}
                 onStop={onStop}
             />
             <AgentChatEditBar edit={edit} />

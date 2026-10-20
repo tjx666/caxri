@@ -344,6 +344,7 @@ export function AgentChatComposer({
                     onQueueEdit={restoreQueued}
                 >
                     <AgentChatComposerNotices
+                        activeTurnId={activeTurnId}
                         activity={activity}
                         delivery={isTurnRunning && draft.trim().length > 0}
                         edit={edit.bar}

@@ -162,6 +162,13 @@ export const appSettingsSchema = z.object({
         .default(spec['session.defaultAgent'].default),
     'session.openAgentsInChat': booleanField(spec['session.openAgentsInChat']),
     'agentChat.longPasteThreshold': integerField(spec['agentChat.longPasteThreshold']),
+    'agentChat.workingIndicator': z
+        .enum(enumValues(spec['agentChat.workingIndicator'].options))
+        .default(spec['agentChat.workingIndicator'].default),
+    'agentChat.animatedToolIcons': booleanField(spec['agentChat.animatedToolIcons']),
+    'agentChat.statusShimmer': z
+        .enum(enumValues(spec['agentChat.statusShimmer'].options))
+        .default(spec['agentChat.statusShimmer'].default),
     'workbench.newWorktreeBehavior': z
         .enum(enumValues(spec['workbench.newWorktreeBehavior'].options))
         .default(spec['workbench.newWorktreeBehavior'].default),

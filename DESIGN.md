@@ -836,15 +836,27 @@ remains instant.
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
 while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Live Agent Chat work is the third: a highlight sweeps across the text of what is still running
 (a running tool's whole title, verb and subject together, `Thinking`, the composer's working line)
-through the `.activity-shimmer` class. The row's tool glyph never swaps
-for a spinner, so a column of rows does not flicker as each starts and ends. Hovered or
+through the `.activity-shimmer` class. By default (`agentChat.statusShimmer: dwell`) the sweep crosses
+once in the first third of `--motion-activity-dwell` (2600ms) and rests for the remainder, so a long turn
+is not under constant motion; `continuous` keeps the linear 2200ms sweep and `off` holds the text still.
+The row's tool glyph never swaps for a spinner, so a column of rows does not flicker as each starts and
+ends; instead a row the user watched run acts out its tool while it runs (a bookworm inching along a
+book for a read, a hopping lens for a search, a typewriter for a new file, a snail for a wait; one
+16px glyph per tool kind in `features/agent-chat/loading/glyphs/`, `agentChat.animatedToolIcons`),
+then settles to its still icon with a one-shot stamp, or a small shrug when it failed (the trailing
+status glyph alone carries the failure color). Rows that were already settled when they mounted stay
+still. With Buddy chosen, Buddy also replaces the composer status line's spinner and acts out the
+turn's current tool (reads with its eyes sweeping, runs with a jog and a drop of sweat, yawns once one
+tool has run for 30 seconds), smiles with a heart when hovered, and wears a party hat in about one turn
+in fifty, picked from the turn id so it stays for the whole turn. These are character exceptions to
+"motion never decorates state", kept to the live turn: nothing in settled history moves. Hovered or
 keyboard-focused clipped sidebar titles may scroll solely to reveal their text, as described above.
 
 `prefers-reduced-motion: reduce` completes every layer instantly: overlay keyframes are gated
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
 attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
-but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text stays still, and Motion durations come
+but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text stays still, Chat tool glyphs show their still icons and Buddy holds its resting face, and Motion durations come
 from the shared `useShouldReduceMotion` hook
 (`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS),
 without changing focus, selection, command, query, or lifecycle behavior.
@@ -1279,9 +1291,11 @@ since nothing went wrong; a stop another Agent sent reads `Stopped by an Agent`.
 with no work to fold keeps the same row before its reply as plain text with no chevron, so a cut-off
 answer never reads as one that simply ended. A running
 row carries no trailing spinner: its shimmer and ticking time already say it runs. While a running
-turn has shown nothing after the prompt, three 6px `--muted` dots breathe in turn where the reply
-will start (still at half strength under reduced motion), hidden from assistive technology since
-the composer's status line already announces the turn. The most recent
+turn has shown nothing after the prompt, a small figure holds the place where the reply will start
+(`agentChat.workingIndicator`: Buddy, a round face that glances around and blows thought bubbles,
+by default; or three 6px `--muted` dots breathing in turn, a caret, a braille spinner, or an orbit;
+all still under reduced motion), hidden from assistive technology since the composer's status line
+already announces the turn. The most recent
 turn's final reply, like every earlier one, shows Copy only on hover or keyboard focus, in a row
 that keeps its height. Replies add no Tab stops: `Option+ArrowUp`/`Option+ArrowDown` in the
 transcript focus the latest or the adjacent reply, revealing its row, and Tab reaches Copy. Between the final

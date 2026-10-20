@@ -196,13 +196,14 @@ if (process.argv.includes('app-server')) {
         await message.fill('slow please');
         await message.press('Enter');
         await expect(session.getByRole('button', { name: 'Stop' })).toBeVisible();
-        // The status tab on the composer names the turn under a moving highlight and counts its time.
+        // The status tab on the composer names the turn under a moving highlight (the default sweep-then-rest) and
+        // counts its time.
         await expect(
             session.getByRole('status').filter({ hasText: /^[A-Z][\w -]+…$/u }),
         ).toHaveCount(1);
         await expect(session.locator('.activity-shimmer').first()).toHaveCSS(
             'animation-name',
-            'activity-shimmer',
+            'activity-dwell-shimmer',
         );
         await expect(session.getByText('Esc to stop')).toBeVisible();
         await expect(session.getByText(/^\d+s$/u)).toBeVisible();
