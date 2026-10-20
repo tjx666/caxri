@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 
-import type { ProjectRecord, SessionPullRequest } from '@caxri/protocol';
+import type { AgentExcerpt, ProjectRecord, SessionPullRequest } from '@caxri/protocol';
 import {
     Circle,
     CircleCheck,
@@ -68,6 +68,7 @@ export function AgentActivityRowTrigger({
     isRenaming,
     onFocusChange,
     onMarkRead,
+    excerpt,
     relativeTime,
     roving,
     row,
@@ -84,6 +85,10 @@ export function AgentActivityRowTrigger({
     onFocusChange: (rowId: string) => void;
     onMarkRead: () => void;
     relativeTime: string | undefined;
+    /**
+     * What the Agent last asked or said, clamped to two lines under the metadata. User content: shown locally only.
+     */
+    excerpt: AgentExcerpt | undefined;
     roving: boolean;
     row: AgentActivityRow;
     selected: boolean;
@@ -245,6 +250,14 @@ export function AgentActivityRowTrigger({
                         </span>
                     )}
                 </span>
+                {excerpt && (
+                    <span
+                        className="agent-activity-excerpt line-clamp-2 text-[11px] leading-4 wrap-break-word text-muted"
+                        data-excerpt-kind={excerpt.kind}
+                    >
+                        {excerpt.text}
+                    </span>
+                )}
             </span>
             <AgentActivityPullRequestSlot
                 hidesOnHover={canMarkRead}

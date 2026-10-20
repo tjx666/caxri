@@ -27,6 +27,15 @@ import type { GitService } from '../git';
 import type { SessionTranscriptContext } from '../session';
 import { SessionContextService } from '../session';
 import { withSessionDeployment } from './session-pull-request-deployment';
+import type {
+    BranchLookupEntry,
+    GitHubRemote,
+    PullRequestEntry,
+    PullRequestReference,
+    ScopedSessionEntry,
+    SessionEntry,
+    SessionUpdate,
+} from './session-pull-request-entries';
 import type { SessionPullRequestResolution } from './session-pull-request-parse';
 import {
     isRowChanged,
@@ -72,55 +81,6 @@ const BRANCH_DISCOVERY_JSON_FIELDS = 'number,state,isDraft';
  */
 const MAX_BRANCH_CANDIDATES = '5';
 
-interface GitHubRemote {
-    branch: string;
-    owner: string;
-    repo: string;
-    rootPath: string;
-}
-
-interface PullRequestReference {
-    number: number;
-    owner: string;
-    repo: string;
-}
-
-interface PullRequestEntry {
-    expiresAt: number;
-    value?: SessionPullRequest;
-}
-
-interface BranchLookupEntry {
-    expiresAt: number;
-    value?: SessionPullRequest;
-    unavailable?: PullRequestUnavailable;
-}
-
-interface SessionEntry {
-    expiresAt: number;
-    /**
-     * Identity of the transcript reference this entry was resolved from, so a transcript that switches PRs invalidates
-     * immediately. Absent when the entry came from branch discovery alone. It is not always the identity of `value`:
-     * once the transcript's pull request is settled, a different one found on the Session's branch takes the row while
-     * the key keeps tracking the transcript that must still invalidate it.
-     */
-    key?: string;
-    value?: SessionPullRequest;
-    unavailable?: PullRequestUnavailable;
-}
-
-interface ScopedSessionEntry extends SessionEntry {
-    context: string;
-}
-
-/**
- * What resolving one Session did. `rebound`: its root or Agent changed mid-lookup, so the result was discarded.
- */
-interface SessionUpdate {
-    lookedUp: boolean;
-    outcome: 'changed' | 'gone' | 'rebound' | 'unchanged';
-}
-
 export interface SessionPullRequestServiceOptions {
     agentEnvironment?: AgentEnvironment;
     emit?: (event: ServerEvent) => void;
@@ -134,6 +94,17 @@ export interface SessionPullRequestServiceOptions {
      */
     github?: GitHubPullRequestStore;
     now?: () => number;
+    /**
+     * Hears each Session whose resolved pull request changed lifecycle state or identity, with the previous projection
+     * (absent the first time this Server Core resolved the Session, so a pull request that was already merged before
+     * Caxri started never reads as a fresh merge). Called synchronously after the projection is stored; a throwing
+     * listener never fails the sweep.
+     */
+    onPullRequestChanged?: (
+        sessionId: string,
+        previous: SessionPullRequest | undefined,
+        next: SessionPullRequest | undefined,
+    ) => void;
     openTtlMs?: number;
     settledTtlMs?: number;
     missingTtlMs?: number;
@@ -353,7 +324,23 @@ export class SessionPullRequestService {
         if (!current || current.archivedAt !== undefined) return { lookedUp, outcome: 'gone' };
         if (this.discoveryContext(current) !== context) return { lookedUp, outcome: 'rebound' };
         this.sessions.set(session.id, { ...entry, context });
+        this.notifyPullRequestChanged(session.id, previous?.value, entry.value);
         return { lookedUp, outcome: isRowChanged(entry, previous) ? 'changed' : 'unchanged' };
+    }
+
+    private notifyPullRequestChanged(
+        sessionId: string,
+        previous: SessionPullRequest | undefined,
+        next: SessionPullRequest | undefined,
+    ): void {
+        if (previous?.state === next?.state && previous?.url === next?.url) return;
+        try {
+            this.options.onPullRequestChanged?.(sessionId, previous, next);
+        } catch (error) {
+            this.logger.write('warn', logEventCatalog.sessionPullRequests.refreshFailed, {
+                fields: { message: error instanceof Error ? error.message : String(error) },
+            });
+        }
     }
 
     /**

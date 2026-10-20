@@ -1,0 +1,175 @@
+import type { SessionPullRequest } from '@caxri/protocol';
+import { describe, expect, it, vi } from 'vitest';
+
+import type { MergeNoticeOutcome } from '../merge-notice';
+import { PullRequestSettlement } from '../settlement';
+
+const URL = 'https://github.com/acme/widget/pull/42';
+
+function pullRequest(
+    state: SessionPullRequest['state'],
+    extra: Partial<SessionPullRequest> = {},
+): SessionPullRequest {
+    return { number: 42, title: 'Widget', url: URL, state, source: 'agent', ...extra };
+}
+
+function harness(options: {
+    archiveEnabled?: boolean;
+    agentState?: string;
+    notice?: MergeNoticeOutcome;
+}) {
+    const clock = { now: 1_000_000 };
+    const session = {
+        archivedAt: undefined as number | undefined,
+        lastActivityState: options.agentState ?? 'idle',
+    };
+    const archive = vi.fn(() => Promise.resolve());
+    const notifyMerged = vi.fn(() => Promise.resolve(options.notice ?? 'sent'));
+    const write = vi.fn();
+    const state = { archiveEnabled: options.archiveEnabled ?? true };
+    const settlement = new PullRequestSettlement({
+        archive,
+        database: { getSession: () => session } as never,
+        isAutoArchiveEnabled: () => state.archiveEnabled,
+        logger: { write },
+        notifyMerged,
+        now: () => clock.now,
+        turnGraceMs: 20_000,
+    });
+    const outcomes = () =>
+        write.mock.calls.map((call) => (call[2] as { fields: { outcome: string } }).fields.outcome);
+    return { archive, clock, notifyMerged, outcomes, session, settlement, state };
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe('PullRequestSettlement', () => {
+    it('ignores a pull request that was already merged when Caxri first saw it', async () => {
+        const { archive, notifyMerged, settlement } = harness({});
+
+        settlement.observePullRequest('s', undefined, pullRequest('merged'));
+        await flush();
+
+        expect(notifyMerged).not.toHaveBeenCalled();
+        expect(archive).not.toHaveBeenCalled();
+    });
+
+    it('tells the Agent about a merge made elsewhere, carrying the merge time', async () => {
+        const { notifyMerged, settlement } = harness({});
+
+        settlement.observePullRequest(
+            's',
+            pullRequest('open'),
+            pullRequest('merged', { mergedAt: 7 }),
+        );
+        await flush();
+
+        expect(notifyMerged).toHaveBeenCalledWith('s', URL, { origin: 'detected', mergedAt: 7 });
+    });
+
+    it('waits out the notice turn, then archives once the Agent is idle again', async () => {
+        const { archive, clock, outcomes, session, settlement } = harness({});
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('merged'));
+        await flush();
+        expect(archive).not.toHaveBeenCalled();
+        expect(outcomes()).toEqual(['deferred']);
+
+        clock.now += 1000;
+        session.lastActivityState = 'running';
+        settlement.observeActivity({ sessionId: 's', from: 'idle', to: 'running' });
+        await flush();
+        expect(archive).not.toHaveBeenCalled();
+
+        session.lastActivityState = 'completed';
+        settlement.observeActivity({ sessionId: 's', from: 'running', to: 'completed' });
+        await flush();
+        expect(archive).toHaveBeenCalledWith('s');
+        expect(outcomes()).toEqual(['deferred', 'archived']);
+    });
+
+    it('archives a closed pull request immediately when the Agent is idle, without any notice', async () => {
+        const { archive, notifyMerged, settlement } = harness({});
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('closed'));
+        await flush();
+
+        expect(notifyMerged).not.toHaveBeenCalled();
+        expect(archive).toHaveBeenCalledWith('s');
+    });
+
+    it('archives straight away when the merge notice was skipped', async () => {
+        const { archive, settlement } = harness({ notice: 'self-merged' });
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('merged'));
+        await flush();
+
+        expect(archive).toHaveBeenCalledWith('s');
+    });
+
+    it('never archives while the Agent is running or waiting on the user', async () => {
+        const { archive, outcomes, session, settlement } = harness({
+            agentState: 'running',
+            notice: 'self-merged',
+        });
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('merged'));
+        await flush();
+        expect(archive).not.toHaveBeenCalled();
+
+        session.lastActivityState = 'waiting';
+        settlement.observeActivity({ sessionId: 's', from: 'running', to: 'waiting' });
+        await flush();
+        expect(archive).not.toHaveBeenCalled();
+        expect(outcomes()).toEqual(['deferred']);
+    });
+
+    it('does nothing when the setting is off, and says so', async () => {
+        const { archive, outcomes, settlement } = harness({ archiveEnabled: false });
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('closed'));
+        await flush();
+
+        expect(archive).not.toHaveBeenCalled();
+        expect(outcomes()).toEqual(['disabled']);
+    });
+
+    it('drops a deferred archive when the pull request is reopened', async () => {
+        const { archive, outcomes, session, settlement } = harness({ agentState: 'running' });
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('closed'));
+        settlement.observePullRequest('s', pullRequest('closed'), pullRequest('open'));
+        session.lastActivityState = 'completed';
+        settlement.observeActivity({ sessionId: 's', from: 'running', to: 'completed' });
+        await flush();
+
+        expect(archive).not.toHaveBeenCalled();
+        expect(outcomes()).toEqual(['deferred', 'reopened']);
+    });
+
+    it('archives after the grace period when the notice never started a turn', async () => {
+        vi.useFakeTimers();
+        try {
+            const { archive, clock, settlement } = harness({});
+            settlement.observePullRequest('s', pullRequest('open'), pullRequest('merged'));
+            await vi.advanceTimersByTimeAsync(0);
+            expect(archive).not.toHaveBeenCalled();
+
+            clock.now += 21_000;
+            await vi.advanceTimersByTimeAsync(21_000);
+            expect(archive).toHaveBeenCalledWith('s');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('logs a failed archive and leaves the Session alone', async () => {
+        const { archive, outcomes, settlement } = harness({ notice: 'self-merged' });
+        archive.mockRejectedValueOnce(new Error('boom'));
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('closed'));
+        await flush();
+
+        expect(outcomes()).toEqual(['failed']);
+    });
+});

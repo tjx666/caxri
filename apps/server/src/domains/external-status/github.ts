@@ -28,6 +28,7 @@ const PULL_REQUEST_FIELDS = [
     'baseRefOid',
     'headRefOid',
     'mergeCommit',
+    'mergedAt',
     'mergeable',
     'mergeStateStatus',
 ].join(',');

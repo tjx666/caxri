@@ -495,12 +495,22 @@ export const settingsSpec = [
     {
         kind: 'boolean',
         key: 'projectStatus.notifyAgentOnMerge',
-        title: 'Tell the Agent after you merge from Project Status',
+        title: 'Tell the Agent when its pull request is merged',
         description:
-            'Sends “Pull request <link> has been merged.” to the Session’s Agent as a new message. Merges made on GitHub are not reported.',
+            'Sends “Pull request <link> has been merged.” to the Session’s Agent as a new message once, however the merge happened (Project Status, GitHub, or someone else). Not sent when the Agent merged it during its own turn.',
         category: 'projectStatus',
         keywords: ['merge', 'pull request', 'pr', 'agent', 'message', 'notify', 'github'],
-        default: false,
+        default: true,
+    },
+    {
+        kind: 'boolean',
+        key: 'projectStatus.autoArchiveOnPullRequestSettled',
+        title: 'Auto-archive after pull request merge or close',
+        description:
+            'Archives a Session once its pull request is merged or closed and its Agent is idle. A running Agent is never archived, and nothing is deleted: find the Session under Archived Sessions to restore it.',
+        category: 'projectStatus',
+        keywords: ['archive', 'merge', 'close', 'pull request', 'pr', 'session', 'automatic'],
+        default: true,
     },
     {
         kind: 'boolean',

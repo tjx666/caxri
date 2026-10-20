@@ -22,7 +22,7 @@ export function parseSessionPullRequest(
     source: SessionPullRequest['source'],
     ignoredChecks: readonly string[],
 ): SessionPullRequest | undefined {
-    const parsed = parseGitHubPullRequest(output, ignoredChecks).pullRequest;
+    const { mergedAt, pullRequest: parsed } = parseGitHubPullRequest(output, ignoredChecks);
     if (!parsed) return undefined;
     const state = parsed.lifecycle;
     if (!state) return undefined;
@@ -33,6 +33,7 @@ export function parseSessionPullRequest(
         state,
         checks: projectedChecks(parsed.checks, parsed.state),
         source,
+        ...(state === 'merged' && mergedAt !== undefined && { mergedAt }),
     };
 }
 

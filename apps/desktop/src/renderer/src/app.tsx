@@ -31,12 +31,13 @@ import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
 import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
+import { useSessionLookTracker } from './features/session/hooks/use-session-look-tracker';
+import { useSessionMruSwitcherLifecycle } from './features/session/hooks/use-session-mru-switcher-lifecycle';
+import { useSessionNavigationHistory } from './features/session/hooks/use-session-navigation-history';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { didSelectSession } from './features/session/session-commands';
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { SessionSearchDialog } from './features/session/session-search/session-search-dialog';
-import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
-import { useSessionNavigationHistory } from './features/session/use-session-navigation-history';
 import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
 import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
 import { subscribeFileWatchLimitAlerts } from './features/ssh-host/file-watch-limit-alert';
@@ -169,6 +170,7 @@ export function App() {
     useSessionNavigationHistory();
     useCommandShortcuts();
     useSessionAttentionAcknowledgement();
+    useSessionLookTracker();
     useDeliveryFocusRefresh();
     useExternalDocumentSync();
     useGitDecorationSync();

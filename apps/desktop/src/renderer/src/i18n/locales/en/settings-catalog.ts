@@ -292,9 +292,14 @@ export const settingsCatalog = {
         'Checks left out of the CI rollup, the sidebar badge, and failure notifications',
 
     'settings.projectStatus.notifyAgentOnMerge.title':
-        'Tell the Agent after you merge from Project Status',
+        'Tell the Agent when its pull request is merged',
     'settings.projectStatus.notifyAgentOnMerge.description':
-        'Sends “Pull request <link> has been merged.” to the Session’s Agent as a new message. Merges made on GitHub are not reported.',
+        'Sends “Pull request <link> has been merged.” to the Session’s Agent as a new message once, however the merge happened (Project Status, GitHub, or someone else). Not sent when the Agent merged it during its own turn.',
+
+    'settings.projectStatus.autoArchiveOnPullRequestSettled.title':
+        'Auto-archive after pull request merge or close',
+    'settings.projectStatus.autoArchiveOnPullRequestSettled.description':
+        'Archives a Session once its pull request is merged or closed and its Agent is idle. A running Agent is never archived, and nothing is deleted: find the Session under Archived Sessions to restore it.',
 
     'settings.projectStatus.notifications.enabled.title': 'Delivery failure notifications',
     'settings.projectStatus.notifications.enabled.description':

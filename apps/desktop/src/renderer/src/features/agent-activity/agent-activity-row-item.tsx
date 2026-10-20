@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { ProjectRecord } from '@caxri/protocol';
+import type { AgentExcerpt, ProjectRecord } from '@caxri/protocol';
 import { Check } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
@@ -28,6 +28,7 @@ import type { AgentActivityRow } from './agent-activity-rows';
  * either body of the side bar, including the inline rename editor.
  */
 export function AgentActivityRowItem({
+    excerpt,
     inPinnedGroup,
     onMarkRead,
     relativeTime,
@@ -38,6 +39,10 @@ export function AgentActivityRowItem({
     worktreeProject,
     onFocusChange,
 }: {
+    /**
+     * What the Agent last asked or said, shown under the row's metadata when the Session needs a look.
+     */
+    excerpt: AgentExcerpt | undefined;
     /**
      * True for the Pinned group's copy, so its hover card says the row is pinned.
      */
@@ -77,6 +82,7 @@ export function AgentActivityRowItem({
     const trigger = AgentActivityRowTrigger({
         beginRename,
         canMarkRead,
+        excerpt,
         isRenaming,
         onFocusChange,
         onMarkRead,

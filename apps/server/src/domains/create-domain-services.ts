@@ -8,7 +8,6 @@ import { createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
-import { createBackgroundTasks } from './background-tasks';
 import { createBenchmarkService } from './benchmark-service-creation';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
@@ -28,6 +27,8 @@ import {
     createProjectHidingHandlers,
     resolveOwnerProjectRoot,
 } from './project';
+import { PullRequestSettlementWiring } from './pull-request';
+import { createRestoreServices } from './restore-services-creation';
 import { createRootServices } from './root-services';
 import { createServiceHandlers } from './service-handlers';
 import {
@@ -41,8 +42,6 @@ import {
 } from './session';
 import { createStatusServices } from './status-service-creation';
 import {
-    createCommanderTerminalRestorer,
-    createInterruptedTerminalRestorer,
     createLifecycleEnvironment,
     createRelaunchHandlers,
     createShellIntegration,
@@ -89,6 +88,7 @@ export async function createDomainServices(
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
     const commanderHooks = new CommanderTerminalHooks(database, logger);
+    const settlementWiring = new PullRequestSettlementWiring(commanderHooks.sessionActivityChanged);
     const compactionReadiness = new CompactionReadiness();
     const agentRuntime = await createAgentRuntime({
         attentionRequests,
@@ -106,7 +106,7 @@ export async function createDomainServices(
             suspensionState.service?.observeAppliedLifecycle(signal);
             commanderHooks.lifecycleApplied(signal);
         },
-        onSessionActivityChanged: commanderHooks.sessionActivityChanged,
+        onSessionActivityChanged: (transition) => settlementWiring.observeActivity(transition),
         onSignalInterrupt: (terminalId) => {
             suspensionState.service?.observeInterrupt(terminalId);
             commanderHooks.interrupted(terminalId);
@@ -294,24 +294,19 @@ export async function createDomainServices(
         userDataPath,
         visibleGridWaitMs: dependencies.terminalRestoreGridWaitMs,
     };
-    const restoreInterruptedTerminals = createInterruptedTerminalRestorer({
-        ...restorerOptions,
-        terminalRestores,
-    });
-    const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
-        createBackgroundTasks(logger, files, git, async (sessionId, options) => {
-            agentChat.resumeSuspended(sessionId);
-            await restoreInterruptedTerminals(sessionId, options);
-        });
-    terminalSuspension.setOnSuspendedSessionReselected(restoreInterruptedTerminalsInBackground);
-    const { restore: restoreCommander, supervisor: commanderRestores } =
-        createCommanderTerminalRestorer(restorerOptions);
-    const restoreCommanderTerminals = createBackgroundTasks(
-        logger,
+    const {
+        commanderRestores,
+        restoreCommanderTerminals,
+        restoreInterruptedTerminalsInBackground,
+        watchSessionInBackground,
+    } = createRestoreServices({
+        agentChat,
         files,
         git,
-        restoreCommander,
-    ).restoreInterruptedTerminalsInBackground;
+        restorerOptions,
+        terminalRestores,
+        terminalSuspension,
+    });
     /**
      * The one place that tells background services which Session is now current. Project Status polls only this
      * Session, so every durable selection change goes through here, or Status goes cold or spends the delivery-CLI
@@ -392,6 +387,7 @@ export async function createDomainServices(
         if (isClosed) return;
         isClosed = true;
         projectStatus.dispose();
+        settlementWiring.dispose();
         terminalRestores.close();
         commanderRestores.close();
         commanderInbox.close();
@@ -575,6 +571,8 @@ export async function createDomainServices(
             logger,
             projectStatus,
             sessionContext,
+            settlementWiring,
+            archiveSession: (sessionId) => handlers['session.archive']({ sessionId }),
             terminals,
             timeline,
             transcripts,

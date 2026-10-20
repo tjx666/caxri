@@ -44,6 +44,7 @@ export const githubPullRequestSchema = z.object({
     mergeable: z.string().optional(),
     mergeStateStatus: z.string().optional(),
     mergeCommit: z.object({ oid: z.string() }).nullish(),
+    mergedAt: z.string().nullish(),
     state: z.string().optional(),
     number: z.number().int().positive().optional(),
     statusCheckRollup: z.array(githubCheckSchema).optional(),
@@ -225,6 +226,12 @@ function pullRequestMergeState(
     }
 }
 
+function mergedAtMilliseconds(value: string | null | undefined): number | undefined {
+    if (!value) return undefined;
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+}
+
 /**
  * Projects one `gh pr view` payload. `ignoredChecks` is applied here rather than at each consumer so the Status panel's
  * rollup, the PrimarySidebar's CI badge, and the delivery-failure alert can never disagree about whether a pull request
@@ -237,6 +244,11 @@ export function parseGitHubPullRequest(
     body: string;
     pullRequest?: ProjectStatusRepo['pullRequest'];
     mergeCommit?: string;
+    /**
+     * When GitHub merged the pull request, in epoch milliseconds; absent while unmerged or when the timestamp is
+     * unparsable.
+     */
+    mergedAt?: number;
 } {
     const raw = parseExternalJson(value, githubPullRequestSchema, 'GitHub pull request');
     if (!raw.number || !raw.title || !raw.url) return { body: raw.body ?? '' };
@@ -261,6 +273,9 @@ export function parseGitHubPullRequest(
             /^[\da-f]{40}$/i.test(raw.mergeCommit?.oid ?? '')
                 ? raw.mergeCommit?.oid
                 : undefined,
+        ...(mergedAtMilliseconds(raw.mergedAt) !== undefined && {
+            mergedAt: mergedAtMilliseconds(raw.mergedAt),
+        }),
         pullRequest: {
             number: raw.number,
             title: raw.title,

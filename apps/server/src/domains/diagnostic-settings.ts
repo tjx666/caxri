@@ -175,6 +175,7 @@ const settingsProjection: SettingsProjection = {
     'git.fetchGitHubAvatars': exportAsIs,
     'projectStatus.ignoredChecks': exportAsIs,
     'projectStatus.notifyAgentOnMerge': exportAsIs,
+    'projectStatus.autoArchiveOnPullRequestSettled': exportAsIs,
     'projectStatus.notifications.enabled': exportAsIs,
     'security.trustedDomains': exportAsIs,
     'security.trustedFolders': exportAsIs,

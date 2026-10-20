@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { extensionCommandResultSchema } from '../domain/extension-command-result.js';
 import { identifierSchema } from '../domain/identifiers.js';
+import { treeChildrenResultSchema } from '../domain/tree-item.js';
 import { viewBadgeSchema } from '../domain/view-badges.js';
 import {
     extensionCommandIdSchema,
@@ -12,6 +13,7 @@ import {
     sourceControlHistoryDetailsSchema,
     sourceControlHistoryPageSchema,
     sourceControlViewModelSchema,
+    viewCatalogSnapshotSchema,
     viewIdSchema,
 } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
@@ -151,6 +153,24 @@ const extensionViewOperationResultSchema = z.union([
 ]);
 
 export const extensionViewMethods = {
+    'viewContainers.catalog': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({}).default({}),
+        result: viewCatalogSnapshotSchema,
+    },
+    'viewContainers.treeChildren': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({
+            viewId: viewIdSchema,
+            parentHandle: z.string().min(1).max(512).optional(),
+            requestId: identifierSchema,
+            /**
+             * Rejected with CANCELLED once no longer the active scope, like `viewContainers.viewOperation`.
+             */
+            context: extensionViewEventContextSchema,
+        }),
+        result: treeChildrenResultSchema,
+    },
     'viewContainers.viewOperation': {
         ...commandPolicy('server', 'control'),
         params: extensionViewOperationSchema,

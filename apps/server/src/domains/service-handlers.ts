@@ -17,6 +17,7 @@ import {
     AgentThroughputService,
     listAgentActions,
     readAgentAction,
+    readAgentExcerpts,
     readAgentReplySummary,
     readAgentTranscript,
     recordRecentAgentAction,
@@ -40,9 +41,12 @@ import type { createIntrospectionServices } from './introspection';
 import { addProjectFolder, resolveOwnerProjectRoot, resolveProjectRoot } from './project';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { SessionPullRequestService } from './project-status';
-import type { PullRequestMergeNoticeOptions } from './pull-request-merge-notice';
-import { createPullRequestMergeNotice } from './pull-request-merge-notice';
-import { refreshAfterMerge } from './pull-request-merge-refresh';
+import type { PullRequestMergeNoticeOptions, PullRequestSettlementWiring } from './pull-request';
+import {
+    createPullRequestMergeNotice,
+    PullRequestSettlement,
+    refreshAfterMerge,
+} from './pull-request';
 import type { SessionContextService } from './session';
 import {
     defaultSessionReferenceDirectory,
@@ -53,6 +57,7 @@ import { resolveTerminalFileLink } from './terminal';
 import { offlinePriceListFetch, UsageService } from './usage';
 
 type ServiceHandlerMethods =
+    | 'agent.excerpts'
     | 'agent.replySummary'
     | 'agent.delegation.access.bootstrap'
     | 'agentActions.list'
@@ -169,7 +174,7 @@ type ServiceHandlerMethods =
 export function createServiceHandlers(services: {
     acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;
     agentChat: PullRequestMergeNoticeOptions['agentChat'] &
-        Pick<AgentChatService, 'readPlanLimits'>;
+        Pick<AgentChatService, 'readPlanLimits' | 'states'>;
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
     agentRuntime: {
@@ -192,8 +197,13 @@ export function createServiceHandlers(services: {
     introspection: ReturnType<typeof createIntrospectionServices>;
     longPastes: LongPasteService;
     logger: StructuredLogger;
+    /**
+     * The same operation as the sidebar's Archive, used when a Session's pull request settles.
+     */
+    archiveSession(sessionId: string): unknown;
     projectStatus: ProjectStatusService;
     sessionContext: SessionContextService;
+    settlementWiring: PullRequestSettlementWiring;
     terminals: PullRequestMergeNoticeOptions['terminals'];
     timeline: AgentTimelineService;
     transcripts: AgentTranscriptWatcher;
@@ -219,6 +229,7 @@ export function createServiceHandlers(services: {
         logger,
         projectStatus,
         sessionContext,
+        settlementWiring,
         timeline,
         transcripts,
         userDataPath,
@@ -238,6 +249,23 @@ export function createServiceHandlers(services: {
         agentEnvironment,
     );
     const agentThroughput = new AgentThroughputService(database, agentEnvironment);
+    const noticeMergedPullRequest = createPullRequestMergeNotice({
+        agentChat: services.agentChat,
+        database,
+        isEnabled: () => configuration.getSettings().value['projectStatus.notifyAgentOnMerge'],
+        isWithinAgentTurn: (sessionId, at) => settlementWiring.turnWindows.contains(sessionId, at),
+        logger,
+        terminals: services.terminals,
+    });
+    const pullRequestSettlement = new PullRequestSettlement({
+        archive: (sessionId) => services.archiveSession(sessionId),
+        database,
+        isAutoArchiveEnabled: () =>
+            configuration.getSettings().value['projectStatus.autoArchiveOnPullRequestSettled'],
+        logger,
+        notifyMerged: noticeMergedPullRequest,
+    });
+    settlementWiring.attach(pullRequestSettlement);
     const sessionPullRequests = new SessionPullRequestService(
         database,
         git,
@@ -247,6 +275,8 @@ export function createServiceHandlers(services: {
             agentEnvironment,
             emit,
             github: externalStatus.github,
+            onPullRequestChanged: (sessionId, previous, next) =>
+                pullRequestSettlement.observePullRequest(sessionId, previous, next),
             sessionContext: (session) => sessionContext.read(session),
             settings: () => configuration.getSettings().value,
             vercel,
@@ -266,13 +296,6 @@ export function createServiceHandlers(services: {
         pullRequests: () => sessionPullRequests.snapshot(),
         userDataPath,
     });
-    const noticeMergedPullRequest = createPullRequestMergeNotice({
-        agentChat: services.agentChat,
-        database,
-        isEnabled: () => configuration.getSettings().value['projectStatus.notifyAgentOnMerge'],
-        logger,
-        terminals: services.terminals,
-    });
     const usage = new UsageService({
         database,
         readPlanLimits: (terminalId) => services.agentChat.readPlanLimits(terminalId),
@@ -288,6 +311,17 @@ export function createServiceHandlers(services: {
         sessionPullRequests,
     });
     return {
+        'agent.excerpts': async ({ sessions }) => ({
+            excerpts: await readAgentExcerpts(
+                {
+                    database,
+                    timeline,
+                    pendingRequest: (terminalId) =>
+                        services.agentChat.states.pendingRequest(terminalId),
+                },
+                sessions,
+            ),
+        }),
         'agent.replySummary': ({ sessionId }) =>
             readAgentReplySummary(database, timeline, sessionId),
         'agent.delegation.access.bootstrap': async ({
@@ -413,12 +447,13 @@ export function createServiceHandlers(services: {
         'git.discard.apply': (parameters) => git.discardApply(parameters),
         'git.mergePullRequest': async (parameters) => {
             const result = await git.mergePullRequest(parameters);
+            // Fire-and-forget: the notice logs its own outcome. It runs before the refresh starts so the notice's
+            // once-per-pull-request record is written before the refresh can detect this same merge.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard
+            void noticeMergedPullRequest(parameters.sessionId, result.url, { origin: 'caxri' });
             // Fire-and-forget: the refresh logs its own failure, and the merge already succeeded.
             // eslint-disable-next-line no-void -- intentional floating-promise discard
             void refreshAfterMerge(sessionPullRequests, parameters.sessionId, parameters.number);
-            // Fire-and-forget for the same reason: the notice logs its own outcome.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard
-            void noticeMergedPullRequest(parameters.sessionId, result.url);
             return result;
         },
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>

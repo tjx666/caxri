@@ -49,7 +49,8 @@ import type { AgentChatServiceOptions } from './service-options';
  * truth and comes back on resume. See `docs/agent-chat.md`.
  */
 export class AgentChatService {
-    private readonly states: ChatStates;
+    readonly states: ChatStates;
+    // eslint-disable-next-line unicorn/consistent-class-member-order -- `states` is public for read-only `pendingRequest`; moving it below the private fields would push this file past its size ratchet.
     private readonly taskHost: ChatTaskHost;
     /**
      * One provider start in flight per Terminal; concurrent reads and sends join it.
@@ -230,8 +231,7 @@ export class AgentChatService {
      * Whether a live Chat is inside a turn, which `terminal.switchSurface` asks before ending.
      */
     hasActiveTurn(terminalId: string): boolean {
-        const state = this.states.get(terminalId);
-        return Boolean(state?.session?.isOpen && state.projection.snapshot.activeTurnId);
+        return this.states.hasActiveTurn(terminalId);
     }
 
     /**

@@ -15,6 +15,7 @@ import { onTestFinished, vi } from 'vitest';
 import { claudeTranscriptPath } from '../../agents/providers/claude/paths';
 import type { ExternalStatusRunner } from '../../external-status/index';
 import { ExternalStatusCliError } from '../../external-status/index';
+import type { SessionPullRequestServiceOptions } from '../session-pull-requests';
 import { SessionPullRequestService } from '../session-pull-requests';
 
 export async function temporaryDirectory(prefix: string): Promise<string> {
@@ -103,6 +104,7 @@ export async function harness(options: {
     branch?: string;
     gh?: (arguments_: readonly string[]) => Promise<string>;
     now?: () => number;
+    onPullRequestChanged?: SessionPullRequestServiceOptions['onPullRequestChanged'];
     sessions?: SessionRecord[];
     settings?: () => AppSettings;
     summary?: (sessionId: string) => Promise<GitSummary>;
@@ -154,6 +156,7 @@ export async function harness(options: {
             agentEnvironment: { homeDirectory: home, variables: {} },
             emit: (event) => emitted.push(event),
             now: options.now,
+            onPullRequestChanged: options.onPullRequestChanged,
             settings: options.settings,
         },
     );

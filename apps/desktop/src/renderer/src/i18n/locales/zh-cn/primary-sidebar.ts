@@ -126,6 +126,8 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.card.lastOpenedSentence': '上次打开于 {{time}}。',
     'primarySidebar.card.sentence': '{{text}}。',
     'primarySidebar.card.worktree': 'Worktree',
+    'primarySidebar.card.excerptRequest': '等你处理',
+    'primarySidebar.card.excerptReply': '最近回复',
     'primarySidebar.card.createdBy': '创建者',
     'primarySidebar.card.createdByCommander': 'Agent Commander',
     'primarySidebar.card.createdByArchived': '{{title}}（已归档）',

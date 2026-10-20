@@ -10,6 +10,7 @@ import { currentGitRequestSignal } from '../git/request-signal';
 import type { createIntrospectionServices } from '../introspection';
 import type { ProjectStatusService } from '../project-status';
 import { VercelDeploymentStore } from '../project-status';
+import { PullRequestSettlementWiring } from '../pull-request';
 import { createServiceHandlers } from '../service-handlers';
 
 describe('Runtime service handler cancellation', () => {
@@ -22,6 +23,7 @@ describe('Runtime service handler cancellation', () => {
         });
         const handlers = createServiceHandlers({
             acknowledgeFileMutation: () => Promise.resolve(),
+            archiveSession: () => {},
             agentChat: {} as never,
             agentEnvironment: {} as never,
             agentHooks: {} as never,
@@ -41,6 +43,7 @@ describe('Runtime service handler cancellation', () => {
             longPastes: {} as never,
             projectStatus: { useSessionPullRequests: () => {} } as unknown as ProjectStatusService,
             sessionContext: {} as never,
+            settlementWiring: new PullRequestSettlementWiring(() => {}),
             terminals: {} as never,
             timeline: {} as never,
             transcripts: {} as never,
@@ -65,6 +68,7 @@ describe('Theme import handler', () => {
         const setAppState = vi.fn();
         const handlers = createServiceHandlers({
             acknowledgeFileMutation: () => Promise.resolve(),
+            archiveSession: () => {},
             agentChat: {} as never,
             agentEnvironment: {} as never,
             agentHooks: {} as never,
@@ -84,6 +88,7 @@ describe('Theme import handler', () => {
             longPastes: {} as never,
             projectStatus: { useSessionPullRequests: () => {} } as unknown as ProjectStatusService,
             sessionContext: {} as never,
+            settlementWiring: new PullRequestSettlementWiring(() => {}),
             terminals: {} as never,
             timeline: {} as never,
             transcripts: {} as never,

@@ -48,6 +48,12 @@ export const sessionPullRequestSchema = z.object({
     checks: projectStatusStateSchema.optional(),
     deployment: sessionDeploymentSchema.optional(),
     source: z.enum(['agent', 'branch']),
+    /**
+     * When GitHub merged the pull request, in epoch milliseconds; present only for a merged pull request whose
+     * timestamp GitHub reported. Server Core compares it with the Session's Agent turns to tell an Agent's own merge
+     * from one made elsewhere.
+     */
+    mergedAt: z.number().optional(),
 });
 
 export const sessionPullRequestsSchema = z.object({
