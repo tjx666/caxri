@@ -66,6 +66,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.load.loadingChanges': '正在加载更改…',
     'editor.load.loadingAgentStatus': '正在加载 Agent 状态…',
     'editor.load.loadingAgentContext': '正在加载上下文…',
+    'editor.load.loadingAgentSideChat': '正在加载旁路对话…',
     'editor.load.loadingSettings': '正在加载设置…',
     'editor.load.loadingUsage': '正在加载用量…',
 
@@ -117,6 +118,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.tab.subagent': '子 Agent',
     'editor.tab.agentStatus': '{{agent}} 状态',
     'editor.tab.agentContext': '上下文',
+    'editor.tab.agentSideChat': '旁路对话',
     'editor.tab.preview': '预览：{{name}}',
     'editor.tab.settings': '设置',
     'editor.tab.usage': '用量',

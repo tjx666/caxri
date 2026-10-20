@@ -1,4 +1,12 @@
-import { Bot, ChartColumn, Gauge, Layers, Settings, SquareTerminal } from 'lucide-react';
+import {
+    Bot,
+    ChartColumn,
+    Gauge,
+    Layers,
+    MessageCircleQuestion,
+    Settings,
+    SquareTerminal,
+} from 'lucide-react';
 
 /**
  * Built-in glyphs for tabs that show neither a file nor an Agent. Settings takes the gear: the sliders glyph is the
@@ -11,6 +19,7 @@ export const WORK_TAB_GLYPHS = {
     'shell-task': SquareTerminal,
     'agent-status': Gauge,
     'agent-context': Layers,
+    'agent-side-chat': MessageCircleQuestion,
 } as const;
 
 export function isWorkTabGlyph(icon: string): icon is WorkTabGlyph {

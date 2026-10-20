@@ -51,8 +51,9 @@
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
  * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
  * that thread fail as Codex does when another client still holds the thread's writer, and an `unsubscribe-fails` file
- * makes `thread/unsubscribe` answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table.
- * `thread/goal/*` keeps a thread goal that starts its own turns while active (`fake-codex-goals.ts`).
+ * makes `thread/unsubscribe` answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table. An
+ * ephemeral `thread/fork` opens a side thread that answers one `turn/start` (`fake-codex-side.ts`). `thread/goal/*`
+ * keeps a thread goal that starts its own turns while active (`fake-codex-goals.ts`).
  */
 import crypto from 'node:crypto';
 import process from 'node:process';
@@ -94,6 +95,7 @@ import {
     runWideDiff,
 } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
+import { didHandleSideRequest } from './fake-codex-side.ts';
 import {
     didHandleTaskRequest,
     dropTerminalsSilently,
@@ -411,6 +413,7 @@ function handle(message: RpcMessage) {
     const { id, method, params: parameters = {} } = message;
     if (didHandleTaskRequest(io, id, method, parameters)) return;
     if (didHandleGoalRequest(io, id, method, parameters)) return;
+    if (didHandleSideRequest(io, id, method, parameters)) return;
     if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
     switch (method) {
         case 'initialize': {

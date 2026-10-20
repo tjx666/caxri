@@ -1240,6 +1240,39 @@ A goal is an objective the provider keeps working toward across turns. Only Code
 - Desktop shows the goal as a row in the composer strip and enters Goal mode from `/goal` or the Add
   menu (see `DESIGN.md`). The phone runs `/goal` as a command and shows no goal row.
 
+## Side chat
+
+A side chat answers a quick question from the Chat's context without adding it to the conversation, as
+Claude Code's `/btw` and `Cmd+;` do. It runs at once, even while a turn is running, and never
+interrupts, queues, or steers that turn. Claude and Codex offer it (`capabilities.chatSideQuestion`);
+Grok Build does not, and the PTY surface is untouched.
+
+- **Entry points.** `Cmd+;` (`agentChat.openSideChat`, also in the command palette) and typing
+  `/btw <question>` in the main composer, which asks in the side chat instead of sending a message. The
+  side chat opens as a tab beside the Chat, in the same side pane task tabs use
+  (`caxri-agent-side-chat://<terminalId>`, one per Chat), with its own composer and multi-turn
+  follow-ups.
+- **No persistence.** The thread lives only in Renderer memory (`agent-chat-side-chat-commands.ts`).
+  Closing the tab discards it; there is no sidebar row.
+- **Convert to Session.** The header action creates a new Session in the same Project with a Chat of
+  the same provider and sends the answered Q&A as its first message; the thread is discarded once the
+  new Chat accepted it.
+- **Method.** `agentChat.askSideQuestion {terminalId, question, history}` returns `{response}`. The
+  Client sends the earlier answered exchanges as `history` (at most 20). The method never starts a
+  provider: a Chat that is not running answers `UNAVAILABLE`, and a provider without the capability
+  answers `VALIDATION`. The Commander refuses it (`agent-commander-policy.ts`).
+- **Claude.** The SDK query's `askSideQuestion` (a runtime method missing from the published types)
+  sends a `side_question` control request with the history; the answer comes from the live session's
+  context without a turn.
+- **Codex.** Server Core forks the thread with `thread/fork` (`ephemeral`, `excludeTurns`, read-only
+  sandbox, approval policy `never`), runs one `turn/start` on the fork, collects the final agent
+  message, and releases the fork with `thread/unsubscribe`. While the main turn runs the fork goes
+  through the last finished turn, because Codex refuses to fork a turn in progress. Fork
+  notifications are routed before subagent task detection so the fork is never adopted as a task.
+- **Log.** `agent_chat.side_question` records the closed outcome `answered`, `refused`, or `failed`, a
+  closed reason (`unsupported`, `notRunning`, `timeout`, `empty`, `providerError`), the history length,
+  and the duration. The question and answer text are never logged.
+
 ## Context usage and cache
 
 The snapshot's `usage` (`packages/protocol/src/agent/agent-chat-usage.ts`) describes the context
@@ -1538,7 +1571,8 @@ closed reason `capability`, `turnRunning`, `notTurnStart`, or `unknownMessage`; 
 provider, whether files were reverted, turns removed, duration through the restart and send),
 `agent_chat.files_restored` (closed outcome `restored`, `refused`, or `failed`, the same closed
 reason, the error code, provider, turns whose file changes were undone, duration),
-`agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
+`agent_chat.side_question` (closed outcome `answered`, `refused`, or `failed`, closed reason, history length,
+duration), `agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
 fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), whether a failure
 left the provider's forked record `orphaned`, duration), and `agent_chat.fork_release_failed` (debug
 level, closed reason `rejected`, `timedOut`, or `stopped` when Codex could not unsubscribe from a

@@ -320,6 +320,14 @@ export interface ChatRestorePreview {
 export type ChatResumePoint = { kind: 'resumeAt'; at: string } | { kind: 'fresh' };
 
 /**
+ * One answered side question, resent with each follow-up so the provider sees the side thread so far.
+ */
+export interface ChatSideExchange {
+    question: string;
+    response: string;
+}
+
+/**
  * One live provider process bound to one Chat Terminal.
  */
 export interface AgentChatProviderSession {
@@ -416,6 +424,13 @@ export interface AgentChatProviderSession {
      * through their transcript omit it.
      */
     readPlanLimits?(): Promise<Omit<UsageLimit, 'provider'> | undefined>;
+    /**
+     * Answers a side question from the conversation's context without adding it to the conversation (`/btw`): it runs
+     * at once, even during a turn, and never interrupts, queues, or steers one. `history` is the same side thread's
+     * earlier exchanges. Resolves the answer text; fails with `UNAVAILABLE` when the provider has none. Providers
+     * without side questions omit it (`capabilities.chatSideQuestion`).
+     */
+    askSideQuestion?(question: string, history: readonly ChatSideExchange[]): Promise<string>;
     /**
      * Reads what the provider knows about one MCP server (its `serverInfo` and endpoint), by the server name a tool
      * call carries, so the timeline can show the server's icon. Providers without an MCP status read omit it.

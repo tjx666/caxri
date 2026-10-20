@@ -66,6 +66,14 @@ export const MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH =
 
 const terminalTarget = { terminalId: identifierSchema };
 
+/**
+ * Earlier exchanges a side question carries. A side thread is a quick aside, so a long one is better asked in the
+ * conversation itself; the bound also caps the prompt each follow-up resends.
+ */
+export const MAX_AGENT_CHAT_SIDE_QUESTION_HISTORY = 20;
+
+const agentChatSideQuestionTextSchema = z.string().trim().min(1).max(MAX_AGENT_CHAT_MESSAGE_LENGTH);
+
 const messageContent = {
     text: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
     images: z
@@ -298,6 +306,29 @@ export const agentChatMethods = {
         ...commandPolicy('server', 'read'),
         params: z.strictObject(terminalTarget),
         result: agentChatContextReportSchema,
+    },
+    /**
+     * Answers a side question (Claude Code's `/btw`) from the Chat's context without adding it to the conversation:
+     * runs at once, even during a turn, and never interrupts, queues, or steers it. `history` carries the earlier side
+     * questions and answers of the same side thread, which only the Client keeps. Needs the provider running; fails
+     * with `UNAVAILABLE` while none runs and with `VALIDATION` for a provider without side questions
+     * (`capabilities.chatSideQuestion`).
+     */
+    'agentChat.askSideQuestion': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({
+            ...terminalTarget,
+            question: agentChatSideQuestionTextSchema,
+            history: z
+                .array(
+                    z.strictObject({
+                        question: agentChatSideQuestionTextSchema,
+                        response: z.string().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
+                    }),
+                )
+                .max(MAX_AGENT_CHAT_SIDE_QUESTION_HISTORY),
+        }),
+        result: z.strictObject({ response: z.string() }),
     },
     /**
      * Stops one running task without ending the turn or the Chat.

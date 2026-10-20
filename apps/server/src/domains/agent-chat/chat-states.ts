@@ -7,7 +7,7 @@ import type {
     ServerEvent,
     TerminalRecord,
 } from '@caxri/protocol';
-import { CaxriError, isChatTerminal } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -68,6 +68,22 @@ interface ChatStatesOptions {
      */
     enqueue(terminalId: string, state: ChatState, deliver: ChatStateDelivery): Promise<void>;
     onAgentStateChanged?(terminalId: string, state: ProcessState): void;
+}
+
+/**
+ * The Chat's open provider session, or an `UNAVAILABLE` error carrying the recorded start failure when it is not
+ * running.
+ */
+export function requireOpenChatSession(
+    state: ChatState,
+    provider: AgentProvider,
+): AgentChatProviderSession {
+    if (state.session?.isOpen) return state.session;
+    throw new CaxriError(
+        'UNAVAILABLE',
+        state.projection.snapshot.failure?.detail ??
+            `${agentProviderCatalog[provider].displayName} Chat is not running`,
+    );
 }
 
 /**

@@ -63,6 +63,7 @@ export const commands = {
     'commands.agentChat.changeModel': 'Change Model…',
     'commands.agentChat.changePermissionMode': 'Change Permission Mode…',
     'commands.agentChat.togglePlanMode': 'Toggle Plan Mode',
+    'commands.agentChat.openSideChat': 'Open Side Chat',
     'commands.terminal.close': 'Close Terminal',
     'commands.workbench.closeActiveTab': 'Close Active Tab',
     'commands.workbench.nextTab': 'Show Next Tab',

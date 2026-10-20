@@ -32,6 +32,8 @@
  * offered only on models with effort control, and an effort change without an `ultracode` key turns it off. A
  * `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and the result report.
  *
+ * A `side_question` control request is answered at once, even mid-turn (`fake-claude-side.ts`).
+ *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
  * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background subagents unless
  * `initialize` declared `perTaskStopAffordance`. A background shell always survives an interrupt, with no task event.
@@ -65,6 +67,7 @@ import {
 } from './fake-claude-models.ts';
 import { streamBrowserSteps, streamPacedReply, streamPlannedReply } from './fake-claude-replies.ts';
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
+import { answerSideQuestion } from './fake-claude-side.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 
 type Json = Record<string, unknown>;
@@ -563,7 +566,9 @@ lines.on('line', (line) => {
         const answer =
             request.subtype === 'rewind_files'
                 ? rewindFiles(request, transcriptPath, configDirectory)
-                : taskControl(scenarioIo, request);
+                : request.subtype === 'side_question'
+                  ? answerSideQuestion(request, configDirectory)
+                  : taskControl(scenarioIo, request);
         if (answer.error !== undefined) {
             send({
                 type: 'control_response',

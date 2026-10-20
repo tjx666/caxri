@@ -44,6 +44,7 @@ export const commandIds = [
     'agentChat.changeModel',
     'agentChat.changePermissionMode',
     'agentChat.togglePlanMode',
+    'agentChat.openSideChat',
     'terminal.close',
     'workbench.closeActiveTab',
     'workbench.nextTab',

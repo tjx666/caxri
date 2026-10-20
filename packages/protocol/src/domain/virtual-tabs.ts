@@ -1,4 +1,5 @@
 import { isAgentContextTabPath } from './agent-context-tab.js';
+import { isAgentSideChatTabPath } from './agent-side-chat-tab.js';
 import { isAgentStatusTabPath } from './agent-status-tab.js';
 import { isAgentTaskTabPath } from './agent-task-tab.js';
 import { isAgentTranscriptTabPath } from './agent-transcript.js';
@@ -21,6 +22,7 @@ const virtualEditorTabMatchers = {
     agentTurnReview: isAgentTurnReviewTabPath,
     agentStatus: isAgentStatusTabPath,
     agentContext: isAgentContextTabPath,
+    agentSideChat: isAgentSideChatTabPath,
     external: isExternalEditorTabPath,
     filePreview: isFilePreviewTabPath,
     settings: isSettingsTabPath,

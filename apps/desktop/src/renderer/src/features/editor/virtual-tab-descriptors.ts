@@ -184,6 +184,18 @@ export const virtualTabDescriptors: Record<VirtualEditorTabScheme, VirtualTabDes
         loading: { labelKey: 'editor.load.loadingAgentContext', variant: 'page' },
         statusBar: 'hidden',
     },
+    agentSideChat: {
+        present: (_path, options, t) => {
+            const label = t('editor.tab.agentSideChat');
+            return glyphPresentation(
+                label,
+                'agent-side-chat',
+                terminalScopedTooltip(label, options),
+            );
+        },
+        loading: { labelKey: 'editor.load.loadingAgentSideChat', variant: 'page' },
+        statusBar: 'hidden',
+    },
     external: {
         present: (path, options) => {
             const name = parseExternalEditorTab(path)?.name ?? pathBasename(path);

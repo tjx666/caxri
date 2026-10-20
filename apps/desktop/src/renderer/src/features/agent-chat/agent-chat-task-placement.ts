@@ -3,12 +3,13 @@ import {
     adjacentPaneId,
     findPane,
     findResourceTabs,
+    isAgentSideChatTabPath,
     isAgentTaskTabPath,
     isAgentTurnReviewTabPath,
 } from '@caxri/protocol';
 
 /**
- * Where opening a task tab or a turn review tab lands, decided from the layout alone:
+ * Where opening a task tab, a turn review tab, or a side chat tab lands, decided from the layout alone:
  *
  * - `select`: the tab is already open somewhere; focus it rather than opening a duplicate.
  * - `open`: open it in `paneId`, the side pane a previous task or review tab already created to the right of the Chat, so
@@ -38,7 +39,9 @@ export function planAgentChatTaskTabPlacement(
     const isTaskPane = side?.tabs.some(
         (tab) =>
             tab.resource.kind === 'file' &&
-            (isAgentTaskTabPath(tab.resource.path) || isAgentTurnReviewTabPath(tab.resource.path)),
+            (isAgentTaskTabPath(tab.resource.path) ||
+                isAgentTurnReviewTabPath(tab.resource.path) ||
+                isAgentSideChatTabPath(tab.resource.path)),
     );
     if (side && isTaskPane) return { kind: 'open', paneId: side.id };
     return { kind: 'split', chatPaneId: chatPane.id };

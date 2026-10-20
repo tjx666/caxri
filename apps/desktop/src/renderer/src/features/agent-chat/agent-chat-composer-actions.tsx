@@ -1,4 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { ArrowUp, CornerDownLeft, Goal, Lightbulb } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -17,7 +18,7 @@ import {
     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
     AgentChatStopButton,
 } from './agent-chat-stop-button';
-import { openAgentChatContext } from './agent-chat-task-opener';
+import { openAgentChatContext, openAgentChatSideChat } from './agent-chat-task-opener';
 import { useAgentChatComposerCommand } from './hooks/use-agent-chat-composer-command';
 import { useAgentChatPermissionSelection } from './hooks/use-agent-chat-permission-selection';
 
@@ -175,6 +176,12 @@ export function AgentChatComposerActions({
     const planMode = permission.snapshot?.planMode;
     useAgentChatComposerCommand(terminalId, 'togglePlanMode', planMode !== undefined, () =>
         permission.configure({ planMode: !planMode }),
+    );
+    useAgentChatComposerCommand(
+        terminalId,
+        'openSideChat',
+        provider !== undefined && agentProviderCatalog[provider].capabilities.chatSideQuestion,
+        () => openAgentChatSideChat(terminalId),
     );
     return (
         <div className="flex items-center gap-1 px-2 pb-2">

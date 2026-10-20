@@ -9,6 +9,7 @@ export const coreForwardedMethods = [
     'agentActions.list',
     'agentActions.read',
     'agentActions.recordRecent',
+    'agentChat.askSideQuestion',
     'agentChat.configure',
     'agentChat.fork',
     'agentChat.interrupt',

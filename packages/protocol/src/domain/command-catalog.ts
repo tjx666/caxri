@@ -1,6 +1,7 @@
 import { sortedCopy } from '@caxri/utils';
 
 import { filesCoreCommandDefinitions } from '../registry/core-contributions.js';
+import { agentChatCommandDefinitions } from './agent-chat-command-definitions.js';
 import type { CommandId } from './commands.js';
 import { gitCommandDefinitions } from './git-command-definitions.js';
 import { sessionCommandDefinitions } from './session-command-definitions.js';
@@ -16,6 +17,8 @@ import { terminalCommandDefinitions } from './terminal-command-definitions.js';
  * - `sshHost`: the window belongs to an SSH Host.
  * - `agentChatModels`, `agentChatPermissionModes`, `agentChatPlanMode`: the active tab is a Chat whose provider offers a
  *   model list, permission levels, or plan mode, so its composer can open that menu or flip that toggle.
+ * - `agentChatSideChat`: the active tab is a Chat whose provider answers side questions, so its composer can open the
+ *   side chat.
  * - `commanderHandOverAvailable` / `commanderTakeBackAvailable`: a local window whose selected Session the Agent
  *   Commander does not (or does) manage. Exactly one of the pair holds while a Session is selected, so the palette
  *   offers Hand Over or Take Back the way the Session row's menu does; with no Session selected, Hand Over still opens
@@ -31,7 +34,8 @@ export type CommandWhen =
     | 'sshHost'
     | 'agentChatModels'
     | 'agentChatPermissionModes'
-    | 'agentChatPlanMode';
+    | 'agentChatPlanMode'
+    | 'agentChatSideChat';
 
 export interface CommandDefinition {
     id: CommandId;
@@ -124,30 +128,7 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Search Agent commands and skills for the active Agent Terminal',
         keywords: ['action', 'actions', 'command', 'commands', 'skill', 'skills', 'slash'],
     },
-    {
-        id: 'agentChat.changeModel',
-        title: 'Change Model…',
-        category: 'Chat',
-        description: "Open the active Chat's model and reasoning effort picker",
-        keywords: ['model', 'switch model', 'reasoning effort', 'effort', 'thinking'],
-        when: 'agentChatModels',
-    },
-    {
-        id: 'agentChat.changePermissionMode',
-        title: 'Change Permission Mode…',
-        category: 'Chat',
-        description: "Open the active Chat's permission level menu",
-        keywords: ['permissions', 'approval', 'sandbox', 'full access', 'read only', 'mode'],
-        when: 'agentChatPermissionModes',
-    },
-    {
-        id: 'agentChat.togglePlanMode',
-        title: 'Toggle Plan Mode',
-        category: 'Chat',
-        description: 'Turn plan mode on or off for the active Chat',
-        keywords: ['plan', 'planning', 'plan mode'],
-        when: 'agentChatPlanMode',
-    },
+    ...agentChatCommandDefinitions,
     ...terminalCommandDefinitions,
     {
         id: 'workbench.closeActiveTab',
