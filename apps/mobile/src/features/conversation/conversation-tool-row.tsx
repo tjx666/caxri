@@ -104,7 +104,9 @@ export const ConversationToolRowView = ({
     isCodeSubject: boolean;
     isRunning: boolean;
     kind: AgentToolKind;
-    /** The icon URLs of the MCP server the tool belongs to; empty or absent keeps the tool kind's glyph. */
+    /**
+     * The icon URLs of the MCP server the tool belongs to; empty or absent keeps the tool kind's glyph.
+     */
     mcpIconUrls?: readonly string[];
     onPress: () => void;
     subject: string | undefined;

@@ -20,14 +20,14 @@ import { conversationStyles } from '../conversation/conversation-styles';
 import { ConversationToolGroupView } from '../conversation/conversation-tool-group';
 import { ConversationStatusGlyph } from '../conversation/conversation-tool-icon';
 import { ConversationToolRowView } from '../conversation/conversation-tool-row';
-import { AgentChatTaskStatusGlyph } from './agent-chat-task-detail';
-import { useAgentChatTaskLink } from './agent-chat-task-links';
-import { agentChatTaskRow } from './agent-chat-tasks';
 import {
     agentChatMcpIconUrls,
     agentChatMcpServerFor,
     AgentChatMcpServersContext,
 } from './agent-chat-mcp-icons';
+import { AgentChatTaskStatusGlyph } from './agent-chat-task-detail';
+import { useAgentChatTaskLink } from './agent-chat-task-links';
+import { agentChatTaskRow } from './agent-chat-tasks';
 import { AgentChatWorkDetail } from './agent-chat-work-detail';
 import type { AgentChatWorkRowPresentation } from './agent-chat-work-row';
 import { agentChatWorkRowPresentation } from './agent-chat-work-row';

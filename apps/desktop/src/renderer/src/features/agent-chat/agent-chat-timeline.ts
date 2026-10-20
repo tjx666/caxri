@@ -12,7 +12,6 @@ import {
     isAgentChatAwaitingReply,
     isAgentChatItemVisible,
     isAgentChatWorkItem,
-    parseAgentMcpToolName,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
