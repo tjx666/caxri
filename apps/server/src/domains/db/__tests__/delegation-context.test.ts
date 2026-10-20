@@ -6,7 +6,9 @@ it('requires explicit new-root authorization and atomically reuses the dedicated
     const database = new CaxriDatabase(':memory:');
     try {
         const original = database.createProject('/synthetic/original');
-        const selected = database.createSession(original.id, null).session;
+        const selected = database.createSession(original.id, null, undefined, {
+            windowKey: 'main',
+        }).session;
         expect(() =>
             database.ensureDelegationContext('/synthetic/external', 'codex', false),
         ).toThrow('register-project');
@@ -15,7 +17,7 @@ it('requires explicit new-root authorization and atomically reuses the dedicated
         const second = database.ensureDelegationContext('/synthetic/external', 'codex', false);
         expect(second).toEqual(first);
         expect(database.listSessions(first.projectId)).toHaveLength(1);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(selected.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(selected.id);
         const other = database.ensureDelegationContext('/synthetic/external', 'grok', false);
         expect(other.sessionId).not.toBe(first.sessionId);
         expect(other.projectId).toBe(first.projectId);
@@ -23,7 +25,7 @@ it('requires explicit new-root authorization and atomically reuses the dedicated
         const replacement = database.ensureDelegationContext('/synthetic/external', 'codex', false);
         expect(replacement.sessionId).not.toBe(first.sessionId);
         expect(database.getSession(replacement.sessionId)?.archivedAt).toBeUndefined();
-        expect(database.getAppState('lastSelectedSessionId')).toBe(selected.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(selected.id);
     } finally {
         database.close();
     }
@@ -33,7 +35,7 @@ it('un-hides a Project the user hid so the delegated Session is visible on Deskt
     const database = new CaxriDatabase(':memory:');
     try {
         const project = database.createProject('/synthetic/hidden');
-        database.createSession(project.id, null);
+        database.createSession(project.id, null, undefined, { windowKey: 'main' });
         database.hideProject(project.id);
         expect(database.getProject(project.id)?.hiddenAt).toBeDefined();
 

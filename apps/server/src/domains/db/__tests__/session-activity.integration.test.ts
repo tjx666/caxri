@@ -45,7 +45,7 @@ describe('Session Activity persistence', () => {
             lastSessionActivityReason: 'created',
         });
         expect(second.lastSessionActivityAt).toBeGreaterThan(first.lastSessionActivityAt);
-        database.selectSession(first.id);
+        database.selectSession(first.id, 'main');
         database.renameSession(first.id, 'Renamed without activity');
         database.archiveSession(first.id);
         database.unarchiveSessions([first.id]);
@@ -106,19 +106,21 @@ describe('Session Activity persistence', () => {
         const third = database.createSession(project.id, 'shell').session;
 
         database.touchSessionActivity(second.id, 'user_submission');
+        database.selectSession(third.id, 'main');
         database.deleteSession(third.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(second.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(second.id);
 
         const fourth = database.createSession(project.id, 'shell').session;
         database.touchSessionActivity(first.id, 'user_submission');
+        database.selectSession(fourth.id, 'main');
         database.archiveSession(fourth.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(first.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(first.id);
 
         const otherProject = database.createProject(join(directory, 'other'));
-        database.createSession(otherProject.id, 'shell');
+        database.selectSession(database.createSession(otherProject.id, 'shell').session.id, 'main');
         database.touchSessionActivity(second.id, 'user_submission');
         database.deleteProject(otherProject.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(second.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(second.id);
         database.close();
     });
 

@@ -9,7 +9,7 @@ interface DeletionHandlerOptions {
     database: CaxriDatabase;
     delegations: AgentDelegationService;
     mobileTerminalMutations: MobileTerminalMutationQueue;
-    bootstrapState(): BootstrapState;
+    bootstrapState(windowKey?: string): BootstrapState;
     forgetSessionRuntime(sessionId: string): void;
     evictSessions(sessionIds: readonly string[]): void;
     projectDeleted(workbenchSessionIds: string[]): void;
@@ -25,24 +25,25 @@ export function createDeletionHandlers(
     options: DeletionHandlerOptions,
 ): Pick<DomainHandlers, 'session.delete' | 'session.deleteMany' | 'project.delete'> {
     const { database } = options;
-    const finish = (reason: 'session.delete' | 'project.delete') => {
+    const finish = (reason: 'session.delete' | 'project.delete', windowKey?: string) => {
         options.restoreSelection();
         options.send({ event: 'state.changed', payload: { kind: 'full', reason } });
-        return options.bootstrapState();
+        return options.bootstrapState(windowKey);
     };
-    const deleteSessions = (sessionIds: readonly string[]) =>
+    const deleteSessions = (sessionIds: readonly string[], windowKey?: string) =>
         options.delegations.deleteSessions(sessionIds, () =>
             options.mobileTerminalMutations.runSessions(sessionIds, () => {
                 for (const id of sessionIds) options.forgetSessionRuntime(id);
                 options.evictSessions(sessionIds);
                 for (const id of sessionIds) database.deleteSession(id);
-                return finish('session.delete');
+                return finish('session.delete', windowKey);
             }),
         );
     return {
-        'session.delete': ({ sessionId }) => deleteSessions([sessionId]),
-        'session.deleteMany': ({ sessionIds }) => deleteSessions([...new Set(sessionIds)]),
-        'project.delete': ({ projectId }) =>
+        'session.delete': ({ sessionId, windowKey }) => deleteSessions([sessionId], windowKey),
+        'session.deleteMany': ({ sessionIds, windowKey }) =>
+            deleteSessions([...new Set(sessionIds)], windowKey),
+        'project.delete': ({ projectId, windowKey }) =>
             options.mobileTerminalMutations.runProject(projectId, () => {
                 const { owned, workbench } = database.projectDeletionScope(projectId);
                 const affected = [
@@ -56,7 +57,7 @@ export function createDeletionHandlers(
                             options.evictSessions(affected);
                             database.deleteProject(projectId);
                             options.projectDeleted(workbench.map((session) => session.id));
-                            return finish('project.delete');
+                            return finish('project.delete', windowKey);
                         }),
                 );
             }),

@@ -14,6 +14,7 @@ import { identifierSchema } from './identifiers.js';
 import { lowCostSandboxFailureReasonSchema } from './low-cost-generation.js';
 import { sessionStateSchema } from './session.js';
 import { terminalRecordSchema } from './terminal-record.js';
+import { windowKeyParameter } from './window-presence-contract.js';
 
 /**
  * One automatic-naming suppression that is still in force.
@@ -31,6 +32,12 @@ export const automaticNamingNoticeSchema = z.object({
 });
 export type AutomaticNamingNotice = z.infer<typeof automaticNamingNoticeSchema>;
 
+/**
+ * `app.bootstrap` for one window: Desktop Main supplies the key and the result carries that window's selection and Open
+ * Sessions. Internal callers omit it.
+ */
+export const bootstrapParameters = z.object(windowKeyParameter).default({});
+
 export const bootstrapStateSchema = z.object({
     /**
      * Suppressed automatic-naming launches that are still in force, newest last. Absent when nothing is blocked, the
@@ -41,7 +48,15 @@ export const bootstrapStateSchema = z.object({
     sessions: z.array(sessionRecordSchema),
     terminals: z.array(terminalRecordSchema),
     selectedProjectId: z.string().optional(),
+    /**
+     * The requesting window's active Session. Per window, not global: two windows each show their own Session.
+     */
     selectedSessionId: z.string().optional(),
+    /**
+     * The requesting window's Open Sessions in strip order. A working set that readers must never treat as a source of
+     * truth for existence; the Server already drops archived, deleted, and hidden Sessions. Absent means none.
+     */
+    openSessionIds: z.array(z.string()).optional(),
     sessionStates: z.array(sessionStateSchema),
     settings: appSettingsSchema,
     keybindings: z.array(keybindingSchema).max(MAX_KEYBINDINGS),

@@ -6,6 +6,7 @@ import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager, TerminalSuspensionService } from '../terminal';
 import { terminalDirectoryIdentity } from '../terminal';
+import { resolveWindowKey } from '../window-presence';
 
 /**
  * A "Fork from here" Chat keeps the source Chat's stored permission level and plan mode in place of the Project default
@@ -22,16 +23,27 @@ export function inheritChatPermission(
         database.setChatPermission(terminalId, stored);
 }
 
+/**
+ * Whether a new Session also becomes a window's active one. `preserve` leaves every window alone (remote creation,
+ * background work); otherwise the named window opens the Session as a new entry of its strip.
+ */
+export type CreationSelection = 'preserve' | { windowKey: string };
+
+const selectionOptions = (selection: CreationSelection) =>
+    selection === 'preserve'
+        ? { selection }
+        : { selection: 'select' as const, windowKey: selection.windowKey };
+
 export function createSessionCreator(dependencies: {
     coordinator: Pick<AgentCoordinator, 'prepareTerminalStart' | 'probeTerminal'>;
     database: CaxriDatabase;
-    observeSelectedSession: (sessionId: string) => void;
+    noteWindowViewing: (windowKey: string, sessionId: string) => void;
     sendFullStateChange: () => void;
     /**
      * Starts the provider behind a new Chat Terminal. A Chat has no PTY for `terminals.start` to launch.
      */
     startChat: (terminalId: string) => void;
-    terminalSuspension: Pick<TerminalSuspensionService, 'observeSelection'>;
+    terminalSuspension: Pick<TerminalSuspensionService, 'observeVisibility'>;
     terminalWorkingDirectory: (options: {
         authorizedRoots: readonly string[];
         defaultRoot: string;
@@ -41,7 +53,7 @@ export function createSessionCreator(dependencies: {
     const {
         coordinator,
         database,
-        observeSelectedSession,
+        noteWindowViewing,
         sendFullStateChange,
         startChat,
         terminalSuspension,
@@ -56,13 +68,18 @@ export function createSessionCreator(dependencies: {
         projectId: string,
         kind: TerminalKind,
         cwd: string,
-        selection: 'select' | 'preserve',
+        selection: CreationSelection,
         fork: { agentSessionId: string | undefined; sourceTerminalId: string } | undefined,
     ): {
         session: ReturnType<CaxriDatabase['createSession']>['session'];
         terminal: TerminalRecord;
     } => {
-        const { session } = database.createSession(projectId, null, undefined, { selection });
+        const { session } = database.createSession(
+            projectId,
+            null,
+            undefined,
+            selectionOptions(selection),
+        );
         const terminal = database.createTerminal(session.id, kind, cwd, 'chat');
         if (fork) inheritChatPermission(database, fork.sourceTerminalId, terminal.id);
         // Bound before the start, which then resumes the forked record instead of opening a new conversation.
@@ -74,7 +91,7 @@ export function createSessionCreator(dependencies: {
     return async (
         projectId: string,
         defaultAgent: TerminalKind | null,
-        selection: 'select' | 'preserve',
+        selection: CreationSelection,
         signal?: AbortSignal,
         surface: TerminalSurface = 'pty',
         /**
@@ -104,7 +121,7 @@ export function createSessionCreator(dependencies: {
         if (signal?.aborted) throw new CaxriError('CANCELLED', 'Session creation was canceled');
         const created = chatAgent
             ? createChatSession(projectId, chatAgent, cwd!, selection, fork)
-            : database.createSession(projectId, defaultAgent, cwd, { selection });
+            : database.createSession(projectId, defaultAgent, cwd, selectionOptions(selection));
         let launchError: { code: 'TERMINAL_START_FAILED'; message: string } | undefined;
         if (!chatAgent && created.terminal) {
             // The Session exists from here: a detach or Terminate and Close starting during the lookup below must wait.
@@ -112,7 +129,7 @@ export function createSessionCreator(dependencies: {
             try {
                 let expectedWorkingDirectory:
                     Awaited<ReturnType<typeof terminalDirectoryIdentity>> | undefined;
-                if (selection === 'select') {
+                if (selection !== 'preserve') {
                     expectedWorkingDirectory = await terminalDirectoryIdentity(cwd!);
                     coordinator.prepareTerminalStart(created.terminal.id);
                 }
@@ -146,10 +163,10 @@ export function createSessionCreator(dependencies: {
                 prepared();
             }
         }
-        if (selection === 'select') {
-            database.selectSession(created.session.id);
-            terminalSuspension.observeSelection();
-            observeSelectedSession(created.session.id);
+        if (selection !== 'preserve') {
+            database.selectSession(created.session.id, selection.windowKey);
+            noteWindowViewing(selection.windowKey, created.session.id);
+            terminalSuspension.observeVisibility();
         }
         if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
         sendFullStateChange();
@@ -173,8 +190,14 @@ export function createSessionCreationHandlers(
     'mobile.session.create' | 'mobile.session.createForPrincipal' | 'session.create'
 > {
     return {
-        'session.create': ({ projectId, defaultAgent, surface }) =>
-            createSessionForProject(projectId, defaultAgent, 'select', undefined, surface),
+        'session.create': ({ projectId, defaultAgent, surface, windowKey }) =>
+            createSessionForProject(
+                projectId,
+                defaultAgent,
+                { windowKey: resolveWindowKey(windowKey) },
+                undefined,
+                surface,
+            ),
         'mobile.session.create': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Session creation requires a paired device');
         },

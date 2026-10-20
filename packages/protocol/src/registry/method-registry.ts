@@ -62,7 +62,7 @@ import {
     windowDesktopMethods,
     windowStateInternalMethods,
 } from '../desktop/window-state-contract.js';
-import { bootstrapStateSchema } from '../domain/bootstrap.js';
+import { bootstrapParameters, bootstrapStateSchema } from '../domain/bootstrap.js';
 import { bugReportInternalMethods, bugReportMethods } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
@@ -104,6 +104,7 @@ import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import { updateStateSchema } from '../domain/update-state.js';
 import { usageMethods } from '../domain/usage-contract.js';
 import { extensionErrorSchema, extensionIdSchema } from '../domain/views.js';
+import { windowKeyParameter } from '../domain/window-presence-contract.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
 import { mobileInternalMethods, mobileMethods } from '../mobile/mobile-contract.js';
 import { eventRecoveryRequestSchema, eventRecoverySchema } from '../transport/event-journal.js';
@@ -195,7 +196,7 @@ export const methods = {
         params: z.object({ extensionId: extensionIdSchema }),
         result: z.object({ accepted: z.boolean(), error: extensionErrorSchema.optional() }),
     },
-    'app.bootstrap': { ...serverRead, params: noParameters, result: bootstrapStateSchema },
+    'app.bootstrap': { ...serverRead, params: bootstrapParameters, result: bootstrapStateSchema },
     'app.records': {
         ...serverRead,
         params: z.object({
@@ -322,12 +323,12 @@ export const methods = {
     },
     'project.delete': {
         ...desktopWrite,
-        params: z.object({ projectId: identifierSchema }),
+        params: z.object({ projectId: identifierSchema, ...windowKeyParameter }),
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
     'project.hide': {
         ...serverWrite,
-        params: z.object({ projectId: identifierSchema }),
+        params: z.object({ projectId: identifierSchema, ...windowKeyParameter }),
         result: bootstrapStateSchema,
     },
     /**
@@ -448,7 +449,7 @@ export const methods = {
          * Creates a brand-new Session under the same Project and moves the live Terminal (its running PTY preserved)
          * into it, analogous to a browser "move tab to new window".
          */
-        params: z.object({ terminalId: identifierSchema }),
+        params: z.object({ terminalId: identifierSchema, ...windowKeyParameter }),
         result: z.object({
             session: sessionRecordSchema,
             terminal: terminalRecordSchema,
@@ -523,9 +524,8 @@ export const internalMethods = {
     ...mobileInternalMethods,
     ...workbenchInternalMethods,
     /**
-     * The selected Session's identities and the visible Project IDs: the slice of `app.bootstrap` the Extension bridge
-     * needs on every view operation and domain event. Reading the whole bootstrap there accounted for ~98% of
-     * production `app.bootstrap` calls (#1185).
+     * The current Session's identities and the visible Project IDs: the slice of `app.bootstrap` the Extension bridge
+     * needs on every view operation and domain event; reading the whole bootstrap there was ~98% of its calls (#1185).
      */
     'app.activeContext': {
         ...serverRead,

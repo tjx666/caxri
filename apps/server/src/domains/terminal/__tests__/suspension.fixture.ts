@@ -126,7 +126,7 @@ export function createHarness(
         chats: options.chats,
         now: () => now,
         onSuspendedSessionReselected: options.onSuspendedSessionReselected,
-        selectedSessionId: () => selected,
+        visibleSessionIds: () => new Set([selected]),
         send: (event) => events.push(event),
         settings: () => ({ ...defaultAppSettings, ...options.settings }),
         remoteObservers: [
@@ -168,7 +168,7 @@ export function createHarness(
         },
         select: (sessionId: string) => {
             selected = sessionId;
-            service.observeSelection();
+            service.observeVisibility();
         },
         service,
         suspend,

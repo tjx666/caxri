@@ -31,10 +31,10 @@ describe('session.create launch preparation', () => {
         const create = createSessionCreator({
             coordinator: { prepareTerminalStart: vi.fn(), probeTerminal: vi.fn() },
             database,
-            observeSelectedSession: vi.fn(),
+            noteWindowViewing: vi.fn(),
             sendFullStateChange: vi.fn(),
             startChat: vi.fn(),
-            terminalSuspension: { observeSelection: vi.fn() },
+            terminalSuspension: { observeVisibility: vi.fn() },
             terminalWorkingDirectory: ({ defaultRoot }) => Promise.resolve(defaultRoot),
             terminals: { launches, start },
         });

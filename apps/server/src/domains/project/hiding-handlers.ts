@@ -7,7 +7,7 @@ import type { SessionParkingOptions } from '../parking-handlers';
 import { parkSessions } from '../parking-handlers';
 
 interface ProjectHidingHandlerOptions extends SessionParkingOptions {
-    bootstrapState(): BootstrapState;
+    bootstrapState(windowKey?: string): BootstrapState;
 }
 
 /**
@@ -21,13 +21,13 @@ export function createProjectHidingHandlers(
     options: ProjectHidingHandlerOptions,
 ): Pick<DomainHandlers, 'project.hide' | 'project.restorable'> {
     return {
-        'project.hide': ({ projectId }) =>
+        'project.hide': ({ projectId, windowKey }) =>
             options.mobileTerminalMutations.runProject(projectId, async () => {
                 const hidden = options.database.hideProject(projectId).map((session) => session.id);
                 await options.mobileTerminalMutations.runSessions(hidden, () =>
                     parkSessions(options, hidden, 'project.hide'),
                 );
-                return options.bootstrapState();
+                return options.bootstrapState(windowKey);
             }),
         /**
          * Rows store canonical roots, so the picked folder is resolved the way `project.create` resolves it. A folder

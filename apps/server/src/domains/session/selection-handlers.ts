@@ -2,6 +2,7 @@ import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalRestoreOptions, TerminalSuspensionService } from '../terminal';
+import { resolveWindowKey } from '../window-presence';
 import { SessionSelectionQueue } from './selection';
 
 interface SessionSelectionHandlerOptions {
@@ -11,9 +12,9 @@ interface SessionSelectionHandlerOptions {
     mobileTerminalMutations: {
         runSessions<T>(sessionIds: readonly string[], task: () => Promise<T> | T): Promise<T>;
     };
-    terminalSuspension: Pick<TerminalSuspensionService, 'observeSelection'>;
+    terminalSuspension: Pick<TerminalSuspensionService, 'observeVisibility'>;
     workbenchRoots: { validateSession(sessionId: string): Promise<boolean> };
-    observeSelectedSession: (sessionId: string) => void;
+    noteWindowViewing: (windowKey: string, sessionId: string) => void;
     restoreInterruptedTerminalsInBackground: (
         sessionId: string,
         options?: TerminalRestoreOptions,
@@ -33,7 +34,7 @@ export function createSessionSelectionHandlers(
         coordinator,
         database,
         mobileTerminalMutations,
-        observeSelectedSession,
+        noteWindowViewing,
         restoreInterruptedTerminalsInBackground,
         sendFullStateChange,
         terminalSuspension,
@@ -41,25 +42,25 @@ export function createSessionSelectionHandlers(
     } = options;
     const sessionSelections = new SessionSelectionQueue();
     return {
-        'session.select': ({ sessionId }) =>
+        'session.select': ({ sessionId, windowKey }) =>
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);
-                database.selectSession(sessionId);
-                terminalSuspension.observeSelection();
-                observeSelectedSession(sessionId);
+                database.selectSession(sessionId, resolveWindowKey(windowKey));
+                noteWindowViewing(resolveWindowKey(windowKey), sessionId);
+                terminalSuspension.observeVisibility();
                 restoreInterruptedTerminalsInBackground(sessionId);
                 coordinator.probeSessionPrimaryAgent(sessionId);
                 sendFullStateChange('session.select');
                 return database.getSession(sessionId)!;
             }),
         // Under `session.detach`'s Session lock: a resume sent mid-detach relaunches everything it handed over.
-        'session.resume': ({ sessionId }) =>
+        'session.resume': ({ sessionId, windowKey }) =>
             sessionSelections.run(() =>
                 mobileTerminalMutations.runSessions([sessionId], async () => {
                     await workbenchRoots.validateSession(sessionId);
-                    database.selectSession(sessionId);
-                    terminalSuspension.observeSelection();
-                    observeSelectedSession(sessionId);
+                    database.selectSession(sessionId, resolveWindowKey(windowKey));
+                    noteWindowViewing(resolveWindowKey(windowKey), sessionId);
+                    terminalSuspension.observeVisibility();
                     // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
                     agentChat.resumeSession(sessionId);
                     restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });

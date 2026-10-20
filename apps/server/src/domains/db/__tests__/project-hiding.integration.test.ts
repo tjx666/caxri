@@ -27,11 +27,13 @@ async function fixture() {
     const hiddenRoot = join(directory, 'hidden');
     await Promise.all([mkdir(keeperRoot), mkdir(hiddenRoot)]);
     const keeper = database.createProject(keeperRoot);
-    const keeperSession = database.createSession(keeper.id, 'shell').session;
+    const keeperSession = database.createSession(keeper.id, 'shell', undefined, {
+        windowKey: 'main',
+    }).session;
     const project = database.createProject(hiddenRoot);
     const sessions = [
-        database.createSession(project.id, 'shell').session,
-        database.createSession(project.id, 'shell').session,
+        database.createSession(project.id, 'shell', undefined, { windowKey: 'main' }).session,
+        database.createSession(project.id, 'shell', undefined, { windowKey: 'main' }).session,
     ];
     return { database, directory, hiddenRoot, keeper, keeperSession, project, sessions };
 }
@@ -69,7 +71,7 @@ describe('Project hiding', () => {
         database.hideProject(project.id);
 
         expect(database.getAppState('lastSelectedProjectId')).toBe(keeper.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(keeperSession.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(keeperSession.id);
     });
 
     it('restores the same Project and its Sessions when the root is added again', async () => {

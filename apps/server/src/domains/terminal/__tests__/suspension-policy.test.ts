@@ -65,7 +65,7 @@ function decide(scenario: Scenario = {}) {
         isObservedRemotely: () => scenario.isObservedRemotely ?? false,
         now: NOW,
         sample: () => scenario.sample,
-        selectedSessionId: scenario.selectedSessionId ?? 'session-b',
+        visibleSessionIds: new Set([scenario.selectedSessionId ?? 'session-b']),
         session: () => sessionRecord,
         settings: {
             'terminal.idleSuspension.afterMinutes': 30,

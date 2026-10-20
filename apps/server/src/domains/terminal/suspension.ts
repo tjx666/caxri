@@ -60,7 +60,11 @@ interface TerminalSuspensionServiceOptions {
      * converges back to running without the user having to reselect.
      */
     onSuspendedSessionReselected?: (sessionId: string) => void;
-    selectedSessionId: () => string | undefined;
+    /**
+     * The Sessions some visible window is looking at (the union over windows, see `WindowPresence`). A Session in this
+     * set is never suspended automatically; one that leaves it starts its deselected clock.
+     */
+    visibleSessionIds: () => ReadonlySet<string>;
     send: (event: ServerEvent) => void;
     settings: () => AppSettings;
     sweepIntervalMs?: number;
@@ -107,12 +111,16 @@ export class TerminalSuspensionService {
      */
     private readonly parked = new Map<string, { at?: number; reason: ResumeReason }>();
     private readonly startedAt: number;
-    private lastSelectedSessionId: string | undefined;
+    private lastVisibleSessionIds: ReadonlySet<string> = new Set();
     private poller: WatchHandle | undefined;
     private sweeping: Promise<string[]> | undefined;
 
     constructor(private readonly options: TerminalSuspensionServiceOptions) {
         this.startedAt = this.now();
+    }
+
+    private isSessionVisible(sessionId: string | undefined): boolean {
+        return sessionId !== undefined && this.options.visibleSessionIds().has(sessionId);
     }
 
     private now(): number {
@@ -137,7 +145,7 @@ export class TerminalSuspensionService {
 
     private async suspendDecided(): Promise<string[]> {
         const { database } = this.options;
-        this.observeSelection();
+        this.observeVisibility();
         /**
          * The Agent Commander's Session is never selected in the Workbench, so without this exemption it would always
          * look abandoned; its Terminal is supervised by its own window instead.
@@ -155,7 +163,7 @@ export class TerminalSuspensionService {
                 ),
             now: this.now(),
             sample: (terminalId) => this.samples.get(terminalId),
-            selectedSessionId: this.options.selectedSessionId(),
+            visibleSessionIds: this.options.visibleSessionIds(),
             session: (sessionId) => database.getSession(sessionId) ?? undefined,
             settings: this.options.settings(),
             startedAt: this.startedAt,
@@ -188,8 +196,7 @@ export class TerminalSuspensionService {
         // changed before this Terminal's own teardown even started.
         if (
             isAutomaticSweep &&
-            this.options.selectedSessionId() ===
-                this.options.database.getTerminal(terminalId)?.sessionId
+            this.isSessionVisible(this.options.database.getTerminal(terminalId)?.sessionId)
         )
             return false;
         try {
@@ -217,7 +224,7 @@ export class TerminalSuspensionService {
             });
             // Closes the narrower gap: the selection changed while this Terminal's own teardown was in flight, so
             // the kill already happened and the record is genuinely `suspended`: reconcile it back to running.
-            if (isAutomaticSweep && this.options.selectedSessionId() === record.sessionId)
+            if (isAutomaticSweep && this.isSessionVisible(record.sessionId))
                 this.options.onSuspendedSessionReselected?.(record.sessionId);
             return true;
         } catch (error) {
@@ -316,11 +323,11 @@ export class TerminalSuspensionService {
      * earlier Server Core; it is seeded as parked without a time so its resume is still counted (GitHub issue #1784).
      */
     start(): void {
-        const selected = this.options.selectedSessionId();
+        const visible = this.options.visibleSessionIds();
         const now = this.now();
-        this.lastSelectedSessionId = selected;
+        this.lastVisibleSessionIds = visible;
         for (const session of this.options.database.listSessions())
-            if (session.id !== selected) this.deselectedAt.set(session.id, now);
+            if (!visible.has(session.id)) this.deselectedAt.set(session.id, now);
         for (const terminal of this.options.database.listTerminals())
             if (terminal.provider && PARKED_STATES.has(terminal.lastProcessState))
                 this.parked.set(terminal.id, { reason: 'beforeRestart' });
@@ -439,16 +446,18 @@ export class TerminalSuspensionService {
     }
 
     /**
-     * Re-reads the selected Session and stamps the one that was just left. Called after every selection change and at
-     * the top of each sweep, so a selection that changed through another path is still noticed within one interval.
+     * Re-reads the visible Sessions and stamps every one that just left them. Called whenever presence changes and at
+     * the top of each sweep, so a change that arrived through another path is still noticed within one interval. A
+     * Session visible in two windows stays visible until the last of them moves on.
      */
-    observeSelection(): void {
-        const selected = this.options.selectedSessionId();
-        if (selected === this.lastSelectedSessionId) return;
-        if (this.lastSelectedSessionId !== undefined)
-            this.deselectedAt.set(this.lastSelectedSessionId, this.now());
-        if (selected !== undefined) this.deselectedAt.delete(selected);
-        this.lastSelectedSessionId = selected;
+    observeVisibility(): void {
+        const visible = this.options.visibleSessionIds();
+        if (visible === this.lastVisibleSessionIds) return;
+        const now = this.now();
+        for (const sessionId of this.lastVisibleSessionIds)
+            if (!visible.has(sessionId)) this.deselectedAt.set(sessionId, now);
+        for (const sessionId of visible) this.deselectedAt.delete(sessionId);
+        this.lastVisibleSessionIds = visible;
     }
 
     forgetTerminal(terminalId: string): void {

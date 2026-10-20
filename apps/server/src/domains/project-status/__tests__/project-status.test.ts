@@ -517,7 +517,7 @@ describe('ProjectStatusService', () => {
             );
 
             // Nothing is cached yet, so the first arm falls back to the floor rather than firing immediately.
-            service.setPolledSession('session-1');
+            service.setPolledSessions(new Set(['session-1']));
             expect(timers).toHaveLength(1);
             expect(timers[0]?.delayMs).toBe(15_000);
 
@@ -546,7 +546,7 @@ describe('ProjectStatusService', () => {
             },
         );
 
-        service.setPolledSession('session-1');
+        service.setPolledSessions(new Set(['session-1']));
         service.evictSessions(['session-1']);
         const armed = timers.length;
         timers.at(-1)!.callback();

@@ -335,8 +335,7 @@ export class ControlServer {
     private accept(socket: WebSocket): void {
         this.sockets.add(socket);
         /**
-         * Local shorthand: every termination in this handler shares the same socket and logger, so binding them once
-         * here keeps each call site to the part that actually varies.
+         * Local shorthand: every termination here shares the same socket and logger.
          */
         const terminate = (
             reason: ControlSocketTerminationReason,
@@ -358,6 +357,7 @@ export class ControlServer {
             if (connectionId) {
                 this.binaryStreams.revokeConnection(connectionId, 'server-unavailable');
                 this.binaryRuntime.revokeConnection(connectionId, 'server-unavailable');
+                this.options.onConnectionClosed?.(connectionId);
             }
             for (const requestId of state.inFlightRequestIds.keys())
                 this.options.onRequestDisconnected?.(requestId, state.context);

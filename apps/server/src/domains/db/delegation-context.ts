@@ -36,10 +36,8 @@ export function ensureDelegationContext(
         if (previous?.projectId === project.id && previous.archivedAt === undefined)
             return { projectId: project.id, sessionId: previous.id, callerProvider: provider };
         const selectedProject = database.appState.get('lastSelectedProjectId') ?? null;
-        const selectedSession = database.appState.get('lastSelectedSessionId') ?? null;
         const session = createSession(project.id);
         database.appState.set('lastSelectedProjectId', selectedProject);
-        database.appState.set('lastSelectedSessionId', selectedSession);
         const liveBindings = Object.fromEntries(
             Object.entries(bindings).filter(([, sessionId]) => database.sessions.get(sessionId)),
         );

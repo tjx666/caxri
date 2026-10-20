@@ -1,0 +1,28 @@
+import type { ServerOperationRequest } from '@caxri/protocol';
+import { CaxriError, getMethodSpec } from '@caxri/protocol';
+
+import type { AgentEndpointRegistry } from './agent-endpoints/registry';
+import { retireEndpointsForOperation } from './agent-endpoints/retire-for-operation';
+import type { ServerDomainService } from './domain-service';
+import type { MutationAdmission } from './mutation-admission';
+
+/**
+ * Forwards a Server operation to the domain service: reads pass straight through, writes queue behind mutation
+ * admission and retire the Agent endpoints they invalidate first.
+ */
+export function createDomainOperationForwarder(
+    domainService: ServerDomainService,
+    mutationAdmission: MutationAdmission,
+    agentEndpoints: AgentEndpointRegistry,
+): (request: ServerOperationRequest, signal?: AbortSignal) => Promise<unknown> {
+    return async (request, signal) => {
+        const spec = getMethodSpec(request.method);
+        if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
+        if (spec.effect === 'read')
+            return domainService.forward(request.method, request.params, undefined, signal);
+        return mutationAdmission.run(async () => {
+            retireEndpointsForOperation(agentEndpoints, request);
+            return domainService.forward(request.method, request.params, undefined, signal);
+        });
+    };
+}

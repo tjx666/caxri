@@ -30,6 +30,17 @@ export async function createTestDomainServices(
             dependencies.terminalExecution ??
             createTestTerminalExecution(dependencies.logger, terminal),
     });
+    /**
+     * Stands in for Desktop Main attaching: a real Main reports its window's presence right after bootstrap, and the
+     * Server starts with no presence at all. Without this a test Server would treat every Session as hidden.
+     */
+    const { selectedSessionId } = await services.handlers['app.bootstrap']({ windowKey: 'main' });
+    await services.handlers['window.reportPresence']({
+        windowKey: 'main',
+        viewingSessionId: selectedSessionId ?? null,
+        focused: true,
+        visible: true,
+    });
     return {
         ...services,
         async close() {

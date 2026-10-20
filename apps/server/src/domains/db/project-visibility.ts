@@ -3,6 +3,7 @@ import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import { agentCommanderProjectId } from './commander-rows';
 import type { CaxriDatabaseConnection } from './database-connection';
+import { reconcileOpenSessions } from './open-sessions';
 import {
     firstActiveSession,
     firstSelectableProject,
@@ -79,8 +80,21 @@ export function listVisibleSessions(database: CaxriDatabaseConnection): SessionR
 }
 
 /**
- * Shared by deletion and hiding: when the selected Project is one of `projectIds`, selection falls back to the first
- * selectable Project that remains.
+ * The Sessions a window may keep open: not archived and inside a Project the Workbench presents. Every writer and
+ * pruner of `openSessionsByWindow` measures against this one definition.
+ */
+export function listOpenableSessionIds(database: CaxriDatabaseConnection): Set<string> {
+    return new Set(
+        listVisibleSessions(database)
+            .filter((session) => session.archivedAt === undefined)
+            .map((session) => session.id),
+    );
+}
+
+/**
+ * Shared by deletion and hiding: every window that showed a Session of a now-gone Project moves to its neighbor in the
+ * strip, else to the first Session of the first selectable Project that remains; when the selected Project is one of
+ * `projectIds`, the global "last Project" cell follows the same fallback.
  *
  * Today the selection can only name the target Project itself: every writer of `lastSelectedProjectId` derives it from
  * a Session's own `projectId`, and `createSession` refuses owned Projects, so no Session ever lives in a worktree row.
@@ -93,13 +107,35 @@ export function moveSelectionOffProjects(
     database: CaxriDatabaseConnection,
     projectIds: readonly string[],
 ): void {
-    const selectedProjectId = database.appState.get('lastSelectedProjectId');
-    if (!selectedProjectId || !projectIds.includes(selectedProjectId)) return;
     const fallbackProject = firstSelectableProject(listVisibleProjects(database));
     const fallbackSession = fallbackProject
         ? firstActiveSession(database.sessions.list(fallbackProject.id))
         : undefined;
+    reconcileOpenSessions(database, listOpenableSessionIds(database), () => fallbackSession?.id);
+    const selectedProjectId = database.appState.get('lastSelectedProjectId');
+    if (!selectedProjectId || !projectIds.includes(selectedProjectId)) return;
     const selection = selectFallbackAfterDeletion(fallbackSession, fallbackProject?.id ?? null);
     database.appState.set('lastSelectedProjectId', selection.projectId);
-    database.appState.set('lastSelectedSessionId', selection.sessionId);
+}
+
+/**
+ * Settles every window after a Session left the Workbench (deleted or archived): a window whose active Session went
+ * away moves to its neighbor in the strip, else to `fallback`, else to none. When any window lost its active Session
+ * the global "last Project" cell follows the fallback the way a single selection used to.
+ */
+export function reconcileWindowsAfterRemoval(
+    database: CaxriDatabaseConnection,
+    fallback: SessionRecord | undefined,
+    projectId: string | null,
+): void {
+    const { activeRemoved } = reconcileOpenSessions(
+        database,
+        listOpenableSessionIds(database),
+        () => fallback?.id,
+    );
+    if (activeRemoved)
+        database.appState.set(
+            'lastSelectedProjectId',
+            selectFallbackAfterDeletion(fallback, projectId).projectId,
+        );
 }

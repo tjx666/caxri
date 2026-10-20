@@ -5,6 +5,8 @@ import {
     commanderHandoverSchema,
     identifierSchema,
     persistedWindowStateSchema,
+    windowKeySchema,
+    windowOpenSessionsSchema,
 } from '@caxri/protocol';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -14,7 +16,12 @@ import { appState } from '../schema';
 
 const appStateValueSchemas = {
     lastSelectedProjectId: identifierSchema.nullable(),
-    lastSelectedSessionId: identifierSchema.nullable(),
+    /**
+     * Each Workbench window's Open Session strip and active Session, keyed by the window key Desktop Main mints. There
+     * is no global "selected Session": two windows each show their own. IDs live inside JSON where no foreign key
+     * reaches them, so `reconcileOpenSessions` prunes them on archive, deletion, and Project hiding.
+     */
+    openSessionsByWindow: z.record(windowKeySchema, windowOpenSessionsSchema),
     windowBounds: persistedWindowStateSchema.shape.bounds,
     windowState: persistedWindowStateSchema.pick({
         isMaximized: true,

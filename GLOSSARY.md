@@ -42,6 +42,12 @@ A durable unit of work within one owning Project that owns Terminals, the shared
 document Drafts, and Agent activity and Attention.
 _Avoid_: Conversation, tab, Session View
 
+**Open Session**:
+A Session kept in one window's tab strip, ordered and persisted per window. It is a working set, not
+proof of existence: archived, deleted, and hidden Sessions drop out of every strip. The window shows
+exactly one Open Session at a time.
+_Avoid_: Open tab, selected Session
+
 **Workbench Root**:
 The currently selected authorized Project whose Files, Editor, Search, and Git surfaces a Session
 operates on. A Session View may temporarily override it without changing the Session's owning

@@ -201,7 +201,7 @@ describe('mobile Agent submission', () => {
             } as unknown as AgentCoordinator,
             database: f.database,
             mobileTerminalMutations: f.queue,
-            observeSelectedSession: vi.fn(),
+            noteWindowViewing: vi.fn(),
             send: vi.fn(),
             terminals: { reassignSession } as unknown as TerminalManager,
         })['terminal.moveToNewSession'];

@@ -13,6 +13,7 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../repository';
+import { activeIn, inMain } from './open-sessions.fixture';
 
 const temporaryDirectories: string[] = [];
 
@@ -86,7 +87,7 @@ describe('CaxriDatabase', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const selectedProject = database.createProject(join(directory, 'selected'));
         const remoteProject = database.createProject(join(directory, 'remote'));
-        const selected = database.createSession(selectedProject.id, 'shell');
+        const selected = database.createSession(selectedProject.id, 'shell', undefined, inMain);
 
         const remote = database.createSession(remoteProject.id, 'codex', undefined, {
             selection: 'preserve',
@@ -94,7 +95,7 @@ describe('CaxriDatabase', () => {
 
         expect(remote.session.projectId).toBe(remoteProject.id);
         expect(remote.terminal?.kind).toBe('codex');
-        expect(database.getAppState('lastSelectedSessionId')).toBe(selected.session.id);
+        expect(activeIn(database)).toBe(selected.session.id);
         expect(database.getAppState('lastSelectedProjectId')).toBe(selectedProject.id);
         database.close();
     });
@@ -103,9 +104,9 @@ describe('CaxriDatabase', () => {
         const directory = await temporaryDirectory('caxri-db-session-state-ownership-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject(directory);
-        database.createSession(project.id, 'shell');
-        database.createSession(project.id, 'shell');
-        database.createSession(project.id, null);
+        database.createSession(project.id, 'shell', undefined, inMain);
+        database.createSession(project.id, 'shell', undefined, inMain);
+        database.createSession(project.id, null, undefined, inMain);
         const terminalRecords = database.listTerminals();
         const prepare = vi.spyOn(database.database, 'prepare');
 
@@ -170,8 +171,8 @@ describe('CaxriDatabase', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
 
         const project = database.createProject(root);
-        const first = database.createSession(project.id, 'shell');
-        const second = database.createSession(project.id, 'codex');
+        const first = database.createSession(project.id, 'shell', undefined, inMain);
+        const second = database.createSession(project.id, 'codex', undefined, inMain);
 
         expect(database.listSessions()).toEqual(
             expect.arrayContaining([
@@ -195,10 +196,10 @@ describe('CaxriDatabase', () => {
         const directory = await temporaryDirectory('caxri-db-stable-selection-order-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const firstProject = database.createProject(join(directory, 'first'));
-        const firstSession = database.createSession(firstProject.id, 'shell');
-        const secondSession = database.createSession(firstProject.id, 'codex');
+        const firstSession = database.createSession(firstProject.id, 'shell', undefined, inMain);
+        const secondSession = database.createSession(firstProject.id, 'codex', undefined, inMain);
         const secondProject = database.createProject(join(directory, 'second'));
-        database.createSession(secondProject.id, 'shell');
+        database.createSession(secondProject.id, 'shell', undefined, inMain);
 
         database.database
             .prepare('UPDATE projects SET created_at = ?, last_opened_at = ? WHERE id = ?')
@@ -216,14 +217,14 @@ describe('CaxriDatabase', () => {
         const projectOrder = database.listProjects().map((project) => project.id);
         const sessionOrder = database.listSessions(firstProject.id).map((session) => session.id);
 
-        database.selectSession(firstSession.session.id);
+        database.selectSession(firstSession.session.id, 'main');
 
         expect(database.listProjects().map((project) => project.id)).toEqual(projectOrder);
         expect(database.listSessions(firstProject.id).map((session) => session.id)).toEqual(
             sessionOrder,
         );
         expect(database.getAppState('lastSelectedProjectId')).toBe(firstProject.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(firstSession.session.id);
+        expect(activeIn(database)).toBe(firstSession.session.id);
         database.close();
     });
 
@@ -271,7 +272,7 @@ describe('CaxriDatabase', () => {
         await writeFile(root, 'user-owned', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject(root);
-        database.createSession(project.id, 'shell');
+        database.createSession(project.id, 'shell', undefined, inMain);
 
         database.deleteProject(project.id);
 
@@ -292,8 +293,8 @@ describe('CaxriDatabase', () => {
         const owner = database.createProject(ownerRoot);
         const worktree = database.createProject(worktreeRoot, owner.id);
         const other = database.createProject(otherRoot);
-        const ownerSession = database.createSession(owner.id, 'shell');
-        const otherSession = database.createSession(other.id, 'shell');
+        const ownerSession = database.createSession(owner.id, 'shell', undefined, inMain);
+        const otherSession = database.createSession(other.id, 'shell', undefined, inMain);
         database.selectWorkbenchProject(ownerSession.session.id, worktree.id);
 
         database.deleteProject(owner.id);
@@ -317,8 +318,8 @@ describe('CaxriDatabase', () => {
         const keeper = database.createProject(keeperRoot);
         const worktree = database.createProject(worktreeRoot, keeper.id);
         const selected = database.createProject(selectedRoot);
-        const keeperSession = database.createSession(keeper.id, 'shell');
-        database.createSession(selected.id, 'shell');
+        const keeperSession = database.createSession(keeper.id, 'shell', undefined, inMain);
+        database.createSession(selected.id, 'shell', undefined, inMain);
         /**
          * `order_index` is data, not an invariant the fallback may lean on: an owned row can sort first in a database
          * written by an earlier build. Reproduce that so the fallback is proven to skip hidden rows by ownership.
@@ -337,7 +338,7 @@ describe('CaxriDatabase', () => {
         database.deleteProject(selected.id);
 
         expect(database.getAppState('lastSelectedProjectId')).toBe(keeper.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(keeperSession.session.id);
+        expect(activeIn(database)).toBe(keeperSession.session.id);
         database.close();
     });
 
@@ -348,9 +349,7 @@ describe('CaxriDatabase', () => {
         const worktree = database.createProject(join(directory, 'worktree'), owner.id);
 
         // The PrimarySidebar hides the worktree row, so a Session there would have no row to live under.
-        expect(() => database.createSession(worktree.id, 'shell')).toThrow(
-            /auto-registered worktree Project/,
-        );
+        expect(() => database.createSession(worktree.id, 'shell')).toThrow(/auto-registered/);
         expect(database.listSessions()).toEqual([]);
 
         /**
@@ -358,7 +357,7 @@ describe('CaxriDatabase', () => {
          * exact shape a guard that keyed on "empty Project" instead of "owned Project" would reject, turning an added
          * Project into one the user can never start working in.
          */
-        const created = database.createSession(owner.id, 'shell');
+        const created = database.createSession(owner.id, 'shell', undefined, inMain);
         expect(created.session.projectId).toBe(owner.id);
         database.close();
     });
@@ -408,16 +407,16 @@ describe('CaxriDatabase', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const first = database.createProject(join(directory, 'first'));
         await mkdir(first.rootPath);
-        const firstSession = database.createSession(first.id, 'shell');
+        const firstSession = database.createSession(first.id, 'shell', undefined, inMain);
         const second = database.createProject(join(directory, 'second'));
         await mkdir(second.rootPath);
-        database.createSession(second.id, 'shell');
+        database.createSession(second.id, 'shell', undefined, inMain);
         expect(database.getAppState('lastSelectedProjectId')).toBe(second.id);
 
         database.deleteProject(second.id);
 
         expect(database.getAppState('lastSelectedProjectId')).toBe(first.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(firstSession.session.id);
+        expect(activeIn(database)).toBe(firstSession.session.id);
         database.close();
     });
 
@@ -427,13 +426,13 @@ describe('CaxriDatabase', () => {
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject(root);
-        const first = database.createSession(project.id, 'shell');
-        const second = database.createSession(project.id, 'codex');
-        expect(database.getAppState('lastSelectedSessionId')).toBe(second.session.id);
+        const first = database.createSession(project.id, 'shell', undefined, inMain);
+        const second = database.createSession(project.id, 'codex', undefined, inMain);
+        expect(activeIn(database)).toBe(second.session.id);
 
         database.deleteSession(second.session.id);
 
-        expect(database.getAppState('lastSelectedSessionId')).toBe(first.session.id);
+        expect(activeIn(database)).toBe(first.session.id);
         expect(database.getAppState('lastSelectedProjectId')).toBe(project.id);
         database.close();
     });
@@ -444,8 +443,8 @@ describe('CaxriDatabase', () => {
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject(root);
-        const first = database.createSession(project.id, 'shell');
-        const second = database.createSession(project.id, 'codex');
+        const first = database.createSession(project.id, 'shell', undefined, inMain);
+        const second = database.createSession(project.id, 'codex', undefined, inMain);
         const archivedAt = Date.now();
 
         expect(database.archiveSession(second.session.id, archivedAt)).toMatchObject({
@@ -456,12 +455,12 @@ describe('CaxriDatabase', () => {
             id: second.terminal!.id,
             sessionId: second.session.id,
         });
-        expect(database.getAppState('lastSelectedSessionId')).toBe(first.session.id);
-        expect(() => database.selectSession(second.session.id)).toThrow(/restore/i);
+        expect(activeIn(database)).toBe(first.session.id);
+        expect(() => database.selectSession(second.session.id, 'main')).toThrow(/restore/i);
 
         expect(database.unarchiveSessions([second.session.id])[0].archivedAt).toBeUndefined();
-        database.selectSession(second.session.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(second.session.id);
+        database.selectSession(second.session.id, 'main');
+        expect(activeIn(database)).toBe(second.session.id);
         database.close();
     });
 
@@ -610,7 +609,7 @@ describe('CaxriDatabase', () => {
         await mkdir(root);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject(root);
-        const created = database.createSession(project.id, 'codex');
+        const created = database.createSession(project.id, 'codex', undefined, inMain);
         const shell = database.createTerminal(created.session.id, 'shell');
         const preMoveState = database.getSessionState(created.session.id);
         const openedShell = openResource(preMoveState.paneLayout, {
@@ -623,7 +622,7 @@ describe('CaxriDatabase', () => {
         });
         expect(created.session.primaryAgentTerminalId).toBe(created.terminal!.id);
 
-        const moved = database.moveTerminalToNewSession(created.terminal!.id);
+        const moved = database.moveTerminalToNewSession(created.terminal!.id, 'main');
 
         expect(moved.terminal).toMatchObject({
             id: created.terminal!.id,
@@ -634,7 +633,7 @@ describe('CaxriDatabase', () => {
             displayTitle: 'Untitled',
             primaryAgentTerminalId: created.terminal!.id,
         });
-        expect(database.getAppState('lastSelectedSessionId')).toBe(moved.session.id);
+        expect(activeIn(database)).toBe(moved.session.id);
         expect(database.getAppState('lastSelectedProjectId')).toBe(project.id);
 
         expect(listPaneTerminalIds(database.getSessionState(moved.session.id).paneLayout)).toEqual([
@@ -656,9 +655,9 @@ describe('CaxriDatabase', () => {
         const directory = await temporaryDirectory('caxri-db-move-only-terminal-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject(directory);
-        const created = database.createSession(project.id, 'claude');
+        const created = database.createSession(project.id, 'claude', undefined, inMain);
 
-        const moved = database.moveTerminalToNewSession(created.terminal!.id);
+        const moved = database.moveTerminalToNewSession(created.terminal!.id, 'main');
 
         expect(moved.session).toMatchObject({
             projectId: project.id,

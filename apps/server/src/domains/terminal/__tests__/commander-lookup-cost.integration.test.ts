@@ -59,7 +59,7 @@ describe('Commander identity lookups on Terminal hot paths', () => {
             database: f.database,
             logger: { write: vi.fn() } as never,
             remoteObservers: [],
-            selectedSessionId: () => f.userSession.id,
+            visibleSessionIds: () => new Set([f.userSession.id]),
             send: vi.fn(),
             settings: () => defaultAppSettings,
             terminals: {

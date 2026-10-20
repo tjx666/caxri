@@ -64,3 +64,4 @@ export * from './view-badges.js';
 export * from './view-container-icons.js';
 export * from './views.js';
 export * from './virtual-tabs.js';
+export * from './window-presence-contract.js';

@@ -285,7 +285,7 @@ describe('Chat Terminal PTY guards', () => {
                 isObservedRemotely: () => false,
                 now: 1_000_000_000,
                 sample: () => ({ launchedAt: 0, turnInFlight: false }),
-                selectedSessionId: 'other-session',
+                visibleSessionIds: new Set(['other-session']),
                 session: () => ({ id: 'session-a' }) as SessionRecord,
                 settings: {
                     'terminal.idleSuspension.afterMinutes': 30,

@@ -42,6 +42,7 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
+import { activateSessionInWindow, WindowOpenSessionsStore } from './open-sessions';
 import {
     promoteLivePrimaryAgentSuccessor,
     removeTerminalWithSuccession,
@@ -52,8 +53,10 @@ import { reorderProject } from './project-ordering';
 import {
     hideProject,
     isRestorableProjectRoot,
+    listOpenableSessionIds,
     listVisibleProjects,
     listVisibleSessions,
+    reconcileWindowsAfterRemoval,
 } from './project-visibility';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
 import type { CreateSessionOptions } from './session-create';
@@ -70,7 +73,6 @@ import {
     defaultTerminalTitle,
     firstActiveSession,
     processExitActivityState,
-    selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
     shutdownOutcome,
 } from './session-policy';
@@ -97,6 +99,7 @@ export class CaxriDatabase {
     readonly commanderTasks: CaxriDatabase_['commanderTasks'];
     readonly commanderPendingNotices: CaxriDatabase_['commanderPendingNotices'];
     readonly terminalSurfaces: TerminalSurfaces;
+    readonly windowOpenSessions: WindowOpenSessionsStore;
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
@@ -109,6 +112,7 @@ export class CaxriDatabase {
         this.commanderTasks = this.db.commanderTasks;
         this.commanderPendingNotices = this.db.commanderPendingNotices;
         this.terminalSurfaces = new TerminalSurfaces(this.db);
+        this.windowOpenSessions = new WindowOpenSessionsStore(this.db, listOpenableSessionIds);
     }
 
     private insertTerminal(
@@ -438,14 +442,14 @@ export class CaxriDatabase {
      * `TerminalManager.reassignSession` afterward to keep the live PTY cache's `sessionId` in sync: this DB call alone
      * does not touch the in-memory cache.
      */
-    moveTerminalToNewSession(terminalId: string): {
-        session: SessionRecord;
-        terminal: TerminalRecord;
-    } {
-        return this.db.transaction(() => moveTerminalToNewSession(this.db, terminalId));
+    moveTerminalToNewSession(
+        terminalId: string,
+        windowKey?: string,
+    ): ReturnType<typeof moveTerminalToNewSession> {
+        return this.db.transaction(() => moveTerminalToNewSession(this.db, terminalId, windowKey));
     }
 
-    selectSession(sessionId: string): void {
+    selectSession(sessionId: string, windowKey?: string): void {
         this.db.transaction(() => {
             const session = this.db.sessions.get(sessionId);
             if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
@@ -453,8 +457,8 @@ export class CaxriDatabase {
                 throw new CaxriError('CONFLICT', 'Restore the archived Session before opening it');
             this.db.sessions.touchLastOpened(sessionId);
             this.db.projects.touchLastOpened(session.projectId);
-            this.db.appState.set('lastSelectedSessionId', sessionId);
             this.db.appState.set('lastSelectedProjectId', session.projectId);
+            if (windowKey) activateSessionInWindow(this.db, windowKey, sessionId, 'navigate');
         });
     }
 
@@ -475,17 +479,11 @@ export class CaxriDatabase {
             if (!this.db.sessions.remove(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
             clearDeletedSessionCreators(this.db);
-            if (this.db.appState.get('lastSelectedSessionId') !== sessionId) return;
-            const selectedProjectId = this.db.appState.get('lastSelectedProjectId');
-            const candidateSessions = selectedProjectId
-                ? this.db.sessions.list(selectedProjectId)
+            const projectId = this.db.appState.get('lastSelectedProjectId') ?? null;
+            const sessions = projectId
+                ? this.db.sessions.list(projectId)
                 : listVisibleSessions(this.db);
-            const selection = selectFallbackAfterDeletion(
-                firstActiveSession(candidateSessions),
-                selectedProjectId ?? null,
-            );
-            this.db.appState.set('lastSelectedSessionId', selection.sessionId);
-            this.db.appState.set('lastSelectedProjectId', selection.projectId);
+            reconcileWindowsAfterRemoval(this.db, firstActiveSession(sessions), projectId);
         });
     }
 

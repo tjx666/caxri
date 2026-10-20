@@ -28,6 +28,11 @@ import {
 } from './session-search.js';
 import { terminalKindSchema, terminalRecordSchema } from './terminal-record.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
+import {
+    openSessionIdsSchema,
+    windowKeyParameter,
+    windowOpenSessionsSchema,
+} from './window-presence-contract.js';
 
 const serverWrite = commandPolicy('server', 'write');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -41,6 +46,10 @@ const sessionIdWrite = {
     params: z.object({ sessionId: identifierSchema }),
     result: sessionRecordSchema,
 };
+/**
+ * A Session operation that also moves the requesting window's active Session.
+ */
+const windowSessionParameters = z.object({ sessionId: identifierSchema, ...windowKeyParameter });
 const sessionAttentionReadResult = z.object({
     acknowledged: z.boolean(),
     sessionId: identifierSchema,
@@ -97,6 +106,10 @@ export const sessionMethods = {
              * `capabilities.chat`. Defaults to a PTY.
              */
             surface: terminalSurfaceSchema.optional(),
+            /**
+             * The window that becomes active on the new Session. Supplied by Desktop Main.
+             */
+            ...windowKeyParameter,
         }),
         result: z.object({
             session: sessionRecordSchema,
@@ -105,7 +118,7 @@ export const sessionMethods = {
     },
     'session.delete': {
         ...desktopWrite,
-        params: z.object({ sessionId: identifierSchema }),
+        params: windowSessionParameters,
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
     /**
@@ -113,13 +126,34 @@ export const sessionMethods = {
      */
     'session.deleteMany': {
         ...desktopWrite,
-        params: z.object({ sessionIds: sessionIdBatchSchema }),
+        params: z.object({
+            sessionIds: sessionIdBatchSchema,
+            ...windowKeyParameter,
+        }),
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
+    /**
+     * Makes `sessionId` the requesting window's active Session, adds it to that window's Open Sessions, and touches its
+     * recency. `windowKey` is supplied by Desktop Main from the trusted sender, never by a Renderer.
+     */
     'session.select': {
         ...serverWrite,
-        params: z.object({ sessionId: identifierSchema }),
+        params: windowSessionParameters,
         result: sessionRecordSchema,
+    },
+    /**
+     * Replaces the requesting window's Open Sessions strip: the ordered IDs and which one is active. The Server drops
+     * unknown, archived, and hidden Sessions and answers with the list it stored. Opening a Session that is not yet in
+     * the strip goes through `session.select`; this method reorders, closes, and restores.
+     */
+    'window.openSessions.set': {
+        ...serverWrite,
+        params: z.object({
+            ...windowKeyParameter,
+            openSessionIds: openSessionIdsSchema,
+            activeSessionId: identifierSchema.nullable(),
+        }),
+        result: windowOpenSessionsSchema,
     },
     'session.markRead': {
         ...commandPolicy('server', 'write', ['sessions.write']),
@@ -182,7 +216,7 @@ export const sessionMethods = {
         result: z.array(sessionRecordSchema),
     },
     'session.detach': sessionIdWrite,
-    'session.resume': sessionIdWrite,
+    'session.resume': { ...sessionIdWrite, params: windowSessionParameters },
     /**
      * Desktop-visible read of the in-memory "Always allow in this Session" grant (issue caxri#1295). Never durable, so
      * this is its own command rather than a `sessionRecordSchema` field; see `permissionAutoAllowStatusSchema`.
