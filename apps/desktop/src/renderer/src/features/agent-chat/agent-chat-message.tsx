@@ -20,6 +20,7 @@ import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
 import { useAgentChatDiagrams } from './hooks/use-agent-chat-diagrams';
 import { useAgentChatPacedText } from './hooks/use-agent-chat-paced-text';
 import { useAgentChatReplyMenu } from './hooks/use-agent-chat-reply-menu';
+import { useAgentChatSkills } from './hooks/use-agent-chat-skills';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
@@ -53,6 +54,7 @@ export function AgentChatMessage({
     );
     const blocks = useMemo(() => parser.parse(source), [parser, source]);
     const diagrams = useAgentChatDiagrams();
+    const skills = useAgentChatSkills();
     return (
         <div className={cn('flex flex-col gap-3 text-[13px] leading-5 wrap-anywhere', className)}>
             <MarkdownBlocks
@@ -63,6 +65,7 @@ export function AgentChatMessage({
                 onOpenFile={onOpenFile}
                 onOpenUrl={openAgentChatLink}
                 referenceTerminalId={terminalId}
+                skills={skills}
             />
         </div>
     );

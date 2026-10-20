@@ -51,7 +51,11 @@ export function AgentChatInvocationChip({ invocation }: { invocation: string }) 
     );
 }
 
-function AgentChatInvocationDetails({
+/**
+ * A skill or command's description and rendered instructions, read from its file while mounted. Shared by the chip a
+ * sent message starts with and the skill a reply names in inline code.
+ */
+export function AgentChatInvocationDetails({
     invocation,
     terminalId,
 }: {

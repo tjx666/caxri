@@ -28,6 +28,7 @@ export function MarkdownBlocks({
     onOpenFile,
     onOpenUrl,
     referenceTerminalId,
+    skills,
     variant = 'compact',
 }: {
     blocks: readonly MarkdownBlock[];
@@ -35,8 +36,8 @@ export function MarkdownBlocks({
 } & Partial<Pick<MarkdownRenderContext, 'variant'>> &
     Omit<MarkdownRenderContext, 'variant'>) {
     const context = useMemo(
-        () => ({ diagrams, onOpenFile, onOpenUrl, referenceTerminalId, variant }),
-        [diagrams, onOpenFile, onOpenUrl, referenceTerminalId, variant],
+        () => ({ diagrams, onOpenFile, onOpenUrl, referenceTerminalId, skills, variant }),
+        [diagrams, onOpenFile, onOpenUrl, referenceTerminalId, skills, variant],
     );
     return (
         <MarkdownContext value={context}>
