@@ -132,7 +132,11 @@ export const ConversationToolRowView = ({
                         verb={verb}
                     />
                 </View>
-                <Text numberOfLines={1} style={[styles.toolActivity, { color: theme.muted }]}>
+                <Text
+                    numberOfLines={1}
+                    style={[styles.toolActivity, { color: theme.muted }]}
+                    testID={`${testID}-activity`}
+                >
                     {activity}
                 </Text>
             </View>

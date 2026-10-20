@@ -69,7 +69,8 @@ export async function executeMobileChatSubagentScenario(
         if (!task?.itemId) throw new Error('The subagent has no timeline row');
         const rowId = `agent-chat-work-${task.itemId}`;
         await waitForCheck(serial, rowId);
-        const row = await observeMobileNode(serial, rowId, {
+        // The row's accessibility label merges its lines into `content-desc`; the activity line carries the text.
+        const row = await observeMobileNode(serial, `${rowId}-activity`, {
             kind: 'includes',
             value: 'Using Grep',
         });
