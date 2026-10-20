@@ -38,13 +38,13 @@ export interface DesktopServerSupervisor {
 }
 
 /**
- * Construction options for `DesktopServerConnection`, including the seams an SSH Host connection replaces.
- */
-/**
  * Sends the presence snapshot on the attachment that is being established.
  */
-export type WindowPresenceSeedSender = (seed: WindowPresenceSeed) => Promise<unknown>;
+type WindowPresenceSeedSender = (seed: WindowPresenceSeed) => Promise<unknown>;
 
+/**
+ * Construction options for `DesktopServerConnection`, including the seams an SSH Host connection replaces.
+ */
 export interface DesktopServerConnectionOptions {
     agentHooksPath?: string;
     /**

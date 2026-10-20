@@ -67,7 +67,7 @@ unconditionally.
 
 The reservation is load-bearing. Deriving the set from the table alone means removing the last
 `cmd+k …` binding turns `Cmd+K` back into an ordinary chord, and then the second keystroke of
-`Cmd+K Cmd+1` resolves as a standalone `Cmd+1` and switches the Secondary Side Bar instead of
+`Cmd+K Cmd+1` resolves as a standalone `Cmd+1` and switches to the first Open Session instead of
 folding the editor region. Monaco's chords exist whether or not Caxri's table mentions them.
 
 A single-chord binding on a leading chord can therefore never fire. `findKeybindingConflicts`

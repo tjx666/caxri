@@ -1,4 +1,5 @@
 import type { WindowPresenceReport, WindowPresenceSeed } from '@caxri/protocol';
+import { notifyListeners } from '@caxri/utils';
 
 interface PresenceRow {
     focused: boolean;
@@ -95,8 +96,8 @@ export class WindowPresence {
         if (isVisibleChanged) this.visible = visible.size === 0 ? EMPTY : visible;
         const isCurrentChanged = current !== this.current;
         this.current = current;
-        if (isVisibleChanged) for (const listener of this.visibleListeners) listener();
-        if (isCurrentChanged) for (const listener of this.currentListeners) listener();
+        if (isVisibleChanged) notifyListeners(this.visibleListeners, undefined);
+        if (isCurrentChanged) notifyListeners(this.currentListeners, undefined);
     }
 
     /**
