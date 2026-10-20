@@ -475,15 +475,17 @@ If the opening control disappeared, restore the current workbench Terminal when 
 All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows. Overflowing Session
 and Project names clip with a right-edge fade instead of an ellipsis: the ellipsis glyph spends
-row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
+row width on punctuation. The fade is a 20px mask, about one and a half characters at the 13px UI
+size, matching Codex; one character read as a hard cut rather than a fade.
 A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
 rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
 the New Session menu is open the name makes room and fades before them. Hovering New Session lists
 the Agents. With a configured default Agent it splits like the tab strip's +: a press creates the
 default Agent (the tooltip names it, `New Codex Chat Session`); without one a press opens the list.
 Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
-at a steady reading speed and holding at the end. Leaving restores the fade; short names remain
-still.
+at a steady reading speed and holding at the end. While a title scrolls, its left edge fades in as
+text slides under it and the right fade clears once the tail shows, so text dissolves at both edges.
+Leaving restores the fade; short names remain still.
 Reduced motion keeps titles static, with the full name available in the detail card. The `--elevated`
 selected fill, not dimmed neighbors, communicates selection. Project ordering uses the whole
 Project heading as its drag source. While dragging, dim only the source group and show a 2px

@@ -156,6 +156,7 @@ const settingsProjection: SettingsProjection = {
     'workbench.confirmWorktreeAuthorization': exportAsIs,
     'primarySidebar.autoCollapseProjects': exportAsIs,
     'primarySidebar.translucent': exportAsIs,
+    'statusBar.usage.showFiveHourLimit': exportAsIs,
     'window.zoomLevel': exportAsIs,
     'workbench.fontFamily': exportAsIs,
     'workbench.language': exportAsIs,

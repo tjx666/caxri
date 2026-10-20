@@ -472,7 +472,12 @@ export function FileTreeItem({
                 event.dataTransfer.dropEffect = 'move';
             }}
             onDragStart={(event) => {
-                startFilePathDrag(event.dataTransfer, entry.path, editable);
+                startFilePathDrag(
+                    event.dataTransfer,
+                    entry.path,
+                    editable,
+                    entry.kind === 'directory' || entry.linkKind === 'directory',
+                );
             }}
             onDrop={dropIntoDirectory}
             onPaste={(event) => {

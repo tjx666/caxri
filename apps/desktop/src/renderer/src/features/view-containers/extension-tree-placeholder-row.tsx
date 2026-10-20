@@ -4,7 +4,7 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import type { VisiblePlaceholderRow } from './extension-tree-rows';
-import { loadingPlaceholderRowCount } from './extension-tree-rows';
+import { loadingPlaceholderDepths } from './extension-tree-rows';
 
 /**
  * A lazy branch's loading, error, and empty states, rendered where that branch's children would be. Loading draws
@@ -29,7 +29,7 @@ export function ExtensionTreePlaceholderRow({
                 variant="list"
                 indent={8 + row.depth * 14}
                 label={t('viewContainers.extensionTree.loading')}
-                rows={loadingPlaceholderRowCount(row)}
+                depths={loadingPlaceholderDepths(row)}
             />
         );
     const paddingLeft = `${8 + row.depth * 14}px`;

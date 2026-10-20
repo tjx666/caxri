@@ -275,7 +275,7 @@ export function ProjectGroup({
                                     expanded={expanded}
                                     icon={project.icon}
                                 />
-                                <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium">
+                                <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium [--overflow-fade-size:20px]">
                                     {project.displayTitle}
                                 </strong>
                                 {agentSummary && <ProjectAgentSummary summary={agentSummary} />}

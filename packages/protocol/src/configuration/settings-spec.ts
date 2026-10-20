@@ -175,6 +175,16 @@ export const settingsSpec = [
     },
     ...primarySidebarSettingsSpec,
     {
+        kind: 'boolean',
+        key: 'statusBar.usage.showFiveHourLimit',
+        title: 'Show 5-hour limit in the status bar',
+        description:
+            'Adds the 5-hour plan limit to the Agent usage chip beside the weekly limit. Its hover card always lists every limit.',
+        category: 'general',
+        keywords: ['statusBar', 'usage', 'limit', 'quota', '5h', 'five hour', 'rate limit', 'plan'],
+        default: false,
+    },
+    {
         kind: 'integer',
         key: 'window.zoomLevel',
         title: 'Zoom level',

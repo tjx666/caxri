@@ -9,6 +9,8 @@ import {
 } from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
+const ALL_WINDOWS = { showFiveHourLimit: true };
+const DEFAULT_WINDOWS = { showFiveHourLimit: false };
 
 function readout(overrides: Partial<AgentUsageReadout> = {}): AgentUsageReadout {
     return {
@@ -42,6 +44,7 @@ describe('agent usage chip label', () => {
                 },
             }),
             NOW,
+            ALL_WINDOWS,
         );
         // 61.6% used leaves 38% of the 5-hour window; 12% used leaves 88% of the week.
         expect(label).toBe('1.2M · $3.40 · 5h 38% · 7d 88% left');
@@ -58,6 +61,7 @@ describe('agent usage chip label', () => {
                 },
             }),
             NOW,
+            ALL_WINDOWS,
         );
         expect(label).toBe('1.2M');
     });
@@ -65,9 +69,24 @@ describe('agent usage chip label', () => {
     it('marks a cost that leaves some unpriced models out as a lower bound', () => {
         const partial = readout({ models: ['gpt-5.5', 'mystery'], unpricedModels: ['mystery'] });
         expect(agentUsageCostLabel(partial)).toBe('≥$3.40');
-        expect(agentUsageLabel(partial, NOW)).toBe('1.2M · ≥$3.40');
+        expect(agentUsageLabel(partial, NOW, DEFAULT_WINDOWS)).toBe('1.2M · ≥$3.40');
         expect(agentUsageCostLabel(readout())).toBe('$3.40');
         expect(agentUsageCostLabel(readout({ unpricedModels: ['gpt-5.5'] }))).toBeUndefined();
+    });
+
+    it('leaves the 5-hour window out unless the Setting opts in', () => {
+        const both = readout({
+            limit: {
+                provider: 'claude',
+                observedAt: NOW,
+                windows: [
+                    { windowMinutes: 10_080, usedPercent: 20, resetsAt: NOW + 86_400_000 },
+                    { windowMinutes: 300, usedPercent: 21, resetsAt: NOW + 3_600_000 },
+                ],
+            },
+        });
+        expect(agentUsageLabel(both, NOW, DEFAULT_WINDOWS)).toBe('1.2M · $3.40 · 7d 80% left');
+        expect(agentUsageLabel(both, NOW, ALL_WINDOWS)).toBe('1.2M · $3.40 · 5h 79% · 7d 80% left');
     });
 });
 
@@ -86,14 +105,19 @@ describe('agent usage limit tone', () => {
     }
 
     it('warns while any displayed window crosses the Usage page warning threshold', () => {
-        expect(agentUsageLimitTone(withWindows(89.4, 40), NOW)).toBeUndefined();
-        expect(agentUsageLimitTone(withWindows(89.6, 40), NOW)).toBe('warning');
-        expect(agentUsageLimitTone(withWindows(10, 95), NOW)).toBe('warning');
-        expect(agentUsageLimitTone(withWindows(10, 99, NOW - 1), NOW)).toBeUndefined();
+        expect(agentUsageLimitTone(withWindows(89.4, 40), NOW, ALL_WINDOWS)).toBeUndefined();
+        expect(agentUsageLimitTone(withWindows(89.6, 40), NOW, ALL_WINDOWS)).toBe('warning');
+        expect(agentUsageLimitTone(withWindows(10, 95), NOW, ALL_WINDOWS)).toBe('warning');
+        expect(agentUsageLimitTone(withWindows(10, 99, NOW - 1), NOW, ALL_WINDOWS)).toBeUndefined();
+    });
+
+    it('follows only the windows the chip shows', () => {
+        expect(agentUsageLimitTone(withWindows(95, 40), NOW, DEFAULT_WINDOWS)).toBeUndefined();
+        expect(agentUsageLimitTone(withWindows(10, 95), NOW, DEFAULT_WINDOWS)).toBe('warning');
     });
 
     it('has no tone without a live window', () => {
-        expect(agentUsageLimitTone(readout(), NOW)).toBeUndefined();
+        expect(agentUsageLimitTone(readout(), NOW, ALL_WINDOWS)).toBeUndefined();
         const reset = readout({
             limit: {
                 provider: 'codex',
@@ -101,7 +125,7 @@ describe('agent usage limit tone', () => {
                 windows: [{ windowMinutes: 300, usedPercent: 99, resetsAt: NOW - 1 }],
             },
         });
-        expect(agentUsageLimitTone(reset, NOW)).toBeUndefined();
+        expect(agentUsageLimitTone(reset, NOW, ALL_WINDOWS)).toBeUndefined();
     });
 });
 

@@ -1,16 +1,17 @@
 import type { DragEvent, RefObject } from 'react';
-import { useImperativeHandle } from 'react';
+import { useImperativeHandle, useState } from 'react';
 
-import type { AgentChatPathReference, TerminalRecord } from '@caxri/protocol';
+import type { AgentChatPathReference } from '@caxri/protocol';
 import { agentChatImageToken } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { isOsFileDrag, isOsFileReferenceRefused, osFilePaths } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
-import { terminalDropInput } from '../../terminal/terminal-drop';
 import type { AgentChatComposerInput } from '../agent-chat-composer-view';
 import { draftWithInsertion } from '../agent-chat-drafts';
 import { agentChatOsFileReferences } from '../agent-chat-path-attachments';
+import type { AgentChatPathPill } from '../agent-chat-path-pills';
+import { agentChatDropPathPills } from '../agent-chat-path-pills';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import type { AgentChatDropHandlers } from './use-agent-chat-file-input';
 import { useAgentChatFileInput } from './use-agent-chat-file-input';
@@ -33,9 +34,7 @@ export function useAgentChatComposerInput({
     reserveImageTokens,
     setDraft,
     supportsImages,
-    terminal,
     terminalId,
-    workbenchRoot,
 }: {
     draft: string;
     dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
@@ -51,10 +50,11 @@ export function useAgentChatComposerInput({
     reserveImageTokens: (count: number) => number;
     setDraft: (update: (current: string) => string) => void;
     supportsImages: boolean;
-    terminal: TerminalRecord | undefined;
     terminalId: string;
-    workbenchRoot: string | undefined;
 }) {
+    const [pathPills, setPathPills] = useState<ReadonlyMap<string, AgentChatPathPill>>(
+        () => new Map(),
+    );
     /**
      * Inserts `text` over `range` while the input still holds the text the range was taken from, and at the caret
      * otherwise (the user kept typing while a long paste was saved), then puts the caret after it.
@@ -74,14 +74,22 @@ export function useAgentChatComposerInput({
     /**
      * Cites what a drop or pick carries besides the images it attached. Files and folders from another application
      * (Finder, a file picker, or a paste) become cards, as in the Codex app; a Files entry, an Editor tab, or a Project
-     * is cited at the caret by path relative to where the Agent runs, the way a drop into a Terminal pastes one,
-     * because the user drags those into the sentence they are writing. Returns whether it cited anything.
+     * is cited at the caret by its absolute path, drawn as a pill with its icon and name as in LobeHub's composer,
+     * because the user drags those into the sentence they are writing. Unlike a Terminal drop the path is not made
+     * relative: the pill already reads short, and an absolute path means the same thing wherever the Agent stands.
+     * Returns whether it cited anything.
      */
     const didInsertPaths = (event: DragEvent | undefined, files: readonly File[]): boolean => {
         if (event && !isOsFileDrag(event.dataTransfer)) {
-            const input = terminal && terminalDropInput(event, terminal, workbenchRoot, files);
-            if (input) insertText(input);
-            return Boolean(input);
+            const pills = agentChatDropPathPills(event);
+            if (pills.length === 0) return false;
+            setPathPills((current) => {
+                const next = new Map(current);
+                for (const pill of pills) next.set(pill.token, pill);
+                return next;
+            });
+            insertText(pills.map((pill) => pill.token).join(' '));
+            return true;
         }
         if (files.length === 0) return false;
         if (osFilePaths(files).length === 0) {
@@ -132,5 +140,6 @@ export function useAgentChatComposerInput({
         fileInput,
         isAttaching: images.isReading || longPaste.isSaving,
         pastePlainText: longPaste.pastePlainText,
+        pathPills,
     };
 }

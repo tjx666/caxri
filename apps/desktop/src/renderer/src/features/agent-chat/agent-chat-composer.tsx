@@ -243,7 +243,7 @@ export function AgentChatComposer({
     });
     const { isStopping, stop } = useAgentChatStop({ activeTurnId, terminalId });
     const placeholders = useAgentChatImagePlaceholders({ draft, images, inputReference, setDraft });
-    const { fileInput, isAttaching, pastePlainText } = useAgentChatComposerInput({
+    const { fileInput, isAttaching, pastePlainText, pathPills } = useAgentChatComposerInput({
         draft,
         dropHandlersReference,
         images,
@@ -252,9 +252,7 @@ export function AgentChatComposer({
         reserveImageTokens: placeholders.reserve,
         setDraft,
         supportsImages,
-        terminal,
         terminalId,
-        workbenchRoot,
     });
     const { choose, compact, complete, edit, goalMode, hasContent, isSendable, isSending, submit } =
         useAgentChatComposerSend({
@@ -403,6 +401,7 @@ export function AgentChatComposer({
                         isEditing={edit.isEditing}
                         menu={menu}
                         menuActions={{ choose, complete }}
+                        pathPills={pathPills}
                         placeholder={agentChatComposerPlaceholder(
                             sendAction,
                             {

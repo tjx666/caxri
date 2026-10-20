@@ -172,6 +172,7 @@ export const appSettingsSchema = z.object({
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),
     'primarySidebar.translucent': booleanField(spec['primarySidebar.translucent']),
+    'statusBar.usage.showFiveHourLimit': booleanField(spec['statusBar.usage.showFiveHourLimit']),
     'window.zoomLevel': integerField(spec['window.zoomLevel']),
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),

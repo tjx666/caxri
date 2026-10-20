@@ -52,15 +52,22 @@ export type VisiblePlaceholderRow = VisibleLoadingRow | VisibleErrorRow | Visibl
 export type VisibleRow = VisibleItemRow | VisiblePlaceholderRow;
 
 /**
- * Skeleton rows a loading placeholder draws. A view's first load draws a few rows so the empty sidebar already reads as
- * a tree, kept near the handful a view's first answer usually holds (Status: a repository and its branch) so the rows
- * that arrive do not collapse a much taller placeholder. A nested branch keeps one row, so expanding a folder does not
- * push its siblings down and back.
+ * Tree levels of the skeleton rows a loading placeholder draws, relative to the branch. A view's first load draws a
+ * parent and two children so the empty sidebar already reads as a tree (Status: a repository over its branch and pull
+ * request), kept near the handful a view's first answer usually holds so the rows that arrive do not collapse a much
+ * taller placeholder. A nested branch keeps one row, so expanding a folder does not push its siblings down and back.
  */
-export const ROOT_LOADING_SKELETON_ROWS = 3;
+const ROOT_LOADING_SKELETON_DEPTHS = [0, 1, 1] as const;
+const NESTED_LOADING_SKELETON_DEPTHS = [0] as const;
+
+export function loadingPlaceholderDepths(row: VisiblePlaceholderRow): readonly number[] {
+    return row.kind === 'loading' && row.depth === 0
+        ? ROOT_LOADING_SKELETON_DEPTHS
+        : NESTED_LOADING_SKELETON_DEPTHS;
+}
 
 export function loadingPlaceholderRowCount(row: VisiblePlaceholderRow): number {
-    return row.kind === 'loading' && row.depth === 0 ? ROOT_LOADING_SKELETON_ROWS : 1;
+    return loadingPlaceholderDepths(row).length;
 }
 
 export function visibleRowKey(row: VisibleRow): string {

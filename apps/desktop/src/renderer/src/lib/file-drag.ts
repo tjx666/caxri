@@ -15,13 +15,28 @@ export const FILE_TREE_DRAG_TYPE = 'application/x-caxri-file-path';
  */
 const FILE_REFERENCE_DRAG_TYPE = 'application/x-caxri-file-reference';
 
+/**
+ * Marks a Files or file reference drag whose entry is a folder, so a drop target can draw it as one without reading the
+ * filesystem. Its value is unused; the type's presence is the flag.
+ */
+const DIRECTORY_DRAG_TYPE = 'application/x-caxri-path-is-directory';
+
 export function startFilePathDrag(
     dataTransfer: DataTransfer,
     path: string,
     isMovable: boolean,
+    isDirectory = false,
 ): void {
     dataTransfer.effectAllowed = isMovable ? 'copyMove' : 'copy';
     dataTransfer.setData(isMovable ? FILE_TREE_DRAG_TYPE : FILE_REFERENCE_DRAG_TYPE, path);
+    if (isDirectory) dataTransfer.setData(DIRECTORY_DRAG_TYPE, '1');
+}
+
+/**
+ * Whether a Files or file reference drag names a folder ({@link startFilePathDrag}).
+ */
+export function isDirectoryDrag(dataTransfer: Pick<DataTransfer, 'types'>): boolean {
+    return dataTransfer.types.includes(DIRECTORY_DRAG_TYPE);
 }
 
 /**

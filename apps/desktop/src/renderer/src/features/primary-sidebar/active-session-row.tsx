@@ -178,7 +178,7 @@ export function ActiveSessionRow({
                     suggesting={renameSuggesting}
                 />
             ) : (
-                <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1">
+                <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1 [--overflow-fade-size:20px]">
                     <strong
                         ref={viewportReference}
                         /*

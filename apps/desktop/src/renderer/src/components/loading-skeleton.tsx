@@ -37,6 +37,10 @@ const DOCUMENT_LINES: ReadonlyArray<{ indent: number; width?: string }> = [
     { indent: 1, width: '60%' },
 ];
 const DOCUMENT_INDENT_REM = 1.25;
+/**
+ * One tree level's indent in pixels, matching the extension tree rows (`extension-tree-item-row.tsx`).
+ */
+const TREE_LEVEL_INDENT = 14;
 
 const LoadingSkeletonClockContext = createContext<LoadingSkeletonClock | undefined>(undefined);
 
@@ -72,6 +76,13 @@ type LoadingSkeletonProperties = {
            * Left padding in pixels, so a nested branch's placeholder lines up with that branch's children.
            */
           indent?: number;
+          /**
+           * Per-row nesting below `indent`, one tree level ({@link TREE_LEVEL_INDENT}) each, so a view's first load
+           * reads as a parent and its children rather than a flat list. A row with a deeper row after it draws a
+           * disclosure chevron slot; a leaf draws the matching spacer. Omitted, every row sits at `indent` with no
+           * slot.
+           */
+          depths?: readonly number[];
       }
     | {
           /**
@@ -126,15 +137,24 @@ export function LoadingSkeleton(properties: LoadingSkeletonProperties) {
     } as const;
     if (!isRevealed) return <div {...region} className={cn('min-w-0', className)} />;
     if (properties.variant === 'list') {
-        const { rows = 6, indent = 8 } = properties;
+        const { depths, indent = 8 } = properties;
+        const rows = depths?.length ?? properties.rows ?? 6;
         return (
             <div {...region} className={cn('flex min-w-0 flex-col', className)}>
                 {Array.from({ length: rows }, (_, index) => (
                     <div
                         key={index}
                         className="flex h-7 shrink-0 items-center gap-2 pr-3"
-                        style={{ paddingLeft: `${indent}px` }}
+                        style={{
+                            paddingLeft: `${indent + (depths?.[index] ?? 0) * TREE_LEVEL_INDENT}px`,
+                        }}
                     >
+                        {depths &&
+                            ((depths[index + 1] ?? -1) > depths[index] ? (
+                                <Skeleton className="size-2.5 shrink-0" />
+                            ) : (
+                                <span aria-hidden="true" className="w-2.5 shrink-0" />
+                            ))}
                         <Skeleton className="size-3.5 shrink-0" />
                         <Skeleton
                             className="h-2.5"

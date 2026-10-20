@@ -285,22 +285,48 @@
 
 /*
  * Sidebar list labels clip overflowing text with a right-edge fade instead of an ellipsis. The
- * ellipsis glyph spends ~3ch of row width on punctuation; an 8px mask is about one character at
- * the 13px UI size (Codex's sidebar fade) and still marks the cut. Apply this to a flex-1 (or
+ * ellipsis glyph spends ~3ch of row width on punctuation. `--overflow-fade-size` defaults to 8px
+ * for 11px metadata, whose call sites reserve that much trailing padding; 13px Session and Project
+ * titles widen it to 20px (about one and a half characters, like Codex's sidebar) because an 8px
+ * fade over a 13px glyph reads as a hard cut rather than a fade. Apply this to a flex-1 (or
  * otherwise wider-than-content) box so short labels never reach the mask zone.
- * `data-overflow-fade="off"` drops the mask while a Session title is scrolling to its tail, so the
- * already-revealed end is not faded again.
+ *
+ * `--overflow-fade-start` and `--overflow-fade-end` are the faded widths at each edge. A Session
+ * title scrolling to its tail animates them (`use-session-title-scroll.ts`): the left edge fades
+ * in as text slides under it and the right edge clears once the tail is revealed, so both edges
+ * keep dissolving instead of the mask switching off. They are registered so they interpolate.
  *
  * The mask uses black/transparent as luminance, not a theme color: it never paints.
  */
+@property --overflow-fade-start {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
+@property --overflow-fade-end {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
 .overflow-fade {
+    --overflow-fade-end: var(--overflow-fade-size, 8px);
     overflow: hidden;
     text-overflow: clip;
     white-space: nowrap;
-}
-.overflow-fade:not([data-overflow-fade='off']) {
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 8px), transparent);
-    mask-image: linear-gradient(to right, black calc(100% - 8px), transparent);
+    -webkit-mask-image: linear-gradient(
+        to right,
+        transparent,
+        black var(--overflow-fade-start),
+        black calc(100% - var(--overflow-fade-end)),
+        transparent
+    );
+    mask-image: linear-gradient(
+        to right,
+        transparent,
+        black var(--overflow-fade-start),
+        black calc(100% - var(--overflow-fade-end)),
+        transparent
+    );
 }
 
 /**

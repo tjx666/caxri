@@ -2,6 +2,7 @@ import type { AgentUsageReadout } from '@caxri/protocol';
 import {
     agentProviderCatalog,
     currentLimitWindows,
+    defaultAppSettings,
     formatTokens,
     formatUsd,
     remainingLimitPercent,
@@ -16,6 +17,7 @@ import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
+import { useSettings } from '../../stores/selectors';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
 import { agentUsageCostLabel, agentUsageLabel, agentUsageLimitTone } from './agent-usage-label';
 import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
@@ -58,13 +60,19 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     );
     const limitObservedAgo = useRelativeTime(readout?.limit?.observedAt);
     const now = useAgentUsageClock(readout?.limit);
+    const settings = useSettings();
     if (!readout) return null;
-    const label = agentUsageLabel(readout, now, t);
+    const chipOptions = {
+        showFiveHourLimit:
+            settings?.['statusBar.usage.showFiveHourLimit'] ??
+            defaultAppSettings['statusBar.usage.showFiveHourLimit'],
+    };
+    const label = agentUsageLabel(readout, now, chipOptions, t);
     const agentName = agentProviderCatalog[readout.provider].displayName;
     const { tokens } = readout;
     const cost = agentUsageCostLabel(readout);
     const limitWindows = currentLimitWindows(readout.limit, now);
-    const limitTone = agentUsageLimitTone(readout, now);
+    const limitTone = agentUsageLimitTone(readout, now, chipOptions);
     return (
         <StatusItem
             ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}

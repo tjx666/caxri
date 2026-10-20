@@ -220,6 +220,7 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('agentChat.longPasteThreshold'),
     specRow('primarySidebar.autoCollapseProjects'),
     specRow('primarySidebar.translucent'),
+    specRow('statusBar.usage.showFiveHourLimit'),
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.confirmWorktreeAuthorization'),
     specRow('workbench.fontFamily'),
