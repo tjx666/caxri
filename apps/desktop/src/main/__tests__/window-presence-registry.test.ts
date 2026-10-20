@@ -32,7 +32,7 @@ class FakeWindow implements PresenceWindow {
     }
 }
 
-function fixture(now = () => 100) {
+function fixture(now = () => 100, isUnshownWindowVisible = false) {
     const reports: Array<Record<string, unknown>> = [];
     const closes: string[] = [];
     const onSendError = vi.fn();
@@ -41,6 +41,7 @@ function fixture(now = () => 100) {
             closes.push(windowKey);
             return Promise.resolve();
         },
+        isUnshownWindowVisible,
         now,
         onSendError,
         reportPresence: (report) => {
@@ -54,6 +55,30 @@ function fixture(now = () => 100) {
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 describe('WindowPresenceRegistry', () => {
+    it('counts a never-shown hidden E2E window as visible but still honors minimize', async () => {
+        const { registry, reports } = fixture(() => 100, true);
+        const window = new FakeWindow();
+        window.shown = false;
+        registry.register('main', {}, window);
+        registry.setViewing('main', 'session-1');
+        await flush();
+        expect(reports.at(-1)).toMatchObject({ viewingSessionId: 'session-1', visible: true });
+
+        window.minimized = true;
+        window.emit('minimize');
+        await flush();
+        expect(reports.at(-1)).toMatchObject({ visible: false });
+    });
+
+    it('reports a never-shown window as invisible outside a hidden E2E launch', async () => {
+        const { registry, reports } = fixture();
+        const window = new FakeWindow();
+        window.shown = false;
+        registry.register('main', {}, window);
+        await flush();
+        expect(reports.at(-1)).toMatchObject({ visible: false });
+    });
+
     it('reports a window when it registers and on every native visibility or focus change', async () => {
         const { registry, reports } = fixture();
         const window = new FakeWindow();
