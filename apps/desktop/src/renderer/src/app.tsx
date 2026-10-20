@@ -20,6 +20,7 @@ import { subscribeUnsavedEditorRequests } from './features/editor/unsaved-editor
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
 import { useDeliveryFocusRefresh } from './features/primary-sidebar/hooks/use-delivery-focus-refresh';
+import { useTranslucentSidebar } from './features/primary-sidebar/hooks/use-translucent-sidebar';
 import { PrimarySidebar } from './features/primary-sidebar/primary-sidebar';
 import { ProjectIconDialog } from './features/primary-sidebar/project-icon-dialog';
 import { ProjectSearchDialog } from './features/project-search/project-search-dialog';
@@ -172,6 +173,7 @@ export function App() {
     useGitDecorationSync();
     useChromeViewportClamp();
     useWorkbenchAppearance();
+    useTranslucentSidebar();
     useWindowZoomFactor();
     useEffect(() => {
         if (!isAttached) return;

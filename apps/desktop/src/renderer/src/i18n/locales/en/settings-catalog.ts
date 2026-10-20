@@ -69,6 +69,10 @@ export const settingsCatalog = {
     'settings.primarySidebar.autoCollapseProjects.option.30m': 'After 30 minutes',
     'settings.primarySidebar.autoCollapseProjects.option.2h': 'After 2 hours',
 
+    'settings.primarySidebar.translucent.title': 'Translucent sidebar',
+    'settings.primarySidebar.translucent.description':
+        'On macOS, blur the desktop through the sidebar like frosted glass when the theme matches the system light or dark appearance.',
+
     'settings.window.zoomLevel.title': 'Zoom level',
     'settings.window.zoomLevel.description':
         'Scales the whole interface. 0 is the original size; each step up or down zooms by 20%. View › Zoom In, Zoom Out, and Reset Zoom change it too.',

@@ -8,6 +8,7 @@
 import { agentProviderCatalog, agentProviderIds } from '../agent/agents.js';
 import { editorSettingsSpec } from './editor-settings-spec.js';
 import { languageSettingsSpec } from './language-settings-spec.js';
+import { primarySidebarSettingsSpec } from './primary-sidebar-settings-spec.js';
 
 export const settingCategories = [
     { id: 'general', title: 'General' },
@@ -172,20 +173,7 @@ export const settingsSpec = [
         keywords: ['git', 'branch', 'worktree', 'authorize', 'confirm', 'workbench root'],
         default: true,
     },
-    {
-        kind: 'enum',
-        key: 'primarySidebar.autoCollapseProjects',
-        title: 'Auto-collapse inactive Projects',
-        description: 'Keeps active, working, unread, and manually expanded Projects open',
-        category: 'general',
-        keywords: ['primarySidebar', 'project', 'collapse', 'inactive', 'idle'],
-        options: [
-            { value: 'off', label: 'Off' },
-            { value: '30m', label: 'After 30 minutes' },
-            { value: '2h', label: 'After 2 hours' },
-        ],
-        default: '30m',
-    },
+    ...primarySidebarSettingsSpec,
     {
         kind: 'integer',
         key: 'window.zoomLevel',

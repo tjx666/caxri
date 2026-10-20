@@ -1506,6 +1506,12 @@ popup itself hold focus until then.
 - Launch shows the Caxri mark over the translucent (vibrancy) window from the first frame: the
   loader is inline in `renderer/index.html`, so it needs no bundle, and `App` removes it when the
   workbench attaches. Only a startup failure adds text beneath the mark.
+- On macOS the primary sidebar is frosted glass by default (LobeHub's pattern): the window's vibrancy
+  material shows through a 62% tint of `--surface`, while the main column keeps the opaque
+  `--background` so content never sits on a moving backdrop. It applies only when the theme's
+  lightness matches the system appearance, because the native material follows the system, and
+  `primarySidebar.translucent` turns it off. An inactive window renders the material flat grey;
+  that is native behavior.
 
 ## Known gaps
 
