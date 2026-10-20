@@ -24,6 +24,7 @@ export * from './agent-chat-presentation.js';
 export * from './agent-chat-queue.js';
 export * from './agent-chat-reducer.js';
 export * from './agent-chat-requests.js';
+export * from './agent-chat-revision-convergence.js';
 export * from './agent-chat-rewind.js';
 export * from './agent-chat-stream-pacing.js';
 export * from './agent-chat-task-contract.js';

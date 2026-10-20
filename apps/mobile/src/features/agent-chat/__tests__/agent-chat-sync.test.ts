@@ -112,6 +112,38 @@ describe('Agent Chat reader', () => {
         chat.stop();
     });
 
+    it('re-reads once after a burst of patches overflows the hold during a read', async () => {
+        const chat = harness();
+        chat.ack();
+        await flush();
+        for (let revision = 1; revision <= 250; revision += 1) {
+            chat.emit({ kind: 'agentChat.patch', patch: append(revision, 'x') });
+        }
+        chat.reads[0]?.resolve(snapshot(1));
+        await flush();
+        expect(chat.read).toHaveBeenCalledTimes(2);
+        chat.reads[1]?.resolve(snapshot(251, 'fresh'));
+        await flush();
+        expect(textOf(chat.latest())).toBe('fresh');
+        chat.stop();
+    });
+
+    it('publishes nothing after dispose, even with a read and a patch pending', async () => {
+        const chat = harness();
+        chat.ack();
+        await flush();
+        chat.reads[0]?.resolve(snapshot(1));
+        await flush();
+        chat.emit({ kind: 'agentChat.changed' });
+        chat.emit({ kind: 'agentChat.patch', patch: append(1, ' held') });
+        chat.stop();
+        const published = chat.latest();
+        chat.reads[1]?.resolve(snapshot(9, 'late'));
+        chat.emit({ kind: 'agentChat.patch', patch: append(1, ' later') });
+        await flush();
+        expect(chat.latest()).toBe(published);
+    });
+
     it('polls when the subscription is unavailable', async () => {
         vi.useFakeTimers();
         const read = vi.fn(async () => snapshot(1));

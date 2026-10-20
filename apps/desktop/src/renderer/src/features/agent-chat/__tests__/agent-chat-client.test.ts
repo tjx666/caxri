@@ -84,6 +84,35 @@ describe('createAgentChatPatchCache', () => {
         cache.dispose();
     });
 
+    it('re-reads once after a 200-patch overflow instead of replaying', async () => {
+        const cache = createAgentChatPatchCache(queryClient);
+        const read = pendingRead();
+        for (let revision = 2; revision <= 202; revision += 1)
+            cache.apply(message(revision, `${revision}`));
+        await read.settle(snapshotAt(1));
+        expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(true);
+        cache.dispose();
+    });
+
+    it('does not replay patches held before a reconnect', async () => {
+        const cache = createAgentChatPatchCache(queryClient);
+        const read = pendingRead();
+        cache.apply(message(2, 'before reconnect'));
+        cache.resync();
+        await read.settle(snapshotAt(1));
+        expect(queryClient.getQueryData<AgentChatSnapshot>(queryKey)?.revision).toBe(1);
+        cache.dispose();
+    });
+
+    it('stops replaying after dispose while a read is pending', async () => {
+        const cache = createAgentChatPatchCache(queryClient);
+        const read = pendingRead();
+        cache.apply(message(2, 'held'));
+        cache.dispose();
+        await read.settle(snapshotAt(1));
+        expect(queryClient.getQueryData<AgentChatSnapshot>(queryKey)?.revision).toBe(1);
+    });
+
     it('ignores a Chat nobody has open', () => {
         const cache = createAgentChatPatchCache(queryClient);
         cache.apply(message(1, 'unseen'));
