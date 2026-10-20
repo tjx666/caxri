@@ -59,9 +59,13 @@ export interface WorkbenchIpcOptions {
      * that matters was rate limited or rotated away.
      */
     readEventLoopStalls?(): EventLoopStallSummary | undefined;
-    onEventsReady?(): void;
+    onEventsReady?(sender: WebContents): void;
     onStartupFrame?(diagnostic: StartupFrameDiagnostic): void;
-    renderer(): WebContents | undefined;
+    /**
+     * Whether a sender is one of the local Workbench windows (the primary window or a tear-off window). Trust follows
+     * the live registry, so a closed tear-off window's queued IPC is refused.
+     */
+    isWorkbenchSender(sender: WebContents): boolean;
     /**
      * Finds the companion Renderer a sender belongs to: an optional window (the Agent Commander, the Benchmark window)
      * that shares the Workbench preload and Main's single Desktop↔Server connection. Each is trusted only for the
@@ -139,7 +143,7 @@ export interface CompanionRendererPolicy {
  */
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     function senderRole(sender: WebContents): 'companion' | 'ssh-host' | 'workbench' | undefined {
-        if (options.renderer() && sender === options.renderer()) return 'workbench';
+        if (options.isWorkbenchSender(sender)) return 'workbench';
         if (options.companion?.(sender)) return 'companion';
         if (options.sshHost?.(sender)) return 'ssh-host';
         return undefined;
@@ -158,7 +162,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             companion.onRendererError(rawKind);
             return;
         }
-        if (event.sender !== options.renderer() && !options.sshHost?.(event.sender)) return;
+        if (!options.isWorkbenchSender(event.sender) && !options.sshHost?.(event.sender)) return;
         options
             .logger()
             ?.write(
@@ -430,7 +434,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             options.sshHost?.(event.sender)?.onEventsReady();
             return;
         }
-        options.onEventsReady?.();
+        options.onEventsReady?.(event.sender);
     });
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
         let isTrustedRenderer = false;

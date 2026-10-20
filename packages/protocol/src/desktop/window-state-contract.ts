@@ -63,6 +63,20 @@ export const windowDesktopMethods = {
         params: z.object({ viewingSessionId: identifierSchema.nullable() }),
         result: z.null(),
     },
+    /**
+     * Moves one Open Session of the sending window into a new window, the gesture of dragging its tab out of the strip.
+     * `screenPoint` is where the drag ended (screen coordinates); Main falls back to the native cursor when it is
+     * absent. `opened` is false for a normal refusal (released over a window, last tab, not open), never an error. Main
+     * mints the new window's key and chooses its bounds; a Renderer supplies neither.
+     */
+    'window.tearOffSession': {
+        ...desktopControl,
+        params: z.object({
+            sessionId: identifierSchema,
+            screenPoint: z.object({ x: z.number(), y: z.number() }).optional(),
+        }),
+        result: z.object({ opened: z.boolean() }),
+    },
     'processExplorer.open': { ...desktopControl, params: noParameters, result: z.null() },
     'benchmark.open': { ...desktopControl, params: noParameters, result: z.null() },
 } as const;

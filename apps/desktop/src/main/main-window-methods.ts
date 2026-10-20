@@ -31,6 +31,15 @@ export interface MainWindowMethodOptions {
      * Where a Workbench window's reported Session goes. Absent in handler tests that do not exercise presence.
      */
     windowPresence?: Pick<WindowPresenceRegistry, 'setViewing'>;
+    /**
+     * Moves one Open Session of the calling window into a new window; see `createTearOffController`. Absent in an SSH
+     * Host window, which is a single window.
+     */
+    tearOffSession?(input: {
+        sourceKey: string;
+        sessionId: string;
+        screenPoint?: { x: number; y: number };
+    }): Promise<{ opened: boolean }>;
 }
 
 const WINDOW_METHODS = [
@@ -41,6 +50,7 @@ const WINDOW_METHODS = [
     'benchmark.open',
     'processExplorer.open',
     'window.reportViewing',
+    'window.tearOffSession',
 ] as const;
 
 type WindowRequest = Extract<MainRequest, { method: (typeof WINDOW_METHODS)[number] }>;
@@ -55,7 +65,7 @@ export function isWindowRequest(request: MainRequest): request is WindowRequest 
 export async function handleWindowRequest(
     request: WindowRequest,
     options: MainWindowMethodOptions,
-): Promise<null> {
+): Promise<{ opened: boolean } | null> {
     switch (request.method) {
         case 'processExplorer.open':
             options.getProcessExplorer().open();
@@ -81,6 +91,12 @@ export async function handleWindowRequest(
                 );
             options.windowPresence?.setViewing(windowKey, request.params.viewingSessionId);
             return null;
+        }
+        case 'window.tearOffSession': {
+            const sourceKey = currentRequestWindowKey();
+            if (!sourceKey || !options.tearOffSession)
+                throw new CaxriError('FORBIDDEN', 'Only a Workbench window can tear off a Session');
+            return options.tearOffSession({ sourceKey, ...request.params });
         }
         case 'agentCommander.openSettings':
             await options.openSettingsInWorkbench(request.params.target);

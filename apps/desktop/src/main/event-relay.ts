@@ -10,7 +10,11 @@ interface EventLogger {
 }
 
 export interface MainEventRelayOptions {
-    deliver(message: unknown): void;
+    /**
+     * Sends one event to the windows that should see it. `windowKey` is set for a retained notice replayed to one
+     * window and for a `target` event addressed to a single window; otherwise the audience is the event's own.
+     */
+    deliver(message: unknown, event: ServerEvent, windowKey?: string): void;
     loadState(): Promise<BootstrapState>;
     logger(): EventLogger | undefined;
     onMenuRefreshRequested(): void;
@@ -20,7 +24,11 @@ export interface MainEventRelayOptions {
  * Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Server Core.
  */
 export function createMainEventRelay(options: MainEventRelayOptions) {
-    let isRendererReady = false;
+    /**
+     * The Workbench windows whose current Renderer generation subscribed to events. A replacement notice is held until
+     * one is ready, and replayed to each window as it becomes ready.
+     */
+    const readyWindows = new Set<string>();
     let retainedDesktopLeaseReplacement: ServerEvent | undefined;
     const journal = createEventJournal({
         snapshot: async (cursor) => {
@@ -44,22 +52,33 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
         recover(afterCursor: number): Promise<EventRecovery> {
             return journal.recover(afterCursor);
         },
-        rendererPending(): void {
-            isRendererReady = false;
+        rendererPending(windowKey: string): void {
+            readyWindows.delete(windowKey);
         },
-        rendererReady(): void {
-            if (isRendererReady) return;
-            isRendererReady = true;
-            if (retainedDesktopLeaseReplacement) options.deliver(retainedDesktopLeaseReplacement);
+        rendererReady(windowKey: string): void {
+            if (readyWindows.has(windowKey)) return;
+            readyWindows.add(windowKey);
+            if (retainedDesktopLeaseReplacement)
+                options.deliver(
+                    retainedDesktopLeaseReplacement,
+                    retainedDesktopLeaseReplacement,
+                    windowKey,
+                );
         },
-        send(event: ServerEvent): void {
+        /**
+         * Forgets a closed window so it stops counting as a ready audience.
+         */
+        windowClosed(windowKey: string): void {
+            readyWindows.delete(windowKey);
+        },
+        send(event: ServerEvent, windowKey?: string): void {
             if (event.event === 'host.connectionChanged' && event.payload.status === 'replaced') {
                 /**
                  * Replacement permanently stops this Main instance from reconnecting. Retain the notice across the
                  * startup and navigation gap so a later Renderer generation cannot miss the only recovery guidance.
                  */
                 retainedDesktopLeaseReplacement = event;
-                if (!isRendererReady) return;
+                if (readyWindows.size === 0) return;
             }
             if (event.event === 'runtime.status')
                 options
@@ -74,7 +93,11 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
                             },
                         },
                     );
-            options.deliver(isTransientServerEvent(event) ? event : journal.publish(event));
+            options.deliver(
+                isTransientServerEvent(event) ? event : journal.publish(event),
+                event,
+                windowKey,
+            );
             if (
                 (event.event === 'keybindings.changed' && !event.payload.error) ||
                 // The menu labels follow `workbench.language`; the event names no key, so any change rebuilds it.

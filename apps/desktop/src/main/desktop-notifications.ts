@@ -14,7 +14,7 @@ import type { DesktopServerConnection } from './server-connection';
 
 interface DesktopNotificationOptions {
     currentDirectory: string;
-    focusMainWindow: () => Promise<BrowserWindow>;
+    focusMainWindow: (windowKey?: string) => Promise<BrowserWindow>;
     isSessionShown: (sessionId: string) => boolean;
     handleMainMethod: (request: MainRequest) => Promise<unknown>;
     isPackaged: boolean;

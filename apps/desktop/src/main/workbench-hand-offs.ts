@@ -23,17 +23,20 @@ export function workbenchCommandDispatcher(
  */
 export function createWorkbenchHandOffs(options: {
     dispatchWorkbenchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
-    focusMainWindow: () => Promise<unknown>;
+    /**
+     * Raises a Workbench window: the primary window by default, or the window that owns a Session.
+     */
+    focusMainWindow: (windowKey?: string) => Promise<unknown>;
     sendEvent: (event: ServerEvent) => void;
     supervisor: () => DesktopServerConnection;
 }): Pick<MainMethodHandlerOptions, 'openSettingsInWorkbench' | 'revealSessionInWorkbench'> {
     return {
         revealSessionInWorkbench: async (sessionId) => {
-            await options.supervisor().request('session.select', {
+            const { ownerWindowKey } = await options.supervisor().request('session.select', {
                 sessionId,
                 windowKey: PRIMARY_WINDOW_KEY,
             });
-            await options.focusMainWindow();
+            await options.focusMainWindow(ownerWindowKey);
         },
         openSettingsInWorkbench: async (target) => {
             // Unlike a menu pick, wait for the Workbench Renderer: a reopened window must be listening for the event.

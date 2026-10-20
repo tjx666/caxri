@@ -135,13 +135,17 @@ export function createWindowZoomController(options: {
 export function publishFullScreenState(
     window: BrowserWindow,
     kind: 'workbench' | 'agentCommander' | 'benchmark',
-    sendEvent: (event: ServerEvent) => void,
+    sendEvent: (event: ServerEvent, windowKey?: string) => void,
+    windowKey?: string,
 ): void {
     const send = (): void =>
-        sendEvent({
-            event: 'window.fullScreen',
-            payload: { window: kind, isFullScreen: window.isFullScreen() },
-        });
+        sendEvent(
+            {
+                event: 'window.fullScreen',
+                payload: { window: kind, isFullScreen: window.isFullScreen() },
+            },
+            windowKey,
+        );
     window.on('enter-full-screen', send);
     window.on('leave-full-screen', send);
 }

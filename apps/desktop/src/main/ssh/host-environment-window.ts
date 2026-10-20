@@ -136,9 +136,12 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
         });
         const unsavedEditors = createWorkbenchUnsavedEditors({
             dialog,
-            getWindow: liveWindow,
+            windows: () => {
+                const window = liveWindow();
+                return window ? [{ key: PRIMARY_WINDOW_KEY, window }] : [];
+            },
             logger: options.logger,
-            sendEvent,
+            sendEvent: (event) => sendEvent(event),
         });
         const handleMainMethod = guardEnvironmentMethods(
             'ssh',
@@ -178,9 +181,9 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
             },
         });
 
-        relay.rendererPending();
+        relay.rendererPending(PRIMARY_WINDOW_KEY);
         window.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
-            if (isMainFrame) relay.rendererPending();
+            if (isMainFrame) relay.rendererPending(PRIMARY_WINDOW_KEY);
         });
         window.once('ready-to-show', () => window.show());
         installRendererGuards(window, { logger: options.logger, window: 'ssh-host' });
@@ -209,7 +212,7 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
             route: {
                 isRecovering: () => connection.isRecovering(),
                 onEventsReady: () => {
-                    relay.rendererReady();
+                    relay.rendererReady(PRIMARY_WINDOW_KEY);
                     // eslint-disable-next-line no-void -- readiness is re-announced on every reattach
                     void options
                         .whenAttached(window)

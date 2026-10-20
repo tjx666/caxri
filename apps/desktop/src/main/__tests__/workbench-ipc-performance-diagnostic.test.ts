@@ -36,7 +36,7 @@ describe('workbench IPC Renderer performance diagnostic', () => {
             isRecovering: () => false,
             logger: () => ({ write }) as never,
             onRendererDiagnostic,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: { dispatch: vi.fn(), negotiate: vi.fn() },
         });
     });

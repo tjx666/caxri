@@ -15,7 +15,7 @@ const PRIMARY_WINDOW_KEY = 'main';
 /**
  * Why a tear-off move was refused, carried in `CaxriError.details.reason` so Desktop Main can log a closed reason.
  */
-export type MoveRefusalReason = 'last_tab' | 'not_open' | 'target_in_use';
+type MoveRefusalReason = 'last_tab' | 'not_open' | 'target_in_use';
 
 /**
  * Window keys in the order that settles ownership conflicts: the primary window first, then the rest as stored.
@@ -36,7 +36,7 @@ function orderedWindowKeys(windows: Record<string, WindowOpenSessions>): string[
  * writers enforce it: `selectSession` redirects to the owner, and {@link replaceWindowOpenSessions} drops entries
  * another window owns.
  */
-export function findSessionOwner(
+function findSessionOwner(
     database: OpenSessionsDatabase,
     sessionId: string,
     exceptWindowKey?: string,
@@ -227,7 +227,7 @@ export function reconcileOpenSessions(
  * Session is never in zero or two windows. Refused (with `details.reason`) when the Session is not open in the source,
  * is the source's last tab (a window never empties by tearing off), or the target already has a strip.
  */
-export function moveSessionToWindow(
+function moveSessionToWindow(
     database: OpenSessionsDatabase,
     sourceKey: string,
     targetKey: string,

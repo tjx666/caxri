@@ -83,7 +83,10 @@ describe('renderer entry loading', () => {
     });
 
     it('keeps every production window on the shared packaged-origin loading contract', () => {
-        const mainSource = readFileSync(join(import.meta.dirname, '..', 'index.ts'), 'utf8');
+        const mainSource = readFileSync(
+            join(import.meta.dirname, '..', 'workbench-window.ts'),
+            'utf8',
+        );
         const processExplorerSource = readFileSync(
             join(import.meta.dirname, '..', 'process-explorer-window.ts'),
             'utf8',

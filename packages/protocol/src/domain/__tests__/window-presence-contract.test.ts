@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { windowDesktopMethods } from '../../desktop/window-state-contract';
 import { sessionMethods } from '../session-contract';
 import {
     windowKeySchema,
@@ -43,5 +44,22 @@ describe('tear-off window protocol', () => {
             sessionMethods['session.resume'].result.shape.ownerWindowKey.safeParse(undefined)
                 .success,
         ).toBe(true);
+    });
+});
+
+describe('window.tearOffSession', () => {
+    const { params } = windowDesktopMethods['window.tearOffSession'];
+
+    it('takes a Session and an optional drop point, never a window key or bounds', () => {
+        expect(params.safeParse({ sessionId: 'session-1' }).success).toBe(true);
+        expect(
+            params.safeParse({ sessionId: 'session-1', screenPoint: { x: -10.5, y: 4 } }).success,
+        ).toBe(true);
+        expect(params.parse({ sessionId: 'session-1', windowKey: 'win-x', bounds: {} })).toEqual({
+            sessionId: 'session-1',
+        });
+        expect(params.safeParse({ sessionId: 'session-1', screenPoint: { x: 1 } }).success).toBe(
+            false,
+        );
     });
 });

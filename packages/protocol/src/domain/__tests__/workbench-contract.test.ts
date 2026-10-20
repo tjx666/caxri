@@ -81,10 +81,14 @@ describe('workbenchMethods', () => {
 });
 
 describe('workbenchInternalMethods', () => {
-    it('keeps internal handoffs Server-owned with only worktree resolution read-only', () => {
+    it('keeps internal handoffs Server-owned with only worktree resolution and tear-off listing read-only', () => {
+        const readOnly = new Set([
+            'session.workbenchRoot.resolve',
+            'window.openSessions.listTearOffs',
+        ]);
         for (const [method, spec] of Object.entries(workbenchInternalMethods)) {
             expect(spec.owner).toBe('server');
-            expect(spec.effect).toBe(method === 'session.workbenchRoot.resolve' ? 'read' : 'write');
+            expect(spec.effect).toBe(readOnly.has(method) ? 'read' : 'write');
         }
     });
 

@@ -6,6 +6,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow, Dialog, MessageBoxOptions } from 'electron';
 
 import { translateMain } from './locale';
+import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
 type UnsavedEditorsRequest = Extract<ServerEvent, { event: 'editor.unsavedRequest' }>['payload'];
 type UnsavedEditorsReplyParameters = Extract<
@@ -236,29 +237,79 @@ export async function decideUnsavedEditors(
 
 export interface WorkbenchUnsavedEditorsOptions {
     dialog: Dialog;
-    getWindow: () => BrowserWindow | undefined;
+    /**
+     * The live Workbench windows, primary first. A window that closed is absent, and so has nothing unsaved.
+     */
+    windows: () => ReadonlyArray<{ key: string; window: BrowserWindow }>;
     logger: () => StructuredLogger | undefined;
-    sendEvent: (event: Extract<ServerEvent, { event: 'editor.unsavedRequest' }>) => void;
+    /**
+     * Delivers the question to exactly one window: its Editor buffers live only in that Renderer.
+     */
+    sendEvent: (
+        event: Extract<ServerEvent, { event: 'editor.unsavedRequest' }>,
+        windowKey: string,
+    ) => void;
 }
 
 /**
- * Composes the bridge, the native prompt, and structured logging for the Workbench window's quit and close paths.
+ * Composes the bridge, the native prompt, and structured logging for the Workbench windows' quit and close paths. Each
+ * window has its own bridge because its buffers are asked about separately; a quit asks every window and prompts once
+ * with the merged summary, so a dirty Editor in a torn-off window is never lost to a quit or to a primary-window
+ * close.
  */
 export function createWorkbenchUnsavedEditors(options: WorkbenchUnsavedEditorsOptions) {
-    const bridge = createUnsavedEditorsBridge({
-        send: (payload) => {
-            const window = options.getWindow();
-            if (!window || window.isDestroyed()) return false;
-            options.sendEvent({ event: 'editor.unsavedRequest', payload });
-            return true;
-        },
-    });
+    const bridges = new Map<string, ReturnType<typeof createUnsavedEditorsBridge>>();
+    const windowOf = (key: string): BrowserWindow | undefined =>
+        options.windows().find((entry) => entry.key === key)?.window;
+    const bridgeFor = (key: string) => {
+        let bridge = bridges.get(key);
+        if (!bridge) {
+            bridge = createUnsavedEditorsBridge({
+                send: (payload) => {
+                    const window = windowOf(key);
+                    if (!window || window.isDestroyed()) return false;
+                    options.sendEvent({ event: 'editor.unsavedRequest', payload }, key);
+                    return true;
+                },
+            });
+            bridges.set(key, bridge);
+        }
+        return bridge;
+    };
     return {
-        decide: (purpose: UnsavedEditorsPurpose) =>
-            decideUnsavedEditors({
+        /**
+         * Decides for one window, or for every live window when `windowKey` is omitted (quit, and closing the primary
+         * window, which takes the torn-off windows with it).
+         */
+        decide: (purpose: UnsavedEditorsPurpose, windowKey?: string) => {
+            const keys = windowKey ? [windowKey] : options.windows().map((entry) => entry.key);
+            const dirty = new Set<string>();
+            return decideUnsavedEditors({
                 confirm: (summary) =>
-                    confirmUnsavedEditors(options.dialog, options.getWindow(), summary, purpose),
-                inspect: () => bridge.inspect(),
+                    confirmUnsavedEditors(
+                        options.dialog,
+                        windowOf(windowKey ?? PRIMARY_WINDOW_KEY) ?? options.windows()[0]?.window,
+                        summary,
+                        purpose,
+                    ),
+                inspect: async () => {
+                    const settled = await Promise.allSettled(
+                        keys.map(async (key) => ({ key, summary: await bridgeFor(key).inspect() })),
+                    );
+                    const answers = settled.flatMap((result) =>
+                        result.status === 'fulfilled' ? [result.value] : [],
+                    );
+                    // One unresponsive window must not hide another window's dirty buffers; fail open only when none answered.
+                    if (answers.length === 0 && settled[0]?.status === 'rejected')
+                        throw settled[0].reason;
+                    dirty.clear();
+                    for (const { key, summary } of answers) if (summary.count > 0) dirty.add(key);
+                    return {
+                        kind: 'summary',
+                        count: answers.reduce((total, { summary }) => total + summary.count, 0),
+                        names: answers.flatMap(({ summary }) => summary.names),
+                    };
+                },
                 log: (outcome, count, error) =>
                     options
                         .logger()
@@ -269,9 +320,19 @@ export function createWorkbenchUnsavedEditors(options: WorkbenchUnsavedEditorsOp
                             logEventCatalog.app.unsavedEditorsDecided,
                             { fields: { purpose, outcome, count, ...(error && { error }) } },
                         ),
-                reveal: () => bridge.reveal(),
-                saveAll: () => bridge.saveAll(),
-            }),
-        reply: (parameters: UnsavedEditorsReplyParameters) => bridge.reply(parameters),
+                reveal: () => {
+                    for (const key of dirty) bridgeFor(key).reveal();
+                },
+                saveAll: async () => {
+                    const results = await Promise.all(
+                        [...dirty].map((key) => bridgeFor(key).saveAll()),
+                    );
+                    return results.find((result) => result.kind !== 'saved') ?? { kind: 'saved' };
+                },
+            });
+        },
+        reply: (parameters: UnsavedEditorsReplyParameters) => {
+            for (const bridge of bridges.values()) bridge.reply(parameters);
+        },
     };
 }

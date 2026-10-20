@@ -19,18 +19,71 @@ describe('Main event relay', () => {
             payload: { status: 'replaced' },
         } as const;
 
-        relay.rendererPending();
+        relay.rendererPending('main');
         relay.send(replacement);
         expect(delivered).toEqual([]);
 
-        relay.rendererReady();
+        relay.rendererReady('main');
         expect(delivered).toEqual([replacement]);
-        relay.rendererReady();
+        relay.rendererReady('main');
         expect(delivered).toEqual([replacement]);
 
-        relay.rendererPending();
-        relay.rendererReady();
+        relay.rendererPending('main');
+        relay.rendererReady('main');
         expect(delivered).toEqual([replacement, replacement]);
+    });
+
+    it('replays a retained Desktop lease replacement to each window as it becomes ready', () => {
+        const delivered: Array<[unknown, string | undefined]> = [];
+        const relay = createMainEventRelay({
+            deliver: (message, _event, windowKey) => {
+                delivered.push([message, windowKey]);
+            },
+            loadState: () =>
+                Promise.resolve({ projects: [], sessions: [], terminals: [] } as never),
+            logger: () => {},
+            onMenuRefreshRequested: vi.fn(),
+        });
+        const replacement = {
+            event: 'host.connectionChanged',
+            payload: { status: 'replaced' },
+        } as const;
+
+        relay.rendererPending('main');
+        relay.rendererPending('win-1');
+        relay.send(replacement);
+        expect(delivered).toEqual([]);
+
+        relay.rendererReady('main');
+        relay.rendererReady('win-1');
+        expect(delivered).toEqual([
+            [replacement, 'main'],
+            [replacement, 'win-1'],
+        ]);
+
+        relay.windowClosed('win-1');
+        relay.send(replacement);
+        expect(delivered).toHaveLength(3);
+        expect(delivered[2]).toEqual([replacement, undefined]);
+    });
+
+    it('addresses an event to one window when the sender names it', () => {
+        const delivered: Array<string | undefined> = [];
+        const relay = createMainEventRelay({
+            deliver: (_message, _event, windowKey) => {
+                delivered.push(windowKey);
+            },
+            loadState: () =>
+                Promise.resolve({ projects: [], sessions: [], terminals: [] } as never),
+            logger: () => {},
+            onMenuRefreshRequested: vi.fn(),
+        });
+        relay.send(
+            { event: 'editor.unsavedRequest', payload: { requestId: 'r', action: 'inspect' } },
+            'win-1',
+        );
+        relay.send({ event: 'command.execute', payload: { command: 'settings.open' } });
+        expect(delivered).toEqual(['win-1', undefined]);
     });
 
     it('publishes durable cursors without replaying PTY output or one-shot commands', async () => {
