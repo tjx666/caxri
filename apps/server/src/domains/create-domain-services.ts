@@ -42,20 +42,19 @@ import {
     SessionCompaction,
 } from './session';
 import { createStatusServices } from './status-service-creation';
+import { createTerminalSupervision } from './supervision-services-creation';
+import type { TerminalSuspensionService } from './terminal';
 import {
     createLifecycleEnvironment,
     createRelaunchHandlers,
     createShellIntegration,
     createTerminalCreation,
-    createTerminalHandlers,
     createTerminalInputHandlers,
     createTerminalLifecycleHandlers,
     createTerminalMoveHandler,
     terminalDirectoryIdentity,
     TerminalManager,
-    TerminalResourceMonitor,
     TerminalRestoreSupervisor,
-    TerminalSuspensionService,
 } from './terminal';
 import { createPresenceEffects, WindowPresence } from './window-presence';
 import { createWindowStateHandlers } from './window-state-handlers';
@@ -207,27 +206,18 @@ export async function createDomainServices(
         send,
     });
     const terminalRestores = new TerminalRestoreSupervisor();
-    const terminalSuspension = new TerminalSuspensionService({
+    const terminalSupervision = createTerminalSupervision({
+        agentChat,
+        configuration,
         database,
-        logger,
-        send,
-        settings: () => configuration.getSettings().value,
-        isPresenceSettled: () => presence.isSettled(),
-        visibleSessionIds: () => presence.visibleSessionIds(),
-        ...dependencies.terminalSuspension,
-        remoteObservers: [dependencies.terminalExecution, transcripts, agentChat],
+        dependencies,
+        presence,
+        suspensionState,
         terminals,
-        chats: agentChat,
+        transcripts,
         watchHub,
     });
-    suspensionState.service = terminalSuspension;
-    const terminalResourceMonitor = new TerminalResourceMonitor({
-        database,
-        logger,
-        send,
-        terminals,
-        watchHub,
-    });
+    const { terminalSuspension } = terminalSupervision;
     const statusServices = createStatusServices({
         configuration,
         database,
@@ -326,6 +316,10 @@ export async function createDomainServices(
     const sendFullStateChange = (reason: FullStateChangeReason): void => {
         send({ event: 'state.changed', payload: { kind: 'full', reason } });
     };
+    /**
+     * The Session parking slice has no lifecycle of its own; its handlers (project hiding, archive and detach,
+     * terminate all) are registered together below.
+     */
     const sessionParking = {
         agentChat,
         commanderRestores,
@@ -393,8 +387,7 @@ export async function createDomainServices(
         commanderInbox.close();
         await agentChat.shutdown();
         await benchmark.service.shutdown();
-        await terminalSuspension.close();
-        await terminalResourceMonitor.close();
+        await terminalSupervision.close();
         coordinator.close();
         longPastes.close();
         unsubscribeTerminalSettings();
@@ -464,6 +457,8 @@ export async function createDomainServices(
             introspection.records.project(query, principal),
         ...createOrderingHandlers({ database, sendFullStateChange }),
         ...createProjectHidingHandlers({ ...sessionParking, bootstrapState: snapshots.bootstrap }),
+        ...createSessionHandlers(database, sessionParking, sessionRenames),
+        ...createTerminateAllHandler(sessionParking),
         ...createProjectFolderBrowser(),
         ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
@@ -494,7 +489,6 @@ export async function createDomainServices(
             workbenchRoots,
         }),
         ...createSessionMarkReadHandler(database, send),
-        ...createSessionHandlers(database, sessionParking, sessionRenames),
         ...createSessionAgentRuntimeHandlers(agentRuntime),
         ...createDeletionHandlers({
             database,
@@ -526,16 +520,9 @@ export async function createDomainServices(
             transcripts,
         }),
         ...relaunchHandlers,
-        ...createTerminalHandlers({
-            countLiveChats: (sessionId) => agentChat.liveCount(sessionId),
-            database,
-            resourceMonitor: terminalResourceMonitor,
-            terminals,
-            terminalSuspension,
-        }),
+        ...terminalSupervision.handlers,
         'terminal.queryForPrincipal': ({ principal, query }) =>
             introspection.records.terminal(query, principal),
-        ...createTerminateAllHandler(sessionParking),
         ...createServiceHandlers({
             acknowledgeFileMutation,
             agentChat,
@@ -590,8 +577,7 @@ export async function createDomainServices(
             terminals,
         }),
     };
-    terminalSuspension.start();
-    terminalResourceMonitor.start();
+    terminalSupervision.start();
     // No presence exists until Desktop Main reports its windows, so nothing is watched, polled, or restored here:
     // `observeVisibleSessions` does that for the Sessions the first reports show.
     return {
