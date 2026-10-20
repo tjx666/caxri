@@ -414,11 +414,11 @@ describe('CommanderCompletionNotifier', () => {
         expect(prompt).toContain('previous turn did not finish');
         expect(prompt).toContain('Missed 1 delegation update');
         // Resolving a launch consumes nothing: a launch that never runs an Agent keeps everything owed.
-        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, false);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, undefined);
         expect(f.notices.list()).toHaveLength(2);
 
         f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
-        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, 'launch-2');
         expect(f.notices.list()).toHaveLength(0);
         expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toBeUndefined();
     });
@@ -427,7 +427,7 @@ describe('CommanderCompletionNotifier', () => {
         f.notifier.notifyReceiptChanged(receipt({ delegationId: 'd1', status: 'completed' }));
         f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
         f.notifier.notifyReceiptChanged(receipt({ delegationId: 'd2', status: 'failed' }));
-        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, 'launch-2');
         expect(f.notices.list()).toMatchObject([{ kind: 'delegation', delegationId: 'd2' }]);
     });
 
@@ -436,7 +436,7 @@ describe('CommanderCompletionNotifier', () => {
         f.notifier.notifyInbox('item-2', 'replied');
         expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('Missed 2 inbox updates');
         f.notifier.notifyInbox('item-2', 'dismissed');
-        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, 'launch-2');
         expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('item-2 was dismissed');
     });
 
@@ -446,7 +446,7 @@ describe('CommanderCompletionNotifier', () => {
         );
         f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed', revision: 3 }));
-        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, 'launch-2');
         expect(f.notices.list()).toMatchObject([{ status: 'completed', revision: 3 }]);
     });
 
@@ -454,7 +454,7 @@ describe('CommanderCompletionNotifier', () => {
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
         expect(f.notifier.launchPrompt('other-terminal')).toBeUndefined();
-        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, 'launch-2');
         expect(f.notices.list()).toHaveLength(0);
     });
 

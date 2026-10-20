@@ -3,40 +3,19 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal, SessionActivityTransition } from '../agents';
 import { isLateMidTurnSignalAfterInterrupt, isMidTurnSignal, isStandaloneEscape } from '../agents';
-import type { DeliveredNotice } from '../db';
 import { agentCommanderTerminal } from '../db';
 import type {
     CommanderCompletionNoticeDeferral,
     CommanderCompletionNoticeDeliveryFailure,
     CommanderCompletionNotifierOptions,
+    CommanderLaunchPromptClaim,
 } from './completion-notice-contract';
 import { classifyCommanderCompletionNotice } from './completion-notice-contract';
 import type { CommanderHandoverNoticeEntry, CommanderInboxNoticeEvent } from './notice-text';
 import { formatCommanderCompletionNotice, formatCommanderResumePrompt } from './notice-text';
 import { rememberNotifiedRevision } from './notified-revisions';
-import type { QueuedNoticeBatch } from './queued-notices';
+import { PromptlessCommanderLaunch } from './promptless-launch';
 import { CommanderQueuedNotices } from './queued-notices';
-
-/**
- * What the launch prompt built for one Commander launch carried, settled once that launch is running.
- */
-interface LaunchPromptClaim {
-    /**
-     * When the prompt was built. A turn marker set after it belongs to the new launch, not the one this prompt resumed.
-     */
-    claimedAt: number;
-    /**
-     * The exact revisions the prompt reported; a newer transition that lands before the launch runs stays owed.
-     */
-    delegations: DeliveredNotice[];
-    hasInterruptedTurn: boolean;
-    /**
-     * The in-memory notices the prompt reported; one replaced by a later event before the launch runs stays owed.
-     */
-    queued: QueuedNoticeBatch;
-    oldestQueuedAt: number;
-    terminalId: string;
-}
 
 /**
  * Pushes delegation completion, failure, and needs-input transitions into the Agent Commander Terminal as a bounded,
@@ -84,12 +63,11 @@ export class CommanderCompletionNotifier {
      * recorded so a keystroke since then means a draft, and one delivery or a started turn spends it.
      */
     private freshLaunch: { epoch: number; launchId: string } | undefined;
-    /**
-     * The input epoch of a launch that started with no prompt and has not reported its SessionStart yet. Only that
-     * first signal marks a Terminal Commander idle, and only if nobody typed since the launch: SessionStart also fires
-     * on `/clear` and compaction, and a provider that fires it lazily fires it as the user's first prompt goes in.
-     */
-    private promptlessLaunchEpoch: number | undefined;
+    private readonly promptlessLaunch = new PromptlessCommanderLaunch({
+        now: () => this.now(),
+        onTimeout: (terminalId, launchId) =>
+            this.markFreshLaunch(terminalId, launchId, 'start_timeout'),
+    });
     /**
      * The deferral last logged for the current batch, so each gate change is logged once rather than per signal.
      */
@@ -109,7 +87,7 @@ export class CommanderCompletionNotifier {
      * without this count five consecutive turns held back by the same draft read as a single log line.
      */
     private blockedTurns = 0;
-    private launchClaim: LaunchPromptClaim | undefined;
+    private launchClaim: CommanderLaunchPromptClaim | undefined;
     /**
      * The launch whose turn marker a standalone Escape just cleared, until a main-thread turn boundary or mid-turn
      * signal settles whether the Escape really interrupted that turn (see `settleEscapedTurn`).
@@ -298,6 +276,25 @@ export class CommanderCompletionNotifier {
     }
 
     /**
+     * Marks a launch that started with no prompt idle at its first prompt, unless someone typed since it launched.
+     */
+    private markFreshLaunch(
+        terminalId: string,
+        launchId: string,
+        reason: 'session_started' | 'start_timeout',
+    ): void {
+        const launch = this.promptlessLaunch.take();
+        if (!launch || this.commander()?.terminalId !== terminalId) return;
+        const epoch = this.options.inputEpoch(terminalId);
+        if (epoch !== launch.epoch) return;
+        this.freshLaunch = { epoch, launchId };
+        this.options.logger?.write('info', logEventCatalog.agentCommander.freshLaunchReady, {
+            fields: { reason, waitMs: Math.max(0, this.now() - launch.launchedAt) },
+        });
+        this.tryFlush(terminalId);
+    }
+
+    /**
      * A main-thread turn boundary supersedes an Escape's provisional interrupt; a mid-turn signal of the same launch
      * proves the TUI consumed the Escape for something else (closing a picker), so the turn is marked running again.
      */
@@ -364,16 +361,11 @@ export class CommanderCompletionNotifier {
          */
         const isMainThread = !signal.agentId;
         if (isMainThread && signal.phase === 'sessionIdentified') {
-            const launchEpoch = this.promptlessLaunchEpoch;
-            this.promptlessLaunchEpoch = undefined;
-            const epoch = this.options.inputEpoch(signal.terminalId);
-            if (launchEpoch === undefined || epoch !== launchEpoch) return;
-            this.freshLaunch = { epoch, launchId: signal.launchId };
-            this.tryFlush(signal.terminalId);
+            this.markFreshLaunch(signal.terminalId, signal.launchId, 'session_started');
             return;
         }
         if (signal.phase === 'turnStarted') {
-            this.promptlessLaunchEpoch = undefined;
+            this.promptlessLaunch.clear();
             this.freshLaunch = undefined;
             if (isMainThread)
                 this.options.database.commanderPendingNotices.markTurnStarted(this.now());
@@ -424,17 +416,22 @@ export class CommanderCompletionNotifier {
     }
 
     /**
-     * Settles the launch prompt once its launch is running. A launch that started no Agent (a Shell-only relaunch)
-     * carried no prompt, so its claim stays for the next Agent launch.
+     * Settles the launch prompt once its launch is running. A launch that started no Agent (a Shell-only relaunch, an
+     * undefined `agentLaunchId`) carried no prompt, so its claim stays for the next Agent launch.
      */
-    onLaunched(terminalId: string, didLaunchAgent: boolean): void {
+    onLaunched(terminalId: string, agentLaunchId: string | undefined): void {
         const claim = this.launchClaim;
-        if (didLaunchAgent && this.commander()?.terminalId === terminalId) {
+        if (agentLaunchId !== undefined && this.commander()?.terminalId === terminalId) {
             this.freshLaunch = undefined;
-            this.promptlessLaunchEpoch =
-                claim?.terminalId === terminalId ? undefined : this.options.inputEpoch(terminalId);
+            this.promptlessLaunch.clear();
+            if (claim?.terminalId !== terminalId)
+                this.promptlessLaunch.arm(
+                    terminalId,
+                    agentLaunchId,
+                    this.options.inputEpoch(terminalId),
+                );
         }
-        if (!didLaunchAgent || !claim || claim.terminalId !== terminalId) return;
+        if (agentLaunchId === undefined || !claim || claim.terminalId !== terminalId) return;
         this.launchClaim = undefined;
         const store = this.options.database.commanderPendingNotices;
         store.removeDelegations(claim.delegations);
@@ -463,14 +460,15 @@ export class CommanderCompletionNotifier {
         const prompt = this.launchPrompt(terminalId);
         if (prompt === undefined) {
             if (this.commander()?.terminalId !== terminalId) return;
-            this.promptlessLaunchEpoch = undefined;
+            this.promptlessLaunch.clear();
             // The Chat path of `write` ignores the launch ID.
             this.freshLaunch = { epoch: this.options.inputEpoch(terminalId), launchId: '' };
             this.tryFlush(terminalId);
             return;
         }
         this.options.write(terminalId, prompt, '', (wasAccepted) => {
-            if (wasAccepted) this.onLaunched(terminalId, true);
+            // The Chat path of `write` ignores the launch ID.
+            if (wasAccepted) this.onLaunched(terminalId, '');
         });
     }
 
