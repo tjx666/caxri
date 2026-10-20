@@ -50,7 +50,7 @@ resolved most of them; the entries below keep the part that still needs a produc
 
 ### AD-layout-flat-family-enforcement: [OPEN · Architecture debt · M]
 
-- **Summary:** Desktop Main (114 direct modules) and the Server `agent-chat` domain (95, with flat `chat-`, `claude-`, `codex-`, and `grok-` families) are still flat; they can no longer grow, but nothing has moved into family directories yet.
+- **Summary:** Desktop Main (114 direct modules) and the Server `agent-chat` domain (96, with flat `chat-`, `claude-`, `codex-`, and `grok-` families) are still flat; they can no longer grow, but nothing has moved into family directories yet.
 - **Evidence:** `scripts/directory-density-baseline.ts` records shrink-only caps for those owners, their prefix families, and the Renderer `features/agent-chat` root; `scripts/__tests__/directory-density-ratchet.test.ts` fails on growth and on an untightened shrink, and `scripts/run-ci-focused-checks.ts` routes affected and draft pull requests touching those directories to it.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 with the fix
 - **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): pure moves into provider and family directories, tightening the recorded caps as they land.

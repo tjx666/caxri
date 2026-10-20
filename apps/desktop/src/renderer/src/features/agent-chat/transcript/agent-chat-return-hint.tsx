@@ -1,8 +1,8 @@
 import { ArrowUp, X } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
-import { useTranslation } from '../../i18n';
-import type { AgentChatReturnHintData } from './hooks/use-agent-chat-return-hint';
+import { Button } from '../../../components/ui/button';
+import { useTranslation } from '../../../i18n';
+import type { AgentChatReturnHintData } from '../hooks/use-agent-chat-return-hint';
 
 /**
  * A quiet pill at the top of the transcript telling a returning user how many Agent turns finished while they were

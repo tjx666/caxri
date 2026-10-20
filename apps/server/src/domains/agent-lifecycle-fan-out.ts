@@ -24,7 +24,8 @@ export interface AgentLifecycleFanOutTargets {
 
 /**
  * Fans the Agent runtime's lifecycle, activity, and interrupt signals out to compaction readiness, delegation, Terminal
- * suspension, pull request settlement, and Commander hooks. The call order within each callback is part of the contract.
+ * suspension, pull request settlement, and Commander hooks. The call order within each callback is part of the
+ * contract.
  */
 export function createAgentLifecycleFanOut({
     commanderHooks,

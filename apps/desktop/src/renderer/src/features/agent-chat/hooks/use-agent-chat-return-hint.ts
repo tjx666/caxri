@@ -3,7 +3,10 @@ import { useMemo } from 'react';
 import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 
 import { useSessionLookStore } from '../../session/session-look-boundary';
-import { agentChatReturnAnchorId, turnsFinishedDuringAbsence } from '../agent-chat-return-boundary';
+import {
+    agentChatReturnAnchorId,
+    turnsFinishedDuringAbsence,
+} from '../transcript/agent-chat-return-boundary';
 
 export interface AgentChatReturnHintData {
     /**

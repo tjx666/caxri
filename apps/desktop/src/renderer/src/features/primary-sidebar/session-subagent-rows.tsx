@@ -2,7 +2,7 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { agentChatItemStatusLabel, agentChatTaskGlyphStatus } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
-import { AgentChatStatusGlyph } from '../agent-chat/agent-chat-status-glyph';
+import { AgentChatStatusGlyph } from '../agent-chat/tools/agent-chat-status-glyph';
 import {
     primarySidebarSubagentMoreRowId,
     primarySidebarSubagentRowId,

@@ -26,7 +26,6 @@ import { agentChatHostCapabilities } from './agent-chat-host';
 import { AgentChatComposer } from './composer/agent-chat-composer';
 import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
-import { AgentChatReturnHint } from './agent-chat-return-hint';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './hooks/use-agent-chat-approval-keys';
 import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
@@ -74,6 +73,7 @@ import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
     isAgentChatMessageRailShown,
 } from './transcript/agent-chat-rail-marks';
+import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
 import { AgentChatSettledTimeline } from './transcript/agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from './transcript/agent-chat-timeline';
 import {

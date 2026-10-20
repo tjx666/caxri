@@ -228,11 +228,7 @@ export async function createDomainServices(
         terminals,
         watchHub,
     });
-    const {
-        dispose: disposeProjectStatus,
-        projectStatus,
-        vercel,
-    } = createStatusServices({
+    const statusServices = createStatusServices({
         configuration,
         database,
         externalStatus,
@@ -245,6 +241,7 @@ export async function createDomainServices(
         visibleSessionIds: () => presence.visibleSessionIds(),
         workbenchRoots,
     });
+    const { projectStatus, vercel } = statusServices;
     const countRunning = (sessionId?: string): number =>
         terminals.runningCount(sessionId) +
         agentChat.liveCount(sessionId) +
@@ -389,7 +386,7 @@ export async function createDomainServices(
         if (isClosed) return;
         isClosed = true;
         presenceEffects.unsubscribe();
-        disposeProjectStatus();
+        statusServices.dispose();
         settlementWiring.dispose();
         terminalRestores.close();
         commanderRestores.close();
