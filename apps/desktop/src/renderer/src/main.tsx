@@ -7,17 +7,13 @@ import './styles/styles.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { QueryClientProvider } from '@tanstack/react-query';
-
 import { App } from './app';
 import { toastActionHandlers } from './commands/toast-actions';
-import { ErrorBoundary } from './components/error-boundary';
 import { installRendererPerformanceMonitoring } from './features/renderer-performance/controller';
-import { I18nProvider } from './i18n';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
-import { queryClient } from './queries/client';
 import { installRendererErrorReporter } from './renderer-error-reporter';
+import { RendererRoot } from './renderer-root';
 import { configureToastActions } from './stores/toast-actions';
 import { syncWorkbenchLocale } from './stores/workbench-locale';
 
@@ -32,12 +28,8 @@ configureToastActions(toastActionHandlers);
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
-        <I18nProvider>
-            <QueryClientProvider client={queryClient}>
-                <ErrorBoundary>
-                    <App />
-                </ErrorBoundary>
-            </QueryClientProvider>
-        </I18nProvider>
+        <RendererRoot>
+            <App />
+        </RendererRoot>
     </StrictMode>,
 );
