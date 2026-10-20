@@ -33,7 +33,23 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 116, directory: 'apps/desktop/src/main' },
     { cap: 96, directory: 'apps/server/src/domains/agent-chat' },
     { cap: 12, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
+    { cap: 20, directory: 'apps/desktop/src/main/ssh' },
+    { cap: 54, directory: 'apps/desktop/src/renderer/src/features/agent-chat/hooks' },
+    { cap: 24, directory: 'apps/desktop/src/renderer/src/features/agent-chat/transcript' },
+    { cap: 22, directory: 'apps/desktop/src/renderer/src/features/agent-chat/loading/glyphs' },
+    { cap: 19, directory: 'apps/desktop/src/renderer/src/features/agent-chat/composer' },
+    { cap: 17, directory: 'apps/desktop/src/renderer/src/features/agent-chat/context' },
+    { cap: 17, directory: 'apps/desktop/src/renderer/src/features/agent-chat/turns' },
+    { cap: 14, directory: 'apps/desktop/src/renderer/src/features/agent-chat/loading' },
+    { cap: 14, directory: 'apps/desktop/src/renderer/src/features/agent-chat/messages' },
+    { cap: 14, directory: 'apps/desktop/src/renderer/src/features/agent-chat/tools' },
 ];
+
+/**
+ * A subdirectory below a guarded owner with at least this many direct production modules must have its own owner entry.
+ * Without it, splitting a dense root into subdirectories only moves the unguarded growth one level down.
+ */
+export const DIRECTORY_DENSITY_NESTED_THRESHOLD = 12;
 
 export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
     { cap: 34, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },
