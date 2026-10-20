@@ -1,0 +1,15 @@
+export const sessionTabs = {
+    'sessionTabs.listLabel': 'Open Sessions',
+    'sessionTabs.close': 'Close Tab',
+    'sessionTabs.closeNamed': 'Close {{title}}',
+    'sessionTabs.moveLeft': 'Move Tab Left',
+    'sessionTabs.moveRight': 'Move Tab Right',
+    'sessionTabs.closeOthers': 'Close Other Tabs',
+    'sessionTabs.closeToRight': 'Close Tabs to the Right',
+    'sessionTabs.reordered': '{{title}} moved to position {{position}} of {{count}}',
+    'sessionTabs.openInNewTab': 'Open in New Tab',
+    'sessionTabs.tooltip': '{{title}} in {{project}}',
+    'sessionTabs.errors.openFailed': 'Unable to open the Session in a new tab',
+    'sessionTabs.errors.closeFailed': 'Unable to close the tab',
+    'sessionTabs.errors.reorderFailed': 'Unable to reorder the tabs',
+} as const;

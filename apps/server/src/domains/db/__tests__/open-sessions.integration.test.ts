@@ -70,11 +70,28 @@ describe('Open Sessions per window', () => {
         const { create, database } = fixture();
         const a = create();
         const b = create();
-        const stored = database.windowOpenSessions.set('main', {
-            openSessionIds: [b.id, 'gone', a.id, b.id],
-            activeSessionId: 'gone',
+        database.selectSession(a.id, 'main');
+        const stored = database.windowOpenSessions.set('main', [b.id, 'gone', a.id, b.id]);
+        expect(stored).toEqual({ openSessionIds: [b.id, a.id], activeSessionId: a.id });
+    });
+
+    it('keeps the active Session across a reorder and moves to its neighbor when it is closed', () => {
+        const { create, database } = fixture();
+        const a = create();
+        const b = create();
+        const c = create();
+        database.selectSession(b.id, 'main');
+        expect(database.windowOpenSessions.set('main', [c.id, b.id, a.id]).activeSessionId).toBe(
+            b.id,
+        );
+        expect(database.windowOpenSessions.set('main', [c.id, a.id])).toEqual({
+            openSessionIds: [c.id, a.id],
+            activeSessionId: a.id,
         });
-        expect(stored).toEqual({ openSessionIds: [b.id, a.id], activeSessionId: b.id });
+        expect(database.windowOpenSessions.set('main', [c.id])).toEqual({
+            openSessionIds: [c.id],
+            activeSessionId: c.id,
+        });
     });
 
     it('moves to the neighbor, then removes the Session, when the active Session is archived', () => {

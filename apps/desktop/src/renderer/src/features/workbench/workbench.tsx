@@ -11,6 +11,7 @@ import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { retainAgentChatComposerState } from '../agent-chat/agent-chat-drafts';
 import { chooseProjectFolder } from '../session/session-creation-commands';
+import { useReportViewedSession } from '../session-tabs/use-report-viewed-session';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { PaneView } from './pane-view';
@@ -76,8 +77,11 @@ function NoSessionSurface() {
 }
 
 /**
- * The Workbench is now nothing but the pane tree: there is no Workbench-level tab strip and no Terminal-versus-Editor
- * surface switch, because every tab lives in the bar of the pane that holds it.
+ * The Workbench is the pane tree of the selected Session: there is no Terminal-versus-Editor surface switch, because
+ * every tab lives in the bar of the pane that holds it. The Open Session strip (`features/session-tabs`) sits above it
+ * in `WorkbenchColumn`, outside this component, and nothing here subscribes to it: each retained Workbench is keyed by
+ * its Session ID and reads only that Session's state, so switching or reordering Open Sessions re-renders the strip and
+ * the incoming and outgoing Workbench, never the others.
  *
  * It holds one `PaneView` per recently used Session rather than only the selected one. Rebuilding the tree on every
  * switch meant tearing down and re-creating every xterm, re-attaching WebGL, and replaying the Server snapshot, which
@@ -107,6 +111,7 @@ export function Workbench() {
         retainKeepAliveSession(selectedSessionId);
     }, [selectedSessionId]);
     useSessionFocusHandoff(selectedSessionId);
+    useReportViewedSession(selectedSessionId);
     const liveSessionKey = useWorkbenchStore(
         (state) => state.bootstrap?.sessions.map(({ id }) => id).join('\u{0}') ?? '',
     );

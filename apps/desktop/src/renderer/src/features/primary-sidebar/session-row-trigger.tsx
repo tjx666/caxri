@@ -5,6 +5,7 @@ import type { SessionRecord } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
 import { didSelectSession } from '../session/session-commands';
+import { openSessionInNewTab } from '../session-tabs/session-tab-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
@@ -98,10 +99,15 @@ export function SessionRowTrigger({
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => onFocusChange(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => onFocusChange(false)}
-            onClick={() => {
-                // Fire-and-forget: didSelectSession reports its own failures through a toast.
+            onClick={(event) => {
+                if (renaming) return;
+                // Cmd+click opens the Session in a new Open Session tab, the browser gesture for "link in new tab".
+                // The selected row included: it is the entry that is already open, which only activates.
+                // Fire-and-forget: both commands report their own failures through a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
-                if (!renaming && !selected) void didSelectSession(session.id);
+                if (event.metaKey) void openSessionInNewTab(session.id);
+                // eslint-disable-next-line no-void -- intentional floating-promise discard
+                else if (!selected) void didSelectSession(session.id);
             }}
             onDoubleClick={onBeginRename}
             onKeyDown={(event) => {

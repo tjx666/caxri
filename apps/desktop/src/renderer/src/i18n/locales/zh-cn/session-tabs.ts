@@ -1,0 +1,15 @@
+export const sessionTabs = {
+    'sessionTabs.listLabel': '已打开的会话',
+    'sessionTabs.close': '关闭标签页',
+    'sessionTabs.closeNamed': '关闭 {{title}}',
+    'sessionTabs.moveLeft': '标签页左移',
+    'sessionTabs.moveRight': '标签页右移',
+    'sessionTabs.closeOthers': '关闭其他标签页',
+    'sessionTabs.closeToRight': '关闭右侧标签页',
+    'sessionTabs.reordered': '{{title}} 已移至第 {{position}} 位，共 {{count}} 个',
+    'sessionTabs.openInNewTab': '在新标签页中打开',
+    'sessionTabs.tooltip': '{{project}} 中的 {{title}}',
+    'sessionTabs.errors.openFailed': '无法在新标签页中打开会话',
+    'sessionTabs.errors.closeFailed': '无法关闭标签页',
+    'sessionTabs.errors.reorderFailed': '无法调整标签页顺序',
+} as const;

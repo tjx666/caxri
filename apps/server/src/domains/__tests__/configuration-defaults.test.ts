@@ -214,7 +214,7 @@ describe('Configuration default reconciliation', () => {
         await service.initialize();
 
         expect(service.getKeybindings().value).toEqual([
-            { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+            { key: 'cmd+alt+1', command: 'secondarySidebar.showFiles' },
             ...migratedDefaultKeybindingAdditions,
         ]);
         const saved = await readFile(service.keybindingsPath, 'utf8');

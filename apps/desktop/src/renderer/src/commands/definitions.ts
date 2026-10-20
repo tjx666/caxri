@@ -1,5 +1,5 @@
 import type { CommandId } from '@caxri/protocol';
-import { getCommandDefinition } from '@caxri/protocol';
+import { getCommandDefinition, sessionOpenTabCommandIds } from '@caxri/protocol';
 
 import type { CommandContext, CommandDefinition, SessionMruShortcutInvocation } from './registry';
 import { defineCommand, registerCommand } from './registry';
@@ -168,6 +168,19 @@ export const commandDefinitions: CommandDefinition[] = [
      * exactly the state this chord exists to escape.
      */
     fromCatalog('session.focusNextAttention', (context) => context.session.focusNextAttention(), {
+        allowInEditable: true,
+    }),
+    /**
+     * The Open Session shortcuts reach through a focused Terminal or editor like the other Session navigation chords:
+     * `Cmd+<number>` has no meaning inside either, and a tab switch that stood down exactly where the cursor usually is
+     * would be useless. Nine ids rather than one command with an index, so the keybinding migrator can add all nine.
+     */
+    ...sessionOpenTabCommandIds.map((id, index) =>
+        fromCatalog(id, (context) => context.session.openTab(index + 1), {
+            allowInEditable: true,
+        }),
+    ),
+    fromCatalog('session.closeTab', (context) => context.session.closeTab(), {
         allowInEditable: true,
     }),
     fromCatalog('terminal.new', (context) => context.terminal.create(), { allowInEditable: true }),

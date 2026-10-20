@@ -142,16 +142,17 @@ export const sessionMethods = {
         result: sessionRecordSchema,
     },
     /**
-     * Replaces the requesting window's Open Sessions strip: the ordered IDs and which one is active. The Server drops
-     * unknown, archived, and hidden Sessions and answers with the list it stored. Opening a Session that is not yet in
-     * the strip goes through `session.select`; this method reorders, closes, and restores.
+     * Replaces the requesting window's Open Sessions strip with the ordered IDs. It never carries the active Session:
+     * that changes only through `session.select`, so a delayed strip save cannot overwrite a newer selection. The
+     * Server drops unknown, archived, and hidden Sessions; when the active entry is no longer listed it moves to that
+     * entry's neighbor in the previous strip. It answers with the strip and active Session it stored. Navigating to a
+     * Session goes through `session.select`; this method adds an entry without selecting it, reorders, and closes.
      */
     'window.openSessions.set': {
         ...serverWrite,
         params: z.object({
             ...windowKeyParameter,
             openSessionIds: openSessionIdsSchema,
-            activeSessionId: identifierSchema.nullable(),
         }),
         result: windowOpenSessionsSchema,
     },

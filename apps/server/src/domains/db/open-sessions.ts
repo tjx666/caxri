@@ -63,23 +63,30 @@ export function activateSessionInWindow(
 }
 
 /**
- * Stores the strip a window sent, keeping only entries that are still valid and dropping duplicates. The active entry
- * must survive the filtering; otherwise the first remaining entry takes over rather than leaving a dangling pointer.
+ * Stores the strip a window sent, keeping only entries that are still valid and dropping duplicates. The active Session
+ * is never part of the request: it stays while it is still listed, and otherwise moves to its neighbor in the previous
+ * strip (the next entry, else the one before), else the first remaining entry, so closing the active entry never leaves
+ * a dangling pointer.
  */
 function replaceWindowOpenSessions(
     database: OpenSessionsDatabase,
     windowKey: string,
-    requested: WindowOpenSessions,
+    requested: readonly string[],
     validSessionIds: ReadonlySet<string>,
 ): WindowOpenSessions {
+    const previous = readWindowOpenSessions(database, windowKey);
     // eslint-disable-next-line unicorn/prefer-set-methods -- the requested strip order must be preserved
-    const openSessionIds = [...new Set(requested.openSessionIds)].filter((id) =>
-        validSessionIds.has(id),
-    );
-    const activeSessionId =
-        requested.activeSessionId !== null && openSessionIds.includes(requested.activeSessionId)
-            ? requested.activeSessionId
-            : (openSessionIds[0] ?? null);
+    const openSessionIds = [...new Set(requested)].filter((id) => validSessionIds.has(id));
+    let { activeSessionId } = previous;
+    if (activeSessionId !== null && !openSessionIds.includes(activeSessionId)) {
+        const index = previous.openSessionIds.indexOf(activeSessionId);
+        const neighbors = [
+            ...previous.openSessionIds.slice(index + 1),
+            ...previous.openSessionIds.slice(0, Math.max(index, 0)).toReversed(),
+        ];
+        activeSessionId = neighbors.find((id) => openSessionIds.includes(id)) ?? null;
+    }
+    activeSessionId ??= openSessionIds[0] ?? null;
     return writeWindow(database, windowKey, { openSessionIds, activeSessionId });
 }
 
@@ -154,7 +161,7 @@ export class WindowOpenSessionsStore {
         return this.database.appState.get('openSessionsByWindow') ?? {};
     }
 
-    set(windowKey: string, requested: WindowOpenSessions): WindowOpenSessions {
+    set(windowKey: string, requested: readonly string[]): WindowOpenSessions {
         return this.database.transaction(() =>
             replaceWindowOpenSessions(
                 this.database,

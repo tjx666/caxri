@@ -71,6 +71,10 @@ import {
     renameSelectedSessionWithAi,
 } from '../features/session/session-rename-commands';
 import {
+    closeActiveSessionTab,
+    openSessionTabAtPosition,
+} from '../features/session-tabs/session-tab-commands';
+import {
     installShellCommand,
     uninstallShellCommand,
 } from '../features/shell-command/shell-command-commands';
@@ -240,6 +244,7 @@ const commandContext: CommandContext = {
             else void chooseProjectFolder();
         },
         archiveSelected: archiveSelectedSession,
+        closeTab: closeActiveSessionTab,
         compactWarm: compactWarmSessions,
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,
@@ -247,6 +252,7 @@ const commandContext: CommandContext = {
         focusNextAttention: focusNextAttentionSession,
         navigateHistory: navigateSessionHistory,
         openArchived: openArchivedSessions,
+        openTab: openSessionTabAtPosition,
         openPullRequestSelected: openSelectedSessionPullRequest,
         renameSelected: renameSelectedSession,
         renameSelectedWithAi: renameSelectedSessionWithAi,

@@ -10,6 +10,7 @@ import { ScrollFade } from '../../components/scroll-fade';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import { useIsSessionTabStripVisible } from '../../stores/open-sessions';
 import { useIsFullScreen, useSessionState, useTerminal } from '../../stores/selectors';
 import { editorTabActionsPath } from '../editor/document-tab-path-actions';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
@@ -371,6 +372,14 @@ export function PaneTabBar({
 }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
+    /**
+     * While the Open Session strip shows it is the window's title bar, so the root pane bar becomes an ordinary
+     * surface: no drag region, no traffic-light inset, no title-bar fill, and no accent (the strip's active tab already
+     * carries the screen's one durable accent, DESIGN.md principle 2). A boolean selector, so every retained Workbench
+     * re-renders only when the strip appears or disappears.
+     */
+    const isSessionTabStripVisible = useIsSessionTabStripVisible();
+    const isTitleBar = isRootBar && !isSessionTabStripVisible;
     const listReference = useRef<HTMLDivElement>(null);
     const {
         dropIndicatorLeft,
@@ -389,7 +398,8 @@ export function PaneTabBar({
      * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
      */
     const activePaneId = useSessionState(usePaneViewSessionId())?.paneLayout.activePaneId;
-    const showActiveAccent = hasTabsToSwitch && activePaneId === pane.id;
+    const showActiveAccent =
+        hasTabsToSwitch && activePaneId === pane.id && !isSessionTabStripVisible;
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
     const editorPath = editorTabActionsPath(activeTab);
@@ -404,9 +414,9 @@ export function PaneTabBar({
                 // Only the Workbench-level bar carries the frameless window's drag region and the windowed traffic-light
                 // inset; a pane bar inside a split is an ordinary surface. Being the drag region is also what earns it
                 // the title-bar fill: a pane bar inside a split is not a title bar and keeps `surface`.
-                isRootBar &&
+                isTitleBar &&
                     'bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
-                isRootBar &&
+                isTitleBar &&
                     !isPrimarySidebarVisible &&
                     !isFullScreen &&
                     'pl-(--traffic-light-clearance)',
@@ -426,7 +436,7 @@ export function PaneTabBar({
                 dropIndicatorLeft={dropIndicatorLeft}
                 isDropTarget={isDropTarget}
                 isOnlySessionTerminal={isOnlySessionTerminal}
-                isRootBar={isRootBar}
+                isRootBar={isTitleBar}
                 listReference={listReference}
                 orderedTabs={orderedTabs}
                 paneId={pane.id}
@@ -451,7 +461,7 @@ export function PaneTabBar({
                 goes for a bar that stops in the middle of the window: the leading pane of a side-by-side split has a
                 neighbour on its right, not the window corner, so reserving the strip there is the dead space this
                 exists to avoid rather than the grab handle it exists to provide. */}
-            {isRootBar && spansWindowWidth && !isPrimarySidebarVisible && (
+            {isTitleBar && spansWindowWidth && !isPrimarySidebarVisible && (
                 <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-8 flex-none" />
             )}
         </div>

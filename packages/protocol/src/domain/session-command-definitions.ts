@@ -1,4 +1,5 @@
 import type { CommandDefinition } from './command-catalog.js';
+import { sessionOpenTabCommandIds } from './commands.js';
 
 /**
  * Commands that act on Sessions in the Primary Side Bar: creating, renaming, archiving, detaching, selecting, and
@@ -102,6 +103,26 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         description: 'Select the next Session with an event you have not opened yet',
         keywords: ['attention', 'unread', 'waiting', 'inbox'],
     },
+    {
+        id: 'session.closeTab',
+        title: 'Close Open Session',
+        category: 'Session',
+        description:
+            'Close the active Open Session tab and move to its neighbor; the Session itself stays in the sidebar',
+        keywords: ['tab', 'close tab'],
+        when: 'openSessionStrip',
+    },
+    ...sessionOpenTabCommandIds.map((id, index): CommandDefinition => ({
+        id,
+        title: index === 8 ? 'Switch to Last Open Session' : `Switch to Open Session ${index + 1}`,
+        category: 'Session',
+        description:
+            index === 8
+                ? 'Show the last Session in the Open Session tab strip'
+                : `Show Session ${index + 1} in the Open Session tab strip`,
+        keywords: ['tab', 'switch tab'],
+        when: 'openSessionStrip',
+    })),
     {
         id: 'session.navigateBack',
         title: 'Go Back',

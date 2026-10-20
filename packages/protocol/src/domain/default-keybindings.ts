@@ -1,5 +1,6 @@
 import type { DefaultKeybindingChange } from '../configuration/config-files.js';
 import { filesCoreKeybindings } from '../registry/core-contributions.js';
+import { sessionOpenTabCommandIds } from './commands.js';
 import type { Keybinding } from './domain.js';
 
 /**
@@ -106,9 +107,9 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+\\', command: 'terminal.newInSplit' },
     /**
      * `Cmd+Option+Arrow` moves keyboard focus between panes, iTerm2 style. `Cmd+K` is the reserved chord prefix and
-     * `Cmd+<number>` is taken by the Secondary Side Bar/Panel view-container shortcuts, so neither of VS Code's own
-     * pane-navigation families is free here. `allowInEditable` lets the chord reach through a focused xterm: split view
-     * is otherwise mouse-only while a Terminal owns focus.
+     * `Cmd+<number>` is taken by the Open Session tabs, so neither of VS Code's own pane-navigation families is free
+     * here. `allowInEditable` lets the chord reach through a focused xterm: split view is otherwise mouse-only while a
+     * Terminal owns focus.
      */
     { key: 'cmd+alt+arrowleft', command: 'workbench.focusPaneLeft' },
     { key: 'cmd+alt+arrowright', command: 'workbench.focusPaneRight' },
@@ -134,8 +135,8 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'cmd+k v', command: 'editor.openPreviewToSide' },
     ...filesCoreKeybindings,
-    { key: 'cmd+2', command: 'secondarySidebar.showGit' },
-    { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+    { key: 'cmd+alt+2', command: 'secondarySidebar.showGit' },
+    { key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' },
     /**
      * `cmd+shift+n` ("next Session needing attention") belongs to no view container. The obvious choice, the shifted
      * form of `session.switchMru`'s Command+Backquote, is unusable: on a US macOS layout Shift turns Backquote's
@@ -188,6 +189,17 @@ export const defaultKeybindings: Keybinding[] = [
      * reads as the bug mnemonic, matching the Help menu's Report Bug to Agent item.
      */
     { key: 'cmd+shift+b', command: 'developer.reportBug' },
+    /**
+     * `Cmd+1` to `Cmd+9` switch Open Session tabs, the browser and VS Code convention, with `Cmd+9` meaning the last
+     * tab. The Secondary Side Bar views moved to `Cmd+Alt+1` to `Cmd+Alt+3` to make room. The meaning is stable: it
+     * does not depend on whether the strip is visible, and each chord has its own command id (see
+     * `sessionOpenTabCommandIds`). Last in the list so a migrated file receives them after the sidebar views vacate
+     * `Cmd+1` to `Cmd+3`.
+     */
+    ...sessionOpenTabCommandIds.map((command, index): Keybinding => ({
+        key: `cmd+${index + 1}`,
+        command,
+    })),
 ];
 
 /**
@@ -348,4 +360,27 @@ export const defaultKeybindingChanges = [
         type: 'add',
         binding: { key: 'cmd+;', command: 'agentChat.openSideChat' },
     },
+    /**
+     * The Secondary Side Bar views vacate `Cmd+1` to `Cmd+3` before the Open Session chords below claim them; the order
+     * matters because `reconcileDefaultKeybindings` skips an addition whose chord is still occupied.
+     */
+    {
+        type: 'replace',
+        previous: { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+        current: { key: 'cmd+alt+1', command: 'secondarySidebar.showFiles' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+2', command: 'secondarySidebar.showGit' },
+        current: { key: 'cmd+alt+2', command: 'secondarySidebar.showGit' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+        current: { key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' },
+    },
+    ...sessionOpenTabCommandIds.map((command, index): DefaultKeybindingChange => ({
+        type: 'add',
+        binding: { key: `cmd+${index + 1}`, command },
+    })),
 ] satisfies readonly DefaultKeybindingChange[];

@@ -110,6 +110,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             session: {
                 archiveSelected: record('session.archive'),
+                closeTab: record('session.closeTab'),
                 compactWarm: record('session.compactWarm'),
                 canNavigateHistory: () => true,
                 create: record('session.create'),
@@ -118,6 +119,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 detachSelected: record('session.detach'),
                 navigateHistory: record('session.navigateHistory'),
                 openArchived: record('session.openArchived'),
+                openTab: record('session.openTab'),
                 openPullRequestSelected: record('session.openPullRequest'),
                 renameSelected: record('session.rename'),
                 renameSelectedWithAi: record('session.renameWithAi'),
@@ -392,6 +394,21 @@ describe('executeCommand', () => {
         executeCommand('session.selectPrevious', undefined, context);
 
         expect(calls).toEqual(['session.selectAdjacent(1)', 'session.selectAdjacent(-1)']);
+    });
+
+    it('maps each numbered Open Session command to its position, with the ninth meaning the last', () => {
+        const { calls, context } = recordingContext();
+        executeCommand('session.openTab1', undefined, context);
+        executeCommand('session.openTab5', undefined, context);
+        executeCommand('session.openTab9', undefined, context);
+        executeCommand('session.closeTab', undefined, context);
+
+        expect(calls).toEqual([
+            'session.openTab(1)',
+            'session.openTab(5)',
+            'session.openTab(9)',
+            'session.closeTab',
+        ]);
     });
 
     it('passes the shortcut lifecycle metadata to Session MRU switching', () => {

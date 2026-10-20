@@ -41,15 +41,12 @@ export function createWindowPresenceHandlers(
             presence.close(currentConnectionId(), windowKey);
             return null;
         },
-        'window.openSessions.set': ({ windowKey, openSessionIds, activeSessionId }) => {
+        'window.openSessions.set': ({ windowKey, openSessionIds }) => {
             if (!windowKey)
                 throw new CaxriError('VALIDATION', 'An Open Session edit requires a window');
             const key = windowKey;
             const before = database.windowOpenSessions.get(key).activeSessionId;
-            const stored = database.windowOpenSessions.set(key, {
-                openSessionIds,
-                activeSessionId,
-            });
+            const stored = database.windowOpenSessions.set(key, openSessionIds);
             if (stored.activeSessionId !== before) {
                 presence.noteViewing(key, stored.activeSessionId);
                 if (stored.activeSessionId) onSessionActivated(stored.activeSessionId);

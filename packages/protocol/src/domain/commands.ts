@@ -1,6 +1,24 @@
 import { z } from 'zod';
 
 /**
+ * One command per Open Session position, `session.openTab9` meaning the last one. They are nine ids rather than one
+ * command with an index argument because the default-keybinding migrator dedupes additions by command, so nine bindings
+ * of a single command would only ever add the first.
+ */
+export const sessionOpenTabCommandIds = [
+    'session.openTab1',
+    'session.openTab2',
+    'session.openTab3',
+    'session.openTab4',
+    'session.openTab5',
+    'session.openTab6',
+    'session.openTab7',
+    'session.openTab8',
+    'session.openTab9',
+] as const;
+export type SessionOpenTabCommandId = (typeof sessionOpenTabCommandIds)[number];
+
+/**
  * Builtin catalog IDs for palette, shortcuts, native menus, and command-backed buttons. Extension commands are open
  * namespaced strings carried by the Host View catalog and intentionally do not enter this enum.
  */
@@ -27,6 +45,8 @@ export const commandIds = [
     'session.openArchived',
     'session.search',
     'session.focusNextAttention',
+    'session.closeTab',
+    ...sessionOpenTabCommandIds,
     'agentActions.open',
     'terminal.new',
     'terminal.newInSplit',

@@ -85,11 +85,10 @@ describe('per-window Open Sessions', () => {
             const stored = await runtime.handlers['window.openSessions.set']({
                 windowKey: 'win-b',
                 openSessionIds: [b.session.id, 'unknown', a.session.id],
-                activeSessionId: a.session.id,
             });
             expect(stored).toEqual({
                 openSessionIds: [b.session.id, a.session.id],
-                activeSessionId: a.session.id,
+                activeSessionId: b.session.id,
             });
 
             await runtime.handlers['session.delete']({
@@ -135,7 +134,6 @@ describe('requests without a window', () => {
                 runtime.handlers['window.openSessions.set']({
                     windowKey: undefined,
                     openSessionIds: [],
-                    activeSessionId: null,
                 }),
             ).toThrow('requires a window');
         } finally {
