@@ -41,6 +41,14 @@ const DOCUMENT_INDENT_REM = 1.25;
  * One tree level's indent in pixels, matching the extension tree rows (`extension-tree-item-row.tsx`).
  */
 const TREE_LEVEL_INDENT = 14;
+/**
+ * One Chat turn per entry: the width of the user's message bubble, then the widths of the reply's lines.
+ */
+const TRANSCRIPT_TURNS: ReadonlyArray<{ prompt: string; reply: readonly string[] }> = [
+    { prompt: '46%', reply: ['92%', '84%', '58%'] },
+    { prompt: '28%', reply: ['88%', '96%', '72%', '40%'] },
+    { prompt: '38%', reply: ['80%', '64%'] },
+];
 
 const LoadingSkeletonClockContext = createContext<LoadingSkeletonClock | undefined>(undefined);
 
@@ -65,6 +73,12 @@ type LoadingSkeletonProperties = {
      */
     label: string;
     className?: string;
+    /**
+     * Draws the shapes in the first frame instead of after `LOADING_SKELETON_DELAY_MS`. Only for a region inside a
+     * surface that is already on screen, where a blank region would read as real empty content rather than a wait: a
+     * Chat transcript under its own header and composer looks like an empty conversation until its turns arrive.
+     */
+    isImmediate?: boolean;
 } & (
     | {
           /**
@@ -98,6 +112,12 @@ type LoadingSkeletonProperties = {
           variant: 'page';
           cards?: number;
       }
+    | {
+          /**
+           * Chat turns: a user message bubble on the right over the reply's text lines, for an Agent Chat transcript.
+           */
+          variant: 'transcript';
+      }
 );
 
 /**
@@ -110,12 +130,13 @@ type LoadingSkeletonProperties = {
  * scope's wait began, not from this mount.
  */
 export function LoadingSkeleton(properties: LoadingSkeletonProperties) {
-    const { label, className } = properties;
+    const { label, className, isImmediate = false } = properties;
     const clock = useContext(LoadingSkeletonClockContext);
-    const [isRevealed, setRevealed] = useState(false);
+    const [isRevealed, setRevealed] = useState(isImmediate);
     // A layout effect, so a placeholder continuing a wait already past the delay draws its shapes before the first
     // paint instead of showing one blank frame.
     useLayoutEffect(() => {
+        if (isImmediate) return;
         const now = performance.now();
         const startedAt = clock ? claimLoadingSkeletonClock(clock, now) : now;
         const remaining = remainingLoadingSkeletonDelay(startedAt, now);
@@ -129,7 +150,7 @@ export function LoadingSkeleton(properties: LoadingSkeletonProperties) {
             cancel?.();
             if (clock) releaseLoadingSkeletonClock(clock, performance.now());
         };
-    }, [clock]);
+    }, [clock, isImmediate]);
     const region = {
         'role': 'status',
         'aria-label': label,
@@ -190,6 +211,25 @@ export function LoadingSkeleton(properties: LoadingSkeletonProperties) {
                         <div key={index} aria-hidden="true" className="h-2.5 shrink-0" />
                     );
                 })}
+            </div>
+        );
+    }
+    if (properties.variant === 'transcript') {
+        return (
+            <div {...region} className={cn('flex min-w-0 flex-col gap-3', className)}>
+                {TRANSCRIPT_TURNS.map((turn, index) => (
+                    <div key={index} aria-hidden="true" className="flex flex-col gap-3">
+                        <Skeleton
+                            className="h-9 self-end rounded-lg"
+                            style={{ width: turn.prompt }}
+                        />
+                        <div className="flex flex-col gap-2.5 py-1">
+                            {turn.reply.map((width, line) => (
+                                <Skeleton key={line} className="h-2.5" style={{ width }} />
+                            ))}
+                        </div>
+                    </div>
+                ))}
             </div>
         );
     }

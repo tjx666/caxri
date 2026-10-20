@@ -51,14 +51,17 @@ reference this file; deviations require updating this spec first.
    not render them as a blank surface, and do not relabel a failed probe as a successful negative
    (a Git error is not "not a repository"). A surface or region waiting for its first data draws
    `LoadingSkeleton` (`components/loading-skeleton.tsx`) shaped like what will arrive (`list`
-   rows, `document` lines, `page` cards) and names the wait in its `label`. Its shapes appear only
-   after `LOADING_SKELETON_DELAY_MS` (500ms), so a local load (opening a file, a lazy chunk)
-   finishes before any gray shape is drawn; they then fade in on `--motion-overlay-enter` and pulse
-   on `--motion-skeleton-pulse` (static under reduced motion). Wrap a surface whose placeholders
-   hand over to each other (an editor pane: file read, then editor module; a tree view: root, then
-   its branches) in `LoadingSkeletonScope`, so the chain reads as one wait instead of skeleton,
-   blank, skeleton. Content already on screen never regresses to a skeleton: a refresh keeps the
-   shown rows until the new ones are ready. It replaces a centered
+   rows, `document` lines, `page` cards, `transcript` Chat turns) and names the wait in its
+   `label`. Its shapes appear only after `LOADING_SKELETON_DELAY_MS` (500ms), so a local load
+   (opening a file, a lazy chunk) finishes before any gray shape is drawn; they then fade in on
+   `--motion-overlay-enter` and pulse on `--motion-skeleton-pulse` (static under reduced motion).
+   `isImmediate` skips the delay for a region inside a surface whose own chrome is already drawn,
+   where a blank region reads as real empty content: a Chat transcript between its header and
+   composer looks like an empty conversation, so its turns placeholder fades in at once. Wrap a
+   surface whose placeholders hand over to each other (an editor pane: file read, then editor
+   module; a tree view: root, then its branches) in `LoadingSkeletonScope`, so the chain reads as
+   one wait instead of skeleton, blank, skeleton. Content already on screen never regresses to a
+   skeleton: a refresh keeps the shown rows until the new ones are ready. It replaces a centered
    `Loading…` line that collapses the layout and then jumps. A `Spinner` stays for inline progress
    inside an already-rendered control or row (a button, chip, picker, `Loading more` row) and for
    a wait whose copy explains something the user should know, such as a process starting.
