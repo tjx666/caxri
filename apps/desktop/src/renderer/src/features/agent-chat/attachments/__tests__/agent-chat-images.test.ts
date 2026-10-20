@@ -5,11 +5,9 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { attachmentsAfterSend } from '../../composer-input/agent-chat-drafts';
 import {
     agentChatAttachmentLabel,
-    attachmentsAfterSend,
-} from '../../composer-input/agent-chat-drafts';
-import {
     agentChatDroppedImagePlan,
     agentChatImageBytes,
     agentChatImageRejection,

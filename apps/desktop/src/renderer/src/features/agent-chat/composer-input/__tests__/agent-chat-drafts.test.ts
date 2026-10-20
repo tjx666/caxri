@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { readAgentChatEdit, writeAgentChatEdit } from '../../composer/agent-chat-edit';
 import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
+} from '../../attachments/agent-chat-images';
+import { readAgentChatEdit, writeAgentChatEdit } from '../../composer/agent-chat-edit';
+import {
     agentChatAttachmentsWithReferences,
     agentChatReferenceAttachments,
     appendToAgentChatDraft,

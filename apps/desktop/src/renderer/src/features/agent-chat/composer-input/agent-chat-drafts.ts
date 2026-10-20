@@ -7,7 +7,6 @@ import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
 import { notifyListeners } from '@caxri/utils';
 import { debounce } from 'es-toolkit';
 
-import { translate } from '../../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../../lib/local-storage';
 import {
     agentChatAttachmentDatabaseName,
@@ -16,7 +15,6 @@ import {
     currentAgentChatComposerScope,
     indexedDatabaseAgentChatAttachmentBackend,
 } from '../attachments/agent-chat-attachment-persistence';
-import { agentChatResizedImageLabel } from '../attachments/agent-chat-images';
 import type { AgentChatEdit } from '../composer/agent-chat-edit';
 import {
     readAgentChatEdit,
@@ -572,29 +570,4 @@ export function draftWithInsertion(
     const trailing = (separator === ' ' ? /^\s/u : /^\n/u).test(after) ? '' : separator;
     const inserted = `${leading}${text}${trailing}`;
     return { draft: `${before}${inserted}${after}`, caret: before.length + inserted.length };
-}
-
-/**
- * What the composer calls one attachment everywhere (its alt text, Preview, Remove, and the preview's title): the file
- * name when it has one, otherwise its position.
- */
-export function agentChatAttachmentName(
-    attachment: Pick<AgentChatImageAttachment, 'name'>,
-    index: number,
-): string {
-    // A pasted image may carry an empty name, which falls back like a missing one.
-    return attachment.name === undefined || attachment.name === ''
-        ? translate('agentChat.attachments.fallbackName', { number: index + 1 })
-        : attachment.name;
-}
-
-/**
- * The chip's alt text: the attachment's name (`agentChatAttachmentName`), noting a resized image.
- */
-export function agentChatAttachmentLabel(
-    attachment: Pick<AgentChatImageAttachment, 'isResized' | 'name'>,
-    index: number,
-): string {
-    const label = agentChatAttachmentName(attachment, index);
-    return attachment.isResized ? agentChatResizedImageLabel(label) : label;
 }

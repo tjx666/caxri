@@ -13,13 +13,15 @@ import type {
     AgentChatImageAttachment,
 } from '../composer-input/agent-chat-drafts';
 import {
-    agentChatAttachmentLabel,
-    agentChatAttachmentName,
     isAgentChatImageAttachment,
     isAgentChatSkillAttachment,
 } from '../composer-input/agent-chat-drafts';
 import { AgentChatSkillCard } from '../tools/agent-chat-skill-card';
-import { agentChatImageResizedNote } from './agent-chat-images';
+import {
+    agentChatAttachmentLabel,
+    agentChatAttachmentName,
+    agentChatImageResizedNote,
+} from './agent-chat-images';
 import {
     AgentChatAttachmentRemoveButton,
     AgentChatPathAttachmentCard,

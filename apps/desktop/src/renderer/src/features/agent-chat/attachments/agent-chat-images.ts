@@ -8,6 +8,7 @@ import {
 } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
+import type { AgentChatImageAttachment } from '../composer-input/agent-chat-drafts';
 
 /**
  * Image attachments for the Chat composer. The full image is read once, sent to the provider, and dropped; the
@@ -66,11 +67,36 @@ export function agentChatImageResizedNote(): string {
 /**
  * An attachment's alt text when it was resized: its name plus the resized note.
  */
-export function agentChatResizedImageLabel(name: string): string {
+function agentChatResizedImageLabel(name: string): string {
     return translate('agentChat.images.resizedLabel', {
         name,
         size: MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024,
     });
+}
+
+/**
+ * What the composer calls one attachment everywhere (its alt text, Preview, Remove, and the preview's title): the file
+ * name when it has one, otherwise its position.
+ */
+export function agentChatAttachmentName(
+    attachment: Pick<AgentChatImageAttachment, 'name'>,
+    index: number,
+): string {
+    // A pasted image may carry an empty name, which falls back like a missing one.
+    return attachment.name === undefined || attachment.name === ''
+        ? translate('agentChat.attachments.fallbackName', { number: index + 1 })
+        : attachment.name;
+}
+
+/**
+ * The chip's alt text: the attachment's name (`agentChatAttachmentName`), noting a resized image.
+ */
+export function agentChatAttachmentLabel(
+    attachment: Pick<AgentChatImageAttachment, 'isResized' | 'name'>,
+    index: number,
+): string {
+    const label = agentChatAttachmentName(attachment, index);
+    return attachment.isResized ? agentChatResizedImageLabel(label) : label;
 }
 
 export type AgentChatImageRejection = 'count' | 'size' | 'total' | 'type';
