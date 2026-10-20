@@ -15,6 +15,12 @@ export type WindowZoomStep = 'in' | 'out' | 'reset';
 export const WINDOW_ZOOM_BOUNDS = { min: zoomSpec.min, max: zoomSpec.max } as const;
 
 /**
+ * Whether this window's zoom indicator has its controls open. The HUD stays hidden meanwhile: the open row already
+ * shows each change, and a second copy of it appearing at the top of the window would only distract.
+ */
+export const windowZoomIndicator = { isOpen: false };
+
+/**
  * The page scale a `window.zoomLevel` gives, as a whole percent: Chromium's 20% per level (`zoomFactorForLevel` in
  * `main/window-chrome.ts`), so level -1 reads 83% and level 1 reads 120%.
  */

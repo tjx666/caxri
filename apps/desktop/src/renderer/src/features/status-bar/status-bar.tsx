@@ -20,6 +20,7 @@ import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { NotificationCenter } from '../toasts/notification-center';
+import { WindowZoomIndicator } from '../window-zoom/window-zoom-indicator';
 import { useActivePaneTab } from '../workbench/pane-actions';
 import { ActiveFileStatus } from './active-file-status';
 import { activeFileStatusTier } from './active-file-status-target';
@@ -35,7 +36,7 @@ import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { RepoStatusChips } from './repo-status-chips';
 import { ScreencastModeChip } from './screencast-mode-chip';
 import { SshHostStatus } from './ssh-host-status';
-import { StatusItem } from './status-item';
+import { StatusItem, statusItemClassName } from './status-item';
 import { UpdateStatusChip } from './update-status-chip';
 import { WorkbenchRootPicker } from './workbench-root-picker';
 
@@ -283,6 +284,7 @@ export function StatusBar() {
                 <RemoteDebuggingChip />
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />
+                <WindowZoomIndicator side="top" triggerClassName={statusItemClassName} />
                 <ActivePaneStatus
                     showAgentThroughput={chipVisibility.agentThroughput}
                     showAgentUsage={chipVisibility.agentUsage}

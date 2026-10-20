@@ -1506,7 +1506,11 @@ popup itself hold focus until then.
   first settings load shows a small HUD at the window's top right (the ChatGPT desktop app's
   pattern): the percentage, Zoom Out, Zoom In, a divider, and Reset, each disabled at its bound. It
   fades out 1.5s after the last change; hovering it or holding keyboard focus inside keeps it up,
-  and a hidden HUD is `inert` so it never takes a click or a Tab stop.
+  and a hidden HUD is `inert` so it never takes a click or a Tab stop. While the zoom is not 100%, a
+  zoom indicator keeps saying so (Chrome's address-bar magnifier, VS Code's status bar entry): a
+  magnifier and the percentage in the Workbench status bar and the Agent Commander title bar.
+  Clicking it opens the same row in a popover, and the HUD stays hidden while that popover is open;
+  the indicator leaves once the zoom is back to 100% and the popover closes.
 - Launch shows the Caxri mark over the translucent (vibrancy) window from the first frame: the
   loader is inline in `renderer/index.html`, so it needs no bundle, and `App` removes it when the
   workbench attaches. Only a startup failure adds text beneath the mark.
