@@ -16,11 +16,11 @@ export type SettingsView =
     | 'agent-suspension';
 
 /**
- * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the
- * empty-Project row's own New Session button are separate anchors for the same menu, and several rows of one Project
- * can render a trigger at once.
+ * Which control the open Session-creation menu belongs under. The Project heading's New Session button, the
+ * empty-Project row's own New Session button, and the Open Session strip's `+` are separate anchors for the same menu,
+ * and several of them can render a trigger for one Project at once.
  */
-export type CreateSessionAnchor = 'heading' | 'emptyProject';
+export type CreateSessionAnchor = 'heading' | 'emptyProject' | 'sessionTabs';
 
 /**
  * A status-bar chip whose popover can also be opened from a command. Both chips hang off the Session the status bar

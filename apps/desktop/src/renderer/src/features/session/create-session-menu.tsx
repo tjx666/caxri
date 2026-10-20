@@ -1,7 +1,7 @@
 import type { MouseEventHandler, ReactElement } from 'react';
 import { cloneElement, useEffect } from 'react';
 
-import type { ProjectRecord } from '@caxri/protocol';
+import type { ProjectRecord, SessionPlacement } from '@caxri/protocol';
 import { SquareDashed, SquarePen } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -41,10 +41,15 @@ import {
  */
 function SessionCreationMenu({
     anchor,
+    placement,
     project,
     trigger,
 }: {
     anchor: CreateSessionAnchor;
+    /**
+     * Where the created Session lands in the window's Open Sessions; only the strip's `+` passes `newTab`.
+     */
+    placement?: SessionPlacement;
     project: ProjectRecord;
     /**
      * Typed to accept an `onClick` override rather than the looser default `ReactElement` props: the default-Agent
@@ -174,10 +179,10 @@ function SessionCreationMenu({
                 }
                 if (splitTarget && details.reason === 'trigger-press') {
                     details.cancel();
-                    beginSessionCreation(project.id, anchor);
+                    beginSessionCreation(project.id, anchor, placement);
                     return;
                 }
-                openSessionCreationMenu(project.id, anchor);
+                openSessionCreationMenu(project.id, anchor, placement);
             }}
         >
             {triggerWithTooltip}
@@ -295,6 +300,28 @@ export function EmptyProjectSessionMenu({
                     <SquarePen size={13} /> {t('session.create.newSession')}
                 </button>
             }
+        />
+    );
+}
+
+/**
+ * The Open Session strip's trailing `+` and the menu it anchors: a new Session in the active Session's Project, opened
+ * as a new tab. Like the empty-Project row it renders its own menu so the Agent list opens under the `+` rather than at
+ * the Project heading in the Primary Side Bar, across the window from the pointer.
+ */
+export function SessionTabCreateMenu({
+    project,
+    trigger,
+}: {
+    project: ProjectRecord;
+    trigger: ReactElement<{ 'aria-label'?: string }>;
+}) {
+    return (
+        <SessionCreationMenu
+            anchor="sessionTabs"
+            placement="newTab"
+            project={project}
+            trigger={trigger}
         />
     );
 }

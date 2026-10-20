@@ -96,7 +96,8 @@ export function openSessionCreationMenu(
     anchor: CreateSessionAnchor,
     placement?: SessionPlacement,
 ): void {
-    if (!useChromeLayoutStore.getState().primarySidebarVisible)
+    // The strip's `+` hangs its menu from itself, so only the sidebar anchors need the bar revealed.
+    if (anchor !== 'sessionTabs' && !useChromeLayoutStore.getState().primarySidebarVisible)
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
     useDialogStore.getState().openCreateSessionMenu(projectId, anchor, placement);
 }
