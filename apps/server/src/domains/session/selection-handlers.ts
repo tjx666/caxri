@@ -2,7 +2,6 @@ import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalRestoreOptions, TerminalSuspensionService } from '../terminal';
-import { resolveWindowKey } from '../window-presence';
 import { SessionSelectionQueue } from './selection';
 
 interface SessionSelectionHandlerOptions {
@@ -45,8 +44,8 @@ export function createSessionSelectionHandlers(
         'session.select': ({ sessionId, windowKey }) =>
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);
-                database.selectSession(sessionId, resolveWindowKey(windowKey));
-                noteWindowViewing(resolveWindowKey(windowKey), sessionId);
+                database.selectSession(sessionId, windowKey);
+                if (windowKey) noteWindowViewing(windowKey, sessionId);
                 terminalSuspension.observeVisibility();
                 restoreInterruptedTerminalsInBackground(sessionId);
                 coordinator.probeSessionPrimaryAgent(sessionId);
@@ -58,8 +57,8 @@ export function createSessionSelectionHandlers(
             sessionSelections.run(() =>
                 mobileTerminalMutations.runSessions([sessionId], async () => {
                     await workbenchRoots.validateSession(sessionId);
-                    database.selectSession(sessionId, resolveWindowKey(windowKey));
-                    noteWindowViewing(resolveWindowKey(windowKey), sessionId);
+                    database.selectSession(sessionId, windowKey);
+                    if (windowKey) noteWindowViewing(windowKey, sessionId);
                     terminalSuspension.observeVisibility();
                     // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
                     agentChat.resumeSession(sessionId);

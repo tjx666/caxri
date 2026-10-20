@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { auxiliaryWindowStateSchema, persistedWindowStateSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
 const serverRead = commandPolicy('server', 'read');
@@ -51,6 +52,16 @@ export const windowDesktopMethods = {
         ...desktopRead,
         params: noParameters,
         result: z.object({ isFullScreen: z.boolean() }),
+    },
+    /**
+     * Tells Main which Session the sending Workbench window renders, or `null` for none. Main owns the rest of the
+     * window's presence (native focus, visibility, minimize) and forwards the whole row to the Server, so a Renderer
+     * cannot claim focus it does not have. Main answers for the sender only; it never accepts a window key.
+     */
+    'window.reportViewing': {
+        ...desktopControl,
+        params: z.object({ viewingSessionId: identifierSchema.nullable() }),
+        result: z.null(),
     },
     'processExplorer.open': { ...desktopControl, params: noParameters, result: z.null() },
     'benchmark.open': { ...desktopControl, params: noParameters, result: z.null() },

@@ -25,6 +25,31 @@ export type WindowKey = z.infer<typeof windowKeySchema>;
 export const windowKeyParameter = { windowKey: windowKeySchema.optional() };
 
 /**
+ * Requests that act for one Desktop window. Desktop Main injects the sender's {@link WindowKey} into exactly these
+ * (overwriting anything a Renderer supplied), so a Renderer can never act as another window. A caller without a window,
+ * such as the CLI, omits the key and gets no per-window effect.
+ */
+export const windowScopedMethods = [
+    'app.bootstrap',
+    'project.delete',
+    'project.hide',
+    'session.create',
+    'session.delete',
+    'session.deleteMany',
+    'session.resume',
+    'session.select',
+    'terminal.moveToNewSession',
+    'window.openSessions.set',
+] as const;
+export type WindowScopedMethod = (typeof windowScopedMethods)[number];
+
+const windowScopedMethodSet: ReadonlySet<string> = new Set(windowScopedMethods);
+
+export function isWindowScopedMethod(method: string): method is WindowScopedMethod {
+    return windowScopedMethodSet.has(method);
+}
+
+/**
  * Upper bound on the Open Sessions of one window. Open Sessions are a working set, not a source of truth for existence,
  * so the bound only protects the persisted cell and the strip from unbounded growth.
  */
@@ -63,12 +88,32 @@ export const windowPresenceReportSchema = z.object({
 export type WindowPresenceReport = z.infer<typeof windowPresenceReportSchema>;
 
 /**
+ * Every live window of one connection as a single atomic snapshot. Main sends it while it re-attaches, before the
+ * connection serves any Renderer request, so the Server never acts on a half-seeded or empty view after a reconnect.
+ * `focusedAt` keeps the focus history (epoch milliseconds, `0` when the window never had focus), so "the most recently
+ * focused window" survives the restart.
+ */
+const seededWindowSchema = windowPresenceReportSchema.extend({
+    focusedAt: z.number().int().nonnegative(),
+});
+export const windowPresenceSeedSchema = z.object({ windows: z.array(seededWindowSchema).max(64) });
+export type WindowPresenceSeed = z.infer<typeof windowPresenceSeedSchema>;
+
+/**
  * Per-window presence, sent only by Desktop Main (never reachable from a Renderer).
  */
 export const windowPresenceInternalMethods = {
     'window.reportPresence': {
         ...serverWrite,
         params: windowPresenceReportSchema,
+        result: z.null(),
+    },
+    /**
+     * Replaces every window row of the calling connection at once and marks presence as reported.
+     */
+    'window.seedPresence': {
+        ...serverWrite,
+        params: windowPresenceSeedSchema,
         result: z.null(),
     },
     /**

@@ -557,9 +557,8 @@ describe('Agent notification coordinator', () => {
         const showNotification = vi.fn();
         const coordinator = createAgentNotificationCoordinator({
             activateSession: () => Promise.resolve(),
-            isSessionVisible: (sessionId, selected) => selected === sessionId,
-            loadBootstrap: () =>
-                Promise.resolve({ ...bootstrap(current), selectedSessionId: selection.sessionId }),
+            isSessionVisible: (sessionId) => selection.sessionId === sessionId,
+            loadBootstrap: () => Promise.resolve(bootstrap(current)),
             loadRecords: () => {
                 recordsStarted.resolve();
                 return recordsResult.promise;

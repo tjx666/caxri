@@ -1,7 +1,8 @@
+import { CaxriError } from '@caxri/protocol';
+
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import { currentConnectionId } from './request-origin';
-import { resolveWindowKey } from './window-key';
 import type { WindowPresence } from './window-presence';
 
 interface WindowPresenceHandlerOptions {
@@ -21,7 +22,10 @@ export function createWindowPresenceHandlers(
     options: WindowPresenceHandlerOptions,
 ): Pick<
     DomainHandlers,
-    'window.closePresence' | 'window.openSessions.set' | 'window.reportPresence'
+    | 'window.closePresence'
+    | 'window.openSessions.set'
+    | 'window.reportPresence'
+    | 'window.seedPresence'
 > {
     const { database, onSessionActivated, presence } = options;
     return {
@@ -29,12 +33,18 @@ export function createWindowPresenceHandlers(
             presence.report(currentConnectionId(), report);
             return null;
         },
+        'window.seedPresence': ({ windows }) => {
+            presence.seed(currentConnectionId(), windows);
+            return null;
+        },
         'window.closePresence': ({ windowKey }) => {
             presence.close(currentConnectionId(), windowKey);
             return null;
         },
         'window.openSessions.set': ({ windowKey, openSessionIds, activeSessionId }) => {
-            const key = resolveWindowKey(windowKey);
+            if (!windowKey)
+                throw new CaxriError('VALIDATION', 'An Open Session edit requires a window');
+            const key = windowKey;
             const before = database.windowOpenSessions.get(key).activeSessionId;
             const stored = database.windowOpenSessions.set(key, {
                 openSessionIds,

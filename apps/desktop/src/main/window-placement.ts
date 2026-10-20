@@ -103,3 +103,35 @@ export function showWhenPlaced(
     // eslint-disable-next-line unicorn/prefer-await -- see comment above
     showWhenReady().catch(() => {});
 }
+
+/**
+ * Saves the window's geometry shortly after it stops moving or resizing, and on demand. A failed save is not
+ * user-actionable, so the callback owns its own error handling.
+ */
+export function trackWindowState(
+    window: BrowserWindow,
+    options: { isQuitting: () => boolean; save: (state: PersistedWindowState) => void },
+): { cancel(): void; flush(): void } {
+    let timer: NodeJS.Timeout | undefined;
+    const cancel = (): void => {
+        if (timer) clearTimeout(timer);
+        timer = undefined;
+    };
+    const flush = (): void => {
+        cancel();
+        // `before-quit` performs the final ordered write before Server shutdown.
+        if (options.isQuitting() || window.isDestroyed()) return;
+        options.save(readWindowState(window));
+    };
+    const schedule = (): void => {
+        cancel();
+        timer = setTimeout(flush, 250);
+    };
+    window.on('move', schedule);
+    window.on('resize', schedule);
+    window.on('maximize', schedule);
+    window.on('unmaximize', schedule);
+    window.on('enter-full-screen', schedule);
+    window.on('leave-full-screen', schedule);
+    return { cancel, flush };
+}

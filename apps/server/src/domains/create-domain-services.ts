@@ -86,7 +86,6 @@ export async function createDomainServices(
         workbenchRoots,
     } = await createRootServices(dependencies);
     const presence = new WindowPresence();
-    const visibleSessionIds = (): ReadonlySet<string> => presence.visibleSessionIds();
     const attentionRequests = new AgentAttentionRequests();
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
@@ -216,7 +215,8 @@ export async function createDomainServices(
         logger,
         send,
         settings: () => configuration.getSettings().value,
-        visibleSessionIds,
+        isPresenceSettled: () => presence.isSettled(),
+        visibleSessionIds: () => presence.visibleSessionIds(),
         ...dependencies.terminalSuspension,
         remoteObservers: [dependencies.terminalExecution, transcripts, agentChat],
         terminals,
@@ -241,7 +241,7 @@ export async function createDomainServices(
         primaryVisibleSessionId: () => presence.primaryVisibleSessionId(),
         send,
         sessionContext,
-        visibleSessionIds,
+        visibleSessionIds: () => presence.visibleSessionIds(),
         workbenchRoots,
     });
     const countRunning = (sessionId?: string): number =>

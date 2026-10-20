@@ -107,6 +107,73 @@ describe('per-window Open Sessions', () => {
     });
 });
 
+describe('requests without a window', () => {
+    it('create touches no strip, and a window-less bootstrap shows no selection', async () => {
+        const { project, runtime } = await createRuntime();
+        try {
+            // The test composition root tags requests with a window; naming `undefined` acts as a CLI client would.
+            await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+                windowKey: undefined,
+            });
+
+            const anonymous = await runtime.handlers['app.bootstrap']({ windowKey: undefined });
+            const main = await runtime.handlers['app.bootstrap']({ windowKey: 'main' });
+            expect(anonymous.selectedSessionId).toBeUndefined();
+            expect(anonymous.openSessionIds ?? []).toEqual([]);
+            expect(main.openSessionIds ?? []).toEqual([]);
+        } finally {
+            await runtime.close();
+        }
+    });
+
+    it('rejects a strip edit that names no window', async () => {
+        const { runtime } = await createRuntime();
+        try {
+            expect(() =>
+                runtime.handlers['window.openSessions.set']({
+                    windowKey: undefined,
+                    openSessionIds: [],
+                    activeSessionId: null,
+                }),
+            ).toThrow('requires a window');
+        } finally {
+            await runtime.close();
+        }
+    });
+});
+
+describe('window presence seed', () => {
+    it('replaces the rows of the calling connection at once', async () => {
+        const { project, runtime } = await createRuntime();
+        try {
+            const a = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+                windowKey: 'win-a',
+            });
+            await runWithRequestOrigin('conn-1', async () => {
+                await runtime.handlers['window.seedPresence']({
+                    windows: [
+                        {
+                            windowKey: 'win-a',
+                            viewingSessionId: a.session.id,
+                            focused: true,
+                            visible: true,
+                            focusedAt: 7,
+                        },
+                    ],
+                });
+            });
+            const context = await runtime.handlers['app.activeContext']({});
+            expect(context.sessionId).toBe(a.session.id);
+        } finally {
+            await runtime.close();
+        }
+    });
+});
+
 describe('window presence', () => {
     it('reports the focused window Session as active context and forgets a closed connection', async () => {
         const { project, runtime } = await createRuntime();

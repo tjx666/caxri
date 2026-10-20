@@ -52,7 +52,7 @@ describe('Agent notification activation', () => {
         const coordinator = createDesktopAgentNotifications({
             ...test.options,
             delivery: { show: vi.fn() },
-            getWindow: () => {},
+            isSessionShown: () => false,
             sendEvent,
         });
         const options = vi.mocked(createAgentNotificationCoordinator).mock.calls[0][0];
@@ -80,6 +80,7 @@ describe('Agent notification activation', () => {
         expect(test.calls).toEqual(['focus', 'app.bootstrap', 'session.select']);
         expect(test.request).toHaveBeenLastCalledWith('session.select', {
             sessionId: 'session-1',
+            windowKey: 'main',
         });
     });
 

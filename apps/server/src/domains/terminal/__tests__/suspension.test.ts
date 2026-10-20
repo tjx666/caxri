@@ -52,6 +52,15 @@ describe('TerminalSuspensionService', () => {
         expect(harness.suspend).toHaveBeenCalledTimes(1);
     });
 
+    it('waits for Desktop Main to report its windows instead of reading the gap as every window hidden', async () => {
+        const harness = createHarness({ isPresenceSettled: false });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS * 2);
+        expect(await harness.service.sweep()).toEqual([]);
+        expect(harness.suspend).not.toHaveBeenCalled();
+    });
+
     it('never suspends the Agent Commander Terminal, which the Workbench never selects', async () => {
         const harness = createHarness({ commanderSessionId: 'session-a' });
         harness.service.start();

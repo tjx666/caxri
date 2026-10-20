@@ -73,7 +73,12 @@ export type ReplySummaryOutcome = 'included' | 'empty' | 'timeout' | 'failed';
 
 interface AgentNotificationCoordinatorOptions {
     activateSession(sessionId: string): Promise<void>;
-    isSessionVisible(sessionId: string, selectedSessionId: string | undefined): boolean;
+    /**
+     * Whether the user can see `sessionId` right now: some window renders it and is focused, visible, and not
+     * minimized. Read live at each decision, not from a bootstrap, so a window that moved on or lost focus since the
+     * last refresh cannot suppress a banner for a Session nobody is looking at.
+     */
+    isSessionVisible(sessionId: string): boolean;
     loadBootstrap(): Promise<BootstrapState>;
     loadRecords(parameters: {
         sessionIds: string[];
@@ -149,7 +154,6 @@ export function createAgentNotificationCoordinator(
     let settingsRefreshGeneration = 0;
     let isSettingsStale = false;
     let suppressedNotificationCount = 0;
-    let selectedSessionId: string | undefined;
     let settings: AppSettings | undefined;
     let tail = Promise.resolve();
     const sessions = new Map<string, SessionRecord>();
@@ -258,7 +262,7 @@ export function createAgentNotificationCoordinator(
             decide('read');
             return undefined;
         }
-        if (options.isSessionVisible(session.id, selectedSessionId)) {
+        if (options.isSessionVisible(session.id)) {
             closeNotification(session.id);
             decide('visible');
             return undefined;
@@ -393,7 +397,7 @@ export function createAgentNotificationCoordinator(
             if (
                 current?.attentionEpoch !== banner.session.attentionEpoch ||
                 !current.hasUnread ||
-                options.isSessionVisible(current.id, selectedSessionId) ||
+                options.isSessionVisible(current.id) ||
                 !settings?.['agents.notifications.enabled']
             ) {
                 // The previous turn's banner is just as stale as the one being dropped.
@@ -411,7 +415,6 @@ export function createAgentNotificationCoordinator(
         bootstrap: BootstrapState,
         shouldNotify: boolean,
     ): Array<PendingBanner | undefined> => {
-        selectedSessionId = bootstrap.selectedSessionId;
         settings = bootstrap.settings;
         projectTitles.clear();
         for (const project of bootstrap.projects)

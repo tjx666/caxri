@@ -65,6 +65,12 @@ interface TerminalSuspensionServiceOptions {
      * set is never suspended automatically; one that leaves it starts its deselected clock.
      */
     visibleSessionIds: () => ReadonlySet<string>;
+    /**
+     * False while Desktop Main has not yet reported its windows (a Server start or a lost connection), so an empty
+     * visible set is not yet evidence that nobody is looking. A sweep waits instead of suspending on that gap. Defaults
+     * to settled for callers that have no presence to wait for.
+     */
+    isPresenceSettled?: () => boolean;
     send: (event: ServerEvent) => void;
     settings: () => AppSettings;
     sweepIntervalMs?: number;
@@ -146,6 +152,7 @@ export class TerminalSuspensionService {
     private async suspendDecided(): Promise<string[]> {
         const { database } = this.options;
         this.observeVisibility();
+        if (this.options.isPresenceSettled?.() === false) return [];
         /**
          * The Agent Commander's Session is never selected in the Workbench, so without this exemption it would always
          * look abandoned; its Terminal is supervised by its own window instead.

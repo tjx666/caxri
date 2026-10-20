@@ -1,8 +1,11 @@
 import type { MainRequest, SettingsTarget } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import type { BenchmarkWindowController } from './benchmark-window';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
+import type { WindowPresenceRegistry } from './window-presence-registry';
+import { currentRequestWindowKey } from './window-presence-registry';
 
 /**
  * The optional windows Main opens on request, and the Workbench hand-offs the Agent Commander window uses.
@@ -24,6 +27,10 @@ export interface MainWindowMethodOptions {
      * view.
      */
     openSettingsInWorkbench(target?: SettingsTarget): Promise<void>;
+    /**
+     * Where a Workbench window's reported Session goes. Absent in handler tests that do not exercise presence.
+     */
+    windowPresence?: Pick<WindowPresenceRegistry, 'setViewing'>;
 }
 
 const WINDOW_METHODS = [
@@ -33,6 +40,7 @@ const WINDOW_METHODS = [
     'agentCommander.stop',
     'benchmark.open',
     'processExplorer.open',
+    'window.reportViewing',
 ] as const;
 
 type WindowRequest = Extract<MainRequest, { method: (typeof WINDOW_METHODS)[number] }>;
@@ -64,6 +72,16 @@ export async function handleWindowRequest(
         case 'agentCommander.revealSession':
             await options.revealSessionInWorkbench(request.params.sessionId);
             return null;
+        case 'window.reportViewing': {
+            const windowKey = currentRequestWindowKey();
+            if (!windowKey)
+                throw new CaxriError(
+                    'FORBIDDEN',
+                    'Only a Workbench window reports the Session it shows',
+                );
+            options.windowPresence?.setViewing(windowKey, request.params.viewingSessionId);
+            return null;
+        }
         case 'agentCommander.openSettings':
             await options.openSettingsInWorkbench(request.params.target);
             return null;

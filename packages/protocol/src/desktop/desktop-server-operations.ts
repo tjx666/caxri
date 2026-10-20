@@ -32,6 +32,7 @@ export const desktopServerOperationIds = [
     'terminal.terminateAll',
     'window.closePresence',
     'window.reportPresence',
+    'window.seedPresence',
     'theme.importPath',
     'project.create',
     'project.delete',

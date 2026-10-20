@@ -9,7 +9,6 @@ import type {
 
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
-import { resolveWindowKey } from '../window-presence';
 
 /**
  * Builds the Workbench read models: the full `app.bootstrap`, targeted `app.records`, and the Agent Commander's scoped
@@ -67,7 +66,10 @@ export function createWorkbenchSnapshots(dependencies: {
             const openable = new Set(
                 sessions.filter((session) => session.archivedAt === undefined).map(({ id }) => id),
             );
-            const window = database.windowOpenSessions.get(resolveWindowKey(windowKey));
+            // A caller without a window (CLI, internal reads) has no strip and no active Session of its own.
+            const window = windowKey
+                ? database.windowOpenSessions.get(windowKey)
+                : { openSessionIds: [], activeSessionId: null };
             const selectedSessionId =
                 window.activeSessionId !== null && openable.has(window.activeSessionId)
                     ? window.activeSessionId

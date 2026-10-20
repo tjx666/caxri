@@ -20,6 +20,7 @@ const electronMock = vi.hoisted(() => {
 
 vi.mock('electron', () => ({ ipcMain: electronMock.ipcMain }));
 
+import { currentRequestWindowKey } from '../window-presence-registry';
 import { installWorkbenchIpc } from '../workbench-ipc';
 
 describe('workbench IPC sender boundary', () => {
@@ -125,6 +126,45 @@ describe('workbench IPC sender boundary', () => {
      * The Renderer's failure funnel stays silent for a cancellation, which is what a refusal issued while the window is
      * being torn down has to be: an outage code raised a real error notification over a closing window.
      */
+    it('runs a request under the window key of its sender, and a remote window under its own', async () => {
+        const seen: Array<string | undefined> = [];
+        const keyed = vi.fn(() => {
+            seen.push(currentRequestWindowKey());
+            return Promise.resolve({
+                protocolVersion: 2,
+                id: 'r1',
+                ok: true,
+                result: null,
+            } as const);
+        });
+        const remote = {};
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            isRecovering: () => false,
+            logger: () => ({ write: vi.fn() }) as never,
+            remote: (sender) =>
+                sender === remote
+                    ? ({
+                          isRecovering: () => false,
+                          onEventsReady: vi.fn(),
+                          transport: { dispatch: keyed, negotiate },
+                          windowKey: 'remote-key',
+                          window: () => {},
+                      } as never)
+                    : undefined,
+            renderer: () => renderer as never,
+            transport: { dispatch: keyed, negotiate },
+            windowKey: (sender) => (sender === renderer ? 'main' : undefined),
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+        const envelope = { protocolVersion: 2, id: 'r1', method: 'app.health', params: {} };
+
+        await request({ sender: renderer }, envelope);
+        await request({ sender: remote }, envelope);
+
+        expect(seen).toEqual(['main', 'remote-key']);
+    });
+
     it('refuses a request queued after shutdown begins as a cancellation', async () => {
         const dispatch = vi.fn();
         installWorkbenchIpc({

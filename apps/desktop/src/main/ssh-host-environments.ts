@@ -23,6 +23,7 @@ import type { RemoteSeedConfig } from './ssh/remote-server-supervisor-options';
 import { resolveSshHostWindowKey } from './ssh/resolve-destination';
 import { listSshConfigHosts, RecentSshDestinations } from './ssh/ssh-config';
 import { mainWindowChromeOptions, zoomFactorForLevel } from './window-chrome';
+import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 /**
@@ -99,7 +100,10 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
                     logger: options.logger,
                     onUnsavedEditorsReply: input.onUnsavedEditorsReply,
                     revealSessionInWorkbench: async (sessionId) => {
-                        await input.connection.request('session.select', { sessionId });
+                        await input.connection.request('session.select', {
+                            sessionId,
+                            windowKey: PRIMARY_WINDOW_KEY,
+                        });
                         await input.focusWindow();
                     },
                     openSettingsInWorkbench: async (target) => {
@@ -116,6 +120,7 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
                     getSupervisor: () => input.connection,
                     getWindow: input.window,
                     sendEvent: input.sendEvent,
+                    windowPresence: input.windowPresence,
                     workbenchRootAuthority: createWorkbenchRootAuthority({
                         environment: 'ssh',
                         focusWindow: input.focusWindow,

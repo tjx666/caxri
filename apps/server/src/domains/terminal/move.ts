@@ -4,7 +4,6 @@ import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { MobileTerminalMutationQueue } from '../mobile';
-import { resolveWindowKey } from '../window-presence';
 import type { TerminalManager } from './manager';
 
 /**
@@ -37,11 +36,10 @@ export function createTerminalMoveHandler(dependencies: {
                 terminalId,
                 () => {
                     const sourceSessionId = database.getTerminal(terminalId)?.sessionId;
-                    const resolvedWindowKey = resolveWindowKey(windowKey);
-                    const moved = database.moveTerminalToNewSession(terminalId, resolvedWindowKey);
+                    const moved = database.moveTerminalToNewSession(terminalId, windowKey);
                     terminals.reassignSession(terminalId, moved.session.id);
                     if (sourceSessionId) coordinator.probeSessionPrimaryAgent(sourceSessionId);
-                    noteWindowViewing(resolvedWindowKey, moved.session.id);
+                    if (windowKey) noteWindowViewing(windowKey, moved.session.id);
                     if (moved.terminal.provider) coordinator.probeTerminal(moved.terminal.id);
                     send({
                         event: 'state.changed',

@@ -39,7 +39,7 @@ describe('desktop notifications', () => {
         const notifications = createDesktopNotifications({
             currentDirectory: '/caxri/out/main',
             focusMainWindow: vi.fn(),
-            getWindow: () => {},
+            isSessionShown: () => false,
             handleMainMethod: vi.fn(),
             isPackaged: false,
             logger: () => ({ write }) as unknown as StructuredLogger,

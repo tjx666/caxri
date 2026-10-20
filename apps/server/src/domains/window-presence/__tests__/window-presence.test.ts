@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { WindowPresence } from '../window-presence';
+import { PRESENCE_SEED_GRACE_MS, WindowPresence } from '../window-presence';
 
 function fixture() {
     let clock = 0;
@@ -93,5 +93,65 @@ describe('WindowPresence', () => {
         expect([...presence.visibleSessionIds()]).toEqual(['c']);
         presence.dropConnection('missing');
         expect([...presence.visibleSessionIds()]).toEqual(['c']);
+    });
+
+    it('replaces every row of a connection with one seed and notifies once', () => {
+        const { onCurrent, onVisible, presence } = fixture();
+        presence.report('c1', report('w1', 'a'));
+        presence.report('c2', report('w9', 'z'));
+        onVisible.mockClear();
+        onCurrent.mockClear();
+
+        presence.seed('c1', [
+            { ...report('w1', 'b', { focused: true }), focusedAt: 5 },
+            { ...report('w2', 'c'), focusedAt: 9 },
+        ]);
+
+        expect([...presence.visibleSessionIds()].toSorted((x, y) => x.localeCompare(y))).toEqual([
+            'b',
+            'c',
+            'z',
+        ]);
+        expect(presence.currentSessionId()).toBe('b');
+        expect(onVisible).toHaveBeenCalledTimes(1);
+        expect(onCurrent).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the focus history of a seed, so the most recently focused window stays current', () => {
+        const { presence } = fixture();
+        presence.seed('c1', [
+            { ...report('w1', 'a'), focusedAt: 10 },
+            { ...report('w2', 'b'), focusedAt: 20 },
+        ]);
+        expect(presence.currentSessionId()).toBe('b');
+    });
+
+    it('treats an empty seed as a confirmed absence of windows', () => {
+        let now = 0;
+        const presence = new WindowPresence(() => now);
+        expect(presence.isSettled()).toBe(false);
+        presence.seed('c1', []);
+        expect(presence.isSettled()).toBe(true);
+        expect(presence.visibleSessionIds().size).toBe(0);
+        now = 1;
+        expect(presence.isSettled()).toBe(true);
+    });
+
+    it('is unsettled until the first report or the grace period, and again after the last connection drops', () => {
+        let now = 1000;
+        const presence = new WindowPresence(() => now);
+        expect(presence.isSettled()).toBe(false);
+        now += PRESENCE_SEED_GRACE_MS;
+        expect(presence.isSettled()).toBe(true);
+
+        presence.report('c1', report('w1', 'a'));
+        expect(presence.isSettled()).toBe(true);
+        presence.dropConnection('c1');
+        expect(presence.isSettled()).toBe(false);
+        presence.report('c2', report('w1', 'a'));
+        expect(presence.isSettled()).toBe(true);
+        presence.close('c2', 'w1');
+        // A window that closed is a confirmed absence, not a gap to wait out.
+        expect(presence.isSettled()).toBe(true);
     });
 });

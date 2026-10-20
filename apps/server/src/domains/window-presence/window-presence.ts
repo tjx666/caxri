@@ -1,4 +1,4 @@
-import type { WindowPresenceReport } from '@caxri/protocol';
+import type { WindowPresenceReport, WindowPresenceSeed } from '@caxri/protocol';
 
 interface PresenceRow {
     focused: boolean;
@@ -14,6 +14,14 @@ interface PresenceRow {
 type Listener = () => void;
 
 const EMPTY: ReadonlySet<string> = new Set();
+
+/**
+ * How long a Server with no reported window waits for Desktop Main to seed one before it accepts "no window is visible"
+ * as the truth. A restarted Server and a Desktop that just lost its connection both start with no rows; Main reseeds
+ * within the reconnect handshake, so this only bounds the case where it never does (Desktop quit, or a headless
+ * Server), after which background Terminals may suspend again.
+ */
+export const PRESENCE_SEED_GRACE_MS = 30_000;
 
 /**
  * Derives the visible set and the current Session from every reported window row.
@@ -65,8 +73,15 @@ export class WindowPresence {
     private readonly currentListeners = new Set<Listener>();
     private visible: ReadonlySet<string> = EMPTY;
     private current: string | undefined;
+    /**
+     * Until this time, an empty presence means "not reported yet" rather than "confirmed no visible window". Any report
+     * or seed ends the wait; losing every connection that had rows starts it again.
+     */
+    private unsettledUntil: number;
 
-    constructor(private readonly now: () => number = Date.now) {}
+    constructor(private readonly now: () => number = Date.now) {
+        this.unsettledUntil = now() + PRESENCE_SEED_GRACE_MS;
+    }
 
     /**
      * Recomputes the two derived values and notifies only on a real change, so a focus flip between two windows that
@@ -85,11 +100,21 @@ export class WindowPresence {
     }
 
     /**
+     * Whether the Server may trust the visible set enough to act on its absences (suspending a Terminal because no
+     * window shows its Session). False in the gap between a Server start or Desktop connection loss and the first
+     * report, so the gap is not mistaken for every window being hidden.
+     */
+    isSettled(): boolean {
+        return this.rows.size > 0 || this.now() >= this.unsettledUntil;
+    }
+
+    /**
      * Upserts one window's state. A window gaining focus is stamped so recency can pick it later.
      */
     report(connectionId: string, report: WindowPresenceReport): void {
         const windows = this.rows.get(connectionId) ?? new Map<string, PresenceRow>();
         this.rows.set(connectionId, windows);
+        this.unsettledUntil = 0;
         const previous = windows.get(report.windowKey);
         const gainedFocus = report.focused && !previous?.focused;
         windows.set(report.windowKey, {
@@ -98,6 +123,31 @@ export class WindowPresence {
             viewingSessionId: report.viewingSessionId,
             visible: report.visible,
         });
+        this.settle();
+    }
+
+    /**
+     * Replaces every row of the connection in one step with Main's snapshot, so the visible set and the current Session
+     * change once, from the old state straight to the full new one.
+     */
+    seed(connectionId: string, seed: WindowPresenceSeed['windows']): void {
+        this.unsettledUntil = 0;
+        if (seed.length === 0) this.rows.delete(connectionId);
+        else
+            this.rows.set(
+                connectionId,
+                new Map(
+                    seed.map((window) => [
+                        window.windowKey,
+                        {
+                            focused: window.focused,
+                            focusedAt: window.focusedAt,
+                            viewingSessionId: window.viewingSessionId,
+                            visible: window.visible,
+                        },
+                    ]),
+                ),
+            );
         this.settle();
     }
 
@@ -130,7 +180,9 @@ export class WindowPresence {
      * Forgets every window of a connection that closed or was replaced.
      */
     dropConnection(connectionId: string): void {
-        if (this.rows.delete(connectionId)) this.settle();
+        if (!this.rows.delete(connectionId)) return;
+        if (this.rows.size === 0) this.unsettledUntil = this.now() + PRESENCE_SEED_GRACE_MS;
+        this.settle();
     }
 
     visibleSessionIds(): ReadonlySet<string> {

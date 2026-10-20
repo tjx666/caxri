@@ -75,6 +75,7 @@ function setup(
                 route: {
                     isRecovering: () => false,
                     onEventsReady: () => {},
+                    windowKey: 'main',
                     transport: {} as never,
                 },
                 sendEvent: (event) => events.push(event),

@@ -12,6 +12,7 @@ import type {
     ServerDesktopCredential,
     ServerDesktopLaunch,
     ServerManifest,
+    WindowPresenceSeed,
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 
@@ -39,6 +40,11 @@ export interface DesktopServerSupervisor {
 /**
  * Construction options for `DesktopServerConnection`, including the seams an SSH Host connection replaces.
  */
+/**
+ * Sends the presence snapshot on the attachment that is being established.
+ */
+export type WindowPresenceSeedSender = (seed: WindowPresenceSeed) => Promise<unknown>;
+
 export interface DesktopServerConnectionOptions {
     agentHooksPath?: string;
     /**
@@ -75,6 +81,13 @@ export interface DesktopServerConnectionOptions {
     e2eAgentPolicy?: E2EAgentPolicy;
     handleCommand: DesktopCommandHandler;
     logger: StructuredLogger;
+    /**
+     * Runs on every attachment, after the Desktop lease is held and before the connection serves any request or replays
+     * any event. Main uses it to send its windows' presence as one snapshot, so the Server never acts on a missing view
+     * of what is on screen after a restart or reconnect. A rejection fails the attachment, which the reconnect loop
+     * retries.
+     */
+    seedAttachment?: (seed: WindowPresenceSeedSender) => Promise<void>;
     serverArtifactRoot: string;
     userDataPath: string;
 }
@@ -110,8 +123,23 @@ export function waitForServerExit(supervisor: DesktopServerSupervisor, pid: numb
 }
 
 /**
- * Attaches as Desktop with every command handler run inside its Desktop command scope. Without `discoverDesktop` this
- * reads the local profile's discovery files; otherwise it uses the documents that hook returns.
+ * Opens the Desktop client. Without `discoverDesktop` this reads the local profile's discovery files; otherwise it uses
+ * the documents that hook returns.
+ */
+async function connectClient(
+    options: DesktopServerConnectionOptions,
+    handleCommand: Parameters<typeof connectDesktopToServer>[2],
+): Promise<ServerClient> {
+    if (!options.discoverDesktop)
+        return connectDesktopToServer(options.userDataPath, options.desktopId, handleCommand);
+    const { credential, manifest } = await options.discoverDesktop();
+    return connectDesktopWithCredential(manifest, credential, options.desktopId, handleCommand);
+}
+
+/**
+ * Attaches as Desktop with every command handler run inside its Desktop command scope, then seeds Main's window
+ * presence before the client is handed to the connection, so nothing is served on an attachment the Server has no view
+ * for.
  */
 export async function connectDesktopAttachment(
     options: DesktopServerConnectionOptions,
@@ -121,8 +149,15 @@ export async function connectDesktopAttachment(
         consumeTarget: () => Promise<DesktopTargetPayload>,
     ): Promise<unknown> =>
         runDesktopCommand(operation, () => options.handleCommand(operation, consumeTarget));
-    if (!options.discoverDesktop)
-        return connectDesktopToServer(options.userDataPath, options.desktopId, handleCommand);
-    const { credential, manifest } = await options.discoverDesktop();
-    return connectDesktopWithCredential(manifest, credential, options.desktopId, handleCommand);
+    const client = await connectClient(options, handleCommand);
+    try {
+        await options.seedAttachment?.((seed) =>
+            client.requestServerOperation('window.seedPresence', seed),
+        );
+    } catch (error) {
+        // The attachment is not usable without its presence, so the reconnect loop retries it from scratch.
+        client.close();
+        throw error;
+    }
+    return client;
 }

@@ -121,6 +121,50 @@ describe('Desktop Server attachment and build identity', () => {
         );
     });
 
+    it('seeds presence on the new attachment before it serves any request', async () => {
+        const client = mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
+        const order: string[] = [];
+        client.requestServerOperation.mockImplementation((method: string) => {
+            order.push(method);
+            return Promise.resolve(null);
+        });
+        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+        (
+            connection as unknown as {
+                options: {
+                    seedAttachment: (send: (seed: unknown) => Promise<unknown>) => Promise<void>;
+                };
+            }
+        ).options.seedAttachment = async (send) => {
+            await expect(connection.request('app.health')).rejects.toMatchObject({
+                code: 'UNAVAILABLE',
+            });
+            await send({ windows: [] });
+        };
+
+        await connection.start();
+
+        expect(order).toEqual(['window.seedPresence']);
+        expect(client.requestServerOperation).toHaveBeenCalledWith('window.seedPresence', {
+            windows: [],
+        });
+    });
+
+    it('fails the attachment, and closes its client, when the presence seed is rejected', async () => {
+        const client = mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
+        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+        (
+            connection as unknown as { options: { seedAttachment: () => Promise<void> } }
+        ).options.seedAttachment = () => Promise.reject(new Error('seed failed'));
+
+        await expect(connection.start()).rejects.toThrow('seed failed');
+
+        expect(client.close).toHaveBeenCalled();
+        await expect(connection.request('app.health')).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+        });
+    });
+
     it('shares a pending attachment and retries after that attachment rejects', async () => {
         const { connection } = createConnection();
         const connect = vi

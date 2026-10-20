@@ -2,6 +2,7 @@ import type { CommandId, ServerEvent } from '@caxri/protocol';
 
 import type { MainMethodHandlerOptions } from './main-methods';
 import type { DesktopServerConnection } from './server-connection';
+import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
 /**
  * Runs a command in the Workbench Renderer, which owns every command-backed menu item.
@@ -28,7 +29,10 @@ export function createWorkbenchHandOffs(options: {
 }): Pick<MainMethodHandlerOptions, 'openSettingsInWorkbench' | 'revealSessionInWorkbench'> {
     return {
         revealSessionInWorkbench: async (sessionId) => {
-            await options.supervisor().request('session.select', { sessionId });
+            await options.supervisor().request('session.select', {
+                sessionId,
+                windowKey: PRIMARY_WINDOW_KEY,
+            });
             await options.focusMainWindow();
         },
         openSettingsInWorkbench: async (target) => {

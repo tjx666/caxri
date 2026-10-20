@@ -565,6 +565,11 @@ export const logEventCatalog = {
         closeFailed: 'window.close_failed',
         closed: 'window.closed',
         created: 'window.created',
+        /**
+         * A presence row Main could not deliver to a connected Server; a lost connection is excluded because the reseed
+         * on re-attach covers it.
+         */
+        presenceReportFailed: 'window.presence_report_failed',
         readyToShow: 'window.ready_to_show',
         renderProcessCrashLoop: 'window.render_process_crash_loop',
         renderProcessGone: 'window.render_process_gone',

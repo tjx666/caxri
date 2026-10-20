@@ -6,7 +6,6 @@ import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager, TerminalSuspensionService } from '../terminal';
 import { terminalDirectoryIdentity } from '../terminal';
-import { resolveWindowKey } from '../window-presence';
 
 /**
  * A "Fork from here" Chat keeps the source Chat's stored permission level and plan mode in place of the Project default
@@ -27,12 +26,15 @@ export function inheritChatPermission(
  * Whether a new Session also becomes a window's active one. `preserve` leaves every window alone (remote creation,
  * background work); otherwise the named window opens the Session as a new entry of its strip.
  */
-export type CreationSelection = 'preserve' | { windowKey: string };
+export type CreationSelection = 'preserve' | { windowKey?: string };
 
 const selectionOptions = (selection: CreationSelection) =>
     selection === 'preserve'
         ? { selection }
-        : { selection: 'select' as const, windowKey: selection.windowKey };
+        : {
+              selection: 'select' as const,
+              ...(selection.windowKey !== undefined && { windowKey: selection.windowKey }),
+          };
 
 export function createSessionCreator(dependencies: {
     coordinator: Pick<AgentCoordinator, 'prepareTerminalStart' | 'probeTerminal'>;
@@ -165,7 +167,7 @@ export function createSessionCreator(dependencies: {
         }
         if (selection !== 'preserve') {
             database.selectSession(created.session.id, selection.windowKey);
-            noteWindowViewing(selection.windowKey, created.session.id);
+            if (selection.windowKey) noteWindowViewing(selection.windowKey, created.session.id);
             terminalSuspension.observeVisibility();
         }
         if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
@@ -194,7 +196,7 @@ export function createSessionCreationHandlers(
             createSessionForProject(
                 projectId,
                 defaultAgent,
-                { windowKey: resolveWindowKey(windowKey) },
+                { ...(windowKey !== undefined && { windowKey }) },
                 undefined,
                 surface,
             ),
