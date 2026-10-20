@@ -249,7 +249,12 @@ describe('Status panel merge action', () => {
             command: { command: 'caxri.sendToAgent', title: 'Resolve Conflicts with Agent' },
         });
         expect(action?.command.arguments?.[0]).toContain('rebase `feat/merge`');
-        expect(action?.confirmation).toBeUndefined();
+        // Resolve rewrites the branch's history on GitHub, so it asks first and names the force-push.
+        expect(action?.confirmation).toMatchObject({
+            title: 'Send #42 to the Agent to resolve conflicts?',
+            confirmLabel: 'Send to Agent',
+        });
+        expect(action?.confirmation?.message).toContain('force-push the branch with lease');
     });
 
     it('names a conflict in the row accessible label', () => {
