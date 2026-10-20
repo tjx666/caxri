@@ -216,6 +216,11 @@ ignores `NO_PROXY` and silently attaches to its own HeadlessChrome instead of Ca
 set. Stripping them is the only reliable workaround; see
 <https://github.com/tjx666/caxri/issues/204>.
 
+Also pass `--session <name unique to this task>` on every agent-browser call. The default session
+is one daemon shared by every agent on the machine, so a sibling session's command can rebind it to
+another worktree's page between two of yours; the `__caxriWorktree` check below then fails
+intermittently, or a screenshot captures the wrong window.
+
 A shared `Electron/...` user agent across every Caxri window means the UA alone never proves which
 worktree's window a connection reached: a sibling worktree's dev instance passes the same check.
 Verify both before trusting any result:
