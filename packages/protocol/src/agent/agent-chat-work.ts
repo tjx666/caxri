@@ -23,6 +23,20 @@ export type AgentChatWorkItem = Extract<
     { type: 'command' | 'fileChange' | 'reasoning' | 'toolCall' }
 >;
 
+const WORK_ITEM_TYPES: ReadonlySet<AgentChatItem['type']> = new Set<AgentChatWorkItem['type']>([
+    'command',
+    'fileChange',
+    'reasoning',
+    'toolCall',
+]);
+
+/**
+ * Whether an item is a piece of work (a thought, command, tool call, or change) rather than a message or notice.
+ */
+export function isAgentChatWorkItem(item: AgentChatItem): item is AgentChatWorkItem {
+    return WORK_ITEM_TYPES.has(item.type);
+}
+
 /**
  * Successful work stays quiet below three seconds; unsuccessful work retains every known duration. Running clocks keep
  * their independent one-second threshold.

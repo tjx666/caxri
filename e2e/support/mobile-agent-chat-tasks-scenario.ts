@@ -25,7 +25,7 @@ const STOP_COLOR = draculaTheme.colors.danger;
 const runningShell = (snapshot: AgentChatSnapshot): AgentChatTask | undefined =>
     (snapshot.tasks ?? []).find((task) => task.kind === 'shell' && task.status === 'running');
 
-const centerOf = (bounds: ScreenBounds) => ({
+export const centerOf = (bounds: ScreenBounds) => ({
     x: Math.floor((bounds.left + bounds.right) / 2),
     y: Math.floor((bounds.top + bounds.bottom) / 2),
 });
@@ -37,7 +37,7 @@ const isSameBounds = (a: ScreenBounds, b: ScreenBounds): boolean =>
  * Waits until Stop is drawn in `region` at the same place on two reads in a row, and returns where. The sheet grows as
  * a running task's output arrives, which moves Stop with it. `isWanted` rejects a Stop the screen showed before.
  */
-const waitForStop = async (
+export const waitForStop = async (
     serial: string,
     region: ScreenBounds,
     isWanted: (stop: ScreenBounds) => boolean = () => true,

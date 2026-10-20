@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatTask } from '../agent-chat-contract.js';
+import type { AgentChatItem, AgentChatTask } from '../agent-chat-contract.js';
 import {
+    agentChatTaskActivity,
     agentChatTaskElapsedMs,
     agentChatTaskGlyphStatus,
+    agentChatTaskIdentity,
     agentChatTasksByItem,
     agentChatTasksLatestEnd,
     agentChatTaskStrip,
     agentChatTaskStripView,
+    agentChatTaskSummary,
+    agentChatTaskUsageSummary,
     canStopAgentChatTask,
     findAgentChatTask,
     isAgentChatTaskTitleCommand,
 } from '../agent-chat-tasks.js';
+import { isAgentChatSubagentItem } from '../agent-chat-work.js';
 
 function task(overrides: Partial<AgentChatTask> & Pick<AgentChatTask, 'id'>): AgentChatTask {
     return {
@@ -165,5 +170,83 @@ describe('agentChatTasksLatestEnd', () => {
             ]),
         ).toBe(40);
         expect(agentChatTasksLatestEnd([])).toBeUndefined();
+    });
+});
+
+function toolCall(id: string, name: string): AgentChatItem {
+    return { id, type: 'toolCall', name, status: 'completed' };
+}
+
+describe('isAgentChatSubagentItem', () => {
+    it.each(['Task', 'Agent', 'spawnAgent', 'spawn_agent'])('recognizes %s rows', (name) => {
+        expect(isAgentChatSubagentItem(toolCall('item-1', name))).toBe(true);
+    });
+
+    it('ignores other tools and non-tool items', () => {
+        expect(isAgentChatSubagentItem(toolCall('item-1', 'Read'))).toBe(false);
+        expect(isAgentChatSubagentItem(toolCall('item-1', 'TaskOutput'))).toBe(false);
+        expect(
+            isAgentChatSubagentItem({
+                id: 'item-1',
+                type: 'command',
+                command: 'ls',
+                output: '',
+                status: 'completed',
+            }),
+        ).toBe(false);
+    });
+});
+
+describe('agentChatTaskUsageSummary', () => {
+    it('summarizes reported usage', () => {
+        expect(
+            agentChatTaskUsageSummary(
+                task({ id: 'a', usage: { totalTokens: 12_300, toolUses: 1 } }),
+            ),
+        ).toBe('12.3k tokens · 1 tool use');
+        expect(agentChatTaskUsageSummary(task({ id: 'a', usage: { toolUses: 4 } }))).toBe(
+            '4 tool uses',
+        );
+        expect(agentChatTaskUsageSummary(task({ id: 'a' }))).toBeUndefined();
+    });
+
+    it('prefers billed tokens and adds their cost', () => {
+        const reported = task({ id: 'a', usage: { totalTokens: 64_900, toolUses: 12 } });
+        expect(
+            agentChatTaskUsageSummary(reported, undefined, { totalTokens: 683_130, cost: '$0.21' }),
+        ).toBe('683k tokens · $0.21 · 12 tool uses');
+    });
+});
+
+describe('task presentation', () => {
+    it('joins the agent type and model', () => {
+        expect(agentChatTaskIdentity({ agentType: 'general-purpose', model: 'sonnet' })).toBe(
+            'general-purpose · sonnet',
+        );
+        expect(agentChatTaskIdentity({})).toBeUndefined();
+        expect(agentChatTaskIdentity(undefined)).toBeUndefined();
+    });
+
+    it('describes what a task is doing', () => {
+        expect(agentChatTaskActivity({ status: 'running', summary: ' Reading files ' })).toBe(
+            'Reading files',
+        );
+        expect(agentChatTaskActivity({ status: 'running', lastToolName: 'Grep' })).toBe(
+            'Using Grep',
+        );
+        expect(
+            agentChatTaskActivity({ status: 'completed', lastToolName: 'Grep' }),
+        ).toBeUndefined();
+        expect(agentChatTaskActivity({ status: 'stopped', summary: 'Stopped' })).toBeUndefined();
+    });
+
+    it('drops a summary that only restates how the task ended', () => {
+        expect(agentChatTaskSummary({ status: 'stopped', summary: ' Stopped ' })).toBeUndefined();
+        expect(
+            agentChatTaskSummary({ status: 'completed', summary: 'Done' }, 'Done'),
+        ).toBeUndefined();
+        expect(
+            agentChatTaskSummary({ status: 'completed', summary: 'Found 3 issues' }, 'Done'),
+        ).toBe('Found 3 issues');
     });
 });

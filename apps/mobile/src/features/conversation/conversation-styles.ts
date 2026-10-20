@@ -43,6 +43,12 @@ export const conversationStyles = StyleSheet.create({
      * A running row's whole title (verb and subject) as one line under the activity highlight.
      */
     toolTitle: { flex: 1, minWidth: 0 },
+    /**
+     * A row with an activity line: the title line above it, both sharing the space between glyph and trailing facts.
+     */
+    toolTitleStack: { flex: 1, gap: 2, minWidth: 0, paddingVertical: 6 },
+    toolTitleLine: { alignItems: 'center', flexDirection: 'row', gap: 8, minWidth: 0 },
+    toolActivity: { fontSize: 12, lineHeight: 16 },
     toolLiveLabel: { fontSize: 13, fontWeight: '500' },
     toolSubject: { flex: 1, fontSize: 13, minWidth: 0 },
     toolChipSlot: { alignItems: 'flex-start', flex: 1, minWidth: 0 },

@@ -338,7 +338,14 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   background shells (`2 running · 1 ended`) and opens a sheet listing each with its glyph, title,
   elapsed time, and status glyph; a task opens its command and live output tail in the same sheet,
   and a control device gets `Stop` beside each running task the provider can stop. A Chat without
-  tasks shows no pill. The line above the composer says what the Chat is doing with Desktop's
+  tasks shows no pill. A subagent's own timeline row follows its task rather than the tool call
+  that started it: a muted second line says what it is doing (`Using Grep`, or the provider's
+  progress line), and the trailing glyph shows the task's status, with the elapsed time only once it
+  ended so a long subagent never redraws the timeline every second. The row's sheet adds a
+  `Subagent` section with the task's status, `Stop`, its type, model, and usage
+  (`general-purpose · haiku · 12.3k tokens · 2 tool uses`), and its transcript in order: each
+  message, and each step as a read-only work row (`MOB-CHAT-26`). The line above the composer says
+  what the Chat is doing with Desktop's
   words under the same sweep (`Mapping the terrain…`, `Compacting context…`) and, after a second, how long
   the turn has run; waiting on the user shows a still question glyph in the warning color instead.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command

@@ -20,6 +20,7 @@ import {
     foldAgentChatTurn,
     isAgentChatAwaitingReply,
     isAgentChatItemVisible,
+    isAgentChatWorkItem,
     parseAgentMcpToolName,
 } from '@caxri/protocol';
 
@@ -80,16 +81,6 @@ export type AgentChatTimelineEntry =
 
 type FlatEntry = Exclude<AgentChatTimelineEntry, { kind: 'turn' }>;
 
-const WORK_ITEM_TYPES: ReadonlySet<AgentChatItem['type']> = new Set([
-    'command',
-    'fileChange',
-    'reasoning',
-    'toolCall',
-]);
-
-const isWorkItem = (item: AgentChatItem): item is AgentChatWorkItem =>
-    WORK_ITEM_TYPES.has(item.type);
-
 function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): FlatEntry[] {
     const entries: FlatEntry[] = [];
     let work: AgentChatWorkItem[] = [];
@@ -100,7 +91,7 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
     };
     for (const item of items) {
         if (!isAgentChatItemVisible(item)) continue;
-        if (isWorkItem(item)) {
+        if (isAgentChatWorkItem(item)) {
             work.push(item);
             continue;
         }

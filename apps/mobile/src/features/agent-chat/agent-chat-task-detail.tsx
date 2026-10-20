@@ -11,11 +11,12 @@ import {
 } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
+import { agentChatTaskIdentity, agentChatTaskUsageSummary } from '@caxri/protocol';
 import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
-import { ConversationMarkdown } from '../conversation/conversation-markdown';
+import { AgentChatTaskTranscript } from './agent-chat-task-transcript';
 import type { AgentChatTaskDetailContent } from './agent-chat-tasks';
 import {
     agentChatTaskDetailContent,
@@ -145,8 +146,8 @@ const TaskOutput = ({ text, theme }: { text: string; theme: MobileTheme }) => {
 };
 
 /**
- * The read part of a task's detail: a shell's output tail, a subagent's latest message, or a note, followed by the
- * notes the read carried; until the read answers, a spinner or the read error.
+ * The read part of a task's detail: a shell's output tail, a subagent's transcript, or a note, followed by the notes
+ * the read carried; until the read answers, a spinner or the read error.
  */
 const TaskDetailContent = ({
     content,
@@ -173,8 +174,8 @@ const TaskDetailContent = ({
         <>
             {content.kind === 'output' ? (
                 <TaskOutput text={content.text} theme={theme} />
-            ) : content.kind === 'message' ? (
-                <ConversationMarkdown text={content.text} theme={theme} />
+            ) : content.kind === 'transcript' ? (
+                <AgentChatTaskTranscript entries={content.entries} theme={theme} />
             ) : (
                 <Text style={[styles.note, { color: theme.muted }]}>{content.text}</Text>
             )}
@@ -188,10 +189,10 @@ const TaskDetailContent = ({
 };
 
 /**
- * What one background task did and is doing: its status and elapsed time, Stop, the command line, the provider's
- * summary, and a shell's output tail or a subagent's latest message, read through `mobile.agentChat.readTask` and kept
- * current while it runs (`useAgentChatTaskDetail`). The Background work sheet and a background command's detail show
- * the same body.
+ * What one background task did and is doing: its status and elapsed time, Stop, a subagent's type, model, and usage,
+ * the command line, the provider's summary, and a shell's output tail or a subagent's transcript, read through
+ * `mobile.agentChat.readTask` and kept current while it runs (`useAgentChatTaskDetail`). The Background work sheet and
+ * a background command's detail show the same body.
  */
 export const AgentChatTaskDetailBody = ({
     canControl,
@@ -213,6 +214,10 @@ export const AgentChatTaskDetailBody = ({
     const content = detail ? agentChatTaskDetailContent(task, detail, t) : undefined;
     const stopError = stopper.errorFor(task.id);
     const command = task.command ?? (row.isCommandTitle ? task.title : undefined);
+    const facts = [
+        task.kind === 'agent' ? agentChatTaskIdentity(task) : undefined,
+        agentChatTaskUsageSummary(task, t),
+    ].filter(Boolean);
     return (
         <View style={styles.body} testID="agent-chat-task-detail">
             <View accessible style={styles.facts}>
@@ -229,6 +234,14 @@ export const AgentChatTaskDetailBody = ({
                     />
                 ) : null}
             </View>
+            {facts.length > 0 ? (
+                <Text
+                    style={[styles.identity, { color: theme.muted }]}
+                    testID="agent-chat-task-facts"
+                >
+                    {facts.join(' · ')}
+                </Text>
+            ) : null}
             {stopError ? (
                 <Text accessibilityRole="alert" style={[styles.note, { color: theme.danger }]}>
                     {stopError}
@@ -280,6 +293,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
     },
     summary: { fontSize: 14, lineHeight: 20 },
+    identity: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16, marginTop: -6 },
     output: { borderRadius: 8, flexGrow: 0, maxHeight: 320 },
     outputText: {
         fontFamily: MONOSPACE,

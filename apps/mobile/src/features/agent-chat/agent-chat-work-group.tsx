@@ -2,9 +2,10 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { AgentChatWorkItem } from '@caxri/protocol';
+import type { AgentChatTask, AgentChatWorkItem } from '@caxri/protocol';
 import {
     agentChatFileChangesStat,
+    agentChatTaskActivity,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
     agentChatWorkKind,
@@ -19,6 +20,9 @@ import { conversationStyles } from '../conversation/conversation-styles';
 import { ConversationToolGroupView } from '../conversation/conversation-tool-group';
 import { ConversationStatusGlyph } from '../conversation/conversation-tool-icon';
 import { ConversationToolRowView } from '../conversation/conversation-tool-row';
+import { AgentChatTaskStatusGlyph } from './agent-chat-task-detail';
+import { useAgentChatTaskLink } from './agent-chat-task-links';
+import { agentChatTaskRow } from './agent-chat-tasks';
 import { AgentChatWorkDetail } from './agent-chat-work-detail';
 import type { AgentChatWorkRowPresentation } from './agent-chat-work-row';
 import { agentChatWorkRowPresentation } from './agent-chat-work-row';
@@ -76,6 +80,31 @@ const WorkFacts = ({
 };
 
 /**
+ * What a row that started a subagent says after its title: the task's own status, which outlives the tool call that
+ * started it (a background subagent keeps running after its row returned), and once it ended, how long it took. A
+ * running row shows no clock, so a long subagent does not redraw the timeline every second; its sheet counts up.
+ */
+const TaskFacts = ({ task, theme }: { task: AgentChatTask; theme: MobileTheme }) => {
+    const { t } = useTranslation();
+    const { elapsed, statusLabel } = agentChatTaskRow(task, task.endedAt ?? 0, t);
+    const isRunning = task.status === 'running';
+    return (
+        <View
+            accessibilityLabel={elapsed && !isRunning ? `${statusLabel}, ${elapsed}` : statusLabel}
+            accessible
+            style={styles.taskFacts}
+        >
+            <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
+            {elapsed && !isRunning ? (
+                <Text style={[conversationStyles.toolDuration, { color: theme.muted }]}>
+                    {elapsed}
+                </Text>
+            ) : null}
+        </View>
+    );
+};
+
+/**
  * One piece of Chat work: its glyph, a present-tense verb under the activity highlight while it runs (`Running pnpm
  * test`, `Thinking`), else its settled verb and subject with the facts above. Memoized so a streamed reply elsewhere in
  * the turn does not redraw finished rows.
@@ -91,10 +120,17 @@ const AgentChatWorkRow = memo(
         theme: MobileTheme;
     }) => {
         const { t } = useTranslation();
+        // A background shell keeps its own row facts (`Background`, `Exit N`); a subagent's row follows its task.
+        const linked = useAgentChatTaskLink(item.id)?.task;
+        const task = linked?.kind === 'agent' ? linked : undefined;
         const row = agentChatWorkRowPresentation(item, t);
+        const activity = task && agentChatTaskActivity(task, t);
         return (
             <ConversationToolRowView
-                accessibilityLabel={row.accessibilityLabel}
+                accessibilityLabel={
+                    activity ? `${row.accessibilityLabel} ${activity}.` : row.accessibilityLabel
+                }
+                activity={activity}
                 isCodeSubject={row.isCodeSubject}
                 isRunning={row.isRunning}
                 kind={row.kind}
@@ -102,7 +138,13 @@ const AgentChatWorkRow = memo(
                 subject={row.subject}
                 testID={`agent-chat-work-${item.id}`}
                 theme={theme}
-                trailing={row.isRunning ? null : <WorkFacts item={item} row={row} theme={theme} />}
+                trailing={
+                    task ? (
+                        <TaskFacts task={task} theme={theme} />
+                    ) : row.isRunning ? null : (
+                        <WorkFacts item={item} row={row} theme={theme} />
+                    )
+                }
                 verb={row.verb}
             />
         );
@@ -187,6 +229,7 @@ export const AgentChatWorkGroup = ({
 
 const styles = StyleSheet.create({
     fact: { fontSize: 12, fontVariant: ['tabular-nums'] },
+    taskFacts: { alignItems: 'center', flexDirection: 'row', gap: 6 },
     tag: { borderRadius: 4, fontSize: 11, overflow: 'hidden', paddingHorizontal: 4 },
     exit: { fontFamily: 'monospace', fontSize: 11, fontVariant: ['tabular-nums'] },
 });

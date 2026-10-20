@@ -94,10 +94,6 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.undo.forkSuccessNamed': '已分叉到新会话：{{title}}',
 
     // Background tasks
-    'agentChat.tasks.usageTokens': '{{tokens}} 个 Token',
-    'agentChat.tasks.toolUseOne': '1 次工具调用',
-    'agentChat.tasks.toolUseOther': '{{count}} 次工具调用',
-    'agentChat.tasks.usingTool': '正在使用 {{tool}}',
     'agentChat.tasks.shell': 'Shell',
     'agentChat.tasks.subagent': '子 Agent',
     'agentChat.tasks.openTask': '打开 {{title}}',

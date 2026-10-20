@@ -177,6 +177,13 @@ describe('Claude Code background work in Agent Chat', () => {
                 ),
             ).toBe(true);
         });
+        // A running subagent's `task_progress` names the tool it last used and what it has spent so far.
+        const progressed = await until((snapshot) => snapshot.tasks?.[0]?.lastToolName === 'Grep');
+        expect(progressed.tasks?.[0]).toMatchObject({
+            agentType: 'general-purpose',
+            model: 'fake-haiku',
+            usage: { totalTokens: 12_300, toolUses: 2 },
+        });
 
         await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) =>
@@ -191,7 +198,9 @@ describe('Claude Code background work in Agent Chat', () => {
         expect(interrupted.tasks?.[0]).toMatchObject({ status: 'running', canStop: true });
 
         await service.stopTask(terminal.id, taskId);
-        await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
+        const stopped = await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
+        // The stop frame reports zero usage; what progress counted survives it.
+        expect(stopped.tasks?.[0]?.usage).toMatchObject({ totalTokens: 12_300, toolUses: 2 });
     });
 
     it('keeps a background shell running when a later turn is interrupted', async () => {
@@ -257,7 +266,7 @@ describe('Claude Code background work in Agent Chat', () => {
             canStop: false,
             lastToolName: 'Agent',
             summary: 'Finished',
-            usage: { totalTokens: 0, toolUses: 0, durationMs: 300 },
+            usage: { totalTokens: 900, toolUses: 3, durationMs: 300 },
         });
     });
 

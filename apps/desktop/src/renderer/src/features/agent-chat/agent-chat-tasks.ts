@@ -4,29 +4,9 @@ import type {
     AgentChatTaskSnapshot,
     AgentUsageReadout,
 } from '@caxri/protocol';
-import { formatTokens } from '@caxri/protocol';
+import { isAgentChatSubagentItem } from '@caxri/protocol';
 
-import type { Translate } from '../../i18n';
-import { translate } from '../../i18n';
 import { agentUsageCostLabel } from '../status-bar/agent-usage-label';
-
-/**
- * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
- * Codex's collab `spawnAgent` (also seen as `spawn_agent`).
- */
-const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent', 'spawnagent']);
-
-function normalizedToolName(name: string): string {
-    return name.toLowerCase().replaceAll(/[^a-z]/gu, '');
-}
-
-/**
- * Whether a timeline row started a subagent. Such a row stays openable even when the live task list no longer knows it
- * (a resumed conversation), because `agentChat.readTask` rebuilds a subagent from the item that started it.
- */
-export function isAgentChatSubagentItem(item: AgentChatItem): boolean {
-    return item.type === 'toolCall' && SUBAGENT_TOOL_NAMES.has(normalizedToolName(item.name));
-}
 
 /**
  * Whether a work row's subagent or background shell still runs, which keeps the row out of a `Ran N commands` summary
@@ -99,56 +79,15 @@ export function agentChatTurnSubagents(
 }
 
 /**
- * `683k tokens · $0.21 · 8 tool uses`. `billed` is the subagent's own transcript priced like the status bar
- * (`terminal.agentTaskUsage`); its tokens replace the provider's `totalTokens`, which counts only the latest request's
- * context, so the figure beside the cost is the one the cost was computed from and adds up to the conversation's total.
- * Without it the provider's count is shown and no cost.
+ * A subagent's own transcript priced like the status bar (`terminal.agentTaskUsage`), in the shape
+ * `agentChatTaskUsageSummary` shows beside the provider's tool count. Absent until the read answers.
  */
-export function agentChatTaskUsageSummary(
-    task: Pick<AgentChatTask, 'usage'>,
-    t: Translate,
-    billed?: AgentUsageReadout | null,
-): string | undefined {
-    const parts: string[] = [];
-    const { toolUses } = task.usage ?? {};
-    const totalTokens = billed ? billed.tokens.total : task.usage?.totalTokens;
-    if (totalTokens)
-        parts.push(t('agentChat.tasks.usageTokens', { tokens: formatTokens(totalTokens) }));
-    const cost = billed && agentUsageCostLabel(billed);
-    if (cost) parts.push(cost);
-    if (toolUses)
-        parts.push(
-            toolUses === 1
-                ? t('agentChat.tasks.toolUseOne')
-                : t('agentChat.tasks.toolUseOther', { count: toolUses }),
-        );
-    return parts.length > 0 ? parts.join(' · ') : undefined;
-}
-
-/**
- * `general-purpose · claude-sonnet-4-5`, the facts a subagent tab header shows under its title.
- */
-export function agentChatTaskIdentity(
-    task: Pick<AgentChatTask, 'agentType' | 'model'> | undefined,
-): string | undefined {
-    const parts = [task?.agentType, task?.model].filter(Boolean);
-    return parts.length > 0 ? parts.join(' · ') : undefined;
-}
-
-/**
- * What a running task is doing now, for its timeline row and strip entry: the provider's progress line, else the tool
- * it last used. An ended task shows its final summary. A component passes its `t` so the label follows a language
- * change; `translate` is only the fallback for callers that have not been given one.
- */
-export function agentChatTaskActivity(
-    task: Pick<AgentChatTask, 'lastToolName' | 'status' | 'summary'>,
-    t: Translate = translate,
-): string | undefined {
-    const summary = task.summary?.trim();
-    if (summary) return summary;
-    if (task.status === 'running' && task.lastToolName)
-        return t('agentChat.tasks.usingTool', { tool: task.lastToolName });
-    return undefined;
+export function agentChatTaskBilledUsage(
+    billed: AgentUsageReadout | null | undefined,
+): { totalTokens: number; cost: string | undefined } | undefined {
+    return billed
+        ? { totalTokens: billed.tokens.total, cost: agentUsageCostLabel(billed) }
+        : undefined;
 }
 
 /**

@@ -6,6 +6,7 @@ import {
     agentChatFileChangesStat,
     agentChatOutputLanguage,
     agentChatReasoningTitle,
+    agentChatTaskActivity,
     agentChatTaskGlyphStatus,
     agentChatToolCallArguments,
     agentChatWorkDuration,
@@ -54,7 +55,6 @@ import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from './agent-chat-task-open-button';
-import { agentChatTaskActivity } from './agent-chat-tasks';
 import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from './agent-chat-timeline';
 import { AgentChatToolArguments } from './agent-chat-tool-arguments';
 import { AgentChatWorkFileLink } from './agent-chat-work-file-link';

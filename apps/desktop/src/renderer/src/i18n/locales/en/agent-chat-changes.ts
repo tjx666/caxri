@@ -97,10 +97,6 @@ export const agentChatChanges = {
     'agentChat.undo.forkSuccessNamed': 'Forked into a new Session: {{title}}',
 
     // Background tasks
-    'agentChat.tasks.usageTokens': '{{tokens}} tokens',
-    'agentChat.tasks.toolUseOne': '1 tool use',
-    'agentChat.tasks.toolUseOther': '{{count}} tool uses',
-    'agentChat.tasks.usingTool': 'Using {{tool}}',
     'agentChat.tasks.shell': 'Shell',
     'agentChat.tasks.subagent': 'Subagent',
     'agentChat.tasks.openTask': 'Open {{title}}',

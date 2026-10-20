@@ -1,10 +1,17 @@
-import type { AgentChatSnapshot, AgentChatTask, AgentChatTaskSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatSnapshot,
+    AgentChatTask,
+    AgentChatTaskSnapshot,
+    AgentChatWorkItem,
+} from '@caxri/protocol';
 import {
     agentChatTaskElapsedMs,
     agentChatTaskStripView,
+    agentChatTaskSummary,
     canStopAgentChatTask,
     formatNoticeableDuration,
     isAgentChatTaskTitleCommand,
+    isAgentChatWorkItem,
 } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
@@ -99,8 +106,7 @@ export function agentChatTaskRow(
     const title = task.title || kindLabel;
     const statusLabel = t(STATUS_LABELS[task.status]);
     const elapsed = formatNoticeableDuration(agentChatTaskElapsedMs(task, now), t) ?? undefined;
-    // An all-whitespace summary is no summary.
-    const summary = task.summary?.trim() ? task.summary.trim() : undefined;
+    const summary = agentChatTaskSummary(task, statusLabel);
     return {
         title,
         isCommandTitle: isAgentChatTaskTitleCommand(task),
@@ -123,14 +129,20 @@ export const agentChatTaskReadError = (t: Translate = translate): string =>
     t('chat.tasks.readError');
 
 /**
- * What a task's detail shows under its facts: a shell's output tail, or a subagent's latest message, which is what
- * Desktop's task tab ends on. `notes` say what the phone's copy leaves out or no longer follows.
+ * One step of a subagent's transcript as the phone lists it: what it said, or a piece of its work drawn like a Chat
+ * work row. Its prompt and anything else the parent already shows are left out.
  */
-export interface AgentChatTaskDetailContent {
-    kind: 'output' | 'message' | 'empty';
-    text: string;
-    notes: string[];
-}
+export type AgentChatTaskTranscriptEntry =
+    | { kind: 'message'; id: string; text: string }
+    | { kind: 'work'; id: string; item: AgentChatWorkItem };
+
+/**
+ * What a task's detail shows under its facts: a shell's output tail, or a subagent's transcript in order, which is what
+ * Desktop's task tab shows. `notes` say what the phone's copy leaves out or no longer follows.
+ */
+export type AgentChatTaskDetailContent =
+    | { kind: 'output' | 'empty'; text: string; notes: string[] }
+    | { kind: 'transcript'; entries: AgentChatTaskTranscriptEntry[]; notes: string[] };
 
 export function agentChatTaskDetailContent(
     task: Pick<AgentChatTask, 'kind' | 'status'>,
@@ -157,12 +169,14 @@ export function agentChatTaskDetailContent(
                   notes,
               };
     }
-    // The phone's Hermes runtime lacks ES2023 `findLast`.
-    for (let index = detail.items.length - 1; index >= 0; index -= 1) {
-        const item = detail.items[index];
-        if (item.type === 'agentMessage' && item.text.trim() !== '')
-            return { kind: 'message', text: item.text, notes };
-    }
+    const entries = detail.items.flatMap((item): AgentChatTaskTranscriptEntry[] => {
+        if (item.type === 'agentMessage')
+            return item.text.trim() === ''
+                ? []
+                : [{ kind: 'message', id: item.id, text: item.text }];
+        return isAgentChatWorkItem(item) ? [{ kind: 'work', id: item.id, item }] : [];
+    });
+    if (entries.length > 0) return { kind: 'transcript', entries, notes };
     return {
         kind: 'empty',
         text: t(isRunning ? 'chat.tasks.noMessagesYet' : 'chat.tasks.noMessages'),

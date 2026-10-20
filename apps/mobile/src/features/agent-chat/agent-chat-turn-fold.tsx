@@ -1,6 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { AgentChatWorkItem } from '@caxri/protocol';
 import { ChevronRight, CircleStop, CircleX } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
@@ -8,15 +9,19 @@ import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { agentChatTurnTone } from './agent-chat-timeline';
+import { AgentChatWorkGroup } from './agent-chat-work-group';
 
 type TurnEntry = Extract<AgentChatTimelineEntry, { kind: 'turn' }>;
+
+const NO_WORK: readonly AgentChatWorkItem[] = [];
 
 /**
  * A finished turn's `Worked for 2m 1s` row over a hairline, as Desktop folds a turn. Tapping it shows or hides the work
  * and commentary the turn folded; the list owns that state by turn id (`toggleAgentChatExpansion`), so a recycled row
  * never opens another turn. A failed or stopped turn carries its tone in the glyph and the words. A turn with nothing
  * to fold draws the same row without the chevron, and it does not respond to taps. The tappable row spans the
- * timeline's width at 48dp, so the short label is never the only place a tap lands.
+ * timeline's width at 48dp, so the short label is never the only place a tap lands. Under a collapsed row, each
+ * subagent the turn started keeps its own row, which says what it is doing and opens it.
  */
 export const AgentChatTurnFold = ({
     entry,
@@ -74,6 +79,14 @@ export const AgentChatTurnFold = ({
                     {content}
                 </View>
             )}
+            {entry.subagents ? (
+                <AgentChatWorkGroup
+                    id={`${entry.id}:subagents`}
+                    rows={entry.subagents}
+                    summarized={NO_WORK}
+                    theme={theme}
+                />
+            ) : null}
         </View>
     );
 };
