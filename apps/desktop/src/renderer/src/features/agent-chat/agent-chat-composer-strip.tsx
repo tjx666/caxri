@@ -60,7 +60,6 @@ export function AgentChatComposerStrip({
                     turns={snapshot?.turns}
                 />
                 <AgentChatTaskStrip
-                    latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
                     tasks={snapshot?.tasks}
                     terminalId={terminalId}
                     onOpenTask={onOpenTask}

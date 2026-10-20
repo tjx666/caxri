@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
-import { agentChatTasksLatestEnd, findAgentChatTask } from '@caxri/protocol';
-import { ChevronLeft, ChevronUp, Layers, X } from 'lucide-react-native';
+import { findAgentChatTask } from '@caxri/protocol';
+import { ChevronLeft, ChevronUp, Layers } from 'lucide-react-native';
 
 import { BottomSheet } from '../../components/bottom-sheet';
 import { IconButton } from '../../components/icon-button';
@@ -133,15 +133,13 @@ const TaskList = ({
 };
 
 /**
- * The one-row pill counting background tasks; it opens the sheet, and offers dismissal once nothing runs.
+ * The one-row pill counting background tasks while any runs; it opens the sheet.
  */
 const TaskPill = ({
-    onDismiss,
     onOpen,
     pill,
     theme,
 }: {
-    onDismiss: () => void;
     onOpen: () => void;
     pill: AgentChatTaskPill;
     theme: MobileTheme;
@@ -170,17 +168,6 @@ const TaskPill = ({
                 </Text>
                 <ChevronUp color={theme.muted} size={14} />
             </Pressable>
-            {pill.isDismissible ? (
-                <IconButton
-                    accessibilityLabel={t('chat.tasks.dismiss')}
-                    color={theme.muted}
-                    icon={X}
-                    onPress={onDismiss}
-                    size={16}
-                    testID="agent-chat-tasks-dismiss"
-                    theme={theme}
-                />
-            ) : null}
         </View>
     );
 };
@@ -272,10 +259,10 @@ const TaskSheet = ({
 
 /**
  * Background work, just above the composer, as Desktop's strip: a one-row pill counting the subagents and background
- * shells that run (and those that ended), shown by the same rule (`agentChatTaskStripView`) and dismissible once
- * nothing runs. Tapping it opens a sheet listing each task with its elapsed time and, for a control device, Stop; a
- * task opens its command and live output in the same sheet. Stopping the turn never stops these. A saved copy shows no
- * pill, since its tasks may have ended long ago. The strip also publishes the Chat's tasks for background command rows
+ * shells that run (and those that ended), shown by the same rule (`agentChatTaskStripView`) and gone once nothing runs.
+ * Tapping it opens a sheet listing each task with its elapsed time and, for a control device, Stop; a task opens its
+ * command and live output in the same sheet. Stopping the turn never stops these. A saved copy shows no pill, since its
+ * tasks may have ended long ago. The strip also publishes the Chat's tasks for background command rows
  * (`agent-chat-task-links.ts`), so a row's detail can show the same live output.
  */
 export const AgentChatTaskStrip = ({
@@ -293,7 +280,6 @@ export const AgentChatTaskStrip = ({
     const terminalId = snapshot?.terminalId;
     const tasks = savedAt === undefined ? snapshot?.tasks : undefined;
     const canControl = deviceRole === 'control' && isConnected;
-    const [dismissedAt, setDismissedAt] = useState<number | undefined>();
     const [isOpen, setOpen] = useState(false);
     const [openTask, setOpenTask] = useState<AgentChatTask | undefined>();
     const stopper = useAgentChatTaskStop(terminalId ?? '');
@@ -308,7 +294,7 @@ export const AgentChatTaskStrip = ({
         return () => withdrawAgentChatTaskLinks(terminalId);
     }, [terminalId]);
 
-    const pill = agentChatTaskPill(savedAt === undefined ? snapshot : undefined, dismissedAt, t);
+    const pill = agentChatTaskPill(savedAt === undefined ? snapshot : undefined, t);
     if (!terminalId || (!pill && !isOpen)) return null;
     // The open task follows the Chat's copy; one the phone's list no longer carries keeps its last known state.
     const shownTask = openTask && (findAgentChatTask(tasks, openTask.id) ?? openTask);
@@ -318,14 +304,7 @@ export const AgentChatTaskStrip = ({
     };
     return (
         <>
-            {pill ? (
-                <TaskPill
-                    onDismiss={() => setDismissedAt(agentChatTasksLatestEnd(pill.ended))}
-                    onOpen={() => setOpen(true)}
-                    pill={pill}
-                    theme={theme}
-                />
-            ) : null}
+            {pill ? <TaskPill onOpen={() => setOpen(true)} pill={pill} theme={theme} /> : null}
             {isOpen ? (
                 <TaskSheet
                     canControl={canControl}

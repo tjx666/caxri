@@ -453,9 +453,8 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
   in a Background work list above the composer, where each opens or stops on its own, and an `N
-ended` count expands the ended ones. When the last task ends, the strip collapses to that `N
-ended` row for the work that ended since the latest turn started, with a Dismiss button, instead
-  of vanishing before the user sees how it ended; the next turn or Dismiss clears it
+ended` count expands the ended ones. The strip is live status, not a log: it disappears once the
+  last task ends, since the Agent reports the result in the conversation
   (`agentChatTaskStripView` in `packages/protocol/src/agent/agent-chat-tasks.ts`, shared with the
   phone; see [Mobile](#mobile)). A finished task stays reachable from its
   timeline row.
@@ -1059,8 +1058,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   200). Above its composer the phone shows a one-row `Background work` pill (`2 running · 1 ended`)
   by Desktop's strip rule (`agentChatTaskStripView`, shared from
   `packages/protocol/src/agent/agent-chat-tasks.ts` with the elapsed time and Stop rules), so a
-  Chat without tasks (Grok Build) shows none, and once nothing runs the pill keeps the work that
-  ended during the latest turn behind a Dismiss button. Tapping it opens a sheet listing running
+  Chat without tasks (Grok Build) shows none, and the pill disappears once nothing runs. Tapping it opens a sheet listing running
   and ended tasks with their glyph, title (a command line in monospace), elapsed time, and status;
   a task opens its detail in the same sheet: the command, the provider's summary, and a shell's
   output tail or a subagent's latest message. A background command row's detail shows the same

@@ -218,7 +218,6 @@ export const chat = {
     'chat.tasks.backgroundShell': 'Background shell',
     'chat.tasks.backgroundWork': 'Background work',
     'chat.tasks.close': 'Close background work',
-    'chat.tasks.dismiss': 'Dismiss ended background work',
     'chat.tasks.earlierMessages': 'Earlier messages are on your computer.',
     'chat.tasks.earlierOutput': 'Earlier output is on your computer.',
     'chat.tasks.empty': 'No background work.',

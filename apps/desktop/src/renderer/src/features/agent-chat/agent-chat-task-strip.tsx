@@ -3,12 +3,11 @@ import { useId, useState } from 'react';
 import type { AgentChatTask } from '@caxri/protocol';
 import {
     agentChatTaskGlyphStatus,
-    agentChatTasksLatestEnd,
     agentChatTaskStripView,
     canStopAgentChatTask,
     isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
-import { Square, X } from 'lucide-react';
+import { Square } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
@@ -119,20 +118,15 @@ function TaskEntry({
  * Background work, the top section of the composer's strip: each running subagent and background shell with its elapsed
  * time, opened in its side tab on click (where the host can open one) and stoppable on its own. Stopping the turn with
  * Esc never stops these. Ended work is counted, and the count reveals it (most recent first, with how each ended) so a
- * task that just finished is one click from its tab without hunting for its timeline row. When the last task ends, the
- * strip collapses to that count until the next turn starts or the user dismisses it (see `agentChatTaskStripView`),
- * instead of disappearing at once.
+ * task that just finished is one click from its tab without hunting for its timeline row. Once the last task ends the
+ * strip disappears (`agentChatTaskStripView`): the Agent reports the result in the conversation, and each task's
+ * timeline row still opens it.
  */
 export function AgentChatTaskStrip({
-    latestTurnStartedAt,
     tasks,
     terminalId,
     onOpenTask,
 }: {
-    /**
-     * When the Chat's latest turn started; work that ended before it no longer keeps an idle strip open.
-     */
-    latestTurnStartedAt: number | undefined;
     tasks: readonly AgentChatTask[] | undefined;
     terminalId: string;
     /**
@@ -141,12 +135,11 @@ export function AgentChatTaskStrip({
     onOpenTask: ((taskId: string) => void) | undefined;
 }) {
     const { t } = useTranslation();
-    const [dismissedAt, setDismissedAt] = useState<number | undefined>();
-    const view = agentChatTaskStripView(tasks, { dismissedAt, latestTurnStartedAt });
+    const view = agentChatTaskStripView(tasks);
     const [isShowingEnded, setShowingEnded] = useState(false);
     const endedListId = useId();
     if (!view) return null;
-    const { running, ended, isDismissible } = view;
+    const { running, ended } = view;
     return (
         <section
             aria-label={t('agentChat.tasks.backgroundWork')}
@@ -158,9 +151,8 @@ export function AgentChatTaskStrip({
                     {t('agentChat.tasks.backgroundWork')}
                 </span>
                 <span className="shrink-0 tabular-nums">
-                    {running.length > 0 &&
-                        t('agentChat.tasks.runningCount', { count: running.length })}
-                    {running.length > 0 && ended.length > 0 && ' · '}
+                    {t('agentChat.tasks.runningCount', { count: running.length })}
+                    {ended.length > 0 && ' · '}
                     {ended.length > 0 && (
                         <button
                             aria-controls={endedListId}
@@ -173,35 +165,17 @@ export function AgentChatTaskStrip({
                         </button>
                     )}
                 </span>
-                {isDismissible && (
-                    <Tooltip content={t('common.dismiss')}>
-                        <Button
-                            aria-label={t('agentChat.tasks.dismissEnded')}
-                            className="-mr-1.5 size-5 shrink-0 text-muted hover:text-foreground"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                                setShowingEnded(false);
-                                setDismissedAt(agentChatTasksLatestEnd(ended));
-                            }}
-                        >
-                            <X aria-hidden="true" className="size-3" />
-                        </Button>
-                    </Tooltip>
-                )}
             </h3>
-            {running.length > 0 && (
-                <ul className="m-0 flex max-h-32 list-none flex-col overflow-y-auto p-0">
-                    {running.map((task) => (
-                        <TaskEntry
-                            key={task.id}
-                            task={task}
-                            terminalId={terminalId}
-                            onOpenTask={onOpenTask}
-                        />
-                    ))}
-                </ul>
-            )}
+            <ul className="m-0 flex max-h-32 list-none flex-col overflow-y-auto p-0">
+                {running.map((task) => (
+                    <TaskEntry
+                        key={task.id}
+                        task={task}
+                        terminalId={terminalId}
+                        onOpenTask={onOpenTask}
+                    />
+                ))}
+            </ul>
             <DisclosureMotion
                 animate
                 expanded={isShowingEnded && ended.length > 0}
@@ -210,10 +184,7 @@ export function AgentChatTaskStrip({
             >
                 <ul
                     aria-label={t('agentChat.tasks.endedList')}
-                    className={cn(
-                        'm-0 flex max-h-32 list-none flex-col overflow-y-auto p-0',
-                        running.length > 0 && 'mt-1 border-t border-border pt-1',
-                    )}
+                    className="m-0 mt-1 flex max-h-32 list-none flex-col overflow-y-auto border-t border-border p-0 pt-1"
                 >
                     {ended.map((task) => (
                         <TaskEntry

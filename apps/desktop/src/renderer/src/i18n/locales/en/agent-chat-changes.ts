@@ -113,7 +113,6 @@ export const agentChatChanges = {
     'agentChat.tasks.backgroundWork': 'Background work',
     'agentChat.tasks.runningCount': '{{count}} running',
     'agentChat.tasks.endedCount': '{{count}} ended',
-    'agentChat.tasks.dismissEnded': 'Dismiss ended background work',
     'agentChat.tasks.endedList': 'Ended background work',
     'agentChat.tasks.earlierHidden':
         'Earlier messages are not shown: Chat keeps only the recent part of a long subagent conversation.',
