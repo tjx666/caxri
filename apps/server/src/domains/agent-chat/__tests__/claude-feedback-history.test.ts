@@ -47,7 +47,7 @@ describe('Claude feedback restored from Terminal history', () => {
         expect(items).toEqual([
             expect.objectContaining({
                 type: 'notice',
-                kind: 'warning',
+                kind: 'output',
                 title: 'example-mod · /display-test',
                 message: 'example-mod: First line.\nSecond line.',
             }),

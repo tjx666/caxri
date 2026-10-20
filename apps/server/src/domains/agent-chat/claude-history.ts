@@ -14,9 +14,10 @@ import {
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
+import { claudeResponseUsage } from './claude-context';
 import { claudeFeedbackItems, claudeFeedbackToolUseId } from './claude-feedback';
 import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
-import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
+import { claudeAssistantItems, ClaudeBlockIds, claudeUsageTokens, text } from './claude-items';
 import { claudeCompaction } from './claude-system-notices';
 import { settleClaudeToolItem } from './claude-tool-results';
 
@@ -37,6 +38,11 @@ interface HistoryState {
     items: Map<string, AgentChatItem>;
     turnId?: string;
     plan?: AgentChatPlan;
+    /**
+     * The newest main-thread response that reported usage, and when it arrived. A compaction after it clears it: the
+     * context it measured, and the prompt cache written for it, are gone.
+     */
+    lastResponse?: { message: Json; at: number };
 }
 
 function parseRecord(line: string): Json | undefined {
@@ -52,6 +58,7 @@ function parseRecord(line: string): Json | undefined {
 function applySystemRecord(state: HistoryState, record: Json): void {
     const { turnId } = state;
     if (record.subtype === 'compact_boundary') {
+        delete state.lastResponse;
         const id = clip(`compact:${text(record.uuid)}`, 200);
         const compaction = claudeCompaction(record);
         state.items.set(id, {
@@ -197,6 +204,13 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
         }
         const mapped = claudeAssistantItems(message, state.turnId, state.ids);
         const time = recordTime(record);
+        if (
+            !state.isSidechain &&
+            record.isSidechain !== true &&
+            time.createdAt !== undefined &&
+            (claudeUsageTokens(message.usage) ?? 0) > 0
+        )
+            state.lastResponse = { message, at: time.createdAt };
         for (const item of mapped.items) {
             // A streamed reply spans several records; the first one is when it began.
             const createdAt = state.items.get(item.id)?.createdAt ?? time.createdAt;
@@ -341,7 +355,11 @@ export function claudeHistoryOperations(
     resumeAt?: string,
 ): AgentChatPatchOperation[] {
     const state = readHistory(transcript, false, resumeAt);
-    const { turns, items, plan } = state;
+    const { turns, items, plan, lastResponse } = state;
+    // A resumed Chat reports no usage until its next reply, so the composer's cache notice would stay hidden exactly
+    // when it matters most: reopening a conversation whose prompt cache expired while it sat idle.
+    const usage =
+        lastResponse && claudeResponseUsage(lastResponse.message, {}, undefined, lastResponse.at);
     const operations: AgentChatPatchOperation[] = [{ op: 'reset' }];
     for (const item of items.values())
         operations.push({ op: 'upsertItem', item: closeDanglingItem(item) ?? item });
@@ -352,6 +370,7 @@ export function claudeHistoryOperations(
             activeTurnId: null,
             ...(isTailTruncated && { truncated: true }),
             ...(plan && { plan }),
+            ...(usage && { usage }),
         },
     });
     return operations;

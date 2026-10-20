@@ -1,4 +1,9 @@
-import type { ProjectStatusRepository, TreeItemAction, TreeItemActionTone } from 'caxri';
+import type {
+    ProjectStatusRepository,
+    PullRequestMergeBlocker,
+    TreeItemAction,
+    TreeItemActionTone,
+} from 'caxri';
 import { ThemeIcon } from 'caxri';
 
 import { fixFailedChecksAction, resolveConflictsAction } from './status-agent-actions';
@@ -61,38 +66,12 @@ export function isMergePullRequestArguments(value: unknown): value is MergePullR
     );
 }
 
-const unsettledCheckStates = new Set<PullRequest['state']>(['pending', 'queued', 'unknown']);
-
 /**
- * Why an open pull request is not plainly ready to merge, as a closed reason. Checks come from the panel's own filtered
- * rollup rather than from GitHub's `unstable`: a check the user chose to ignore is already a decision, and asking again
- * about it would turn every merge into a confirmation. `conflicting` blocks the merge outright; every other reason only
- * asks first.
+ * Why an open pull request is not plainly ready to merge. Caxri computes it once from the panel's own filtered rollup
+ * (a check the user chose to ignore is already a decision) and GitHub's merge state, so the phone gives the same
+ * answer. `conflicting` blocks the merge outright; every other reason only asks first.
  */
-export type MergeBlocker =
-    | 'conflicting'
-    | 'checks-failed'
-    | 'checks-running'
-    | 'branch-protection'
-    | 'behind'
-    | 'mergeability-unknown';
-
-export function mergeBlocker(pullRequest: PullRequest): MergeBlocker | undefined {
-    if (pullRequest.mergeState === 'conflicting') return 'conflicting';
-    if (pullRequest.state === 'failure' || pullRequest.state === 'cancelled')
-        return 'checks-failed';
-    if (unsettledCheckStates.has(pullRequest.state)) return 'checks-running';
-    switch (pullRequest.mergeState) {
-        case 'blocked':
-            return 'branch-protection';
-        case 'behind':
-            return 'behind';
-        case 'unknown':
-            return 'mergeability-unknown';
-        default:
-            return undefined;
-    }
-}
+type MergeBlocker = PullRequestMergeBlocker;
 
 const mergeBlockerLabels: Record<MergeBlocker, string> = {
     'conflicting': 'Has conflicts',
@@ -107,7 +86,7 @@ const mergeBlockerLabels: Record<MergeBlocker, string> = {
  * The hover card's `merge` row: `Ready to merge`, or the one reason it is not.
  */
 export function mergeReadinessLabel(pullRequest: PullRequest): string {
-    const blocker = mergeBlocker(pullRequest);
+    const blocker = pullRequest.mergeBlocker;
     return blocker ? mergeBlockerLabels[blocker] : 'Ready to merge';
 }
 
@@ -206,7 +185,7 @@ function draftAction(pullRequest: PullRequest): TreeItemAction {
  * The PR row's inline merge button, for an open or draft pull request. A draft gets the explaining button from
  * {@link draftAction}; a conflict, which GitHub would refuse to merge, gets the Agent's `Resolve` button instead, since
  * resolving it is the next step. Otherwise the button needs the head Caxri knows, so the merge is pinned to it. A merge
- * with clean checks is a single click by design, with no confirmation; every other {@link mergeBlocker} reason (failing
+ * with clean checks is a single click by design, with no confirmation; every other {@link MergeBlocker} reason (failing
  * or running checks, unmet protection, a stale base) asks first.
  *
  * Server Core projects the method the merge will use (`mergeMethod`, chosen by the same function the merge calls), so
@@ -220,7 +199,7 @@ function mergePullRequestAction(
 ): TreeItemAction | undefined {
     if (pullRequest.lifecycle === 'draft') return draftAction(pullRequest);
     if (pullRequest.lifecycle !== 'open') return undefined;
-    const blocker = mergeBlocker(pullRequest);
+    const blocker = pullRequest.mergeBlocker;
     if (blocker === 'conflicting') return resolveConflictsAction(repo, pullRequest);
     if (!pullRequest.headSha) return undefined;
     const reason =
@@ -272,7 +251,7 @@ export function pullRequestRowActions(
 ): TreeItemAction[] | undefined {
     const merge = mergePullRequestAction(repo, pullRequest);
     const fix =
-        pullRequest.lifecycle === 'open' && mergeBlocker(pullRequest) === 'checks-failed'
+        pullRequest.lifecycle === 'open' && pullRequest.mergeBlocker === 'checks-failed'
             ? fixFailedChecksAction(repo, pullRequest)
             : undefined;
     const actions = [fix, merge].filter((action) => action !== undefined);
@@ -305,7 +284,7 @@ export function currentBranchMerge(
             kind: 'refuse',
             message: `${label} is ${pullRequest.lifecycle ?? 'not open'}, so there is nothing to merge.`,
         };
-    const blocker = mergeBlocker(pullRequest);
+    const blocker = pullRequest.mergeBlocker;
     if (blocker === 'conflicting')
         return {
             kind: 'refuse',

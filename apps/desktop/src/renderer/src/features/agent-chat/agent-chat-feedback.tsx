@@ -18,10 +18,14 @@ const FEEDBACK_TONES = {
         card: 'border-warning/30 bg-warning/5',
         size: 'size-4',
     },
+    /**
+     * Command and provider output, such as `/rename` confirming the new title: informative, not a problem, so it stays
+     * neutral like the Terminal's own plain output.
+     */
     output: {
         Icon: SquareTerminal,
-        color: 'text-warning',
-        card: 'border-warning/30 bg-warning/5',
+        color: 'text-muted',
+        card: 'border-border bg-surface',
         size: 'size-4',
     },
 };

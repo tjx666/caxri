@@ -92,6 +92,10 @@ interface CreateMobileAcceptanceFixtureInput {
      * for Changes.
      */
     seedProject?: (root: string) => Promise<void>;
+    /**
+     * Extra launch environment, such as a `PATH` that puts a fake `gh` ahead of the host's.
+     */
+    env?: NodeJS.ProcessEnv;
     dropSubmitAcknowledgement?: boolean;
     delayPairingResult?: boolean;
     isolatedProjectHome?: boolean;
@@ -165,6 +169,7 @@ export async function createMobileAcceptanceFixture(
             userDataDir: userData,
             testRootPath: allowedRoot,
             env: {
+                ...input.env,
                 ...(input.mode === 'waiting' && { CAXRI_E2E_AGENT_HOOKS: '1' }),
                 ...(input.dropSubmitAcknowledgement && {
                     CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE: '1',

@@ -29,16 +29,23 @@ export function AgentChatFeedback({
     item: Extract<AgentChatItem, { type: 'notice' }>;
     theme: MobileTheme;
 }) {
-    const color = item.kind === 'error' ? theme.danger : theme.warning;
-    const Icon =
+    // Command output (`/rename` confirming a title) is informative, so it stays neutral like Desktop's.
+    const tone =
         item.kind === 'error'
-            ? CircleAlert
+            ? { Icon: CircleAlert, color: theme.danger, border: theme.danger }
             : item.kind === 'warning'
-              ? TriangleAlert
-              : SquareTerminal;
+              ? { Icon: TriangleAlert, color: theme.warning, border: theme.warning }
+              : { Icon: SquareTerminal, color: theme.muted, border: theme.border };
+    const { Icon, color } = tone;
     return (
         <View
-            style={[styles.card, { borderColor: color, backgroundColor: theme.surface }]}
+            style={[
+                styles.card,
+                {
+                    borderColor: tone.border,
+                    backgroundColor: theme.surface,
+                },
+            ]}
             testID={`chat-feedback-${item.id}`}
         >
             <Icon color={color} size={18} />

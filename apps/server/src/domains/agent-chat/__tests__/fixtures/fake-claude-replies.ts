@@ -18,6 +18,17 @@ export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
             stdout: '',
             output: '',
         });
+        // Claude Code 2.1.304 reports a UserPromptSubmit Hook that blocks with exit code 2 as a failed
+        // `hook_response` right before the blocked notice; the Chat must show the block once.
+        io.system('hook_response', {
+            hook_name: 'UserPromptSubmit',
+            hook_event: 'UserPromptSubmit',
+            outcome: 'error',
+            exit_code: 2,
+            stderr: 'Example input blocked.\n',
+            stdout: '',
+            output: 'Example input blocked.\n',
+        });
         io.system('informational', {
             level: 'warning',
             content: 'Prompt dropped by a hook.',

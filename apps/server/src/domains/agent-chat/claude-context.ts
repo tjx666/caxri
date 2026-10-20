@@ -34,12 +34,14 @@ export function claudeCacheTtlMinutes(usage: unknown): 5 | 60 | undefined {
 /**
  * The usage one assistant response reports, or `undefined` when it carries no token count. The previous breakdown stays
  * until a context refresh replaces it, so an open context meter keeps its rows instead of collapsing to the total for
- * every response of a running turn.
+ * every response of a running turn. `respondedAt` is when the response arrived: now for a live one, the transcript
+ * record's time for one replayed from history.
  */
 export function claudeResponseUsage(
     message: Record<string, unknown>,
     snapshot: Pick<AgentChatSnapshot, 'model' | 'usage'>,
     contextWindow: number | undefined,
+    respondedAt = Date.now(),
 ): AgentChatUsage | undefined {
     const totalTokens = claudeUsageTokens(message.usage);
     if (totalTokens === undefined) return undefined;
@@ -56,7 +58,7 @@ export function claudeResponseUsage(
                 claudeCacheTtlMinutes(message.usage) ??
                 cacheTtlMinutes ??
                 DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
-            lastResponseAt: Date.now(),
+            lastResponseAt: respondedAt,
         },
         stringField(message.model) ?? snapshot.model,
     );

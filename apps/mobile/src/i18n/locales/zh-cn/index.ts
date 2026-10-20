@@ -13,6 +13,7 @@ import { inbox } from './inbox';
 import { pairing } from './pairing';
 import { panels } from './panels';
 import { projects } from './projects';
+import { pullRequest } from './pull-request';
 import { screens } from './screens';
 import { sessions } from './sessions';
 import { settings } from './settings';
@@ -32,6 +33,7 @@ export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...pairing,
     ...panels,
     ...projects,
+    ...pullRequest,
     ...screens,
     ...sessions,
     ...settings,

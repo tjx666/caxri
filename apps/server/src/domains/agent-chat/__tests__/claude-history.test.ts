@@ -317,6 +317,41 @@ describe('Claude transcript history', () => {
         ]);
     });
 
+    it("restores the last reply's usage and time, so a reopened Chat can warn about an expired cache", () => {
+        const usage = {
+            input_tokens: 10,
+            cache_read_input_tokens: 90_000,
+            output_tokens: 500,
+            cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 },
+        };
+        const transcript = [
+            prompt('u1', null, 'hello'),
+            {
+                type: 'assistant',
+                uuid: 'a1',
+                parentUuid: 'u1',
+                timestamp: '2026-10-11T10:00:00.000Z',
+                message: { id: 'm1', model: 'claude-opus-5-5', usage, content: [] },
+            },
+        ];
+        expect(claudeHistoryOperations(jsonl(transcript), false).at(-1)).toMatchObject({
+            state: {
+                usage: {
+                    totalTokens: 90_510,
+                    cacheTtlMinutes: 60,
+                    lastResponseAt: Date.parse('2026-10-11T10:00:00.000Z'),
+                },
+            },
+        });
+        const compacted = [
+            ...transcript,
+            { type: 'system', subtype: 'compact_boundary', uuid: 'c1', parentUuid: 'a1' },
+        ];
+        expect(claudeHistoryOperations(jsonl(compacted), false).at(-1)).not.toHaveProperty(
+            'state.usage',
+        );
+    });
+
     it('marks a cut-off transcript as truncated', () => {
         expect(claudeHistoryOperations('', true).at(-1)).toMatchObject({
             state: { truncated: true },

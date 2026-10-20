@@ -81,8 +81,8 @@ export function claudeFeedbackItems(
         const plugin = stringField(command.plugin);
         title =
             [plugin, name ? `/${name}` : undefined].filter(Boolean).join(' · ') || 'Command output';
+        // Plain command output, as the Terminal prints it; a warning tone made `/rename` read like a problem.
         content = commandText(message.local_command_source ?? message.content);
-        kind = 'warning';
     } else {
         switch (message.subtype) {
             case 'informational': {
@@ -131,6 +131,10 @@ export function claudeFeedbackItems(
             }
             case 'hook_response': {
                 if (message.outcome !== 'error') return [];
+                // Exit code 2 is how a UserPromptSubmit Hook blocks a prompt, not a failure. The live stream follows it
+                // with the `informational` blocked notice that history also keeps, so mapping it here showed the block
+                // twice (red, then yellow) until a reload (verified with Claude Code 2.1.304).
+                if (message.hook_event === 'UserPromptSubmit' && message.exit_code === 2) return [];
                 const name = clip(stringField(message.hook_name) ?? 'Unknown', 100);
                 const code =
                     typeof message.exit_code === 'number' && Number.isSafeInteger(message.exit_code)

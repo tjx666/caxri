@@ -2,13 +2,20 @@ import { z } from 'zod';
 
 import { hexColorSchema } from './color.js';
 import { logLevelSchema } from './log-level.js';
-import { projectStatusStateSchema, pullRequestMergeStateSchema } from './project-status-state.js';
+import {
+    projectStatusStateSchema,
+    pullRequestMergeBlockerSchema,
+    pullRequestMergeStateSchema,
+} from './project-status-state.js';
 import {
     pullRequestUnavailableSchema,
     sessionPullRequestStateSchema,
 } from './session-pull-request.js';
 
-export { pullRequestMergeStateSchema } from './project-status-state.js';
+export {
+    pullRequestMergeBlockerSchema,
+    pullRequestMergeStateSchema,
+} from './project-status-state.js';
 
 /**
  * Project Status wire shapes: the per-repository rollup the Status panel renders and the compact overview the Session
@@ -277,6 +284,12 @@ const projectStatusRepoSchema = z.object({
              * Absent when the provider omitted the mergeability fields.
              */
             mergeState: pullRequestMergeStateSchema.optional(),
+            /**
+             * Why the pull request is not plainly ready to merge (`pullRequestMergeBlocker`); absent when nothing
+             * blocks it. Computed from the filtered check rollup and `mergeState` regardless of `lifecycle`, so a
+             * reader decides by lifecycle first.
+             */
+            mergeBlocker: pullRequestMergeBlockerSchema.optional(),
             /**
              * Absent when the threads were not read (the pull request is no longer open, or the read failed) so a
              * consumer never mistakes "unknown" for "nothing left to address".

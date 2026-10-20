@@ -76,6 +76,8 @@ export type MobileControlRequest = Extract<
             | 'mobile.project.browse'
             | 'mobile.project.add'
             | 'mobile.panels.list'
+            | 'mobile.pullRequest.read'
+            | 'mobile.pullRequest.merge'
             | 'mobile.tree.children'
             | 'mobile.files.list'
             | 'mobile.files.read'

@@ -36,6 +36,7 @@ import {
     mobileImageUploadParametersSchema,
 } from './mobile-image-contract.js';
 import { mobilePanelsMethods } from './mobile-panels-contract.js';
+import { mobilePullRequestMethods } from './mobile-pull-request-contract.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
 import {
     mobileTimelineReadParametersSchema,
@@ -54,6 +55,7 @@ export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-
 export * from './mobile-files-contract.js';
 export * from './mobile-image-contract.js';
 export * from './mobile-panels-contract.js';
+export * from './mobile-pull-request-contract.js';
 export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
 export * from './mobile-update-contract.js';
@@ -434,6 +436,7 @@ export const mobileMethods = {
         result: mobileProjectAddResultSchema,
     },
     ...mobilePanelsMethods,
+    ...mobilePullRequestMethods,
     ...mobileFilesMethods,
     ...mobileUpdateMethods,
     ...mobileCommanderInboxMethods,

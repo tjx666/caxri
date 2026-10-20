@@ -1,9 +1,27 @@
+import { androidChatCases } from './mobile-android-chat-cases';
+
 export type MobileAndroidMediaType = 'screenshot' | 'video';
 
 /**
  * The app languages an Android case can run under; the app follows the system language otherwise.
  */
 export type MobileAndroidAppLocale = 'zh-CN';
+
+export interface MobileAndroidCaseDefinition {
+    /**
+     * The per-app language the runner sets on the disposable emulator for this case alone and resets afterwards.
+     */
+    appLocale?: MobileAndroidAppLocale;
+    desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
+    media: readonly MobileAndroidMediaType[];
+    /**
+     * `live` turns the batch's reduced motion off for this case alone, so a recording shows real animation. UIAutomator
+     * cannot read a screen that keeps animating, so such a case avoids semantics while it moves.
+     */
+    motion?: 'live';
+    recordingOwner: 'adapter' | 'scenario';
+    scenario: string;
+}
 
 const androidCases = {
     'MOB-ATTN-01': {
@@ -174,146 +192,7 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'browse-panels',
     },
-    'MOB-CHAT-01': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat',
-    },
-    'MOB-CHAT-02': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-tool-approval',
-    },
-    'MOB-CHAT-03': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-new-session',
-    },
-    'MOB-CHAT-04': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-model',
-    },
-    'MOB-CHAT-05': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-image',
-    },
-    'MOB-CHAT-06': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'read-cache',
-    },
-    'MOB-CHAT-07': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-image-preview',
-    },
-    'MOB-CHAT-08': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-missing-image',
-    },
-    'MOB-CHAT-09': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-model-refused',
-    },
-    'MOB-CHAT-10': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot', 'video'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-composer',
-    },
-    'MOB-CHAT-11': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-claude-model',
-    },
-    'MOB-CHAT-12': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-image-strip',
-    },
-    'MOB-CHAT-13': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot', 'video'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-pin-and-scroll',
-    },
-    'MOB-CHAT-14': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-skills-and-question',
-    },
-    'MOB-CHAT-15': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot', 'video'],
-        motion: 'live',
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-shimmer',
-    },
-    'MOB-CHAT-16': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-history-and-tasks',
-    },
-    'MOB-CHAT-17': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot', 'video'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-in-app-browser',
-    },
-    'MOB-CHAT-18': {
-        appLocale: 'zh-CN',
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-chinese-locale',
-    },
-    'MOB-CHAT-19': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-delegated-task',
-    },
-    'MOB-CHAT-20': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-feedback',
-    },
-    'MOB-CHAT-21': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-session-pin',
-    },
-    'MOB-CHAT-22': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-plan-limits',
-    },
-    'MOB-CHAT-23': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
-        recordingOwner: 'scenario',
-        scenario: 'agent-chat-reply-placeholder',
-    },
+    ...androidChatCases,
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
@@ -488,24 +367,7 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'ui-audit-rename-keyboard-avoidance',
     },
-} as const satisfies Record<
-    string,
-    {
-        /**
-         * The per-app language the runner sets on the disposable emulator for this case alone and resets afterwards.
-         */
-        appLocale?: MobileAndroidAppLocale;
-        desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
-        media: readonly MobileAndroidMediaType[];
-        /**
-         * `live` turns the batch's reduced motion off for this case alone, so a recording shows real animation.
-         * UIAutomator cannot read a screen that keeps animating, so such a case avoids semantics while it moves.
-         */
-        motion?: 'live';
-        recordingOwner: 'adapter' | 'scenario';
-        scenario: string;
-    }
->;
+} as const satisfies Record<string, MobileAndroidCaseDefinition>;
 
 export type MobileAndroidAcceptanceCaseId = keyof typeof androidCases;
 export type MobileAndroidAcceptanceScenario =

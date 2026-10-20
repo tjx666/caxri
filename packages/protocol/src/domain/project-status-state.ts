@@ -33,3 +33,17 @@ export const pullRequestMergeStateSchema = z.enum([
     'conflicting',
     'unknown',
 ]);
+
+/**
+ * Why a pull request is not plainly ready to merge, as a closed reason Server Core computes once
+ * (`pullRequestMergeBlocker`) so the Desktop Status panel and the phone give the same answer. `conflicting` blocks the
+ * merge outright; every other reason only asks the user to confirm first.
+ */
+export const pullRequestMergeBlockerSchema = z.enum([
+    'conflicting',
+    'checks-failed',
+    'checks-running',
+    'branch-protection',
+    'behind',
+    'mergeability-unknown',
+]);

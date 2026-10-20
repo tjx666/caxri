@@ -12,11 +12,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                     |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, and `mobile.agentChat.readTask`     |
-| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.takeQueued`, and `mobile.agentChat.runCommand` |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, and `mobile.commanderInbox.{list,reply}`                             |
+| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, and `mobile.pullRequest.read` |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.takeQueued`, and `mobile.agentChat.runCommand`                        |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.commanderInbox.{list,reply}`, and `mobile.pullRequest.merge`                        |
 
 `mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
 effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a
@@ -29,8 +29,9 @@ Agent endpoint and reserves a durable receipt keyed by device ID, device generat
 `clientMutationId` before dispatching Terminal input. A request fingerprint rejects reuse of that
 identity for different input. Mobile
 Session creation checks both the device's Project grant and the current Project record before its
-durable write. Git mutations and unrestricted `session.create` are outside the gateway
-method set.
+durable write. Local Git mutations and unrestricted `session.create` are outside the gateway
+method set; merging a Session's pull request on GitHub is the one remote Git action, described in
+[Merging a pull request from mobile](#merging-a-pull-request-from-mobile).
 
 A Project root path never reaches the phone. The gateway reads a Chat Session's root through the
 internal `mobile.session.projectRootInternal`, which checks the Session against the device's grant
@@ -71,7 +72,7 @@ may submit an Agent instruction through `mobile.agent.submit` but cannot take ov
 Terminal keys. `mobile.terminal.scroll` carries only a bounded line count and grid cell; the Terminal
 Host encodes the wheel report or cursor keys from its own parsed modes, so it cannot become an
 arbitrary-byte input path. Git reads use only `mobile.changes.list` and `mobile.changes.diff`; see
-[Mobile Changes](changes.md). No Git mutation method is granted.
+[Mobile Changes](changes.md). No local Git mutation method is granted.
 Size leases use the exact connection and subscription as holder; closing that holder cannot release
 a newer connection's lease. Terminal observation requires only `view` and never changes Desktop
 attachment or size.
@@ -87,6 +88,23 @@ same pin Desktop's Pinned group shows. All four require the control role.
 Each returns only `sessionId`, and the dashboard carries the new state. `mobile.session.archived` is
 a read that lists archived Sessions of granted Projects, newest first, bounded to 64 items within
 one frame.
+
+## Merging a pull request from mobile
+
+`mobile.pullRequest.read` returns the pull request of a Session's delivering repository (the primary
+repository's when it has one) from the same `projectStatus.summary` the Desktop Status panel shows:
+number, title, URL, lifecycle, check state with the first failed check names, head SHA, and a
+`mergeBlocker` (conflicts, failed or running checks, branch protection, a stale base, or unknown
+mergeability) derived by `pullRequestMergeBlocker` in `@caxri/protocol`, the rule Desktop's Merge
+button also follows.
+
+`mobile.pullRequest.merge` requires the control role, because a merge publishes the Session's work
+and Caxri cannot undo it. It re-reads the summary, refuses a pull request that is no longer the
+Session's (`NOT_FOUND`) or has conflicts (`CONFLICT`), then calls Desktop's own
+`git.mergePullRequest` with the head SHA the phone showed. That handler picks the repository's merge
+method and passes `--match-head-commit`, so GitHub refuses the merge if new commits landed after the
+phone read the pull request. Any blocker other than conflicts still allows a merge; the phone
+first asks for a second confirmation that names it, as Desktop does.
 
 ## Mobile Session creation
 
