@@ -57,6 +57,7 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.limitLeft': '剩余 {{percent}}%',
     'statusBar.usage.chipLimitWindow': '{{window}} {{percent}}%',
     'statusBar.usage.chipLimitsLeft': '剩余 {{windows}}',
+    'statusBar.usage.paceNote': '{{window}}限额：剩余 {{percent}}%，{{reset}}。用量快于均匀节奏。',
     'statusBar.usage.limitsAsOf': '限额更新于',
     'statusBar.usage.methodNote':
         'Token 数和费用读取自此对话自身的记录，并按 API 标价计费，规则与用量页面相同。套餐限额按账户计算，取任意对话中的最新读数。',

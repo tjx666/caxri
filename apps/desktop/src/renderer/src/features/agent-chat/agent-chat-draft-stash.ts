@@ -57,3 +57,28 @@ export function isAgentChatDraftStashKey(event: {
         event.key.toLowerCase() === 's'
     );
 }
+
+export type AgentChatStashAction = 'ignore' | 'refuse-occupied' | 'restore' | 'stash';
+
+/**
+ * What Ctrl+S does. A draft (text beyond whitespace, or an attachment) is stashed only when no stash exists; with one
+ * waiting it is refused so the earlier stash is never overwritten. A whitespace-only input (a stray Shift+Enter) counts
+ * as empty, so Ctrl+S restores. With nothing to stash or restore the key is left alone.
+ */
+export function decideAgentChatStashAction(state: {
+    attachmentCount: number;
+    draft: string;
+    hasStash: boolean;
+}): AgentChatStashAction {
+    const hasDraft = state.draft.trim() !== '' || state.attachmentCount > 0;
+    if (hasDraft) return state.hasStash ? 'refuse-occupied' : 'stash';
+    return state.hasStash ? 'restore' : 'ignore';
+}
+
+/**
+ * The text a restore leaves in the input: the stashed text unless the user already typed something real. Whitespace
+ * alone does not count, or the stash (already cleared) would be lost.
+ */
+export function restoredAgentChatDraftText(current: string, savedText: string): string {
+    return current.trim() === '' ? savedText : current;
+}

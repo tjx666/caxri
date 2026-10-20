@@ -9,6 +9,7 @@ export const agentChatPane = {
     'agentChat.activity.enterHint': 'to queue',
     'agentChat.activity.steerHint': 'to steer',
     'agentChat.activity.stopHint': 'to stop',
+    'agentChat.activity.stopping': 'Stopping…',
     'agentChat.commands.sendFailed': 'Message could not be sent',
     'agentChat.commands.longPasteFailed': "Long paste couldn't be saved",
     'agentChat.commands.editFailed': 'Message could not be edited',

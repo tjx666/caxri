@@ -13,6 +13,8 @@
  * - The active Agent conversation's usage (tokens, estimated cost, rate-limit window) outlasts the output speed: the
  *   Usage page shows the same numbers only across conversations, and the limit window is what a user checks before
  *   starting more work. It still yields before the chips that point at the branch's delivery state.
+ * - A chip in its warning state (`ChipFit.urgent`, today the usage chip once a limit is nearly spent or running ahead of
+ *   pace) leaves the order above and is dropped after every calm chip, because hiding a warning defeats it.
  * - The Linear issue chip goes next: it is a pointer to a tracker outside Caxri, and the same issue is reachable from the
  *   Status panel's own Linear rows.
  * - The acceptance chip survives one step longer than Linear. Both point outside Caxri and both repeat a Status panel
@@ -72,6 +74,21 @@ export interface ChipFit {
      * to show is absent.
      */
     chips: Partial<Record<DroppableChip, number>>;
+    /**
+     * Chips currently showing a warning. They are dropped after every chip that is not, keeping their relative order.
+     */
+    urgent?: ReadonlySet<DroppableChip>;
+}
+
+/**
+ * {@link CHIP_DROP_ORDER} with the urgent chips moved to the end, so a warning outlasts the calm chips.
+ */
+export function chipDropOrder(urgent: ReadonlySet<DroppableChip> | undefined): DroppableChip[] {
+    if (!urgent || urgent.size === 0) return [...CHIP_DROP_ORDER];
+    return [
+        ...CHIP_DROP_ORDER.filter((chip) => !urgent.has(chip)),
+        ...CHIP_DROP_ORDER.filter((chip) => urgent.has(chip)),
+    ];
 }
 
 /**
@@ -84,12 +101,12 @@ export interface ChipFit {
  * speed after the Agent exits) measures as absent, shown or hidden, so it never holds room the other chips could use.
  */
 export function resolveHiddenChips(fit: ChipFit, hidden: HiddenChips): HiddenChips {
-    const widths = CHIP_DROP_ORDER.map((chip) => fit.chips[chip] ?? 0);
+    const order = chipDropOrder(fit.urgent);
+    const widths = order.map((chip) => fit.chips[chip] ?? 0);
     let total = fit.required;
-    for (const [index, chip] of CHIP_DROP_ORDER.entries())
-        if (hidden.has(chip)) total += widths[index];
+    for (const [index, chip] of order.entries()) if (hidden.has(chip)) total += widths[index];
     const next = new Set<DroppableChip>();
-    for (const [index, chip] of CHIP_DROP_ORDER.entries()) {
+    for (const [index, chip] of order.entries()) {
         if (total <= fit.available) break;
         const width = widths[index];
         if (width <= 0) continue;

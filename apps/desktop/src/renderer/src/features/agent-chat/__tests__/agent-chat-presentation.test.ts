@@ -24,6 +24,7 @@ import {
     canSendAgentChatMessage,
     isAgentChatBusy,
     isAgentChatInterruptKey,
+    shouldAgentChatPaneEscapeStop,
     shouldConfirmUnmatchedSend,
     withOccurrenceKeys,
 } from '../agent-chat-presentation';
@@ -547,5 +548,26 @@ describe('agentChatSkillLabel', () => {
     it('names the product skill by its product name and any other skill by its own', () => {
         expect(agentChatSkillLabel('caxri-cli')).toBe('Caxri skill');
         expect(agentChatSkillLabel('release-notes')).toBe('release-notes');
+    });
+});
+
+describe('shouldAgentChatPaneEscapeStop', () => {
+    const key = { key: 'Escape', isComposing: false, repeat: false, defaultPrevented: false };
+    const idle = { isTurnRunning: true, isEditableTarget: false, isOverlayOpen: false };
+
+    it('stops a running turn from outside the composer', () => {
+        expect(shouldAgentChatPaneEscapeStop(key, idle)).toBe(true);
+    });
+
+    it.each([
+        ['no turn is running', key, { ...idle, isTurnRunning: false }],
+        ['focus is in an editable field', key, { ...idle, isEditableTarget: true }],
+        ['an overlay is open', key, { ...idle, isOverlayOpen: true }],
+        ['the key was already handled', { ...key, defaultPrevented: true }, idle],
+        ['the key is held', { ...key, repeat: true }, idle],
+        ['an IME composition is active', { ...key, isComposing: true }, idle],
+        ['the key is not Escape', { ...key, key: 'a' }, idle],
+    ])('does nothing when %s', (_name, event, state) => {
+        expect(shouldAgentChatPaneEscapeStop(event, state)).toBe(false);
     });
 });

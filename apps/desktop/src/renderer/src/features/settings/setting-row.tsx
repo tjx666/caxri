@@ -25,6 +25,7 @@ import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
+import { TranslucentSidebarStatus } from '../primary-sidebar/translucent-sidebar-status';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
@@ -109,6 +110,10 @@ function rowControl(
             if (spec.kind === 'boolean')
                 return {
                     labelFor: controlId,
+                    status:
+                        binding.key === 'primarySidebar.translucent' ? (
+                            <TranslucentSidebarStatus />
+                        ) : undefined,
                     control: (
                         <Switch
                             id={controlId}

@@ -47,6 +47,7 @@ export function AgentChatComposerNotices({
                 activity={activity}
                 notice={notice}
                 showsDeliveryHint={delivery}
+                terminalId={terminalId}
                 turnId={activeTurnId}
                 onStop={onStop}
             />

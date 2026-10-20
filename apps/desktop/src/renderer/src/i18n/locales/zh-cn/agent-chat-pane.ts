@@ -9,6 +9,7 @@ export const agentChatPane: TranslatedNamespace<typeof source> = {
     'agentChat.activity.enterHint': '加入队列',
     'agentChat.activity.steerHint': '插入本轮',
     'agentChat.activity.stopHint': '停止',
+    'agentChat.activity.stopping': '正在停止…',
     'agentChat.commands.sendFailed': '消息发送失败',
     'agentChat.commands.longPasteFailed': '长文本粘贴保存失败',
     'agentChat.commands.editFailed': '消息编辑失败',

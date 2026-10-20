@@ -303,7 +303,9 @@ of the current verdict, and keeps the subject, round, and provenance on the hove
 recognized but could not read is `unknown`: `--muted` and not clickable, because it has no
 destination and must not look like it does. When the bar's content does not fit, whole chips drop
 one at a time, lowest first: child-process count, memory, Agent output speed, Agent conversation
-usage, Linear issue, acceptance, pull request. A chip's label is never truncated. The decision is by
+usage, Linear issue, acceptance, pull request. A chip in its warning state (the usage chip once a
+limit is nearly spent or running ahead of an even pace, which its tooltip explains) drops only after
+every calm chip, because hiding a warning defeats it. A chip's label is never truncated. The decision is by
 measured width, not fixed window breakpoints, because which chips are present (an Agent's two chips,
 a Commander chip, a debugging disclosure) changes how much room the rest needs; a hidden chip is
 still measured off screen, so it returns once its current width fits again, and one whose data goes
@@ -901,7 +903,8 @@ matches origin says nothing (`Synced` stays on the hover badge); a deployment ro
 environment and whether it is the latest, not its short SHA; an acceptance row reads `2/2 · r3`, with
 the round spelled out on the hover and in the accessible name.
 A pull request row's inline merge is one click when every check passed, with no confirmation, by
-design. Any other blocker confirms first, and failed checks are named in it (`2 of 9 checks failed:
+design; on the phone, where a bottom sheet is easy to mis-tap, even a ready merge confirms on a
+second page that names the merge method and that it cannot be undone. Any other blocker confirms first, and failed checks are named in it (`2 of 9 checks failed:
 lint, e2e.`). The merge glyph's tone grades the blocker: `--danger` for failed checks, `--warning`
 for branch protection or a stale base, neutral for checks still running or a mergeability GitHub has
 not computed. A draft or conflicting pull request keeps the button, which explains why GitHub cannot
@@ -1185,15 +1188,18 @@ continue: a provider failure in a `--danger` bordered card with Retry (a convers
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
 and Resume; while either shows, Send is disabled. Running subagents and background shells list in the
-composer strip with elapsed time and their own Stop, and its `N ended` count expands the
-ended tasks, most recent first, with how each ended; a shell is named by the Agent's
+composer strip with elapsed time and their own Stop, and its `N ended` count (with a disclosure
+chevron, so it reads as a control) expands the ended tasks, most recent first, with how each ended; a shell is named by the Agent's
 description of it (Claude Code's `Bash` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
 its timeline row, opens it as
 a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
 message steered into a running turn carries an 11px `--muted` `Steered` caption; a queued one is an
 ordinary message once delivered and carries none, since `Queued` would read as pending. Escape
-interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a 32px
+interrupts a running turn regardless, from the composer or anywhere else in the Chat pane that is
+not an editable field or an open menu, list, or dialog. Once Stop is requested the Stop button shows
+a spinner and the status row reads `Stopping…` without the sweep or the Esc hint; a failed request
+releases both and a toast says so. While the Chat starts, works, or waits on an answer, a 32px
 status row sits in a strip on top of the card rather than inside it, so the Chat's state never reads
 as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 12px
 from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
@@ -1524,8 +1530,9 @@ popup itself hold focus until then.
   zoom and re-centers the native traffic lights in the zoomed header; any title-bar clearance
   reserved for the lights uses `--traffic-light-clearance` or `--traffic-light-header-inset`, which
   divide by the zoom factor because the lights themselves never scale. Every zoom change except the
-  first settings load shows a small HUD at the window's top right (the ChatGPT desktop app's
-  pattern): the percentage, Zoom Out, Zoom In, a divider, and Reset, each disabled at its bound. It
+  first settings load shows a small HUD (the ChatGPT desktop app's pattern) at the window's bottom
+  right, just above the status bar where the zoom indicator lives, so it never covers a sidebar
+  title or action icon: the percentage, Zoom Out, Zoom In, a divider, and Reset, each disabled at its bound. It
   fades out 1.5s after the last change; hovering it or holding keyboard focus inside keeps it up,
   and a hidden HUD is `inert` so it never takes a click or a Tab stop. While the zoom is not 100%, a
   zoom indicator keeps saying so (Chrome's address-bar magnifier, VS Code's status bar entry): a
@@ -1539,7 +1546,9 @@ popup itself hold focus until then.
   material shows through a 62% tint of `--surface`, while the main column keeps the opaque
   `--background` so content never sits on a moving backdrop. It applies only when the theme's
   lightness matches the system appearance, because the native material follows the system, and
-  `primarySidebar.translucent` turns it off. An inactive window renders the material flat grey;
+  never in full screen, where nothing sits behind the window and the material reads as a flat grey
+  sheet; `primarySidebar.translucent` turns it off. While the Setting is on but the sidebar stays
+  opaque, its Settings row says why in a muted line. An inactive window renders the material flat grey;
   that is native behavior.
 
 ## Known gaps

@@ -19,7 +19,12 @@ import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-f
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
-import { agentUsageCostLabel, agentUsageLabel, agentUsageLimitTone } from './agent-usage-label';
+import {
+    agentUsageCostLabel,
+    agentUsageLabel,
+    agentUsageLimitTone,
+    agentUsagePaceNote,
+} from './agent-usage-label';
 import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
 import { StatusItem } from './status-item';
 
@@ -73,11 +78,13 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const cost = agentUsageCostLabel(readout);
     const limitWindows = currentLimitWindows(readout.limit, now);
     const limitTone = agentUsageLimitTone(readout, now, chipOptions);
+    const paceNote = agentUsagePaceNote(readout, now, t);
     return (
         <StatusItem
             ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}
             className={cn('statusbar-agent-usage', limitTone === 'warning' && 'text-warning')}
             icon={<ChartColumn />}
+            isUrgent={limitTone === 'warning'}
             onClick={() => openUsagePageForTerminal(terminalId)}
             title={
                 <StructuredTooltip
@@ -122,7 +129,7 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                             ? [{ label: t('statusBar.usage.limitsAsOf'), value: limitObservedAgo }]
                             : []),
                     ]}
-                    notes={[t('statusBar.usage.methodNote')]}
+                    notes={[...(paceNote ? [paceNote] : []), t('statusBar.usage.methodNote')]}
                     hint={t('statusBar.usage.clickToOpen')}
                 />
             }

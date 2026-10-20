@@ -92,6 +92,12 @@ export const settingsCatalog = {
     'settings.primarySidebar.translucent.title': 'Translucent sidebar',
     'settings.primarySidebar.translucent.description':
         'On macOS, blur the desktop through the sidebar like frosted glass when the theme matches the system light or dark appearance.',
+    'settings.primarySidebar.translucent.inactive.fullScreen':
+        'Not active: the window is full screen, so there is no desktop to blur.',
+    'settings.primarySidebar.translucent.inactive.themeDarkSystemLight':
+        'Not active: the theme is dark while macOS uses the light appearance.',
+    'settings.primarySidebar.translucent.inactive.themeLightSystemDark':
+        'Not active: the theme is light while macOS uses the dark appearance.',
 
     'settings.statusBar.usage.showFiveHourLimit.title': 'Show 5-hour limit in the status bar',
     'settings.statusBar.usage.showFiveHourLimit.description':

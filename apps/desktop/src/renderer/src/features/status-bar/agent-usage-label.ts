@@ -3,13 +3,14 @@ import {
     currentLimitWindows,
     formatTokens,
     formatUsd,
+    limitPaceShortfall,
     remainingLimitPercent,
     shortLimitWindowName,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
-import { localizedLimitReset } from '../../lib/usage-format';
+import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
 import { LIMIT_WARNING_PERCENT } from '../usage/usage-presentation';
 
 /**
@@ -96,20 +97,43 @@ export function agentUsageLabel(
 export type AgentUsageLimitTone = 'warning';
 
 /**
- * Warning while any live window the chip shows is at or past the warning threshold, or undefined otherwise. It follows
- * the displayed figures, so the colour never disagrees with a number beside it: a nearly spent weekly limit warns even
- * while the 5-hour window has room.
+ * Warning while any live window the chip shows is at or past the warning threshold, or while the plan's multi-day
+ * window runs ahead of an even pace (`limitPaceShortfall`, the same function and margin the Chat composer's pace row
+ * uses). Both follow the displayed figures, so the colour never disagrees with a number beside it: a nearly spent
+ * weekly limit warns even while the 5-hour window has room, and a weekly limit at 70% left with 6 of 7 days to go warns
+ * before it is nearly spent, when slowing down still helps.
  */
 export function agentUsageLimitTone(
     readout: AgentUsageReadout,
     now: number,
     options: AgentUsageChipOptions,
 ): AgentUsageLimitTone | undefined {
-    return agentUsageChipWindows(readout.limit, now, options).some(
+    const isNearlySpent = agentUsageChipWindows(readout.limit, now, options).some(
         (window) => Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT,
-    )
+    );
+    return isNearlySpent || limitPaceShortfall(readout.limit, now) !== undefined
         ? 'warning'
         : undefined;
+}
+
+/**
+ * The tooltip sentence that says why the chip warns when the cause is pace rather than a nearly spent window, e.g.
+ * `Weekly limit: 70% left, resets in 6d 14h. Using it faster than an even pace.` Undefined while every window is on
+ * pace.
+ */
+export function agentUsagePaceNote(
+    readout: AgentUsageReadout,
+    now: number,
+    t: Translate = translate,
+): string | undefined {
+    const shortfall = limitPaceShortfall(readout.limit, now);
+    if (!shortfall) return undefined;
+    const { window } = shortfall;
+    return t('statusBar.usage.paceNote', {
+        window: localizedLimitWindowName(window.windowMinutes, t),
+        percent: remainingLimitPercent(window.usedPercent),
+        reset: localizedLimitReset(window.resetsAt, now, t),
+    });
 }
 
 /**

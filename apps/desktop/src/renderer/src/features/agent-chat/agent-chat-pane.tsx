@@ -69,6 +69,7 @@ import {
 } from './hooks/use-agent-chat-mcp-server';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
+import { useAgentChatPaneEscape } from './hooks/use-agent-chat-pane-escape';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
 import { AgentChatReadBackHistoryContext } from './hooks/use-agent-chat-read-back-history';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
@@ -84,6 +85,17 @@ import { useLoadingStyle } from './loading';
  * (`data-agent-chat-pending`), so the message rises as it is sent rather than when the provider confirms it.
  */
 const AGENT_CHAT_TURN_SELECTOR = `[${AGENT_CHAT_USER_MESSAGE_ATTRIBUTE}], [data-agent-chat-pending]`;
+
+/**
+ * The recovery banner's Open as Terminal, offered only when this Terminal can switch surfaces.
+ */
+function openAsTerminalAction(terminal: ReturnType<typeof useTerminal>): (() => void) | undefined {
+    if (!terminal || !canSwitchTerminalSurface(terminal)) return undefined;
+    return () => {
+        // eslint-disable-next-line no-void -- the switch reports its own failures as toasts
+        void switchTerminalSurfaceTo(terminal, 'pty');
+    };
+}
 
 interface AgentChatPaneProperties {
     ariaLabel: string;
@@ -182,6 +194,8 @@ export function AgentChatPane({
     const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
     const openFile = useAgentChatOpenFile(terminalId);
     const { statusShimmer } = useLoadingStyle();
+    // Escape interrupts a running turn from anywhere in the pane; the composer handles its own (see the hook).
+    const onKeyDown = useAgentChatPaneEscape({ activeTurnId: snapshot?.activeTurnId, terminalId });
     useAgentChatActivationFocus(inputReference, { isShown, terminalId });
     const history = useAgentChatHistory(terminalId, snapshot, {
         scrollReference,
@@ -211,13 +225,7 @@ export function AgentChatPane({
      */
     const terminal = useTerminal(terminalId);
     const processState = terminal?.lastProcessState;
-    const openAsTerminal =
-        terminal && canSwitchTerminalSurface(terminal)
-            ? () => {
-                  // eslint-disable-next-line no-void -- the switch reports its own failures as toasts
-                  void switchTerminalSurfaceTo(terminal, 'pty');
-              }
-            : undefined;
+    const openAsTerminal = openAsTerminalAction(terminal);
     const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName, t);
     const recoveryNotice = agentChatRecoveryNotice(
         snapshot,
@@ -242,6 +250,7 @@ export function AgentChatPane({
             className="relative flex h-full min-h-0 flex-col bg-background"
             // Picks the status line and running work rows' sweep (`activity-shimmer` in styles.css).
             data-agent-chat-status-shimmer={statusShimmer}
+            onKeyDown={onKeyDown}
             onDragLeave={(event) => composerDrop.current?.onDragLeave(event)}
             onDragOver={(event) => composerDrop.current?.onDragOver(event)}
             onDrop={(event) => composerDrop.current?.onDrop(event)}

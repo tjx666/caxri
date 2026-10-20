@@ -16,6 +16,7 @@ import {
     formatLongPasteReference,
     parseAgentChatPathReferences,
 } from '@caxri/protocol';
+import { omit } from 'es-toolkit';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -245,11 +246,55 @@ export function changeAgentChatGoal(
     });
 }
 
-export function interruptAgentChat(terminalId: string): void {
+interface AgentChatStopState {
+    /**
+     * The turn a Stop was requested for, by Chat Terminal. Keyed by turn so the pending state ends by itself when that
+     * turn does, and a later turn starts with a live Stop. Shared by every surface that stops the turn (the Stop
+     * button, the status row, and Esc in the composer or elsewhere in the pane).
+     */
+    stopping: Readonly<Record<string, string>>;
+}
+
+export const useAgentChatStopStore = createStore<AgentChatStopState>('agentChatStop', () => ({
+    stopping: {},
+}));
+
+/**
+ * Whether a Stop was requested for this turn and has not failed. Pure over the store state so every consumer reads the
+ * same answer.
+ */
+export function isAgentChatStopping(
+    stopping: AgentChatStopState['stopping'],
+    terminalId: string,
+    turnId: string | undefined,
+): boolean {
+    return turnId !== undefined && stopping[terminalId] === turnId;
+}
+
+function setAgentChatStopping(terminalId: string, turnId: string, isStopping: boolean): void {
+    useAgentChatStopStore.setState(({ stopping }) => {
+        if (isStopping) return { stopping: { ...stopping, [terminalId]: turnId } };
+        // A newer turn may already own the entry; only clear the one this request set.
+        if (stopping[terminalId] !== turnId) return { stopping };
+        return { stopping: omit(stopping, [terminalId]) };
+    });
+}
+
+/**
+ * Interrupts the running turn. A second request for the same turn while one is pending is ignored; a failed one clears
+ * the pending state so Stop can be tried again (the failure itself is reported through `tryCommand`).
+ */
+export function interruptAgentChat(terminalId: string, turnId: string): void {
+    const { stopping } = useAgentChatStopStore.getState();
+    if (isAgentChatStopping(stopping, terminalId, turnId)) return;
+    setAgentChatStopping(terminalId, turnId, true);
     // eslint-disable-next-line no-void -- tryCommand reports interrupt failures through the toast
-    void tryCommand(translate('agentChat.commands.stopAgentFailed'), () =>
-        caxri.request('agentChat.interrupt', { terminalId }),
-    );
+    void tryCommand(translate('agentChat.commands.stopAgentFailed'), async () => {
+        await caxri.request('agentChat.interrupt', { terminalId });
+        return true;
+    }).then((isRequested) => {
+        if (isRequested !== true) setAgentChatStopping(terminalId, turnId, false);
+    });
 }
 
 /**
