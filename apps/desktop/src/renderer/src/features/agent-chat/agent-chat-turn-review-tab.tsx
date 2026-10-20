@@ -82,46 +82,50 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
     const stat = agentChatEditedFilesStat(files.map(({ file }) => file));
     return (
         <div className="flex h-full min-h-0 flex-col bg-background" data-agent-chat-turn-review="">
-            <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
-                <div className="min-w-0 flex-1">
-                    <h2 className="m-0 text-[13px] leading-5 font-semibold text-foreground">
+            <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-2">
+                <div className="min-w-fit flex-1">
+                    <h2 className="m-0 truncate text-[13px] leading-5 font-semibold text-foreground">
                         {t('agentChat.review.title')}
                     </h2>
-                    <p className="m-0 flex items-center gap-2 text-[11px] leading-4 text-muted">
+                    {/* The pending comment count shares the summary line; a pane too narrow for it and the buttons wraps them below. */}
+                    <p className="m-0 flex items-center gap-2 text-[11px] leading-4 whitespace-nowrap text-muted">
                         {files.length === 1
                             ? t('agentChat.review.fileCountOne')
                             : t('agentChat.review.fileCountOther', { count: files.length })}
                         <DiffStat additions={stat.additions} deletions={stat.deletions} />
+                        {comments.pendingCount > 0 && (
+                            <span>
+                                {comments.pendingCount === 1
+                                    ? t('agentChat.review.pendingCommentsOne')
+                                    : t('agentChat.review.pendingCommentsOther', {
+                                          count: comments.pendingCount,
+                                      })}
+                            </span>
+                        )}
                     </p>
                 </div>
-                {comments.pendingCount > 0 && (
-                    <span className="shrink-0 text-[12px] text-muted">
-                        {comments.pendingCount === 1
-                            ? t('agentChat.review.pendingCommentsOne')
-                            : t('agentChat.review.pendingCommentsOther', {
-                                  count: comments.pendingCount,
-                              })}
-                    </span>
-                )}
-                <Button
-                    className="shrink-0 gap-1 text-[12px]"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => revealAgentChat(terminalId)}
-                >
-                    <ArrowLeft aria-hidden="true" className="size-3.5" />
-                    {t('agentChat.review.backToChat')}
-                </Button>
-                {comments.pendingCount > 0 && (
+                {/* One group, so a narrow pane moves both buttons to the next row together, still right-aligned. */}
+                <div className="ml-auto flex shrink-0 items-center gap-2">
                     <Button
                         className="shrink-0 gap-1 text-[12px]"
                         size="sm"
-                        onClick={() => revealAgentChatAndSend(terminalId)}
+                        variant="ghost"
+                        onClick={() => revealAgentChat(terminalId)}
                     >
-                        <Send aria-hidden="true" className="size-3.5" />
-                        {t('agentChat.review.backToChatAndSend')}
+                        <ArrowLeft aria-hidden="true" className="size-3.5" />
+                        {t('agentChat.review.backToChat')}
                     </Button>
-                )}
+                    {comments.pendingCount > 0 && (
+                        <Button
+                            className="shrink-0 gap-1 text-[12px]"
+                            size="sm"
+                            onClick={() => revealAgentChatAndSend(terminalId)}
+                        >
+                            <Send aria-hidden="true" className="size-3.5" />
+                            {t('agentChat.review.backToChatAndSend')}
+                        </Button>
+                    )}
+                </div>
             </header>
             <div className="min-h-0 flex-1 overflow-auto">
                 {files.map(({ file, lines }) => {
