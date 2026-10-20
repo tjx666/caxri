@@ -106,7 +106,14 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('project.customizeIcon', (context, arguments_) =>
         context.project.customizeIcon(projectIdArgument(arguments_)),
     ),
-    fromCatalog('session.create', (context) => context.session.create()),
+    /**
+     * `Cmd+N` has to reach through a focused Terminal or Chat composer, where the user usually is when they decide to
+     * start something new. No editable surface claims the chord: xterm never sees Command, and Monaco binds nothing to
+     * it.
+     */
+    fromCatalog('session.create', (context) => context.session.create(), {
+        allowInEditable: true,
+    }),
     fromCatalog(
         'session.delete',
         (context) => context.session.deleteSelected(),
@@ -392,6 +399,11 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('secondarySidebar.searchFiles', (context) => context.dialogs.openProjectSearch(), {
         allowInEditable: true,
     }),
+    fromCatalog(
+        'help.showKeyboardShortcuts',
+        (context) => context.dialogs.openKeyboardShortcuts(),
+        { allowInEditable: true },
+    ),
     fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer(), {
         when: (context) => context.remote.isLocalOnlyAvailable(),
     }),

@@ -89,5 +89,7 @@ describe('shortcut presentation', () => {
         expect(formatShortcut('cmd+`')).toBe('⌘`');
         expect(formatShortcut('cmd+arrowleft')).toBe('⌘←');
         expect(formatShortcut('escape')).toBe('Esc');
+        expect(formatShortcut('f2')).toBe('F2');
+        expect(formatShortcut('shift+f12')).toBe('⇧F12');
     });
 });

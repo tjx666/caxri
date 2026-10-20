@@ -30,6 +30,11 @@ export const defaultKeybindings: Keybinding[] = [
      * rather than replacing the window.
      */
     { key: 'cmd+o', command: 'project.create' },
+    /**
+     * `Cmd+N` is the new-conversation chord in Claude Code Desktop and the new-document chord in nearly every macOS
+     * app, and Caxri had left it unbound: no native menu role or Files binding claims it.
+     */
+    { key: 'cmd+n', command: 'session.create' },
     { key: 'cmd+t', command: 'terminal.new' },
     terminalCompleteAndSubmitKeybinding,
     /**
@@ -166,6 +171,12 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+-', command: 'view.zoomOut' },
     { key: 'cmd+,', command: 'settings.open' },
     { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
+    /**
+     * `Cmd+K Cmd+R` is VS Code's "Keyboard Shortcuts Reference" chord, next to its `Cmd+K Cmd+S` editor above. Claude
+     * Code Desktop's `Cmd+/` is taken here by the Chat model picker, and `Cmd+Shift+/` is the macOS Help menu's own
+     * search field, which the system claims before the app sees it.
+     */
+    { key: 'cmd+k cmd+r', command: 'help.showKeyboardShortcuts' },
     /**
      * `Cmd+Shift+B` is free in Caxri: VS Code spends it on the build-task chord, which has no Caxri equivalent. "B"
      * reads as the bug mnemonic, matching the Help menu's Report Bug to Agent item.
@@ -318,5 +329,13 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+shift+s', command: 'session.search' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+n', command: 'session.create' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+k cmd+r', command: 'help.showKeyboardShortcuts' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

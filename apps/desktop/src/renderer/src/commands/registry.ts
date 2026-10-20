@@ -153,6 +153,7 @@ export interface CommandContext {
         openPathBrowser(): void;
         openProjectSearch(): void;
         openSessionSearch(): void;
+        openKeyboardShortcuts(): void;
         openCommanderHandover(): void;
     };
     windows: {

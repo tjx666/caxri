@@ -16,6 +16,7 @@ import { confirmations } from './confirmations';
 import { core } from './core';
 import { editor } from './editor';
 import { gpu } from './gpu';
+import { keyboardShortcuts } from './keyboard-shortcuts';
 import { palette } from './palette';
 import { panel } from './panel';
 import { pathBrowser } from './path-browser';
@@ -60,6 +61,7 @@ export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...core,
     ...editor,
     ...gpu,
+    ...keyboardShortcuts,
     ...palette,
     ...panel,
     ...pathBrowser,
