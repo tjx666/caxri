@@ -78,6 +78,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['wall-clock'],
         why: 'Clicks Undo on the "Dismissed" toast before its real 4s auto-dismissal sends the dismissal.',
     },
+    'e2e/agent-chat-switch.performance.e2e.ts': {
+        reasons: ['benchmark', 'opt-in-only'],
+        why: 'Agent Chat Session-switch benchmark; skipped outside its benchmark command.',
+    },
     'e2e/agent-chat-background.e2e.ts': {
         reasons: ['wall-clock'],
         why: 'Clicks Undo on the "Queued message removed" toast before its real 4s auto-dismissal.',

@@ -21,6 +21,12 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    build without observer overhead, measures one `session.switch`, and writes
    `test-results/receipts/renderer-performance.json`. Read the fixed `session.select` and
    `app.bootstrap` request summaries before attributing time to React.
+   For switching to a long Agent Chat (blank transcript frames, scroll position, re-reads), run
+   `bun run benchmark:chat-switch` and record `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK`. It measures a
+   kept-alive, an evicted-but-cached, and an uncached Chat frame by frame after paint in a profiling
+   build, gates per-surface React budgets, and writes
+   `test-results/receipts/agent-chat-session-switch.json`; see
+   [Agent Chat Session switch](../../../docs/renderer-performance.md#agent-chat-session-switch).
    For Claude Agent-state probe latency, run `bun run benchmark:agent-probe` and record
    `CAXRI_AGENT_PROBE_BENCHMARK`. It runs below Electron against a synthetic 512-file
    `sessions/` directory and rewrites one file every ten probes; the production `agent.probe` log
