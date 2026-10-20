@@ -57,6 +57,13 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
      * `dataTransfer.getData` is unreadable during `dragover`, so the dragged id is captured at `dragstart`.
      */
     const draggedIdReference = useRef<string | undefined>(undefined);
+    /**
+     * Whether this drag already landed on the strip. `dropEffect` alone is not trusted to say so: Chromium only honors
+     * a `dropEffect` written during `dragover`, so a drag whose drop the strip handled can still end with `none`
+     * (always, for synthetic events), and treating that as "released outside" would tear off the tab the user just
+     * reordered.
+     */
+    const droppedReference = useRef(false);
     useEffect(() => {
         const clear = (): void => {
             setDropIndicatorLeft(undefined);
@@ -71,6 +78,7 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
             const sessionId = sessionTabIdAt(event.target);
             if (!sessionId) return;
             draggedIdReference.current = sessionId;
+            droppedReference.current = false;
             event.dataTransfer.setData(SESSION_TAB_DRAG_TYPE, sessionId);
             event.dataTransfer.effectAllowed = 'move';
         },
@@ -80,6 +88,7 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
                 !sessionId ||
                 !shouldTearOffSessionTab({
                     dropEffect: event.dataTransfer.dropEffect,
+                    dropped: droppedReference.current,
                     tabCount: getOpenSessionIds().length,
                 })
             )
@@ -109,6 +118,7 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
             setDropIndicatorLeft(geometry.edgeX - list.getBoundingClientRect().left);
         },
         onDrop: (event) => {
+            droppedReference.current = true;
             setDropIndicatorLeft(undefined);
             const sessionId = event.dataTransfer.getData(SESSION_TAB_DRAG_TYPE);
             draggedIdReference.current = undefined;

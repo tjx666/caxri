@@ -69,8 +69,10 @@ async function dragTabOut(
                 );
             };
             fire('dragstart', { x: window.screenX + 100, y: window.screenY + 20 });
-            // The product sets `dropEffect` to `move` over its own strip; an outside release leaves it `none`.
-            transfer.dropEffect = dropEffect;
+            // An accepted drop (`move`) lands on the strip before the drag ends, as a real drop back onto its own tab does.
+            // Chromium ignores a `dropEffect` written outside `dragover`, so the product keys off that `drop`, not the field.
+            if (dropEffect === 'move')
+                fire('drop', { x: window.screenX + 100, y: window.screenY + 20 });
             fire(
                 'dragend',
                 where === 'outside'
