@@ -29,7 +29,6 @@ import * as queueActions from './chat-queue-actions';
 import type { ChatRewindHost, ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { previewChatRestore } from './chat-rewind-preview';
-import { askChatSideQuestion } from './chat-side-question';
 import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
@@ -38,6 +37,7 @@ import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
 import type { ChatTaskHost } from './chat-task-read';
 import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
+import { askChatSideQuestion } from './side-question/chat-side-question';
 
 /**
  * Owns every Chat Terminal's provider process and in-memory conversation projection. Processes start lazily on the

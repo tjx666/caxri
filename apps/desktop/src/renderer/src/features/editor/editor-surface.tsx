@@ -83,7 +83,7 @@ const AgentContextPage = lazy(async () => {
 });
 
 const AgentChatSideChatTab = lazy(async () => {
-    const module = await import('../agent-chat/agent-chat-side-chat-tab');
+    const module = await import('../agent-chat/side-chat/agent-chat-side-chat-tab');
     return { default: module.AgentChatSideChatTab };
 });
 

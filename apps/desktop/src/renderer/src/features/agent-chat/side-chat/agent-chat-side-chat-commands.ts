@@ -1,15 +1,15 @@
 import { agentSideChatTabPath } from '@caxri/protocol';
 import { omit } from 'es-toolkit';
 
-import { translate } from '../../i18n';
-import { caxri } from '../../lib/caxri';
-import { createStore } from '../../lib/store';
-import { getBootstrap, getSessionState } from '../../stores/selectors';
-import { describeFailureNotice, tryCommand } from '../../stores/toasts';
-import { refreshWorkbench } from '../../stores/workbench';
-import { didSelectSession } from '../session/session-commands';
-import { findPaneTabId } from '../workbench/pane-actions';
-import { didSendAgentChatMessage } from './agent-chat-commands';
+import { translate } from '../../../i18n';
+import { caxri } from '../../../lib/caxri';
+import { createStore } from '../../../lib/store';
+import { getBootstrap, getSessionState } from '../../../stores/selectors';
+import { describeFailureNotice, tryCommand } from '../../../stores/toasts';
+import { refreshWorkbench } from '../../../stores/workbench';
+import { didSelectSession } from '../../session/session-commands';
+import { findPaneTabId } from '../../workbench/pane-actions';
+import { didSendAgentChatMessage } from '../agent-chat-commands';
 import type { SideChatExchange } from './agent-chat-side-thread';
 import { agentChatSideHistory, agentChatSideSeedPrompt } from './agent-chat-side-thread';
 

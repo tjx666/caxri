@@ -1,9 +1,9 @@
 import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import { requireChatTerminal } from './chat-launch';
-import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider';
-import type { AgentChatServiceOptions } from './service-options';
+import { requireChatTerminal } from '../chat-launch';
+import type { AgentChatProviderSession, ChatSideExchange } from '../chat-provider';
+import type { AgentChatServiceOptions } from '../service-options';
 import { EmptySideAnswerError } from './side-answer-error';
 
 /**

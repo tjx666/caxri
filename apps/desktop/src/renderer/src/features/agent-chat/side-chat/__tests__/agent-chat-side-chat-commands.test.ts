@@ -9,13 +9,13 @@ const mocks = vi.hoisted(() => ({
     sessionState: undefined as unknown,
 }));
 
-vi.mock('../../../i18n', () => ({ translate: (key: string) => key }));
-vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
-vi.mock('../../../stores/selectors', () => ({
+vi.mock('../../../../i18n', () => ({ translate: (key: string) => key }));
+vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
+vi.mock('../../../../stores/selectors', () => ({
     getBootstrap: () => mocks.bootstrap,
     getSessionState: () => mocks.sessionState,
 }));
-vi.mock('../../../stores/toasts', () => ({
+vi.mock('../../../../stores/toasts', () => ({
     describeFailureNotice: (error: unknown) => ({
         message: error instanceof Error ? error.message : 'failed',
     }),
@@ -27,10 +27,10 @@ vi.mock('../../../stores/toasts', () => ({
         }
     },
 }));
-vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: vi.fn() }));
-vi.mock('../../session/session-commands', () => ({ didSelectSession: mocks.didSelectSession }));
-vi.mock('../../workbench/pane-actions', () => ({ findPaneTabId: mocks.findPaneTabId }));
-vi.mock('../agent-chat-commands', () => ({
+vi.mock('../../../../stores/workbench', () => ({ refreshWorkbench: vi.fn() }));
+vi.mock('../../../session/session-commands', () => ({ didSelectSession: mocks.didSelectSession }));
+vi.mock('../../../workbench/pane-actions', () => ({ findPaneTabId: mocks.findPaneTabId }));
+vi.mock('../../agent-chat-commands', () => ({
     didSendAgentChatMessage: mocks.didSendAgentChatMessage,
 }));
 

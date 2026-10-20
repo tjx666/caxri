@@ -24,14 +24,14 @@ import {
     isAgentChatSkillAttachment,
     returnUnsentAgentChatMessage,
 } from '../composer-input/agent-chat-drafts';
+import { askAgentChatSideQuestion } from '../side-chat/agent-chat-side-chat-commands';
+import { parseAgentChatSideQuestion } from '../side-chat/agent-chat-side-thread';
+import { openAgentChatSideChat } from '../tasks/agent-chat-task-opener';
 import {
     dropAgentChatPendingMessage,
     expireAgentChatPendingMessage,
     showAgentChatPendingMessage,
 } from '../transcript/agent-chat-pending';
-import { askAgentChatSideQuestion } from '../agent-chat-side-chat-commands';
-import { parseAgentChatSideQuestion } from '../agent-chat-side-thread';
-import { openAgentChatSideChat } from '../tasks/agent-chat-task-opener';
 
 /**
  * The message `text` and `attachments` make: images ride along as images, their placeholders numbered in the order they

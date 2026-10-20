@@ -1,8 +1,8 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import { CaxriError } from '@caxri/protocol';
 
-import type { ChatSideExchange } from './chat-provider';
-import { withTimeout } from './claude-prompt-queue';
+import type { ChatSideExchange } from '../chat-provider';
+import { withTimeout } from '../claude-prompt-queue';
 import { EmptySideAnswerError } from './side-answer-error';
 
 /**

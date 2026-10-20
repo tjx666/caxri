@@ -1,10 +1,10 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import { isRecord, stringField } from './chat-items';
-import type { ChatSideExchange } from './chat-provider';
-import type { JsonRpcConnection } from './json-rpc-connection';
-import { JsonRpcRequestError } from './json-rpc-connection';
+import { isRecord, stringField } from '../chat-items';
+import type { ChatSideExchange } from '../chat-provider';
+import type { JsonRpcConnection } from '../json-rpc-connection';
+import { JsonRpcRequestError } from '../json-rpc-connection';
 import { EmptySideAnswerError } from './side-answer-error';
 
 type Json = Record<string, unknown>;

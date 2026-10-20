@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { agentProviderCatalog } from '@caxri/protocol';
 import { ArrowUp, SquareArrowOutUpRight } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
-import { Textarea } from '../../components/ui/textarea';
-import { Tooltip } from '../../components/ui/tooltip';
-import { useTranslation } from '../../i18n';
-import { useTerminal } from '../../stores/selectors';
+import { Button } from '../../../components/ui/button';
+import { Textarea } from '../../../components/ui/textarea';
+import { Tooltip } from '../../../components/ui/tooltip';
+import { useTranslation } from '../../../i18n';
+import { useTerminal } from '../../../stores/selectors';
 import {
     askAgentChatSideQuestion,
     convertAgentChatSideChatToSession,

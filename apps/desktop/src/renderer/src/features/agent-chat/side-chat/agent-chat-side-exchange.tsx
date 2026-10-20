@@ -1,9 +1,9 @@
 import { RotateCcw } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
-import { useTranslation } from '../../i18n';
-import { AgentChatMessage } from './agent-chat-message';
+import { Button } from '../../../components/ui/button';
+import { Spinner } from '../../../components/ui/spinner';
+import { useTranslation } from '../../../i18n';
+import { AgentChatMessage } from '../messages/agent-chat-message';
 import type { SideChatExchange } from './agent-chat-side-thread';
 
 /**

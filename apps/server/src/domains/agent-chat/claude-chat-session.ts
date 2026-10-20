@@ -64,7 +64,6 @@ import {
 import { reportClaudeSessionEnd } from './claude-session-end';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { withClaudeShellHooks } from './claude-shell-hooks';
-import { askClaudeSideQuestion } from './claude-side-question';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
 import {
@@ -79,6 +78,7 @@ import { ClaudeTurns } from './claude-turns';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';
 import { ProviderProcess } from './provider-process';
+import { askClaudeSideQuestion } from './side-question/claude-side-question';
 
 /**
  * Claude Code loads settings, plugins, and MCP servers before it answers `initialize`, so its handshake gets more time

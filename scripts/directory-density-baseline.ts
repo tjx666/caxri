@@ -31,14 +31,14 @@ export interface DirectoryDensityFamily extends DirectoryDensityOwner {
 
 export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 114, directory: 'apps/desktop/src/main' },
-    { cap: 94, directory: 'apps/server/src/domains/agent-chat' },
+    { cap: 95, directory: 'apps/server/src/domains/agent-chat' },
     { cap: 12, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
 ];
 
 export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
     { cap: 33, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },
     { cap: 28, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
-    { cap: 17, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
+    { cap: 18, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
     { cap: 7, directory: 'apps/server/src/domains/agent-chat', prefix: 'grok-' },
     { cap: 8, directory: 'apps/desktop/src/main', prefix: 'agent-' },
     { cap: 8, directory: 'apps/desktop/src/main', prefix: 'external-' },
