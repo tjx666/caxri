@@ -21,6 +21,16 @@ An explicit serial selects a device but does not reserve it. Parallel tasks must
 disposable emulator instances; the Desktop lease does not serialize APK installs, package clears,
 or native taps. Launch a task-owned AVD with an unused port when the shared instance is active;
 copy only hardware configuration and use fresh user data, never another task's live disk image.
+Detach the launch from the agent's shell, or the emulator dies with that shell and the next case
+fails with `device 'emulator-N' not found`. On macOS (no `setsid`):
+
+```bash
+nohup ~/Library/Android/sdk/emulator/emulator -avd <avd> -port <unused even port> -read-only \
+  -wipe-data -no-snapshot -no-audio -no-window >/tmp/emu-<port>.log 2>&1 & disown
+```
+
+`-read-only` lets the task share an AVD that another instance is using. Stop it with
+`adb -s emulator-<port> emu kill` and confirm it left `adb devices`.
 Freeze that serial in the new report round and stop only the
 instance this task launched. If Android reports `PACKAGE UPDATED` during a case, investigate
 another installer before attributing the interruption to an app crash.

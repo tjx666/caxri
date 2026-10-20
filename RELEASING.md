@@ -43,7 +43,8 @@ git add package.json packages/agent-skills/package.json packages/agent-skills/sr
   apps/server/package.json extensions/{fixture,git,status}/package.json
 git commit -m "release: v${version}"
 git push -u origin "release/v${version}"
-gh pr create --title "release: v${version}" --body "" --base main
+# --head: gh cannot infer the pushed branch when the clone fetches only main
+gh pr create --head "release/v${version}" --title "release: v${version}" --body "" --base main
 # wait for the `guards` status check to pass, then squash-merge with the exact release subject so
 # `.github/workflows/release.yml` and scripts/ci-retry-policy.ts's exact-release check still match:
 gh pr merge --squash --subject "release: v${version}" --body ""
