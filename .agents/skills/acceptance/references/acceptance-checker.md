@@ -4,6 +4,9 @@ The `acceptance-checker` checks plans and evidence in the **first acceptance
 round only**. The primary owns preparation, execution, evidence inspection,
 repairs, cleanup, and publication. Reuse one checker across both stages when
 supported; otherwise give its replacement the same handoff and prior findings.
+When reusing a checker, send only what changed since its last response (new plan
+items, diff hunks, artifacts, and changed case ids); do not repeat context it
+already acquired, such as the full `git diff`, CLI help, or auth probes.
 Never assume a role name or model parameter exists: use the current host's
 supported agent controls. Prefer the cheapest model capable of inspecting every
 planned artifact, and record the actual selection when known; an inherited

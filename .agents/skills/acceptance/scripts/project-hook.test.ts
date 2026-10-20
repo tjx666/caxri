@@ -86,6 +86,7 @@ describe('Caxri Acceptance project hook', () => {
             'utf8',
         );
 
+        expect(projectGuide).toContain('lh acceptance preflight --json');
         expect(projectGuide).toContain('lh whoami --json');
         expect(projectGuide).not.toContain('lh acceptance run list --json');
         expect(projectGuide).toContain('/hooks');

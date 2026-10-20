@@ -129,3 +129,9 @@ Open and visually inspect every image before recording a verdict.
   [recording-cdp.md](recording-cdp.md).
 - Stop only the owned Electron process with the project adapter. Do not use
   broad process-name kills or close a resident Caxri instance.
+- Each `--session` is its own daemon and browser, and it outlives the calling
+  command. Export `AGENT_BROWSER_IDLE_TIMEOUT_MS` (for example `1800000`) before
+  the first call so an abandoned session shuts itself down, and run
+  `agent-browser --session "$SESSION" close` at teardown. Close only the session
+  this round opened: `close --all` or `pkill -f agent-browser` kills sibling
+  sessions' browsers mid-capture.
