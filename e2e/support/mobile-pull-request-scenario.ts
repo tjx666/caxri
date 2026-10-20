@@ -53,11 +53,13 @@ async function seedRepo(root: string): Promise<void> {
     await git(root, 'commit', '-m', 'Add the phone merge fixture');
     await git(root, 'remote', 'add', 'origin', `https://github.com/${SLUG}.git`);
     await git(root, 'update-ref', `refs/remotes/origin/${BRANCH}`, 'HEAD');
+    await git(root, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    await git(root, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
 }
 
 /**
- * A fake `gh` that answers branch, pull request, and repository reads from files, and records a merge by flipping the
- * pull request to merged and appending its arguments to `merges.log`.
+ * A fake `gh` that answers its token read and branch, pull request, and repository reads from files, and records a
+ * merge by flipping the pull request to merged and appending its arguments to `merges.log`.
  */
 async function writeFakeGh(
     directory: string,
@@ -101,6 +103,7 @@ async function writeFakeGh(
         String.raw`#!/bin/sh
 state=$(cat ${JSON.stringify(statePath)})
 case "$1 $2" in
+  "auth token") printf 'fixture-token' ;;
   "api graphql") printf '%s' '${branchResponse}' ;;
   "pr list") printf '[{"number":42,"state":"%s","isDraft":false}]' "$state" ;;
   "pr view")
