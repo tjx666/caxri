@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
     emptyTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
     emptyBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
     limit: { borderBottomWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
-    limitText: { fontSize: 12, lineHeight: 16 },
+    limitText: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16 },
     retry: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 8 },
     retryText: { fontSize: 14, fontWeight: '700' },
 });

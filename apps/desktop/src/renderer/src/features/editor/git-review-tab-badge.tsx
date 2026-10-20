@@ -23,7 +23,7 @@ export function GitReviewTabBadge({
         <>
             <span
                 aria-hidden="true"
-                className="rounded-full bg-badge px-1.5 text-[10px] text-badge-foreground"
+                className="rounded-full bg-badge px-1.5 text-[10px] text-badge-foreground tabular-nums"
             >
                 {count}
             </span>

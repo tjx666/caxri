@@ -64,7 +64,7 @@ function ActivityModeToggle({ isActivityMode }: { isActivityMode: boolean }) {
                 {attentionCount > 0 && (
                     <span
                         aria-hidden="true"
-                        className="primary-sidebar-activity-badge absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-1 text-[10px] leading-none font-semibold text-badge-foreground ring-2 ring-surface"
+                        className="primary-sidebar-activity-badge absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-1 text-[10px] leading-none font-semibold text-badge-foreground tabular-nums ring-2 ring-surface"
                         data-activity-badge={badge}
                     >
                         {badge}

@@ -211,6 +211,12 @@ they each shipped once as regressions. Monospace previews and diffs use `meta` s
 may use unitless `1.45` or `1.5` line height; compact uppercase headings may use `0.04em` or
 `0.06em` tracking. No other arbitrary typography values are allowed.
 
+Numbers that change while visible (timers, elapsed durations, percentages and meters, token and cost
+counters, unread and match counts, badges, zoom percentage, line and column) use tabular digits
+(`tabular-nums`; `fontVariant: ['tabular-nums']` on Mobile), so the layout does not shift as digits
+change. Static numbers (versions, fixed dates) keep proportional digits. Put the class on the
+shared component when every usage shows changing digits (`StatusItem`, `StatTile`).
+
 ### Spacing and radius
 
 - 4px grid: primary gaps and paddings are 4, 8, 12, 16, 24. Optical half-steps (2, 6, 10px) are

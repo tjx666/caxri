@@ -57,6 +57,7 @@ export const sessionDetailStyles = StyleSheet.create({
     tabBadge: {
         borderRadius: 8,
         fontSize: 12,
+        fontVariant: ['tabular-nums'],
         fontWeight: '700',
         overflow: 'hidden',
         paddingHorizontal: 5,

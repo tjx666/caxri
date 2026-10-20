@@ -137,7 +137,7 @@ export function UpdateDialog() {
                         <UpdateStatusIcon state={state} />
                         <div className="min-w-0">
                             <p className="m-0 text-[13px] font-medium">{copy.title}</p>
-                            <p className="mt-1 mb-0 text-[11px] leading-[1.5] text-muted">
+                            <p className="mt-1 mb-0 text-[11px] leading-[1.5] text-muted tabular-nums">
                                 {copy.description}
                             </p>
                         </div>
