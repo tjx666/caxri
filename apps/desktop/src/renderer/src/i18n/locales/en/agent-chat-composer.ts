@@ -85,7 +85,7 @@ export const agentChatComposer = {
     'agentChat.images.unreadable': 'An image could not be read',
 
     'agentChat.history.label': 'Recent prompts',
-    'agentChat.history.footer': '↑↓ to move · Enter to fill · Esc to dismiss',
+    'agentChat.history.keyHintFill': 'to fill',
     'agentChat.stash.stashed':
         'Draft stashed until you quit. Ctrl+S in an empty input restores it.',
     'agentChat.stash.occupied':
@@ -102,10 +102,9 @@ export const agentChatComposer = {
     'agentChat.slash.files': 'Files',
     'agentChat.slash.mentions': 'Files and Sessions',
     'agentChat.slash.sessions': 'Sessions',
-    'agentChat.slash.footerDismiss': 'Esc to dismiss',
-    'agentChat.slash.footerCommands':
-        '↑↓ to move · Tab to complete · Enter to run · Esc to dismiss',
-    'agentChat.slash.footerSessions': '↑↓ to move · Enter to cite · Esc to dismiss',
+    'agentChat.slash.keyHintCite': 'to cite',
+    'agentChat.slash.keyHintComplete': 'to complete',
+    'agentChat.slash.keyHintRun': 'to run',
     'agentChat.slash.preparingSession': 'Preparing “{{title}}”…',
     'agentChat.slash.showInvocation': 'Show {{invocation}}',
     'agentChat.slash.instructionsUnavailable':

@@ -402,6 +402,13 @@ for (const provider of ['codex', 'claude'] as const) {
                     .locator('.workbench-pane')
                     .getByText(/You said: Read the delegated task/u),
             ).toBeVisible();
+            // The pointer bubble shows the task the caller wrote rather than leaving only "Delegated task".
+            await expect(
+                running.page.locator(`[data-agent-chat-delegated-task="${initial.delegationId}"]`),
+            ).toContainText('Synthetic Chat task');
+            await running.page.screenshot({
+                path: test.info().outputPath(`${provider}-delegated-task.png`),
+            });
 
             const followed = await pageRequest<AgentDelegationReceipt>(
                 running.page,

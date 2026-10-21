@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatComposerKey } from '../agent-chat-composer-keys';
-import { agentChatComposerKeyAction, isAgentChatPlainPasteKey } from '../agent-chat-composer-keys';
+import {
+    agentChatComposerKeyAction,
+    isAgentChatClearKey,
+    isAgentChatPlainPasteKey,
+} from '../agent-chat-composer-keys';
 
 const press = (
     key: string,
@@ -106,5 +110,17 @@ describe('isAgentChatPlainPasteKey', () => {
             isAgentChatPlainPasteKey(press('V', { metaKey: true, shiftKey: true, altKey: true })),
         ).toBe(false);
         expect(isAgentChatPlainPasteKey(press('V', { shiftKey: true }))).toBe(false);
+    });
+});
+
+describe('isAgentChatClearKey', () => {
+    it('is Ctrl+C alone, never Cmd+C (Copy), another chord, or a key the IME owns', () => {
+        expect(isAgentChatClearKey(press('c', { ctrlKey: true }))).toBe(true);
+        expect(isAgentChatClearKey(press('C', { ctrlKey: true }))).toBe(true);
+        expect(isAgentChatClearKey(press('c', { metaKey: true }))).toBe(false);
+        expect(isAgentChatClearKey(press('c', { ctrlKey: true, shiftKey: true }))).toBe(false);
+        expect(isAgentChatClearKey(press('c', { ctrlKey: true, altKey: true }))).toBe(false);
+        expect(isAgentChatClearKey(press('c', { ctrlKey: true, isComposing: true }))).toBe(false);
+        expect(isAgentChatClearKey(press('c'))).toBe(false);
     });
 });

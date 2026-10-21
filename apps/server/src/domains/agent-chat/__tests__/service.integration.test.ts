@@ -53,6 +53,22 @@ describe('AgentChatService with a fake Codex app-server', () => {
         ]);
     });
 
+    it('drops the prompt cache expiry for a ChatGPT sign-in, whose cache never expires', async () => {
+        const { service, terminal, until } = await fixture({ codexAccountType: 'chatgpt' });
+        await service.send(terminal.id, { text: 'hi there' });
+        const snapshot = await until((current) => current.usage !== undefined);
+        expect(snapshot.usage?.totalTokens).toBe(1200);
+        expect(snapshot.usage?.cacheTtlMinutes).toBeUndefined();
+        expect(snapshot.usage?.cacheRewriteUsd).toBeUndefined();
+    });
+
+    it('keeps the 30-minute cache estimate for an API key sign-in', async () => {
+        const { service, terminal, until } = await fixture({ codexAccountType: 'apiKey' });
+        await service.send(terminal.id, { text: 'hi there' });
+        const snapshot = await until((current) => current.usage !== undefined);
+        expect(snapshot.usage?.cacheTtlMinutes).toBe(30);
+    });
+
     it('answers an approval by its stable request id and clears attention', async () => {
         const { service, terminal, signals, until } = await fixture();
         await service.send(terminal.id, { text: 'please approve this' });

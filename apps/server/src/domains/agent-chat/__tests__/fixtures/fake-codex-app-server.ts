@@ -12,7 +12,8 @@
  * - `browsestep`: a Computer Use browser step that binds a tab, then one that drives it and stays running briefly before
  *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
- * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop.
+ * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop. With
+ *   `reconnect`, a stream retry notice comes first.
  * - `burststream`: a reply that arrives in a few large deltas 400ms apart, the way a busy provider delivers text.
  * - `longstream`: a titled thought, a quiet pause of a few seconds, then a reply of forty numbered paragraphs streamed
  *   over about 30 seconds, which `turn/interrupt` can stop.
@@ -60,6 +61,7 @@ import crypto from 'node:crypto';
 import process from 'node:process';
 import readline from 'node:readline';
 
+import { didHandleAccountRequest } from './fake-codex-account.ts';
 import {
     runApprovalCommand,
     runApprovalPatch,
@@ -95,6 +97,7 @@ import {
     runWebLink,
     runWideDiff,
 } from './fake-codex-replies.ts';
+import { CODEX_RECONNECTING } from './fake-codex-retry.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
 import {
@@ -316,6 +319,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
             aggregatedOutput: '',
         };
         startItem(turn, { ...command, status: 'inProgress' });
+        if (text.includes('reconnect')) notify('error', { turnId: turn.id, ...CODEX_RECONNECTING });
         await streamMessage(turn, 'word '.repeat(200), 50);
         // An interrupted turn leaves the command dangling, which closing the turn settles.
         if (!turn.interrupted) completeItem(turn, { ...command, status: 'completed', exitCode: 0 });
@@ -417,6 +421,7 @@ function handle(message: RpcMessage) {
     if (didHandleGoalRequest(io, id, method, parameters)) return;
     if (didHandleSideRequest(io, id, method, parameters)) return;
     if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
+    if (didHandleAccountRequest(io, id, method)) return;
     switch (method) {
         case 'initialize': {
             send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });

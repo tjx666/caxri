@@ -304,6 +304,7 @@ export function AgentChatComposer({
     const sendShortcut = agentChatSendTooltipShortcut(sendAction, sendState);
     const composerKeys = useAgentChatComposerEnter({
         cancelEdit: edit.cancel,
+        clearAttachments: () => images.clearSent(images.attachments),
         hasPendingQueue: pendingQueue.length > 0,
         isBusy,
         isEditing: edit.isEditing,
@@ -417,6 +418,7 @@ export function AgentChatComposer({
                         sessionMenu={sessionMenu}
                         setDraft={setDraft}
                         setInputFocused={setInputFocused}
+                        terminalId={terminalId}
                         stash={stash}
                         onPaste={fileInput.onPaste}
                     />

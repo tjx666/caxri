@@ -1,7 +1,7 @@
 import type { AgentAction } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
-import type { SuggestionOption } from '../../../lib/suggestion-options';
+import type { SuggestionKeyHint, SuggestionOption } from '../../../lib/suggestion-options';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 
 export function agentChatActionSuggestion(action: AgentAction): SuggestionOption {
@@ -46,17 +46,40 @@ export function agentChatSessionSuggestions(
 }
 
 /**
- * The keys a suggestion list's `meta` footer names. A list with no row to choose offers only Escape, so it never
- * promises an Enter that would send the draft instead.
+ * The keys a suggestion list's `meta` footer names, always ending in Escape. A list with no row to choose offers only
+ * Escape, so it never promises an Enter that would send the draft instead.
  */
 export function agentChatSuggestionFooter(
-    list: 'commands' | 'sessions',
+    list: 'commands' | 'history' | 'sessions',
     hasMatches: boolean,
-): string {
-    if (!hasMatches) return translate('agentChat.slash.footerDismiss');
-    return translate(
-        list === 'commands' ? 'agentChat.slash.footerCommands' : 'agentChat.slash.footerSessions',
-    );
+): SuggestionKeyHint[] {
+    const dismiss = { keys: 'Esc', action: translate('common.keyHint.dismiss') };
+    if (!hasMatches) return [dismiss];
+    const move = { keys: '↑↓', action: translate('common.keyHint.move') };
+    switch (list) {
+        case 'commands': {
+            return [
+                move,
+                { keys: 'Tab', action: translate('agentChat.slash.keyHintComplete') },
+                { keys: 'Enter', action: translate('agentChat.slash.keyHintRun') },
+                dismiss,
+            ];
+        }
+        case 'history': {
+            return [
+                move,
+                { keys: 'Enter', action: translate('agentChat.history.keyHintFill') },
+                dismiss,
+            ];
+        }
+        case 'sessions': {
+            return [
+                move,
+                { keys: 'Enter', action: translate('agentChat.slash.keyHintCite') },
+                dismiss,
+            ];
+        }
+    }
 }
 
 /**

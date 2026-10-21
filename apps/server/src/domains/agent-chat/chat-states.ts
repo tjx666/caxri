@@ -13,7 +13,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
-import { delegatedTaskSource } from './chat-delegated-task';
+import { delegatedTaskDetails } from './chat-delegated-task';
 import { requireChatTerminal } from './chat-launch';
 import { ChatProjection } from './chat-projection';
 import type { AgentChatProviderSession } from './chat-provider';
@@ -170,8 +170,8 @@ export class ChatStates {
                 send: (event) => this.options.send(event),
                 onChange: () => state.followUps.dispatch(),
                 onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
-                delegatedTaskSource: (delegationId) =>
-                    delegatedTaskSource(this.options.database, delegationId),
+                delegatedTask: (delegationId) =>
+                    delegatedTaskDetails(this.options.database, delegationId),
                 answeredNotices: {
                     load: () =>
                         chatStateStore(this.options.database).answeredNotices.list(terminalId),

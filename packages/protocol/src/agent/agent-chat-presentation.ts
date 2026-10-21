@@ -354,6 +354,36 @@ export function agentChatItemStatusLabel(
     return t(`agentChat.tool.status.${status}`);
 }
 
+const RETRY_CAUSE_KEYS = {
+    connection: 'agentChat.message.retryConnection',
+    rateLimit: 'agentChat.message.retryRateLimit',
+    overloaded: 'agentChat.message.retryOverloaded',
+    server: 'agentChat.message.retryServer',
+    other: 'agentChat.message.retryOther',
+} as const satisfies Record<AgentChatRetry['cause'], AgentChatLabelKey>;
+
+type AgentChatRetry = NonNullable<Extract<AgentChatItem, { type: 'notice' }>['retry']>;
+
+/**
+ * A retry's one-line headline: its cause, then the attempt against the provider's limit when it reports them
+ * ("Connection lost, retrying (2/10)").
+ */
+export function agentChatRetryHeadline(
+    retry: AgentChatRetry,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    const label = t(RETRY_CAUSE_KEYS[retry.cause]);
+    const { attempt, maxAttempts } = retry;
+    if (attempt === undefined) return label;
+    return maxAttempts === undefined
+        ? t('agentChat.message.retryAttempt', { label, attempt })
+        : t('agentChat.message.retryAttemptOf', {
+              label,
+              attempt,
+              max: maxAttempts,
+          });
+}
+
 /**
  * A notice's text. The provider's own message is transcript content and stays as reported; only the words Caxri puts
  * around it are translated.
@@ -377,6 +407,10 @@ export function agentChatNoticeMessage(
                 : t('agentChat.message.contextCompacted');
         }
         case 'retrying': {
+            if (item.retry) {
+                const headline = agentChatRetryHeadline(item.retry, t);
+                return item.message ? `${headline}\n${item.message}` : headline;
+            }
             return item.message
                 ? t('agentChat.message.retryingWith', { message: item.message })
                 : t('agentChat.message.retrying');

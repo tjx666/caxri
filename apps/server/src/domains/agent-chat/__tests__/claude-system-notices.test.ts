@@ -2,7 +2,7 @@ import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatSessionHost } from '../chat-provider';
-import { didApplyClaudeFeedback } from '../claude-system-notices';
+import { didApplyClaudeFeedback, onClaudeApiRetry } from '../claude-system-notices';
 
 function harness() {
     let snapshot = emptyAgentChatSnapshot('terminal-1');
@@ -108,5 +108,28 @@ describe('Claude system output visibility', () => {
                 .items.map((item) => (item.type === 'notice' ? item.message : ''))
                 .join(''),
         ).toBe(content);
+    });
+});
+
+describe('Claude API retries', () => {
+    it.each([
+        [{ error_status: null, error: 'unknown' }, 'connection'],
+        [{ error_status: 429, error: 'rate_limit' }, 'rateLimit'],
+        [{ error_status: 529, error: 'overloaded' }, 'overloaded'],
+        [{ error_status: 500, error: 'server_error' }, 'server'],
+        [{ error_status: 400, error: 'invalid_request' }, 'other'],
+    ])('names the cause of %o as %s, with the attempt against the limit', (failure, cause) => {
+        const host = harness();
+        host.apply([{ op: 'state', state: { activeTurnId: 'turn-1' } }]);
+        onClaudeApiRetry(host, { attempt: 2, max_retries: 10, ...failure });
+        expect(host.read().items).toEqual([
+            {
+                id: 'turn-1:retry',
+                turnId: 'turn-1',
+                type: 'notice',
+                kind: 'retrying',
+                retry: { cause, attempt: 2, maxAttempts: 10 },
+            },
+        ]);
     });
 });

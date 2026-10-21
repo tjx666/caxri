@@ -3,6 +3,7 @@ import { isImeComposing } from '../../../lib/ime';
 import { sendAgentChatQueuedNow } from '../agent-chat-commands';
 import {
     agentChatComposerKeyAction,
+    isAgentChatClearKey,
     isAgentChatPlainPasteKey,
 } from '../composer/agent-chat-composer-keys';
 import {
@@ -19,11 +20,14 @@ import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
  * (`agentChatComposerKeyAction`): Escape stops the turn or cancels an edit, Enter in an empty input sends the next
  * queued message, and Enter on a draft submits it. A draft the composer cannot send yet says why in the strip
  * (`agentChatSendRefusal`) instead of doing nothing; `notice` carries that line. Cmd+Shift+V pastes the clipboard as
- * plain text (`pastePlainText`), skipping the long-paste conversion; no suggestion list or history claims it.
- * Shift+Enter on a Markdown list line starts the next item (`agentChatListContinuation`).
+ * plain text (`pastePlainText`), skipping the long-paste conversion; no suggestion list or history claims it. Ctrl+C
+ * with no selection empties a composer that holds text or attachments (`isAgentChatClearKey`); over a selection it
+ * stays Copy. The text goes as an edit, so Cmd+Z brings it back. Shift+Enter on a Markdown list line starts the next
+ * item (`agentChatListContinuation`).
  */
 export function useAgentChatComposerEnter({
     cancelEdit,
+    clearAttachments,
     hasPendingQueue,
     isBusy,
     isEditing,
@@ -38,6 +42,10 @@ export function useAgentChatComposerEnter({
     terminalId,
 }: {
     cancelEdit: () => void;
+    /**
+     * Removes every attachment, for Ctrl+C.
+     */
+    clearAttachments: () => void;
     /**
      * Whether a message is still on its way into the queue, which keeps Enter from sending an older entry.
      */
@@ -81,6 +89,17 @@ export function useAgentChatComposerEnter({
             repeat: event.repeat,
             shiftKey: event.shiftKey,
         };
+        if (isAgentChatClearKey(key)) {
+            const input = event.currentTarget;
+            // Ctrl+C over a selection stays Copy, which is what it means on Windows and Linux.
+            if (input.selectionStart !== input.selectionEnd) return;
+            // A whitespace-only draft counts too: Ctrl+C should leave the input visibly empty.
+            if (!sendState.hasContent && input.value === '') return;
+            event.preventDefault();
+            input.applyEdit({ from: 0, to: input.value.length, text: '', caret: 0 });
+            clearAttachments();
+            return;
+        }
         if (isAgentChatListContinuationKey(key)) {
             const input = event.currentTarget;
             const edit = agentChatListContinuation(

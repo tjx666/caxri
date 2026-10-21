@@ -38,5 +38,8 @@ export const common = {
     'common.save': 'Save',
     'common.search': 'Search',
     'common.unknown': 'Unknown',
+    'common.keyHint.choose': 'to choose',
+    'common.keyHint.dismiss': 'to dismiss',
+    'common.keyHint.move': 'to move',
     'common.yes': 'Yes',
 } as const;

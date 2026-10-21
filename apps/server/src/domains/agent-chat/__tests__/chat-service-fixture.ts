@@ -30,6 +30,11 @@ export async function fixture(
          * A function is read at every provider start, so a test can change Settings between starts.
          */
         launchArgs?: string[] | (() => string[]);
+        /**
+         * The sign-in the fake Codex reports through `account/read`; without one it rejects the method, as an older
+         * Codex does.
+         */
+        codexAccountType?: 'apiKey' | 'chatgpt';
         provider?: keyof typeof FAKE_CLIS;
         turnRequestTimeoutMs?: number;
         endpoint?: AgentChatEndpoint;
@@ -79,6 +84,9 @@ export async function fixture(
                 Promise.resolve({
                     ...process.env,
                     FAKE_CODEX_STATE_DIR: stateDirectory,
+                    ...(options.codexAccountType && {
+                        FAKE_CODEX_ACCOUNT_TYPE: options.codexAccountType,
+                    }),
                     FAKE_GROK_STATE_DIR: grokStateDirectory,
                     CLAUDE_CONFIG_DIR: claudeConfigDirectory,
                     FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,

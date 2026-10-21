@@ -1,7 +1,11 @@
+import type { ReactNode } from 'react';
+import { Fragment } from 'react';
+
 import { useRelativeTime } from '../hooks/use-relative-time';
-import type { SuggestionOption } from '../lib/suggestion-options';
+import type { SuggestionKeyHint, SuggestionOption } from '../lib/suggestion-options';
 import { suggestionOptionId } from '../lib/suggestion-options';
 import { cn } from '../lib/utilities';
+import { Kbd } from './ui/kbd';
 import { Spinner } from './ui/spinner';
 
 /**
@@ -12,14 +16,16 @@ function OpenedTime({ openedAt }: { openedAt: number }) {
     return <span className="shrink-0 text-muted">· {label}</span>;
 }
 
-const GROUP_HEADING_CLASS_NAME = 'px-2 pt-1.5 pb-0.5 text-[11px] leading-4 text-muted';
+const GROUP_HEADING_CLASS_NAME = 'px-2 pt-2 pb-1 text-[11px] leading-4 font-medium text-muted';
 
 /**
  * Suggestions above a text input: the Chat composer's slash-command and skill list and `@` Sessions list, and the
  * Commander Inbox reply box's `@` item list. Focus stays in the input, which drives the list through
  * `aria-activedescendant`; the pointer can pick a row too. Rows match the command palette's density and focus fill,
- * under group headings, and a `meta` footer names the keys. A list with an `emptyText` stays open on no match so a typo
- * reads as a miss, and `notice` explains rows that are still missing or, with a spinner, work in progress.
+ * under group headings, each optionally led by a 16px glyph naming what the row is (a command, a skill, a file), and a
+ * `meta` footer names the keys as compact keycaps, the way the composer strip below names Enter and Esc. A list with an
+ * `emptyText` stays open on no match so a typo reads as a miss, and `notice` explains rows that are still missing or,
+ * with a spinner, work in progress.
  *
  * It is not a Base UI popup, because focus has to stay in the textarea while the arrow keys drive it, but it wears the
  * shared overlay surface (`--elevated`, the `--border` ring plus `--shadow` elevation the popover and tooltip use) and
@@ -32,6 +38,7 @@ export function SuggestionList({
     emptyText,
     footer,
     headingAt,
+    iconAt,
     label,
     listId,
     notice,
@@ -48,11 +55,15 @@ export function SuggestionList({
     /**
      * Omitted while the list only reports progress and no key does anything in it.
      */
-    footer?: string;
+    footer?: readonly SuggestionKeyHint[];
     /**
      * The visible group title a row starts, or `undefined` when it continues the group above it.
      */
     headingAt?: (index: number) => string | undefined;
+    /**
+     * The glyph leading the row at `index`. A list that draws one draws it on every row, so labels stay aligned.
+     */
+    iconAt?: (index: number) => ReactNode;
     label: string;
     listId: string;
     notice?: { text: string; isLoading: boolean };
@@ -81,7 +92,7 @@ export function SuggestionList({
                                 <div
                                     aria-selected={index === activeIndex}
                                     className={cn(
-                                        'flex min-h-7 cursor-pointer items-baseline gap-2 rounded px-2 py-1',
+                                        'flex min-h-7 cursor-pointer items-center gap-2 rounded px-2 py-1',
                                         index === activeIndex &&
                                             'bg-list-focus-background text-list-focus-foreground',
                                     )}
@@ -92,6 +103,14 @@ export function SuggestionList({
                                     onClick={() => onChoose(index)}
                                     onMouseMove={() => onHover(index)}
                                 >
+                                    {iconAt && (
+                                        <span
+                                            aria-hidden
+                                            className="flex size-4 shrink-0 items-center justify-center text-muted"
+                                        >
+                                            {iconAt(index)}
+                                        </span>
+                                    )}
                                     <span
                                         className={cn(
                                             'shrink-0',
@@ -138,12 +157,18 @@ export function SuggestionList({
                     </div>
                 )}
             </div>
-            {footer && (
+            {footer && footer.length > 0 && (
                 <div
                     aria-hidden
-                    className="shrink-0 border-0 border-t border-solid border-border px-3 py-1 text-[11px] leading-4 text-muted"
+                    className="flex shrink-0 items-center gap-1 border-0 border-t border-solid border-border px-3 py-1.5 text-[11px] leading-4 whitespace-nowrap text-muted"
                 >
-                    {footer}
+                    {footer.map(({ action, keys }, index) => (
+                        <Fragment key={keys}>
+                            {index > 0 && <span className="px-0.5">·</span>}
+                            <Kbd size="compact">{keys}</Kbd>
+                            <span>{action}</span>
+                        </Fragment>
+                    ))}
                 </div>
             )}
         </div>

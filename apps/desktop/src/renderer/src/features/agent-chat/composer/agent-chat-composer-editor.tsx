@@ -1,11 +1,16 @@
 import type { RefObject } from 'react';
-import { useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { createElement, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 
 import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
 import { EditorView, placeholder as placeholderExtension } from '@codemirror/view';
+import { QueryClientProvider } from '@tanstack/react-query';
 
+import { LinkFavicon } from '../../../components/markdown/link-favicon';
 import { useTranslation } from '../../../i18n';
+import { linkSummary } from '../../../lib/link-summary';
+import { queryClient } from '../../../queries/client';
 import type { AgentChatPathPill } from '../attachments/agent-chat-path-pills';
 import type { useAgentChatCommandMenu } from '../hooks/use-agent-chat-command-menu';
 import type { useAgentChatComposerEnter } from '../hooks/use-agent-chat-composer-enter';
@@ -14,9 +19,11 @@ import type { useAgentChatDraftStash } from '../hooks/use-agent-chat-draft-stash
 import type { useAgentChatImagePlaceholders } from '../hooks/use-agent-chat-image-placeholders';
 import type { useAgentChatPromptHistory } from '../hooks/use-agent-chat-prompt-history';
 import type { useAgentChatSessionMenu } from '../hooks/use-agent-chat-session-menu';
+import type { AgentChatLinkIconMount } from './agent-chat-composer-extensions';
 import {
     agentChatComposerExtensions,
     agentChatImagePills,
+    agentChatLinkIcons,
     agentChatPathPills,
     externalDraft,
 } from './agent-chat-composer-extensions';
@@ -33,6 +40,31 @@ import {
     agentChatDraftTransaction,
     isAgentChatEditorTextDrop,
 } from './agent-chat-composer-view';
+
+/**
+ * The composer's link icon mount (`agentChatLinkIcons`): each link's slot gets its own React root rendering the
+ * transcript's `LinkFavicon`, so a pasted pull request link shows the same state glyph and reads the same cached
+ * reference preview as it will once sent. CodeMirror owns the slot's lifetime, so the root is separate from the
+ * composer's tree and brings its own query provider.
+ */
+function agentChatComposerLinkIconMount(
+    referenceTerminalId: string | undefined,
+): AgentChatLinkIconMount {
+    return (slot, url) => {
+        const summary = linkSummary(url);
+        if (!summary) return () => {};
+        const root = createRoot(slot);
+        const icon = createElement(LinkFavicon, {
+            origin: new URL(url).origin,
+            referenceTerminalId,
+            summary,
+        });
+        root.render(createElement(QueryClientProvider, { client: queryClient }, icon));
+        // CodeMirror destroys widgets inside a dispatch, which can run during a React commit (the draft effect); an
+        // unmount there would be synchronous inside React's own work, so it waits for the next microtask.
+        return () => queueMicrotask(() => root.unmount());
+    };
+}
 
 type ComposerSend = ReturnType<typeof useAgentChatComposerSend>;
 
@@ -59,7 +91,8 @@ interface ComposerHandlers {
  * list's highlighted prompt replaces the placeholder while it is open. An attached image's `[Image #N]` placeholder
  * shows as a pill (`imagePlaceholders.pills`); clicking one opens its preview, and `imagePlaceholders.onEdit` hears
  * every edit the user makes so a deleted pill takes its image along. A dropped Files entry's path shows as a pill with
- * its icon and name (`pathPills`).
+ * its icon and name (`pathPills`). A pasted URL takes the accent color and its site icon, a pull request's tinted by
+ * its state, as it will in the sent message. Ctrl+C empties the input (`composerKeys`).
  */
 export function AgentChatComposerEditor({
     composerKeys,
@@ -77,6 +110,7 @@ export function AgentChatComposerEditor({
     setDraft,
     setInputFocused,
     stash,
+    terminalId,
     onPaste,
 }: {
     composerKeys: ReturnType<typeof useAgentChatComposerEnter>;
@@ -100,6 +134,11 @@ export function AgentChatComposerEditor({
     setDraft: (update: (current: string) => string) => void;
     setInputFocused: (isFocused: boolean) => void;
     stash: ReturnType<typeof useAgentChatDraftStash>;
+    /**
+     * The Chat's Terminal, which scopes a pasted pull request link's state lookup. The composer sits outside the
+     * timeline's `AgentChatTerminalContext`, so it arrives as a prop.
+     */
+    terminalId: string;
     onPaste: (event: AgentChatComposerPasteEvent) => void;
 }) {
     const { t } = useTranslation();
@@ -115,6 +154,7 @@ export function AgentChatComposerEditor({
     const [compartments] = useState(() => ({
         attributes: new Compartment(),
         imagePills: new Compartment(),
+        linkIcons: new Compartment(),
         pathPills: new Compartment(),
         placeholder: new Compartment(),
     }));
@@ -196,6 +236,7 @@ export function AgentChatComposerEditor({
                     compartments.attributes.of([]),
                     compartments.imagePills.of([]),
                     compartments.pathPills.of([]),
+                    compartments.linkIcons.of([]),
                     EditorView.updateListener.of((update) => {
                         if (update.transactions.some((tr) => tr.annotation(externalDraft))) return;
                         if (update.docChanged) handlers.current?.onChange(input);
@@ -263,6 +304,13 @@ export function AgentChatComposerEditor({
         const effects = compartments.pathPills.reconfigure(agentChatPathPills.of(pathPills));
         viewReference.current?.dispatch({ effects });
     }, [compartments, pathPills]);
+
+    useLayoutEffect(() => {
+        const effects = compartments.linkIcons.reconfigure(
+            agentChatLinkIcons.of(agentChatComposerLinkIconMount(terminalId)),
+        );
+        viewReference.current?.dispatch({ effects });
+    }, [compartments, terminalId]);
 
     return <div ref={hostReference} data-slot="agent-chat-composer-editor" />;
 }

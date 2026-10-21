@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
-    AgentChatDelegatedTaskSource,
     AgentChatItem,
     AgentChatPatchOperation,
     AgentChatSnapshot,
@@ -19,6 +18,7 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { DelegatedTaskDetails } from './chat-delegated-task';
 import { stampDelegatedTasks } from './chat-delegated-task';
 import { ChatHistoryArchive } from './chat-history-archive';
 import { ChatTaskProjections } from './chat-task-projections';
@@ -43,9 +43,9 @@ interface ChatProjectionOptions {
      */
     onChange(): void;
     /**
-     * Names the Session a delegated task came from; see {@link stampDelegatedTasks}.
+     * The Session a delegated task came from and the task it asked; see {@link stampDelegatedTasks}.
      */
-    delegatedTaskSource(delegationId: string): AgentChatDelegatedTaskSource | undefined;
+    delegatedTask(delegationId: string): DelegatedTaskDetails;
     /**
      * Runs when the task list changed, with the new list (`undefined` once a `reset` cleared it). The sidebar's durable
      * subagent summaries follow it; see `ChatSubagentSummaries`.
@@ -373,7 +373,7 @@ export class ChatProjection {
             this.stops,
         );
         const stamped = stampDelegatedTasks(timed, (delegationId) =>
-            this.options.delegatedTaskSource(delegationId),
+            this.options.delegatedTask(delegationId),
         );
         if (isHistoryReplay) this.replacedItems = [];
         const isReplacement = stamped.some((operation) => operation.op === 'reset');

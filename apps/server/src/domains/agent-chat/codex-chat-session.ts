@@ -46,9 +46,9 @@ import {
 } from './codex-input';
 import { didInterruptTimeout } from './codex-interrupt';
 import { loadCodexItemTimes } from './codex-item-times';
-import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan, mapCodexUsage } from './codex-items';
+import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan } from './codex-items';
 import { readCodexMcpServer } from './codex-mcp-servers';
-import { CodexModelSettings } from './codex-models';
+import { CodexModelSettings, CodexUsage } from './codex-models';
 import { codexOpeningSettings, CodexPermissions } from './codex-permissions';
 import { CodexRequestBroker } from './codex-requests';
 import { forkCodexThread, revertCodexThread } from './codex-rewind';
@@ -99,6 +99,8 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly goals: CodexGoals;
 
+    private readonly usage: CodexUsage;
+
     private readonly sideQuestions = new CodexSideQuestions();
 
     constructor(private readonly options: AgentChatSessionHost) {
@@ -116,6 +118,7 @@ class CodexChatSession implements AgentChatProviderSession {
         this.deliveries = new CodexDeliveryCheck(options, () => this.threadId);
         this.requests = new CodexRequestBroker(options, () => this.threadId);
         this.goals = new CodexGoals(options, () => this.threadId);
+        this.usage = new CodexUsage(options);
     }
 
     private requireConnection(): JsonRpcConnection {
@@ -211,6 +214,7 @@ class CodexChatSession implements AgentChatProviderSession {
             this.tasks.onChildNotification(threadId, method, parameters);
             return;
         }
+        if (this.usage.onNotification(method, parameters)) return;
         const turnId = stringField(parameters.turnId);
         switch (method) {
             case 'thread/started': {
@@ -253,11 +257,6 @@ class CodexChatSession implements AgentChatProviderSession {
                 ]);
                 return;
             }
-            case 'thread/tokenUsage/updated': {
-                const usage = mapCodexUsage(parameters, this.options.read().model);
-                if (usage) this.options.apply([{ op: 'state', state: { usage } }]);
-                return;
-            }
             case 'error': {
                 this.options.apply([
                     { op: 'upsertItem', item: mapCodexErrorNotice(parameters, turnId) },
@@ -275,7 +274,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 return;
             }
             default: {
-                // Account, MCP startup, and warning notifications are not conversation content.
+                // MCP startup and warning notifications are not conversation content.
             }
         }
     }
@@ -410,6 +409,7 @@ class CodexChatSession implements AgentChatProviderSession {
         const modelState = await this.models.load(this.requireConnection());
         this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS, ...modelState } }]);
         await this.goals.load(this.requireConnection());
+        await this.usage.loadSignIn(this.requireConnection());
         // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
         void this.tasks.reconcileTerminals();
         return outcome;

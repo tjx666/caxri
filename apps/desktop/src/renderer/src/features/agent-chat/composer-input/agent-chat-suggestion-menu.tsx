@@ -1,11 +1,15 @@
 import type { AgentAction } from '@caxri/protocol';
 import { agentChatMenuGroupHeading } from '@caxri/protocol';
 import { noop } from 'es-toolkit';
+import { History, MessageCircle, Package, SquareSlash } from 'lucide-react';
 
 import { SuggestionList } from '../../../components/suggestion-list';
 import { useTranslation } from '../../../i18n';
+import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import type { SuggestionOption } from '../../../lib/suggestion-options';
 import { agentChatSuggestionFooter } from './agent-chat-suggestions';
+
+const ICON_CLASS_NAME = 'size-3.5';
 
 interface SuggestionMenuState {
     activeIndex: number;
@@ -18,7 +22,8 @@ interface SuggestionMenuState {
 /**
  * The composer's lists, of which at most one shows: the prompt history while browsing it, then the slash-command list
  * while open, otherwise the `@` list of Project files and Sessions, or its progress row while a chosen Session's
- * reference is written.
+ * reference is written. Each row leads with what it is: the `/command` and `$skill` glyphs the sent message's chip
+ * wears, a file's type icon as the Files tree draws it, and the Add menu's Session glyph.
  */
 export function AgentChatSuggestionMenu({
     commandMenu,
@@ -38,6 +43,7 @@ export function AgentChatSuggestionMenu({
     sessionMenu: SuggestionMenuState & {
         chooseAt: (index: number) => void;
         groupAt: (index: number) => 'files' | 'sessions' | undefined;
+        isFileAt: (index: number) => boolean;
         preparingText: string | undefined;
     };
 }) {
@@ -46,8 +52,9 @@ export function AgentChatSuggestionMenu({
         return (
             <SuggestionList
                 activeIndex={historyMenu.activeIndex}
-                footer={t('agentChat.history.footer')}
+                footer={agentChatSuggestionFooter('history', historyMenu.suggestions.length > 0)}
                 headingAt={(index) => (index === 0 ? t('agentChat.history.label') : undefined)}
+                iconAt={() => <History className={ICON_CLASS_NAME} />}
                 label={t('agentChat.history.label')}
                 listId={historyMenu.listId}
                 suggestions={historyMenu.suggestions}
@@ -70,6 +77,13 @@ export function AgentChatSuggestionMenu({
                             : 'agentChat.slash.skills',
                     );
                 }}
+                iconAt={(index) =>
+                    commandMenu.matches[index]?.kind === 'skill' ? (
+                        <Package className={ICON_CLASS_NAME} />
+                    ) : (
+                        <SquareSlash className={ICON_CLASS_NAME} />
+                    )
+                }
                 label={t('agentChat.slash.label')}
                 listId={commandMenu.listId}
                 notice={commandMenu.skillNotice}
@@ -100,6 +114,15 @@ export function AgentChatSuggestionMenu({
                 if (group === undefined) return;
                 return t(group === 'files' ? 'agentChat.slash.files' : 'agentChat.slash.sessions');
             }}
+            iconAt={(index) =>
+                sessionMenu.isFileAt(index) ? (
+                    <FileTypeIcon
+                        entry={{ kind: 'file', name: sessionMenu.suggestions[index]?.label ?? '' }}
+                    />
+                ) : (
+                    <MessageCircle className={ICON_CLASS_NAME} />
+                )
+            }
             label={t('agentChat.slash.mentions')}
             listId={sessionMenu.listId}
             suggestions={sessionMenu.suggestions}

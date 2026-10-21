@@ -233,6 +233,18 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
             })
             .optional(),
         /**
+         * For `retrying`: why the provider retries and which attempt this is, so a Client words and marks it without
+         * parsing provider text; `message` then carries only the provider's detail. `connection` is a request that got
+         * no response at all (a dropped stream, a timeout).
+         */
+        retry: z
+            .strictObject({
+                cause: z.enum(['connection', 'rateLimit', 'overloaded', 'server', 'other']),
+                attempt: z.number().int().positive().optional(),
+                maxAttempts: z.number().int().positive().optional(),
+            })
+            .optional(),
+        /**
          * For `answered`: every question asked with the answer given (empty when the user skipped it), so a Client can
          * list them as the Codex app does instead of the one-line `message` digest, which stays for Clients that show
          * plain text.

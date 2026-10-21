@@ -17,6 +17,7 @@ type AgentChatNoticeCompaction = NonNullable<
 >;
 
 type NoticeHost = Pick<AgentChatSessionHost, 'apply' | 'lifecycle' | 'read'>;
+type RetryCause = NonNullable<Extract<AgentChatItem, { type: 'notice' }>['retry']>['cause'];
 
 /**
  * Only explicit feedback belongs in Chat; successful Hook diagnostics remain internal.
@@ -139,12 +140,41 @@ function tokenCount(value: unknown): number | undefined {
 }
 
 /**
- * `system/api_retry`: one notice per turn, updated with the latest attempt.
+ * Why Claude Code retries: `error_status` is null when the request got no response at all (a dropped connection, a
+ * timeout), else its `error` category names the failure.
+ */
+function claudeRetryCause(message: Json): RetryCause {
+    if (message.error_status === null) return 'connection';
+    switch (message.error) {
+        case 'rate_limit': {
+            return 'rateLimit';
+        }
+        case 'overloaded': {
+            return 'overloaded';
+        }
+        case 'server_error': {
+            return 'server';
+        }
+        default: {
+            return 'other';
+        }
+    }
+}
+
+function positiveCount(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+        ? value
+        : undefined;
+}
+
+/**
+ * `system/api_retry`: one notice per turn, updated with the latest attempt and its cause.
  */
 export function onClaudeApiRetry(host: NoticeHost, message: Json): void {
     const turnId = host.read().activeTurnId;
     if (!turnId) return;
-    const attempt = typeof message.attempt === 'number' ? message.attempt : undefined;
+    const attempt = positiveCount(message.attempt);
+    const maxAttempts = positiveCount(message.max_retries);
     host.apply([
         {
             op: 'upsertItem',
@@ -153,7 +183,11 @@ export function onClaudeApiRetry(host: NoticeHost, message: Json): void {
                 turnId,
                 type: 'notice',
                 kind: 'retrying',
-                ...(attempt !== undefined && { message: `Attempt ${attempt}` }),
+                retry: {
+                    cause: claudeRetryCause(message),
+                    ...(attempt !== undefined && { attempt }),
+                    ...(maxAttempts !== undefined && { maxAttempts }),
+                },
             },
         },
     ]);

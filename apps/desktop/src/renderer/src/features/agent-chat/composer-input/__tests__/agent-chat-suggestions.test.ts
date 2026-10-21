@@ -45,14 +45,19 @@ describe('agentChatSessionSuggestions', () => {
 
 describe('Agent Chat suggestion list copy', () => {
     it('names Escape in every footer and Enter only when a row can be chosen', () => {
-        expect(agentChatSuggestionFooter('commands', true)).toBe(
+        const keycaps = (hints: ReadonlyArray<{ action: string; keys: string }>) =>
+            hints.map(({ action, keys }) => `${keys} ${action}`).join(' · ');
+        expect(keycaps(agentChatSuggestionFooter('commands', true))).toBe(
             '↑↓ to move · Tab to complete · Enter to run · Esc to dismiss',
         );
-        expect(agentChatSuggestionFooter('sessions', true)).toBe(
+        expect(keycaps(agentChatSuggestionFooter('sessions', true))).toBe(
             '↑↓ to move · Enter to cite · Esc to dismiss',
         );
-        expect(agentChatSuggestionFooter('commands', false)).toBe('Esc to dismiss');
-        expect(agentChatSuggestionFooter('sessions', false)).toBe('Esc to dismiss');
+        expect(keycaps(agentChatSuggestionFooter('history', true))).toBe(
+            '↑↓ to move · Enter to fill · Esc to dismiss',
+        );
+        for (const list of ['commands', 'history', 'sessions'] as const)
+            expect(keycaps(agentChatSuggestionFooter(list, false))).toBe('Esc to dismiss');
     });
 
     it('names the Session whose reference is being prepared', () => {
