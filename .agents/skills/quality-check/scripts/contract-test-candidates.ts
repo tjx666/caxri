@@ -7,6 +7,11 @@
  * follows.
  */
 
+import {
+    DIRECTORY_DENSITY_TEST,
+    isDirectoryDensityPath,
+} from '../../../../scripts/directory-density-baseline';
+
 /**
  * Every runtime-scanning contract test that the changed and removed paths could break.
  */
@@ -19,6 +24,7 @@ export function contractTestCandidates(
         ...serverDomainContractTestCandidates(files),
         ...pathReferenceContractTestCandidates(files, removedFiles),
         ...dependencyManifestContractTestCandidates(files),
+        ...directoryDensityContractTestCandidates(files, removedFiles),
     ];
 }
 
@@ -95,5 +101,21 @@ function dependencyManifestContractTestCandidates(files: readonly string[]): str
               'scripts/__tests__/toolchain-contract.test.ts',
               'scripts/__tests__/workspace-dependency-contract.test.ts',
           ]
+        : [];
+}
+
+/**
+ * The directory density ratchet counts files on disk, so import discovery never links it to a module added to or
+ * removed from a guarded directory. CI's affected scope already selects it this way; without the same rule here a new
+ * hook passed every local gate and failed only the PR's hosted `checks`.
+ */
+function directoryDensityContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [...files, ...removedFiles].some((file) =>
+        isDirectoryDensityPath(file.replaceAll('\\', '/')),
+    )
+        ? [DIRECTORY_DENSITY_TEST]
         : [];
 }

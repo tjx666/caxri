@@ -89,6 +89,26 @@ describe('removed-path test selection', () => {
     });
 });
 
+describe('directory density contract selection', () => {
+    it('runs the density ratchet for a changed or removed path in a guarded directory', async () => {
+        const contract = 'scripts/__tests__/directory-density-ratchet.test.ts';
+        const hook =
+            'apps/desktop/src/renderer/src/features/agent-chat/hooks/use-agent-chat-scroll.ts';
+
+        await expect(selectedTestCandidates(process.cwd(), [hook])).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(
+                process.cwd(),
+                ['apps/server/src/domains/theme.ts'],
+                ['apps/desktop/src/renderer/src/features/agent-chat/hooks/use-removed.ts'],
+            ),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(process.cwd(), ['packages/utils/src/index.ts']),
+        ).resolves.not.toContain(contract);
+    });
+});
+
 describe('dependency manifest contract selection', () => {
     it('runs the manifest-reading contracts when a root dependency manifest changes', async () => {
         const contract = 'scripts/__tests__/workspace-dependency-contract.test.ts';
