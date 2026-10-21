@@ -47,7 +47,10 @@ actually entered the index; a wrapper may exit successfully without presenting a
 not, apply a reviewed patch with `git apply --cached`. Inspect `git diff --cached` before every commit.
 For partially staged files, pause concurrent writers and isolate unstaged changes before running
 commit hooks, which may restage whole files. Verify the committed tree before restoring those changes;
-resolve any restore conflicts without discarding work.
+resolve any restore conflicts without discarding work. The hook's type-aware lint resolves imports
+from disk, so a staged version that still imports a file the working tree renamed or deleted fails
+with `no-unsafe-*` errors. Stage the rename together with its importers, or restore the old file
+from `HEAD` for that commit and remove it afterwards.
 
 The repository's `lint:staged` entry point must include `--no-stash`. All worktrees share Git's
 stash stack, so commit hooks must not use lint-staged's default stash backup. Preserve partially
