@@ -132,22 +132,27 @@ export async function didRewindAgentChat(
 }
 
 /**
- * "Fork from here": copies the conversation before message `itemId` into a Chat in a new Session, puts the message's
- * text and file and folder cards in that Chat's composer to send as it is or change first, and opens the Session. The
- * draft is written before the selection so the new composer mounts with it. A toast then says where the conversation
- * went, since the switch to another Session is otherwise the only sign the fork happened.
+ * "Fork from here": copies the conversation before message `from.itemId` into a Chat in a new Session, puts the
+ * message's text and file and folder cards in that Chat's composer to send as it is or change first, and opens the
+ * Session. The draft is written before the selection so the new composer mounts with it. Without `from` ("Fork
+ * Session") the whole conversation is copied and the new composer starts empty. A toast then says where the
+ * conversation went, since the switch to another Session is otherwise the only sign the fork happened.
  */
 export async function forkAgentChat(
     terminalId: string,
-    itemId: string,
-    text: string,
+    from?: { itemId: string; text: string },
 ): Promise<void> {
     await tryCommand(translate('agentChat.commands.forkFailed'), async () => {
-        const forked = await caxri.request('agentChat.fork', { terminalId, itemId });
-        const { text: words, ...cited } = parseAgentChatPathReferences(text);
-        if (words) writeAgentChatDraft(forked.terminalId, words);
-        const cards = agentChatReferenceAttachments(cited);
-        if (cards.length > 0) writeAgentChatAttachments(forked.terminalId, cards);
+        const forked = await caxri.request('agentChat.fork', {
+            terminalId,
+            ...(from && { itemId: from.itemId }),
+        });
+        if (from) {
+            const { text: words, ...cited } = parseAgentChatPathReferences(from.text);
+            if (words) writeAgentChatDraft(forked.terminalId, words);
+            const cards = agentChatReferenceAttachments(cited);
+            if (cards.length > 0) writeAgentChatAttachments(forked.terminalId, cards);
+        }
         await didSelectSession(forked.sessionId);
         const session = getBootstrap()?.sessions.find(
             (candidate) => candidate.id === forked.sessionId,

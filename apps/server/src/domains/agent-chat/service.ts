@@ -422,9 +422,9 @@ export class AgentChatService {
     }
 
     /**
-     * "Fork from here"; see {@link forkChat}.
+     * "Fork from here", or "Fork Session" without `itemId`; see {@link forkChat}.
      */
-    fork(terminalId: string, itemId: string, createSession: CreateForkSession) {
+    fork(terminalId: string, itemId: string | undefined, createSession: CreateForkSession) {
         return forkChat(this.actionHost(), terminalId, itemId, createSession);
     }
 

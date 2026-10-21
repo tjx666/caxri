@@ -136,7 +136,7 @@ tab, title, and Primary Agent election stay; only the process is replaced.
   per-Terminal turn state, so it switches like a restart).
 - Each request logs `terminal.surface_switched` with a closed outcome (`switched`, `startedNew`,
   `turnRunning`, `failed`), both surfaces, the provider, and the duration.
-- "Copy Resume Command" in the tab and Session row menus copies `cd <cwd> && <provider resume
+- "Copy Resume Command" in the tab menu (Copy › Resume Command in the Session row menu) copies `cd <cwd> && <provider resume
 command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArgs`) to continue
   the bound conversation in the provider's own TUI outside Caxri. It is disabled until the Agent
   has a conversation.
@@ -670,6 +670,21 @@ draft first and then selects it, so the new composer mounts with the text.
   in the provider's store with no Session to open it; Caxri does not delete it, and logs the failure
   as `orphaned`. A Codex fork whose `thread/unsubscribe` fails still opens, and the failure is
   logged with its reason.
+
+### Fork Session
+
+The Session row menu (sidebar and Activity queue) offers "Fork Session", which copies the Primary
+Agent's whole Chat conversation, through its latest turn, into a new Session the same way; the new
+composer starts empty. It is `agentChat.fork` without an `itemId`. The entry is disabled with the
+reason when the Session has no Agent, its Agent runs in a PTY Terminal (open it as Chat first), or
+it has no conversation yet. Server Core refuses a running turn or compaction, and a Chat without a
+turn, with `CONFLICT`. A Codex fork omits `beforeTurnId`, a Claude fork omits `upToMessageId`, and
+a Grok Build fork omits `targetPromptIndex`, which copies the whole session (verified on Grok Build
+1.0.62).
+
+The same menu groups the Session's own actions, Fork, its Agent, where to open it, a Copy submenu
+(Conversation ID, Transcript Path, Resume Command), and Archive with Delete at the end, the order
+Codex's sidebar menu uses.
 
 | Provider    | Fork                                                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------------------------------- |

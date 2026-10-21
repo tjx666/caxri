@@ -43,28 +43,29 @@ export async function revertCodexThread(
 
 /**
  * `thread/fork` with `beforeTurnId` copies the thread up to just before `target.turnId` into a new thread (a rollout of
- * its own) and leaves the source untouched. The app-server also loads the fork, so this process unsubscribes from it at
- * once: the new Chat resumes it in its own app-server, and two processes must not drive one thread. A failed
- * unsubscribe does not fail the fork, whose record is already written; `onUnsubscribeFailed` reports why (#1750).
+ * its own) and leaves the source untouched; without a target it omits `beforeTurnId` and copies the whole thread. The
+ * app-server also loads the fork, so this process unsubscribes from it at once: the new Chat resumes it in its own
+ * app-server, and two processes must not drive one thread. A failed unsubscribe does not fail the fork, whose record is
+ * already written; `onUnsubscribeFailed` reports why (#1750).
  */
 export async function forkCodexThread(
     connection: JsonRpcConnection,
     threadId: string | undefined,
-    target: ChatForkTarget,
+    target: ChatForkTarget | undefined,
     onUnsubscribeFailed: (reason: ChatForkReleaseFailure) => void,
 ): Promise<string> {
     let forked: unknown;
     try {
         forked = await connection.request(
             'thread/fork',
-            { threadId, beforeTurnId: target.turnId },
+            target ? { threadId, beforeTurnId: target.turnId } : { threadId },
             REVERT_REQUEST_TIMEOUT_MS,
         );
     } catch (error) {
         if (!(error instanceof JsonRpcRequestError)) throw error;
         throw new CaxriError(
             'UNAVAILABLE',
-            /unknown variant|beforeTurnId/u.test(error.message)
+            target && /unknown variant|beforeTurnId/u.test(error.message)
                 ? 'This Codex CLI version cannot fork a conversation; update Codex'
                 : 'Codex could not fork this conversation',
         );

@@ -1,8 +1,9 @@
-import type { AgentChatRewindRefusal, AgentProvider } from '@caxri/protocol';
+import type { AgentChatRewindRefusal, AgentChatSnapshot, AgentProvider } from '@caxri/protocol';
 import { agentChatRewindTarget, CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import { requireChatTerminal } from './chat-launch';
+import type { ChatForkTarget } from './chat-provider';
 import type { ChatStateDelivery } from './chat-states';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -42,16 +43,44 @@ interface ChatForkHost {
 }
 
 /**
+ * Where a fork cuts the Chat's projection: just before user message `itemId`, or with no target (the whole
+ * conversation) when `itemId` is absent. Throws {@link ForkRefusal} for a running turn, a message the rewind rule
+ * refuses, or a whole-conversation fork of a Chat without a turn, which would open an empty Chat that looks like a
+ * copy.
+ */
+function forkCut(
+    snapshot: AgentChatSnapshot,
+    itemId: string | undefined,
+): { keptTurns: number; target: ChatForkTarget | undefined } {
+    if (itemId === undefined) {
+        // A compaction rewrites the provider's record too, so it counts as a running turn.
+        if (snapshot.activeTurnId || snapshot.operation === 'compacting')
+            throw new ForkRefusal('CONFLICT', FORK_REFUSALS.turnRunning);
+        if (snapshot.turns.length === 0 && !snapshot.truncated)
+            throw new ForkRefusal('CONFLICT', 'This conversation has nothing to fork yet');
+        return { keptTurns: snapshot.turns.length, target: undefined };
+    }
+    const result = agentChatRewindTarget(snapshot, itemId);
+    if ('refusal' in result) throw new ForkRefusal('CONFLICT', FORK_REFUSALS[result.refusal]);
+    const item = snapshot.items.find((candidate) => candidate.id === itemId);
+    return {
+        keptTurns: result.target.keptTurns,
+        target: { ...result.target, text: item?.type === 'userMessage' ? item.text : '' },
+    };
+}
+
+/**
  * "Fork from here": the provider copies its record up to just before user message `itemId` into a new Agent Session (in
- * the source Chat's send chain, so no turn starts meanwhile), then a new Session opens it as a Chat. The source Chat
- * keeps running unchanged. Logs `agent_chat.forked` with a closed outcome and the malformed record lines the provider
- * skipped; `orphaned` marks a failure after the provider already wrote the forked record, which then stays in the
- * provider's store with no Session to open it (#1750).
+ * the source Chat's send chain, so no turn starts meanwhile), then a new Session opens it as a Chat. Without `itemId`
+ * ("Fork Session") the provider copies its whole record, through the latest turn. The source Chat keeps running
+ * unchanged. Logs `agent_chat.forked` with a closed outcome and the malformed record lines the provider skipped;
+ * `orphaned` marks a failure after the provider already wrote the forked record, which then stays in the provider's
+ * store with no Session to open it (#1750).
  */
 export async function forkChat(
     host: ChatForkHost,
     terminalId: string,
-    itemId: string,
+    itemId: string | undefined,
     createSession: CreateForkSession,
 ): Promise<{ sessionId: string; terminalId: string }> {
     const { database, logger } = host.options;
@@ -79,20 +108,14 @@ export async function forkChat(
         if (!projectId) throw new CaxriError('NOT_FOUND', 'Session not found');
         await host.enqueue(terminalId, async (session, state) => {
             const { snapshot } = state.projection;
-            const result = agentChatRewindTarget(snapshot, itemId);
-            if ('refusal' in result)
-                throw new ForkRefusal('CONFLICT', FORK_REFUSALS[result.refusal]);
-            const item = snapshot.items.find((candidate) => candidate.id === itemId);
-            keptTurns = result.target.keptTurns;
+            const cut = forkCut(snapshot, itemId);
+            keptTurns = cut.keptTurns;
             /**
              * Nothing comes before the message, so the new Chat starts a conversation of its own: a provider record
              * without a turn may not be resumable (Codex writes no rollout until the first turn).
              */
             if (keptTurns === 0 && !snapshot.truncated) return;
-            const fork = await session.fork({
-                ...result.target,
-                text: item?.type === 'userMessage' ? item.text : '',
-            });
+            const fork = await session.fork(cut.target);
             agentSessionId = fork.agentSessionId;
             skippedRecords = fork.skippedRecords;
         });

@@ -17,6 +17,11 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    contextMenuLabels,
+    isContextMenuItemEnabled,
+} from './support/native-context-menu.ts';
 
 async function sendAndSettle(chat: Locator, text: string, reply: RegExp): Promise<void> {
     const message = chat.getByRole('textbox', { name: 'Message' });
@@ -93,6 +98,54 @@ test('a Codex Chat forks its first message into an empty Chat', async ({}, testI
         await expectComposerValue(forked.getByRole('textbox', { name: 'Message' }), 'hello there');
         await expect(forked.locator('[data-agent-chat-user-message]')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-forked.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('Fork Session copies a whole Codex Chat into a new Session from the sidebar', async ({}, testInfo) => {
+    const { directory, root, userData } = await temporaryRoot();
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { app, page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        await sendAndSettle(chat, 'first question', /You said: first question/u);
+        await sendAndSettle(chat, 'second question', /You said: second question/u);
+        const source = await chat.getAttribute('data-workbench-session-id');
+
+        const row = page.locator(`.project-group [data-session-id="${source}"]`);
+        await row.click({ button: 'right' });
+        // The Session itself, Fork, its Agent, where to open it, Copy, and the two removals last.
+        expect(await contextMenuLabels(app)).toEqual([
+            'Rename',
+            'Rename with AI',
+            'Pin',
+            'Hand Over to Agent Commander…',
+            'Fork Session',
+            'Open as Terminal',
+            'Restart Agent',
+            'Detach Agent',
+            'Open in New Tab',
+            'Open Project in Editor',
+            'Copy',
+            'Archive',
+            'Delete Session…',
+        ]);
+        expect(await isContextMenuItemEnabled(app, ['Copy', 'Conversation ID'])).toBe(true);
+        await chooseContextMenuItem(app, 'Fork Session');
+
+        const forked = page.locator(VISIBLE_SESSION);
+        await expect(forked).not.toHaveAttribute('data-workbench-session-id', source ?? '');
+        await expect(userMessage(forked, 'first question')).toBeVisible();
+        await expect(userMessage(forked, 'second question')).toBeVisible();
+        await expectComposerValue(forked.getByRole('textbox', { name: 'Message' }), '');
+        await expect(page.getByText(/^Forked into a new Session/u)).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-session-forked.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

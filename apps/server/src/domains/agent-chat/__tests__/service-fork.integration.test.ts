@@ -95,6 +95,47 @@ describe('AgentChatService fork', () => {
         },
     );
 
+    it.each<Provider>(['claude', 'codex', 'grok'])(
+        'forks a whole %s conversation, through its latest turn, into a new Chat',
+        async (provider) => {
+            const { service, terminal, createSession, logWrite } = await threeTurns(provider);
+            const forked = await service.fork(terminal.id, undefined, createSession);
+
+            const [opened] = createSession.mock.calls[0];
+            expect(opened.agentSessionId).toBeTypeOf('string');
+            expect(forkedFields(logWrite)).toMatchObject({ outcome: 'forked', keptTurns: 3 });
+            await service.restart(forked.terminalId);
+            expect(userTexts(service.read(forked.terminalId))).toEqual([
+                'first',
+                'second',
+                'third',
+            ]);
+            expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second', 'third']);
+        },
+    );
+
+    it('refuses to fork a whole conversation while a turn is running', async () => {
+        const { service, terminal, until, createSession } = await threeTurns('codex');
+        await service.send(terminal.id, { text: 'slow' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await expect(service.fork(terminal.id, undefined, createSession)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it('refuses to fork a whole conversation that has no turn yet', async () => {
+        const context = await fixture({ provider: 'codex' });
+        const createSession = vi.fn<CreateForkSession>();
+        await expect(
+            context.service.fork(context.terminal.id, undefined, createSession),
+        ).rejects.toMatchObject({
+            code: 'CONFLICT',
+            message: expect.stringContaining('nothing') as string,
+        });
+        expect(createSession).not.toHaveBeenCalled();
+    });
+
     it('opens an empty Chat when the first message is forked, without asking the provider', async () => {
         const { service, terminal, messageId, createSession, fakeLog } = await threeTurns('codex');
         await service.fork(terminal.id, messageId('first'), createSession);

@@ -167,30 +167,34 @@ function claudeTranscriptStore(
 
 /**
  * The Agent SDK's `forkSession` copies the transcript, with new message ids, up to and including the record a rewind
- * would resume at, into a new session the new Chat resumes. File checkpoints are not copied, so the fork can rewind
- * only the conversation it adds. No `agentSessionId` when the message opened the conversation; `skippedRecords` counts
- * the transcript lines that were not valid JSON and were left out.
+ * would resume at (the whole transcript without a target), into a new session the new Chat resumes. File checkpoints
+ * are not copied, so the fork can rewind only the conversation it adds. No `agentSessionId` when the message opened the
+ * conversation; `skippedRecords` counts the transcript lines that were not valid JSON and were left out.
  */
 export async function forkClaudeSession(
     sessionId: string,
     host: Pick<AgentChatSessionHost, 'cwd' | 'environment'>,
     transcript: AgentChatTranscript | undefined,
-    target: ChatForkTarget,
+    target: ChatForkTarget | undefined,
     maxBytes?: number,
 ): Promise<ChatFork> {
-    const point = transcript && claudeRewindPoint(transcript.content, target.itemId);
-    if (point?.kind === 'fresh') return { agentSessionId: undefined };
-    if (!point)
-        throw new CaxriError(
-            'CONFLICT',
-            "This message is older than the part of Claude's record Caxri reads",
-        );
+    let upToMessageId: string | undefined;
+    if (target) {
+        const point = transcript && claudeRewindPoint(transcript.content, target.itemId);
+        if (point?.kind === 'fresh') return { agentSessionId: undefined };
+        if (!point)
+            throw new CaxriError(
+                'CONFLICT',
+                "This message is older than the part of Claude's record Caxri reads",
+            );
+        upToMessageId = point.at;
+    }
     const { forkSession } = await import('@anthropic-ai/claude-agent-sdk');
     const sessionStore = claudeTranscriptStore(configDirectory(host.environment), maxBytes);
     try {
         const forked = await forkSession(sessionId, {
             dir: host.cwd,
-            upToMessageId: point.at,
+            ...(upToMessageId && { upToMessageId }),
             sessionStore,
         });
         return { agentSessionId: forked.sessionId, skippedRecords: sessionStore.skippedRecords };
