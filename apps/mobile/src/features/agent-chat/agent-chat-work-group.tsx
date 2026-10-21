@@ -14,6 +14,7 @@ import {
 } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
 import { conversationStyles } from '../conversation/conversation-styles';
@@ -256,6 +257,6 @@ const styles = StyleSheet.create({
     fact: { fontSize: 12, fontVariant: ['tabular-nums'] },
     taskFacts: { alignItems: 'center', flexDirection: 'row', gap: 6 },
     tag: { borderRadius: 4, fontSize: 11, overflow: 'hidden', paddingHorizontal: 4 },
-    exit: { fontFamily: 'monospace', fontSize: 11, fontVariant: ['tabular-nums'] },
+    exit: { fontFamily: MONOSPACE_FONT, fontSize: 11, fontVariant: ['tabular-nums'] },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

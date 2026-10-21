@@ -1,21 +1,14 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useRef } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
-import {
-    ActivityIndicator,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskIdentity, agentChatTaskUsageSummary } from '@caxri/protocol';
 import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { isScrolledToBottom } from './agent-chat-task-output';
 import { AgentChatTaskTranscript } from './agent-chat-task-transcript';
@@ -27,8 +20,6 @@ import {
 } from './agent-chat-tasks';
 import type { useAgentChatTaskStop } from './use-agent-chat-task-detail';
 import { useAgentChatTaskClock, useAgentChatTaskDetail } from './use-agent-chat-task-detail';
-
-const MONOSPACE = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 
 export type AgentChatTaskStopper = ReturnType<typeof useAgentChatTaskStop>;
 
@@ -228,11 +219,13 @@ export const AgentChatTaskDetailBody = ({
     ].filter(Boolean);
     return (
         <View style={styles.body} testID="agent-chat-task-detail">
-            <View accessible style={styles.facts}>
-                <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
-                <Text style={[styles.factsText, { color: theme.muted }]}>
-                    {row.elapsed ? `${row.statusLabel} · ${row.elapsed}` : row.statusLabel}
-                </Text>
+            <View style={styles.facts}>
+                <View accessible style={styles.status}>
+                    <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
+                    <Text style={[styles.factsText, { color: theme.muted }]}>
+                        {row.elapsed ? `${row.statusLabel} · ${row.elapsed}` : row.statusLabel}
+                    </Text>
+                </View>
                 {canControl && row.canStop ? (
                     <AgentChatTaskStopButton
                         stopper={stopper}
@@ -281,6 +274,7 @@ export const AgentChatTaskDetailBody = ({
 const styles = StyleSheet.create({
     body: { gap: 10, paddingBottom: 16 },
     facts: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 48 },
+    status: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8 },
     factsText: { flex: 1, fontSize: 13, fontVariant: ['tabular-nums'] },
     spinner: { transform: [{ scale: 0.8 }] },
     // A full 48dp box, like the queue card's Resume, so the target never depends on hit slop.
@@ -294,7 +288,7 @@ const styles = StyleSheet.create({
     stopText: { fontSize: 14, fontWeight: '700' },
     command: {
         borderRadius: 8,
-        fontFamily: MONOSPACE,
+        fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 18,
         paddingHorizontal: 10,
@@ -304,7 +298,7 @@ const styles = StyleSheet.create({
     identity: { fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16, marginTop: -6 },
     output: { borderRadius: 8, flexGrow: 0, maxHeight: 320 },
     outputText: {
-        fontFamily: MONOSPACE,
+        fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 18,
         paddingHorizontal: 10,

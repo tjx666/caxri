@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { MobilePullRequest } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -55,6 +55,22 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         retry: false,
         staleTime: 10_000,
     });
+    const { refetch } = query;
+    const wasWatching = useRef(isWatching);
+    const wasForeground = useRef(isForeground);
+    /**
+     * Opening the sheet and returning to the app each re-read at once: a pull request marked ready (or merged) on
+     * GitHub while the phone was away must not wait out the idle poll or the stale window. Mounting alone does not,
+     * since the query's own first read covers it.
+     */
+    useEffect(() => {
+        const isOpened = isWatching && !wasWatching.current;
+        const returned = isForeground && !wasForeground.current;
+        wasWatching.current = isWatching;
+        wasForeground.current = isForeground;
+        // eslint-disable-next-line no-void -- The read renders into the query.
+        if (isObservable && (isOpened || returned)) void refetch();
+    }, [isForeground, isObservable, isWatching, refetch]);
     const [merge, setMerge] = useState<
         | { state: 'idle' }
         | { state: 'merging' }
@@ -78,6 +94,7 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
                     number: pullRequest.number,
                 });
             } catch (error) {
+                // A transport failure leaves the outcome unknown; the message says so and the re-read below settles it.
                 setMerge({ state: 'failed', message: pullRequestMergeErrorMessage(error, t) });
             }
             // A failed merge can mean the pull request changed under the sheet; either way show what is true now.

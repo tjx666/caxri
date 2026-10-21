@@ -2,6 +2,10 @@ import type { MobilePullRequest, PullRequestMergeBlocker } from '@caxri/protocol
 
 import type { Translate, TranslationKey } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import {
+    MobileConnectionClosedError,
+    MobileGatewayTimeoutError,
+} from '../connection/mobile-gateway-errors';
 
 /**
  * What the sheet's primary button does, mirroring the Desktop Status panel's merge button so both surfaces agree:
@@ -198,11 +202,43 @@ export function pullRequestConfirmation(
 }
 
 /**
+ * Whether the merge request died in transport (timeout or a closed socket) rather than being answered. The answer is
+ * unknown: GitHub may well have merged the pull request, so the phone must re-read it instead of claiming a failure.
+ */
+export function isPullRequestMergeTransportError(error: unknown): boolean {
+    return (
+        error instanceof MobileGatewayTimeoutError || error instanceof MobileConnectionClosedError
+    );
+}
+
+/**
+ * Whether the sheet shows the merge confirmation page: only while the pull request still has an action that asks first.
+ * A refresh can turn a ready pull request into a merged, draft, or conflicting one under the open confirmation; the
+ * page then gives way to the status and the `Open on GitHub` and `Done` actions instead of hiding them.
+ */
+export function shouldShowPullRequestConfirmation(
+    isConfirming: boolean,
+    action: PullRequestMergeAction,
+): boolean {
+    return isConfirming && isConfirmablePullRequestAction(action);
+}
+
+/**
+ * Whether the action is one the sheet confirms before merging (`merge` and `confirm`), narrowing it for the page.
+ */
+export function isConfirmablePullRequestAction(
+    action: PullRequestMergeAction,
+): action is Extract<PullRequestMergeAction, { kind: 'confirm' | 'merge' }> {
+    return action.kind === 'confirm' || action.kind === 'merge';
+}
+
+/**
  * A failed merge in words the user can act on. GitHub's own reason (a protection rule, a moved head) is shown as Server
  * Core relayed it, after a sentence saying the merge did not happen.
  */
 export function pullRequestMergeErrorMessage(error: unknown, t: Translate): string {
     const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+    if (isPullRequestMergeTransportError(error)) return t('pullRequest.mergeLostConnection');
     switch (code) {
         case 'CONFLICT':
             return t('pullRequest.mergeConflict');

@@ -17,6 +17,7 @@ import {
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 
 interface MarkProperties {
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
     text: { flex: 1, gap: 2, minWidth: 0 },
     titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8, minWidth: 0 },
     title: { flexShrink: 1, fontSize: 14, lineHeight: 20 },
-    reference: { flexShrink: 0, fontFamily: 'monospace', fontSize: 11 },
+    reference: { flexShrink: 0, fontFamily: MONOSPACE_FONT, fontSize: 11 },
     excerpt: { fontSize: 12, lineHeight: 17 },
     action: { alignItems: 'center', flexDirection: 'row', gap: 4 },
 });

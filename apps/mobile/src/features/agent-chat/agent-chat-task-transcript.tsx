@@ -2,6 +2,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from '../conversation/conversation-markdown';
 import {
@@ -75,6 +76,6 @@ const styles = StyleSheet.create({
     message: { paddingVertical: 4 },
     work: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 32 },
     workText: { flex: 1, fontSize: 13, minWidth: 0 },
-    code: { fontFamily: 'monospace', fontSize: 12 },
+    code: { fontFamily: MONOSPACE_FONT, fontSize: 12 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

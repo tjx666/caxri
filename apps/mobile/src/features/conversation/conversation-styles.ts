@@ -1,5 +1,7 @@
 import { StyleSheet } from 'react-native';
 
+import { MONOSPACE_FONT } from '../../theme/monospace';
+
 const JUMP_SIZE = 48;
 const JUMP_BOTTOM_OFFSET = 12;
 
@@ -58,7 +60,7 @@ export const conversationStyles = StyleSheet.create({
         paddingHorizontal: 7,
         paddingVertical: 3,
     },
-    toolChipText: { fontFamily: 'monospace', fontSize: 12 },
+    toolChipText: { fontFamily: MONOSPACE_FONT, fontSize: 12 },
     toolSpacer: { flex: 1 },
     toolDuration: { fontSize: 12, fontVariant: ['tabular-nums'] },
     toolChildren: { borderTopWidth: 1, paddingLeft: 12 },
@@ -77,7 +79,7 @@ export const conversationStyles = StyleSheet.create({
     eventSummaryProbe: { left: 0, opacity: 0, position: 'absolute', right: 0, top: 0 },
     eventDetail: {
         borderRadius: 8,
-        fontFamily: 'monospace',
+        fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 17,
         marginTop: 6,
@@ -129,12 +131,12 @@ export const conversationStyles = StyleSheet.create({
     detailClose: { fontSize: 15, fontWeight: '600' },
     detailSubject: {
         borderRadius: 8,
-        fontFamily: 'monospace',
+        fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 18,
         marginTop: 14,
         paddingHorizontal: 10,
         paddingVertical: 8,
     },
-    detailBody: { fontFamily: 'monospace', fontSize: 13, lineHeight: 20, paddingTop: 16 },
+    detailBody: { fontFamily: MONOSPACE_FONT, fontSize: 13, lineHeight: 20, paddingTop: 16 },
 });

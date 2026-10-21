@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import { createAgentChatStreamPacer } from '@caxri/protocol';
 
@@ -11,13 +12,15 @@ const MIN_REDRAW_MS = 32;
 /**
  * A streaming Agent Chat reply's text, paced onto the screen (see `createAgentChatStreamPacer`) so bursty deltas read
  * as steady typing, as Desktop paces it. Text present when the row mounts shows at once, and the whole text shows the
- * moment `isStreaming` turns false, so a completed, failed, or interrupted turn is never left mid-reveal.
+ * moment `isStreaming` turns false, so a completed, failed, or interrupted turn is never left mid-reveal. With reduced
+ * motion enabled the typing effect is skipped and the full text shows as it arrives.
  */
 export function useConversationPacedText(text: string, isStreaming: boolean): string {
     const [pacer] = useState(() => createAgentChatStreamPacer(text));
     const [shown, setShown] = useState(text);
+    const isReducedMotion = useReducedMotion();
     useEffect(() => {
-        if (!isStreaming) return;
+        if (!isStreaming || isReducedMotion) return;
         let lastRedrawAt: number | undefined;
         // Each delta restarts the loop with the longer target; the pacer carries the reveal across restarts.
         let frame = requestAnimationFrame(function step(now) {
@@ -31,6 +34,6 @@ export function useConversationPacedText(text: string, isStreaming: boolean): st
             if (next !== text) frame = requestAnimationFrame(step);
         });
         return () => cancelAnimationFrame(frame);
-    }, [isStreaming, pacer, text]);
-    return isStreaming ? shown : text;
+    }, [isReducedMotion, isStreaming, pacer, text]);
+    return isStreaming && !isReducedMotion ? shown : text;
 }

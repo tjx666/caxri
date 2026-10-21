@@ -25,6 +25,10 @@ export const ChangesPanel = ({
     return file ? (
         <ChangesDiff
             onBack={() => setFile(null)}
+            onRefresh={() => {
+                list.refresh();
+                diff.refresh();
+            }}
             onRetry={diff.refresh}
             path={file.path}
             state={diff.state}

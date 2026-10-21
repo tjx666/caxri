@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
 import { findAgentChatTask } from '@caxri/protocol';
@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronUp, Layers } from 'lucide-react-native';
 import { BottomSheet } from '../../components/bottom-sheet';
 import { IconButton } from '../../components/icon-button';
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatTaskStopper } from './agent-chat-task-detail';
 import {
@@ -28,8 +29,6 @@ import {
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatTaskClock, useAgentChatTaskStop } from './use-agent-chat-task-detail';
 
-const MONOSPACE = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
-
 const TaskRow = ({
     canControl,
     now,
@@ -47,48 +46,61 @@ const TaskRow = ({
 }) => {
     const { t } = useTranslation();
     const row = agentChatTaskRow(task, now, t);
+    const stopError = stopper.errorFor(task);
     return (
-        <View style={styles.row}>
-            <Pressable
-                accessibilityHint={t('chat.tasks.openHint')}
-                accessibilityLabel={row.accessibilityLabel}
-                accessibilityRole="button"
-                onPress={() => onOpen(task.id)}
-                style={({ pressed }) => [
-                    styles.rowButton,
-                    { backgroundColor: pressed ? theme.elevated : 'transparent' },
-                ]}
-                testID="agent-chat-task-row"
-            >
-                <AgentChatTaskKindGlyph kind={task.kind} theme={theme} />
-                <View style={styles.rowText}>
-                    <Text
-                        numberOfLines={1}
-                        style={[
-                            row.isCommandTitle ? styles.rowCommand : styles.rowTitle,
-                            { color: theme.text },
-                        ]}
-                    >
-                        {row.title}
-                    </Text>
-                    {row.summary ? (
-                        <Text numberOfLines={1} style={[styles.rowSummary, { color: theme.muted }]}>
-                            {row.summary}
+        <View>
+            <View style={styles.row}>
+                <Pressable
+                    accessibilityHint={t('chat.tasks.openHint')}
+                    accessibilityLabel={row.accessibilityLabel}
+                    accessibilityRole="button"
+                    onPress={() => onOpen(task.id)}
+                    style={({ pressed }) => [
+                        styles.rowButton,
+                        { backgroundColor: pressed ? theme.elevated : 'transparent' },
+                    ]}
+                    testID="agent-chat-task-row"
+                >
+                    <AgentChatTaskKindGlyph kind={task.kind} theme={theme} />
+                    <View style={styles.rowText}>
+                        <Text
+                            numberOfLines={1}
+                            style={[
+                                row.isCommandTitle ? styles.rowCommand : styles.rowTitle,
+                                { color: theme.text },
+                            ]}
+                        >
+                            {row.title}
+                        </Text>
+                        {row.summary ? (
+                            <Text
+                                numberOfLines={1}
+                                style={[styles.rowSummary, { color: theme.muted }]}
+                            >
+                                {row.summary}
+                            </Text>
+                        ) : null}
+                    </View>
+                    {row.elapsed ? (
+                        <Text style={[styles.rowElapsed, { color: theme.muted }]}>
+                            {row.elapsed}
                         </Text>
                     ) : null}
-                </View>
-                {row.elapsed ? (
-                    <Text style={[styles.rowElapsed, { color: theme.muted }]}>{row.elapsed}</Text>
+                    <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
+                </Pressable>
+                {canControl && row.canStop ? (
+                    <AgentChatTaskStopButton
+                        stopper={stopper}
+                        task={task}
+                        theme={theme}
+                        title={row.title}
+                    />
                 ) : null}
-                <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
-            </Pressable>
-            {canControl && row.canStop ? (
-                <AgentChatTaskStopButton
-                    stopper={stopper}
-                    task={task}
-                    theme={theme}
-                    title={row.title}
-                />
+            </View>
+            {stopError ? (
+                <Text accessibilityRole="alert" style={[styles.rowError, { color: theme.danger }]}>
+                    {stopError}
+                </Text>
             ) : null}
         </View>
     );
@@ -359,7 +371,7 @@ const styles = StyleSheet.create({
     pillCount: { flex: 1, fontSize: 13, fontVariant: ['tabular-nums'], textAlign: 'right' },
     sheetHeader: { alignItems: 'center', flexDirection: 'row', gap: 4, minHeight: 44 },
     sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', paddingHorizontal: 4 },
-    sheetCommandTitle: { flex: 1, fontFamily: MONOSPACE, fontSize: 14, paddingHorizontal: 4 },
+    sheetCommandTitle: { flex: 1, fontFamily: MONOSPACE_FONT, fontSize: 14, paddingHorizontal: 4 },
     list: { flexGrow: 0 },
     section: { fontSize: 12, fontWeight: '700', paddingHorizontal: 4, paddingTop: 12 },
     row: { alignItems: 'center', flexDirection: 'row' },
@@ -374,7 +386,8 @@ const styles = StyleSheet.create({
     },
     rowText: { flex: 1, gap: 2, minWidth: 0 },
     rowTitle: { fontSize: 15 },
-    rowCommand: { fontFamily: MONOSPACE, fontSize: 13 },
+    rowCommand: { fontFamily: MONOSPACE_FONT, fontSize: 13 },
+    rowError: { fontSize: 12, lineHeight: 17, paddingBottom: 6, paddingHorizontal: 6 },
     rowSummary: { fontSize: 12 },
     rowElapsed: { fontSize: 12, fontVariant: ['tabular-nums'] },
     empty: { fontSize: 14, paddingVertical: 16, textAlign: 'center' },

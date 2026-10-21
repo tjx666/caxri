@@ -5,7 +5,6 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
-    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -27,6 +26,7 @@ import {
 
 import { IconButton } from '../../components/icon-button';
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
 import {
@@ -38,7 +38,6 @@ import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
 import { useIsKeyboardShown } from './use-keyboard-shown';
 
-const MONOSPACE = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 const STEER_HIT_SLOP = { bottom: 8, left: 8, right: 4, top: 8 } as const;
 const DELETE_ACTION_WIDTH = 84;
 
@@ -452,7 +451,7 @@ const styles = StyleSheet.create({
     rowText: { flex: 1, gap: 2, minWidth: 0 },
     pending: { opacity: 0.6 },
     preview: { fontSize: 14, lineHeight: 19 },
-    command: { fontFamily: MONOSPACE, fontSize: 13 },
+    command: { fontFamily: MONOSPACE_FONT, fontSize: 13 },
     images: { alignItems: 'center', flexDirection: 'row', gap: 4 },
     imagesText: { fontSize: 12 },
     steer: {

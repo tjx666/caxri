@@ -17,6 +17,16 @@ export class MobileGatewayTimeoutError extends Error {
     }
 }
 
+/**
+ * The socket closed before a reply arrived, so the caller cannot know whether Server Core acted on the request.
+ */
+export class MobileConnectionClosedError extends Error {
+    constructor() {
+        super('The Caxri connection closed.');
+        this.name = 'MobileConnectionClosedError';
+    }
+}
+
 export type MobilePairingErrorCode = 'expired' | 'invalid-link' | 'rejected' | 'unreachable';
 
 export class MobilePairingError extends Error {

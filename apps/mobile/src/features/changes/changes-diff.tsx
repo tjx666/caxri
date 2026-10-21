@@ -18,12 +18,17 @@ export interface ChangesDiffState {
 
 export const ChangesDiff = ({
     onBack,
+    onRefresh,
     onRetry,
     path,
     state,
     theme,
 }: {
     onBack: () => void;
+    /**
+     * Re-reads the changed files and this file's diff, so an outdated diff becomes current without leaving the file.
+     */
+    onRefresh: () => void;
     onRetry: () => void;
     path: string;
     state: ChangesDiffState;
@@ -42,7 +47,11 @@ export const ChangesDiff = ({
                 >
                     <ChevronLeft color={theme.text} size={22} />
                 </Pressable>
-                <Text numberOfLines={1} style={[styles.detailPath, { color: theme.text }]}>
+                <Text
+                    ellipsizeMode="head"
+                    numberOfLines={1}
+                    style={[styles.detailPath, { color: theme.text }]}
+                >
                     {path}
                 </Text>
             </View>
@@ -58,6 +67,19 @@ export const ChangesDiff = ({
                     <Text style={[styles.stateBody, { color: theme.muted }]}>
                         {t(state.isDisconnected ? 'changes.diffReconnect' : 'changes.diffOutdated')}
                     </Text>
+                    {state.isDisconnected ? null : (
+                        <Pressable
+                            accessibilityLabel={t('changes.refresh')}
+                            accessibilityRole="button"
+                            onPress={onRefresh}
+                            style={styles.commit}
+                            testID="changes-diff-refresh"
+                        >
+                            <Text style={[styles.commitText, { color: theme.primary }]}>
+                                {t('changes.diffRefresh')}
+                            </Text>
+                        </Pressable>
+                    )}
                 </View>
             ) : state.error ? (
                 <View style={styles.state} testID="changes-diff-error">

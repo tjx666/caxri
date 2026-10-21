@@ -91,7 +91,7 @@ describe('mobile session model', () => {
         expect(result.groups.idle.map((item) => item.id)).toEqual(['detached', 'stale']);
     });
 
-    it('lists pinned Sessions first in pinned order and repeats only the ones with news', () => {
+    it('lists a pinned Session only under Pinned, in pinned order, even when it has news', () => {
         const result = buildMobileSessionSections({
             total: 3,
             truncated: false,
@@ -111,7 +111,8 @@ describe('mobile session model', () => {
             'pinned-idle',
             'pinned-attention',
         ]);
-        expect(result.groups.attention.map((item) => item.id)).toEqual(['pinned-attention']);
+        expect(result.groups.attention).toEqual([]);
+        expect(result.groups.pinned[1].group).toBe('attention');
         expect(result.groups.idle.map((item) => item.id)).toEqual(['plain']);
         expect(result.sessions.map((item) => item.id)).toEqual([
             'pinned-idle',

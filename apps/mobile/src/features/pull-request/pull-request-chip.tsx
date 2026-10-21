@@ -10,6 +10,12 @@ import { PullRequestSheet } from './pull-request-sheet';
 import { useSessionPullRequest } from './use-session-pull-request';
 
 /**
+ * The chip is 28pt tall; 8pt of slop above and below reaches the 44pt minimum touch target. The width is the glyph plus
+ * the number, so the sides get the same slop.
+ */
+const CHIP_HIT_SLOP = { bottom: 8, left: 8, right: 8, top: 8 };
+
+/**
  * The Session header's pull request entry: the lifecycle glyph colored by how close the pull request is to merging, and
  * its number. It stays out of the way until the Session delivers a pull request; tapping it opens the merge sheet.
  */
@@ -39,7 +45,7 @@ export const PullRequestChip = ({
                     status: pullRequestReadiness(pullRequest, t),
                 })}
                 accessibilityRole="button"
-                hitSlop={6}
+                hitSlop={CHIP_HIT_SLOP}
                 onPress={() => setOpen(true)}
                 style={({ pressed }) => [
                     styles.chip,
@@ -54,10 +60,7 @@ export const PullRequestChip = ({
                 <PullRequestSheet
                     deviceRole={deviceRole}
                     isConnected={isConnected}
-                    onClose={() => {
-                        setOpen(false);
-                        state.resetMerge();
-                    }}
+                    onClose={() => setOpen(false)}
                     pullRequest={pullRequest}
                     state={state}
                     theme={theme}

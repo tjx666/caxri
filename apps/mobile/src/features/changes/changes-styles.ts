@@ -1,5 +1,7 @@
 import { StyleSheet } from 'react-native';
 
+import { MONOSPACE_FONT } from '../../theme/monospace';
+
 export const changesStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
     toolbar: {
@@ -28,7 +30,7 @@ export const changesStyles = StyleSheet.create({
     },
     status: {
         borderRadius: 5,
-        fontFamily: 'monospace',
+        fontFamily: MONOSPACE_FONT,
         fontSize: 14,
         fontWeight: '700',
         overflow: 'hidden',
@@ -40,7 +42,7 @@ export const changesStyles = StyleSheet.create({
     directory: { fontSize: 13 },
     filename: { fontSize: 14, fontWeight: '700' },
     repositoryName: { fontSize: 11, marginTop: 3 },
-    stats: { fontFamily: 'monospace', fontSize: 12 },
+    stats: { fontFamily: MONOSPACE_FONT, fontSize: 12 },
     commit: {
         alignSelf: 'flex-start',
         borderRadius: 16,
@@ -64,13 +66,13 @@ export const changesStyles = StyleSheet.create({
     diffContent: { paddingVertical: 8 },
     diffList: { flex: 1 },
     diffRow: { flexDirection: 'row', minHeight: 20, paddingHorizontal: 6 },
-    lineNumber: { fontFamily: 'monospace', fontSize: 12, lineHeight: 20, textAlign: 'right' },
+    lineNumber: { fontFamily: MONOSPACE_FONT, fontSize: 12, lineHeight: 20, textAlign: 'right' },
     marker: {
-        fontFamily: 'monospace',
+        fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 20,
         textAlign: 'center',
         width: 16,
     },
-    diffText: { flex: 1, fontFamily: 'monospace', fontSize: 12, lineHeight: 20, minWidth: 0 },
+    diffText: { flex: 1, fontFamily: MONOSPACE_FONT, fontSize: 12, lineHeight: 20, minWidth: 0 },
 });

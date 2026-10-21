@@ -3,7 +3,6 @@ import {
     compareSessionActivityGroupRows,
     compareSessionPinnedOrder,
     isPinnedSession,
-    PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS,
     SESSION_ACTIVITY_GROUP_ORDER,
     sessionActivityGroup,
 } from '@caxri/protocol';
@@ -24,8 +23,8 @@ export type MobileSessionListGroup = (typeof MOBILE_SESSION_LIST_GROUPS)[number]
 
 export interface MobileSessionItem extends MobileSession {
     /**
-     * The Session's status group. A pinned Session also has one; it decides whether the Session is listed a second time
-     * below Pinned.
+     * The Session's status group. A pinned Session still has one (it drives the row's status glyph), but is listed only
+     * under Pinned.
      */
     group: SessionActivityGroupId;
     primaryTerminal?: MobileTerminal;
@@ -36,7 +35,7 @@ export interface MobileSessionItem extends MobileSession {
 export interface MobileSessionSections {
     groups: Record<MobileSessionListGroup, MobileSessionItem[]>;
     /**
-     * Every Session once, in list order: a pinned Session listed again in its status group is not repeated here.
+     * Every Session once, in list order: a pinned Session is listed only under Pinned.
      */
     sessions: MobileSessionItem[];
     total: number;
@@ -105,10 +104,10 @@ export const buildMobileSessionSections = (
             group,
             stateLabel: labelForState(session.lastActivityState, t),
         };
-        if (isPinnedSession(session)) {
-            groups.pinned.push(item);
-            if (PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS.has(group)) groups[group].push(item);
-        } else groups[group].push(item);
+        // Desktop repeats a pinned Session that has news under its status group; the phone lists each Session once
+        // (no duplicate entries to the same data), and the row's status glyph still shows the state under Pinned.
+        if (isPinnedSession(session)) groups.pinned.push(item);
+        else groups[group].push(item);
     }
     groups.pinned.sort(compareSessionPinnedOrder);
     for (const group of SESSION_ACTIVITY_GROUP_ORDER)
