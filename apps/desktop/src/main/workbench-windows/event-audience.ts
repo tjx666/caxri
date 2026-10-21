@@ -62,6 +62,11 @@ export const EVENT_AUDIENCE = {
     'desktop.openRequested': 'focused',
     'command.execute': 'focused',
     'settings.openRequested': 'focused',
+    /**
+     * Commander-only: `agent-commander-window.ts` sends these straight to the Commander Renderer and they never pass
+     * through the Workbench broadcast, so the audience is not consulted. `all` is only the closest member of
+     * {@link EventAudience}; no narrower value exists.
+     */
     'agentCommander.inboxRequested': 'all',
     'agentCommander.commandPaletteRequested': 'all',
 } as const satisfies Record<ServerEvent['event'], EventAudience>;

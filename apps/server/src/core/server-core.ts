@@ -20,7 +20,6 @@ import {
 } from '@caxri/protocol';
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
-import { createServerDomainService } from '../core/create-domain-service';
 import { warmServerExecutablePath } from '../domains/executables';
 import {
     agentCommandRequest,
@@ -34,6 +33,7 @@ import { sendAgentMessage } from './agent-message-send';
 import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
 import { createAgentMessaging } from './create-agent-messaging';
+import { createServerDomainService } from './create-domain-service';
 import {
     invokeDelegationAccess,
     isDelegationAccessRequest,
@@ -55,7 +55,7 @@ import {
     resolveMobileAgentEndpoint,
 } from './mobile';
 import { MutationAdmission } from './mutation-admission';
-import { assertOwnerHandover, projectScope } from './principal-project-scope';
+import { assertOwnerOnlyMethod, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
 import { createServerRecoveryJournal, serverRecoverySnapshot } from './recovery-journal';
 import {
@@ -258,7 +258,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 await mobileAccess.validatePairedDeviceRequest(request, context, domainService);
             if (isExtensionControlRequest(request))
                 return invokeExtensionControlRequest(request, extensionService, domainService);
-            assertOwnerHandover(context, request.method);
+            assertOwnerOnlyMethod(context, request.method);
             switch (request.method) {
                 case 'events.recover':
                     return recoveryJournal.recover(request.params);

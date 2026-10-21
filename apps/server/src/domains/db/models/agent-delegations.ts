@@ -61,7 +61,77 @@ const storedDelegationSchema = z.strictObject({
 export type StoredAgentDelegation = z.infer<typeof storedDelegationSchema>;
 
 /**
- * Bounded private task storage. Admission refuses capacity rather than silently discarding unclaimed answers.
+ * Most saved task records admission keeps.
+ */
+const MAX_SAVED_DELEGATIONS = 1024;
+
+function allRecords(database: CaxriDrizzleDatabase): StoredAgentDelegation[] {
+    return database
+        .select()
+        .from(agentDelegations)
+        .all()
+        .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
+}
+
+/**
+ * Deletes the oldest records of tasks that settled with no answer to collect (failed, interrupted, or stopped), until
+ * one slot is free, and returns the task directory names no remaining record uses. A completed task keeps its answer
+ * because the store cannot tell whether a caller already read it. A record another one still points at (a chain's next
+ * task, or a root whose directory its children share) is kept so those links never dangle. Synchronous, so the insert
+ * that follows happens in the same tick.
+ */
+function pruneForAdmission(
+    database: CaxriDrizzleDatabase,
+    admitted: StoredAgentDelegation,
+): string[] {
+    const all = allRecords(database);
+    const overflow = all.length - MAX_SAVED_DELEGATIONS + 1;
+    if (overflow <= 0) return [];
+    // The admitted task is not stored yet, so its links are not in `all`: a follow-up or resume shares its
+    // predecessor's root directory and links the predecessor only after this insert.
+    const { followUpOf, resumeFrom } = admitted.input;
+    const referenced = new Set<string>(
+        [admitted.rootDelegationId, followUpOf, resumeFrom].filter((value) => value !== undefined),
+    );
+    for (const { receipt, rootDelegationId, nextDelegationId } of all) {
+        if (nextDelegationId) referenced.add(nextDelegationId);
+        if (rootDelegationId && rootDelegationId !== receipt.delegationId)
+            referenced.add(rootDelegationId);
+    }
+    const removable = all
+        .filter(
+            ({ receipt, answer }) =>
+                !isActiveDelegationStatus(receipt.status) &&
+                !answer &&
+                !referenced.has(receipt.delegationId),
+        )
+        .toSorted(
+            (a, b) =>
+                a.receipt.updatedAt - b.receipt.updatedAt ||
+                a.receipt.delegationId.localeCompare(b.receipt.delegationId),
+        )
+        .slice(0, overflow);
+    if (removable.length === 0) return [];
+    database
+        .delete(agentDelegations)
+        .where(
+            inArray(
+                agentDelegations.id,
+                removable.map(({ receipt }) => receipt.delegationId),
+            ),
+        )
+        .run();
+    return removable
+        .filter(
+            ({ receipt, rootDelegationId }) =>
+                !rootDelegationId || rootDelegationId === receipt.delegationId,
+        )
+        .map(({ receipt }) => receipt.delegationId);
+}
+
+/**
+ * Bounded private task storage. At capacity, admission first prunes the oldest settled tasks that hold nothing a caller
+ * could still collect, and refuses capacity rather than discarding unclaimed answers or live tasks.
  */
 export class AgentDelegationsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
@@ -117,12 +187,23 @@ export class AgentDelegationsModel {
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
     }
 
-    insert(record: StoredAgentDelegation): StoredAgentDelegation {
+    /**
+     * @param record The task to admit.
+     * @param onPruned Receives the task directory names of records pruned to make room, once their rows are gone, so
+     *   the caller can remove the files they owned.
+     */
+    insert(
+        record: StoredAgentDelegation,
+        onPruned?: (directories: string[]) => void,
+    ): StoredAgentDelegation {
+        const pruned = pruneForAdmission(this.database, record);
+        if (pruned.length > 0) onPruned?.(pruned);
         const count = this.database
             .select({ value: sql<number>`count(*)` })
             .from(agentDelegations)
             .get()!.value;
-        if (count >= 1024) throw new CaxriError('CAPACITY', 'Too many saved Agent delegations');
+        if (count >= MAX_SAVED_DELEGATIONS)
+            throw new CaxriError('CAPACITY', 'Too many saved Agent delegations');
         const parsed = storedDelegationSchema.parse(record);
         this.database
             .insert(agentDelegations)

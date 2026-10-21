@@ -84,6 +84,51 @@ function isPhase(value: unknown): value is AgentLifecyclePhase {
     return typeof value === 'string' && agentLifecyclePhases.includes(value as AgentLifecyclePhase);
 }
 
+/**
+ * Shared by the known-phase and unknown-phase paths so a forward-compatible phase gets exactly the identifier bounds a
+ * known one does. Order matters: the first failing field names the rejection reason.
+ */
+function validateAgentIdentity(
+    signal: Record<string, unknown>,
+):
+    | Extract<
+          AgentHookSignalRejectionReason,
+          'invalidAgentId' | 'invalidAgentSessionId' | 'invalidAgentTurnId'
+      >
+    | undefined {
+    for (const [field, max, reason] of [
+        ['agentId', MAX_AGENT_ID_LENGTH, 'invalidAgentId'],
+        ['agentSessionId', MAX_AGENT_SESSION_ID_LENGTH, 'invalidAgentSessionId'],
+        ['agentTurnId', MAX_AGENT_TURN_ID_LENGTH, 'invalidAgentTurnId'],
+    ] as const) {
+        const value = signal[field];
+        if (
+            value !== undefined &&
+            (typeof value !== 'string' || value.length > max || !isOpaqueAgentSessionId(value))
+        )
+            return reason;
+    }
+    return undefined;
+}
+
+/**
+ * Shape-only validation. A path that clears this gate is still an unproven provider claim; it becomes durable state
+ * only after `WorkbenchRootService.observeAgentCwd` matches it against real Git worktree topology.
+ */
+function validateAgentCwd(signal: Record<string, unknown>): 'invalidAgentCwd' | undefined {
+    const cwd = signal.agentCwd;
+    if (
+        cwd !== undefined &&
+        (typeof cwd !== 'string' ||
+            cwd.length === 0 ||
+            cwd.length > MAX_AGENT_CWD_LENGTH ||
+            !cwd.startsWith('/') ||
+            cwd.includes('\0'))
+    )
+        return 'invalidAgentCwd';
+    return undefined;
+}
+
 function parsePacket(
     source: string,
 ):
@@ -114,40 +159,10 @@ function parsePacket(
     }
     if (!isPhase(signal.phase)) {
         if (signal.kind !== undefined) return { reason: 'invalidSignal' };
-        if (
-            signal.agentId !== undefined &&
-            (typeof signal.agentId !== 'string' ||
-                signal.agentId.length > MAX_AGENT_ID_LENGTH ||
-                !isOpaqueAgentSessionId(signal.agentId))
-        ) {
-            return { reason: 'invalidAgentId' };
-        }
-        if (
-            signal.agentSessionId !== undefined &&
-            (typeof signal.agentSessionId !== 'string' ||
-                signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH ||
-                !isOpaqueAgentSessionId(signal.agentSessionId))
-        ) {
-            return { reason: 'invalidAgentSessionId' };
-        }
-        if (
-            signal.agentTurnId !== undefined &&
-            (typeof signal.agentTurnId !== 'string' ||
-                signal.agentTurnId.length > MAX_AGENT_TURN_ID_LENGTH ||
-                !isOpaqueAgentSessionId(signal.agentTurnId))
-        ) {
-            return { reason: 'invalidAgentTurnId' };
-        }
-        if (
-            signal.agentCwd !== undefined &&
-            (typeof signal.agentCwd !== 'string' ||
-                signal.agentCwd.length === 0 ||
-                signal.agentCwd.length > MAX_AGENT_CWD_LENGTH ||
-                !signal.agentCwd.startsWith('/') ||
-                signal.agentCwd.includes('\0'))
-        ) {
-            return { reason: 'invalidAgentCwd' };
-        }
+        const identityReason = validateAgentIdentity(signal);
+        if (identityReason) return { reason: identityReason };
+        const cwdReason = validateAgentCwd(signal);
+        if (cwdReason) return { reason: cwdReason };
         if (signal.agentToolUseId !== undefined) return { reason: 'invalidAgentToolUseId' };
         if (signal.worktreeCreateIntent !== undefined) return { reason: 'invalidSignal' };
         if (
@@ -195,30 +210,8 @@ function parsePacket(
     if (signal.kind === 'bridgeStarted')
         return { packet: signal as unknown as HookWireBridgeStarted };
     if (signal.kind !== undefined) return { reason: 'invalidSignal' };
-    if (
-        signal.agentId !== undefined &&
-        (typeof signal.agentId !== 'string' ||
-            signal.agentId.length > MAX_AGENT_ID_LENGTH ||
-            !isOpaqueAgentSessionId(signal.agentId))
-    ) {
-        return { reason: 'invalidAgentId' };
-    }
-    if (
-        signal.agentSessionId !== undefined &&
-        (typeof signal.agentSessionId !== 'string' ||
-            signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH ||
-            !isOpaqueAgentSessionId(signal.agentSessionId))
-    ) {
-        return { reason: 'invalidAgentSessionId' };
-    }
-    if (
-        signal.agentTurnId !== undefined &&
-        (typeof signal.agentTurnId !== 'string' ||
-            signal.agentTurnId.length > MAX_AGENT_TURN_ID_LENGTH ||
-            !isOpaqueAgentSessionId(signal.agentTurnId))
-    ) {
-        return { reason: 'invalidAgentTurnId' };
-    }
+    const identityReason = validateAgentIdentity(signal);
+    if (identityReason) return { reason: identityReason };
     for (const [field, phase] of [
         ['agentPromptDigest', 'turnStarted'],
         ['agentResponseDigest', 'turnFinished'],
@@ -237,20 +230,8 @@ function parsePacket(
         return { reason: 'invalidAgentDigest' };
     const outcomeReason = validateTurnOutcomeSignal(signal);
     if (outcomeReason) return { reason: outcomeReason };
-    /**
-     * Shape-only validation. A path that clears this gate is still an unproven provider claim; it becomes durable state
-     * only after `WorkbenchRootService.observeAgentCwd` matches it against real Git worktree topology.
-     */
-    if (
-        signal.agentCwd !== undefined &&
-        (typeof signal.agentCwd !== 'string' ||
-            signal.agentCwd.length === 0 ||
-            signal.agentCwd.length > MAX_AGENT_CWD_LENGTH ||
-            !signal.agentCwd.startsWith('/') ||
-            signal.agentCwd.includes('\0'))
-    ) {
-        return { reason: 'invalidAgentCwd' };
-    }
+    const cwdReason = validateAgentCwd(signal);
+    if (cwdReason) return { reason: cwdReason };
     const toolReason = validateToolSignal(signal, signal.phase);
     if (toolReason) return { reason: toolReason };
     return { packet: signal as unknown as HookWireSignal };

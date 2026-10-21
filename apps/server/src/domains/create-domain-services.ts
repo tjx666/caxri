@@ -251,6 +251,7 @@ export async function createDomainServices(
     const forgetSessionRuntime = createSessionRuntimeForgetter({
         agentChat,
         agentRuntime,
+        settlementWiring,
         terminalRestores,
         terminals,
         terminalSuspension,

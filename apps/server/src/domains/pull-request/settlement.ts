@@ -218,6 +218,18 @@ export class PullRequestSettlement {
         void this.attempt(sessionId);
     }
 
+    /**
+     * Drops one Session's deferred archive when the Session is deleted, so its timer and entry do not outlive it.
+     * Silent on purpose: the Session is gone, and a deferred archive for a busy Agent otherwise waits on an activity
+     * change that never comes.
+     */
+    forgetSession(sessionId: string): void {
+        const entry = this.pending.get(sessionId);
+        if (!entry) return;
+        clearTimeout(entry.timer);
+        this.pending.delete(sessionId);
+    }
+
     dispose(): void {
         for (const entry of this.pending.values()) clearTimeout(entry.timer);
         this.pending.clear();

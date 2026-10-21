@@ -12,12 +12,12 @@ import {
     isAgentChatPermissionSettled,
 } from '@caxri/protocol';
 
-import { didConfigureAgentChatPermission } from '../permissions/agent-chat-permission-commands';
-import type { AgentChatPermissionTurnBaseline } from '../permissions/agent-chat-permissions';
+import { didConfigureAgentChatPermission } from './agent-chat-permission-commands';
+import type { AgentChatPermissionTurnBaseline } from './agent-chat-permissions';
 import {
     isAgentChatPermissionDeferred,
     nextAgentChatPermissionTurnBaseline,
-} from '../permissions/agent-chat-permissions';
+} from './agent-chat-permissions';
 
 type ReportedPermission = Pick<AgentChatSnapshot, 'activeTurnId' | 'permissionMode' | 'planMode'>;
 

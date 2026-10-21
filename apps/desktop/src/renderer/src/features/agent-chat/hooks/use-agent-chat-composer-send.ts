@@ -5,7 +5,7 @@ import {
     completeAgentChatAction,
 } from '@caxri/protocol';
 
-import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
+import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../activity/agent-chat-goal-mode';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
 import {
     agentChatGoalModeDraft,

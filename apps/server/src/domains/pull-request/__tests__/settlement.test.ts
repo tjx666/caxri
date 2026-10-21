@@ -95,6 +95,22 @@ describe('PullRequestSettlement', () => {
         expect(outcomes()).toEqual(['deferred', 'deferred', 'archived']);
     });
 
+    it('drops a deferred archive for a forgotten Session so a later activity change cannot archive it', async () => {
+        const { archive, outcomes, session, settlement } = harness({});
+
+        settlement.observePullRequest('s', pullRequest('open'), pullRequest('merged'));
+        await flush();
+        expect(outcomes()).toEqual(['deferred']);
+
+        settlement.forgetSession('s');
+        session.lastActivityState = 'completed';
+        settlement.observeActivity({ sessionId: 's', from: 'running', to: 'completed' });
+        await flush();
+
+        expect(archive).not.toHaveBeenCalled();
+        expect(outcomes()).toEqual(['deferred']);
+    });
+
     it('archives a closed pull request immediately when the Agent is idle, without any notice', async () => {
         const { archive, notifyMerged, settlement } = harness({});
 

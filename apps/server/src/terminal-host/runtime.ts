@@ -36,7 +36,7 @@ import type {
 import { TerminalExecutionEngine } from './engine';
 import type { AgentInputHandoff } from './engine/agent-input';
 import { noOpAgentInputHandoff } from './engine/agent-input';
-import { projectTerminalExecutionEvent } from './execution-event-projection';
+import { projectTerminalExecutionEvent, settleTerminalExit } from './execution-event-projection';
 import { TerminalGenerationLedger } from './generation-ledger';
 import type { StoppableTerminalIdentity } from './generation-stop';
 import { stopTerminalGeneration } from './generation-stop';
@@ -244,14 +244,13 @@ export class TerminalHostRuntime {
     }
 
     private async projectExecutionExit(event: TerminalExecutionExit): Promise<void> {
-        const identity = this.identities.get(event.record.id);
+        const { record } = event;
+        const identity = this.identities.get(record.id);
         if (!identity) return;
-        if (identity.agentLaunchId)
-            await this.options.agentLauncher?.cancel(event.record.id, identity.agentLaunchId);
-        const snapshot = await event.capture;
-        if (this.identities.get(event.record.id) === identity) {
-            this.identities.delete(event.record.id);
-            this.colors.delete(event.record.id);
+        const snapshot = await settleTerminalExit(event, identity.agentLaunchId, this.options);
+        if (this.identities.get(record.id) === identity) {
+            this.identities.delete(record.id);
+            this.colors.delete(record.id);
         }
         this.options.send({
             type: 'event',
@@ -259,7 +258,7 @@ export class TerminalHostRuntime {
             identity: this.eventIdentity(identity),
             exitCode: event.exitCode,
             ...(event.signal !== undefined && { signal: event.signal }),
-            snapshot,
+            ...(snapshot && { snapshot }),
         });
     }
 
@@ -740,10 +739,7 @@ export class TerminalHostRuntime {
         const envelope = parsed.data;
         const scopeContext =
             envelope.scope.scope === 'terminal'
-                ? {
-                      sessionId: envelope.scope.sessionId,
-                      terminalId: envelope.scope.terminalId,
-                  }
+                ? { sessionId: envelope.scope.sessionId, terminalId: envelope.scope.terminalId }
                 : undefined;
         await runWithObservationContext(
             mergeObservationContext(envelope.observation, scopeContext),

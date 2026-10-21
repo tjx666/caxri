@@ -40,15 +40,11 @@ export const agentEndpointActivateParamsSchema = z.object({
     launchId: identifierSchema,
 });
 
-export const agentEndpointActivateResultSchema = z.object({ activated: z.boolean() });
-
 // eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by apps/server/src/core/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointRetireParamsSchema = z.object({
     ref: agentEndpointReferenceSchema,
     launchId: identifierSchema,
 });
-
-export const agentEndpointRetireResultSchema = z.object({ retired: z.boolean() });
 
 // eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by apps/server/src/core/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointMessagingParamsSchema = z.object({
@@ -56,8 +52,6 @@ export const agentEndpointMessagingParamsSchema = z.object({
     launchId: identifierSchema,
     messaging: agentMessagingCapabilitySchema,
 });
-
-export const agentEndpointMessagingResultSchema = z.object({ updated: z.boolean() });
 
 // eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by apps/server/src/core/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentEndpointBeginParams = z.infer<typeof agentEndpointBeginParamsSchema>;

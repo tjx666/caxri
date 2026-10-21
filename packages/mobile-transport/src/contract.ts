@@ -144,4 +144,3 @@ export type MobileVersionMismatch = z.infer<typeof mobileVersionMismatchSchema>;
 export type MobileClientConfirmation = z.infer<typeof mobileClientConfirmationSchema>;
 export type MobileSealedFrame = z.infer<typeof mobileSealedFrameSchema>;
 export type MobilePairingResult = z.infer<typeof mobilePairingResultSchema>;
-export type MobileRevoked = z.infer<typeof mobileRevokedSchema>;

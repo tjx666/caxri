@@ -1,11 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
-import { open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import { CaxriError, isCaxriError } from '@caxri/protocol';
-import { readBoundedRegularFile } from '@caxri/system';
+import { atomicWriteFile, readBoundedRegularFile } from '@caxri/system';
 
 export interface PrivateJsonMessages {
     malformed: string;
@@ -69,26 +68,9 @@ export async function replacePrivateJsonFile(options: {
     value: unknown;
 }): Promise<void> {
     const random = options.random ?? randomBytes;
-    const temporary = join(
-        options.directory,
-        `${options.temporaryPrefix}${Buffer.from(random(12)).toString('hex')}.tmp`,
-    );
-    try {
-        const handle = await open(temporary, 'wx', 0o600);
-        try {
-            await handle.writeFile(`${JSON.stringify(options.value)}\n`, 'utf8');
-            await handle.sync();
-        } finally {
-            await handle.close();
-        }
-        await rename(temporary, options.path);
-        const directoryHandle = await open(options.directory, 'r');
-        try {
-            await directoryHandle.sync();
-        } finally {
-            await directoryHandle.close();
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
+    const suffix = Buffer.from(random(12)).toString('hex');
+    await atomicWriteFile(options.path, `${JSON.stringify(options.value)}\n`, {
+        durability: 'durable',
+        temporaryPath: join(options.directory, `${options.temporaryPrefix}${suffix}.tmp`),
+    });
 }

@@ -135,5 +135,7 @@ it('reads only an explicit bounded JSONC file and defaults to a non-mutating pre
     await symlink(path, link);
     await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', link])).rejects.toThrow();
     await writeFile(path, 'x'.repeat(1_048_577));
-    await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', path])).rejects.toThrow('1 MiB');
+    await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', path])).rejects.toThrow(
+        '1024 KiB',
+    );
 });

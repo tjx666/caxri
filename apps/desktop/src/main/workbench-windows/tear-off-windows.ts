@@ -99,6 +99,26 @@ export function createTearOffWindows<W extends TearOffBrowserWindow>(
         workAreas: options.workAreas,
     });
 
+    /**
+     * Releases a closed window's strip, retrying once. A failed release would leave the Server with a strip owned by a
+     * window key that has no live window, so its Session stays assigned to a dead window; one retry covers a transient
+     * Server hiccup, and the final failure is logged so the stale strip is explainable. The strip then restores as a
+     * window on the next launch.
+     */
+    async function releaseStrip(windowKey: string): Promise<void> {
+        for (const attempt of [1, 2]) {
+            try {
+                // eslint-disable-next-line no-await-in-loop -- the retry must wait for the first attempt
+                await options.supervisor().request('window.openSessions.release', { windowKey });
+                return;
+            } catch (error) {
+                logger()?.write('warn', logEventCatalog.window.tearOffReleaseFailed, {
+                    fields: { attempt, error: errorMessage(error, 'unknown') },
+                });
+            }
+        }
+    }
+
     return {
         tearOff: (input: Parameters<typeof controller.tearOff>[0]) => controller.tearOff(input),
         /**
@@ -120,12 +140,8 @@ export function createTearOffWindows<W extends TearOffBrowserWindow>(
             const isKept = keepStripKeys.delete(windowKey);
             if (isQuitting || isKept) return;
             logger()?.write('info', logEventCatalog.window.tearOffReleased);
-            // A failed release leaves a stored strip that restores on the next launch, so it is not retried.
-            const release = options
-                .supervisor()
-                .request('window.openSessions.release', { windowKey });
-            // eslint-disable-next-line unicorn/prefer-await -- fire and forget
-            release.catch(() => {});
+            // eslint-disable-next-line unicorn/prefer-await -- fire and forget; releaseStrip never rejects
+            releaseStrip(windowKey).catch(() => {});
         },
         /**
          * Reopens the torn-off windows the Server still has strips for, cascaded from the primary window. Per-window

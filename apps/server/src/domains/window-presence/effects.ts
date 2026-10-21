@@ -38,12 +38,23 @@ export function createPresenceEffects(options: PresenceEffectsOptions): {
 } {
     const { presence, restoreInterruptedTerminalsInBackground } = options;
     let lastVisibleSessionIds: ReadonlySet<string> = new Set();
+    let lastWatchedSessionId: string | undefined;
+    /**
+     * Points the watcher at the primary visible Session. A focus change skips a Session that is already watched, so
+     * flipping between windows on the same Session does not re-run watcher attachment; a visible-set change always
+     * re-points it, as before, which also retries a watcher whose setup failed.
+     */
+    const followPrimaryVisibleSession = (isFocusChange: boolean): void => {
+        const watched = presence.primaryVisibleSessionId();
+        // Nothing visible keeps the last watcher: tearing it down on every minimize would rescan on every restore.
+        if (!watched || (isFocusChange && watched === lastWatchedSessionId)) return;
+        lastWatchedSessionId = watched;
+        options.watchSessionInBackground(watched);
+    };
     const observeVisibleSessions = (): void => {
         const visible = presence.visibleSessionIds();
         options.terminalSuspension.observeVisibility();
-        const watched = presence.primaryVisibleSessionId();
-        // Nothing visible keeps the last watcher: tearing it down on every minimize would rescan on every restore.
-        if (watched) options.watchSessionInBackground(watched);
+        followPrimaryVisibleSession(false);
         options.projectStatus.setPolledSessions(visible);
         for (const sessionId of visible) {
             if (lastVisibleSessionIds.has(sessionId)) continue;
@@ -63,6 +74,10 @@ export function createPresenceEffects(options: PresenceEffectsOptions): {
         for (const sessionId of activeSessionIds)
             restoreInterruptedTerminalsInBackground(sessionId);
     };
+    const unsubscribeVisible = presence.onVisibleChange(observeVisibleSessions);
+    // Focus can flip between windows showing different Sessions without changing the visible set, which moves the
+    // primary visible Session without firing the visible listener.
+    const unsubscribeCurrent = presence.onCurrentChange(() => followPrimaryVisibleSession(true));
     return {
         handlers: createWindowPresenceHandlers({
             database: options.database,
@@ -75,6 +90,9 @@ export function createPresenceEffects(options: PresenceEffectsOptions): {
         }),
         noteWindowViewing: (windowKey, sessionId) => presence.noteViewing(windowKey, sessionId),
         restoreWindowSelections,
-        unsubscribe: presence.onVisibleChange(observeVisibleSessions),
+        unsubscribe: () => {
+            unsubscribeVisible();
+            unsubscribeCurrent();
+        },
     };
 }

@@ -9,13 +9,13 @@ import {
 } from '@caxri/protocol';
 import { Goal, Maximize2, Minimize2, Pause, Play, Trash2 } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
-import { Tooltip } from '../../components/ui/tooltip';
-import type { TranslationKey } from '../../i18n';
-import { useTranslation } from '../../i18n';
-import { cn } from '../../lib/utilities';
-import { changeAgentChatGoal } from './agent-chat-commands';
-import { useClockTick } from './hooks/use-clock-tick';
+import { Button } from '../../../components/ui/button';
+import { Tooltip } from '../../../components/ui/tooltip';
+import type { TranslationKey } from '../../../i18n';
+import { useTranslation } from '../../../i18n';
+import { cn } from '../../../lib/utilities';
+import { changeAgentChatGoal } from '../agent-chat-commands';
+import { useClockTick } from '../hooks/use-clock-tick';
 
 const STATUS_LABELS = {
     active: 'agentChat.goal.status.active',

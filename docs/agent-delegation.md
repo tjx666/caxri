@@ -346,7 +346,10 @@ evidence settles as `result_missing` after 15 seconds without relaunching the Ag
 answers survive restart. Deleting a Session or Project drains pending task creation and removes its
 private task files before the metadata cascade. Cleanup failure retains ownership records for retry.
 Project folders and user files are never removed.
-Admission stops at 1,024 saved task records rather than evicting unclaimed answers.
+At 1,024 saved task records, admission first prunes the oldest settled tasks that hold no answer
+(failed, interrupted, or stopped) and removes their private task files; a task another record still
+links to is kept. Completed answers and live tasks are never evicted, so admission fails with
+`CAPACITY` only when nothing is prunable.
 
 ## Follow-up, stop, and recovery
 

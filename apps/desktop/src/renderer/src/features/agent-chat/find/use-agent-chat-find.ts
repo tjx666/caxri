@@ -18,11 +18,11 @@ import {
     createAgentChatFindRepaintScheduler,
     hasAgentChatFindEarlierLoadSettled,
     stepAgentChatFindIndex,
-} from '../find/agent-chat-find';
+} from './agent-chat-find';
 import {
     clearAgentChatFindHighlights,
     setAgentChatFindHighlights,
-} from '../find/agent-chat-find-highlights';
+} from './agent-chat-find-highlights';
 
 /**
  * Where a revealed match lands in the view, as a fraction of its height from the top, so the lines before it stay in

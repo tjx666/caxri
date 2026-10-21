@@ -1,12 +1,11 @@
 import { Buffer } from 'node:buffer';
-import { randomUUID } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
-import { mkdir, open, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { open } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import type { ArgvConfig, ArgvConfigChanges } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURATION_SOURCE_BYTES } from '@caxri/protocol';
-import { KeyedSerialQueue, parseJsonc } from '@caxri/system';
+import { atomicWriteFile, KeyedSerialQueue, parseJsonc } from '@caxri/system';
 import { applyEdits, modify } from 'jsonc-parser';
 
 const defaultArgvConfig: ArgvConfig = {
@@ -221,14 +220,7 @@ export function updateArgvConfig(
                 }),
             );
         assertArgvConfigSourceWithinLimit(source);
-        await mkdir(dirname(path), { recursive: true });
-        const temporary = `${path}.${randomUUID()}.tmp`;
-        try {
-            await writeFile(temporary, source, { encoding: 'utf8', mode: 0o600 });
-            await rename(temporary, path);
-        } finally {
-            await rm(temporary, { force: true });
-        }
+        await atomicWriteFile(path, source, { durability: 'durable' });
         return normalizeArgvConfig(parseJsonc(source));
     });
 }

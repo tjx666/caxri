@@ -6,7 +6,7 @@ description: >
   feel heavy under a 1s push stream. Measures render counts from outside the
   app over CDP (react-scan injected, no source changes), localizes the exact
   hook that fires, fixes it by lowering state to the consumers instead of
-  sprinkling memo, and locks the result with a Profiler regression test.
+  sprinkling memo, and locks the result with a pure-function unit test or audit-ux render counts.
 metadata:
   author: innei
   version: '0.1.0'
@@ -309,47 +309,25 @@ is a bandage over the real bug.
 
 ### [6] Prove
 
-Two artifacts, both required.
+Component render tests do not run in this repository: there is no jsdom
+environment and `.tsx` components are not unit tested (see `unit-testing`).
+Lock the fix with one of these instead, and keep the `count.js` before/after
+numbers as the primary evidence.
 
-**For a remount, count mounts, not commits.** A `<Profiler>` cannot tell a
-remount from a re-render; a child with `useEffect(() => { mounts++ }, [])`
-can. Assert it stays at 1 across the async transition that used to remount:
+**Extract the hot logic.** If the bug was derived-value work, a store
+subscription, or an unstable object built every render, move that logic into a
+hook-free pure function or selector (for example a selector that returns the
+same reference when its inputs are unchanged) and unit test it with Vitest.
+Assert both halves: the output changes when the relevant input changes, and
+the reference stays identical when an unrelated input changes. A test that
+only checks the second half also passes when the feature is broken.
 
-```tsx
-render(
-  <Locale defaultLang="zh-CN">
-    <MountCounter />
-  </Locale>,
-);
-expect(mounts).toBe(1);
-resolveLocale({ locale: 'zh-cn' }); // the async load that flipped the wrapper
-await waitFor(() => expect(getAntdLocale).toHaveBeenCalled());
-expect(mounts).toBe(1); // was 2 before the fix
-```
-
-**Regression test.** `<Profiler>` around the subtree that must not move.
-Mock the transport, push one message, assert zero commits:
-
-```tsx
-const commits = { dock: 0 };
-render(
-  <Sidebar
-    live
-    dock={
-      <Profiler id="dock" onRender={() => commits.dock++}>
-        <Dock />
-      </Profiler>
-    }
-  />,
-);
-commits.dock = 0; // discard mount
-act(() => subs[0].onPayload({ quotes: [{ symbol: 'NVDA.US', last: 123.45 }] }));
-expect(screen.getByText('$123.45')).toBeTruthy(); // the value did arrive
-expect(commits.dock).toBe(0); // and nobody else moved
-```
-
-Assert both halves. `commits.dock === 0` alone also passes when the feature
-is broken.
+**Lock render counts with the audit-ux tooling.** For a remount or a
+subtree that must not move, drive the scenario in a running unpackaged
+instance with `.agents/skills/audit-ux/scripts/render-count.ts` (procedure in
+`.agents/skills/audit-ux/references/render-layer.md`). It reports per-instance
+mounts and updates, so a remount shows as `mounts > 1` where a commit count
+cannot tell it from a re-render. Record the numbers in the PR.
 
 **Re-measure.** Run `count.js` again on the same page, same sample length,
 and report before → after per component. Numbers, not "feels faster".
@@ -396,8 +374,8 @@ why. React 19 dropped the old `interactions` argument.
 
 - **Use react-scan** to explore: it enumerates every component and flags
   `unnecessary`, with zero source changes.
-- **Use Profiler** to assert: it is a plain React API, works in vitest, and
-  survives in the repo as a regression guard.
+- **Use render-count.ts or a pure-function test** to assert (see step 6);
+  `<Profiler>` is a plain React API but has no component-test runner here.
 - **Profiler as a fallback explorer**: no react-scan available → wrap 4-5
   page regions with distinct `id`s, count commits, bisect into the loser.
   Coarse, but it needs no tooling.

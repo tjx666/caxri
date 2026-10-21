@@ -26,3 +26,19 @@ export async function removeDelegationFiles(userDataPath: string, ids: readonly 
     }
     await Promise.all(ids.map((id) => rm(join(root, id), { recursive: true, force: true })));
 }
+
+/**
+ * Removes the task directories of records pruned at capacity, after their rows are already gone. Best effort: admitting
+ * a new task must not fail because an evicted task's directory could not be removed, and the unreferenced leftover
+ * holds no answer a caller can reach.
+ */
+export async function reclaimPrunedDelegationFiles(
+    userDataPath: string,
+    ids: readonly string[],
+): Promise<void> {
+    try {
+        await removeDelegationFiles(userDataPath, ids);
+    } catch {
+        // Best effort, see above.
+    }
+}

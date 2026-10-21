@@ -48,6 +48,9 @@ identity from that canonical path. Desktop and CLI validate
 `Contents/Resources/server/metadata/manifest.json` when packaged, then launch the declared pinned
 runtime and Server Core entrypoint through `@caxri/client/supervise`.
 
+App-level native prompts (the quit confirmations) attach to the focused Workbench window, falling back to the primary
+window.
+
 A second same-profile Desktop exits before attachment and asks the existing Desktop to restore or focus
 its window. The typed Desktop lease remains defense in depth for non-Electron Clients and stale-build
 recovery. Desktop Main is otherwise replaceable: closing a window revokes its lease and detaches views

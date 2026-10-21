@@ -1,8 +1,8 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import process from 'node:process';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
+import { atomicWriteFile } from '@caxri/system';
 import { z } from 'zod';
 
 import type { UsageTokens } from './accumulator';
@@ -417,12 +417,12 @@ export class ModelPricing {
         prices: Record<string, ModelPrice>;
     }): Promise<void> {
         try {
-            await mkdir(dirname(this.cachePath), { recursive: true });
-            const temporary = `${this.cachePath}.${process.pid}.tmp`;
-            await writeFile(temporary, JSON.stringify({ version: PRICE_CACHE_VERSION, ...value }), {
-                mode: 0o600,
-            });
-            await rename(temporary, this.cachePath);
+            // Rebuildable cache: skip fsync so a refresh never stalls on disk flushes; a crash just refetches.
+            await atomicWriteFile(
+                this.cachePath,
+                JSON.stringify({ version: PRICE_CACHE_VERSION, ...value }),
+                { durability: 'none' },
+            );
         } catch {
             // The in-memory copy still serves this process; the next start refetches.
         }

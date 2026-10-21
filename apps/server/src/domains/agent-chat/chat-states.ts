@@ -217,7 +217,9 @@ export class ChatStates {
 
     /**
      * Drops a Chat's projection without letting its pending patches reach Clients after a replacement chain began. A
-     * closed Chat also drops its task revision floors; a restarted one keeps them.
+     * closed Chat also drops its task revision floors; a restarted one keeps them. The projection's own revision floor
+     * is dropped only once the Terminal row is gone (Terminal close, Session or Project delete): an archived Session or
+     * a surface switch keeps the row and may open this Chat again, and its Clients still hold the old revision.
      */
     forget(terminalId: string, isClosed = false): void {
         const state = this.states.get(terminalId);
@@ -226,7 +228,11 @@ export class ChatStates {
             this.states.delete(terminalId);
             this.subagents.forget(terminalId);
         }
-        if (isClosed) forgetTaskRevisions(this.taskRevisionFloors, terminalId);
+        if (isClosed) {
+            forgetTaskRevisions(this.taskRevisionFloors, terminalId);
+            if (!this.options.database.getTerminal(terminalId))
+                this.revisionFloors.delete(terminalId);
+        }
     }
 
     /**

@@ -10,7 +10,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import { CaxriError } from '@caxri/protocol';
 
-import { clip } from './chat-items';
+import { clip } from '../chat-items';
 import type {
     AgentChatSessionHost,
     AgentChatTranscript,
@@ -19,8 +19,8 @@ import type {
     ChatRestorePreview,
     ChatResumePoint,
     ChatRewindTarget,
-} from './chat-provider';
-import { claudeRewindPoint } from './claude-history';
+} from '../chat-provider';
+import { claudeRewindPoint } from '../claude-history';
 
 /**
  * Claude Code rewinds a conversation only by resuming it at an earlier record (`resumeSessionAt`), so this finds that

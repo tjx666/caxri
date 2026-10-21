@@ -1,10 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { atomicWriteFile } from '../filesystem/atomic-write-file.js';
 import type { CausalCapsule } from './causal-chain.js';
 import { failureReasons, remediationCategories } from './causal-chain.js';
 import type { ObservationContext } from './context.js';
@@ -261,24 +261,12 @@ async function writePrivateManifest(
     const source = `${JSON.stringify(value)}\n`;
     if (Buffer.byteLength(source, 'utf8') > MAX_OBSERVATION_PROCESS_MANIFEST_BYTES)
         throw new Error('Observation process manifest exceeds its storage bound');
-    const temporary = join(directory, `.${value.owner}.${process.pid}.${randomUUID()}.tmp`);
-    try {
-        const handle = await open(
-            temporary,
-            constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-            0o600,
-        );
-        try {
-            await handle.writeFile(source, 'utf8');
-            await handle.sync();
-        } finally {
-            await handle.close();
-        }
-        await rename(temporary, path);
-        await chmod(path, 0o600);
-    } finally {
-        await rm(temporary, { force: true });
-    }
+    await atomicWriteFile(path, source, {
+        durability: 'durable',
+        exactMode: true,
+        mode: 0o600,
+        temporaryPath: join(directory, `.${value.owner}.${process.pid}.${randomUUID()}.tmp`),
+    });
 }
 
 function isProcessAlive(pid: number): boolean {

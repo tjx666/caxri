@@ -1,3 +1,4 @@
+export * from './atomic-write-file.js';
 export * from './bounded-file-reader.js';
 export * from './exec.js';
 export * from './file-identity.js';

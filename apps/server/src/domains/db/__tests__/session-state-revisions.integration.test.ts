@@ -189,4 +189,43 @@ describe('Session state revision bookkeeping', () => {
         ]);
         restarted.database.close();
     });
+
+    it('hands the reader the repaired revision so its next write is not rejected as stale', async () => {
+        const { advances, database, directory, staleWrites } = await observedDatabase(
+            'caxri-db-revision-repair-token-',
+        );
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
+        database.sessions.insertInitialState(session.id);
+        const before = database.sessions.getState(session.id);
+
+        // The read repairs the missing tab and stores a newer revision than the one it parsed.
+        const terminal = shellTerminal(database, session.id, directory);
+        const repaired = database.sessions.getState(session.id);
+        expect(advances.map((advance) => advance.reason)).toEqual(['terminalTabRepair']);
+        expect(repaired.revision).toBe(before.revision + 1);
+
+        // The pre-repair token is stale (the CONFLICT a repair can cause), while the returned one is current.
+        expect(() =>
+            database.sessions.updateState(
+                { ...before, editorRemapOperationId: 'old' },
+                'clientWrite',
+            ),
+        ).toThrow(expect.objectContaining({ code: 'CONFLICT' }));
+        expect(staleWrites).toEqual([
+            expect.objectContaining({
+                lastWriteReason: 'terminalTabRepair',
+                writtenRevision: before.revision,
+                currentRevision: repaired.revision,
+            }),
+        ]);
+        expect(() =>
+            database.sessions.updateState(
+                { ...repaired, editorRemapOperationId: 'fresh' },
+                'clientWrite',
+            ),
+        ).not.toThrow();
+        expect(terminal.id).toBeTruthy();
+        database.close();
+    });
 });

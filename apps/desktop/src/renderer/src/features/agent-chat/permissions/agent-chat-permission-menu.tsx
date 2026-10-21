@@ -35,9 +35,9 @@ import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
 import { setAgentChatProjectDefault } from '../agent-chat-commands';
 import { useAgentChatComposerMenu } from '../hooks/use-agent-chat-composer-command';
-import type { useAgentChatPermissionSelection } from '../hooks/use-agent-chat-permission-selection';
 import type { AgentChatProjectDefaultItem } from './agent-chat-permissions';
 import { AGENT_CHAT_CUSTOM_PERMISSION, agentChatPermissionView } from './agent-chat-permissions';
+import type { useAgentChatPermissionSelection } from './use-agent-chat-permission-selection';
 
 /**
  * Each level's glyph, as the Codex app leads every approval row with one, so what the Agent may do reads at a glance.

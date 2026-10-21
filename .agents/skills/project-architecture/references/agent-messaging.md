@@ -83,3 +83,12 @@ Provider majors fail closed. The verified controlled version matrix, Claude Chan
 boundary, and pull/FIFO delivery semantics are Server Core-agnostic product behavior owned by
 [Provider messaging support](../../../../docs/provider-messaging.md): read it instead of re-deriving
 version numbers here, since a second copy is how they drift.
+
+Owner-only methods. A method spec may declare `principal: 'owner'` (`ownerOnlyCommandPolicy`); Server Core
+refuses it for every principal except Desktop and the human CLI (`assertOwnerOnlyMethod`), because an
+`agent:control` grant gives an Agent Endpoint the same capabilities. Commander hand-over
+(`commander.session.handOver`, `commander.session.takeBack`, `commander.conversations`) and the Desktop-only
+reads `commander.managedSessions` and `session.permissionAutoAllowStatus` use it: they span every Project and the
+default Agent capabilities (`agents.read`, `sessions.read`) would otherwise expose them without Project scope.
+`packages/protocol/src/agent/__tests__/owner-only-commander-methods.test.ts` requires every `commander.*` control or
+write method to be owner-only or listed in an explicit exemption.

@@ -49,6 +49,10 @@ beyond the packaged application itself.
   branch for a release. The repository-owned command validates
   and updates every coupled manifest, bundled extension engine range, and TypeScript version
   source. It intentionally stops before commit, push, tag, or publication.
+- `release:prepare` refuses to run when the latest completed CI run on `main` for a non-release
+  commit failed, because the release fast-path trusts the merged PRs' non-required `checks`. Check
+  by hand with `gh run list --workflow ci.yml --branch main --status completed --limit 5`; land
+  the fix for a red `main` before releasing.
 - Merge the next `release:` PR only after the earlier Release run has published. If that run
   failed, land the fix first: a version prepared from the same tree fails the same way and burns
   its version number too. Cancel an earlier run only once a newer release supersedes it.

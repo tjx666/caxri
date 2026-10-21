@@ -16,9 +16,9 @@ import {
 import { agentChatContextUsage } from '../context/agent-chat-context';
 import { AgentChatContextMeter } from '../context/agent-chat-context-meter';
 import { useAgentChatComposerCommand } from '../hooks/use-agent-chat-composer-command';
-import { useAgentChatPermissionSelection } from '../hooks/use-agent-chat-permission-selection';
 import { AgentChatModelMenu } from '../model/agent-chat-model-menu';
 import { AgentChatPermissionMenu } from '../permissions/agent-chat-permission-menu';
+import { useAgentChatPermissionSelection } from '../permissions/use-agent-chat-permission-selection';
 import { openAgentChatContext, openAgentChatSideChat } from '../tasks/agent-chat-task-opener';
 import { AgentChatAddMenu, AgentChatModeChip } from './agent-chat-add-menu';
 

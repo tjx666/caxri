@@ -1,8 +1,8 @@
 import type { ReactNode, RefObject } from 'react';
 
-import { useAgentChatFind } from '../hooks/use-agent-chat-find';
 import { AgentChatFindQueryContext } from './agent-chat-find';
 import { AgentChatFindBar } from './agent-chat-find-bar';
+import { useAgentChatFind } from './use-agent-chat-find';
 
 /**
  * The conversation area with find in it: the bar in a strip above it, which the conversation gives up its height to

@@ -155,7 +155,7 @@ or cancels the delivery, or a concrete blocker requires their input.
 
 ## Fast merge without CI
 
-`main` requires the `guards` status check (gitleaks, `docs-check`, `source-size-ratchet` on a
+`main` requires the `guards` status check (gitleaks, `docs-check`, `source-size-ratchet`, `em-dash-check`, and the directory-density ratchet test on a
 GitHub-hosted runner, see [ADR 0016](../../../docs/adr/0016-github-hosted-ci.md)) to pass
 before anything merges, and that requirement applies with no bypass: a raw `git push` to `main` is
 rejected outright, so every change, including a one-line documentation fix, goes through a pull

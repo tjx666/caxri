@@ -31,6 +31,11 @@ export const windowLogEvents = {
      */
     tearOffReleased: 'window.tear_off_released',
     /**
+     * Releasing a closed tear-off window's Open Sessions failed, with the `attempt` (1 or 2) that failed. After the
+     * second failure the Server keeps a strip for a window that no longer exists until the next launch.
+     */
+    tearOffReleaseFailed: 'window.tear_off_release_failed',
+    /**
      * Tear-off windows reopened at launch, with how many.
      */
     tearOffRestored: 'window.tear_off_restored',

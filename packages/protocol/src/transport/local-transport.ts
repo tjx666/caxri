@@ -287,7 +287,6 @@ export const localServerEventSchema = z.object({
     event: z.union([protocolEventEnvelopeSchema, transientServerEventSchema]),
 });
 
-export type LocalClientHello = z.infer<typeof localClientHelloSchema>;
 export type LocalServerWelcome = z.infer<typeof localServerWelcomeSchema>;
 export type LocalClientCommand = z.infer<typeof localClientCommandSchema>;
 export type LocalClientDesktopReply = z.infer<typeof localClientDesktopReplySchema>;

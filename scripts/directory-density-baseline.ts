@@ -31,10 +31,12 @@ export interface DirectoryDensityFamily extends DirectoryDensityOwner {
 
 export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 116, directory: 'apps/desktop/src/main' },
-    { cap: 96, directory: 'apps/server/src/domains/agent-chat' },
-    { cap: 11, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
+    { cap: 91, directory: 'apps/server/src/domains/agent-chat' },
+    { cap: 9, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
     { cap: 20, directory: 'apps/desktop/src/main/ssh' },
-    { cap: 54, directory: 'apps/desktop/src/renderer/src/features/agent-chat/hooks' },
+    { cap: 94, directory: 'packages/protocol/src/domain' },
+    { cap: 65, directory: 'packages/protocol/src/agent' },
+    { cap: 50, directory: 'apps/desktop/src/renderer/src/features/agent-chat/hooks' },
     { cap: 21, directory: 'apps/desktop/src/renderer/src/features/agent-chat/transcript' },
     { cap: 22, directory: 'apps/desktop/src/renderer/src/features/agent-chat/loading/glyphs' },
     { cap: 19, directory: 'apps/desktop/src/renderer/src/features/agent-chat/composer' },
@@ -52,10 +54,10 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
 export const DIRECTORY_DENSITY_NESTED_THRESHOLD = 12;
 
 export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
-    { cap: 34, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },
-    { cap: 28, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
-    { cap: 18, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
-    { cap: 7, directory: 'apps/server/src/domains/agent-chat', prefix: 'grok-' },
+    { cap: 32, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },
+    { cap: 27, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
+    { cap: 17, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
+    { cap: 6, directory: 'apps/server/src/domains/agent-chat', prefix: 'grok-' },
     { cap: 8, directory: 'apps/desktop/src/main', prefix: 'agent-' },
     { cap: 8, directory: 'apps/desktop/src/main', prefix: 'external-' },
     { cap: 7, directory: 'apps/desktop/src/main', prefix: 'desktop-' },

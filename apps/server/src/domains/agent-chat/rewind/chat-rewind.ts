@@ -7,11 +7,11 @@ import {
 } from '@caxri/protocol';
 import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
 
-import { requireChatTerminal } from './chat-launch';
-import type { ChatResumePoint } from './chat-provider';
-import { chatStateStore } from './chat-state-store';
-import type { ChatStateDelivery } from './chat-states';
-import type { AgentChatServiceOptions } from './service-options';
+import { requireChatTerminal } from '../chat-launch';
+import type { ChatResumePoint } from '../chat-provider';
+import { chatStateStore } from '../chat-state-store';
+import type { ChatStateDelivery } from '../chat-states';
+import type { AgentChatServiceOptions } from '../service-options';
 
 const REWIND_REFUSALS: Record<AgentChatRewindRefusal, string> = {
     turnRunning: 'Stop the running turn before editing an earlier message',
