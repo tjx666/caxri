@@ -17,10 +17,11 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   claiming coverage; a successful script exit does not prove the intended change occurred.
 - Iterate with the narrowest owning test, then run one changed-file check after the cohesive source
   batch is complete. Re-run only gates invalidated by later edits.
-- With no selector, run lint and related tests, plus the repository-wide typecheck whenever a
-  changed or deleted path can affect types: a TypeScript source, a `tsconfig*.json`, a
-  `package.json`, or `pnpm-lock.yaml`. Lint and tests alone once passed a type error that then
-  failed CI. An explicit selector runs exactly what it names.
+- With no selector, run lint and related tests, plus the repository-wide typecheck and `knip`
+  whenever a changed or deleted path can affect types: a TypeScript source, a `tsconfig*.json`, a
+  `package.json`, or `pnpm-lock.yaml`. Lint and tests alone once passed a type error, and an
+  export left without an importer, that then failed CI. An explicit selector runs exactly what it
+  names.
 - With no file arguments, inspect committed changes since the `origin/main` merge base plus staged,
   unstaged, and untracked files, deletions included. A rename counts as its deleted source plus its
   added destination. `--staged` narrows this to the index. Lint and tests see existing files;
@@ -82,8 +83,9 @@ underlying tool output needed to act.
 
 `bun run knip` is repository-wide (about 3 s), and CI runs it in the `full` checks scope (a main
 push, an explicit dispatch, or a ready PR on a full-validation path) and in the `affected` scope
-ordinary ready source PRs get; draft and `focused-*` scopes skip it. Run `knip` (or
-`--knip`) locally before pushing Renderer or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
+ordinary ready source PRs get; draft and `focused-*` scopes skip it. The default local selection
+already runs it for TypeScript and manifest changes; pass `--knip` when an explicit selector omits
+it. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
 against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains
 a CI validator.
 For mobile or Renderer React changes, run `bun run doctor:changed` after new files are staged or

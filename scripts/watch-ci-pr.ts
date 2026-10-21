@@ -13,6 +13,11 @@ const POLL_INTERVAL_MS = 15_000;
  * How long a head may go without any run before the watcher gives up; GitHub normally creates runs within a minute.
  */
 const RUN_START_TIMEOUT_MS = 600_000;
+/**
+ * Consecutive failed lookups tolerated before startup gives up. A single dropped connection (`gh api ... EOF`) used to
+ * end the watcher before it ever reached a run, leaving the agent to notice and restart it by hand.
+ */
+const MAX_STARTUP_READ_FAILURES = 5;
 
 export type PrStartupStep =
     | { kind: 'watch'; runIds: string[] }
@@ -63,14 +68,17 @@ async function ghApi(path: string, jq: string): Promise<string> {
     return stdout.trim();
 }
 
+interface PrHead {
+    headSha: string;
+    mergeableState: string | undefined;
+    runIds: string[];
+}
+
 /**
  * The pull request's current head, whether it merges into its base, and the workflow runs started for that head. REST,
  * not `gh pr view`: the GraphQL budget is shared by every local session.
  */
-async function readPrHead(
-    pr: string,
-    workflow: string | undefined,
-): Promise<{ headSha: string; mergeableState: string | undefined; runIds: string[] }> {
+async function readPrHead(pr: string, workflow: string | undefined): Promise<PrHead> {
     const [headSha = '', mergeableState] = (
         await ghApi(`pulls/${pr}`, '.head.sha + " " + .mergeable_state')
     ).split(' ', 2);
@@ -84,16 +92,41 @@ async function readPrHead(
 }
 
 /**
- * Waits for the current head of pull request `pr` to have workflow runs, only those named `workflow` when given, and
- * returns their IDs. Throws when the pull request conflicts with its base or no run starts in time.
+ * Seams for tests; production reads GitHub and waits in real time.
  */
+interface ResolveDependencies {
+    readHead?: (pr: string, workflow: string | undefined) => Promise<PrHead>;
+    wait?: (ms: number) => Promise<unknown>;
+}
 
-export async function resolvePrRuns(pr: string, workflow?: string): Promise<string[]> {
+/**
+ * Waits for the current head of pull request `pr` to have workflow runs, only those named `workflow` when given, and
+ * returns their IDs. Throws when the pull request conflicts with its base or no run starts in time; a few consecutive
+ * failed lookups are retried.
+ */
+export async function resolvePrRuns(
+    pr: string,
+    workflow?: string,
+    { readHead = readPrHead, wait = sleep }: ResolveDependencies = {},
+): Promise<string[]> {
     const startedAt = Date.now();
     let previousRunIds: string[] | undefined;
+    let failedReads = 0;
     for (;;) {
-        // eslint-disable-next-line no-await-in-loop -- startup poll: each iteration observes then sleeps
-        const { headSha, mergeableState, runIds } = await readPrHead(pr, workflow);
+        let head: PrHead;
+        try {
+            // eslint-disable-next-line no-await-in-loop -- startup poll: each iteration observes then sleeps
+            head = await readHead(pr, workflow);
+            failedReads = 0;
+        } catch (error) {
+            failedReads += 1;
+            if (failedReads >= MAX_STARTUP_READ_FAILURES) throw error;
+            console.error(`run lookup failed (retrying): ${String(error)}`);
+            // eslint-disable-next-line no-await-in-loop -- startup poll: fixed cadence
+            await wait(POLL_INTERVAL_MS);
+            continue;
+        }
+        const { headSha, mergeableState, runIds } = head;
         const step = prStartupStep({
             mergeableState,
             previousRunIds,
@@ -111,6 +144,6 @@ export async function resolvePrRuns(pr: string, workflow?: string): Promise<stri
         }
         previousRunIds = runIds;
         // eslint-disable-next-line no-await-in-loop -- startup poll: fixed cadence
-        await sleep(POLL_INTERVAL_MS);
+        await wait(POLL_INTERVAL_MS);
     }
 }
