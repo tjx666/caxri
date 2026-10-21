@@ -15,23 +15,38 @@ import { chooseTerminalFromCreateMenu, VISIBLE_SESSION } from './helpers.ts';
  * The fake Codex provider definition whose `app-server` is the deterministic Server-test fixture; threads persist under
  * `directory`. Exported so a spec can combine it with other fake providers in one mode.
  */
-export function fakeCodexChatProvider(directory: string, nativeUsageHome?: string) {
+export function fakeCodexChatProvider(
+    directory: string,
+    nativeUsageHome?: string,
+    shouldWriteRollouts?: boolean,
+) {
     return {
         executableSource: fakeCodexChatExecutableSource({
             stateDirectory: join(directory, 'codex-threads'),
             nativeUsageHome,
+            shouldWriteRollouts,
         }),
     };
 }
 
 /**
- * A fake Codex whose `app-server` is the deterministic Server-test fixture; threads persist under `directory`.
+ * A fake Codex whose `app-server` is the deterministic Server-test fixture; threads persist under `directory`. With
+ * `shouldWriteRollouts`, it also records user messages in a rollout, as the real CLI does, so resumed images read
+ * back.
  */
-export function fakeCodexChatAgentMode(directory: string, userData: string) {
+export function fakeCodexChatAgentMode(
+    directory: string,
+    userData: string,
+    options: { shouldWriteRollouts?: boolean } = {},
+) {
     return createFakeAgentMode({
         userDataDir: userData,
         providers: {
-            codex: fakeCodexChatProvider(directory, join(userData, 'e2e-agents', 'codex')),
+            codex: fakeCodexChatProvider(
+                directory,
+                join(userData, 'e2e-agents', 'codex'),
+                options.shouldWriteRollouts,
+            ),
         },
     });
 }

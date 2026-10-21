@@ -6,10 +6,16 @@ import type {
     AgentChatTaskPatchOperation,
     AgentChatTurn,
 } from '@caxri/protocol';
-import { agentChatImageInputSchema, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import { extractVisibleTranscriptMessage } from '../agents';
-import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
+import {
+    clip,
+    closeDanglingItem,
+    isRecord,
+    storedChatImageSchema,
+    stringField,
+} from './chat-items';
 import { claudeResponseUsage } from './claude-context';
 import { claudeFeedbackItems, claudeFeedbackToolUseId } from './claude-feedback';
 import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
@@ -417,8 +423,6 @@ export function claudeTaskHistoryOperations(
     ];
 }
 
-const storedImageSchema = agentChatImageInputSchema.omit({ thumbnail: true });
-
 /**
  * The content blocks of the user message `itemId` names: a user record's `uuid` (the id `applyUserRecord` gives it) or
  * a steered prompt's `source_uuid` (the id `applySteeredRecord` gives it).
@@ -440,14 +444,14 @@ function userMessageBlocks(record: Json, itemId: string): Json[] | undefined {
 
 /**
  * The `index`th image of the user message `itemId` names, as the transcript stores it; `undefined` when the transcript
- * no longer holds that message or image. Only a line naming the id is parsed, so finding one message does not decode
- * every image in the transcript.
+ * holds no such message, and `null` when the message has no readable image there. Only a line naming the id is parsed,
+ * so finding one message does not decode every image in the transcript.
  */
 export function claudeHistoryImage(
     transcript: string,
     itemId: string,
     index: number,
-): Omit<AgentChatImageInput, 'thumbnail'> | undefined {
+): Omit<AgentChatImageInput, 'thumbnail'> | null | undefined {
     for (const line of transcript.split('\n')) {
         if (!line.includes(itemId)) continue;
         const record = parseRecord(line);
@@ -455,12 +459,12 @@ export function claudeHistoryImage(
         if (!blocks) continue;
         const images = blocks.filter((block) => block.type === 'image');
         const source: unknown = (images[index] as Json | undefined)?.source;
-        if (!isRecord(source) || source.type !== 'base64') return undefined;
-        const parsed = storedImageSchema.safeParse({
+        if (!isRecord(source) || source.type !== 'base64') return null;
+        const parsed = storedChatImageSchema.safeParse({
             mediaType: source.media_type,
             data: source.data,
         });
-        return parsed.success ? parsed.data : undefined;
+        return parsed.success ? parsed.data : null;
     }
     return undefined;
 }

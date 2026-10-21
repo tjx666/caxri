@@ -468,6 +468,6 @@ describe('Claude transcript rewinds', () => {
             mediaType: 'image/png',
             data: 'iVBORw0KGgo=',
         });
-        expect(claudeHistoryImage(transcript, 'sent-1', 1)).toBeUndefined();
+        expect(claudeHistoryImage(transcript, 'sent-1', 1)).toBeNull();
     });
 });

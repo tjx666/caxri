@@ -11,9 +11,8 @@ const retained = { length: 0 };
 
 /**
  * Keeps the originals of images this window just sent, keyed by the thumbnail the transcript shows for each, so the
- * larger preview shows the image the user sent rather than the thumbnail scaled up. The provider's record is the only
- * other source of an original, and Codex keeps none Caxri can read (`readChatImage`); without this, a Codex message's
- * preview stays a blurred 768px JPEG.
+ * larger preview shows the image the user sent without a round trip. The provider's record (`readChatImage`) is the
+ * only other source of an original, and it re-reads the transcript or rollout per image.
  */
 export function retainAgentChatSentImageOriginals(images: readonly AgentChatImageInput[]): void {
     for (const { data, mediaType, thumbnail } of images) {

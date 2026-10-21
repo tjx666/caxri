@@ -1159,8 +1159,8 @@ planMode }`. A Codex switch during a turn says it applies to the next turn. "Use
   render, and the original on tap, through `mobile.agentChat.readImage` (item id, image position,
   `thumbnail` or `original`), in 45,000-character chunks so no frame overflows. A resumed Claude Code
   message has no thumbnail, so its tile shows the original instead, as Desktop rebuilds the preview. Originals come from
-  `agentChat.readImage`, so they reach exactly the images Desktop can reopen. Codex keeps no
-  readable original, so its viewer enlarges the thumbnail and says the full-size image is not
+  `agentChat.readImage`, so they reach exactly the images Desktop can reopen. When the record no
+  longer holds an original, the viewer enlarges the thumbnail and says the full-size image is not
   available; only an image with neither reads "This image is no longer available.". The gateway caches the last two originals for a minute so
   paging one does not re-read the transcript per chunk. The phone keeps thumbnails in memory and
   writes an opened original only to its cache directory for display.
@@ -1243,11 +1243,14 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   content block) and never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at
   most 48 KB, raster data URLs only), which counts against the text budget. Codex pairs it with the
   echoed user message through `clientUserMessageId`. A resumed Chat knows how many images a message
-  had, but their previews were the sending Client's. For Claude Code, whose transcript keeps each
-  image, the Renderer reads the original back with `agentChat.readImage` (message item id and image
-  position; no provider process is needed), makes the same thumbnail, and caches only the thumbnail.
-  Codex history comes from its app-server, whose item ids name no on-disk record, so a resumed Codex
-  image stays a placeholder, as does an image the transcript tail no longer reaches.
+  had, but their previews were the sending Client's. Both providers keep each image inline in their
+  on-disk record: Claude Code's transcript under the user record's `uuid`, and Codex's rollout in
+  the user message's `item_completed` event, whose `id` is the item id the app-server reports live
+  and on `thread/resume`. The Renderer reads the original back with `agentChat.readImage` (message
+  item id and image position; no provider process is needed, so a suspended Chat works too), makes
+  the same thumbnail, and caches only the thumbnail. A Codex `localImage` input keeps its position
+  but is never read, since its path was never authorized by the Session. An image the record no
+  longer holds stays a placeholder, as does a Grok image.
 - **Inline image placeholders.** An attached image is written into the draft at the caret as
   `[Image #N]`, the placeholder the Claude Code and Codex TUIs use, and the composer draws it as an
   atomic pill with the thumbnail, as Cursor draws a file mention; the tray thumbnail carries the

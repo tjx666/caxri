@@ -123,7 +123,8 @@ export async function executeMobileChatPreviewScenario(
 
 /**
  * `MOB-CHAT-08`: a Codex Chat image whose thumbnail Server Core no longer holds, as after a restart, shows an empty
- * tile, and opening it says the image is no longer available, since Codex keeps no original Caxri can read.
+ * tile, and opening it says the image is no longer available, since the fake app-server writes no rollout to read the
+ * original back from.
  */
 export async function executeMobileChatMissingImageScenario(
     environment: MobileAgentScenarioEnvironment,

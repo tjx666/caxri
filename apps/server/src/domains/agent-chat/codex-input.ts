@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AgentChatCommand, AgentChatItem, AgentChatMessageInput } from '@caxri/protocol';
+import type {
+    AgentChatCommand,
+    AgentChatImageInput,
+    AgentChatItem,
+    AgentChatMessageInput,
+} from '@caxri/protocol';
 import { AGENT_CHAT_GOAL_COMMAND } from '@caxri/protocol';
 
-import { isRecord, stringField } from './chat-items';
+import { isRecord, storedChatImageSchema, stringField } from './chat-items';
 import type { JsonRpcRequestError } from './json-rpc-connection';
 
 /**
@@ -142,4 +147,72 @@ export function userMessageText(content: unknown): string {
             return [];
         })
         .join('\n');
+}
+
+/**
+ * Image entries of a rollout's user message, in the order the app-server's `image` and `localImage` inputs count them
+ * (`codexUserImageCount`), so a placeholder's position names the same image in both.
+ */
+const ROLLOUT_IMAGE_TYPES = new Set<unknown>(['image', 'local_image']);
+
+const DATA_URL_PATTERN = /^data:([^;,]+);base64,(.+)$/su;
+
+function parseRecord(line: string): Record<string, unknown> | undefined {
+    try {
+        const record: unknown = JSON.parse(line);
+        return isRecord(record) ? record : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * The content of the user message `itemId` names, from the `item_completed` event Codex writes to the rollout for each
+ * one. Its `id` is the item id the app-server reports, live and on `thread/resume`, so a resumed placeholder finds its
+ * record. Verified with codex-cli 0.164.0-alpha.8.
+ */
+function userMessageContent(
+    record: Record<string, unknown>,
+    itemId: string,
+): unknown[] | undefined {
+    const payload = isRecord(record.payload) ? record.payload : undefined;
+    const item = isRecord(payload?.item) ? payload.item : undefined;
+    if (
+        record.type !== 'event_msg' ||
+        payload?.type !== 'item_completed' ||
+        item?.type !== 'UserMessage' ||
+        stringField(item.id) !== itemId
+    )
+        return undefined;
+    const content: unknown = item.content;
+    return Array.isArray(content) ? (content as unknown[]) : [];
+}
+
+/**
+ * The `index`th image of the user message `itemId` names, as the Codex rollout stores it; `undefined` when the rollout
+ * holds no such message, and `null` when the message has no readable image there. A `local_image` is never read: its
+ * path is wherever the sender's file was, not one a Session authorized, so it only keeps its position. Only a line
+ * naming the id is parsed, so finding one message does not decode every image in the rollout.
+ */
+export function codexHistoryImage(
+    rollout: string,
+    itemId: string,
+    index: number,
+): Omit<AgentChatImageInput, 'thumbnail'> | null | undefined {
+    for (const line of rollout.split('\n')) {
+        if (!line.includes(itemId)) continue;
+        const record = parseRecord(line);
+        const content = record && userMessageContent(record, itemId);
+        if (!content) continue;
+        const image: unknown = content.filter(
+            (entry) => isRecord(entry) && ROLLOUT_IMAGE_TYPES.has(entry.type),
+        )[index];
+        const url =
+            isRecord(image) && image.type === 'image' ? stringField(image.image_url) : undefined;
+        const match = url ? DATA_URL_PATTERN.exec(url) : null;
+        if (!match) return null;
+        const parsed = storedChatImageSchema.safeParse({ mediaType: match[1], data: match[2] });
+        return parsed.success ? parsed.data : null;
+    }
+    return undefined;
 }

@@ -14,27 +14,34 @@ function image(data: string): AgentChatImageInput {
 }
 
 describe('Agent Chat images and slash commands with a fake Codex app-server', () => {
-    it('sends images as input and shows their thumbnails in the user message', async () => {
+    it('sends images as input, and reads each back from the rollout once resumed', async () => {
         const { database, agentEnvironment, service, spawnProcess, terminal, until } =
-            await fixture();
-        await service.send(terminal.id, { text: 'what is this', images: [image('iVBORw0KGgo=')] });
+            await fixture({ codexRollouts: true });
+        await service.send(terminal.id, {
+            text: 'what is this',
+            images: [image('iVBORw0KGgo='), image('R0lGODlh')],
+        });
         const snapshot = await until((current) => current.turns.at(-1)?.status === 'completed');
         expect(snapshot.items[0]).toMatchObject({
             type: 'userMessage',
             text: 'what is this',
-            images: [{ thumbnail: THUMBNAIL }],
+            images: [{ thumbnail: THUMBNAIL }, { thumbnail: THUMBNAIL }],
         });
-        expect(snapshot.items.at(-1)).toMatchObject({ text: 'Received 1 image.' });
+        expect(snapshot.items.at(-1)).toMatchObject({ text: 'Received 2 images.' });
 
         // A resumed thread knows an image was there, but its preview was the Client's and is gone.
         await service.restart(terminal.id);
         const resumed = service.read(terminal.id).items[0];
-        expect(resumed).toMatchObject({ type: 'userMessage', images: [{}] });
+        expect(resumed).toMatchObject({ type: 'userMessage', images: [{}, {}] });
         expect(spawnProcess).toHaveBeenCalledTimes(2);
-        // Codex keeps no on-disk record Caxri can read the original back from, so it stays a placeholder.
-        await expect(
-            readChatImage({ database, agentEnvironment }, terminal.id, resumed.id, 0),
-        ).resolves.toBeNull();
+        // The rollout keeps the original under the item id the app-server resumed the message with.
+        const records = { database, agentEnvironment };
+        await expect(readChatImage(records, terminal.id, resumed.id, 1)).resolves.toEqual({
+            mediaType: 'image/png',
+            data: 'R0lGODlh',
+        });
+        await expect(readChatImage(records, terminal.id, resumed.id, 2)).resolves.toBeNull();
+        await expect(readChatImage(records, terminal.id, 'missing', 0)).resolves.toBeNull();
     });
 
     it('lists /compact and runs it as a compaction turn', async () => {

@@ -5,7 +5,12 @@ import type {
     AgentChatResponse,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { agentChatModelSchema, CaxriError, MAX_AGENT_CHAT_MODELS } from '@caxri/protocol';
+import {
+    agentChatImageInputSchema,
+    agentChatModelSchema,
+    CaxriError,
+    MAX_AGENT_CHAT_MODELS,
+} from '@caxri/protocol';
 
 /**
  * Provider-neutral helpers every Chat provider uses to build projection operations. Provider inputs are untrusted JSON,
@@ -50,6 +55,11 @@ export function stringField(value: unknown): string | undefined {
 export function clip(value: string, limit: number): string {
     return value.length <= limit ? value : value.slice(0, limit);
 }
+
+/**
+ * An image original as a provider's record stores it, validated before it reaches a Client.
+ */
+export const storedChatImageSchema = agentChatImageInputSchema.omit({ thumbnail: true });
 
 /**
  * Input fields a person would name an unmapped tool's call by, in precedence order.
