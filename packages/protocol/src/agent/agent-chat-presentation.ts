@@ -373,12 +373,20 @@ type AgentChatRetry = NonNullable<Extract<AgentChatItem, { type: 'notice' }>['re
 
 /**
  * A retry's one-line headline: its cause, then the attempt against the provider's limit when it reports them
- * ("Connection lost, retrying (2/10)").
+ * ("Connection lost, retrying (2/10)"). Once the turn made progress it reads as settled instead ("Recovered after 2
+ * retries"), whatever the cause.
  */
 export function agentChatRetryHeadline(
     retry: AgentChatRetry,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
+    if (retry.resolved) {
+        // The attempt number is the retries made so far, so it counts what it took to recover.
+        if (retry.attempt === undefined) return t('agentChat.message.retryRecovered');
+        return retry.attempt === 1
+            ? t('agentChat.message.retryRecoveredOnce')
+            : t('agentChat.message.retryRecoveredAfter', { count: retry.attempt });
+    }
     const label = t(RETRY_CAUSE_KEYS[retry.cause]);
     const { attempt, maxAttempts } = retry;
     if (attempt === undefined) return label;
@@ -416,6 +424,8 @@ export function agentChatNoticeMessage(
         case 'retrying': {
             if (item.retry) {
                 const headline = agentChatRetryHeadline(item.retry, t);
+                // A recovered retry's provider detail described a failure that is over.
+                if (item.retry.resolved) return headline;
                 return item.message ? `${headline}\n${item.message}` : headline;
             }
             return item.message

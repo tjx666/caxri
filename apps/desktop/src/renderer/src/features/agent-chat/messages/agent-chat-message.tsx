@@ -5,7 +5,7 @@ import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@c
 import type { AgentChatItem, AgentChatTurnArtifacts } from '@caxri/protocol';
 import { agentChatNoticeMessage, agentChatRetryHeadline } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
-import { CircleAlert, Hourglass, RotateCw, ServerCrash, WifiOff } from 'lucide-react';
+import { Check, CircleAlert, Hourglass, RotateCw, ServerCrash, WifiOff } from 'lucide-react';
 
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
@@ -172,7 +172,9 @@ const RETRY_ICONS: Record<NonNullable<RetryNotice['retry']>['cause'], LucideIcon
 /**
  * A provider retrying a failed request: a `--warning` headline led by its cause's icon (a dropped connection shows
  * Wi-Fi off), with the attempt against the provider's limit, and the provider's own detail muted beneath it. A muted
- * line read as routine progress while the Agent was in fact stalled on a failing request.
+ * line read as routine progress while the Agent was in fact stalled on a failing request. Once the turn makes progress
+ * the row settles into a muted check and "Recovered after N retries". Like the sibling notices it is not a live
+ * `status`: the timeline remounts its history, which would re-announce a retry that already passed.
  */
 function AgentChatRetryNotice({ item }: { item: RetryNotice }) {
     const { t } = useTranslation();
@@ -180,12 +182,17 @@ function AgentChatRetryNotice({ item }: { item: RetryNotice }) {
     const headline = item.retry
         ? agentChatRetryHeadline(item.retry, t)
         : agentChatNoticeMessage(item, t);
-    const detail = item.retry ? item.message : undefined;
+    const isResolved = item.retry?.resolved === true;
+    const detail = !isResolved && item.retry ? item.message : undefined;
     return (
-        <div className="flex items-start gap-2 text-[12px] leading-5" role="status">
-            <Icon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-warning" />
+        <div className="flex items-start gap-2 text-[12px] leading-5">
+            {isResolved ? (
+                <Check aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted" />
+            ) : (
+                <Icon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-warning" />
+            )}
             <div className="min-w-0 select-text">
-                <div className="text-warning">{headline}</div>
+                <div className={isResolved ? 'text-muted' : 'text-warning'}>{headline}</div>
                 {detail && (
                     <div className="wrap-anywhere whitespace-pre-line text-muted">{detail}</div>
                 )}

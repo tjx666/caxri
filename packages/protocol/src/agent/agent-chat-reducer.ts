@@ -169,6 +169,30 @@ function withCreatedAt<T extends AgentChatItem>(item: T, previous: AgentChatItem
 }
 
 /**
+ * Progress after a retry settles its notice. Any assistant, thought, or tool item of the same turn means the provider
+ * got a response again, so the turn's unresolved `retrying` notice is marked `resolved` (in place, on the array the
+ * caller owns). A retry upsert itself, the user's message, and other notices are not progress. Providers (Claude Code
+ * and Codex) share this because they all emit the same notice shape.
+ */
+function resolveRetries(items: AgentChatItem[], progress: AgentChatItem): AgentChatItem[] {
+    if (!progress.turnId || progress.type === 'userMessage' || progress.type === 'notice') {
+        return items;
+    }
+    for (const [index, item] of items.entries()) {
+        if (
+            item.type === 'notice' &&
+            item.kind === 'retrying' &&
+            item.retry &&
+            !item.retry.resolved &&
+            item.turnId === progress.turnId
+        ) {
+            items[index] = { ...item, retry: { ...item.retry, resolved: true } };
+        }
+    }
+    return items;
+}
+
+/**
  * Applies one patch operation. Shared by Server Core, which owns the projection, and every Client that mirrors it, so
  * both sides converge on the same bounded snapshot.
  */
@@ -201,13 +225,14 @@ export function applyAgentChatOperation(
             const items = [...snapshot.items];
             if (index === -1) items.push(operation.item);
             else items[index] = withCreatedAt(operation.item, snapshot.items[index]);
-            return enforceBudget({ ...snapshot, items });
+            return enforceBudget({ ...snapshot, items: resolveRetries(items, operation.item) });
         }
         case 'appendText': {
             const index = snapshot.items.findIndex((item) => item.id === operation.itemId);
             if (index === -1) return snapshot;
             const items = [...snapshot.items];
             items[index] = appendToItem(snapshot.items[index], operation.delta);
+            resolveRetries(items, items[index]);
             // Streaming grows the aggregate as surely as an upsert does, so the budget holds mid-stream too.
             return enforceBudget({ ...snapshot, items });
         }

@@ -242,6 +242,12 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
                 cause: z.enum(['connection', 'rateLimit', 'overloaded', 'server', 'other']),
                 attempt: z.number().int().positive().optional(),
                 maxAttempts: z.number().int().positive().optional(),
+                /**
+                 * Set by the shared reducer once the turn made progress after this retry (a later reply, thought, or
+                 * tool item), so a Client settles the row into a muted "recovered" line instead of leaving an amber
+                 * "retrying" on a healthy turn. A newer retry upsert replaces the notice and clears it.
+                 */
+                resolved: z.boolean().optional(),
             })
             .optional(),
         /**

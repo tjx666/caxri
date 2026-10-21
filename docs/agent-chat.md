@@ -809,7 +809,11 @@ several callbacks can share one item, so the transport id is never the key.
   server error, other) with the attempt against the provider's limit (`Connection lost, retrying
 (2/10)`), and the provider's detail muted beneath. Claude Code's `api_retry` gives the cause through
   `error_status` (null for no response) and `error`; Codex gives it through `codexErrorInfo`, its
-  `Reconnecting... N/M` message gives the attempt, and `additionalDetails` the detail. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
+  `Reconnecting... N/M` message gives the attempt, and `additionalDetails` the detail. Once the same turn makes progress (a later reply, thought, or tool
+  item from either provider), the shared reducer marks the notice `retry.resolved` and the row settles
+  into a muted check reading `Recovered after 2 retries` with the stale detail dropped; a newer retry
+  replaces the notice and turns it amber again. Retry rows are plain text, not a live `status`, because
+  the timeline remounts history. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
   swapping its glyph for a spinner; a row seen running animates its tool's glyph until it settles
   (`agentChat.animatedToolIcons`), and the composer status line's indicator follows
   `agentChat.workingIndicator` (Buddy acting out the turn's current tool from the snapshot's
