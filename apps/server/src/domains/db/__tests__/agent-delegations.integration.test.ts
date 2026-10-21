@@ -75,4 +75,90 @@ describe('Agent delegation persistence', () => {
             database.close();
         }
     });
+
+    it('prunes the oldest settled answer-less tasks at capacity and keeps answers and live tasks', async () => {
+        const { database, record } = await fixture();
+        try {
+            const make = (id: string, status: 'failed' | 'completed' | 'running', at: number) =>
+                ({
+                    ...record,
+                    receipt: { ...record.receipt, delegationId: id, status, updatedAt: at },
+                    ...(status === 'completed' && {
+                        answer: {
+                            text: 'Synthetic answer',
+                            source: 'transcript' as const,
+                            messageId: 'm',
+                            truncated: false,
+                            byteLength: 16,
+                        },
+                    }),
+                }) satisfies StoredAgentDelegation;
+            database.agentDelegations.insert(make('answered', 'completed', 1));
+            database.agentDelegations.insert(make('live', 'running', 2));
+            database.agentDelegations.insert(make('settled-old', 'failed', 3));
+            database.agentDelegations.insert(make('settled-new', 'failed', 4));
+            for (let index = 0; index < 1024 - 4; index += 1)
+                database.agentDelegations.insert(make(`filler-${index}`, 'running', 10 + index));
+
+            const pruned: string[][] = [];
+            database.agentDelegations.insert(make('admitted', 'running', 100), (ids) =>
+                pruned.push(ids),
+            );
+            expect(pruned).toEqual([['settled-old']]);
+
+            expect(database.agentDelegations.get('settled-old')).toBeUndefined();
+            for (const id of ['answered', 'live', 'settled-new', 'admitted'])
+                expect(database.agentDelegations.get(id)).toBeDefined();
+        } finally {
+            database.close();
+        }
+    });
+
+    it('never prunes the task a resume continues', async () => {
+        const { database, record } = await fixture();
+        try {
+            const settled = (id: string, at: number): StoredAgentDelegation => ({
+                ...record,
+                rootDelegationId: undefined,
+                receipt: { ...record.receipt, delegationId: id, status: 'failed', updatedAt: at },
+            });
+            database.agentDelegations.insert(settled('resumed', 1));
+            database.agentDelegations.insert(settled('other', 2));
+            for (let index = 0; index < 1024 - 2; index += 1)
+                database.agentDelegations.insert({
+                    ...record,
+                    receipt: { ...record.receipt, delegationId: `live-${index}`, updatedAt: 10 },
+                });
+
+            const pruned: string[][] = [];
+            database.agentDelegations.insert(
+                {
+                    ...settled('resume', 100),
+                    input: { ...record.input, resumeFrom: 'resumed' },
+                    receipt: { ...record.receipt, delegationId: 'resume' },
+                },
+                (ids) => pruned.push(ids),
+            );
+            expect(pruned).toEqual([['other']]);
+            expect(database.agentDelegations.get('resumed')).toBeDefined();
+        } finally {
+            database.close();
+        }
+    });
+
+    it('refuses capacity when nothing is prunable', async () => {
+        const { database, record } = await fixture();
+        try {
+            for (let index = 0; index < 1024; index += 1)
+                database.agentDelegations.insert({
+                    ...record,
+                    receipt: { ...record.receipt, delegationId: `live-${index}` },
+                });
+            expect(() => database.agentDelegations.insert(record)).toThrow(
+                expect.objectContaining({ code: 'CAPACITY' }),
+            );
+        } finally {
+            database.close();
+        }
+    });
 });

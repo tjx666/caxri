@@ -41,7 +41,7 @@ import type { ExactResumeHost } from './resume';
 import { continueHandover, handoverAdmission, handoverTarget, resumeTask } from './resume';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
-import { removeDelegationFiles } from './storage';
+import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
 import { DelegationSubmissions } from './submission';
 import { pollDelegations } from './wait';
 
@@ -346,9 +346,8 @@ export class AgentDelegationService {
                     this.options.delegationSettings?.() ?? agentDelegationSettingsSchema.parse({}),
             });
             const { frozenLaunch, frozenInstructions } = config;
-            const provider = config.selection.provider;
             if (!previous || input.resumeFrom)
-                await this.options.verifyLaunch(frozenLaunch, provider);
+                await this.options.verifyLaunch(frozenLaunch, config.selection.provider);
             // After the last await before the record exists, so input during `verifyLaunch` is fenced.
             const admitted = handoverRequest && handoverAdmission(...handoverRequest);
             let record = this.options.database.agentDelegations.insert(
@@ -362,6 +361,7 @@ export class AgentDelegationService {
                     previous,
                     providerSessionId: handover?.providerSessionId,
                 }),
+                (pruned) => reclaimPrunedDelegationFiles(this.options.userDataPath, pruned),
             );
             // Before the announcement, so the ledger links the hand-over's task instead of recording a second one.
             if (continueFromHandover)
@@ -388,7 +388,7 @@ export class AgentDelegationService {
                 const prepared = await prepareDelegationLaunch(
                     this.options.userDataPath,
                     id,
-                    provider,
+                    config.selection.provider,
                     record.providerSessionId,
                     [frozenInstructions, input.prompt].filter(Boolean).join('\n\n'),
                     frozenLaunch,
@@ -406,7 +406,7 @@ export class AgentDelegationService {
                     {
                         projectId: input.projectId,
                         sessionId: input.sessionId,
-                        provider,
+                        provider: config.selection.provider,
                     },
                     {
                         delegationId: id,
