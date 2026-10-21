@@ -150,8 +150,11 @@ or cancels the delivery, or a concrete blocker requires their input.
    route, lint rule, or agent-file change could prevent: the symptom, the evidence, and the owning
    file to change. For example, a hook merged with a green focused check and then turned `main`'s
    full suite red because no selector routed its directory to the test that scans it. Say plainly
-   when nothing qualified; do not pad the list. Applying a suggestion follows `AGENTS.md`'s
-   workflow-improvement rule.
+   when nothing qualified; do not pad the list. Before listing an item, fetch `origin/main` and
+   check the commits merged since the branch's base, plus open issues and PRs, for the owning file
+   or symptom: parallel sessions merge constantly, so a suggested guard may already exist on `main`.
+   Drop an item that is already fixed and link the tracker for one that is already filed. Applying
+   a suggestion follows `AGENTS.md`'s workflow-improvement rule.
 
 ## Fast merge without CI
 
