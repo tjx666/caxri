@@ -19,7 +19,6 @@ import {
     createCommandDispatcher,
     createProtocolWelcome,
     isBinaryStreamMethod,
-    isConcurrentRead,
     localClientCommandSchema,
     localClientDesktopOperationCommandSchema,
     localClientDesktopReadySchema,
@@ -50,7 +49,7 @@ import {
     revokeDesktop,
     routeDesktopOperation,
 } from './control-server-desktop-lease';
-import { shouldSettleOutsideOrderedLane } from './control-server-lane';
+import { ControlConnectionLanes, shouldSettleOutsideOrderedLane } from './control-server-lane';
 import { DesktopLeaseWaiters } from './control-server-lease-waiters';
 import type {
     ClientState,
@@ -346,8 +345,7 @@ export class ControlServer {
             HANDSHAKE_TIMEOUT_MS,
         );
         let state: ClientState | undefined;
-        let queue = Promise.resolve();
-        let orderedBacklog = 0;
+        const lanes = new ControlConnectionLanes((reason) => terminate(reason, state?.context));
 
         const remove = (): void => {
             clearTimeout(handshakeTimer);
@@ -475,211 +473,176 @@ export class ControlServer {
                 );
                 return;
             }
-            // `queue` preserves handshake, control, and mutation order across repeated invocations of this
-            // synchronous 'data' handler. Reads begin in arrival order but settle independently, so a slow status
-            // or long-poll request cannot block later work. Promise chaining is required because `await` cannot
-            // span callbacks.
-            const enqueuedAt = performance.now();
-            orderedBacklog += 1;
-            const timing: OrderedQueueTiming = { enqueuedAt, queueDepth: orderedBacklog };
-            queue = queue
-                // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
-                .then(async () => {
-                    if (!state) {
-                        const hello = localClientHelloSchema.parse(raw);
-                        const identity = this.options.identity;
-                        if (hello.profileId !== identity.profileId) {
-                            terminate('hello-profile-mismatch');
-                            return;
+            lanes.admit(async (timing) => {
+                if (!state) {
+                    const hello = localClientHelloSchema.parse(raw);
+                    const identity = this.options.identity;
+                    if (hello.profileId !== identity.profileId) {
+                        terminate('hello-profile-mismatch');
+                        return;
+                    }
+                    let context: CommandExecutionContext;
+                    let desktopLease: DesktopLease | undefined;
+                    switch (hello.credential.kind) {
+                        case 'operator': {
+                            if (!isTokenMatch(hello.credential.token, identity.operatorToken)) {
+                                terminate('hello-operator-token-mismatch');
+                                return;
+                            }
+                            context = operatorContext(identity.profileId);
+
+                            break;
                         }
-                        let context: CommandExecutionContext;
-                        let desktopLease: DesktopLease | undefined;
-                        switch (hello.credential.kind) {
-                            case 'operator': {
-                                if (!isTokenMatch(hello.credential.token, identity.operatorToken)) {
-                                    terminate('hello-operator-token-mismatch');
+                        case 'delegation-client':
+                        case 'agent': {
+                            try {
+                                const authenticated =
+                                    hello.credential.kind === 'agent'
+                                        ? this.options.authenticateAgent?.(hello.credential)
+                                        : this.options.authenticateDelegation?.(hello.credential);
+                                if (!authenticated) {
+                                    terminate('hello-agent-auth-unavailable');
                                     return;
                                 }
-                                context = operatorContext(identity.profileId);
-
-                                break;
+                                context = authenticated;
+                            } catch {
+                                terminate('hello-agent-auth-failed');
+                                return;
                             }
-                            case 'delegation-client':
-                            case 'agent': {
-                                try {
-                                    const authenticated =
-                                        hello.credential.kind === 'agent'
-                                            ? this.options.authenticateAgent?.(hello.credential)
-                                            : this.options.authenticateDelegation?.(
-                                                  hello.credential,
-                                              );
-                                    if (!authenticated) {
-                                        terminate('hello-agent-auth-unavailable');
-                                        return;
-                                    }
-                                    context = authenticated;
-                                } catch {
-                                    terminate('hello-agent-auth-failed');
-                                    return;
-                                }
 
-                                break;
+                            break;
+                        }
+                        default: {
+                            const credential = this.options.desktopCredential;
+                            if (
+                                credential.profileId !== identity.profileId ||
+                                credential.processIdentity !== identity.processIdentity ||
+                                !isTokenMatch(hello.credential.token, credential.desktopToken)
+                            ) {
+                                terminate('hello-desktop-credential-mismatch');
+                                return;
                             }
-                            default: {
-                                const credential = this.options.desktopCredential;
-                                if (
-                                    credential.profileId !== identity.profileId ||
-                                    credential.processIdentity !== identity.processIdentity ||
-                                    !isTokenMatch(hello.credential.token, credential.desktopToken)
-                                ) {
-                                    terminate('hello-desktop-credential-mismatch');
-                                    return;
-                                }
-                                const generation = ++this.desktopGeneration;
-                                desktopLease = {
-                                    desktopId: hello.credential.desktopId,
+                            const generation = ++this.desktopGeneration;
+                            desktopLease = {
+                                desktopId: hello.credential.desktopId,
+                                generation,
+                                expiresAt:
+                                    Date.now() +
+                                    (this.options.desktopLeaseDurationMs ?? DESKTOP_LEASE_MS),
+                            };
+                            context = {
+                                capabilities: ['desktop'],
+                                principal: {
+                                    kind: 'desktop',
+                                    id: hello.credential.desktopId,
                                     generation,
-                                    expiresAt:
-                                        Date.now() +
-                                        (this.options.desktopLeaseDurationMs ?? DESKTOP_LEASE_MS),
-                                };
-                                context = {
-                                    capabilities: ['desktop'],
-                                    principal: {
-                                        kind: 'desktop',
-                                        id: hello.credential.desktopId,
-                                        generation,
-                                    },
-                                };
-                                if (this.currentDesktop) {
-                                    const replaced = this.currentDesktop;
-                                    revokeDesktop(this.leaseHost, replaced, false, 'replaced');
-                                    closeReplacedDesktop(replaced, this.options.logger);
-                                }
+                                },
+                            };
+                            if (this.currentDesktop) {
+                                const replaced = this.currentDesktop;
+                                revokeDesktop(this.leaseHost, replaced, false, 'replaced');
+                                closeReplacedDesktop(replaced, this.options.logger);
                             }
                         }
-                        const protocolIdentity = this.options.protocolIdentity ?? {
-                            serverId: identity.processIdentity,
-                            stateEpoch: identity.processIdentity,
-                        };
-                        const connection = {
-                            serverId: protocolIdentity.serverId,
-                            bootId: identity.processIdentity,
-                            stateEpoch: protocolIdentity.stateEpoch,
-                            clientId: hello.clientId,
-                            connectionId: randomUUID().replaceAll('-', ''),
-                        };
-                        context = { ...context, connection };
-                        const welcome = createProtocolWelcome(
-                            this.options.adapters,
-                            hello,
-                            context,
+                    }
+                    const protocolIdentity = this.options.protocolIdentity ?? {
+                        serverId: identity.processIdentity,
+                        stateEpoch: identity.processIdentity,
+                    };
+                    const connection = {
+                        serverId: protocolIdentity.serverId,
+                        bootId: identity.processIdentity,
+                        stateEpoch: protocolIdentity.stateEpoch,
+                        clientId: hello.clientId,
+                        connectionId: randomUUID().replaceAll('-', ''),
+                    };
+                    context = { ...context, connection };
+                    const welcome = createProtocolWelcome(this.options.adapters, hello, context);
+                    const nextState: ClientState = {
+                        closed: false,
+                        commands: welcome.commands,
+                        context,
+                        desktopLease,
+                        desktopReady: false,
+                        inFlightRequestIds: new Map(),
+                        inFlightRequests: 0,
+                        features: welcome.features ?? [],
+                        socket,
+                    };
+                    state = nextState;
+                    clearTimeout(handshakeTimer);
+                    this.clients.set(socket, nextState);
+                    if (desktopLease) {
+                        this.currentDesktop = nextState;
+                        renewDesktop(this.leaseHost, nextState);
+                    }
+                    this.options.onClientCountChanged?.(this.clients.size, 'connected');
+                    if (desktopLease) this.options.onDesktopAttached?.();
+                    writeControlMessage(
+                        socket,
+                        localServerWelcomeSchema.parse({
+                            type: 'welcome',
+                            profileId: identity.profileId,
+                            processIdentity: identity.processIdentity,
+                            ...(desktopLease && { desktopLease: nextState.desktopLease }),
+                            ...welcome,
+                        }),
+                        undefined,
+                        this.options.logger,
+                        context,
+                    );
+                    return;
+                }
+                const clientState = state;
+                const ready = localClientDesktopReadySchema.safeParse(raw);
+                if (ready.success) {
+                    const principal = clientState.context.principal;
+                    const desktopLease = clientState.desktopLease;
+                    if (
+                        !desktopLease ||
+                        principal.kind !== 'desktop' ||
+                        this.currentDesktop !== clientState ||
+                        desktopLease.generation !== ready.data.generation
+                    )
+                        throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
+                    clientState.desktopReady = true;
+                    this.desktopLeaseWaiters.resolveAll(desktopLease);
+                    return;
+                }
+                const operationCommand = localClientDesktopOperationCommandSchema.safeParse(raw);
+                if (operationCommand.success) {
+                    const request = operationCommand.data.request;
+                    const dispatch = (laneTiming: OrderedQueueTiming): Promise<void> =>
+                        observeControlRequest(clientState, request, () =>
+                            this.dispatchDesktopOperation(socket, clientState, request, laneTiming),
                         );
-                        const nextState: ClientState = {
-                            closed: false,
-                            commands: welcome.commands,
-                            context,
-                            desktopLease,
-                            desktopReady: false,
-                            inFlightRequestIds: new Map(),
-                            inFlightRequests: 0,
-                            features: welcome.features ?? [],
-                            socket,
-                        };
-                        state = nextState;
-                        clearTimeout(handshakeTimer);
-                        this.clients.set(socket, nextState);
-                        if (desktopLease) {
-                            this.currentDesktop = nextState;
-                            renewDesktop(this.leaseHost, nextState);
-                        }
-                        this.options.onClientCountChanged?.(this.clients.size, 'connected');
-                        if (desktopLease) this.options.onDesktopAttached?.();
-                        writeControlMessage(
-                            socket,
-                            localServerWelcomeSchema.parse({
-                                type: 'welcome',
-                                profileId: identity.profileId,
-                                processIdentity: identity.processIdentity,
-                                ...(desktopLease && { desktopLease: nextState.desktopLease }),
-                                ...welcome,
-                            }),
-                            undefined,
-                            this.options.logger,
-                            context,
-                        );
-                        return;
-                    }
-                    const clientState = state;
-                    const ready = localClientDesktopReadySchema.safeParse(raw);
-                    if (ready.success) {
-                        const principal = clientState.context.principal;
-                        const desktopLease = clientState.desktopLease;
-                        if (
-                            !desktopLease ||
-                            principal.kind !== 'desktop' ||
-                            this.currentDesktop !== clientState ||
-                            desktopLease.generation !== ready.data.generation
-                        )
-                            throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
-                        clientState.desktopReady = true;
-                        this.desktopLeaseWaiters.resolveAll(desktopLease);
-                        return;
-                    }
-                    const operationCommand =
-                        localClientDesktopOperationCommandSchema.safeParse(raw);
-                    if (operationCommand.success) {
-                        const dispatch = observeControlRequest(
-                            clientState,
-                            operationCommand.data.request,
-                            () =>
-                                this.dispatchDesktopOperation(
-                                    socket,
-                                    clientState,
-                                    operationCommand.data.request,
-                                    timing,
-                                ),
-                        );
-                        if (isConcurrentRead(operationCommand.data.request.method)) {
-                            // eslint-disable-next-line unicorn/prefer-await -- reads settle outside the ordered lane
-                            dispatch.catch(() =>
-                                terminate('desktop-operation-dispatch-failed', clientState.context),
-                            );
-                        } else await dispatch;
-                        return;
-                    }
-                    const consume = localClientDesktopTargetConsumeSchema.safeParse(raw);
-                    if (consume.success) {
-                        await this.dispatchDesktopTargetConsume(socket, clientState, consume.data);
-                        return;
-                    }
-                    const command = localClientCommandSchema.parse(raw);
-                    const dispatch = observeControlRequest(clientState, command.request, () =>
+                    await lanes.settle(
+                        request,
+                        timing,
+                        dispatch,
+                        'desktop-operation-dispatch-failed',
+                    );
+                    return;
+                }
+                const consume = localClientDesktopTargetConsumeSchema.safeParse(raw);
+                if (consume.success) {
+                    await this.dispatchDesktopTargetConsume(socket, clientState, consume.data);
+                    return;
+                }
+                const command = localClientCommandSchema.parse(raw);
+                const dispatch = (laneTiming: OrderedQueueTiming): Promise<void> =>
+                    observeControlRequest(clientState, command.request, () =>
                         this.dispatchCommand(
                             socket,
                             clientState,
                             command.request,
-                            timing,
+                            laneTiming,
                             shouldSettleOutsideOrderedLane(command.request),
                             terminalDetach,
                         ),
                     );
-                    if (isConcurrentRead(command.request.method)) {
-                        // eslint-disable-next-line unicorn/prefer-await -- reads settle outside the ordered lane
-                        dispatch.catch(() =>
-                            terminate('command-dispatch-failed', clientState.context),
-                        );
-                    } else await dispatch;
-                })
-                // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
-                .catch(() => {
-                    terminate('queue-processing-failed', state?.context);
-                })
-                // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
-                .finally(() => {
-                    // Concurrent reads continue independently after their ordered admission entry.
-                    orderedBacklog -= 1;
-                });
+                await lanes.settle(command.request, timing, dispatch, 'command-dispatch-failed');
+            });
         });
     }
 

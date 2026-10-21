@@ -174,6 +174,11 @@ export function reserveControlRequest(state: ClientState): (() => void) | undefi
 export interface OrderedQueueTiming {
     enqueuedAt: number;
     queueDepth: number;
+    /**
+     * Set when the request waited in the connection's repository lane after ordered admission, so a long `queueMs`
+     * names which lane held it: an earlier repository mutation rather than an ordinary ordered write.
+     */
+    lane?: 'repository';
 }
 
 /**
@@ -267,6 +272,7 @@ export function logControlRequestOutcome(
         principal: context.principal.kind,
         queueMs,
         ...(timing && { queueDepth: timing.queueDepth }),
+        ...(timing?.lane && { lane: timing.lane }),
         ...delegationRequestLogFields(
             request.method,
             request.params,

@@ -13,12 +13,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
 import { ControlServer } from '../control-server';
+import type { ControlServerOptions } from '../control-server-support';
 import { acquireServerProfile } from '../profile';
 
 /**
  * Split out of `control-server-regressions.test.ts` to keep both files under the repository's source-size budget. This
- * file owns the ordered-lane admission of Extension view work specifically; the fixtures below (`profile`, `connect`,
- * `messageReader`, `command`) intentionally mirror the sibling files rather than being shared, matching
+ * file owns the ordered and repository lane admission of Extension work specifically; the fixtures below (`profile`,
+ * `connect`, `messageReader`, `command`) intentionally mirror the sibling files rather than being shared, matching
  * `control-server-desktop-lease-regressions.test.ts`.
  */
 const cleanups: Array<() => Promise<void>> = [];
@@ -83,19 +84,20 @@ function command(id: string, method: string, parameters: unknown) {
     });
 }
 
-describe('Extension view work in the ordered lane', () => {
+describe('Extension work in the ordered and repository lanes', () => {
     const viewContext = {
         kind: 'session',
         sessionId: 'session-1',
         workbenchProjectId: 'project-1',
     } as const;
 
-    async function connectDesktop(host: CommandAdapter) {
+    async function connectDesktop(host: CommandAdapter, logger?: ControlServerOptions['logger']) {
         const lease = await profile();
         const server = new ControlServer({
             adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
+            ...(logger && { logger }),
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
@@ -156,46 +158,120 @@ describe('Extension view work in the ordered lane', () => {
         },
     );
 
+    const sourceAction = {
+        viewId: 'publisher.git.sourceControl',
+        requestId: 'view-request',
+        operation: 'source.action',
+        arguments: { actionId: 'action-1', revision: '1' },
+        context: viewContext,
+    } as const;
+    const extensionCommand = {
+        commandId: 'publisher.merge',
+        arguments: [],
+        context: viewContext,
+    } as const;
+    const switchBranch = {
+        sessionId: 'session-1',
+        repositoryId: 'repo-1',
+        branch: 'main',
+    } as const;
+
     /**
-     * A Source Control action and an Extension command are arbitrary Extension mutations (Git sync, discard, merge)
-     * with no serialization owner below the lane, so two of them from one Desktop must not overlap.
+     * Holds the first invocation of `method` until `release` resolves and records every invocation in arrival order.
      */
-    it.each([
-        [
-            'viewContainers.viewOperation',
-            {
-                viewId: 'publisher.git.sourceControl',
-                requestId: 'view-request',
-                operation: 'source.action',
-                arguments: { actionId: 'action-1', revision: '1' },
-                context: viewContext,
-            },
-        ],
-        ['viewContainers.executeCommand', { commandId: 'publisher.merge', arguments: [] }],
-    ] as const)('keeps %s mutations in the ordered lane', async (method, parameters) => {
-        const mutationStarted = Promise.withResolvers<void>();
-        const mutationRelease = Promise.withResolvers<void>();
+    function blockingHost(method: string) {
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
         const invoked: string[] = [];
+        let hasBlocked = false;
         const host: CommandAdapter = {
             invoke: async (request) => {
                 invoked.push(request.method);
-                if (request.method === method) {
-                    mutationStarted.resolve();
-                    await mutationRelease.promise;
+                if (!hasBlocked && request.method === method) {
+                    hasBlocked = true;
+                    started.resolve();
+                    await release.promise;
                 }
-                return null;
+                return request.method === 'viewContainers.executeCommand'
+                    ? { executed: true }
+                    : null;
             },
         };
-        const { read, socket } = await connectDesktop(host);
-        socket.send(command('mutation', method, parameters));
-        await mutationStarted.promise;
-        socket.send(command('records', 'app.records', {}));
+        return { host, invoked, release, started };
+    }
+
+    async function drainTurns(): Promise<void> {
         for (let tick = 0; tick < 5; tick += 1)
             // eslint-disable-next-line no-await-in-loop -- each turn must drain before the next one is scheduled
             await new Promise<void>((resolve) => setImmediate(resolve));
-        expect(invoked).toEqual([method]);
-        mutationRelease.resolve();
-        await expect(read()).resolves.toMatchObject({ reply: { id: 'mutation' } });
-        await expect(read()).resolves.toMatchObject({ reply: { id: 'records' } });
+    }
+
+    /**
+     * Production (0.0.122) logged a 7.8s Status panel merge (`viewContainers.executeCommand` waiting on `gh pr merge`)
+     * holding the Desktop lane, so a Session tab click's `session.select` queued for 6s before its 33ms handler ran.
+     */
+    it.each([
+        ['viewContainers.executeCommand', extensionCommand],
+        ['viewContainers.viewOperation', sourceAction],
+    ] as const)(
+        'lets a Session switch and a read pass a running %s mutation',
+        async (method, parameters) => {
+            const blocked = blockingHost(method);
+            const { read, socket } = await connectDesktop(blocked.host);
+            socket.send(command('mutation', method, parameters));
+            await blocked.started.promise;
+            socket.send(command('select', 'session.select', { sessionId: 'session-2' }));
+            await expect(read()).resolves.toMatchObject({ reply: { id: 'select' } });
+            socket.send(command('records', 'app.records', {}));
+            await expect(read()).resolves.toMatchObject({ reply: { id: 'records' } });
+            blocked.release.resolve();
+            await expect(read()).resolves.toMatchObject({ reply: { id: 'mutation' } });
+        },
+    );
+
+    /**
+     * A Source Control action and an Extension command are arbitrary Extension mutations (Git sync, discard, merge)
+     * with no serialization owner below the lane, so two of them from one Desktop must not overlap, and a core Git
+     * write must not land in the middle of an Extension `git pull`.
+     */
+    it.each([
+        ['viewContainers.executeCommand', extensionCommand],
+        ['viewContainers.viewOperation', sourceAction],
+        ['git.switchBranch', switchBranch],
+    ] as const)('keeps %s behind a running Extension mutation', async (method, parameters) => {
+        const blocked = blockingHost('viewContainers.executeCommand');
+        const written: Array<{ correlationId?: string; fields?: Record<string, unknown> }> = [];
+        const { read, socket } = await connectDesktop(blocked.host, {
+            write: (_level, event, options) => {
+                if (event === 'ipc.request') written.push(options ?? {});
+            },
+        });
+        socket.send(command('first', 'viewContainers.executeCommand', extensionCommand));
+        await blocked.started.promise;
+        socket.send(command('second', method, parameters));
+        await drainTurns();
+        expect(blocked.invoked).toEqual(['viewContainers.executeCommand']);
+        blocked.release.resolve();
+        await expect(read()).resolves.toMatchObject({ reply: { id: 'first' } });
+        await expect(read()).resolves.toMatchObject({ reply: { id: 'second' } });
+        expect(blocked.invoked).toEqual(['viewContainers.executeCommand', method]);
+        // The wait is attributed to the repository lane, not to an ordinary ordered write.
+        expect(written.find((entry) => entry.correlationId === 'second')?.fields).toMatchObject({
+            method,
+            lane: 'repository',
+        });
+    });
+
+    it('starts an Extension mutation only after an earlier ordered write settles', async () => {
+        const blocked = blockingHost('session.select');
+        const { read, socket } = await connectDesktop(blocked.host);
+        socket.send(command('select', 'session.select', { sessionId: 'session-2' }));
+        await blocked.started.promise;
+        socket.send(command('merge', 'viewContainers.executeCommand', extensionCommand));
+        await drainTurns();
+        expect(blocked.invoked).toEqual(['session.select']);
+        blocked.release.resolve();
+        await expect(read()).resolves.toMatchObject({ reply: { id: 'select' } });
+        await expect(read()).resolves.toMatchObject({ reply: { id: 'merge' } });
     });
 });

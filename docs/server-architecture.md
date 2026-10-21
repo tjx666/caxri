@@ -349,6 +349,16 @@ Separate stream connections avoid cross-lane head-of-line blocking and provide n
 backpressure. Each connection has byte budgets, bounded queues, chunk limits, high-water behavior, and
 explicit close reasons. Caxri does not implement a custom priority multiplexer over one WebSocket.
 
+Within one control WebSocket, Server Core admits requests in arrival order
+(`apps/server/src/core/control-server-lane.ts`). A read settles independently once admitted. A
+repository mutation (an Extension command, a `source.action` view operation, or a core Git write such
+as `git.switchBranch` or `git.mergePullRequest`) moves on to the connection's repository lane, where
+those mutations run one at a time, because nothing below serializes an Extension `git pull` against a
+checkout. Every other write holds the ordered lane until it settles. A seconds-long pull request merge
+therefore no longer delays a later `session.select`. The `ipc.request` log records `queueMs` and
+`queueDepth` for every request and `lane: 'repository'` for the repository lane, so a write that
+still holds the ordered lane shows up as queue time on the requests behind it.
+
 The current Server does not expose public HTTP, readiness, pairing, or remote ticket endpoints. Future
 direct access may add only minimal liveness, readiness, pairing, and short-lived WebSocket ticket
 endpoints. Business commands will not be mirrored as REST, and SSE will not become a second event

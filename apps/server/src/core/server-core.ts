@@ -48,6 +48,7 @@ import { createExtensionService } from './extensions/create-service';
 import { routeActiveContextChange, routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
 import { createDomainOperationForwarder } from './forward-domain-operation';
+import { acceptHostStop } from './host-stop';
 import { createIdleExitConnectionTracker, createIdleExitMonitor } from './idle-exit';
 import {
     isMobileControlRequest,
@@ -257,7 +258,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             )
                 await mobileAccess.validatePairedDeviceRequest(request, context, domainService);
             if (isExtensionControlRequest(request))
-                return invokeExtensionControlRequest(request, extensionService, domainService);
+                return invokeExtensionControlRequest(
+                    request,
+                    extensionService,
+                    domainService,
+                    mutationAdmission,
+                );
             assertOwnerOnlyMethod(context, request.method);
             switch (request.method) {
                 case 'events.recover':
@@ -452,41 +458,17 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         return requireDesktopRouter().openProjectRoot(request.params);
                     return requireDesktopRouter().open('openInEditor', 'directory', request.params);
                 }
-                case 'host.stop': {
-                    if (mutationAdmission.isClosed)
-                        throw new CaxriError('CONFLICT', 'Host stop is already in progress');
-                    mutationAdmission.close();
-                    let isAccepted = false;
-                    try {
-                        await mutationAdmission.waitForDrain();
-                        const health = await domainService.request('app.health');
-                        if (health.activePtyCount > 0 && !request.params.confirmLivePtys)
-                            throw new CaxriError(
-                                'CONFLICT',
-                                'Host has live PTYs; retry with explicit confirmation',
-                            );
-                        isAccepted = true;
-                        /**
-                         * Stop even if the requesting client disconnects before its reply can flush.
-                         */
-                        commandStopFallbackReference.current ??= setImmediate(async () => {
-                            try {
-                                await stop('command');
-                            } catch (error) {
-                                logger.write('error', logEventCatalog.serverCore.stopFailed, {
-                                    fields: {
-                                        message:
-                                            error instanceof Error ? error.message : String(error),
-                                    },
-                                });
-                            }
-                        });
-                        commandStopFallbackReference.current.unref();
-                        return { stopping: true, activePtyCount: health.activePtyCount };
-                    } finally {
-                        if (!isAccepted) mutationAdmission.reopen();
-                    }
-                }
+                case 'host.stop':
+                    return acceptHostStop(
+                        {
+                            commandStopFallbackReference,
+                            domainService,
+                            logger,
+                            mutationAdmission,
+                            stop,
+                        },
+                        request.params,
+                    );
                 case 'project.query':
                     return domainService.request('project.queryForPrincipal', {
                         principal: context.principal,
