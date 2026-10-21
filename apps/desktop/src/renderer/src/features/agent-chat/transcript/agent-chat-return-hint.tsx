@@ -5,9 +5,10 @@ import { useTranslation } from '../../../i18n';
 import type { AgentChatReturnHintData } from '../hooks/use-agent-chat-return-hint';
 
 /**
- * A quiet pill at the top of the transcript telling a returning user how many Agent turns finished while they were
- * away, with a jump to the first of them. It floats over the transcript like Jump to latest, so it moves nothing the
- * user is reading, and it leaves with the Session, a jump, or its close button.
+ * A quiet pill at the bottom of the transcript telling a returning user how many Agent turns finished while they were
+ * away, with a jump to the first of them. It takes Jump to latest's slot near the composer, where the pointer already
+ * is, and shows only while that button is hidden (`isAgentChatReturnHintShown`), the way Telegram's unread jump shares
+ * the corner with its scroll-down button. It leaves with the Session, a jump, or its close button.
  */
 export function AgentChatReturnHint({
     hint,
@@ -26,7 +27,7 @@ export function AgentChatReturnHint({
     );
     return (
         <div
-            className="absolute top-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-elevated py-0.5 pr-0.5 pl-3 text-xs text-foreground shadow-[0_8px_24px_var(--shadow)]"
+            className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-elevated pr-0.5 pl-3 text-xs text-foreground shadow-[0_8px_24px_var(--shadow)]"
             role="status"
         >
             <span className="tabular-nums">{label}</span>
@@ -41,7 +42,11 @@ export function AgentChatReturnHint({
                     }}
                 >
                     <ArrowUp aria-hidden="true" className="size-3.5" />
-                    {t('agentChat.returnHint.jump')}
+                    {t(
+                        count === 1
+                            ? 'agentChat.returnHint.jumpOne'
+                            : 'agentChat.returnHint.jumpOther',
+                    )}
                 </Button>
             )}
             <Button

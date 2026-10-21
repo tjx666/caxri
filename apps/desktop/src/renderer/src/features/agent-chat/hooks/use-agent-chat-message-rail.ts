@@ -39,7 +39,10 @@ function messageElements(content: HTMLElement): Map<string, HTMLElement> {
     return elements;
 }
 
-function messageElement(content: HTMLElement, id: string): HTMLElement | null {
+/**
+ * The element a jump to user message `id` aligns, or `null` when the message is not rendered.
+ */
+export function agentChatMessageElement(content: HTMLElement, id: string): HTMLElement | null {
     const message = content.querySelector<HTMLElement>(
         `[${CSS.escape(AGENT_CHAT_USER_MESSAGE_ATTRIBUTE)}="${CSS.escape(id)}"]`,
     );
@@ -120,7 +123,7 @@ export function useAgentChatMessageRail(
         (id: string): void => {
             const view = scrollReference.current;
             const content = contentReference.current;
-            const element = content && messageElement(content, id);
+            const element = content && agentChatMessageElement(content, id);
             if (!view || !element) return;
             /**
              * Instant rather than smooth: a smooth scroll's first frames still sit within the follow threshold of the

@@ -47,18 +47,21 @@ export function agentChatReturnAnchorId(
 }
 
 /**
- * Fewest missed turns worth a hint. A Chat reopens scrolled to its latest reply, so a single missed turn is already on
- * screen and a hint about it only covers the transcript; from two on, the earlier ones are what the user would miss.
+ * Whether the return hint shows now. It only helps while the start of what the user missed is out of view above: one
+ * missed turn longer than the view still needs a way back to its prompt, while two short ones may sit fully on screen.
+ * It shares the bottom slot with Jump to latest, which shows only once the latest entry leaves the view, so the two
+ * never overlap. When the first missed prompt is not loaded (`isAnchorAbove` is `undefined`), the hint has nothing to
+ * jump to and only reports a count worth knowing: two turns or more.
  */
-const MIN_RETURN_HINT_TURNS = 2;
-
-/**
- * How many missed turns the return hint reports, or `undefined` when too few were missed to be worth one.
- */
-export function agentChatReturnHintCount(
-    turns: readonly AgentChatTurn[],
-    window: AgentChatReturnWindow,
-): number | undefined {
-    const count = turnsFinishedDuringAbsence(turns, window).length;
-    return count >= MIN_RETURN_HINT_TURNS ? count : undefined;
+export function isAgentChatReturnHintShown({
+    count,
+    isAnchorAbove,
+    isLatestInView,
+}: {
+    count: number;
+    isAnchorAbove: boolean | undefined;
+    isLatestInView: boolean;
+}): boolean {
+    if (count === 0 || !isLatestInView) return false;
+    return isAnchorAbove ?? count >= 2;
 }

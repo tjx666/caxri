@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatReturnAnchorId,
-    agentChatReturnHintCount,
+    isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
 } from '../agent-chat-return-boundary';
 
@@ -54,14 +54,42 @@ describe('agentChatReturnAnchorId', () => {
     });
 });
 
-describe('agentChatReturnHintCount', () => {
-    it('stays quiet for one missed turn, which the Chat already shows at its bottom', () => {
-        expect(agentChatReturnHintCount([turn('only', 1200, 300)], window)).toBeUndefined();
+describe('isAgentChatReturnHintShown', () => {
+    it('shows one missed turn only while its prompt is above the view', () => {
+        expect(
+            isAgentChatReturnHintShown({ count: 1, isAnchorAbove: true, isLatestInView: true }),
+        ).toBe(true);
+        expect(
+            isAgentChatReturnHintShown({ count: 1, isAnchorAbove: false, isLatestInView: true }),
+        ).toBe(false);
     });
 
-    it('reports two or more missed turns', () => {
+    it('gives the bottom slot to Jump to latest once the latest entry leaves the view', () => {
         expect(
-            agentChatReturnHintCount([turn('first', 1100, 100), turn('second', 1300, 100)], window),
-        ).toBe(2);
+            isAgentChatReturnHintShown({ count: 3, isAnchorAbove: true, isLatestInView: false }),
+        ).toBe(false);
+    });
+
+    it('reports two or more turns whose first prompt is not loaded', () => {
+        expect(
+            isAgentChatReturnHintShown({
+                count: 2,
+                isAnchorAbove: undefined,
+                isLatestInView: true,
+            }),
+        ).toBe(true);
+        expect(
+            isAgentChatReturnHintShown({
+                count: 1,
+                isAnchorAbove: undefined,
+                isLatestInView: true,
+            }),
+        ).toBe(false);
+    });
+
+    it('shows nothing when no turn was missed', () => {
+        expect(
+            isAgentChatReturnHintShown({ count: 0, isAnchorAbove: true, isLatestInView: true }),
+        ).toBe(false);
     });
 });

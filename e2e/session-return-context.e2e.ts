@@ -62,8 +62,7 @@ test('returning to a Chat counts the turns that finished while away', async ({},
         const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
         await message.fill('longstream please');
         await message.press('Enter');
-        // A follow-up sent during the turn queues and runs as a second turn; one missed turn is already on screen at the
-        // Chat's bottom and earns no hint.
+        // A follow-up sent during the turn queues and runs as a second turn.
         await message.fill('hello after this');
         await message.press('Enter');
         await createAdditionalShellSession(page);
@@ -92,9 +91,22 @@ test('returning to a Chat counts the turns that finished while away', async ({},
         await sessionCard(page, chatId).click();
         const hint = page.getByRole('status').filter({ hasText: 'since you last looked' });
         await expect(hint).toContainText('2 turns since you last looked');
+        const jumpToLatest = page
+            .locator(VISIBLE_SESSION)
+            .getByRole('button', { name: 'Jump to latest' });
+        // The hint holds the bottom slot near the composer while Jump to latest has nothing to do.
+        await expect(jumpToLatest).toHaveCSS('opacity', '0');
+        const transcript = page.locator(VISIBLE_SESSION).getByRole('log');
+        const [hintBox, transcriptBox] = await Promise.all([
+            hint.boundingBox(),
+            transcript.boundingBox(),
+        ]);
+        expect(hintBox!.y).toBeGreaterThanOrEqual(transcriptBox!.y + transcriptBox!.height - 1);
         await page.screenshot({ path: testInfo.outputPath('return-hint.png') });
         await hint.getByRole('button', { name: 'Jump to first' }).click();
         await expect(hint).toBeHidden();
+        // Up at the first missed prompt, Jump to latest takes the same slot.
+        await expect(jumpToLatest).toHaveCSS('opacity', '1');
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

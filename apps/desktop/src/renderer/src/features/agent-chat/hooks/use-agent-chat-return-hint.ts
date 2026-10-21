@@ -5,7 +5,7 @@ import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 import { useSessionLookStore } from '../../session/session-look-boundary';
 import {
     agentChatReturnAnchorId,
-    agentChatReturnHintCount,
+    turnsFinishedDuringAbsence,
 } from '../transcript/agent-chat-return-boundary';
 
 export interface AgentChatReturnHintData {
@@ -21,7 +21,7 @@ export interface AgentChatReturnHintData {
 
 /**
  * The "N turns since you last looked" hint for a Chat, or `undefined` when the user did not just return to its Session
- * or fewer than two turns finished while they were away (`agentChatReturnHintCount`).
+ * or no turn finished while they were away. Whether it shows at the moment is `isAgentChatReturnHintShown`.
  */
 export function useAgentChatReturnHint(
     sessionId: string | undefined,
@@ -33,8 +33,8 @@ export function useAgentChatReturnHint(
     );
     return useMemo(() => {
         if (!window || !snapshot) return;
-        const count = agentChatReturnHintCount(snapshot.turns, window);
-        if (count === undefined) return;
+        const count = turnsFinishedDuringAbsence(snapshot.turns, window).length;
+        if (count === 0) return;
         return {
             count,
             anchorId: agentChatReturnAnchorId(
