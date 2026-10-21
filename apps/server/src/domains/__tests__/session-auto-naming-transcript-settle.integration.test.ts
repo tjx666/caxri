@@ -89,7 +89,7 @@ async function fixture() {
     );
     cleanups.push(async () => {
         await service.close();
-        coordinator.close();
+        await coordinator.close();
         database.close();
         await logger.flush();
         await rm(directory, { recursive: true, force: true });

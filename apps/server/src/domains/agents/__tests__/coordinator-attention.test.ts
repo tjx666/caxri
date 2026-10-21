@@ -96,7 +96,7 @@ describe('AgentCoordinator permission attention', () => {
                 });
                 expect(state()).toBe('unknown');
             } finally {
-                coordinator.close();
+                await coordinator.close();
                 database.close();
             }
         },
@@ -125,7 +125,7 @@ describe('AgentCoordinator permission attention', () => {
             coordinator.observeInterrupt(terminalId, 'launch-1');
             expect(interrupted).toEqual([terminalId]);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -196,7 +196,7 @@ describe('AgentCoordinator permission attention', () => {
             coordinator.observeLifecycleSignal({ ...base, phase: 'turnStarted' });
             expect(state()).toBe('running');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -264,7 +264,7 @@ describe('AgentCoordinator permission attention', () => {
             });
             expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

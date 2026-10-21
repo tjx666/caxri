@@ -103,7 +103,7 @@ describe('AgentCoordinator session rebinding', () => {
                 }
             } finally {
                 confirmation.resolve('codex');
-                coordinator.close();
+                await coordinator.close();
                 database.close();
                 await logger.flush();
             }
@@ -172,7 +172,7 @@ describe('AgentCoordinator session rebinding', () => {
                 );
             } finally {
                 gate.resolve();
-                coordinator.close();
+                await coordinator.close();
                 database.close();
                 await logger.flush();
             }
@@ -222,7 +222,7 @@ describe('AgentCoordinator session rebinding', () => {
             expect(snapshot.mock.lastCall?.[0].shellPid).toBe(456);
         } finally {
             clock.mockRestore();
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
         }
@@ -280,7 +280,7 @@ describe('AgentCoordinator session rebinding', () => {
             expect(database.getTerminal(created.terminal!.id)?.title).toBe('Resumed Codex thread');
             expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -346,7 +346,7 @@ describe('AgentCoordinator session rebinding', () => {
             await coordinator.probeTerminalNow(created.terminal!.id);
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe('main-thread');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -412,7 +412,7 @@ describe('AgentCoordinator session rebinding', () => {
                 .toBe('session-resumed');
             expect(confirmationAttempts).toBe(2);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -476,7 +476,7 @@ describe('AgentCoordinator session rebinding', () => {
             );
         } finally {
             releaseForeground.resolve();
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -526,7 +526,7 @@ describe('AgentCoordinator session rebinding', () => {
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
                 .toBe('Resumed session');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -589,7 +589,7 @@ describe('AgentCoordinator session rebinding', () => {
             expect(database.getSession(created.session.id)?.displayTitle).toBe('Resumed session');
         } finally {
             staleProbeGate.resolve();
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -642,7 +642,7 @@ describe('AgentCoordinator session rebinding', () => {
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
                 .toBe('Shared resumed session');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

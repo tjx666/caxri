@@ -101,7 +101,7 @@ describe('AgentCoordinator compaction', () => {
             coordinator.endTerminalLaunch(created.terminal!.id);
             expect(coordinator.agentOperation(created.terminal!.id)).toBeUndefined();
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -143,7 +143,7 @@ describe('AgentCoordinator compaction', () => {
             expect(signal('turnStarted')).toBe('accepted');
             expect(database.getSession(created.session.id)!.lastActivityState).toBe('running');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -174,7 +174,7 @@ describe('AgentCoordinator compaction', () => {
                 .poll(() => coordinator.agentOperation(created.terminal!.id))
                 .toBeUndefined();
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -231,7 +231,7 @@ describe('AgentCoordinator compaction', () => {
                 expect(coordinator.agentOperation(created.terminal!.id)).toBe('compacting');
                 expect(events).toEqual([]);
             } finally {
-                coordinator.close();
+                await coordinator.close();
                 database.close();
             }
         },

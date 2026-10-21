@@ -94,7 +94,7 @@ describe('AgentCoordinator running watchdog', () => {
                 lastAttentionKind: 'completed',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -147,7 +147,7 @@ describe('AgentCoordinator running watchdog', () => {
             expect(snapshot).toHaveBeenCalledTimes(completedProbeCount);
             expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

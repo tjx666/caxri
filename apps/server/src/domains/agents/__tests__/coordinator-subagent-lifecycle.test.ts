@@ -66,7 +66,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 attentionEpoch: 0,
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             vi.useRealTimers();
             database.close();
             await logger.flush();
@@ -108,7 +108,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 lastAttentionKind: undefined,
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
             await rm(directory, { recursive: true, force: true });
@@ -212,7 +212,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
             });
             expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
             await rm(directory, { recursive: true, force: true });
@@ -272,7 +272,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
             });
         } finally {
             vi.useRealTimers();
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
             await rm(directory, { recursive: true, force: true });
@@ -322,7 +322,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
             });
         } finally {
             vi.useRealTimers();
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
             await rm(directory, { recursive: true, force: true });
@@ -408,7 +408,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 lastActivityState: 'completed',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
             await rm(directory, { recursive: true, force: true });
@@ -467,7 +467,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                     coordinator.observeInput(terminalId, '\u{1B}');
                 expect(probe).not.toHaveBeenCalled();
             } finally {
-                coordinator.close();
+                await coordinator.close();
                 database.close();
                 await logger.flush();
                 await rm(directory, { recursive: true, force: true });
@@ -532,7 +532,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 lastAttentionKind: undefined,
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
             await rm(directory, { recursive: true, force: true });

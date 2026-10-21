@@ -77,7 +77,7 @@ describe('AgentCoordinator', () => {
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalled());
             expect(snapshot.mock.calls[0]?.[0].rootPath).toBe(terminalRoot);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -133,7 +133,7 @@ describe('AgentCoordinator', () => {
                     primaryAgentTerminalId: created.terminal!.id,
                 });
             } finally {
-                coordinator.close();
+                await coordinator.close();
                 database.close();
             }
         },
@@ -180,7 +180,7 @@ describe('AgentCoordinator', () => {
                 primaryAgentTerminalId: created.terminal!.id,
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -221,7 +221,7 @@ describe('AgentCoordinator', () => {
             expect(database.getTerminal(created.terminal!.id)?.provider).toBeUndefined();
         } finally {
             vi.useRealTimers();
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -260,7 +260,7 @@ describe('AgentCoordinator', () => {
                 primaryAgentTerminalId: undefined,
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -308,7 +308,7 @@ describe('AgentCoordinator', () => {
                 )
                 .toEqual(['agent-session-1', 'agent-session-2']);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -352,7 +352,7 @@ describe('AgentCoordinator', () => {
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe('new-agent-session');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -401,7 +401,7 @@ describe('AgentCoordinator', () => {
 
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBeUndefined();
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -464,7 +464,7 @@ describe('AgentCoordinator', () => {
             await new Promise((resolve) => setTimeout(resolve, 30));
             expect(snapshot).toHaveBeenCalledTimes(1);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -545,7 +545,7 @@ describe('AgentCoordinator', () => {
                 waitingActivityAt,
             );
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -613,7 +613,7 @@ describe('AgentCoordinator', () => {
             });
             expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -660,7 +660,7 @@ describe('AgentCoordinator', () => {
                 lastAttentionKind: 'completed',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -721,12 +721,12 @@ describe('AgentCoordinator', () => {
                 lastAttentionKind: 'completed',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
 
-    it('does not let a lifecycle signal promote an unverified Shell Terminal', () => {
+    it('does not let a lifecycle signal promote an unverified Shell Terminal', async () => {
         const directory = join(tmpdir(), `caxri-agent-hook-shell-${randomUUID()}`);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
@@ -757,7 +757,7 @@ describe('AgentCoordinator', () => {
                 hasUnread: false,
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -791,7 +791,7 @@ describe('AgentCoordinator', () => {
             await new Promise((resolve) => setTimeout(resolve, 20));
             expect(snapshot).toHaveBeenCalledTimes(1);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

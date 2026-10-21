@@ -69,7 +69,7 @@ describe('AgentCoordinator Session Activity', () => {
             await coordinator.probeTerminalNow(created.terminal!.id);
             expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -133,7 +133,7 @@ describe('AgentCoordinator Session Activity', () => {
                 lastSessionActivityReason: 'created',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -214,7 +214,7 @@ describe('AgentCoordinator Session Activity', () => {
                 lastSessionActivityReason: 'created',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

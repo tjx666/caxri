@@ -100,7 +100,7 @@ describe('AgentCoordinator provider switch', () => {
                 primaryAgentTerminalId: created.terminal!.id,
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -153,7 +153,7 @@ describe('AgentCoordinator provider switch', () => {
                 kind: 'claude',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -210,7 +210,7 @@ describe('AgentCoordinator provider switch', () => {
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
                 .toBe('Claude confirmed by metadata');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -249,7 +249,7 @@ describe('AgentCoordinator provider switch', () => {
                 title: 'Codex',
             });
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -296,7 +296,7 @@ describe('AgentCoordinator provider switch', () => {
                     provider: 'claude',
                 });
             } finally {
-                coordinator.close();
+                await coordinator.close();
                 database.close();
             }
         },
@@ -337,7 +337,7 @@ describe('AgentCoordinator provider switch', () => {
                     state,
                 );
             } finally {
-                coordinator.close();
+                await coordinator.close();
                 database.close();
             }
         },
@@ -395,7 +395,7 @@ describe('AgentCoordinator provider switch', () => {
             );
             expect(detectForegroundAgent).toHaveBeenCalledTimes(2);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             vi.useRealTimers();
             await logger.flush();
             database.close();
@@ -451,7 +451,7 @@ describe('AgentCoordinator provider switch', () => {
             expect(detectForegroundAgent).toHaveBeenCalledTimes(6);
             expect(database.getTerminal(terminalId)?.lastAgentProcessState).toBe('running');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             vi.useRealTimers();
             await logger.flush();
             database.close();
@@ -500,7 +500,7 @@ describe('AgentCoordinator provider switch', () => {
             ]);
             expect(database.getTerminal(terminalId)?.lastAgentProcessState).toBe('stopped');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             vi.useRealTimers();
             await logger.flush();
             database.close();
@@ -549,7 +549,7 @@ describe('AgentCoordinator provider switch', () => {
                 .toBe('stopped');
             expect(detectForegroundAgent).toHaveBeenCalledTimes(3);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -603,7 +603,7 @@ describe('AgentCoordinator provider switch', () => {
                 'running',
             );
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -638,7 +638,7 @@ describe('AgentCoordinator provider switch', () => {
 
             expect(database.getTerminal(created.terminal!.id)?.lastAgentProcessState).toBe('dead');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -715,7 +715,7 @@ describe('AgentCoordinator provider switch', () => {
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
                 .toBe('Claude hook launch');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

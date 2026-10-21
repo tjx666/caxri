@@ -90,7 +90,7 @@ describe("Automatic Session naming of the Agent Commander's Session", () => {
             expect(database.automaticSessionNaming(commander.sessionId)).toBeUndefined();
         } finally {
             await service.close();
-            coordinator.close();
+            await coordinator.close();
             database.close();
             await logger.flush();
             await rm(directory, { recursive: true, force: true });
