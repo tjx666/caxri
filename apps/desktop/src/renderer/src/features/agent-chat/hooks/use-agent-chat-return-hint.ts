@@ -6,6 +6,7 @@ import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 import { useSessionLookStore } from '../../session/session-look-boundary';
 import {
     agentChatReturnAnchorId,
+    isAgentChatReturnAnchorAbove,
     isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
 } from '../transcript/agent-chat-return-boundary';
@@ -23,8 +24,9 @@ export interface AgentChatReturnHintData {
 }
 
 /**
- * Whether user message `anchorId` starts above the scroll view's top, so the reader cannot see where it begins; checked
- * on scroll and whenever the content or view resizes. `undefined` while there is no anchor or it is not rendered.
+ * Whether user message `anchorId` sits wholly above the scroll view (`isAgentChatReturnAnchorAbove`), so the reader
+ * cannot see where the missed reply begins; checked on scroll and whenever the content or view resizes. `undefined`
+ * while there is no anchor or it is not rendered.
  */
 function useAgentChatAnchorAbove(
     scrollReference: RefObject<HTMLDivElement | null>,
@@ -42,7 +44,10 @@ function useAgentChatAnchorAbove(
             setMeasured({
                 anchorId,
                 isAbove: element
-                    ? element.getBoundingClientRect().top < view.getBoundingClientRect().top
+                    ? isAgentChatReturnAnchorAbove(
+                          element.getBoundingClientRect(),
+                          view.getBoundingClientRect(),
+                      )
                     : undefined,
             });
         };

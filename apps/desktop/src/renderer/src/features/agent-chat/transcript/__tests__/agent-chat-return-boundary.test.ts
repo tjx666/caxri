@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatReturnAnchorId,
+    isAgentChatReturnAnchorAbove,
     isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
 } from '../agent-chat-return-boundary';
@@ -51,6 +52,19 @@ describe('agentChatReturnAnchorId', () => {
     it('is undefined when nothing was missed or the prompt is not loaded', () => {
         expect(agentChatReturnAnchorId(items, [turn('t1', 100, 100)], window)).toBeUndefined();
         expect(agentChatReturnAnchorId([], [turn('t2', 1100, 100)], window)).toBeUndefined();
+    });
+});
+
+describe('isAgentChatReturnAnchorAbove', () => {
+    const view = { top: 100 };
+
+    it('treats a prompt whose end is still on screen as in view, so the reply below it is visible', () => {
+        expect(isAgentChatReturnAnchorAbove({ bottom: 130 }, view)).toBe(false);
+    });
+
+    it('is above once the prompt ends at or above the view top', () => {
+        expect(isAgentChatReturnAnchorAbove({ bottom: 100 }, view)).toBe(true);
+        expect(isAgentChatReturnAnchorAbove({ bottom: 40 }, view)).toBe(true);
     });
 });
 
