@@ -1,6 +1,6 @@
 import type { AgentChatActivity, AgentChatSnapshot } from '@caxri/protocol';
 
-import { AgentChatActivityBar } from '../agent-chat-activity-bar';
+import { AgentChatActivityBar } from '../activity/agent-chat-activity-bar';
 import { AgentChatContextAlerts } from '../context/agent-chat-context-alerts';
 import { AgentChatPlanPaceAlert } from '../tools/agent-chat-plan-pace-alert';
 import type { AgentChatEditBarProperties } from './agent-chat-edit-bar';
@@ -20,7 +20,6 @@ export function AgentChatComposerNotices({
     notice,
     onCompact,
     onContinueInNewChat,
-    onStop,
     terminalId,
     usage,
 }: {
@@ -36,7 +35,6 @@ export function AgentChatComposerNotices({
     notice: string | undefined;
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
-    onStop: () => void;
     terminalId: string;
     usage: AgentChatSnapshot['usage'] | undefined;
 }) {
@@ -49,7 +47,6 @@ export function AgentChatComposerNotices({
                 showsDeliveryHint={delivery}
                 terminalId={terminalId}
                 turnId={activeTurnId}
-                onStop={onStop}
             />
             <AgentChatEditBar edit={edit} />
             <AgentChatContextAlerts

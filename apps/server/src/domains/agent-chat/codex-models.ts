@@ -1,6 +1,7 @@
 import type { AgentChatModel, AgentChatModelChange, AgentChatSnapshot } from '@caxri/protocol';
 import { findAgentChatModel } from '@caxri/protocol';
 
+import { ChatTurnUsage, codexTurnResponse } from '../usage';
 import { boundedChatModels, clip, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { withCacheRewriteEstimate } from './chat-usage';
@@ -227,16 +228,17 @@ async function readCodexCacheTtlMinutes(
 }
 
 /**
- * A Codex Chat's context usage (`thread/tokenUsage/updated`) and the prompt cache lifetime its sign-in grants, kept
- * current from `account/read` at start and `account/updated` after a sign-in change. A lifetime change restates the
- * current usage, so a usage restored from an earlier run (or read under the estimate) stops promising an expiry the
- * cache no longer has.
+ * A Codex Chat's context usage and running turn's spend (`thread/tokenUsage/updated`) and the prompt cache lifetime its
+ * sign-in grants, kept current from `account/read` at start and `account/updated` after a sign-in change. A lifetime
+ * change restates the current usage, so a usage restored from an earlier run (or read under the estimate) stops
+ * promising an expiry the cache no longer has.
  */
 export class CodexUsage {
     /**
      * Minutes the cache survives an idle Chat (`codexCacheTtlMinutes`); none for a ChatGPT sign-in.
      */
     private cacheTtlMinutes: number | undefined = CODEX_CACHE_TTL_MINUTES;
+    private readonly turnUsage = new ChatTurnUsage();
 
     constructor(private readonly host: Pick<AgentChatSessionHost, 'apply' | 'read'>) {}
 
@@ -265,8 +267,16 @@ export class CodexUsage {
             return true;
         }
         if (method !== 'thread/tokenUsage/updated') return false;
-        const usage = mapCodexUsage(parameters, this.host.read().model, this.cacheTtlMinutes);
+        const snapshot = this.host.read();
+        const usage = mapCodexUsage(parameters, snapshot.model, this.cacheTtlMinutes);
         if (usage) this.host.apply([{ op: 'state', state: { usage } }]);
+        const turnId = stringField(parameters.turnId);
+        // A late report of a finished turn must not land on the next one.
+        if (!turnId || turnId === snapshot.activeTurnId)
+            this.turnUsage.record(
+                this.host,
+                codexTurnResponse(parameters, snapshot.model, snapshot.fast === true),
+            );
         return true;
     }
 }

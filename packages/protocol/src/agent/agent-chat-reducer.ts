@@ -233,6 +233,7 @@ export function applyAgentChatOperation(
             if (state.planMode !== undefined) next.planMode = state.planMode ?? undefined;
             if (state.models !== undefined) next.models = state.models;
             if (state.usage !== undefined) next.usage = state.usage ?? undefined;
+            if (state.turnUsage !== undefined) next.turnUsage = state.turnUsage ?? undefined;
             if (state.commands !== undefined) next.commands = state.commands;
             if (state.mcpServers !== undefined) next.mcpServers = state.mcpServers;
             if (state.operation !== undefined) next.operation = state.operation ?? undefined;
@@ -254,6 +255,7 @@ export function applyAgentChatOperation(
                 'permissionMode',
                 'planMode',
                 'usage',
+                'turnUsage',
                 'operation',
                 'queuePauseReason',
             ] as const)

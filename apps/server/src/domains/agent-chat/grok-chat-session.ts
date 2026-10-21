@@ -14,8 +14,8 @@ import {
     closeDanglingItem,
     endedSessionOperations,
     isRecord,
-    MAX_TRACKED_TURNS,
     slashCommandPrompt,
+    startedTurnOperation,
     stringField,
 } from './chat-items';
 import { chatPermissionState } from './chat-permissions';
@@ -189,19 +189,7 @@ class GrokChatSession implements AgentChatProviderSession {
         this.turnCount += 1;
         this.activeTurn = { id: turnId, startedAt: Date.now(), isCompaction, onFinished: [] };
         const snapshot = this.options.read();
-        this.options.apply([
-            {
-                op: 'state',
-                state: {
-                    turns: [
-                        ...snapshot.turns,
-                        { id: turnId, status: 'running' as const, startedAt: Date.now() },
-                    ].slice(-MAX_TRACKED_TURNS),
-                    activeTurnId: turnId,
-                    plan: null,
-                },
-            },
-        ]);
+        this.options.apply([startedTurnOperation(snapshot, turnId)]);
         this.options.lifecycle({
             phase: 'turnStarted',
             agentSessionId: this.sessionId,

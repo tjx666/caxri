@@ -362,7 +362,6 @@ export function AgentChatComposer({
                         usage={snapshot?.usage}
                         onCompact={compact}
                         onContinueInNewChat={continueInNewChat}
-                        onStop={stopAndFocus}
                     />
                 </AgentChatComposerStrip>
                 <form

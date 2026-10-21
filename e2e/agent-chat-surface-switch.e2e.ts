@@ -205,7 +205,6 @@ if (process.argv.includes('app-server')) {
             'animation-name',
             'activity-dwell-shimmer',
         );
-        await expect(session.getByText('Esc to stop')).toBeVisible();
         await expect(session.getByText(/^\d+s$/u)).toBeVisible();
         // Live work reads in the present tense with its subject, sweeping the highlight across the whole title, and a
         // thought shows its Codex title.

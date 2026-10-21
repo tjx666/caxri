@@ -233,6 +233,20 @@ export function estimateCacheRewriteUsd(
 }
 
 /**
+ * The standard API price of one model response, from the price list bundled with this build, or `undefined` when the
+ * model is not in it. Like {@link estimateCacheRewriteUsd} it estimates weight, not an invoice: subscription plans spend
+ * allowance instead. A bracketed Claude Code variant such as `[1m]` is not part of the model name.
+ */
+export function estimateResponseUsd(
+    tokens: UsageTokens,
+    model: string,
+    priceClass?: UsagePriceClass,
+): number | undefined {
+    const price = findModelPrice(bundledModelPrices, model.replace(/\[[^\]]*\]$/u, ''));
+    return price ? costOf(tokens, price, priceClass) : undefined;
+}
+
+/**
  * The rates for a request filed under `contextFloorK` (see `contextFloorK` in `record.ts`): the highest tier whose
  * threshold the context exceeded, else the base rates.
  */

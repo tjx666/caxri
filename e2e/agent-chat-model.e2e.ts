@@ -82,22 +82,26 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         await page.keyboard.press('Escape');
         await expect(panel).toBeHidden();
 
-        // A running turn shows its status row in the strip on top of the composer card, not inside it.
+        // A running turn shows its status row in the strip on top of the composer card, not inside it, with what the
+        // turn has spent so far in place of a stop hint: two model requests of 1,200 and 1,300 tokens.
         await message.fill('slow reconnect please');
         await message.press('Enter');
-        await expect(
-            chat.locator('[data-agent-chat-composer-strip]').getByText('Esc to stop'),
-        ).toBeVisible();
+        const strip = chat.locator('[data-agent-chat-composer-strip]');
+        await expect(strip.locator('[data-agent-chat-turn-metric="steps"]')).toHaveText('2');
+        await expect(strip.locator('[data-agent-chat-turn-metric="tokens"]')).toHaveText('2.5k');
+        // Fake Codex's model has no list price, so no cost is guessed.
+        await expect(strip.locator('[data-agent-chat-turn-metric="cost"]')).toHaveCount(0);
         // A dropped stream reads as a warning row naming the cause and the attempt, with Codex's detail beneath.
         const retry = chat
             .getByRole('status')
             .filter({ hasText: 'Connection lost, retrying (2/5)' });
         await expect(retry).toBeVisible();
         await expect(retry).toContainText('stream disconnected before completion');
-        await expect(chat.locator('form').getByText('Esc to stop')).toHaveCount(0);
+        await expect(chat.locator('form [data-agent-chat-composer-strip-row]')).toHaveCount(0);
+        await expect(chat.getByText('Esc to stop')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-working-composer.png') });
         await message.press('Escape');
-        await expect(chat.getByText('Esc to stop')).toBeHidden();
+        await expect(strip.locator('[data-agent-chat-composer-strip-row]')).toBeHidden();
 
         await message.fill('hello');
         await message.press('Enter');
@@ -114,7 +118,7 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         await expect(issue.locator('[data-link-icon="github"]')).toBeVisible();
         await expect(guide.locator('[data-link-icon]')).toHaveCount(1);
         await expect(faq.locator('[data-link-icon]')).toHaveCount(1);
-        await expect(chat.getByText('Esc to stop')).toBeHidden();
+        await expect(strip.locator('[data-agent-chat-composer-strip-row]')).toBeHidden();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-markdown.png') });
         // A quote offers Copy on hover, the way a code block does.
         const quote = chat.locator('blockquote').filter({ hasText: 'nothing outside the Project' });

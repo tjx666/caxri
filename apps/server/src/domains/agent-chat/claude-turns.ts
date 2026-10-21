@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
 
-import { MAX_TRACKED_TURNS } from './chat-items';
+import { startedTurnOperation } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { chatTextDigest, chatTurnFinalMessage } from './chat-turn-answer';
 import { claudeContextWindow, finishedClaudeTurn } from './claude-items';
@@ -127,19 +127,7 @@ export class ClaudeTurns {
         this.backgroundTurnId = undefined;
         this.count += 1;
         this.isInterruptRequested = false;
-        host.apply([
-            {
-                op: 'state',
-                state: {
-                    turns: [
-                        ...snapshot.turns,
-                        { id, status: 'running' as const, startedAt: Date.now() },
-                    ].slice(-MAX_TRACKED_TURNS),
-                    activeTurnId: id,
-                    plan: null,
-                },
-            },
-        ]);
+        host.apply([startedTurnOperation(snapshot, id)]);
         host.lifecycle({
             phase: 'turnStarted',
             agentSessionId: sessionId,

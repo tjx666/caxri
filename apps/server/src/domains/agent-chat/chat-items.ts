@@ -19,6 +19,26 @@ type Json = Record<string, unknown>;
  */
 export const MAX_TRACKED_TURNS = 200;
 
+/**
+ * Opens turn `id` as the active one, now: appended to the tracked turns, with the previous turn's plan cleared.
+ */
+export function startedTurnOperation(
+    snapshot: Pick<AgentChatSnapshot, 'turns'>,
+    id: string,
+): AgentChatPatchOperation {
+    return {
+        op: 'state',
+        state: {
+            turns: [
+                ...snapshot.turns,
+                { id, status: 'running' as const, startedAt: Date.now() },
+            ].slice(-MAX_TRACKED_TURNS),
+            activeTurnId: id,
+            plan: null,
+        },
+    };
+}
+
 export function isRecord(value: unknown): value is Json {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

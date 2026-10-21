@@ -17,7 +17,7 @@ import {
     clip,
     endedSessionOperations,
     isRecord,
-    MAX_TRACKED_TURNS,
+    startedTurnOperation,
     stringField,
 } from './chat-items';
 import type {
@@ -145,19 +145,7 @@ class CodexChatSession implements AgentChatProviderSession {
             this.options.lifecycle({ phase: 'sessionIdentified', agentSessionId: this.threadId });
         }
         this.turnCount += 1;
-        this.options.apply([
-            {
-                op: 'state',
-                state: {
-                    turns: [
-                        ...snapshot.turns,
-                        { id, status: 'running' as const, startedAt: Date.now() },
-                    ].slice(-MAX_TRACKED_TURNS),
-                    activeTurnId: id,
-                    plan: null,
-                },
-            },
-        ]);
+        this.options.apply([startedTurnOperation(snapshot, id)]);
         const agentPromptDigest = this.pendingPromptDigest;
         this.pendingPromptDigest = undefined;
         this.options.lifecycle({

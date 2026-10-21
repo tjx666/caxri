@@ -304,6 +304,22 @@ describe('agentChatActivity while compacting', () => {
 });
 
 describe('agentChatActivity', () => {
+    it("carries the running turn's spend, never an earlier turn's", () => {
+        const running = {
+            ...snapshot('ready'),
+            activeTurnId: 'turn-2',
+            turns: [{ id: 'turn-2', status: 'running' as const, startedAt: 1000 }],
+        };
+        const usage = { turnId: 'turn-2', requests: 3, totalTokens: 1200, costUsd: 0.01 };
+        expect(agentChatActivity({ ...running, turnUsage: usage }, 'Claude')).toMatchObject({
+            kind: 'working',
+            usage,
+        });
+        expect(
+            agentChatActivity({ ...running, turnUsage: { ...usage, turnId: 'turn-1' } }, 'Claude'),
+        ).not.toHaveProperty('usage');
+    });
+
     it('tells starting, working, and waiting on the user apart', () => {
         expect(agentChatActivity(undefined, 'Claude')).toEqual({
             kind: 'starting',
