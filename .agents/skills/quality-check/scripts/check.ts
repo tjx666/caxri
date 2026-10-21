@@ -1,7 +1,7 @@
 import type { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { lstat } from 'node:fs/promises';
-import { basename, extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -20,6 +20,7 @@ import {
     rendererContractTestCandidates,
     serverDomainContractTestCandidates,
 } from './contract-test-candidates';
+import { shouldRunKnip, shouldTypecheck } from './default-gates';
 import {
     directImportTestCandidates,
     relatedE2ESpecs,
@@ -38,8 +39,9 @@ export interface CheckOptions {
     e2eWaitSeconds?: number;
     files: string[];
     /**
-     * No selector was passed, so the check picks its own gates: lint, related tests, and a typecheck whenever a changed
-     * path can affect types. An explicit selector runs exactly what it names, which keeps fast iteration fast.
+     * No selector was passed, so the check picks its own gates: lint, related tests, and a typecheck plus `knip`
+     * whenever a changed path can affect types. An explicit selector runs exactly what it names, which keeps fast
+     * iteration fast.
      */
     isDefaultSelection: boolean;
     isStaged: boolean;
@@ -182,30 +184,6 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
     }
 
     return options;
-}
-
-const TYPE_SOURCE_EXTENSIONS = new Set(['.cts', '.mts', '.ts', '.tsx']);
-const TYPE_INPUT_FILES = new Set(['package.json', 'pnpm-lock.yaml']);
-
-/**
- * Whether a changed path can change what TypeScript reports: a source, a `tsconfig*.json`, or a manifest or lockfile
- * that moves a dependency's types. Deleted paths count too, since removing a module breaks every importer.
- */
-export function canAffectTypes(file: string): boolean {
-    const name = basename(file);
-    return (
-        TYPE_SOURCE_EXTENSIONS.has(extname(name).toLowerCase()) ||
-        TYPE_INPUT_FILES.has(name) ||
-        /^tsconfig.*\.json$/.test(name)
-    );
-}
-
-/**
- * The default selection adds the repository-wide typecheck (about 16 seconds) only when a changed path can affect
- * types; lint and related tests alone once passed a change whose type error then failed CI's `checks` job.
- */
-export function shouldTypecheck(options: CheckOptions, changedFiles: readonly string[]): boolean {
-    return options.type || (options.isDefaultSelection && changedFiles.some(canAffectTypes));
 }
 
 export function selectE2ESpecs(files: string[], hasExplicitFiles: boolean): string[] {
@@ -631,7 +609,7 @@ async function main(): Promise<void> {
         await runCapture('bun', ['run', 'typecheck'], root);
         summaries.push('typecheck');
     }
-    if (options.knip) {
+    if (shouldRunKnip(options, requestedFiles)) {
         await runTool(root, 'knip', []);
         summaries.push('knip');
     }

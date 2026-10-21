@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { dirtyLayerReportForFiles } from './changed-file-layers';
 import {
-    canAffectTypes,
     eslintArguments,
     eslintTargets,
     formatCheckSummary,
@@ -12,9 +11,9 @@ import {
     playwrightArguments,
     runLint,
     selectE2ESpecs,
-    shouldTypecheck,
     testCandidatesForFile,
 } from './check';
+import { canAffectTypes, shouldRunKnip, shouldTypecheck } from './default-gates';
 
 describe('final lint validation', () => {
     it('checks formatted bytes without mutating them and propagates final failures', async () => {
@@ -281,6 +280,14 @@ describe('default typecheck selection', () => {
         expect(shouldTypecheck(parseCheckArguments(['--type']), ['docs/agent-commander.md'])).toBe(
             true,
         );
+    });
+
+    it('adds knip to the default selection for the same paths, so an orphaned export fails locally', () => {
+        const defaults = parseCheckArguments([]);
+        expect(shouldRunKnip(defaults, ['docs/agent-commander.md'])).toBe(false);
+        expect(shouldRunKnip(defaults, ['scripts/watch-ci.ts'])).toBe(true);
+        expect(shouldRunKnip(parseCheckArguments(['--test']), ['scripts/watch-ci.ts'])).toBe(false);
+        expect(shouldRunKnip(parseCheckArguments(['--knip']), [])).toBe(true);
     });
 });
 
