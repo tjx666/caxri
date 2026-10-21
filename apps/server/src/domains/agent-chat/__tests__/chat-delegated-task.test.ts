@@ -2,7 +2,7 @@ import type { AgentChatPatchOperation } from '@caxri/protocol';
 import { delegatedTaskPointer, parseDelegatedTaskPointer } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { delegatedTaskSource, stampDelegatedTasks } from '../chat-delegated-task';
+import { delegatedTaskDetails, stampDelegatedTasks } from '../chat-delegated-task';
 
 const DELEGATION_ID = 'dispatch-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const pointer = delegatedTaskPointer(
@@ -15,7 +15,10 @@ function database(callerSessionId: string | undefined, commanderSessionId = 'com
         agentDelegations: {
             get: (id: string) =>
                 id === DELEGATION_ID
-                    ? { receipt: { callerTerminalId: 'caller-terminal' } }
+                    ? {
+                          receipt: { callerTerminalId: 'caller-terminal' },
+                          input: { prompt: 'Fix the flaky login test' },
+                      }
                     : undefined,
         },
         getTerminal: (id: string) =>
@@ -23,7 +26,7 @@ function database(callerSessionId: string | undefined, commanderSessionId = 'com
                 ? { sessionId: callerSessionId }
                 : undefined,
         agentCommanderRows: () => ({ sessionId: commanderSessionId }),
-    } as unknown as Parameters<typeof delegatedTaskSource>[0];
+    } as unknown as Parameters<typeof delegatedTaskDetails>[0];
 }
 
 describe('delegated task pointer', () => {
@@ -36,16 +39,19 @@ describe('delegated task pointer', () => {
     });
 });
 
-describe('delegatedTaskSource', () => {
-    it('names the calling Session, or Agent Commander for its hidden Session', () => {
-        expect(delegatedTaskSource(database('session-a'), DELEGATION_ID)).toEqual({
-            kind: 'session',
-            sessionId: 'session-a',
+describe('delegatedTaskDetails', () => {
+    it('names the calling Session, or Agent Commander for its hidden Session, with the task it asked', () => {
+        const prompt = 'Fix the flaky login test';
+        expect(delegatedTaskDetails(database('session-a'), DELEGATION_ID)).toEqual({
+            prompt,
+            source: { kind: 'session', sessionId: 'session-a' },
         });
-        expect(delegatedTaskSource(database('commander-session'), DELEGATION_ID)).toEqual({
-            kind: 'commander',
+        expect(delegatedTaskDetails(database('commander-session'), DELEGATION_ID)).toEqual({
+            prompt,
+            source: { kind: 'commander' },
         });
-        expect(delegatedTaskSource(database(undefined), DELEGATION_ID)).toBeUndefined();
+        expect(delegatedTaskDetails(database(undefined), DELEGATION_ID)).toEqual({ prompt });
+        expect(delegatedTaskDetails(database('session-a'), 'gone')).toEqual({});
     });
 });
 
@@ -55,18 +61,27 @@ describe('stampDelegatedTasks', () => {
             { op: 'upsertItem', item: { id: 'a', type: 'userMessage', text: pointer } },
             { op: 'upsertItem', item: { id: 'b', type: 'userMessage', text: 'hello' } },
         ];
-        const stamped = stampDelegatedTasks(operations, () => ({ kind: 'commander' }));
+        const stamped = stampDelegatedTasks(operations, () => ({
+            prompt: 'Fix it',
+            source: { kind: 'commander' },
+        }));
         expect(stamped[0]).toMatchObject({
-            item: { delegatedTask: { delegationId: DELEGATION_ID, source: { kind: 'commander' } } },
+            item: {
+                delegatedTask: {
+                    delegationId: DELEGATION_ID,
+                    prompt: 'Fix it',
+                    source: { kind: 'commander' },
+                },
+            },
         });
         expect(stamped[1]).toBe(operations[1]);
-        expect(stampDelegatedTasks([operations[1]], () => {})).toEqual([operations[1]]);
+        expect(stampDelegatedTasks([operations[1]], () => ({}))).toEqual([operations[1]]);
     });
 
     it('keeps the pointer recognizable when the record is gone', () => {
         const [operation] = stampDelegatedTasks(
             [{ op: 'upsertItem', item: { id: 'a', type: 'userMessage', text: pointer } }],
-            () => {},
+            () => ({}),
         );
         expect(operation).toMatchObject({
             item: { delegatedTask: { delegationId: DELEGATION_ID } },

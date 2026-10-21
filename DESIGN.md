@@ -1152,7 +1152,9 @@ cause), a borderless auto-growing message input that renders its Markdown in pla
 17/15/13px semibold, bold, italics, strikethrough, inline and fenced code on a `--border` 45% tint in
 the editor font, `--muted` bullets drawn as `•` with wrapped text hanging after them, quotes with a
 3px `--selection` rule; syntax reappears in `--muted` where the caret touches it, like the Codex
-app and Obsidian), and one action row in `--muted`, split like the Codex
+app and Obsidian; a pasted `http(s)` URL is drawn as the sent message will draw it, in `--accent`
+led by its site icon, a pull request's glyph and text tinted by its state, while its text stays
+editable), and one action row in `--muted`, split like the Codex
 app's composer. Leading on the left: `+` (a round ghost icon, tooltip `Add files and more`, that
 turns into a spinner while picked images are read, a long paste is saved, or a Session reference is
 written), a Plan chip (a bulb and `Plan` in `--foreground` on the `--selection` fill with a `--border`
@@ -1202,8 +1204,11 @@ image…`, `Type a message to send`, or the recovery row to use). While the Chat
 the message and the placeholder says so (`Queue a follow-up (⌘Enter to steer)`); Cmd+Enter steers it
 into the running turn instead, and once a draft is typed the status row names both keys (`Enter to
 queue · ⌘Enter to steer`). Typing `/` or `$` opens the suggestion list above the card under
-`Commands` and `Skills` headings, with a `meta` footer naming the keys and ending in `Esc to
-dismiss` (a list with no row to choose offers only `Esc to dismiss`, never an Enter that would send
+`Commands` and `Skills` headings. Each row leads with a 16px muted glyph naming what it is, the
+same glyph that thing wears elsewhere: `SquareSlash` for a command and `Package` for a skill (the
+sent message's invocation chip), a file's type icon (the Files tree), `MessageCircle` for a Session
+(the `+` menu), and `History` for a sent prompt. A `meta` footer names the keys as compact `Kbd`
+keycaps, like the composer strip's `Enter to queue`, ending in `Esc to dismiss` (a list with no row to choose offers only `Esc to dismiss`, never an Enter that would send
 the draft); a query with no match keeps it open on a `No matching command or skill` row. Typing `@`
 opens the same kind of list of other Sessions to cite, each with its Project; a title more than one
 row shares adds when that Session was last opened (`· 3h`), a query with no match reads `No Sessions
@@ -1330,7 +1335,11 @@ notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or st
 the user stopped names it (`Stopped by you after 1m 7s`) and keeps the stop glyph in `--muted`,
 since nothing went wrong; a stop another Agent sent reads `Stopped by an Agent`. A stopped turn
 with no work to fold keeps the same row before its reply as plain text with no chevron, so a cut-off
-answer never reads as one that simply ended. A running
+answer never reads as one that simply ended. A provider retrying a failed request shows a
+`--warning` row led by its cause's icon (`WifiOff` for a lost connection, `Hourglass` for a rate
+limit, `ServerCrash` for an overloaded or failing server, `RotateCw` otherwise) and the attempt
+against the limit, `Connection lost, retrying (2/10)`, with the provider's detail in `--muted` under
+it; a muted line read as routine progress while the Agent sat stalled. A running
 row carries no trailing spinner: its shimmer and ticking time already say it runs. While a running
 turn has shown nothing after the prompt, a small figure holds the place where the reply will start
 (`agentChat.workingIndicator`: Buddy, a round face that glances around and blows thought bubbles,

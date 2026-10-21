@@ -17,9 +17,11 @@ import type { useAgentChatSessionMenu } from '../hooks/use-agent-chat-session-me
 import {
     agentChatComposerExtensions,
     agentChatImagePills,
+    agentChatLinkIcons,
     agentChatPathPills,
     externalDraft,
 } from './agent-chat-composer-extensions';
+import { agentChatComposerLinkIconMount } from './agent-chat-composer-link-icon-mount';
 import type {
     AgentChatComposerInput,
     AgentChatComposerKeyEvent,
@@ -59,7 +61,8 @@ interface ComposerHandlers {
  * list's highlighted prompt replaces the placeholder while it is open. An attached image's `[Image #N]` placeholder
  * shows as a pill (`imagePlaceholders.pills`); clicking one opens its preview, and `imagePlaceholders.onEdit` hears
  * every edit the user makes so a deleted pill takes its image along. A dropped Files entry's path shows as a pill with
- * its icon and name (`pathPills`).
+ * its icon and name (`pathPills`). A pasted URL takes the accent color and its site icon, a pull request's tinted by
+ * its state, as it will in the sent message. Ctrl+C empties the input (`composerKeys`).
  */
 export function AgentChatComposerEditor({
     composerKeys,
@@ -77,6 +80,7 @@ export function AgentChatComposerEditor({
     setDraft,
     setInputFocused,
     stash,
+    terminalId,
     onPaste,
 }: {
     composerKeys: ReturnType<typeof useAgentChatComposerEnter>;
@@ -100,6 +104,11 @@ export function AgentChatComposerEditor({
     setDraft: (update: (current: string) => string) => void;
     setInputFocused: (isFocused: boolean) => void;
     stash: ReturnType<typeof useAgentChatDraftStash>;
+    /**
+     * The Chat's Terminal, which scopes a pasted pull request link's state lookup. The composer sits outside the
+     * timeline's `AgentChatTerminalContext`, so it arrives as a prop.
+     */
+    terminalId: string;
     onPaste: (event: AgentChatComposerPasteEvent) => void;
 }) {
     const { t } = useTranslation();
@@ -115,6 +124,7 @@ export function AgentChatComposerEditor({
     const [compartments] = useState(() => ({
         attributes: new Compartment(),
         imagePills: new Compartment(),
+        linkIcons: new Compartment(),
         pathPills: new Compartment(),
         placeholder: new Compartment(),
     }));
@@ -196,6 +206,7 @@ export function AgentChatComposerEditor({
                     compartments.attributes.of([]),
                     compartments.imagePills.of([]),
                     compartments.pathPills.of([]),
+                    compartments.linkIcons.of([]),
                     EditorView.updateListener.of((update) => {
                         if (update.transactions.some((tr) => tr.annotation(externalDraft))) return;
                         if (update.docChanged) handlers.current?.onChange(input);
@@ -263,6 +274,13 @@ export function AgentChatComposerEditor({
         const effects = compartments.pathPills.reconfigure(agentChatPathPills.of(pathPills));
         viewReference.current?.dispatch({ effects });
     }, [compartments, pathPills]);
+
+    useLayoutEffect(() => {
+        const effects = compartments.linkIcons.reconfigure(
+            agentChatLinkIcons.of(agentChatComposerLinkIconMount(terminalId)),
+        );
+        viewReference.current?.dispatch({ effects });
+    }, [compartments, terminalId]);
 
     return <div ref={hostReference} data-slot="agent-chat-composer-editor" />;
 }

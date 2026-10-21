@@ -20,6 +20,14 @@ export interface SuggestionOption {
 }
 
 /**
+ * One key a suggestion list's footer names: the keycap (`Enter`, `↑↓`) and what pressing it does (`to run`).
+ */
+export interface SuggestionKeyHint {
+    action: string;
+    keys: string;
+}
+
+/**
  * DOM id of a suggestion row, for the input's `aria-activedescendant`.
  */
 export function suggestionOptionId(listId: string, key: string): string {

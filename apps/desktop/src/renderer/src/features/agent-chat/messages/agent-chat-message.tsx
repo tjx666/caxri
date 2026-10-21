@@ -22,6 +22,7 @@ import { AgentChatTurnArtifactList } from '../turns/agent-chat-turn-artifact-lis
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
+import { AgentChatRetryNotice } from './agent-chat-retry-notice';
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
@@ -141,6 +142,7 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
     const { t } = useTranslation();
     if (item.title || item.kind === 'warning') return <AgentChatFeedback item={item} />;
     if (item.kind === 'compacted') return <AgentChatCompactedNotice item={item} />;
+    if (item.kind === 'retrying') return <AgentChatRetryNotice item={item} />;
     const isError = item.kind === 'error';
     return (
         <div

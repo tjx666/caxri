@@ -380,6 +380,23 @@ describe('agentChatNoticeMessage', () => {
                 message: 'rate limit',
             }),
         ).toBe('Retrying: rate limit');
+        expect(
+            agentChatNoticeMessage({
+                id: 'n',
+                type: 'notice',
+                kind: 'retrying',
+                retry: { cause: 'connection', attempt: 2, maxAttempts: 10 },
+                message: 'stream disconnected',
+            }),
+        ).toBe('Connection lost, retrying (2/10)\nstream disconnected');
+        expect(
+            agentChatNoticeMessage({
+                id: 'n',
+                type: 'notice',
+                kind: 'retrying',
+                retry: { cause: 'overloaded', attempt: 1 },
+            }),
+        ).toBe('API overloaded, retrying (attempt 1)');
         expect(agentChatNoticeMessage({ id: 'n', type: 'notice', kind: 'error' })).toBe(
             'The Agent reported an error',
         );

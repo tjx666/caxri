@@ -37,5 +37,8 @@ export const common: TranslatedNamespace<typeof source> = {
     'common.save': '保存',
     'common.search': '搜索',
     'common.unknown': '未知',
+    'common.keyHint.choose': '选择',
+    'common.keyHint.dismiss': '关闭',
+    'common.keyHint.move': '移动',
     'common.yes': '是',
 } as const;

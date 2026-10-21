@@ -31,6 +31,7 @@ import { codexDelivery } from './codex-input';
  */
 
 type Json = Record<string, unknown>;
+type RetryCause = NonNullable<Extract<AgentChatItem, { type: 'notice' }>['retry']>['cause'];
 
 function text(value: unknown): string {
     return typeof value === 'string' ? value : '';
@@ -489,21 +490,14 @@ export function mapCodexPlan(parameters: Json, turnId: string | undefined): Agen
 }
 
 /**
- * How long Codex's prompt cache is assumed to survive an idle Chat, in minutes. OpenAI keeps cached prefixes for a
- * variable time (minutes in memory, longer under extended retention) and reports neither the policy nor an expiry, so
- * this is an estimate that only drives the composer's cache hint.
- *
- * @see https://developers.openai.com/api/docs/guides/prompt-caching
- */
-const CODEX_CACHE_TTL_MINUTES = 30;
-
-/**
  * `thread/tokenUsage/updated`: the last request's token count against the model context window, with what it was made
- * of. Output already includes reasoning, so reasoning is not listed as a row of its own.
+ * of. Output already includes reasoning, so reasoning is not listed as a row of its own. `cacheTtlMinutes` comes from
+ * the sign-in (`codexCacheTtlMinutes`); without one the composer shows no cache expiry.
  */
 export function mapCodexUsage(
     parameters: Json,
     model: string | undefined,
+    cacheTtlMinutes: number | undefined,
     now = Date.now(),
 ): AgentChatSnapshot['usage'] {
     const usage = isRecord(parameters.tokenUsage) ? parameters.tokenUsage : undefined;
@@ -525,7 +519,7 @@ export function mapCodexUsage(
             ...(contextWindow !== undefined &&
                 contextWindow >= 0 && { contextWindow: Math.trunc(contextWindow) }),
             ...(breakdown.length > 0 && { breakdown }),
-            cacheTtlMinutes: CODEX_CACHE_TTL_MINUTES,
+            ...(cacheTtlMinutes !== undefined && { cacheTtlMinutes }),
             lastResponseAt: now,
         },
         model,
@@ -533,19 +527,61 @@ export function mapCodexUsage(
 }
 
 /**
+ * Codex's `codexErrorInfo` failures it retries, by Caxri's closed retry cause. A variant with a payload (an HTTP
+ * status) arrives as an object keyed by its name.
+ */
+const CODEX_RETRY_CAUSES: Partial<Record<string, RetryCause>> = {
+    httpConnectionFailed: 'connection',
+    responseStreamConnectionFailed: 'connection',
+    responseStreamDisconnected: 'connection',
+    rateLimitExceeded: 'rateLimit',
+    serverOverloaded: 'overloaded',
+    internalServerError: 'server',
+};
+
+/**
+ * Codex words a retry as `Reconnecting... 2/5` and puts the failure in `additionalDetails`.
+ */
+const CODEX_RETRY_COUNT = /^Reconnecting\.{3} (\d+)\/(\d+)$/u;
+
+function codexRetry(error: Json | undefined): {
+    retry: NonNullable<Extract<AgentChatItem, { type: 'notice' }>['retry']>;
+    message: string | undefined;
+} {
+    const info = error?.codexErrorInfo;
+    const name = isRecord(info) ? Object.keys(info)[0] : optionalText(info, 200);
+    const message = optionalText(error?.message, 2_000);
+    const details = optionalText(error?.additionalDetails, 2_000);
+    const count = message ? CODEX_RETRY_COUNT.exec(message) : null;
+    const retry = {
+        cause: (name === undefined ? undefined : CODEX_RETRY_CAUSES[name]) ?? 'other',
+        ...(count && { attempt: Number(count[1]), maxAttempts: Number(count[2]) }),
+    } as const;
+    return { retry, message: count ? details : (message ?? details) };
+}
+
+/**
  * The `error` notification: a retry notice while Codex retries, else the turn's error notice. One item per kind and
  * turn, so a repeated retry updates the notice instead of stacking copies.
  */
 export function mapCodexErrorNotice(parameters: Json, turnId: string | undefined): AgentChatItem {
-    const message = isRecord(parameters.error)
-        ? optionalText(parameters.error.message, 2_000)
-        : undefined;
-    const kind = parameters.willRetry === true ? 'retrying' : 'error';
+    const error = isRecord(parameters.error) ? parameters.error : undefined;
+    const base = { ...(turnId && { turnId: clip(turnId, 200) }), type: 'notice' } as const;
+    if (parameters.willRetry === true) {
+        const { retry, message } = codexRetry(error);
+        return {
+            id: `${turnId ?? 'thread'}:retrying`,
+            ...base,
+            kind: 'retrying',
+            retry,
+            ...(message && { message }),
+        };
+    }
+    const message = optionalText(error?.message, 2_000);
     return {
-        id: `${turnId ?? 'thread'}:${kind}`,
-        ...(turnId && { turnId: clip(turnId, 200) }),
-        type: 'notice',
-        kind,
+        id: `${turnId ?? 'thread'}:error`,
+        ...base,
+        kind: 'error',
         ...(message && { message }),
     };
 }

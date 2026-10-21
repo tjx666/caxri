@@ -16,11 +16,16 @@ export const agentChatDelegatedTaskSourceSchema = z.discriminatedUnion('kind', [
 
 /**
  * A user message that is really a delegated task pointer, which Server Core recognizes so Clients can say which Session
- * sent it instead of showing the pointer as if the user had typed it.
+ * sent it, and what it asked, instead of showing the pointer as if the user had typed it.
  */
 export const agentChatDelegatedTaskSchema = z.strictObject({
     delegationId: identifierSchema,
     source: agentChatDelegatedTaskSourceSchema.optional(),
+    /**
+     * The task the caller wrote, from the delegation record; the pointer itself only names the private file holding it.
+     * Absent when the record is gone.
+     */
+    prompt: z.string().max(16_384).optional(),
 });
 
 export type AgentChatDelegatedTask = z.infer<typeof agentChatDelegatedTaskSchema>;

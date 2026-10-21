@@ -181,6 +181,10 @@ export function useAgentChatSessionMenu({
          * Which group heading the row at `index` starts, or `undefined` when it continues the group above it.
          */
         groupAt: (index: number) => agentChatMentionHeadingAt(files.length, index),
+        /**
+         * Whether the row at `index` is a Project file rather than a Session.
+         */
+        isFileAt: (index: number) => index < files.length,
         suggestions: [
             ...files.map((path) => agentChatFileSuggestion(path)),
             ...agentChatSessionSuggestions(candidates, openedAt),

@@ -212,7 +212,6 @@ export const agentCommander = {
     'agentCommander.mergeState.checksPassed': 'Checks passed',
 
     // Inbox composer
-    'agentCommander.composer.suggestionFooter': '↑↓ to move · Enter to choose',
     'agentCommander.composer.suggestionLabel': 'Inbox items',
     'agentCommander.composer.replyingTo': 'Replying to',
     'agentCommander.composer.clearTarget': 'Clear the reply target',

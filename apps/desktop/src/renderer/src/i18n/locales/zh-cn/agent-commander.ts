@@ -209,7 +209,6 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.mergeState.checksPassed': '检查已通过',
 
     // Inbox composer
-    'agentCommander.composer.suggestionFooter': '↑↓ 移动 · Enter 选择',
     'agentCommander.composer.suggestionLabel': '收件箱事项',
     'agentCommander.composer.replyingTo': '回复',
     'agentCommander.composer.clearTarget': '清除回复对象',

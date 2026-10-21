@@ -26,7 +26,10 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
                 <SuggestionList
                     activeIndex={composer.activeIndex}
                     className="inset-x-2"
-                    footer={t('agentCommander.composer.suggestionFooter')}
+                    footer={[
+                        { keys: '↑↓', action: t('common.keyHint.move') },
+                        { keys: 'Enter', action: t('common.keyHint.choose') },
+                    ]}
                     label={t('agentCommander.composer.suggestionLabel')}
                     listId={composer.listId}
                     suggestions={composer.candidates.map((item) => inboxMentionSuggestion(item, t))}

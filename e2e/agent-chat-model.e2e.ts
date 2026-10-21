@@ -83,11 +83,17 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         await expect(panel).toBeHidden();
 
         // A running turn shows its status row in the strip on top of the composer card, not inside it.
-        await message.fill('slow please');
+        await message.fill('slow reconnect please');
         await message.press('Enter');
         await expect(
             chat.locator('[data-agent-chat-composer-strip]').getByText('Esc to stop'),
         ).toBeVisible();
+        // A dropped stream reads as a warning row naming the cause and the attempt, with Codex's detail beneath.
+        const retry = chat
+            .getByRole('status')
+            .filter({ hasText: 'Connection lost, retrying (2/5)' });
+        await expect(retry).toBeVisible();
+        await expect(retry).toContainText('stream disconnected before completion');
         await expect(chat.locator('form').getByText('Esc to stop')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-working-composer.png') });
         await message.press('Escape');

@@ -53,6 +53,27 @@ export function agentChatComposerKeyAction(
 }
 
 /**
+ * Whether a composer key is Ctrl+C, which empties the composer as it does in Claude Code's and Codex's prompt. On macOS
+ * Cmd+C stays Copy, so the chord is free; the caller still leaves it to Copy over a selection, which is what it means
+ * on Windows and Linux. Outside IME composition only, where Ctrl+C can belong to the input method.
+ */
+export function isAgentChatClearKey(
+    key: Pick<
+        AgentChatComposerKey,
+        'altKey' | 'ctrlKey' | 'isComposing' | 'key' | 'metaKey' | 'shiftKey'
+    >,
+): boolean {
+    return (
+        key.ctrlKey &&
+        !key.altKey &&
+        !key.metaKey &&
+        !key.shiftKey &&
+        !key.isComposing &&
+        key.key.toLowerCase() === 'c'
+    );
+}
+
+/**
  * Whether a composer key is Cmd+Shift+V (Ctrl+Shift+V off macOS), "paste as plain text": the clipboard's text goes in
  * as typed rather than through the long-paste file. Shift changes `key` to `V` on most layouts, so case is ignored.
  */

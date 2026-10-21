@@ -26,7 +26,7 @@ describe('ChatProjection onTasksChanged', () => {
             send: () => {},
             onChange: () => {},
             onTasksChanged,
-            delegatedTaskSource: () => {},
+            delegatedTask: () => ({}),
         });
         projection.apply([{ op: 'state', state: { status: 'ready' } }]);
         expect(onTasksChanged).not.toHaveBeenCalled();

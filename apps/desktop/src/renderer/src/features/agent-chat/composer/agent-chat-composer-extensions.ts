@@ -1,3 +1,4 @@
+import { proseWebLinks } from '@caxri/markdown';
 import { agentChatImageTokenRanges } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
@@ -272,6 +273,83 @@ const pathPills = ViewPlugin.fromClass(
     },
 );
 
+/**
+ * Draws a web link's leading icon into `slot` and returns the cleanup that removes it. The composer passes one that
+ * renders the transcript's `LinkFavicon`, so a pull request link shows its state; without one the slot stays empty.
+ */
+export type AgentChatLinkIconMount = (slot: HTMLElement, url: string) => () => void;
+
+export const agentChatLinkIcons = Facet.define<AgentChatLinkIconMount, AgentChatLinkIconMount>({
+    combine: (values) => values[0] ?? (() => () => {}),
+});
+
+const linkIconCleanups = new WeakMap<HTMLElement, () => void>();
+
+class LinkIconWidget extends WidgetType {
+    constructor(
+        private readonly url: string,
+        private readonly mount: AgentChatLinkIconMount,
+    ) {
+        super();
+    }
+
+    override eq(other: LinkIconWidget): boolean {
+        return other.url === this.url && other.mount === this.mount;
+    }
+
+    override toDOM(): HTMLElement {
+        const slot = document.createElement('span');
+        slot.className = 'cm-link-icon';
+        slot.setAttribute('aria-hidden', 'true');
+        linkIconCleanups.set(slot, this.mount(slot, this.url));
+        return slot;
+    }
+
+    override destroy(dom: HTMLElement): void {
+        linkIconCleanups.get(dom)?.();
+        linkIconCleanups.delete(dom);
+    }
+}
+
+const webLinkText = Decoration.mark({ class: 'cm-web-link' });
+
+function webLinkDecorations(state: EditorState): DecorationSet {
+    const mount = state.facet(agentChatLinkIcons);
+    return Decoration.set(
+        proseWebLinks(state.doc.toString()).flatMap(({ index, text, url }) => [
+            Decoration.widget({ widget: new LinkIconWidget(url, mount), side: -1 }).range(index),
+            webLinkText.range(index, index + text.length),
+        ]),
+        true,
+    );
+}
+
+/**
+ * Draws a pasted `http(s)` URL the way the sent message will (`agentChatUserMessageSegments`): the same linkify rule
+ * finds it, it takes the accent color, and the site icon leads it, a pull request's tinted by its state. The text stays
+ * plain and editable, so the Agent receives exactly what was typed. A pull request's text takes its icon's tone through
+ * the `:has()` rules in the theme below, since only the icon's React root learns the state.
+ */
+const webLinks = ViewPlugin.fromClass(
+    class {
+        decorations: DecorationSet;
+
+        constructor(view: EditorView) {
+            this.decorations = webLinkDecorations(view.state);
+        }
+
+        update(update: ViewUpdate): void {
+            if (
+                update.docChanged ||
+                update.startState.facet(agentChatLinkIcons) !==
+                    update.state.facet(agentChatLinkIcons)
+            )
+                this.decorations = webLinkDecorations(update.state);
+        }
+    },
+    { decorations: (plugin) => plugin.decorations },
+);
+
 const MONO = "var(--editor-font-family, ui-monospace, 'Caxri JetBrains Mono', monospace)";
 const CODE_BACKGROUND = 'color-mix(in srgb, var(--border) 45%, transparent)';
 
@@ -346,6 +424,27 @@ const composerTheme = EditorView.theme({
         userSelect: 'none',
     },
     '.cm-path-pill img': { width: '14px', height: '14px' },
+    '.cm-web-link': { color: 'var(--accent)' },
+    '.cm-link-icon': {
+        display: 'inline-flex',
+        width: '14px',
+        height: '14px',
+        marginRight: '4px',
+        verticalAlign: '-2px',
+        userSelect: 'none',
+    },
+    '.cm-link-icon:has([data-pull-request-state="open"]) + .cm-web-link': {
+        color: 'var(--success)',
+    },
+    '.cm-link-icon:has([data-pull-request-state="merged"]) + .cm-web-link': {
+        color: 'var(--merged)',
+    },
+    '.cm-link-icon:has([data-pull-request-state="closed"]) + .cm-web-link': {
+        color: 'var(--danger)',
+    },
+    '.cm-link-icon:has([data-pull-request-state="draft"]) + .cm-web-link': {
+        color: 'var(--muted)',
+    },
     '.cm-image-pill img': {
         width: '14px',
         height: '14px',
@@ -373,6 +472,7 @@ export function agentChatComposerExtensions(maxLength: number): Extension {
         livePreview,
         imagePills,
         pathPills,
+        webLinks,
         composerTheme,
     ];
 }

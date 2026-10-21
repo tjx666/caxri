@@ -419,10 +419,12 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   task's deferred turn.
 - **How the pointer reads.** The user never typed the pointer, so Desktop and mobile Chat draw it as
   a "Delegated by" bubble instead of a user message: the delegating Session as a link, or Agent
-  Commander, with the raw pointer folded behind Show instruction. The Server resolves the source
-  from the delegation record when it projects the message (`chat-delegated-task.ts` in
-  `apps/server/src/domains/agent-chat/`); a record that is gone, or one no Agent Terminal called,
-  reads as a plain "Delegated task".
+  Commander, and under it the task the caller wrote, clamped to six lines with Show more. The
+  Server resolves both from the delegation record when it projects the message
+  (`chat-delegated-task.ts` in `apps/server/src/domains/agent-chat/`), so a follow-up or resume
+  shows its own task. A caller that is no Agent Terminal reads as a plain "Delegated task"; a record
+  that is gone also loses the task, and its bubble keeps the raw pointer behind Show instruction.
+  Mobile still shows only the source and the pointer.
 - **Answer.** Collection reads the turn's final assistant message from the Chat's projection instead
   of a native transcript. A Claude Code answer must match its reported digest; a Codex task
   completes once the projection shows its turn finished, checked every two seconds. An interrupted

@@ -1,7 +1,8 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import type { Locator } from '@playwright/test';
 
@@ -423,13 +424,35 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Chat recalls sent prompts from a list and stashes a draft with Ctrl+S', async ({}, testInfo) => {
+test('a Chat recalls sent prompts from a list, stashes a draft with Ctrl+S, and clears it with Ctrl+C', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-history-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
+    const bin = join(directory, 'bin');
     await mkdir(root, { recursive: true });
+    await mkdir(bin, { recursive: true });
+    // The pull request preview reads a token (`gh auth token`), then its REST read (`gh api repos/<owner>/<repo>/issues/<n>`)
+    // answers with a merged pull request.
+    await writeFile(
+        join(bin, 'gh'),
+        `#!/bin/sh
+case " $* " in
+  *" repos/acme/widgets/issues/7 "*) printf '%s' '{"number":7,"state":"closed","title":"Add widgets","html_url":"https://github.com/acme/widgets/pull/7","pull_request":{"merged_at":"2026-10-01T00:00:00Z"}}' ;;
+  " auth token "*) printf '%s\n' 'fake-token' ;;
+  *" api graphql -f "*) printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}' ;;
+  *) exit 1 ;;
+esac
+`,
+        'utf8',
+    );
+    await chmod(join(bin, 'gh'), 0o755);
     const agentMode = await fakeCodexChatAgentMode(directory, userData);
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
+    });
     try {
         const { page } = running;
         await createProjectSession(page, 'shell');
@@ -498,6 +521,25 @@ test('a Chat recalls sent prompts from a list and stashes a draft with Ctrl+S', 
         await message.press('Control+s');
         await expectComposerValue(message, 'a long draft to finish later');
         await expect(message).toHaveAttribute('aria-placeholder', 'Message Codex');
+
+        // A pasted pull request link reads as it will once sent: its state glyph leads it and its text takes that tone.
+        const link = 'https://github.com/acme/widgets/pull/7';
+        await message.fill(`see ${link}`);
+        await expect(chat.locator('.cm-web-link')).toHaveText(link);
+        await expect(
+            chat.locator('.cm-link-icon [data-pull-request-state="merged"]'),
+        ).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('chat-composer-link.png') });
+        // Ctrl+C over a selection stays Copy and leaves the draft alone.
+        await message.press('Meta+a');
+        await message.press('Control+c');
+        await expectComposerValue(message, `see ${link}`);
+        await message.press('End');
+        // With nothing selected it empties the input as an ordinary edit, so Cmd+Z brings the text back.
+        await message.press('Control+c');
+        await expectComposerValue(message, '');
+        await message.press('Meta+z');
+        await expectComposerValue(message, `see ${link}`);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

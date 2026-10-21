@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 
 import { closeDanglingItem } from '../chat-items';
 import { CodexComputerUseBindings } from '../codex-computer-use';
-import { codexAgentName, codexRequestKey, mapCodexItem, mapCodexRequest } from '../codex-items';
+import {
+    codexAgentName,
+    codexRequestKey,
+    mapCodexErrorNotice,
+    mapCodexItem,
+    mapCodexRequest,
+} from '../codex-items';
 
 describe('Codex item mapping', () => {
     it('maps conversation and tool items into bounded Chat items', () => {
@@ -461,5 +467,48 @@ describe('Codex item mapping', () => {
             },
             { path: 'small.ts', kind: 'add', diff: 'one line\n' },
         ]);
+    });
+});
+
+describe('Codex error notices', () => {
+    it('reads a retry as its cause and attempt, keeping the failure as the detail', () => {
+        expect(
+            mapCodexErrorNotice(
+                {
+                    willRetry: true,
+                    error: {
+                        message: 'Reconnecting... 2/5',
+                        codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: null } },
+                        additionalDetails: 'stream disconnected before completion',
+                    },
+                },
+                'turn-1',
+            ),
+        ).toEqual({
+            id: 'turn-1:retrying',
+            turnId: 'turn-1',
+            type: 'notice',
+            kind: 'retrying',
+            retry: { cause: 'connection', attempt: 2, maxAttempts: 5 },
+            message: 'stream disconnected before completion',
+        });
+        expect(
+            mapCodexErrorNotice(
+                { willRetry: true, error: { message: 'Busy', codexErrorInfo: 'serverOverloaded' } },
+                undefined,
+            ),
+        ).toMatchObject({ retry: { cause: 'overloaded' }, message: 'Busy' });
+    });
+
+    it('keeps a final error as the provider reported it', () => {
+        expect(
+            mapCodexErrorNotice({ willRetry: false, error: { message: 'Failed' } }, 'turn-1'),
+        ).toEqual({
+            id: 'turn-1:error',
+            turnId: 'turn-1',
+            type: 'notice',
+            kind: 'error',
+            message: 'Failed',
+        });
     });
 });
