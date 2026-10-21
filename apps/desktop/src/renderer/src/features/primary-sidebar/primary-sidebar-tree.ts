@@ -99,10 +99,10 @@ export function primarySidebarSubagentMoreRowId(sessionId: string): string {
  */
 export interface PrimarySidebarSubagentNode {
     /**
-     * True when the Session has more subagents than the collapsed window, which puts the show-more/show-fewer row after
-     * the subagent rows.
+     * Where the show-more/show-fewer row sits: before the task at this index of `taskIds`. Absent when the Session has
+     * no more subagents than the collapsed window.
      */
-    hasToggle: boolean;
+    toggleIndex?: number;
     /**
      * The Session's rendered subagents, in display order.
      */
@@ -134,7 +134,8 @@ export interface PrimarySidebarPinnedNode {
  * for.
  *
  * A Session that shows subagents (`subagents`, keyed by Session id) follows its own row with their rows and, when it
- * has more than the collapsed window, the show-more row, all one level deeper than the Session.
+ * has more than the collapsed window, the show-more row right after the first few, all one level deeper than the
+ * Session.
  *
  * An expanded Project with no visible Sessions renders the "New Session" row in place of that list, so it takes the
  * Session rows' place here too. The condition is read straight off `sessionIds` rather than a separate emptiness flag:
@@ -155,7 +156,17 @@ export function flattenPrimarySidebarRows(
     const pushSubagentRows = (sessionId: string, sessionRowId: string, projectId: string): void => {
         const node = subagents?.get(sessionId);
         if (!node) return;
-        for (const taskId of node.taskIds)
+        const pushToggle = (): void => {
+            rows.push({
+                id: primarySidebarSubagentMoreRowId(sessionId),
+                kind: 'subagentMore',
+                parentRowId: sessionRowId,
+                projectId,
+                sessionId,
+            });
+        };
+        for (const [index, taskId] of node.taskIds.entries()) {
+            if (index === node.toggleIndex) pushToggle();
             rows.push({
                 id: primarySidebarSubagentRowId(sessionId, taskId),
                 kind: 'subagent',
@@ -165,14 +176,8 @@ export function flattenPrimarySidebarRows(
                 taskId,
                 terminalId: node.terminalId,
             });
-        if (node.hasToggle)
-            rows.push({
-                id: primarySidebarSubagentMoreRowId(sessionId),
-                kind: 'subagentMore',
-                parentRowId: sessionRowId,
-                projectId,
-                sessionId,
-            });
+        }
+        if (node.toggleIndex === node.taskIds.length) pushToggle();
     };
     if (pinned && pinned.sessionIds.length > 0) {
         rows.push({

@@ -6,7 +6,7 @@ import type { AgentChatSessionHost, ChatTaskHistory } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { CodexBackgroundTerminals } from './codex-background-terminals';
 import { CodexComputerUseBindings } from './codex-computer-use';
-import { mapCodexItem } from './codex-items';
+import { codexAgentName, mapCodexItem } from './codex-items';
 import { historyItems } from './codex-turns';
 import { JsonRpcRequestError } from './json-rpc-connection';
 
@@ -351,10 +351,10 @@ export class CodexTasks {
             const model = stringField(raw.model);
             switch (raw.kind) {
                 case 'started': {
-                    const path = stringField(raw.agentPath);
+                    const name = codexAgentName(raw.agentPath, 1_000);
                     this.adopt(threadId, {
                         itemId: id,
-                        ...(path && !this.list.get(threadId) && { title: clip(path, 1_000) }),
+                        ...(name && !this.list.get(threadId) && { title: name }),
                         ...(model && { model }),
                     });
                     return;

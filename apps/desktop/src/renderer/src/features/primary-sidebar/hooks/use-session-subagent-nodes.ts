@@ -34,9 +34,9 @@ export function useSessionSubagentNodes(
             if (!terminal || subagents.length === 0) continue;
             const window = subagentWindow(subagents, expandedSessionIds.has(session.id));
             nodes.set(session.id, {
-                hasToggle: window.hasToggle,
                 taskIds: window.visible.map((subagent) => subagent.taskId),
                 terminalId: terminal.id,
+                ...(window.toggleIndex !== undefined && { toggleIndex: window.toggleIndex }),
             });
         }
         return nodes;

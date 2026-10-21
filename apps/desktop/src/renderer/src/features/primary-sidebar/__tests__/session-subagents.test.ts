@@ -53,21 +53,23 @@ describe('subagentWindow', () => {
     it('shows the newest few and reports how many are hidden', () => {
         const window = subagentWindow(many, false);
         expect(window.visible.map((item) => item.taskId)).toEqual(['t4', 't3', 't2']);
-        expect(window).toMatchObject({ hasToggle: true, hiddenCount: 2 });
+        expect(window).toMatchObject({ hiddenCount: 2, toggleIndex: 3 });
         expect(window.visible).toHaveLength(DEFAULT_VISIBLE_SUBAGENT_COUNT);
     });
 
-    it('shows everything once expanded and keeps the toggle so it can fold again', () => {
+    it('shows everything once expanded and keeps the toggle in place so it can fold again', () => {
         const window = subagentWindow(many, true);
         expect(window.visible).toHaveLength(5);
-        expect(window).toMatchObject({ hasToggle: true, hiddenCount: 0 });
+        expect(window).toMatchObject({
+            hiddenCount: 0,
+            toggleIndex: DEFAULT_VISIBLE_SUBAGENT_COUNT,
+        });
     });
 
     it('needs no toggle when everything fits', () => {
-        expect(subagentWindow(many.slice(0, 3), false)).toMatchObject({
-            hasToggle: false,
-            hiddenCount: 0,
-        });
+        const window = subagentWindow(many.slice(0, 3), false);
+        expect(window).toMatchObject({ hiddenCount: 0 });
+        expect(window.toggleIndex).toBeUndefined();
     });
 });
 

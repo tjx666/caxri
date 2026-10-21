@@ -380,8 +380,8 @@ describe('primarySidebarArchiveIntent', () => {
 
 describe('subagent rows', () => {
     const subagents = new Map<string, PrimarySidebarSubagentNode>([
-        ['alpha-1', { hasToggle: true, taskIds: ['t1', 't2'], terminalId: 'chat-1' }],
-        ['pinned-1', { hasToggle: false, taskIds: ['p1'], terminalId: 'chat-p' }],
+        ['alpha-1', { taskIds: ['t1', 't2'], terminalId: 'chat-1', toggleIndex: 1 }],
+        ['pinned-1', { taskIds: ['p1'], terminalId: 'chat-p' }],
     ]);
 
     it('nests a Session subagents and its toggle row directly under the Session row', () => {
@@ -390,8 +390,8 @@ describe('subagent rows', () => {
             'alpha',
             'alpha-1',
             primarySidebarSubagentRowId('alpha-1', 't1'),
-            primarySidebarSubagentRowId('alpha-1', 't2'),
             primarySidebarSubagentMoreRowId('alpha-1'),
+            primarySidebarSubagentRowId('alpha-1', 't2'),
             'alpha-2',
             'beta',
             'beta-1',
@@ -405,6 +405,20 @@ describe('subagent rows', () => {
             taskId: 't1',
             terminalId: 'chat-1',
         });
+    });
+
+    it('puts the toggle row after the last subagent while the list is folded', () => {
+        const folded = new Map<string, PrimarySidebarSubagentNode>([
+            ['alpha-1', { taskIds: ['t1'], terminalId: 'chat-1', toggleIndex: 1 }],
+        ]);
+        const ids = flattenPrimarySidebarRows(projects, () => true, undefined, folded).map(
+            (row) => row.id,
+        );
+        expect(ids.slice(1, 4)).toEqual([
+            'alpha-1',
+            primarySidebarSubagentRowId('alpha-1', 't1'),
+            primarySidebarSubagentMoreRowId('alpha-1'),
+        ]);
     });
 
     it('leaves subagent rows out of a collapsed Project and when none are given', () => {

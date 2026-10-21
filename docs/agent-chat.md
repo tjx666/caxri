@@ -491,8 +491,12 @@ only; the PTY surface and Grok never get them.
   `running` row `stopped` (`agent_chat.subagents_reconciled`, closed reason `serverStart`, with a
   terminal count and no titles). A resumed Chat that reports the task again rewrites the row.
 - The Renderer shows running subagents first, then the rest by recency, newest 3 by default with a
-  `Show N more` row that expands the Session's list. The setting `primarySidebar.showSubagents`
-  (default on) hides them.
+  `Show N more` row right after them. Expanding opens the rest below that row, which then reads
+  `Show fewer`, so the list folds again from the same place. A decorative vertical guide under the
+  Session's Agent icon ties the rows to it. The setting `primarySidebar.showSubagents` (default on)
+  hides them.
+- A Codex subagent first seen through a multi-agent v2 `subAgentActivity` item is titled with the
+  last segment of its `agentPath` (`/root/planner/reviewer` reads `reviewer`).
 - Clicking a row selects its Session first, then opens the subagent's task tab.
 
 ## Follow-up queue
