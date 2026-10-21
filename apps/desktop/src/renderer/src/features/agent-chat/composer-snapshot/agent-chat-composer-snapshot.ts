@@ -15,7 +15,7 @@ import { agentChatSendBlock, isAgentChatBusy } from '../transcript/agent-chat-pr
  * from here" (`agentChatRewindTarget`) look at nothing else, and every streamed reply token replaces the snapshot's
  * other items.
  */
-export type AgentChatComposerSnapshot = Pick<
+type AgentChatComposerSnapshot = Pick<
     AgentChatSnapshot,
     | 'activeTurnId'
     | 'effort'
