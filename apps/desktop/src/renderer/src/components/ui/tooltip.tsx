@@ -140,7 +140,12 @@ export function Tooltip({
                 <TooltipPrimitive.Positioner
                     align={isCursorAnchored ? 'start' : undefined}
                     anchor={isCursorAnchored ? cursorAnchor : undefined}
-                    className="z-[90] max-w-[var(--available-width)]"
+                    /*
+                     * Base UI marks the positioner `data-anchor-hidden` once a clipping ancestor (a scrolled list) hides
+                     * the trigger, but keeps rendering the popup beside it. A wheel scroll leaves the pointer still, so
+                     * no pointer-leave closes the tooltip either; hiding it here keeps it from floating outside the list.
+                     */
+                    className="z-[90] max-w-[var(--available-width)] data-[anchor-hidden]:invisible"
                     collisionAvoidance={
                         isCursorMode
                             ? { side: 'flip', align: 'shift', fallbackAxisSide: 'none' }

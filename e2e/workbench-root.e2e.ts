@@ -383,6 +383,21 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
     await execFileAsync('git', ['worktree', 'add', '-b', 'feature/manual', worktree], {
         cwd: root,
     });
+    for (let index = 0; index < 10; index += 1) {
+        // Older than every recent root, so the compact list is unchanged while Show all has to scroll.
+        // eslint-disable-next-line no-await-in-loop -- preserve deterministic creation order.
+        await execFileAsync(
+            'git',
+            [
+                'worktree',
+                'add',
+                '-b',
+                `feature/older-${index}`,
+                join(testDirectory, `older-${index}`),
+            ],
+            { cwd: root },
+        );
+    }
     for (let index = 0; index < 7; index += 1) {
         // Git writes separate pointer birth times; the oldest target should remain discoverable through Show all.
         // eslint-disable-next-line no-await-in-loop -- preserve deterministic creation order.
@@ -474,6 +489,28 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
                 exact: true,
             }),
         ).toBeVisible();
+        // A row's path tooltip must not follow the row once the list scrolls it out of view.
+        const mainOption = running.page.getByRole('option', {
+            name: 'main, Main worktree',
+            exact: true,
+        });
+        await mainOption.hover();
+        const pathTooltip = running.page.locator('.tooltip-popup', { hasText: root });
+        await expect(pathTooltip).toBeVisible();
+        /*
+         * Resting the pointer on the (hoverable) tooltip keeps it open with no row under the pointer, the way a wheel
+         * scroll delivers no pointer event; otherwise Chromium's post-scroll hover would close it and hide the defect.
+         */
+        await pathTooltip.hover();
+        // Scrolls toward the far end of the list so the row leaves the viewport, as a wheel scroll would.
+        await mainOption.evaluate((row) => {
+            const list = row.closest('[cmdk-list]')!;
+            const rowCenter =
+                row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
+            const listRect = list.getBoundingClientRect();
+            list.scrollTop = rowCenter > listRect.top + listRect.height / 2 ? 0 : list.scrollHeight;
+        });
+        await expect(pathTooltip).toBeHidden();
         await running.page.keyboard.press('Escape');
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         const ownerId = bootstrap.sessions.find((session) => session.id === sessionId)!.projectId;
