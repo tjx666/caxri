@@ -28,6 +28,12 @@ describe('agentChatFindOccurrences', () => {
         expect(agentChatFindOccurrences('İstanbul and istanbul', 'istanbul')).toEqual([13]);
     });
 
+    it('matches a typed space against the no-break spaces a colorized code block renders', () => {
+        expect(
+            agentChatFindOccurrences('add "Call\u{A0}Alice at\u{A0}3pm"', 'call alice at 3pm'),
+        ).toEqual([5]);
+    });
+
     it('finds nothing for an empty query', () => {
         expect(agentChatFindOccurrences('anything', '')).toEqual([]);
     });

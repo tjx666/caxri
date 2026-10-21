@@ -7,6 +7,12 @@ import { translate } from '../../../i18n';
 import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 
 /**
+ * A typed space also matches a no-break space: Monaco's `colorize` paints every space in a fenced code block as
+ * `&nbsp;`, so a phrase copied from a code block (copying turns them back into spaces) would otherwise never match it.
+ */
+const SPACE_PATTERN = / /gu;
+
+/**
  * Where each occurrence of `query` starts in `text`, ignoring case, without overlaps. Case-insensitive matching through
  * a regular expression keeps offsets aligned with `text`, which lowercasing both sides would not for characters whose
  * lowercase form has another length.
@@ -14,7 +20,9 @@ import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 export function agentChatFindOccurrences(text: string, query: string): number[] {
     if (!query) return [];
     return text
-        .matchAll(new RegExp(escapeRegExp(query), 'giu'))
+        .matchAll(
+            new RegExp(escapeRegExp(query).replaceAll(SPACE_PATTERN, String.raw`[ \u00a0]`), 'giu'),
+        )
         .map((match) => match.index)
         .toArray();
 }
