@@ -96,7 +96,8 @@ beyond the packaged application itself.
   investigation.
 - Follow `RELEASING.md` when preparing the release commit and opening its pull request. Creating that
   commit, opening its pull request, and merging it still require explicit user authorization because
-  the merge triggers the remote release.
+  the merge triggers the remote release. After the merge, `bun run scripts/watch-ci.ts --sha <merge commit>`
+  follows the CI run and the Release run it triggers to completion in one watcher.
 - After the GitHub Release publishes successfully, install it locally by default with
   `bun run install:caxri` (standing owner preference) and report the installed version. Skip only
   when the user asked not to install or the release itself failed.

@@ -21,10 +21,14 @@
  * - Offline resilience: polling errors are treated as transient and retried forever with capped exponential backoff; the
  *   watcher only exits when the run reaches a terminal status.
  *
- * Usage: `bun run scripts/watch-ci.ts [--pr <number> [--workflow <name>] | --run <id> | --branch <name>] [--quiet]`
- * `--pr` waits for every workflow run of the pull request's current head (only `--workflow`'s, when given) and watches
- * them all, failing fast when the pull request conflicts with its base (GitHub then starts no CI). Defaults to the
- * newest run on the current git branch. Exits 0 when every watched run succeeded, 1 otherwise.
+ * Usage: `bun run scripts/watch-ci.ts [--pr <number> [--workflow <name>] | --run <id> | --branch <name> | --sha
+ * <commit>] [--quiet]` `--pr` waits for every workflow run of the pull request's current head (only `--workflow`'s,
+ * when given) and watches them all, failing fast when the pull request conflicts with its base (GitHub then starts no
+ * CI). Defaults to the newest run on the current git branch. `--sha` (full or abbreviated) follows every workflow run
+ * of one commit to completion, including runs that only start after another run completes (`on: workflow_run`, read
+ * from `.github/workflows/*.yml`): after a release PR merges, `--sha <merge commit>` covers its CI run and the Release
+ * macOS run that CI triggers. A run whose jobs are all skipped counts as success, and the failed runs are printed by
+ * name. It cannot be combined with another selector. Exits 0 when every watched run succeeded, 1 otherwise.
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -36,6 +40,7 @@ import { fileURLToPath } from 'node:url';
 
 import { execFileAsync } from './exec';
 import { resolvePrRuns } from './watch-ci-pr';
+import { followAndReport, isSuccessfulConclusion } from './watch-ci-sha';
 
 const POLL_INTERVAL_MS = 20_000;
 /**
@@ -211,9 +216,12 @@ export function formatCiNotification(
     if (
         newlyFailed.length === 0 &&
         state.status === 'completed' &&
-        state.conclusion === 'success'
+        isSuccessfulConclusion(state.conclusion)
     ) {
-        return withSubtitle({ title: `CI passed · ${target}`, message: `${workflow} succeeded` });
+        return withSubtitle({
+            title: `CI passed · ${target}`,
+            message: `${workflow} ${state.conclusion === 'skipped' ? 'skipped' : 'succeeded'}`,
+        });
     }
     const outcome =
         newlyFailed.length > 0 ? 'failed' : (state.conclusion || 'failed').replaceAll('_', ' ');
@@ -379,12 +387,16 @@ interface CliOptions {
     quiet: boolean;
     run?: string;
     /**
+     * Follow every workflow run of this commit, full or abbreviated SHA, including `workflow_run` downstreams.
+     */
+    sha?: string;
+    /**
      * With `--pr`, watch only the runs of this workflow, such as `Guards`, the one check `main` requires.
      */
     workflow?: string;
 }
 
-const VALUE_FLAGS = new Set(['--run', '--workflow', '--pr', '--branch']);
+const VALUE_FLAGS = new Set(['--run', '--workflow', '--pr', '--branch', '--sha']);
 
 /**
  * Returns the operand of a value flag, or throws when it is missing, blank, or another flag. Failing open here would
@@ -420,6 +432,13 @@ function applyArgument(options: CliOptions, argument: string, value: string | un
             options.pr = operand;
             break;
         }
+        case '--sha': {
+            if (!/^[0-9a-f]{7,40}$/iu.test(operand)) {
+                throw new Error(`--sha requires a 7 to 40 character hexadecimal commit SHA`);
+            }
+            options.sha = operand;
+            break;
+        }
         default:
             options.branch = operand;
     }
@@ -435,6 +454,9 @@ export function parseArguments(argv: string[]): CliOptions {
     let index = 0;
     while (index < argv.length) {
         index += applyArgument(options, argv[index], argv[index + 1]);
+    }
+    if (options.sha && (options.pr || options.run || options.branch || options.workflow)) {
+        throw new Error('--sha cannot be combined with --pr, --run, --branch, or --workflow');
     }
     return options;
 }
@@ -497,7 +519,11 @@ async function pollOnce(runId: string, previous: WatchState | undefined): Promis
 /**
  * Watches one run until it reaches a terminal status and returns whether it succeeded.
  */
-async function didRunSucceed(runId: string, isQuiet: boolean): Promise<boolean> {
+async function didRunSucceed(
+    runId: string,
+    isQuiet: boolean,
+    isSkippedSuccess = false,
+): Promise<boolean> {
     console.log(`watching run ${runId} (state: ${statePath(runId)})`);
 
     let backoffMs = INITIAL_BACKOFF_MS;
@@ -533,7 +559,9 @@ async function didRunSucceed(runId: string, isQuiet: boolean): Promise<boolean> 
         if (state.status === 'completed') {
             // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
             await notify(formatCiNotification(state), state.url);
-            return state.conclusion === 'success';
+            return isSkippedSuccess
+                ? isSuccessfulConclusion(state.conclusion)
+                : state.conclusion === 'success';
         }
         // eslint-disable-next-line no-await-in-loop -- watch loop: fixed poll cadence
         await sleep(POLL_INTERVAL_MS);
@@ -542,9 +570,15 @@ async function didRunSucceed(runId: string, isQuiet: boolean): Promise<boolean> 
 
 async function main(): Promise<void> {
     let options: CliOptions;
-    let runIds: string[];
+    let runIds: string[] = [];
     try {
         options = parseArguments(process.argv.slice(2));
+        if (options.sha) {
+            const failed = await followAndReport(options.sha, (runId) =>
+                didRunSucceed(runId, options.quiet, true),
+            );
+            process.exit(failed.length === 0 ? 0 : 1);
+        }
         runIds = options.pr
             ? await resolvePrRuns(options.pr, options.workflow)
             : [options.run ?? (await resolveRunId(options.branch))];
