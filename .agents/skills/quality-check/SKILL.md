@@ -46,7 +46,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   contracts, which scan that source tree at runtime without importing individual files. A deleted
   or renamed path, or an edit to `doctor.config.jsonc` or `components.json`, also runs
   `scripts/__tests__/doctor-config-paths.test.ts`, because those configs name source paths as
-  plain strings.
+  plain strings. A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
+  guards runs `scripts/__tests__/directory-density-ratchet.test.ts`, which counts files on disk.
 - For added or changed production structured-log writes, explicitly include
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.
