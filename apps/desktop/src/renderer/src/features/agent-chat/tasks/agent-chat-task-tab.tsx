@@ -43,7 +43,11 @@ import { AgentChatTimelineEntryView } from '../transcript/agent-chat-timeline-en
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
 import { AgentChatTaskOutput } from './agent-chat-task-output';
-import { agentChatTaskBilledUsage, agentChatTaskKind } from './agent-chat-tasks';
+import {
+    agentChatTaskBilledUsage,
+    agentChatTaskKind,
+    agentChatTaskTitle,
+} from './agent-chat-tasks';
 
 /**
  * An ended subagent's transcript can still gain its last response after the task reports it ended, so its usage is
@@ -288,11 +292,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
     const { projection, task, isUnavailable } = useAgentChatTask(tab.terminalId, tab.taskId);
     const snapshot = projection.data;
     const kind = agentChatTaskKind(task, snapshot);
-    const taskTitle = task?.title.trim() ?? '';
-    const title =
-        taskTitle === ''
-            ? t(kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent')
-            : taskTitle;
+    const title = agentChatTaskTitle({ kind, title: task?.title.trim() ?? '' }, t);
     const isRunning = task?.status === 'running';
     // The same sweep setting as the Chat pane: the CSS keys off this ancestor attribute.
     const { statusShimmer } = useLoadingStyle();

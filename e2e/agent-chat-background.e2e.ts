@@ -8,6 +8,7 @@ import {
     fakeCodexChatAgentMode,
     openAgentChat,
 } from './support/agent-chat-fixture.ts';
+import { openBackgroundWork } from './support/agent-chat-status-row.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -48,7 +49,8 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
 
         await message.fill('start a subagent hold');
         await message.press('Enter');
-        const strip = chat.getByRole('region', { name: 'Background work' });
+        // The status row's Background work popover lists the running subagent.
+        const strip = await openBackgroundWork(page, chat);
         const openSubagent = strip.getByRole('button', { name: /^Open Inspect the fixtures/u });
         await expect(openSubagent).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-subagent-strip.png') });
@@ -70,7 +72,11 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
         await message.fill('run it in the background');
         await message.press('Enter');
         await expect(chat.getByText('The dev server is running in the background.')).toBeVisible();
-        await strip.getByRole('button', { name: /^Open .*bun run dev/u }).click();
+        await (
+            await openBackgroundWork(page, chat)
+        )
+            .getByRole('button', { name: /^Open .*bun run dev/u })
+            .click();
         const shell = page.getByRole('region', { name: /bun run dev/u });
         await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-shell-tab.png') });
@@ -112,7 +118,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
 
         await message.fill('slow please');
         await message.press('Enter');
-        await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
         await message.fill('hello after this');
         await expect(chat.getByRole('button', { name: 'Queue message' })).toBeVisible();
         await message.press('Enter');
@@ -138,11 +144,16 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await expectComposerValue(message, 'hello refuse');
         await expect(chat.locator('[data-agent-chat-pending]')).toHaveCount(0);
         await message.fill('hello steer');
-        await message.press('ControlOrMeta+Enter');
+        // Holding the steer modifier turns Send into Steer before Enter is pressed.
+        await page.keyboard.down('ControlOrMeta');
+        await expect(chat.getByRole('button', { name: 'Steer', exact: true })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-steer-held.png') });
+        await page.keyboard.press('Enter');
+        await page.keyboard.up('ControlOrMeta');
         await expect(chat.getByText('Steered')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-steered.png') });
 
-        await chat.getByRole('button', { name: 'Stop' }).click();
+        await chat.getByRole('button', { name: 'Stop', exact: true }).click();
         await expect(chat.getByText('Queue paused')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-paused.png') });
         // Editing takes the message out of the queue and back into the empty composer.
@@ -181,17 +192,20 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await expect(chat.getByText('Queued', { exact: true })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-queue-drained.png') });
 
-        // With nothing typed, Enter steers the queued message into the running turn, and the placeholder says so.
+        // With nothing typed, Enter steers the queued message into the running turn, and its row's chip says so.
         await message.fill('slow please');
         await message.press('Enter');
-        await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
         await message.fill('hello fourth');
         await message.press('Enter');
         await expect(queue.getByText('hello fourth')).toBeVisible();
-        await expect(message).toHaveAttribute(
-            'aria-placeholder',
-            'Enter to steer the queued message, or type a follow-up',
-        );
+        await expect(message).toHaveAttribute('aria-placeholder', 'Type a follow-up');
+        await expect(
+            queue
+                .getByRole('listitem')
+                .filter({ hasText: 'hello fourth' })
+                .locator('[data-agent-chat-queue-enter-hint]'),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-empty-enter.png') });
         await message.press('Enter');
         await expect(queue).toHaveCount(0);
@@ -236,16 +250,21 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
 
         await message.fill('run in background');
         await message.press('Enter');
-        const strip = chat.getByRole('region', { name: 'Background work' });
+        const strip = await openBackgroundWork(page, chat);
         await strip.getByRole('button', { name: /^Open / }).click();
         // The Bash call's description names the shell; its tab still shows the command line above the output.
-        await expect(strip.getByRole('button', { name: 'Open Print ticks' })).toBeVisible();
+        await expect(
+            (await openBackgroundWork(page, chat)).getByRole('button', {
+                name: 'Open Print ticks',
+            }),
+        ).toBeVisible();
         const shell = page.getByRole('region', { name: 'Print ticks' });
         await expect(shell.getByText(/^\$ while true/u)).toBeVisible();
         await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-shell-tab.png') });
         await strip.getByRole('button', { name: /^Stop / }).click();
-        // The strip is live status: it leaves once nothing runs.
+        // The status row is live status: it folds away, popover and all, once nothing runs.
+        await expect(chat.locator('[data-agent-chat-status-row]')).toHaveCount(0);
         await expect(strip).toHaveCount(0);
         await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('claude-shell-stopped.png') });

@@ -36,7 +36,7 @@ describe('agentChatContextUsage', () => {
     it('measures pressure against the smaller compaction window', () => {
         const usage = agentChatContextUsage({
             usage: {
-                totalTokens: 200_000,
+                totalTokens: 250_000,
                 contextWindow: 1_000_000,
                 compactWindow: 280_000,
                 breakdown: [{ label: 'Messages', tokens: 190_000 }],
@@ -66,11 +66,10 @@ describe('agentChatContextUsage', () => {
         expect(agentChatContextLimit(200_000, undefined)).toBe(200_000);
     });
 
-    it('warns from 60% of the window and stays a warning past 85%, since a full context is advice', () => {
+    it('warns from 85% of the window, where compacting is suggested, and stays a warning when full', () => {
         const tone = (totalTokens: number) =>
             agentChatContextUsage({ usage: { totalTokens, contextWindow: 100_000 } })?.tone;
-        expect(tone(59_999)).toBe('normal');
-        expect(tone(60_000)).toBe('warning');
+        expect(tone(84_999)).toBe('normal');
         expect(tone(85_000)).toBe('warning');
         expect(tone(100_000)).toBe('warning');
     });

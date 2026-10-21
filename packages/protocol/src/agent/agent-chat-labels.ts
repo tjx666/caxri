@@ -38,7 +38,7 @@ export function shortDurationParts(durationMs: number): { minutes: number; secon
 }
 
 /**
- * A short elapsed time for a finished Agent turn or tool call: `<1s`, `45s`, `2m`, `2m 1s` (`2 分钟 1 秒` in Chinese, as
+ * A short elapsed time for a finished Agent turn or tool call: `<1s`, `45s`, `2m`, `2m 1s` (`2 分 1 秒` in Chinese, as
  * the Codex app writes it). Rounds to whole seconds because the reader compares turns, not milliseconds. Returns `null`
  * when no duration was recorded.
  */

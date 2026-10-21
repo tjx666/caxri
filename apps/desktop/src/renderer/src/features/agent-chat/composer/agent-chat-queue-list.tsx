@@ -3,9 +3,9 @@ import { useState } from 'react';
 
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 import {
+    ArrowUpToLine,
     CircleAlert,
     CornerDownLeft,
-    CornerDownRight,
     Pause,
     Pencil,
     Play,
@@ -13,6 +13,7 @@ import {
     Trash2,
 } from 'lucide-react';
 
+import { ShortcutBadge } from '../../../components/shortcut-badge';
 import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -43,7 +44,12 @@ import {
  */
 function noop(): void {}
 
-const ACTION_CLASS_NAME = 'text-muted not-aria-disabled:hover:text-foreground';
+/**
+ * Row actions stay out of sight until the row is hovered or holds focus, so a queue reads as the messages themselves.
+ * They are only transparent, never removed, so Tab still reaches them and reveals them.
+ */
+const ACTION_CLASS_NAME =
+    'size-6 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 not-aria-disabled:hover:text-foreground';
 
 /**
  * One card action behind its tooltip. An unavailable action stays focusable and pointable (`ACTION_CLASS_NAME`), and
@@ -52,20 +58,16 @@ const ACTION_CLASS_NAME = 'text-muted not-aria-disabled:hover:text-foreground';
 function QueueCardAction({
     ariaLabel,
     children,
-    className,
     isDisabled,
     onAction,
     onRun,
-    size,
     tooltip,
 }: {
     ariaLabel: string;
     children: ReactNode;
-    className: string;
     isDisabled: boolean;
     onAction: () => void;
     onRun: () => void;
-    size: 'icon' | 'sm';
     tooltip: string;
 }) {
     return (
@@ -73,8 +75,8 @@ function QueueCardAction({
             <Button
                 aria-disabled={isDisabled || undefined}
                 aria-label={ariaLabel}
-                className={cn(ACTION_CLASS_NAME, className)}
-                size={size}
+                className={ACTION_CLASS_NAME}
+                size="icon"
                 variant="ghost"
                 onClick={() => {
                     if (isDisabled) return;
@@ -170,11 +172,18 @@ function QueueTextEditor({
 
 function QueueCard({
     entry,
+    isEnterTarget,
+    isTurnRunning,
     onAction,
     onEdit,
     terminalId,
 }: {
     entry: AgentChatQueueEntryView;
+    /**
+     * Whether Enter in the empty composer steers this message now, which the row shows as a keycap chip.
+     */
+    isEnterTarget: boolean;
+    isTurnRunning: boolean;
     onAction: () => void;
     onEdit: (text: string) => void;
     terminalId: string;
@@ -198,12 +207,11 @@ function QueueCard({
         <li
             aria-busy={isPending}
             className={cn(
-                'flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-list-hover-background',
+                'group flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-list-hover-background',
                 isPending && 'opacity-60',
             )}
         >
             <span className="flex min-w-0 flex-1 items-center gap-2">
-                <CornerDownRight aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
                 {entry.commandLabel && (
                     <span className="shrink-0 rounded bg-elevated px-1 font-mono text-[11px] text-foreground">
                         {entry.commandLabel}
@@ -214,11 +222,20 @@ function QueueCard({
                     <span className="shrink-0 text-[11px] text-muted">{entry.imageLabel}</span>
                 )}
             </span>
+            {isEnterTarget && (
+                // Hidden while the row's own actions show, since its Steer action does the same thing.
+                <span
+                    aria-hidden="true"
+                    className="flex shrink-0 items-center gap-1 pr-1 text-[11px] text-muted group-focus-within:hidden group-hover:hidden"
+                    data-agent-chat-queue-enter-hint=""
+                >
+                    <ShortcutBadge compact shortcut="enter" />
+                    {t('agentChat.queue.steer')}
+                </span>
+            )}
             <QueueCardAction
                 ariaLabel={t('agentChat.queue.editMessage')}
-                className="size-6"
                 isDisabled={!entry.canEdit}
-                size="icon"
                 tooltip={labels.editTooltip}
                 // A message with images is edited in its row, which keeps focus there until it closes.
                 onAction={entry.imageCount > 0 ? noop : onAction}
@@ -235,9 +252,7 @@ function QueueCard({
             </QueueCardAction>
             <QueueCardAction
                 ariaLabel={t('agentChat.queue.deleteMessage')}
-                className="size-6"
                 isDisabled={isPending}
-                size="icon"
                 tooltip={labels.deleteTooltip}
                 onAction={onAction}
                 onRun={() => removeAgentChatQueued(terminalId, entry.id)}
@@ -246,15 +261,16 @@ function QueueCard({
             </QueueCardAction>
             <QueueCardAction
                 ariaLabel={labels.sendAriaLabel}
-                className="min-h-6 shrink-0 gap-1 px-1.5"
                 isDisabled={!entry.canSendNow}
-                size="sm"
                 tooltip={labels.sendTooltip}
                 onAction={onAction}
                 onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
             >
-                <CornerDownLeft className="size-3.5" />
-                {labels.sendText}
+                {isTurnRunning ? (
+                    <ArrowUpToLine className="size-3.5" />
+                ) : (
+                    <CornerDownLeft className="size-3.5" />
+                )}
             </QueueCardAction>
         </li>
     );
@@ -262,11 +278,14 @@ function QueueCard({
 
 /**
  * Follow-ups waiting for the running turn, in the order Server Core will send them, as one list just above the
- * composer. Each can be taken back into the composer, deleted, or sent now (steering the running turn). After the user
- * stops a turn the queue pauses instead of firing the next message by surprise, and says so with a Resume action; a
- * pause caused by a failed send says that in `--danger` and offers Retry instead (`agentChatQueueHeader`).
+ * composer. Each row shows only the message until hovered or focused, then offers taking it back into the composer,
+ * deleting it, or sending it now (steering the running turn). The row Enter would steer from an empty composer carries
+ * an `Enter Steer` chip, so that shortcut is visible where its effect lands rather than in the placeholder. After the
+ * user stops a turn the queue pauses instead of firing the next message by surprise, and says so with a Resume action;
+ * a pause caused by a failed send says that in `--danger` and offers Retry instead (`agentChatQueueHeader`).
  */
 export function AgentChatQueueList({
+    enterQueuedId,
     isTurnRunning,
     onAction,
     onEdit,
@@ -275,6 +294,10 @@ export function AgentChatQueueList({
     snapshot,
     terminalId,
 }: {
+    /**
+     * The queued message Enter in the empty composer steers now, or `undefined` while a draft is typed or no turn runs.
+     */
+    enterQueuedId: string | undefined;
     isTurnRunning: boolean;
     /**
      * Runs after any queue action. Each one removes the control that was clicked (the card leaves the queue, or the
@@ -346,6 +369,8 @@ export function AgentChatQueueList({
                 {entries.map((entry) => (
                     <QueueCard
                         entry={entry}
+                        isEnterTarget={entry.id === enterQueuedId}
+                        isTurnRunning={isTurnRunning}
                         key={entry.id}
                         terminalId={terminalId}
                         onAction={onAction}

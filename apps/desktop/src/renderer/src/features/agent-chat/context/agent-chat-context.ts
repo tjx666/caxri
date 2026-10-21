@@ -8,15 +8,12 @@ import { localizedDuration } from '../../../lib/usage-format';
  * Share of the compaction window past which the context counts as high: the composer suggests compacting. Set close to
  * where the provider compacts on its own, so the suggestion arrives while compacting by hand still saves a turn,
  * without reading as a false alarm for most of a long conversation.
+ *
+ * The meter turns `--warning` at the same share rather than earlier: below it the ring stays a quiet neutral glyph, so
+ * a color change means "worth compacting" and not "past half full". A full context is advice to compact, not a failure,
+ * so it never turns `--danger` beside the composer's `--warning` suggestion.
  */
 const HIGH_CONTEXT_SHARE = 0.85;
-
-/**
- * Share past which the meter turns `--warning`. Answer quality starts to degrade around here. The meter stays
- * `--warning` past {@link HIGH_CONTEXT_SHARE} too: a full context is advice to compact, not a failure, so it matches the
- * composer's `--warning` suggestion instead of reading as an error beside it.
- */
-const ELEVATED_CONTEXT_SHARE = 0.6;
 
 /**
  * The smallest estimated rewrite cost, in US dollars, worth a cache notice. Below it a full re-read costs too little to
@@ -100,7 +97,7 @@ export function agentChatContextUsage(
         ...(usage.compactWindow &&
             usage.contextWindow &&
             usage.contextWindow > usage.compactWindow && { modelWindow: usage.contextWindow }),
-        tone: share >= ELEVATED_CONTEXT_SHARE ? 'warning' : 'normal',
+        tone: share >= HIGH_CONTEXT_SHARE ? 'warning' : 'normal',
         breakdown: usage.breakdown ?? [],
     };
 }

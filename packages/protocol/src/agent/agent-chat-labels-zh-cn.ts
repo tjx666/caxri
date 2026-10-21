@@ -67,8 +67,8 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     // Finished turns (`agentChatTurnLabel`) and their durations (`formatShortDuration`)
     'agentChat.fold.workedFor': '用时 {{duration}}',
     'agentChat.fold.durationSeconds': '{{seconds}}秒',
-    'agentChat.fold.durationMinutes': '{{minutes}}分钟',
-    'agentChat.fold.durationMinutesSeconds': '{{minutes}}分钟 {{seconds}}秒',
+    'agentChat.fold.durationMinutes': '{{minutes}}分',
+    'agentChat.fold.durationMinutesSeconds': '{{minutes}}分 {{seconds}}秒',
     'agentChat.fold.durationUnderOneSecond': '<1秒',
     'agentChat.fold.stoppedAfter': '{{duration}} 后停止',
     'agentChat.fold.failedAfter': '{{duration}} 后失败',

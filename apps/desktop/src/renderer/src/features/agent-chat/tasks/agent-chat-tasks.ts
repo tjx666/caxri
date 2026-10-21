@@ -6,6 +6,7 @@ import type {
 } from '@caxri/protocol';
 import { isAgentChatSubagentItem } from '@caxri/protocol';
 
+import type { Translate } from '../../../i18n';
 import { agentUsageCostLabel } from '../../status-bar/agent-usage-label';
 
 /**
@@ -100,4 +101,17 @@ export function agentChatTaskKind(
 ): AgentChatTask['kind'] {
     if (task) return task.kind;
     return projection?.output !== undefined && projection.items.length === 0 ? 'shell' : 'agent';
+}
+
+/**
+ * A task's title, or its kind when the provider gave none.
+ */
+export function agentChatTaskTitle(
+    task: Pick<AgentChatTask, 'kind' | 'title'>,
+    t: Translate,
+): string {
+    return (
+        task.title ||
+        t(task.kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent')
+    );
 }

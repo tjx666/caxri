@@ -37,9 +37,9 @@ test('an approval or question card is the waiting state, set like the Codex app'
         // The card already says the turn waits, so no waiting row wedges between it and the composer.
         await expect(stripRows).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('approval-card.png') });
-        // Typing brings the row back to say what Enter does with the draft.
+        // Typing a draft brings no key-hint row back either: the Send button's tooltip owns those keys.
         await message.fill('later');
-        await expect(stripRows).toHaveCount(1);
+        await expect(stripRows).toHaveCount(0);
         await message.fill('');
         await approval.getByRole('button', { name: 'Run', exact: true }).click();
         await expect(approval).toHaveCount(0);

@@ -1,75 +1,59 @@
 import type { AgentChatActivity, AgentChatSnapshot } from '@caxri/protocol';
 
 import { AgentChatActivityBar } from '../activity/agent-chat-activity-bar';
-import { useIsAgentChatDeliveryHintShown } from '../activity/agent-chat-delivery-hint';
 import { AgentChatContextAlerts } from '../context/agent-chat-context-alerts';
 import { AgentChatPlanPaceAlert } from '../tools/agent-chat-plan-pace-alert';
-import { agentChatDeliveryHint } from '../transcript/agent-chat-presentation';
 import type { AgentChatEditBarProperties } from './agent-chat-edit-bar';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 
 /**
- * The rows stacked above the composer's input: the activity tab, the edit bar, and the context and plan alerts. The
- * alerts give way to the activity row and the edit bar, which own the strip while they show.
+ * The rows stacked above the composer's input: the status row, the edit bar, and the context and plan alerts. The
+ * alerts give way to a busy Chat and the edit bar, which own the strip while they show.
  */
 export function AgentChatComposerNotices({
     activeTurnId,
     activity,
     edit,
     isContinuing,
-    isDrafting,
     isEditing,
-    isSteerDefault,
     notice,
     onCompact,
     onContinueInNewChat,
+    onOpenTask,
+    onPopoverClosed,
+    snapshot,
     terminalId,
-    usage,
 }: {
     activeTurnId: string | undefined;
     activity: AgentChatActivity | undefined;
     edit: AgentChatEditBarProperties | undefined;
     isContinuing: boolean;
-    /**
-     * Whether the input holds a draft; during a running turn the activity row then says what Enter does with it. The
-     * queue and steer shortcuts show only until the user learned them (`useIsAgentChatDeliveryHintShown`); Enter
-     * steering while the Agent waits on subagents (`isSteerDefault`) always says so, because it breaks the usual
-     * queueing rule.
-     */
-    isDrafting: boolean;
     isEditing: boolean;
-    isSteerDefault: boolean;
     notice: string | undefined;
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
+    onOpenTask: ((taskId: string) => void) | undefined;
+    onPopoverClosed: () => HTMLElement | null;
+    snapshot: Pick<AgentChatSnapshot, 'plan' | 'tasks' | 'turns' | 'usage'> | undefined;
     terminalId: string;
-    usage: AgentChatSnapshot['usage'] | undefined;
 }) {
     const hasStripRoom = !activity && !isEditing;
-    const deliveryHint = agentChatDeliveryHint({
-        hasDraft: isDrafting,
-        isSteerDefault,
-        isTurnRunning: activeTurnId !== undefined,
-    });
-    const showsQueueHint = useIsAgentChatDeliveryHintShown(
-        activeTurnId,
-        deliveryHint === 'queueOrSteer',
-    );
-    const shownHint = deliveryHint === 'steer' || showsQueueHint ? deliveryHint : undefined;
     return (
         <>
             <AgentChatActivityBar
                 activity={activity}
                 notice={notice}
-                deliveryHint={shownHint}
+                snapshot={snapshot}
                 terminalId={terminalId}
                 turnId={activeTurnId}
+                onOpenTask={onOpenTask}
+                onPopoverClosed={onPopoverClosed}
             />
             <AgentChatEditBar edit={edit} />
             <AgentChatContextAlerts
                 isContinuing={isContinuing}
                 isShown={hasStripRoom}
-                usage={usage}
+                usage={snapshot?.usage}
                 onCompact={onCompact}
                 onContinueInNewChat={onContinueInNewChat}
                 terminalId={terminalId}

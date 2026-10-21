@@ -94,6 +94,15 @@ describe('Agent Chat composer snapshot selection', () => {
         expect(view.snapshot).toMatchObject({ fast: true, ultracode: false });
     });
 
+    it('keeps the plan the status row leads with once a turn stops short of it', () => {
+        const plan = {
+            turnId: 'turn-1',
+            steps: [{ step: 'Reply', status: 'inProgress' as const }],
+        };
+        const view = selectAgentChatComposerView({ ...snapshot([prompt], 1), plan }, context);
+        expect(view.snapshot?.plan).toBe(plan);
+    });
+
     it('says loading before the first snapshot', () => {
         expect(selectAgentChatComposerView(undefined, context).sendBlock).toBe('loading');
     });

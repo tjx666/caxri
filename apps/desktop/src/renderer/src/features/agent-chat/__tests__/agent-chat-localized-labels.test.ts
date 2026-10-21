@@ -32,10 +32,10 @@ describe('Desktop Agent Chat labels through the shared protocol catalog', () => 
     it("writes a turn duration in the language's own units, as the Codex app does", () => {
         const zh = translateIn('zh-CN');
         expect(agentChatTurnLabel({ status: 'completed', durationMs: 93_000 }, zh)).toBe(
-            '用时 1分钟 33秒',
+            '用时 1分 33秒',
         );
         expect(agentChatTurnLabel({ status: 'completed', durationMs: 120_000 }, zh)).toBe(
-            '用时 2分钟',
+            '用时 2分',
         );
         expect(agentChatTurnLabel({ status: 'completed', durationMs: 40_000 }, zh)).toBe(
             '用时 40秒',

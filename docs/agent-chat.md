@@ -487,11 +487,11 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   breakdown share this side pane. A subagent tab is a read-only
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
-  in a Background work list above the composer, where each opens or stops on its own, and an `N
-ended` count expands the ended ones. The strip is live status, not a log: it disappears once the
-  last task ends, since the Agent reports the result in the conversation
-  (`agentChatTaskStripView` in `packages/protocol/src/agent/agent-chat-tasks.ts`, shared with the
-  phone; see [Mobile](#mobile)). A finished task stays reachable from its
+  in the composer status row's Background work popover, where each opens or stops on its own, and an `N
+ended` disclosure expands the ended ones. The row is live status, not a log: it lets go of tasks once the
+  last one ends and its failures were seen, since the Agent reports the result in the conversation
+  (`agentChatTaskStrip` in `packages/protocol/src/agent/agent-chat-tasks.ts`, whose `agentChatTaskStripView` the
+  phone shows; see [Mobile](#mobile)). A finished task stays reachable from its
   timeline row.
 
 ### Subagent rows in the sidebar
@@ -566,8 +566,9 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
 - In the composer, Enter queues during a turn and Cmd+Enter steers. While a Codex main Agent waits
   on its subagents (the active turn's newest running work is a `wait`), plain Enter steers too, as
   it does in the Codex TUI: multi-agent v2's `wait_agent` returns as soon as a steer arrives, while a
-  queued message would sit behind the whole wait. The send button then reads `Steer message`, the
-  placeholder and the activity hint say Enter steers, and a slash command still queues. The
+  queued message would sit behind the whole wait. The send button then shows the accent Steer glyph
+  and reads `Steer message`, its tooltip lists `Steer` Enter and `Stop turn` Esc, the placeholder
+  says Enter steers, and a slash command still queues. The
   provider capability `chatSteerEndsWait` owns this; Claude Code's foreground `Agent` call and Grok
   Build keep Enter queueing. Codex's older v1 `wait` does not wake on a steer, so there the steered
   message is read once the wait returns. Queued entries form one list
@@ -806,22 +807,25 @@ several callbacks can share one item, so the transport id is never the key.
   Chats, dropping the Chats whose images changed least recently first, deleted once the message
   that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer opens a list of the prompts this Chat sent, as LobeHub's chat input does: newest at the bottom nearest the input, a prompt sent again listed once at its newest place, at most 50 rows, and the highlighted prompt previewed in the input's placeholder. ArrowUp walks older without wrapping, ArrowDown past the newest closes the list, Enter or Tab (or a click) fills the input without sending, and Escape or any typed key closes it. The list is read from the user messages in the Chat's projection when it opens, so it needs no storage of its own and reaches only as far back as the projection keeps (see `truncated`). ArrowUp is left alone while the input holds text, an image is attached, a message is being edited, or another composer menu is open. A filled prompt is an ordinary draft and persists like one. Ctrl+S stashes the draft (text, caret, attachments, and Goal mode) and empties the input, as Claude Code's prompt stash does, so a quick question can go first; the placeholder says a stash is waiting, Ctrl+S in an empty input restores it, and it also returns by itself after the next send unless the user has started typing again, and both restores say so in the composer notice. A whitespace-only input counts as empty for a restore. Ctrl+S with a draft while a stash waits swaps the two (the draft becomes the stash and the stashed draft comes back, caret and attachments included) and the composer notice says so, so neither is lost and the key never dead-ends. While an earlier message is being edited Ctrl+S is refused with the notice "Finish or cancel the edit first". The stash lives in memory per Chat until Caxri quits, and the stashed notice says so. Ctrl+C with nothing selected empties the input and its attachments, as Claude Code's prompt does (over a selection it stays Copy); the text leaves as an ordinary edit, so Cmd+Z brings it back, while the attachments stay removed as they do when their placeholder is deleted by hand. A pasted `http(s)` URL renders in the input the way the sent message renders it: the same linkify rule finds it, it takes the accent color behind its site icon, and a pull request link's glyph and text take its state from the same cached reference preview. Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
-  the window in its popover (opened by hover, or by Enter or Space on the focused ring), and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
+  the window in its popover (opened by a click, or by Enter or Space on the focused ring, never by hover). Below 85% the
+  pie is a neutral glyph with no number; from 85%, where compacting is suggested, it turns `--warning` and shows the percentage, and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
-  A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
-  answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
+  A single status row at the top of the composer card says whether the Chat is starting or working, and after the turn
+  what still needs the user (`agentChatStatusRowView`); a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
   has spent so far, as LobeHub's composer tray does: steps, tokens (the Usage page's `total`), and
-  the cost estimated from the bundled price list (shown with a `$`), each behind an icon with a pointer tooltip. A figure still at zero
+  the cost estimated from the bundled price list (a bare figure, its currency in the tooltip), each behind an icon with a pointer tooltip. A figure still at zero
   is hidden, a single step too, and a strip narrower than 360px keeps only tokens. The elapsed time, these figures, and
   the context ring's percentage roll their changed digits to each new value (`AnimatedNumber`, see `DESIGN.md`
   "Motion"). Only a change after 1.5s of stillness rolls, so the ticking seconds and tokens climbing while a reply streams jump while minutes, steps, and cost roll; the live time keeps `0s` on a whole minute so its seconds never fade out for one tick. Server Core sums each Claude
   response once by message id (subagent responses included) and each Codex request of the parent thread from
-  `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. A compact `Esc to stop` hint follows the metrics
-  while the turn runs and drops first on a strip narrower than 480px; the `Enter to queue · ⌘Enter to steer` hint keeps only
-  its keycaps below 420px. That hint retires once learned: it shows in the first three running turns with a draft and
-  never again after the user sends during a turn (`useIsAgentChatDeliveryHintShown`, device-local); Send's tooltip
-  keeps both shortcuts. Only the label is the polite live
+  `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. The row holds no key hints: Send's tooltip
+  lists Enter (queue), ⌘Enter (steer), and Esc (stop turn), and holding Cmd or Ctrl turns Send into Steer. The plan
+  (`ListTodo 2/5`) and background work badges sit at the row's far right and each opens one popover anchored to the
+  row with only its own section; after the turn, the row leads with a running task (inline Stop), several running
+  tasks, unseen failures, or `Plan stopped at 2/5`. A failure counts as seen once the task list was opened and the
+  popover closed (`agentChatSeenTaskFailures`, per window), and only failures that ended during the latest turn light
+  up, so reopening a Chat never resurfaces old ones. Only the row's summary is the polite live
   region, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
   keeps its own text.
@@ -1084,8 +1088,9 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   (`foldAgentChatTurn`): its work and commentary sit behind a `Worked for X`, `Failed after X`, or
   `Stopped after X` row (`agentChatTurnLabel`) that a tap expands, and a turn with nothing to fold
   keeps the row, without a chevron, before its reply. The Chat view holds the expanded turn ids,
-  not the rows, so FlashList recycling never moves one turn's state onto another. The window keeps `plan`, so the phone docks Desktop's
-  one-row plan card above its composer by the same rule (`agentChatDockedPlan`: the latest plan
+  not the rows, so FlashList recycling never moves one turn's state onto another. The window keeps `plan`, so the phone docks a
+  one-row plan card above its composer (Desktop shows the same plan in its composer status row's
+  plan popover instead) (`agentChatDockedPlan`: the latest plan
   stays until the next turn starts, its step spinning only during a turn), and the line above the composer reads `agentChatActivity`:
   the turn's verb, the elapsed time after a second, `Compacting context…`, or what the turn waits
   on. The elapsed time compares the computer's `startedAt` with the phone's clock. Code lives in
@@ -1419,8 +1424,8 @@ as of the latest model response. Besides the total and the model window it can c
   none.
 - `compactWindow`: the window Claude Code compacts against (`rawMaxTokens`) when it is smaller
   than the model's, as with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or the 200K boundary on a 1M model.
-  The meter's percentage and color measure against it: `--warning` from 60%, and it stays
-  `--warning` past 85%, because a full context is advice to compact, not a failure.
+  The meter's percentage and color measure against it: `--warning` with the percentage from 85%,
+  and never `--danger`, because a full context is advice to compact, not a failure.
   The composer meter and the Context tab round the same whole percentage, and name a compaction
   point only while Claude Code reports auto-compact on (`isAutoCompactEnabled`).
 - `cacheTtlMinutes` and `lastResponseAt`: how long the prompt cache survives an idle Chat, counted

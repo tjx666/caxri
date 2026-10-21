@@ -6,7 +6,7 @@ import { elapsedTimeFigures } from '../agent-chat-elapsed-time';
 
 const CHINESE_TEMPLATES: Record<string, string> = {
     'agentChat.fold.durationSeconds': '{{seconds}}秒',
-    'agentChat.fold.durationMinutesSeconds': '{{minutes}}分钟 {{seconds}}秒',
+    'agentChat.fold.durationMinutesSeconds': '{{minutes}}分 {{seconds}}秒',
 };
 
 const chinese: AgentChatLabelTranslate = (key, parameters) =>
@@ -31,7 +31,7 @@ describe('elapsedTimeFigures', () => {
             seconds: { value: 54, prefix: '', suffix: 's' },
         });
         expect(elapsedTimeFigures(534_000, chinese)).toEqual({
-            minutes: { value: 8, prefix: '', suffix: '分钟' },
+            minutes: { value: 8, prefix: '', suffix: '分' },
             separator: ' ',
             seconds: { value: 54, prefix: '', suffix: '秒' },
         });

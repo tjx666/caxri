@@ -11,7 +11,7 @@ import {
     isAgentChatListContinuationKey,
 } from '../composer/agent-chat-composer-list';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
-import type { agentChatSendTooltip } from '../transcript/agent-chat-presentation';
+import type { agentChatSendTooltip } from '../composer/send/agent-chat-send-tooltip';
 import { agentChatSendRefusal } from '../transcript/agent-chat-presentation';
 import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
 
