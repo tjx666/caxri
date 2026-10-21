@@ -13,6 +13,7 @@ import { getSelectedSession } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import type { ToastAction } from '../../stores/toast-actions';
 import { describeFailure, isCancelledRequest, pushToast, tryCommand } from '../../stores/toasts';
+import { revealSecondarySidebar } from '../secondary-sidebar/secondary-sidebar-visibility';
 import { dispatchCoreViewCommand } from './core-view-commands';
 import {
     currentViewEventContext,
@@ -136,7 +137,7 @@ export async function invalidateControlledViewSnapshot(viewId: string): Promise<
 function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string): void {
     const container = catalog.containers.find(({ id }) => id === containerId);
     if (container?.location === 'secondarySidebar') {
-        useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
+        revealSecondarySidebar();
         useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(container.id);
     } else if (container?.location === 'panel')
         useChromeLayoutStore.getState().activatePanelViewContainer(container.id);

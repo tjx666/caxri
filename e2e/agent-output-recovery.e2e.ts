@@ -6,13 +6,8 @@ import process from 'node:process';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
-import {
-    createProjectSession,
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-    revealSettingsSection,
-} from './support/helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 interface RecoverySettingsSnapshot {
     enabled: boolean;

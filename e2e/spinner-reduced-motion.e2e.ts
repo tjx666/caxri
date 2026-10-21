@@ -4,12 +4,8 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { expect, test } from './support/fixtures.ts';
-import {
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-    revealSettingsSection,
-} from './support/helpers.ts';
+import { launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 test('Mobile Access loading spinner stops when reduced motion is enabled', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-spinner-motion-'));
@@ -25,15 +21,13 @@ test('Mobile Access loading spinner stops when reduced motion is enabled', async
         const settingsTab = await openSettingsTab(running.page);
         await revealSettingsSection(settingsTab, 'Mobile');
         await expect(settingsTab.getByTestId('mobile-access-form')).toBeVisible();
-        const sections = settingsTab.getByRole('tablist', { name: 'Settings sections' });
         // Leave the Settings section so the Mobile Access form unmounts. Closing the whole Settings tab (issue
         // caxri#1289) would also drop the loaded configuration and make the reopened tab wait on the frozen Server.
-        await sections.getByRole('tab', { name: 'Keybindings' }).click();
+        await openSettingsSection(settingsTab, 'Keybindings');
         await expect(settingsTab.getByTestId('mobile-access-form')).toHaveCount(0);
         serverPid = (await pageRequest<{ pid: number }>(running.page, 'host.status')).pid;
         // Freeze only the isolated Server after Settings has bootstrapped, keeping the remounted form in loading state.
         process.kill(serverPid, 'SIGSTOP');
-        await sections.getByRole('tab', { name: 'Settings', exact: true }).click();
         await revealSettingsSection(settingsTab, 'Mobile');
         const loading = settingsTab.locator('[role="status"]', {
             hasText: 'Loading mobile access…',

@@ -11,7 +11,6 @@ import {
     createShellSession,
     launchCaxri,
     openPanelView,
-    openSettingsTab,
     pageRequest,
     runtimeStatus,
     selectedSessionId,
@@ -20,6 +19,7 @@ import {
     VISIBLE_SESSION,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 test('complete local workbench workflow, recovery, privacy, and persistence', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-'));
@@ -111,7 +111,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 
         const settingsTab = await openSettingsTab(running.page);
-        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Theme');
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
         await running.page.getByRole('button', { name: 'Source' }).click();
         // Scoped by `data-config-source`, not by accessible name: `ConfigurationEditor` passes the

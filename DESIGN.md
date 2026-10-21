@@ -838,7 +838,7 @@ layer:
    variants are equivalent (see upstream debate in shadcn-ui/ui#10267).
 2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions): every
    user-triggered section disclosure: PrimarySidebar Project, Files search groups, Git
-   repository/history, Project Status sections. The measured SecondarySidebar/Settings
+   repository/history, Project Status sections. The measured SecondarySidebar/Panel
    chrome tab indicator also uses a native transform/width transition, but only for a move to
    another tab of the same owner: a Session switch (each Session keeps its own container), the
    first placement, and a resize put it in place at once.
@@ -1410,6 +1410,12 @@ Escape, an outside press, or a collapsed selection. References: Synara, LibreCha
 this one tab instead of raising a dialog, so it composes with every other document (the Archived
 Sessions manager still floats its own confirmation dialog over it, exactly as it would over any
 other tab). Its description reads: "Changes apply immediately and are stored as editable files."
+It has exactly one navigation: a left column listing the `settings.jsonc` categories and their
+subcategories, then Keybindings and Theme after a separator. No horizontal section strip sits above
+it: the Workbench tab bar is already the page's only tab row. The column stays mounted and in place
+for every section and for the Source view; picking a category from Keybindings, Theme, or Source
+returns to the Settings list scrolled to it. The current category takes `aria-current="location"`,
+the current file section `aria-current="page"`.
 Field labels in plain language; byte values rendered as human units (`2 MB`) with unit-aware
 input. There is no Apply button and no per-section dirty marker: a structured control writes as
 soon as it changes, and the raw source editor commits when it loses focus, reporting a parse

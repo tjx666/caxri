@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import type { ThemeTokens } from '@caxri/protocol';
 
 import { expect, test } from './support/fixtures.ts';
-import { launchCaxri, openSettingsTab, pageRequest } from './support/helpers.ts';
+import { launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 test('Theme presets apply, persist, and detach after a color edit', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-theme-presets-e2e-'));
@@ -16,7 +17,7 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         let settingsTab = await openSettingsTab(running.page);
-        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Theme');
         const preset = settingsTab.getByRole('combobox', { name: 'Theme preset' });
         await expect(preset).toContainText('Dracula');
 
@@ -61,7 +62,7 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
         // mount, proving the choice was actually persisted rather than just still sitting in memory.
         await running.page.keyboard.press('Meta+w');
         settingsTab = await openSettingsTab(running.page);
-        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Theme');
         const restoredPreset = settingsTab.getByRole('combobox', { name: 'Theme preset' });
         await expect(restoredPreset).toContainText('Solarized Light');
 

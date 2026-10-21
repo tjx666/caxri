@@ -9,13 +9,13 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
-    openSettingsTab,
     pageRequest,
     selectedSessionId,
     sessionCard,
     VISIBLE_SESSION,
     VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 async function quickSwitch(page: Parameters<typeof selectedSessionId>[0]): Promise<void> {
     await page.keyboard.down('Meta');
@@ -304,7 +304,7 @@ test('Session MRU custom binding ignores ordinary and composing input and commit
         });
 
         const settingsTab = await openSettingsTab(running.page);
-        await settingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Keybindings');
         await settingsTab.getByLabel('Search keyboard shortcuts').fill('session.switchMru');
         await expect(settingsTab.locator('[data-shortcut="ctrl+alt+m"]')).toBeVisible();
         // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies

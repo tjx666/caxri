@@ -11,18 +11,23 @@ import type {
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
-import { cn } from '@/lib/utilities';
 
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { SettingRow } from './setting-row';
-import type { SettingRowDescriptor, SettingsCategory } from './settings-registry';
+import type { SettingRowDescriptor } from './settings-registry';
 import { agentProviderForSubcategory, useSettingsRegistry } from './settings-registry';
 import type { SettingsListItem } from './settings-search';
 import { buildSettingsList, countRowsByCategory, filterSettingsRows } from './settings-search';
 import { SettingsSearchInput } from './settings-search-input';
 import { settingsActiveAnchor, settingsAnchorOf } from './settings-toc';
 import { rowResetAction } from './settings-values';
+
+export interface SettingsNavigationState {
+    activeAnchor?: string;
+    counts: Partial<Record<string, number>>;
+    searching: boolean;
+}
 
 export interface SettingsPageProperties {
     settings: AppSettings;
@@ -46,109 +51,25 @@ export interface SettingsPageProperties {
      * on the first open of a session the dialog's focus resolution runs against a tab panel that is still empty.
      */
     searchFocusRequestId?: number;
+    /**
+     * Scrolls to a category or `category:subcategory` anchor picked in the Settings navigation.
+     */
+    anchorRequest?: { id: number; anchor: string };
+    /**
+     * Called once {@link anchorRequest} has been handled, so its owner can drop it.
+     */
+    onAnchorRequestHandled?: (id: number) => void;
+    /**
+     * Reports what the Settings navigation, which lives outside this page, highlights and counts. Called with
+     * `undefined` on unmount, when the list it describes is gone.
+     */
+    onNavigationStateChange?: (state: SettingsNavigationState | undefined) => void;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onFieldChange: <K extends keyof AppSettings>(
         key: K,
         value: AppSettings[K],
         member?: string,
     ) => void;
-}
-
-/**
- * A hovered entry gets a lighter wash than the current one, which also takes a heavier weight, so the entry under the
- * pointer never reads as a second current location.
- */
-const TOC_ENTRY_CLASS =
-    'flex h-7 w-full cursor-pointer items-center rounded border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-elevated/50 hover:text-foreground';
-const TOC_ACTIVE_CLASS = 'bg-elevated font-medium text-foreground hover:bg-elevated';
-
-interface SettingsTocProperties {
-    categories: SettingsCategory[];
-    counts: Partial<Record<string, number>>;
-    activeAnchor?: string;
-    searching: boolean;
-    onNavigate: (anchor: string) => void;
-}
-
-function SettingsToc({
-    categories,
-    counts,
-    activeAnchor,
-    searching,
-    onNavigate,
-}: SettingsTocProperties) {
-    const { t } = useTranslation();
-    return (
-        <nav
-            aria-label={t('settings.page.categoriesNav')}
-            className="min-h-0 overflow-y-auto py-2 pl-2"
-        >
-            <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-                {categories.map((category) => {
-                    const count = counts[category.id] ?? 0;
-                    if (searching && count === 0) return null;
-                    // A subcategory carries the location on its own, so `aria-current` names exactly one entry.
-                    const isActive = activeAnchor === category.id;
-                    return (
-                        <li key={category.id}>
-                            <button
-                                type="button"
-                                aria-current={isActive ? 'location' : undefined}
-                                className={cn(
-                                    TOC_ENTRY_CLASS,
-                                    'justify-between gap-2',
-                                    isActive && TOC_ACTIVE_CLASS,
-                                )}
-                                onClick={() => onNavigate(category.id)}
-                            >
-                                <span className="truncate">{category.title}</span>
-                                {searching && (
-                                    <span className="text-[10px] text-muted">{count}</span>
-                                )}
-                            </button>
-                            {category.subcategories.length > 0 && (
-                                <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-                                    {category.subcategories.map((subcategory) => {
-                                        const anchor = `${category.id}:${subcategory}`;
-                                        // A subcategory with no matches has no heading in the
-                                        // filtered list, so its TOC entry would be a dead click.
-                                        if (searching && (counts[anchor] ?? 0) === 0) return null;
-                                        const provider = agentProviderForSubcategory(subcategory);
-                                        return (
-                                            <li key={anchor}>
-                                                <button
-                                                    type="button"
-                                                    aria-current={
-                                                        activeAnchor === anchor
-                                                            ? 'location'
-                                                            : undefined
-                                                    }
-                                                    className={cn(
-                                                        TOC_ENTRY_CLASS,
-                                                        'gap-2 pl-6',
-                                                        activeAnchor === anchor && TOC_ACTIVE_CLASS,
-                                                    )}
-                                                    onClick={() => onNavigate(anchor)}
-                                                >
-                                                    {provider && (
-                                                        <AgentIdentityIcon
-                                                            identity={provider}
-                                                            size={13}
-                                                        />
-                                                    )}
-                                                    <span className="truncate">{subcategory}</span>
-                                                </button>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            )}
-                        </li>
-                    );
-                })}
-            </ul>
-        </nav>
-    );
 }
 
 function SubcategoryHeading({ title }: { title: string }) {
@@ -171,9 +92,9 @@ const estimateItemSize = (item: SettingsListItem): number => {
 };
 
 /**
- * VS Code-style Settings surface: search on top, category table of contents left, and one virtualized flat list of
- * headings and rows right. Rendering stays schema-driven: rows come from the Settings registry, so the list scales to
- * any number of settings without DOM cost.
+ * VS Code-style Settings list: search on top over one virtualized flat list of headings and rows. Its table of contents
+ * is `SettingsNavigation`, rendered by the Workbench page so it also stays over Keybindings and Theme. Rendering stays
+ * schema-driven: rows come from the Settings registry, so the list scales to any number of settings without DOM cost.
  */
 export function SettingsPage(properties: SettingsPageProperties) {
     const { settings, argvConfig, trustedDomainsFocusRequestId } = properties;
@@ -189,6 +110,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const handledGitExclusionsFocusRequest = useRef(0);
     const handledRowFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
+    const handledAnchorRequest = useRef(0);
 
     useFocusOnRevision(properties.searchFocusRequestId, searchInputReference);
 
@@ -242,12 +164,31 @@ export function SettingsPage(properties: SettingsPageProperties) {
         setQuery(next);
     };
 
-    const navigate = (anchor: string): void => {
-        const index = list.findIndex((item) => settingsAnchorOf(item) === anchor);
+    const { anchorRequest, onAnchorRequestHandled, onNavigationStateChange } = properties;
+    useEffect(() => {
+        if (!anchorRequest || handledAnchorRequest.current === anchorRequest.id) return;
+        // A request from Keybindings, Theme, or Source mounts this list first; scrolling before the virtualizer has a
+        // range silently does nothing, so wait for measured items like the focus requests below.
+        if (virtualItems.length === 0 && list.length > 0) return;
+        handledAnchorRequest.current = anchorRequest.id;
+        onAnchorRequestHandled?.(anchorRequest.id);
+        const index = list.findIndex((item) => settingsAnchorOf(item) === anchorRequest.anchor);
         if (index === -1) return;
-        setPinnedAnchor({ anchor, requests: focusRequests });
+        setPinnedAnchor({ anchor: anchorRequest.anchor, requests: focusRequests });
         virtualizer.scrollToIndex(index, { align: 'start' });
-    };
+    }, [
+        anchorRequest,
+        focusRequests,
+        list,
+        onAnchorRequestHandled,
+        virtualizer,
+        virtualItems.length,
+    ]);
+
+    useEffect(() => {
+        onNavigationStateChange?.({ activeAnchor, counts, searching: isSearching });
+    }, [activeAnchor, counts, isSearching, onNavigationStateChange]);
+    useEffect(() => () => onNavigationStateChange?.(undefined), [onNavigationStateChange]);
 
     // A `trusted-domains` open request scrolls the row into view; the mounted editor then grabs
     // focus through its own `focusRequestId` effect.
@@ -370,72 +311,60 @@ export function SettingsPage(properties: SettingsPageProperties) {
                     </p>
                 )}
             </div>
-            <div className="grid min-h-0 grid-cols-[168px_minmax(0,1fr)] overflow-hidden">
-                <SettingsToc
-                    activeAnchor={activeAnchor}
-                    categories={categories}
-                    counts={counts}
-                    searching={isSearching}
-                    onNavigate={navigate}
-                />
-                {/* Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not. */}
-                <div
-                    ref={scrollParentReference}
-                    className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1"
-                    onKeyDown={releasePinnedAnchor}
-                    onPointerDown={(event) => {
-                        if (event.target === event.currentTarget) releasePinnedAnchor();
-                    }}
-                    onTouchMove={releasePinnedAnchor}
-                    onWheel={releasePinnedAnchor}
-                >
-                    {list.length === 0 ? (
-                        <p className="px-3 py-6 text-center text-[12px] text-muted">
-                            {t('settings.page.noMatches', { query: query.trim() })}
-                        </p>
-                    ) : (
-                        <div
-                            className="relative w-full"
-                            style={{ height: virtualizer.getTotalSize() }}
-                        >
-                            {virtualItems.map((virtualItem) => {
-                                const item = list[virtualItem.index];
-                                return (
-                                    <div
-                                        key={virtualItem.key}
-                                        ref={virtualizer.measureElement}
-                                        data-index={virtualItem.index}
-                                        className="absolute top-0 left-0 w-full"
-                                        style={{
-                                            transform: `translateY(${virtualItem.start}px)`,
-                                        }}
-                                    >
-                                        {item.kind === 'category' && (
-                                            <h3 className="m-0 px-3 pt-4 pb-1 text-[15px] font-semibold text-foreground">
-                                                {item.category.title}
-                                            </h3>
-                                        )}
-                                        {item.kind === 'subcategory' && (
-                                            <SubcategoryHeading title={item.title} />
-                                        )}
-                                        {item.kind === 'row' && (
-                                            <SettingRow
-                                                agentHookHealth={properties.agentHookHealth}
-                                                agentSkillHealth={properties.agentSkillHealth}
-                                                context={{ argvConfig, settings }}
-                                                handlers={handlers}
-                                                row={item.row}
-                                                trustedDomainsFocusRequestId={
-                                                    trustedDomainsFocusRequestId
-                                                }
-                                            />
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
+            {/* Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not. */}
+            <div
+                ref={scrollParentReference}
+                className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1"
+                onKeyDown={releasePinnedAnchor}
+                onPointerDown={(event) => {
+                    if (event.target === event.currentTarget) releasePinnedAnchor();
+                }}
+                onTouchMove={releasePinnedAnchor}
+                onWheel={releasePinnedAnchor}
+            >
+                {list.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-[12px] text-muted">
+                        {t('settings.page.noMatches', { query: query.trim() })}
+                    </p>
+                ) : (
+                    <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+                        {virtualItems.map((virtualItem) => {
+                            const item = list[virtualItem.index];
+                            return (
+                                <div
+                                    key={virtualItem.key}
+                                    ref={virtualizer.measureElement}
+                                    data-index={virtualItem.index}
+                                    className="absolute top-0 left-0 w-full"
+                                    style={{
+                                        transform: `translateY(${virtualItem.start}px)`,
+                                    }}
+                                >
+                                    {item.kind === 'category' && (
+                                        <h3 className="m-0 px-3 pt-4 pb-1 text-[15px] font-semibold text-foreground">
+                                            {item.category.title}
+                                        </h3>
+                                    )}
+                                    {item.kind === 'subcategory' && (
+                                        <SubcategoryHeading title={item.title} />
+                                    )}
+                                    {item.kind === 'row' && (
+                                        <SettingRow
+                                            agentHookHealth={properties.agentHookHealth}
+                                            agentSkillHealth={properties.agentSkillHealth}
+                                            context={{ argvConfig, settings }}
+                                            handlers={handlers}
+                                            row={item.row}
+                                            trustedDomainsFocusRequestId={
+                                                trustedDomainsFocusRequestId
+                                            }
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );

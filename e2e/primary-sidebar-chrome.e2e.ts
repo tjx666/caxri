@@ -11,7 +11,6 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
-    openSettingsTab,
     pageRequest,
     pressNewTerminal,
     selectedSessionId,
@@ -19,6 +18,7 @@ import {
     VISIBLE_SESSION,
 } from './support/helpers.ts';
 import { dismissContextMenu, waitForContextMenu } from './support/native-context-menu.ts';
+import { openSettingsTab } from './support/settings.ts';
 
 test('primarySidebar titlebar is logo-free, holds only history and the Activity toggle, and stays draggable', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));

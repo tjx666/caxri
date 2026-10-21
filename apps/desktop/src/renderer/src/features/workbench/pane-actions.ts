@@ -1,6 +1,7 @@
 import type {
     PaneFocusDirection,
     PaneLayout,
+    PaneLayoutNode,
     PaneResource,
     PaneSplitSide,
     PaneTab,
@@ -64,9 +65,30 @@ export function movePaneTab(tabId: string, targetPaneId: string, targetIndex?: n
     if (layout) applyPaneLayout(moveTab(layout, tabId, targetPaneId, targetIndex));
 }
 
-export function splitPaneTab(tabId: string, targetPaneId: string, side: PaneSplitSide): void {
+/**
+ * `ratio` is the first child's share of the new split, applied in the same layout write so the panes (and any Terminal
+ * in them) settle at it directly instead of resizing through the default half first.
+ */
+export function splitPaneTab(
+    tabId: string,
+    targetPaneId: string,
+    side: PaneSplitSide,
+    ratio?: number,
+): void {
     const layout = getPaneLayout();
-    if (layout) applyPaneLayout(splitTabIntoPane(layout, tabId, targetPaneId, side));
+    if (!layout) return;
+    const next = splitTabIntoPane(layout, tabId, targetPaneId, side);
+    const splitId =
+        ratio === undefined || next === layout || !next.activePaneId
+            ? undefined
+            : parentSplitId(next.root, next.activePaneId);
+    applyPaneLayout(splitId && ratio !== undefined ? resizeSplit(next, splitId, ratio) : next);
+}
+
+function parentSplitId(node: PaneLayoutNode, paneId: string): string | undefined {
+    if (node.type === 'pane') return undefined;
+    if (node.first.id === paneId || node.second.id === paneId) return node.id;
+    return parentSplitId(node.first, paneId) ?? parentSplitId(node.second, paneId);
 }
 
 export function resizePaneSplit(splitId: string, ratio: number): void {

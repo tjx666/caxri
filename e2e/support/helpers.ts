@@ -645,32 +645,6 @@ export async function splitTerminalToRight(page: Page, terminalId: string): Prom
 }
 
 /**
- * Presses `Cmd+,` and returns the Settings surface, scoped by `data-settings-page`. Settings is a Workbench document
- * tab (`caxri-settings://workbench`), not a modal, so there is no `role="dialog"` left to query within: this attribute
- * is the replacement scope every Settings-touching test should use in its place. Reissuing `Cmd+,` while the tab is
- * already open focuses it rather than duplicating it, so this is also the right call for "come back to Settings" after
- * navigating elsewhere in the Workbench.
- */
-export async function openSettingsTab(page: Page): Promise<Locator> {
-    await page.keyboard.press('Meta+,');
-    const panel = page.locator('[data-settings-page]');
-    await expect(panel).toBeVisible();
-    return panel;
-}
-
-/**
- * Scrolls the virtualized Settings list to a category or subcategory by clicking its table of contents entry. Rows
- * outside the viewport are not in the DOM at all (virtual rendering), so tests must reveal a section before interacting
- * with its rows.
- */
-export async function revealSettingsSection(dialog: Locator, name: string): Promise<void> {
-    await dialog
-        .getByRole('navigation', { name: 'Settings categories' })
-        .getByRole('button', { name, exact: true })
-        .click();
-}
-
-/**
  * Waits for a revision-bound action to stop targeting a snapshot currently being refreshed.
  */
 export async function waitForSourceControlReady(page: Page): Promise<void> {

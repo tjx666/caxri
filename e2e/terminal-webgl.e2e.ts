@@ -12,15 +12,14 @@ import {
 import {
     createShellSession,
     launchCaxri,
-    openSettingsTab,
     pageRequest,
     pressNewTerminal,
-    revealSettingsSection,
     splitTerminalToRight,
     typeTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
 import { runningWork } from './support/running-work.ts';
+import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
 import {
     createTerminalGlyphFixture,
     terminalEdgeGlyphEvidence,

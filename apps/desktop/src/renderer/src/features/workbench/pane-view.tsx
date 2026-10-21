@@ -18,10 +18,10 @@ import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
-import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSessionState, useTerminal } from '../../stores/selectors';
 import { AgentChatTerminalContent } from '../agent-chat/tasks/agent-chat-terminal-content';
 import { EditorSurface } from '../editor/editor-surface';
+import { useIsSecondarySidebarShown } from '../secondary-sidebar/secondary-sidebar-visibility';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { NewTerminalButton } from '../terminal/new-terminal-button';
 import { didPasteDropIntoTerminal } from '../terminal/terminal-drop';
@@ -452,9 +452,7 @@ export function PaneView({ isVisible, sessionId }: { isVisible: boolean; session
         setMounted({ layout, panes });
     }
     useTabFocusRecovery(layout, isVisible);
-    const isSecondarySidebarVisible = useChromeLayoutStore(
-        (state) => state.secondarySidebarVisible,
-    );
+    const isSecondarySidebarVisible = useIsSecondarySidebarShown();
     if (!layout) return null;
     return (
         <PaneViewSessionProvider value={sessionId}>

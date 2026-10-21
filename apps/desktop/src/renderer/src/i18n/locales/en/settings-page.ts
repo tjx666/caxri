@@ -5,8 +5,6 @@
 export const settingsPage = {
     'settings.page.heading': 'Settings',
     'settings.page.intro': 'Changes apply immediately and are stored as editable files.',
-    'settings.page.sections': 'Settings sections',
-    'settings.page.tab.settings': 'Settings',
     'settings.page.tab.keybindings': 'Keybindings',
     'settings.page.tab.theme': 'Theme',
     'settings.page.viewToggle': 'Settings view',

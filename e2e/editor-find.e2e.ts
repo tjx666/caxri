@@ -49,7 +49,7 @@ test('editor folding chords, app chords, and Find controls remain available', as
          * the split; either one alone passes with the app simply never binding the sequence.
          */
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `[data-settings-page]` is the
-        // replacement scope for the former `role="dialog"` query (see `openSettingsTab` in `support/helpers.ts`). This
+        // replacement scope for the former `role="dialog"` query (see `openSettingsTab` in `support/settings.ts`). This
         // is checked directly rather than through that helper because the chord below is expected to open the tab on
         // its own, without `Cmd+,`.
         const settingsTab = running.page.locator('[data-settings-page]');

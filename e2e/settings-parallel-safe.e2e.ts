@@ -3,12 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-import {
-    createShellSession,
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-} from './support/helpers.ts';
+import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 test('Settings preserves a tab selected while its initial configuration is loading', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-load-e2e-'));
@@ -39,9 +35,11 @@ test('Settings preserves a tab selected while its initial configuration is loadi
         // the gate below) but adds a retrying assertion between the press and the gate wait this
         // test deliberately keeps tight.
         const settingsTab = running.page.locator('[data-settings-page]');
-        const theme = settingsTab.getByRole('tab', { name: 'Theme', exact: true });
+        const theme = settingsTab
+            .getByRole('navigation', { name: 'Settings categories' })
+            .getByRole('button', { name: 'Theme', exact: true });
         await theme.click();
-        await expect(theme).toHaveAttribute('aria-selected', 'true');
+        await expect(theme).toHaveAttribute('aria-current', 'page');
         await running.page.evaluate(() => {
             (
                 globalThis as typeof globalThis & {
@@ -50,7 +48,7 @@ test('Settings preserves a tab selected while its initial configuration is loadi
             ).caxriE2E.releaseSettingsLoadGate();
         });
         await expect(settingsTab.getByRole('button', { name: 'Import Theme' })).toBeVisible();
-        await expect(theme).toHaveAttribute('aria-selected', 'true');
+        await expect(theme).toHaveAttribute('aria-current', 'page');
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes
         // the active tab the same way it would close any other document tab, which is the
         // tab-appropriate replacement for the old "Escape to dismiss the dialog" step this test
@@ -58,9 +56,7 @@ test('Settings preserves a tab selected while its initial configuration is loadi
         await running.page.keyboard.press('Meta+w');
         await expect(settingsTab).toHaveCount(0);
         await running.page.keyboard.press('Meta+,');
-        await expect(
-            settingsTab.getByRole('tab', { name: 'Settings', exact: true }),
-        ).toHaveAttribute('aria-selected', 'true');
+        await expect(settingsTab.getByLabel('Search settings')).toBeVisible();
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });
@@ -101,7 +97,7 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
     try {
         await createShellSession(running.page);
         const settingsTab = await openSettingsTab(running.page);
-        await settingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Keybindings');
 
         const search = settingsTab.getByLabel('Search keyboard shortcuts');
         await search.fill('secondarySidebar.toggle');

@@ -5,8 +5,6 @@ import type { settingsPage as source } from '../en/settings-page';
 export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.page.heading': '设置',
     'settings.page.intro': '更改会立即生效，并保存为可编辑的文件。',
-    'settings.page.sections': '设置分区',
-    'settings.page.tab.settings': '设置',
     'settings.page.tab.keybindings': '快捷键',
     'settings.page.tab.theme': '主题',
     'settings.page.viewToggle': '设置视图',

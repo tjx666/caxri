@@ -1,5 +1,6 @@
 import type { PaneLayout } from '@caxri/protocol';
 import {
+    agentContextTabPath,
     agentSideChatTabPath,
     agentTaskTabPath,
     agentTurnReviewTabPath,
@@ -20,6 +21,11 @@ function ids(): () => string {
 const chat = { kind: 'terminal', terminalId: 'chat' } as const;
 const firstTask = agentTaskTabPath('chat', 'task-1');
 const secondTask = agentTaskTabPath('chat', 'task-2');
+/**
+ * A Chat pane 1600px wide: the Chat keeps 800px and the side pane takes the rest of the 1596px past the splitter.
+ */
+const WIDE = 1600;
+const WIDE_RATIO = 800 / 1596;
 
 function tabId(layout: PaneLayout, path: string): string {
     const found = findResourceTabs(layout, { kind: 'file', path }).at(0);
@@ -42,15 +48,16 @@ function withTaskSidePane(): { layout: PaneLayout; chatPaneId: string } {
 describe('planAgentChatTaskTabPlacement', () => {
     it('splits the first task tab off to the right of the Chat', () => {
         const layout = createPaneLayout(chat, ids());
-        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask)).toEqual({
+        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask, WIDE)).toEqual({
             kind: 'split',
             chatPaneId: layout.root.id,
+            ratio: WIDE_RATIO,
         });
     });
 
     it('focuses a task tab that is already open', () => {
         const { layout } = withTaskSidePane();
-        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask)).toEqual({
+        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask, WIDE)).toEqual({
             kind: 'select',
             tabId: tabId(layout, firstTask),
         });
@@ -59,7 +66,7 @@ describe('planAgentChatTaskTabPlacement', () => {
     it('collects later task tabs in the existing side pane', () => {
         const { layout } = withTaskSidePane();
         const sidePane = findResourceTabs(layout, { kind: 'file', path: firstTask }).at(0)?.pane;
-        expect(planAgentChatTaskTabPlacement(layout, 'chat', secondTask)).toEqual({
+        expect(planAgentChatTaskTabPlacement(layout, 'chat', secondTask, WIDE)).toEqual({
             kind: 'open',
             paneId: sidePane?.id,
         });
@@ -69,16 +76,37 @@ describe('planAgentChatTaskTabPlacement', () => {
         const { layout } = withTaskSidePane();
         const sidePane = findResourceTabs(layout, { kind: 'file', path: firstTask }).at(0)?.pane;
         expect(
-            planAgentChatTaskTabPlacement(layout, 'chat', agentTurnReviewTabPath('chat', 'turn-1')),
+            planAgentChatTaskTabPlacement(
+                layout,
+                'chat',
+                agentTurnReviewTabPath('chat', 'turn-1'),
+                WIDE,
+            ),
         ).toEqual({ kind: 'open', paneId: sidePane?.id });
     });
 
     it('opens a side chat in the side pane the task tabs use', () => {
         const { layout } = withTaskSidePane();
         const sidePane = findResourceTabs(layout, { kind: 'file', path: firstTask }).at(0)?.pane;
-        expect(planAgentChatTaskTabPlacement(layout, 'chat', agentSideChatTabPath('chat'))).toEqual(
-            { kind: 'open', paneId: sidePane?.id },
-        );
+        expect(
+            planAgentChatTaskTabPlacement(layout, 'chat', agentSideChatTabPath('chat'), WIDE),
+        ).toEqual({ kind: 'open', paneId: sidePane?.id });
+    });
+
+    it('opens the Context breakdown in the side pane the task tabs use', () => {
+        const { layout } = withTaskSidePane();
+        const sidePane = findResourceTabs(layout, { kind: 'file', path: firstTask }).at(0)?.pane;
+        expect(
+            planAgentChatTaskTabPlacement(layout, 'chat', agentContextTabPath('chat'), WIDE),
+        ).toEqual({ kind: 'open', paneId: sidePane?.id });
+    });
+
+    it('opens an ordinary tab in the Chat pane when both minimums cannot fit', () => {
+        const layout = createPaneLayout(chat, ids());
+        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask, 783)).toEqual({
+            kind: 'tab',
+            paneId: layout.root.id,
+        });
     });
 
     it('splits again when the pane to the right holds no task tab', () => {
@@ -92,15 +120,16 @@ describe('planAgentChatTaskTabPlacement', () => {
             id,
         );
         layout = splitTabIntoPane(layout, tabId(layout, '/project/a.ts'), chatPaneId, 'right', id);
-        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask)).toEqual({
+        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask, WIDE)).toEqual({
             kind: 'split',
             chatPaneId,
+            ratio: WIDE_RATIO,
         });
     });
 
     it('falls back to the active pane when the Chat is not in the layout', () => {
         const layout = createPaneLayout({ kind: 'terminal', terminalId: 'other' }, ids());
-        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask)).toEqual({
+        expect(planAgentChatTaskTabPlacement(layout, 'chat', firstTask, WIDE)).toEqual({
             kind: 'active',
         });
     });

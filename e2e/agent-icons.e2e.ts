@@ -10,11 +10,11 @@ import {
     launchCaxri,
     openAddProjectDialog,
     openPanelView,
-    openSettingsTab,
     pageRequest,
     waitForCreatedSession,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import { openSettingsTab } from './support/settings.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 

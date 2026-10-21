@@ -104,6 +104,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 - **Activity queue placement and retention**: Left Side Bar queue (with the Codex app); 15-minute window. Evidence: `docs/activity-view.md`; `packages/protocol/src/domain/session-activity-group.ts`.
 - **Chat composer card, Plan card, drafts**: Composer drawer and tray (with LobeHub), task badge, localStorage drafts. Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-drafts.ts`.
+- **Side pane minimum width**: A 360px minimum for the pane beside the Chat, as for its right panel. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`.
 - **Long paste saved as a file**: 32 KiB threshold. Evidence: `docs/agent-chat.md`; `packages/protocol/src/agent/agent-chat-contract.ts`.
 - **Turn review, folding, work log**: Turn review and folding (with the Codex app). Evidence: `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/desktop/src/renderer/src/features/agent-chat/turns/agent-chat-turn-review-tab.tsx`.
 - **Mobile foreground recovery**: Probe or reconnect on return to foreground. Evidence: `docs/mobile/design.md`.
@@ -151,6 +152,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Sidebar subagent rows**: Indented child rows under a Session (LobeHub thread rows, 32px inset) with a bounded list and expander. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-subagent-rows.tsx`; `docs/agent-chat.md`.
 - **Chat user message images**: A sent message's images sit inside its bubble under the text, and an image-only message is still a bubble. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/messages/agent-chat-user-message.tsx`.
 - **Chat waiting popup**: `GlobalApprovalNotification` design only (code written independently): a top-center card below the title bar, one request at a time with an "N more" line, a fold to an "N pending" pill that unfolds on a new request, Chats on screen left out. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/waiting/agent-chat-waiting-popup.tsx`; `docs/agent-chat.md`.
+- **Readable Chat beside a side pane**: `fitsBesidePortal`: a 420px floor for the conversation beside a Portal, and the working sidebar steps aside while the Portal is open. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`; `docs/agent-chat.md`.
 - **Chat turn spend in the composer strip**: `OpStatusTray`: steps, tokens, and price-list cost of the running turn behind icons, split by hairlines; zero hidden, steps above one; four decimals below a cent; only tokens when narrow; no stop hint. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metric-list.tsx`; `docs/agent-chat.md`.
 
 ## Termany
