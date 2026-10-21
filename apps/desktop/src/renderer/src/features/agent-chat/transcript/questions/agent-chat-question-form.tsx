@@ -97,7 +97,7 @@ function QuestionOptionRow({
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className={cn(isRecommended && 'font-semibold')}>{text}</span>
                     {isRecommended && (
-                        <span className="rounded bg-elevated px-1.5 text-[10px] leading-4 font-semibold text-foreground">
+                        <span className="rounded bg-muted/25 px-1.5 text-[10px] leading-4 font-semibold text-foreground">
                             {t('agentChat.request.recommended')}
                         </span>
                     )}
@@ -188,7 +188,9 @@ function QuestionTabStrip({
                     ),
                 };
             })}
-            tabClassName="h-7 px-2 text-[11px]"
+            // Transparent instead of the strip's own surface fill, which showed as a dark patch on the waiting popup's
+            // raised card; the docked card is already that surface.
+            tabClassName="h-7 bg-transparent px-2 text-[11px]"
             value={String(index)}
             onValueChange={(value) => onIndexChange(Number(value))}
         />

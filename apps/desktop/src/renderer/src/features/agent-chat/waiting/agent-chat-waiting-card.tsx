@@ -57,6 +57,11 @@ export function AgentChatWaitingCard({
                             </span>
                         )}
                     </p>
+                    {/* What the user last asked, as the header's second line: set apart with a quote bar above the
+                        request's divider, it read as an empty text field. */}
+                    {chat.prompt && (
+                        <p className="m-0 mt-0.5 truncate text-[12px] text-muted">{chat.prompt}</p>
+                    )}
                 </div>
                 <Button size="sm" variant="secondary" onClick={open}>
                     <SquareArrowOutUpRight className="size-3.5" />
@@ -73,11 +78,6 @@ export function AgentChatWaitingCard({
                     </Button>
                 </Tooltip>
             </header>
-            {chat.prompt && (
-                <p className="m-0 line-clamp-2 border-l-2 border-border pl-2 text-[12px] leading-5 wrap-anywhere text-muted">
-                    {chat.prompt}
-                </p>
-            )}
             <div className="max-h-[min(480px,60vh)] overflow-y-auto border-t border-border pt-2.5">
                 <AgentChatRequestCard
                     key={request.id}
