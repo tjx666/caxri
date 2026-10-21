@@ -270,10 +270,26 @@ transcript. A Terminal Agent has no live request to read, so it only gets the tr
 reply. Rows clamp the quote to two lines and the card to three. The text is user content shown
 locally: the Server never persists or logs it, and the Renderer keeps it only in the query cache.
 
+## Past conversations
+
+The Session hover card lists every Agent conversation the Session hosted (newest binding first, up
+to 12), once at least one of them is no longer open. The record is the `agent_session_usage`
+ledger, since `terminals.agent_session_id` holds only the current binding and `/clear`, a provider
+switch, or closing the Terminal overwrites it. Titles come from Session search's index
+(`session.agentHistory`); a conversation since resumed in another Session is left out. Clicking an
+open one selects its Terminal; clicking a closed one (`session.reopenConversation`) adds a parked
+Agent Terminal bound to it in the ledger's recorded folder, and revealing that Terminal resumes the
+conversation, as an imported conversation does.
+
 ## Returning to a Session
 
-Selecting a Session whose Chat finished turns while the user was away shows a quiet pill above the
-transcript ("N turns since you last looked") with a jump to the first of them and a close button.
+Selecting a Session whose Chat finished turns while the user was away shows a quiet pill at the
+bottom of the transcript ("N turns since you last looked") with a jump to the first of them and a
+close button. The pill shows only while the first missed prompt is above the view, so one long missed
+turn still offers a way back to its start, and it shares the bottom slot with Jump to latest: it
+shows while the latest entry is in view, and once the user scrolls or jumps up, Jump to latest takes
+the slot, so the two never overlap. The bottom keeps the pointer near the composer instead of sending
+it across the pane.
 The Renderer records when the user stopped looking (Session switch, window blur, or hidden window)
 before it marks the Session read, and counts the Agent turns whose end time falls inside that
 absence, not the attention epoch, which also moves for questions inside one turn. The boundary lives

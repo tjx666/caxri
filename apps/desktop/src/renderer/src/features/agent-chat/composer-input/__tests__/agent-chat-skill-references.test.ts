@@ -28,6 +28,13 @@ describe('Agent Chat skill references', () => {
         expect(agentChatSkillMatch(index, 'Commit')).toBeUndefined();
     });
 
+    it('matches a skill hidden from user invocation, which the Agent still names', () => {
+        const withHidden = agentChatSkillIndex([action('$commit', 'skill')], ['$testing']);
+
+        expect(agentChatSkillMatch(withHidden, 'testing')).toBe('$testing');
+        expect(agentChatSkillMatch(withHidden, 'commit')).toBe('$commit');
+    });
+
     it('builds an empty index before discovery answers', () => {
         expect(agentChatSkillIndex(undefined).size).toBe(0);
     });

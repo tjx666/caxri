@@ -228,7 +228,11 @@ export function AgentChatPane({
      * `detached`, while the projection only reads `stopped`.
      */
     const terminal = useTerminal(terminalId);
-    const returnHint = useAgentChatReturnHint(terminal?.sessionId, snapshot, olderItems);
+    const returnHint = useAgentChatReturnHint(terminal?.sessionId, snapshot, olderItems, {
+        scrollReference,
+        contentReference,
+        isLatestInView,
+    });
     const processState = terminal?.lastProcessState;
     const openAsTerminal = openAsTerminalAction(terminal);
     const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName, t);
@@ -280,10 +284,10 @@ export function AgentChatPane({
                         aria-live="off"
                         className={cn(
                             'absolute inset-x-0 top-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent',
-                            // While Jump to latest shows, the transcript ends above it instead of scrolling under it,
-                            // so the button never covers a line of text in a narrow pane. The top stays anchored, so
-                            // nothing the user is reading moves.
-                            isLatestInView ? 'bottom-0' : 'bottom-10',
+                            // While Jump to latest or the return hint in its slot shows, the transcript ends above
+                            // it instead of scrolling under it, so neither covers a line of text in a narrow pane. The
+                            // top stays anchored, so nothing the user is reading moves.
+                            isLatestInView && !returnHint ? 'bottom-0' : 'bottom-10',
                         )}
                         ref={scrollReference}
                         role="log"

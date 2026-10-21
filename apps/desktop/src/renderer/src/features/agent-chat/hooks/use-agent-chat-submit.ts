@@ -15,6 +15,7 @@ import {
     didSendAgentChatMessage,
 } from '../agent-chat-commands';
 import { agentChatTextWithSentImageNumbers } from '../attachments/agent-chat-image-placeholders';
+import { retainAgentChatSentImageOriginals } from '../attachments/agent-chat-sent-image-originals';
 import type { AgentChatAttachment } from '../composer-input/agent-chat-drafts';
 import {
     didDeliverAgentChatComposerInput,
@@ -157,6 +158,7 @@ export function useAgentChatSubmit({
                 delivery,
             },
         );
+        retainAgentChatSentImageOriginals(message.images ?? []);
         setDraft((current) => draftAfterSend(current, sent));
         clearSent(sentAttachments);
         onSent?.();

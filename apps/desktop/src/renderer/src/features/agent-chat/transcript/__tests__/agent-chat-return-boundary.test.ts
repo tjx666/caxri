@@ -1,7 +1,11 @@
 import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentChatReturnAnchorId, turnsFinishedDuringAbsence } from '../agent-chat-return-boundary';
+import {
+    agentChatReturnAnchorId,
+    isAgentChatReturnHintShown,
+    turnsFinishedDuringAbsence,
+} from '../agent-chat-return-boundary';
 
 const window = { boundary: 1000, capturedAt: 2000 };
 
@@ -47,5 +51,45 @@ describe('agentChatReturnAnchorId', () => {
     it('is undefined when nothing was missed or the prompt is not loaded', () => {
         expect(agentChatReturnAnchorId(items, [turn('t1', 100, 100)], window)).toBeUndefined();
         expect(agentChatReturnAnchorId([], [turn('t2', 1100, 100)], window)).toBeUndefined();
+    });
+});
+
+describe('isAgentChatReturnHintShown', () => {
+    it('shows one missed turn only while its prompt is above the view', () => {
+        expect(
+            isAgentChatReturnHintShown({ count: 1, isAnchorAbove: true, isLatestInView: true }),
+        ).toBe(true);
+        expect(
+            isAgentChatReturnHintShown({ count: 1, isAnchorAbove: false, isLatestInView: true }),
+        ).toBe(false);
+    });
+
+    it('gives the bottom slot to Jump to latest once the latest entry leaves the view', () => {
+        expect(
+            isAgentChatReturnHintShown({ count: 3, isAnchorAbove: true, isLatestInView: false }),
+        ).toBe(false);
+    });
+
+    it('reports two or more turns whose first prompt is not loaded', () => {
+        expect(
+            isAgentChatReturnHintShown({
+                count: 2,
+                isAnchorAbove: undefined,
+                isLatestInView: true,
+            }),
+        ).toBe(true);
+        expect(
+            isAgentChatReturnHintShown({
+                count: 1,
+                isAnchorAbove: undefined,
+                isLatestInView: true,
+            }),
+        ).toBe(false);
+    });
+
+    it('shows nothing when no turn was missed', () => {
+        expect(
+            isAgentChatReturnHintShown({ count: 0, isAnchorAbove: true, isLatestInView: true }),
+        ).toBe(false);
     });
 });

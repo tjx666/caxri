@@ -271,6 +271,7 @@ export const effectfulCommandRecovery = {
     'session.compactWarm': 'memory',
     'session.conversationReference': 'memory',
     'session.importConversation': 'durable',
+    'session.reopenConversation': 'durable',
     'session.unarchive': 'durable',
     'session.unarchiveMany': 'durable',
     'session.detach': 'durable',

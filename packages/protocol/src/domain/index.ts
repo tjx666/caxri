@@ -38,6 +38,7 @@ export * from './project-status.js';
 export * from './pull-request-merge-readiness.js';
 export * from './session.js';
 export * from './session-activity-group.js';
+export * from './session-agent-history.js';
 export * from './session-compaction.js';
 export * from './session-conversation-reference.js';
 export * from './session-order.js';

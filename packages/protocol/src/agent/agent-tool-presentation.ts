@@ -88,7 +88,7 @@ const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>
     /**
      * Codex's other collab tools (`sendInput`, `closeAgent`) and the multi-agent v2 `subAgentActivity` kinds the Server
      * names `sendMessage`, `interruptAgent`, and `agentCompleted`. A v2 activity's summary is the subagent's path
-     * (`/root/pr_watch_waiter`), which reads as its name; see {@link agentDisplayName}.
+     * (`pr_watch_waiter`), which reads as its name; see {@link agentDisplayName}.
      */
     sendinput: { kind: 'manage', label: 'Messaged agent' },
     sendmessage: { kind: 'manage', label: 'Messaged agent' },
@@ -142,13 +142,16 @@ const basename = (path: string): string => {
 };
 
 /**
- * A multi-agent v2 subagent path (`/root/pr_watch_waiter`) as the name the Codex app shows (`Pr watch waiter`); any
- * other text is returned unchanged.
+ * A multi-agent v2 subagent name (`pr_watch_waiter`, or its full path `/root/pr_watch_waiter`) as the name the Codex
+ * app shows (`Pr watch waiter`). Anything else (a v1 receiver count such as `1 agent`, or a spawn prompt) is not a name
+ * and yields `undefined`.
  */
-const agentDisplayName = (subject: string): string => {
-    if (!subject.startsWith('/')) return subject;
-    const name = basename(subject).replaceAll(/[_-]+/gu, ' ').trim();
-    return name ? `${name.charAt(0).toUpperCase()}${name.slice(1)}` : subject;
+const agentDisplayName = (subject: string | undefined): string | undefined => {
+    if (!subject) return undefined;
+    const segment = subject.startsWith('/') ? basename(subject) : subject;
+    if (!/^[\w-]+$/u.test(segment)) return undefined;
+    const name = segment.replaceAll(/[_-]+/gu, ' ').trim();
+    return name ? `${name.charAt(0).toUpperCase()}${name.slice(1)}` : undefined;
 };
 
 /**
@@ -236,9 +239,14 @@ export const describeAgentTool = (
         return { kind: 'other', label: tool.name, subject: rawSubject, isCodeSubject: true };
     const toolName = tool.name.toLowerCase();
     if (known.kind === 'wait' || AGENT_SUBJECT_TOOLS.has(toolName)) {
-        // A receiver count (`1 agent`) says nothing the label does not; only a subagent path names who it was.
-        const name = rawSubject?.startsWith('/') ? agentDisplayName(rawSubject) : undefined;
+        // A receiver count (`1 agent`) says nothing the label does not; only a subagent name says who it was.
+        const name = agentDisplayName(rawSubject);
         return { ...known, ...(name && { subject: name }), isCodeSubject: false };
+    }
+    // A v2 `started` activity names the subagent; a v1 `spawnAgent` call's summary is its prompt, shown as is.
+    if (toolName === 'spawnagent') {
+        const name = agentDisplayName(rawSubject);
+        if (name) return { ...known, subject: name, isCodeSubject: false };
     }
     if (rawSubject && known.kind === 'command' && known.label === 'Ran') {
         const command = unwrapShellCommand(rawSubject);

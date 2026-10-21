@@ -30,6 +30,7 @@ import {
     sessionToneCalloutClassName,
     sessionUnreadTone,
 } from './session-activity';
+import { SessionAgentHistory } from './session-agent-history';
 import { SessionCreatorRow } from './session-creator-row';
 import { SessionExcerpt } from './session-excerpt';
 import { sessionPullRequestPresentation } from './session-pull-request';
@@ -261,6 +262,11 @@ export function SessionActivityCard({
                     </p>
                 </div>
                 <SessionExcerpt isVisible={visible} session={session} />
+                <SessionAgentHistory
+                    isVisible={visible}
+                    sessionId={session.id}
+                    onReopen={() => setOpen(false)}
+                />
                 <SessionPullRequestDetails
                     pullRequest={pullRequest}
                     presentation={pullRequestPresentation}

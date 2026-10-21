@@ -149,6 +149,16 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         await expect(chat.getByRole('img', { name: 'Image 2' })).toBeVisible();
         await expect(chat.locator('[data-agent-chat-image-pill]')).toHaveCount(3);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-sent-images.png') });
+        // The images sit in the message's bubble under its text, and the larger preview shows the image as sent rather
+        // than its thumbnail scaled up, though Codex keeps no original Caxri can read back.
+        const bubble = chat.locator('[data-agent-chat-user-bubble]').filter({
+            hasText: 'what are these',
+        });
+        await expect(bubble.getByRole('button', { name: /^Preview Image 1/u })).toBeVisible();
+        await bubble.getByRole('button', { name: /^Preview Image 2/u }).click();
+        const preview = page.getByRole('dialog', { name: 'Image 2' });
+        await expect(preview.locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/u);
+        await page.keyboard.press('Escape');
 
         // The `/` menu reuses the Agent Commands & Skills discovery, so a Project skill sits beside the commands.
         await message.fill('/');

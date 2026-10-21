@@ -189,7 +189,7 @@ export function ActiveSessionRow({
                     suggesting={renameSuggesting}
                 />
             ) : (
-                <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1 [--overflow-fade-size:20px]">
+                <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1 [--overflow-fade-size:16px]">
                     <strong
                         ref={viewportReference}
                         /*
@@ -236,11 +236,13 @@ export function ActiveSessionRow({
              * lands on the same right edge. On pointer hover every glyph steps aside for Pin/Archive (~42px): its slot
              * collapses entirely, because a 14px ghost track would still let the title paint through those buttons,
              * and a glyph squeezed in beside them read as a third, unlabeled action. What the glyph said stays in the
-             * hover card that opens on the same hover.
+             * hover card that opens on the same hover. With no visible glyph the wrapper is not rendered at all
+             * (`hidden` until a child that is not itself `.hidden` exists): a zero-width flex item still costs the
+             * row's 8px gap, which left an idle row's title fading out well short of the row's edge.
              */}
             <span
                 className={cn(
-                    'session-indicators flex flex-none items-center justify-end',
+                    'session-indicators hidden flex-none items-center justify-end has-[>:not(.hidden)]:flex',
                     HIDDEN_ON_ROW_HOVER,
                 )}
             >

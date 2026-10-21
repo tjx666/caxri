@@ -165,7 +165,7 @@ export function PinnedSessionGroup({
                     onClick={onToggle}
                 >
                     <Pin aria-hidden="true" className="flex-none text-muted" size={13} />
-                    <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium [--overflow-fade-size:20px]">
+                    <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium [--overflow-fade-size:16px]">
                         {t('primarySidebar.pinned.title')}
                     </strong>
                 </button>

@@ -1,3 +1,4 @@
+export { SessionAgentHistoryService } from './agent-history';
 export { createSessionAgentRuntimeHandlers } from './agent-runtime-handlers';
 export { SessionAutoNamingService } from './auto-naming';
 export { createBackgroundSession, discardEmptySession } from './background';

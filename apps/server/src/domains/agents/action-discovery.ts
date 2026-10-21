@@ -17,6 +17,11 @@ const MAX_DISCOVERED_ACTIONS = 256;
 interface DiscoveryResult {
     actions: AgentAction[];
     /**
+     * Skills marked `user-invocable: false`, kept apart from `actions` so no menu offers them; a reply naming one is
+     * still recognized, and its file can still be read.
+     */
+    referenceOnly: AgentAction[];
+    /**
      * The canonical file each discovered invocation came from, kept Server-side so the wire never carries a path.
      */
     files: Map<string, string>;
@@ -136,9 +141,8 @@ async function actionFromFile(
     relativePath: string,
     root: AgentActionDiscoveryRoot,
     adapter: AgentActionDiscoveryAdapter,
-): Promise<AgentAction | undefined> {
+): Promise<{ action: AgentAction; userInvocable: boolean } | undefined> {
     const metadata = await readMetadata(path);
-    if (metadata.userInvocable === false) return;
     const kind = root.kind === 'skills' ? 'skill' : 'command';
     const fallbackName =
         kind === 'skill'
@@ -158,7 +162,9 @@ async function actionFromFile(
         source: root.scope,
     });
     if (!parsed.success) throw new Error('Agent action metadata failed the wire schema');
-    return parsed.data;
+    // A command file has no model-only form; `user-invocable: false` there still hides it entirely.
+    if (kind === 'command' && metadata.userInvocable === false) return;
+    return { action: parsed.data, userInvocable: metadata.userInvocable !== false };
 }
 
 async function scanRoot(
@@ -174,16 +180,16 @@ async function scanRoot(
          */
         const code =
             typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined;
-        return { actions: [], files: new Map(), partial: code !== 'ENOENT' };
+        return { actions: [], referenceOnly: [], files: new Map(), partial: code !== 'ENOENT' };
     }
     let canonicalBoundary: string | undefined;
     if (root.boundaryDirectory) {
         try {
             canonicalBoundary = await realpath(root.boundaryDirectory);
             if (!isInside(canonicalBoundary, canonicalRoot))
-                return { actions: [], files: new Map(), partial: true };
+                return { actions: [], referenceOnly: [], files: new Map(), partial: true };
         } catch {
-            return { actions: [], files: new Map(), partial: true };
+            return { actions: [], referenceOnly: [], files: new Map(), partial: true };
         }
     }
     /**
@@ -193,6 +199,7 @@ async function scanRoot(
     const containmentRoot = canonicalBoundary ?? canonicalRoot;
     const queue = [{ directory: canonicalRoot, depth: 0, relativeDirectory: '' }];
     const actions: AgentAction[] = [];
+    const referenceOnly: AgentAction[] = [];
     const files = new Map<string, string>();
     const seenDirectories = new Set<string>();
     let visitedEntries = 0;
@@ -214,7 +221,8 @@ async function scanRoot(
         );
         for (const entry of sortedEntries) {
             visitedEntries += 1;
-            if (visitedEntries > MAX_DISCOVERY_ENTRIES) return { actions, files, partial: true };
+            if (visitedEntries > MAX_DISCOVERY_ENTRIES)
+                return { actions, referenceOnly, files, partial: true };
             const path = join(current.directory, entry.name);
             let canonicalPath: string | undefined;
             try {
@@ -237,16 +245,17 @@ async function scanRoot(
                 if (isActionFile) {
                     try {
                         // eslint-disable-next-line no-await-in-loop -- bounded reads keep deterministic precedence
-                        const action = await actionFromFile(
+                        const discovered = await actionFromFile(
                             canonicalPath,
                             relativePath,
                             root,
                             adapter,
                         );
-                        if (action) {
-                            if (actions.length < MAX_DISCOVERED_ACTIONS) {
-                                actions.push(action);
-                                files.set(action.invocation, canonicalPath);
+                        if (discovered) {
+                            const list = discovered.userInvocable ? actions : referenceOnly;
+                            if (list.length < MAX_DISCOVERED_ACTIONS) {
+                                list.push(discovered.action);
+                                files.set(discovered.action.invocation, canonicalPath);
                             } else isPartial = true;
                         }
                     } catch {
@@ -265,7 +274,7 @@ async function scanRoot(
             }
         }
     }
-    return { actions, files, partial: isPartial };
+    return { actions, referenceOnly, files, partial: isPartial };
 }
 
 export async function discoverAgentActions(
@@ -273,17 +282,27 @@ export async function discoverAgentActions(
     roots: AgentActionDiscoveryRoot[],
 ): Promise<DiscoveryResult> {
     const merged = new Map<string, AgentAction>();
+    const referenceOnly = new Map<string, AgentAction>();
     const files = new Map<string, string>();
     let isPartial = false;
     const results = await mapWithConcurrency(roots, 4, (root) => scanRoot(root, adapter));
     for (const result of results) {
         isPartial ||= result.partial;
-        for (const action of result.actions) merged.set(action.invocation, action);
+        // A later root overrides an earlier one, whichever of the two lists the same invocation lands in.
+        for (const action of result.actions) {
+            referenceOnly.delete(action.invocation);
+            merged.set(action.invocation, action);
+        }
+        for (const action of result.referenceOnly) {
+            merged.delete(action.invocation);
+            referenceOnly.set(action.invocation, action);
+        }
         for (const [invocation, file] of result.files) files.set(invocation, file);
     }
     const actions = merged.values().toArray();
     return {
         actions,
+        referenceOnly: referenceOnly.values().toArray(),
         files,
         partial: isPartial || actions.length > MAX_DISCOVERED_ACTIONS,
     };

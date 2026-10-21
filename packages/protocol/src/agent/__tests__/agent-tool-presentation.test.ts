@@ -302,6 +302,21 @@ describe('Codex subagent tools', () => {
         expect(
             describeAgentTool({ name: 'interruptAgent', summary: '/root/review_waiter' }),
         ).toMatchObject({ kind: 'manage', label: 'Stopped agent', subject: 'Review waiter' });
+        // The Server sends the bare name since it strips the `/root/` prefix for narrow rows.
+        expect(describeAgentTool({ name: 'agentCompleted', summary: 'i18n_lint' })).toMatchObject({
+            label: 'Agent finished',
+            subject: 'I18n lint',
+        });
+        expect(describeAgentTool({ name: 'spawnAgent', summary: 'i18n_lint' })).toEqual({
+            kind: 'agent',
+            label: 'Started agent',
+            subject: 'I18n lint',
+            isCodeSubject: false,
+        });
+        // A v1 spawn's summary is its prompt, which stays as written.
+        expect(describeAgentTool({ name: 'spawnAgent', summary: 'Review the diff' })).toMatchObject(
+            { subject: 'Review the diff' },
+        );
         // A v1 collab call's summary is a receiver count, not a name.
         expect(describeAgentTool({ name: 'closeAgent', summary: '2 agents' })).toEqual({
             kind: 'manage',

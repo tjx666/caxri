@@ -102,6 +102,17 @@ export class AgentSessionUsageModel {
         return this.database.select().from(agentSessionUsage).all() as AgentSessionUsageRow[];
     }
 
+    /**
+     * Conversations first bound to one Session's Terminals, through the `session_id` index.
+     */
+    listForSession(sessionId: string): AgentSessionUsageRow[] {
+        return this.database
+            .select()
+            .from(agentSessionUsage)
+            .where(eq(agentSessionUsage.sessionId, sessionId))
+            .all() as AgentSessionUsageRow[];
+    }
+
     saveScan(
         provider: AgentProvider,
         agentSessionId: string,

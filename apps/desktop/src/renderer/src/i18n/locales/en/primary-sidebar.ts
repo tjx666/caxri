@@ -135,6 +135,13 @@ export const primarySidebar = {
     'primarySidebar.card.createdByArchived': '{{title}} (archived)',
     'primarySidebar.card.changes': 'Changes',
     'primarySidebar.card.lastOpened': 'Last opened',
+    'primarySidebar.card.history.title': 'Conversations',
+    'primarySidebar.card.history.open': 'Open',
+    'primarySidebar.card.history.untitled': '{{agent}} conversation',
+    'primarySidebar.card.history.reopenAriaLabel':
+        'Reopen conversation {{title}}, last bound {{time}}',
+    'primarySidebar.card.history.showAriaLabel': 'Show open conversation {{title}}',
+    'primarySidebar.card.history.reopenFailed': 'Could not reopen the conversation',
     'primarySidebar.changes.ariaLabelOne': 'Working tree has {{count}} uncommitted change.',
     'primarySidebar.changes.ariaLabelOther': 'Working tree has {{count}} uncommitted changes.',
 

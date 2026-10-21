@@ -115,7 +115,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.tool.label.usedBrowser': '使用了浏览器',
     'agentChat.tool.label.usedComputerUse': '使用了 Computer Use',
     'agentChat.tool.active.agent': '正在运行 Agent',
-    'agentChat.tool.active.command': '正在运行',
+    'agentChat.tool.active.command': '正在',
     'agentChat.tool.active.edit': '正在编辑',
     'agentChat.tool.active.image': '正在查看图片',
     'agentChat.tool.active.list': '正在列出',

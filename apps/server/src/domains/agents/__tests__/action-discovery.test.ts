@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -58,6 +58,7 @@ describe('discoverAgentActions', () => {
                 },
             ],
             // Only the Server keeps where each action came from; the wire result is the actions alone.
+            referenceOnly: [],
             files: new Map([['$commit', expect.stringMatching(/commit\/SKILL\.md$/u)]]),
             partial: false,
         });
@@ -107,7 +108,7 @@ describe('discoverAgentActions', () => {
             { directory: root, kind: 'skills', scope: 'global' },
         ]);
 
-        expect(result).toEqual({ actions: [], files: new Map(), partial: true });
+        expect(result).toEqual({ actions: [], referenceOnly: [], files: new Map(), partial: true });
     });
 
     it('refuses a Project discovery root whose own symlink escapes the Project', async () => {
@@ -130,7 +131,7 @@ describe('discoverAgentActions', () => {
             },
         ]);
 
-        expect(result).toEqual({ actions: [], files: new Map(), partial: true });
+        expect(result).toEqual({ actions: [], referenceOnly: [], files: new Map(), partial: true });
     });
 
     it('follows a skill symlink that stays inside the Project boundary but escapes the discovery root', async () => {
@@ -163,6 +164,7 @@ describe('discoverAgentActions', () => {
                     source: 'project',
                 },
             ],
+            referenceOnly: [],
             files: new Map([['/shared', expect.stringMatching(/shared\/SKILL\.md$/u)]]),
             partial: false,
         });
@@ -189,7 +191,7 @@ describe('discoverAgentActions', () => {
         ]);
     });
 
-    it('ignores skills explicitly hidden from user invocation', async () => {
+    it('keeps skills hidden from user invocation out of menus but recognizable', async () => {
         const root = await temporaryDirectory('caxri-action-hidden-');
         const skillDirectory = join(root, 'internal');
         await mkdir(skillDirectory);
@@ -197,12 +199,21 @@ describe('discoverAgentActions', () => {
             join(skillDirectory, 'SKILL.md'),
             '---\nname: internal\nuser-invocable: false\n---\n',
         );
+        await writeFile(join(root, 'hidden.md'), '---\nuser-invocable: false\n---\n');
 
         const result = await discoverAgentActions(claudeAdapter, [
             { directory: root, kind: 'skills', scope: 'project' },
+            { directory: root, kind: 'commands', scope: 'project' },
         ]);
 
-        expect(result).toEqual({ actions: [], files: new Map(), partial: false });
+        expect(result.actions).toEqual([]);
+        expect(result.referenceOnly).toEqual([
+            expect.objectContaining({ invocation: '/internal', kind: 'skill' }),
+        ]);
+        expect(result.files.get('/internal')).toBe(
+            join(await realpath(root), 'internal', 'SKILL.md'),
+        );
+        expect(result.partial).toBe(false);
     });
 
     it('bounds astral metadata by the wire schema length without dropping a valid skill', async () => {
