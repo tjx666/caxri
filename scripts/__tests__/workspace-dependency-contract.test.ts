@@ -160,9 +160,9 @@ describe('pnpm dependency contract', () => {
             'app-builder-lib': 'patches/app-builder-lib.patch',
             'braces@3.0.3': 'patches/braces@3.0.3.patch',
             'node-forge@1.4.0': 'patches/node-forge@1.4.0.patch',
-            'react-native-webview@13.16.1': 'patches/react-native-webview.patch',
+            'react-native-webview@14.0.1': 'patches/react-native-webview.patch',
             'sonner@2.0.8': 'patches/sonner.patch',
-            '@xterm/addon-serialize@0.15.0-beta.301': 'patches/xterm-addon-serialize.patch',
+            '@xterm/addon-serialize@0.15.0-beta.310': 'patches/xterm-addon-serialize.patch',
             'node-pty@1.1.0': 'patches/node-pty@1.1.0.patch',
         });
         expect(rootManifest.devDependencies?.['@oxlint/plugins']).toBe(workspace.catalog?.oxlint);
