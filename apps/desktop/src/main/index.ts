@@ -259,7 +259,7 @@ if (ownsProfileInstance) {
             await sshHostEnvironments?.detachAll();
             await supervisor.shutdown();
         },
-        ...createAppQuitPromptOptions(dialog, () => mainWindow),
+        ...createAppQuitPromptOptions(dialog, () => workbenchWindows.focusedOrPrimary()),
         decideUnsavedEditors: () => unsavedEditors.decide('quit'),
         detachAll: async () => {
             await sshHostEnvironments?.detachTerminals();

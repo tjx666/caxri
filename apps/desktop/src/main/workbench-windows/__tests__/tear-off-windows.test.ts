@@ -18,7 +18,10 @@ function fakeWindow(): TearOffBrowserWindow {
     };
 }
 
-function setup(records: Array<{ windowKey: string; activeSessionId: string | null }> = []) {
+function setup(
+    records: Array<{ windowKey: string; activeSessionId: string | null }> = [],
+    log: ReturnType<typeof vi.fn> = vi.fn(),
+) {
     const windows = new WorkbenchWindows<TearOffBrowserWindow>();
     const primary = fakeWindow();
     windows.add('main', primary);
@@ -34,7 +37,7 @@ function setup(records: Array<{ windowKey: string; activeSessionId: string | nul
             return window;
         },
         cursorPoint: () => ({ x: 1800, y: 1000 }),
-        logger: () => {},
+        logger: () => ({ write: log }) as never,
         primaryReady: () => Promise.resolve(),
         register: vi.fn(),
         serverReady: Promise.resolve(),
@@ -53,6 +56,37 @@ describe('tear-off window lifecycle', () => {
         tearOffs.onClosed('win-1', false);
 
         expect(request).toHaveBeenCalledWith('window.openSessions.release', { windowKey: 'win-1' });
+    });
+
+    it('retries a failed release once and logs each failure', async () => {
+        const write = vi.fn();
+        const { request, tearOffs } = setup([], write);
+        request.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(null);
+
+        tearOffs.onClosed('win-1', false);
+        await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+
+        const failures = write.mock.calls.filter(
+            ([, event]) => event === 'window.tear_off_release_failed',
+        ) as Array<[string, string, { fields: { attempt: number } }]>;
+        expect(failures.map(([level, , { fields }]) => [level, fields.attempt])).toEqual([
+            ['warn', 1],
+        ]);
+    });
+
+    it('logs and gives up after the retry also fails', async () => {
+        const write = vi.fn();
+        const { request, tearOffs } = setup([], write);
+        request.mockRejectedValue(new Error('boom'));
+
+        tearOffs.onClosed('win-1', false);
+        await vi.waitFor(() =>
+            expect(
+                write.mock.calls.filter(([, event]) => event === 'window.tear_off_release_failed'),
+            ).toHaveLength(2),
+        );
+
+        expect(request).toHaveBeenCalledTimes(2);
     });
 
     it('keeps the strip when the app is quitting', () => {
