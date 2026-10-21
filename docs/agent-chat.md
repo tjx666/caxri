@@ -1501,7 +1501,13 @@ while on, like the Plan chip, show the pressed `--selection` fill, never the acc
 - **Codex**: a model offers Fast when `model/list` lists a `priority` (or `fast`) service tier,
   falling back to the deprecated `additionalSpeedTiers`. The toggle rides on the next `turn/start`
   as `serviceTier: "priority"`, or `"default"` to turn it off (a null tier would keep the thread's
-  saved one), and `thread/start` and `thread/resume` report it back after a restart.
+  saved one), and `thread/start` and `thread/resume` report it back after a restart. A picker
+  switch (Fast, model, or effort) is also saved as the default for new Chats through
+  `config/batchWrite` (`service_tier = "fast"` or `"default"`, `model`, `model_reasoning_effort` in
+  the user's `config.toml`), as the Codex TUI saves its picker, because a new thread starts from that
+  config. Only the user-facing `agentChat.configure` saves; a benchmark's direct session switch does
+  not. `agent_chat.defaults_saved` logs the outcome; `overridden` means a higher-priority config
+  layer (a profile or a managed config) still wins.
 - **Claude Code**: a model offers Fast when its `supportsFastMode` is true. The SDK reports
   `fast_mode_state` on the `initialize` response, the init message, and every `result`; `cooldown`
   counts as on. When it reports a plan, policy, or provider block (any `fast_mode_disabled_reason`

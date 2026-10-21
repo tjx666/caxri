@@ -117,6 +117,7 @@ import {
     resumeSavedThread,
     saveThread,
     threadPath,
+    writeFakeConfig,
 } from './fake-codex-threads.ts';
 
 if (process.argv.includes('--version')) {
@@ -461,6 +462,10 @@ function handle(message: RpcMessage) {
         }
         case 'config/read': {
             send({ id, result: readFakeConfig() });
+            return;
+        }
+        case 'config/batchWrite': {
+            send({ id, result: writeFakeConfig(parameters) });
             return;
         }
         case 'model/list': {

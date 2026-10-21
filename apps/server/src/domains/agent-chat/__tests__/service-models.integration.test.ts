@@ -72,6 +72,34 @@ describe('Agent Chat model and effort with a fake Codex app-server', () => {
         expect(tiers).toEqual(['priority', 'default']);
     });
 
+    it('saves a picker switch as the default for new Chats, as the Codex TUI does', async () => {
+        const { fakeLog, logWrite, service, terminal, until } = await fixture();
+        await until((snapshot) => snapshot.models !== undefined);
+        await service.configure(terminal.id, { fast: true });
+        await service.configure(terminal.id, { model: 'fake-codex-mini' });
+        // The smaller model has no Fast mode and only `low` effort, so the save turns both off with it.
+        await expect
+            .poll(async () =>
+                (await fakeLog('codex', 'config-writes.jsonl')).map((entry) => entry.edits),
+            )
+            .toEqual([
+                [{ keyPath: 'service_tier', value: 'fast', mergeStrategy: 'replace' }],
+                [
+                    { keyPath: 'model', value: 'fake-codex-mini', mergeStrategy: 'replace' },
+                    { keyPath: 'model_reasoning_effort', value: 'low', mergeStrategy: 'replace' },
+                    { keyPath: 'service_tier', value: 'default', mergeStrategy: 'replace' },
+                ],
+            ]);
+        expect(
+            logWrite.mock.calls
+                .filter(([, event]) => event === 'agent_chat.defaults_saved')
+                .map(([level, , record]) => [level, record?.fields?.outcome, record?.fields?.keys]),
+        ).toEqual([
+            ['info', 'saved', 'service_tier'],
+            ['info', 'saved', 'model,model_reasoning_effort,service_tier'],
+        ]);
+    });
+
     it('rejects a model or effort the provider did not list', async () => {
         const { service, terminal, until } = await fixture();
         await until((snapshot) => snapshot.models !== undefined);

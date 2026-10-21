@@ -21,6 +21,7 @@ import {
     stringField,
 } from './chat-items';
 import type {
+    AgentChatDefaultsSave,
     AgentChatDriver,
     AgentChatProviderSession,
     AgentChatSessionHost,
@@ -509,6 +510,10 @@ class CodexChatSession implements AgentChatProviderSession {
         this.requireConnection();
         this.models.configure(change);
         return Promise.resolve();
+    }
+
+    saveDefaults(change: AgentChatModelChange): Promise<AgentChatDefaultsSave> {
+        return this.models.saveDefaults(this.requireConnection(), change);
     }
 
     setPermission(permission: AgentChatPermission): Promise<void> {

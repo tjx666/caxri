@@ -3,7 +3,7 @@ import { findAgentChatModel } from '@caxri/protocol';
 
 import { ChatTurnUsage, codexTurnResponse } from '../usage';
 import { boundedChatModels, clip, isRecord, stringField } from './chat-items';
-import type { AgentChatSessionHost } from './chat-provider';
+import type { AgentChatDefaultsSave, AgentChatSessionHost } from './chat-provider';
 import { withCacheRewriteEstimate } from './chat-usage';
 import { mapCodexUsage } from './codex-items';
 import type { CodexPermissions } from './codex-permissions';
@@ -22,6 +22,28 @@ const FAST_SERVICE_TIER = 'priority';
  * `config.toml` or the model's catalog default instead, which may itself be Fast.
  */
 const STANDARD_SERVICE_TIER = 'default';
+
+const CONFIG_WRITE_TIMEOUT_MS = 10_000;
+
+/**
+ * The `config.toml` edits that make a picker switch the default for new Codex threads, in the keys and spellings
+ * Codex's TUI writes for the same choices (`config_update.rs`): `model`, `model_reasoning_effort`, and `service_tier`
+ * as `fast` or `default`. Only what the switch changed is written.
+ */
+function codexDefaultEdits({
+    model,
+    effort,
+    fast,
+}: AgentChatModelChange): Array<{ keyPath: string; value: string; mergeStrategy: 'replace' }> {
+    const values: Array<[string, string | undefined]> = [
+        ['model', model?.id],
+        ['model_reasoning_effort', effort],
+        ['service_tier', fast === undefined ? undefined : fast ? 'fast' : 'default'],
+    ];
+    return values.flatMap(([keyPath, value]) =>
+        value === undefined ? [] : [{ keyPath, value, mergeStrategy: 'replace' as const }],
+    );
+}
 
 /**
  * Whether a model offers Fast mode, with Codex's description of it (`1.5x speed, increased usage`). `serviceTiers`
@@ -156,6 +178,27 @@ export class CodexModelSettings {
                 },
             },
         ]);
+    }
+
+    /**
+     * Writes a picker switch to the user's `config.toml` through `config/batchWrite`, so a new Chat starts with it. A
+     * thread reads these defaults only when it starts, so the open thread keeps the switch from {@link configure}.
+     */
+    async saveDefaults(
+        connection: JsonRpcConnection,
+        change: AgentChatModelChange,
+    ): Promise<AgentChatDefaultsSave> {
+        const edits = codexDefaultEdits(change);
+        if (edits.length === 0) return { keys: [], isOverridden: false };
+        const result = await connection.request(
+            'config/batchWrite',
+            { edits },
+            CONFIG_WRITE_TIMEOUT_MS,
+        );
+        return {
+            keys: edits.map(({ keyPath }) => keyPath),
+            isOverridden: isRecord(result) && result.status === 'okOverridden',
+        };
     }
 
     /**

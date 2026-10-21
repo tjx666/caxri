@@ -1,6 +1,8 @@
+import type { AgentChatModelChange, AgentProvider } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentChatSessionHost } from './chat-provider';
+import { requireChatTerminal } from './chat-launch';
+import type { AgentChatProviderSession, AgentChatSessionHost } from './chat-provider';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -34,4 +36,36 @@ export function chatSessionLogCallbacks(
                 fields: { terminalId, reason },
             }),
     };
+}
+
+/**
+ * Saves a model picker switch as the provider's default for new Chats (`saveDefaults`) and logs how it went
+ * (`agent_chat.defaults_saved`). A failure only means the next new Chat starts without the choice, so it never
+ * rejects.
+ */
+export async function saveChatDefaults(
+    session: Pick<AgentChatProviderSession, 'saveDefaults'>,
+    change: AgentChatModelChange,
+    { database, logger }: Pick<AgentChatServiceOptions, 'database' | 'logger'>,
+    terminalId: string,
+): Promise<void> {
+    if (!session.saveDefaults) return;
+    let provider: AgentProvider | null = null;
+    try {
+        ({ provider } = requireChatTerminal(database, terminalId));
+        const { keys, isOverridden } = await session.saveDefaults(change);
+        if (keys.length === 0) return;
+        logger.write(isOverridden ? 'warn' : 'info', logEventCatalog.agentChat.defaultsSaved, {
+            fields: {
+                terminalId,
+                provider,
+                outcome: isOverridden ? 'overridden' : 'saved',
+                keys: keys.join(','),
+            },
+        });
+    } catch {
+        logger.write('warn', logEventCatalog.agentChat.defaultsSaved, {
+            fields: { terminalId, provider, outcome: 'failed', keys: null },
+        });
+    }
 }
