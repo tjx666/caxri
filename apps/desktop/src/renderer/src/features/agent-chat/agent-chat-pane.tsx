@@ -27,7 +27,6 @@ import { AgentChatComposer } from './composer/agent-chat-composer';
 import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
-import { useAgentChatAnchorAbove } from './hooks/use-agent-chat-anchor-above';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './hooks/use-agent-chat-approval-keys';
 import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
@@ -75,7 +74,6 @@ import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
     isAgentChatMessageRailShown,
 } from './transcript/agent-chat-rail-marks';
-import { isAgentChatReturnHintShown } from './transcript/agent-chat-return-boundary';
 import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
 import { AgentChatSettledTimeline } from './transcript/agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from './transcript/agent-chat-timeline';
@@ -230,19 +228,11 @@ export function AgentChatPane({
      * `detached`, while the projection only reads `stopped`.
      */
     const terminal = useTerminal(terminalId);
-    const returnHint = useAgentChatReturnHint(terminal?.sessionId, snapshot, olderItems);
-    const isReturnAnchorAbove = useAgentChatAnchorAbove(
+    const returnHint = useAgentChatReturnHint(terminal?.sessionId, snapshot, olderItems, {
         scrollReference,
         contentReference,
-        returnHint?.anchorId,
-    );
-    const isReturnHintShown =
-        returnHint !== undefined &&
-        isAgentChatReturnHintShown({
-            count: returnHint.count,
-            isAnchorAbove: isReturnAnchorAbove,
-            isLatestInView,
-        });
+        isLatestInView,
+    });
     const processState = terminal?.lastProcessState;
     const openAsTerminal = openAsTerminalAction(terminal);
     const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName, t);
@@ -297,7 +287,7 @@ export function AgentChatPane({
                             // While Jump to latest or the return hint in its slot shows, the transcript ends above
                             // it instead of scrolling under it, so neither covers a line of text in a narrow pane. The
                             // top stays anchored, so nothing the user is reading moves.
-                            isLatestInView && !isReturnHintShown ? 'bottom-0' : 'bottom-10',
+                            isLatestInView && !returnHint ? 'bottom-0' : 'bottom-10',
                         )}
                         ref={scrollReference}
                         role="log"
@@ -358,7 +348,7 @@ export function AgentChatPane({
                         </div>
                         <div aria-hidden data-agent-chat-turn-space ref={spacerReference} />
                     </div>
-                    {returnHint && terminal && isReturnHintShown && (
+                    {returnHint && terminal && (
                         <AgentChatReturnHint
                             hint={returnHint}
                             onDismiss={() => dismissReturn(terminal.sessionId)}
