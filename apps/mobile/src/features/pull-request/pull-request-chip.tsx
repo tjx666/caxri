@@ -46,7 +46,10 @@ export const PullRequestChip = ({
                 })}
                 accessibilityRole="button"
                 hitSlop={CHIP_HIT_SLOP}
-                onPress={() => setOpen(true)}
+                onPress={() => {
+                    setOpen(true);
+                    state.refresh();
+                }}
                 style={({ pressed }) => [
                     styles.chip,
                     { backgroundColor: theme.elevated, opacity: pressed ? 0.7 : 1 },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { MobilePullRequest } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -56,21 +56,15 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         staleTime: 10_000,
     });
     const { refetch } = query;
-    const wasWatching = useRef(isWatching);
-    const wasForeground = useRef(isForeground);
     /**
-     * Opening the sheet and returning to the app each re-read at once: a pull request marked ready (or merged) on
-     * GitHub while the phone was away must not wait out the idle poll or the stale window. Mounting alone does not,
-     * since the query's own first read covers it.
+     * Opening the sheet re-reads at once: a pull request marked ready (or merged) on GitHub while the sheet was closed
+     * must not wait out the idle poll. Returning to the app needs no call: the query is disabled in the background, and
+     * re-enabling it refetches once the 10 second stale window has passed.
      */
-    useEffect(() => {
-        const isOpened = isWatching && !wasWatching.current;
-        const returned = isForeground && !wasForeground.current;
-        wasWatching.current = isWatching;
-        wasForeground.current = isForeground;
+    const refresh = useCallback(() => {
         // eslint-disable-next-line no-void -- The read renders into the query.
-        if (isObservable && (isOpened || returned)) void refetch();
-    }, [isForeground, isObservable, isWatching, refetch]);
+        if (isObservable) void refetch();
+    }, [isObservable, refetch]);
     const [merge, setMerge] = useState<
         | { state: 'idle' }
         | { state: 'merging' }
@@ -125,6 +119,7 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         merge,
         pullRequest,
         dismissMergeFailure,
+        refresh,
         startMerge,
     };
 };

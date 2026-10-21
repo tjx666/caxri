@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent } from 'react';
+import type { ComponentProps, KeyboardEvent, MouseEvent } from 'react';
 
 import { X } from 'lucide-react';
 
@@ -78,6 +78,54 @@ function SessionTabLabel({
 }
 
 /**
+ * The statuses the active tab draws before its title, since its trailing slot always holds the close button.
+ */
+const LEADING_STATUS_KINDS: ReadonlySet<string> = new Set(['running', 'attention']);
+
+/**
+ * Alt+Left/Right moves the tab; the arrow, Home, and End keys move focus along the strip.
+ */
+function handleSessionTabKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    sessionId: string,
+    onShift: (sessionId: string, direction: -1 | 1) => void,
+    onKeyboardNavigate: (sessionId: string, key: WorkTabNavigationKey) => void,
+): void {
+    if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        event.preventDefault();
+        onShift(sessionId, event.key === 'ArrowLeft' ? -1 : 1);
+        return;
+    }
+    if (isNavigationKey(event.key)) {
+        event.preventDefault();
+        onKeyboardNavigate(sessionId, event.key);
+    }
+}
+
+/**
+ * The Session a tab shows, with the Project, Agent Terminal, and worktree its title and tooltip name.
+ */
+function useSessionTabSubjects(sessionId: string) {
+    const session = useSessionById(sessionId);
+    const isActive = useWorkbenchStore((state) => state.bootstrap?.selectedSessionId === sessionId);
+    const projectTitle = useWorkbenchStore((state) =>
+        session
+            ? state.bootstrap?.projects.find((project) => project.id === session.projectId)
+                  ?.displayTitle
+            : undefined,
+    );
+    const terminal = useWorkbenchStore((state) =>
+        session ? sessionAgentTerminal(session, state.bootstrap?.terminals ?? []) : undefined,
+    );
+    const workingLocation = useWorkbenchStore((state) =>
+        session
+            ? sessionWorktreeProject(session, state.bootstrap?.projects ?? [])?.displayTitle
+            : undefined,
+    );
+    return { isActive, projectTitle, session, terminal, workingLocation };
+}
+
+/**
  * One Open Session. Everything it shows comes from selectors scoped to its own Session ID: the Session record, its
  * Project's title (a string, so the Project record's `lastOpenedAt` churn never reaches it), whether it is the selected
  * Session (a boolean), and its Agent Terminal. Switching or reordering tabs therefore re-renders the tabs that changed,
@@ -101,22 +149,8 @@ export function SessionTab({
     sessionId: string;
 }) {
     const { t } = useTranslation();
-    const session = useSessionById(sessionId);
-    const isActive = useWorkbenchStore((state) => state.bootstrap?.selectedSessionId === sessionId);
-    const projectTitle = useWorkbenchStore((state) =>
-        session
-            ? state.bootstrap?.projects.find((project) => project.id === session.projectId)
-                  ?.displayTitle
-            : undefined,
-    );
-    const terminal = useWorkbenchStore((state) =>
-        session ? sessionAgentTerminal(session, state.bootstrap?.terminals ?? []) : undefined,
-    );
-    const workingLocation = useWorkbenchStore((state) =>
-        session
-            ? sessionWorktreeProject(session, state.bootstrap?.projects ?? [])?.displayTitle
-            : undefined,
-    );
+    const { isActive, projectTitle, session, terminal, workingLocation } =
+        useSessionTabSubjects(sessionId);
     const label = useSessionLabel(sessionId);
     // The Preview entry: the one tab a plain sidebar click replaces. Italic, like VS Code's preview editor.
     const isPreview = useIsPreviewSession(sessionId);
@@ -139,24 +173,9 @@ export function SessionTab({
         },
         t,
     );
-    const closeLabel = t('sessionTabs.closeNamed', { title });
-    // The close button's tooltip says what closing does, because the Session stays in the sidebar.
-    const closeTooltip = `${closeLabel}\n${t('sessionTabs.closeHint')}`;
     // The active tab keeps the close button in the trailing slot, so a running or attention glyph moves in front of
     // the title instead of disappearing.
-    const showLeadingStatus =
-        isActive && (status.kind === 'running' || status.kind === 'attention');
-    const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
-        if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-            event.preventDefault();
-            onShift(sessionId, event.key === 'ArrowLeft' ? -1 : 1);
-            return;
-        }
-        if (isNavigationKey(event.key)) {
-            event.preventDefault();
-            onKeyboardNavigate(sessionId, event.key);
-        }
-    };
+    const showLeadingStatus = isActive && LEADING_STATUS_KINDS.has(status.kind);
     return (
         <ContextMenuTrigger menu={(): ContextMenuEntries => sessionTabMenu(sessionId)}>
             <div
@@ -198,7 +217,9 @@ export function SessionTab({
                             // eslint-disable-next-line no-void -- intentional floating-promise discard
                             void keepSessionTab(sessionId);
                         }}
-                        onKeyDown={onKeyDown}
+                        onKeyDown={(event) => {
+                            handleSessionTabKeyDown(event, sessionId, onShift, onKeyboardNavigate);
+                        }}
                         // Middle-click closes, matching pane tabs and every browser; the mousedown guard stops the
                         // platform's autoscroll cursor from taking the click first.
                         onMouseDown={(event: MouseEvent) => {
@@ -214,13 +235,7 @@ export function SessionTab({
                     >
                         <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={13} />
                         {showLeadingStatus && (
-                            <span aria-hidden="true" className="grid flex-none place-items-center">
-                                <SessionStatusIndicator
-                                    session={session}
-                                    terminal={terminal}
-                                    className={SESSION_TAB_STATUS_CLASS}
-                                />
-                            </span>
+                            <SessionTabLeadingStatus session={session} terminal={terminal} />
                         )}
                         <SessionTabLabel
                             isActive={isActive}
@@ -256,27 +271,70 @@ export function SessionTab({
                             className={SESSION_TAB_STATUS_CLASS}
                         />
                     </span>
-                    <Tooltip content={closeTooltip}>
-                        <button
-                            type="button"
-                            aria-label={closeLabel}
-                            tabIndex={-1}
-                            className={cn(
-                                'tab-close absolute inset-0 grid cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-state-hover-ink hover:text-foreground',
-                                'pointer-events-none text-muted opacity-0 transition-opacity duration-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
-                                isActive && 'pointer-events-auto text-inherit opacity-100',
-                            )}
-                            onClick={() => {
-                                // Fire-and-forget: closing toasts its own failure.
-                                // eslint-disable-next-line no-void -- intentional floating-promise discard
-                                void closeSessionTabs(sessionId);
-                            }}
-                        >
-                            <X size={12} />
-                        </button>
-                    </Tooltip>
+                    <SessionTabCloseButton
+                        isActive={isActive}
+                        sessionId={sessionId}
+                        title={title}
+                    />
                 </span>
             </div>
         </ContextMenuTrigger>
+    );
+}
+
+/**
+ * The close button in the trailing slot: revealed on hover and focus, always shown on the active tab.
+ */
+function SessionTabCloseButton({
+    isActive,
+    sessionId,
+    title,
+}: {
+    isActive: boolean;
+    sessionId: string;
+    title: string;
+}) {
+    const { t } = useTranslation();
+    const closeLabel = t('sessionTabs.closeNamed', { title });
+    // The tooltip says what closing does, because the Session stays in the sidebar.
+    const closeTooltip = `${closeLabel}\n${t('sessionTabs.closeHint')}`;
+    return (
+        <Tooltip content={closeTooltip}>
+            <button
+                type="button"
+                aria-label={closeLabel}
+                tabIndex={-1}
+                className={cn(
+                    'tab-close absolute inset-0 grid cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-state-hover-ink hover:text-foreground',
+                    'pointer-events-none text-muted opacity-0 transition-opacity duration-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
+                    isActive && 'pointer-events-auto text-inherit opacity-100',
+                )}
+                onClick={() => {
+                    // Fire-and-forget: closing toasts its own failure.
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard
+                    void closeSessionTabs(sessionId);
+                }}
+            >
+                <X size={12} />
+            </button>
+        </Tooltip>
+    );
+}
+
+/**
+ * The running or attention glyph the active tab draws before its title, since its close button holds the trailing slot.
+ */
+function SessionTabLeadingStatus({
+    session,
+    terminal,
+}: Pick<ComponentProps<typeof SessionStatusIndicator>, 'session' | 'terminal'>) {
+    return (
+        <span aria-hidden="true" className="grid flex-none place-items-center">
+            <SessionStatusIndicator
+                session={session}
+                terminal={terminal}
+                className={SESSION_TAB_STATUS_CLASS}
+            />
+        </span>
     );
 }
