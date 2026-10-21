@@ -60,6 +60,10 @@ export function useSessionSearch() {
     return {
         query,
         setQuery,
+        /**
+         * The query the listed results answer, which trails typing by the debounce.
+         */
+        searchedQuery: debounced,
         status,
         setStatus,
         provider,

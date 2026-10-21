@@ -1,5 +1,6 @@
 import { lstat } from 'node:fs/promises';
 
+import { normalizeSessionSearchText } from '@caxri/protocol';
 import { mapWithConcurrency } from '@caxri/system';
 
 import type { AgentEnvironment } from '../contract';
@@ -127,7 +128,7 @@ class MessageCollector {
     }
 
     private push(role: IndexedMessage['role'], raw: string): void {
-        const text = raw.trim().slice(0, MAX_MESSAGE_CHARS);
+        const text = normalizeSessionSearchText(raw).trim().slice(0, MAX_MESSAGE_CHARS);
         if (!text || text.length > this.remainingChars) return;
         this.remainingChars -= text.length;
         this.messages.push({ role, text });
@@ -326,7 +327,7 @@ export class SessionSearchIndexer {
         }
         const conversation: TranscriptUpsert = {
             ...base,
-            state: 'conversation',
+            state: parsed.isHosted ? 'hosted' : 'conversation',
             cwd: parsed.cwd,
             ...(parsed.title !== undefined && { title: parsed.title }),
         };

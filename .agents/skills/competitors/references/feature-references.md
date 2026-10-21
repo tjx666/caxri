@@ -84,6 +84,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Mobile shared Terminal; tablet rule**: Desktop and phone observe one Terminal; width plus short-side tablet threshold. Evidence: `mobile-companions.md`; `apps/mobile/src/features/layout/layout-mode.ts`.
 - **Activity glyphs**: State shown as a glyph instead of a word (with T3 Code). Evidence: `docs/activity-view.md`.
 - **Session search**: FTS5 index with byte offsets and file identity; title, custom-title, ai-title order. Evidence: `docs/session-search.md`.
+- **Session search speaker prefix**: Role label before a quoted message match. Evidence: `docs/session-search.md`.
 - **Session creator ("Created by")**: A created workspace remembers its parent (worktree lineage). Evidence: `docs/agent-delegation.md`.
 - **Background wait status**: A quiet monitoring sub-mode of running instead of a separate idle or done state. Evidence: `docs/activity-view.md`.
 - **Chat image numbers**: `#N` badge on each attached thumbnail, matching the image's place in the message. Evidence: `docs/agent-chat.md`.
@@ -91,10 +92,12 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Wake (MIT)
 
 - **Session search**: Cross-Agent discovery with one adapter per provider; trigram FTS5 with a short-term substring fallback; title hits ranked above content hits. Evidence: `docs/session-search.md`.
+- **Session search lands on the match**: Opening a message match scrolls to and highlights the matched message. Evidence: `docs/session-search.md`.
 
 ## agentsview (MIT)
 
 - **Session search**: Appended JSONL resumed from a recorded byte offset instead of re-read. Evidence: `docs/session-search.md`.
+- **Session search lands on the match**: Scroll to the matched message, then find with next and previous. Evidence: `docs/session-search.md`.
 
 ## T3 Code (MIT)
 

@@ -170,6 +170,11 @@ describe('listExternalConversations', () => {
             [claudeUser('claude-sdk', 'Summarize', { entrypoint: 'sdk-cli' })],
             at,
         );
+        await writeLines(
+            claudePath('claude-hosted'),
+            [claudeUser('claude-hosted', 'Draft a note', { entrypoint: 'sdk-ts' })],
+            at,
+        );
         await writeLines(subagentPath, [claudeUser('claude-parent', 'Sub task')], at);
         await writeLines(
             claudePath('claude-delegated'),

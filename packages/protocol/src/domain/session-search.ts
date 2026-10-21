@@ -9,6 +9,20 @@ import { identifierSchema, pathSchema } from './identifiers.js';
 export const MAX_SESSION_SEARCH_RESULTS = 100;
 
 /**
+ * Inline Markdown markers a rendered message hides: code spans and fences, bold, underline emphasis, strikethrough.
+ */
+const INLINE_MARKDOWN_PATTERN = /`+|\*\*|__|~~/gu;
+
+/**
+ * Drops the inline Markdown markers rendering hides, so a sentence copied from a rendered Agent Chat message matches
+ * the Markdown source it came from. The Server applies it to indexed text and queries; the Renderer applies it to the
+ * query it hands to find in the opened Chat, which searches rendered text.
+ */
+export function normalizeSessionSearchText(text: string): string {
+    return text.replaceAll(INLINE_MARKDOWN_PATTERN, '');
+}
+
+/**
  * Where a found conversation lives: an open Session, an archived Session, or only in an Agent CLI's own history on this
  * machine (started outside Caxri, or left behind by a Session that was deleted).
  */

@@ -77,6 +77,8 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.search.noFolder': '文件夹未知，无法加入',
     'session.search.messageCountOne': '{{count}} 条匹配消息',
     'session.search.messageCountOther': '{{count}} 条匹配消息',
+    'session.search.speaker.user': '你',
+    'session.search.speakerPrefix': '{{speaker}}：',
     'session.search.matchedId': 'ID 匹配',
     'session.search.matchedPath': '文件夹匹配',
     'session.search.searching': '正在搜索…',

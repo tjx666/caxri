@@ -5,19 +5,26 @@ import { caxri } from '../../../lib/caxri';
 import { setSessionSearchOpen } from '../../../stores/dialogs';
 import { pushToast, tryCommand } from '../../../stores/toasts';
 import { refreshWorkbench } from '../../../stores/workbench';
+import { handOffAgentChatFind } from '../../agent-chat/find/agent-chat-find-handoff';
 import { describeRestoredSession } from '../session-archive-commands';
 import { openSession } from '../session-commands';
-import { sessionSearchAction } from './session-search-model';
+import { sessionSearchAction, sessionSearchFindQuery } from './session-search-model';
 
 /**
- * Runs a row's primary action and closes the overlay first, so the Session it opens is what the user sees next. An
+ * Runs a row's primary action and closes the overlay first, so the Session it opens is what the user sees next. A
+ * message match also opens find in the conversation's Chat with the query, revealing the message that matched. An
  * archived Session is restored on top of its Project and opened; an external conversation becomes a new Session in the
  * Project containing its folder (adding that Project when none does) and is opened parked, ready to resume.
  */
-export async function runSessionSearchAction(entry: SessionSearchEntry): Promise<void> {
+export async function runSessionSearchAction(
+    entry: SessionSearchEntry,
+    query: string,
+): Promise<void> {
     const action = sessionSearchAction(entry);
     if (!action) return;
     setSessionSearchOpen(false);
+    const findQuery = sessionSearchFindQuery(entry, query);
+    if (findQuery) handOffAgentChatFind(entry.agentSessionId!, findQuery);
     if (action === 'open') {
         openSession(entry.sessionId!);
         return;

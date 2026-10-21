@@ -5,6 +5,7 @@ import {
     nextStatusFilter,
     retainedSelectionIndex,
     sessionSearchAction,
+    sessionSearchFindQuery,
     sessionSearchIndexLabel,
     shortFolder,
     snippetSegments,
@@ -30,6 +31,28 @@ describe('Session search model', () => {
         expect(sessionSearchAction(base)).toBe('import');
         // Without a folder there is nowhere to resume the conversation.
         expect(sessionSearchAction({ ...base, cwd: undefined })).toBeUndefined();
+    });
+
+    it('hands the opened Chat the pasted phrase when the quote holds it, else the longest matched term', () => {
+        const entry: SessionSearchEntry = {
+            ...base,
+            match: {
+                field: 'content',
+                snippet: {
+                    role: 'assistant',
+                    text: 'Even a probe with\nonly 21 tokens waits 30 to 190 seconds.',
+                    highlights: [
+                        [7, 12],
+                        [23, 25],
+                        [33, 38],
+                    ],
+                },
+            },
+        };
+        expect(sessionSearchFindQuery(entry, '  probe with   only 21 ')).toBe('probe with only 21');
+        expect(sessionSearchFindQuery(entry, '`probe` with only')).toBe('probe with only');
+        expect(sessionSearchFindQuery(entry, 'waits 21 probe')).toBe('probe');
+        expect(sessionSearchFindQuery(base, 'probe')).toBeUndefined();
     });
 
     it('splits a snippet at its highlights and clamps bad ranges', () => {

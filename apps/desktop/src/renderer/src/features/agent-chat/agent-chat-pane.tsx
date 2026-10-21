@@ -272,6 +272,7 @@ export function AgentChatPane({
         >
             <div className="relative min-h-0 flex-1">
                 <AgentChatFindScope
+                    agentSessionId={terminal?.agentSessionId}
                     contentReference={contentReference}
                     focusComposer={focusComposer}
                     hasUnsearchedHistory={history.hasMore || history.history.truncated}

@@ -1,4 +1,5 @@
 import type { SessionSearchMatchField, SessionSearchSnippet } from '@caxri/protocol';
+import { normalizeSessionSearchText } from '@caxri/protocol';
 
 /**
  * Trigram full-text search needs three characters; a shorter term is matched as a plain substring instead.
@@ -35,10 +36,11 @@ function characterLength(text: string): number {
 }
 
 export function parseSessionQuery(query: string): ParsedSessionQuery {
-    const terms = [...new Set(query.trim().toLowerCase().split(/\s+/u).filter(Boolean))].slice(
-        0,
-        MAX_TERMS,
-    );
+    const terms = [
+        ...new Set(
+            normalizeSessionSearchText(query).trim().toLowerCase().split(/\s+/u).filter(Boolean),
+        ),
+    ].slice(0, MAX_TERMS);
     const indexed = terms.filter((term) => characterLength(term) >= MIN_INDEXED_TERM_LENGTH);
     return {
         terms,

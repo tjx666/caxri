@@ -19,6 +19,7 @@ import {
     hasAgentChatFindEarlierLoadSettled,
     stepAgentChatFindIndex,
 } from './agent-chat-find';
+import { registerAgentChatFindHandoff } from './agent-chat-find-handoff';
 import {
     clearAgentChatFindHighlights,
     setAgentChatFindHighlights,
@@ -172,6 +173,7 @@ function paintFind({
  * walks the whole conversation.
  */
 export function useAgentChatFind({
+    agentSessionId,
     terminalId,
     scrollReference,
     contentReference,
@@ -180,6 +182,10 @@ export function useAgentChatFind({
     isLoadingEarlier,
     loadEarlier,
 }: {
+    /**
+     * The provider conversation shown, so a Session search result can open find here with its query.
+     */
+    agentSessionId: string | undefined;
     terminalId: string;
     scrollReference: RefObject<HTMLDivElement | null>;
     contentReference: RefObject<HTMLDivElement | null>;
@@ -273,6 +279,26 @@ export function useAgentChatFind({
         setFocusRevision((revision) => revision + 1);
     }, []);
     useEffect(() => registerTerminalSearchHandler(terminalId, open), [open, terminalId]);
+    /**
+     * A handed-off query arrives before the conversation has rendered, so it waits for the first paint that finds a
+     * match to reveal it, the same way Search earlier messages does.
+     */
+    const openWithQuery = useCallback(
+        (next: string) => {
+            setAwaitingEarlier(session, true);
+            requestReveal(session, 'start');
+            setQuery(next);
+            open();
+        },
+        [open, session],
+    );
+    useEffect(
+        () =>
+            agentSessionId
+                ? registerAgentChatFindHandoff(agentSessionId, openWithQuery)
+                : undefined,
+        [agentSessionId, openWithQuery],
+    );
 
     const changeQuery = (next: string): void => {
         setAwaitingEarlier(session, false);

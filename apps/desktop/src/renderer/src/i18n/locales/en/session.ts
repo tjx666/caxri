@@ -78,6 +78,8 @@ export const session = {
     'session.search.noFolder': 'Folder unknown, cannot be added',
     'session.search.messageCountOne': '{{count}} matching message',
     'session.search.messageCountOther': '{{count}} matching messages',
+    'session.search.speaker.user': 'You',
+    'session.search.speakerPrefix': '{{speaker}}: ',
     'session.search.matchedId': 'ID match',
     'session.search.matchedPath': 'Folder match',
     'session.search.searching': 'Searching…',

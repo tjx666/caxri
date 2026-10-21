@@ -6,6 +6,7 @@ import type { BootstrapState } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 
+import { fakeClaudeChatAgentMode } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -13,11 +14,14 @@ import {
     launchCaxri,
     pageRequest,
     selectedSessionId,
+    VISIBLE_SESSION,
 } from './support/helpers.ts';
 
 const HELD = '4c2e8a1f-6b3d-4e7a-9f10-2d5c8b7a6e41';
 const ARCHIVED = '5d3f9b2a-7c4e-4f8b-8a21-3e6d9c8b7f52';
 const EXTERNAL = '6e4a0c3b-8d5f-4a9c-9b32-4f7e0d9c8a63';
+const CHAT = '7f5b1d4c-9e60-4b0d-8c43-5a8f1e0d9b74';
+const OTHER_APP = '806c2e5d-a071-4c1e-9d54-6b9a2f1e0c85';
 
 /**
  * A Claude transcript as the CLI writes it: the first real prompt becomes the conversation's title.
@@ -27,6 +31,7 @@ async function writeClaudeTranscript(
     cwd: string,
     sessionId: string,
     messages: readonly [user: string, assistant: string],
+    entrypoint = 'cli',
 ): Promise<void> {
     const path = join(
         configDirectory,
@@ -34,7 +39,7 @@ async function writeClaudeTranscript(
         cwd.replaceAll(/[^a-z0-9]/giu, '-'),
         `${sessionId}.jsonl`,
     );
-    const base = { cwd, entrypoint: 'cli', isSidechain: false, sessionId };
+    const base = { cwd, entrypoint, isSidechain: false, sessionId };
     const records = [
         { ...base, type: 'user', message: { role: 'user', content: messages[0] } },
         {
@@ -196,6 +201,101 @@ test('Session search finds open, archived, and external conversations and acts o
                 (session) => session.id === sessions[ARCHIVED],
             )?.archivedAt,
         ).toBeUndefined();
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Agent Chat runs Claude through the Agent SDK, so its transcript starts with an `sdk-ts` entry point. Such a
+ * conversation is searchable by content while a Session holds it, and opening the match lands find on the message.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('Session search finds an Agent Chat conversation by message text and opens find on the match', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-session-search-chat-e2e-'));
+    const userData = join(directory, 'profile');
+    const root = join(directory, 'workspace');
+    await mkdir(root, { recursive: true });
+    // The SDK fake lets the reopened Chat resume and render the synthetic transcript's history.
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const options = { agentMode, userDataDir: userData, testRootPath: root };
+    let running = await launchCaxri(options);
+    try {
+        await createProjectSession(running.page);
+        const sessionId = await selectedSessionId(running.page);
+        await pageRequest(running.page, 'session.rename', {
+            sessionId,
+            displayTitle: 'Vendor note',
+        });
+        const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const cwd = bootstrap.sessions.find((session) => session.id === sessionId)!.rootPath;
+        await running.app.close();
+
+        const claudeHome = agentMode.environment.CLAUDE_CONFIG_DIR!;
+        await writeClaudeTranscript(
+            claudeHome,
+            cwd,
+            CHAT,
+            [
+                'Draft a latency note for the vendor',
+                'Even a **probe** with only 21 tokens often waits 30 to 190 seconds.',
+            ],
+            'sdk-ts',
+        );
+        // Another application's SDK run in the same folder is not the user's conversation.
+        await writeClaudeTranscript(
+            claudeHome,
+            cwd,
+            OTHER_APP,
+            ['Classify this email', 'A probe with only 21 tokens is spam.'],
+            'sdk-ts',
+        );
+        const terminal = bootstrap.terminals.find((entry) => entry.sessionId === sessionId);
+        if (!terminal) throw new Error('Synthetic Terminal missing');
+        const database = new Database(join(userData, 'caxri.db'));
+        try {
+            database
+                .prepare(
+                    'UPDATE terminals SET kind = ?, provider = ?, agent_session_id = ?, last_process_state = ?, surface = ? WHERE id = ?',
+                )
+                .run('claude', 'claude', CHAT, 'stopped', 'chat', terminal.id);
+            database
+                .prepare('UPDATE sessions SET primary_agent_terminal_id = ? WHERE id = ?')
+                .run(terminal.id, sessionId);
+        } finally {
+            database.close();
+        }
+
+        running = await launchCaxri(options);
+        const { page } = running;
+        const search = await openSearch(page);
+        await search.input.fill('probe with only 21');
+        const rows = search.results.getByRole('option');
+        await expect(rows).toHaveCount(1);
+        await expect(rows.first()).toHaveAttribute('data-session-search-status', 'open');
+        await expect(rows.first().locator('.session-search-snippet')).toContainText(
+            'Claude: Even a probe with only 21 tokens',
+        );
+        await page.screenshot({ path: testInfo.outputPath('session-search-chat-match.png') });
+
+        await search.input.press('Enter');
+        await expect(search.dialog).toHaveCount(0);
+        const find = page.locator(VISIBLE_SESSION).getByRole('search', { name: 'Find in Chat' });
+        await expect(find.getByRole('textbox', { name: 'Find in Chat' })).toHaveValue(
+            'probe with only 21',
+        );
+        await expect(find.getByText('1/1')).toBeVisible();
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    [...(CSS.highlights.get('agent-chat-find-active') ?? [])].map((range) =>
+                        range instanceof Range ? range.toString() : '',
+                    ),
+                ),
+            )
+            .toEqual(['probe with only 21']);
+        await page.screenshot({ path: testInfo.outputPath('session-search-chat-find.png') });
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });

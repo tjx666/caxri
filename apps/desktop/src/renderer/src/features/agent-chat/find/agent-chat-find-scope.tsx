@@ -11,6 +11,7 @@ import { useAgentChatFind } from './use-agent-chat-find';
  * rail and Jump to latest).
  */
 export function AgentChatFindScope({
+    agentSessionId,
     children,
     contentReference,
     focusComposer,
@@ -21,6 +22,10 @@ export function AgentChatFindScope({
     stopFollowing,
     terminalId,
 }: {
+    /**
+     * The provider conversation this Chat shows, which a Session search result hands its query to.
+     */
+    agentSessionId: string | undefined;
     children: ReactNode;
     contentReference: RefObject<HTMLDivElement | null>;
     focusComposer: () => void;
@@ -46,6 +51,7 @@ export function AgentChatFindScope({
     terminalId: string;
 }) {
     const find = useAgentChatFind({
+        agentSessionId,
         terminalId,
         scrollReference,
         contentReference,
