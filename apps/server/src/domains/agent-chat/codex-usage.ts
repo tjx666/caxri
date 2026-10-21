@@ -12,7 +12,7 @@ import type { JsonRpcConnection } from './json-rpc-connection';
  *
  * @see https://developers.openai.com/api/docs/guides/prompt-caching
  */
-export const CODEX_CACHE_TTL_MINUTES = 30;
+const CODEX_CACHE_TTL_MINUTES = 30;
 
 const ACCOUNT_READ_TIMEOUT_MS = 5_000;
 
@@ -24,7 +24,7 @@ const ACCOUNT_READ_TIMEOUT_MS = 5_000;
  *
  * @see https://x.com/thsottiaux/status/2112712984644784534
  */
-export function codexCacheTtlMinutes(authMode: string | undefined): number | undefined {
+function codexCacheTtlMinutes(authMode: string | undefined): number | undefined {
     return authMode === 'chatgpt' || authMode === 'chatgptAuthTokens'
         ? undefined
         : CODEX_CACHE_TTL_MINUTES;
@@ -34,7 +34,7 @@ export function codexCacheTtlMinutes(authMode: string | undefined): number | und
  * Reads the Chat's sign-in mode with `account/read` and returns its cache lifetime. A Codex that cannot answer keeps
  * the estimate rather than failing the Chat's start.
  */
-export async function readCodexCacheTtlMinutes(
+async function readCodexCacheTtlMinutes(
     connection: JsonRpcConnection,
 ): Promise<number | undefined> {
     let result: unknown;
