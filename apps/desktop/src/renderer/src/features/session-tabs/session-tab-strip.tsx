@@ -8,15 +8,15 @@ import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useIsSessionTabStripVisible, useOpenSessionIds } from '../../stores/open-sessions';
 import { useIsFullScreen } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { sessionTitleForDisplay } from '../session/session-title';
+import { sessionLabelOf } from '../session/session-label-snapshot';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabNavigationTarget } from '../tabs/work-tab-accessibility';
 import { useActiveTabReveal } from '../workbench/pane-tab-reveal';
+import { useSessionTabDrag } from './hooks/use-session-tab-drag';
 import { SessionTab } from './session-tab';
 import { activateSessionTab, shiftSessionTab } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
 import { SessionTabNewButton } from './session-tab-new-button';
-import { useSessionTabDrag } from './use-session-tab-drag';
 
 /**
  * The Open Session strip: one tab per Session this window has open, above the Workbench. It exists only from two Open
@@ -62,13 +62,11 @@ function SessionTabStripBar() {
         // eslint-disable-next-line no-void -- intentional floating-promise discard
         void shiftSessionTab(sessionId, direction).then(() => {
             const position = openSessionIds.indexOf(sessionId) + direction;
-            const session = useWorkbenchStore
-                .getState()
-                .bootstrap?.sessions.find((item) => item.id === sessionId);
-            if (!session || position < 0 || position >= openSessionIds.length) return;
+            const label = sessionLabelOf(useWorkbenchStore.getState().bootstrap, sessionId);
+            if (!label || position < 0 || position >= openSessionIds.length) return;
             setAnnouncement(
                 t('sessionTabs.reordered', {
-                    title: sessionTitleForDisplay(session.displayTitle, t),
+                    title: label.suffix ? `${label.title} (${label.suffix})` : label.title,
                     position: position + 1,
                     count: openSessionIds.length,
                 }),
@@ -78,9 +76,10 @@ function SessionTabStripBar() {
     return (
         <div
             className={cn(
-                // The frameless window's title bar while the strip shows: 44px like the sidebar rails, so the traffic
-                // lights stay centered in it and the three rails keep one bottom edge.
-                'session-tab-strip flex h-11 flex-none bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
+                // The frameless window's title bar while the strip shows: 36px like the sidebar rails and the pane row
+                // below it, so the traffic lights stay centered in it and the rails keep one bottom edge. The 1px
+                // hairline to the pane row is an inset shadow, not a border, so it does not eat into that height.
+                'session-tab-strip flex h-9 flex-none bg-title-bar-active-background text-title-bar-active-foreground shadow-[inset_0_-1px_0_var(--border)] [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
                 !isPrimarySidebarVisible && !isFullScreen && 'pl-(--traffic-light-clearance)',
             )}
             data-session-tab-strip=""
@@ -100,7 +99,7 @@ function SessionTabStripBar() {
                 {dropIndicatorLeft !== undefined && (
                     <div
                         aria-hidden="true"
-                        className="session-tab-drop-marker pointer-events-none absolute top-1 bottom-1 z-10 w-0.5 bg-accent"
+                        className="session-tab-drop-marker pointer-events-none absolute top-1.5 bottom-1.5 z-10 w-0.5 bg-accent"
                         style={{ left: dropIndicatorLeft }}
                     >
                         <span className="absolute -top-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-accent" />
@@ -112,7 +111,7 @@ function SessionTabStripBar() {
                     data-tab-scroll-rail=""
                     className="work-tab-scroll relative flex min-w-0 flex-1 overflow-x-auto"
                 >
-                    <div role="none" className="flex h-11 min-w-full items-stretch">
+                    <div role="none" className="flex h-9 min-w-full items-center gap-1 px-1">
                         <span
                             ref={startSentinel}
                             aria-hidden="true"
@@ -147,7 +146,7 @@ function SessionTabStripBar() {
             {!isPrimarySidebarVisible && (
                 <div
                     aria-hidden="true"
-                    className="session-tab-strip-drag-handle h-11 w-8 flex-none"
+                    className="session-tab-strip-drag-handle h-9 w-8 flex-none"
                 />
             )}
         </div>

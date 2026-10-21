@@ -30,6 +30,7 @@ export interface CommandContext {
     session: {
         archiveSelected(): void;
         closeTab(): void;
+        moveToNewWindow(): void;
         compactWarm(): void;
         canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;

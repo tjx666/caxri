@@ -8,6 +8,19 @@ type OpenSessionsDatabase = Pick<CaxriDatabaseConnection, 'appState'>;
 const EMPTY_WINDOW: WindowOpenSessions = { openSessionIds: [], activeSessionId: null };
 
 /**
+ * The stored shape of a window: `previewSessionId` is written only while a Preview entry exists, so a window with none
+ * (every entry kept) is byte-identical to a record written before Preview entries existed.
+ */
+function stored(window: {
+    openSessionIds: string[];
+    activeSessionId: string | null;
+    previewSessionId?: string | null;
+}): WindowOpenSessions {
+    const { previewSessionId, ...rest } = window;
+    return previewSessionId ? { ...rest, previewSessionId } : rest;
+}
+
+/**
  * The primary Workbench window's key. Desktop Main mints every other key (`win-<uuid>`) for a torn-off window.
  */
 const PRIMARY_WINDOW_KEY = 'main';
@@ -81,18 +94,22 @@ function writeWindow(
 ): WindowOpenSessions {
     database.appState.set('openSessionsByWindow', {
         ...database.appState.get('openSessionsByWindow'),
-        [windowKey]: window,
+        [windowKey]: stored(window),
     });
-    return window;
+    return stored(window);
 }
 
 /**
  * Makes `sessionId` the window's active Session.
  *
- * - `navigate` (a plain select) activates the entry when it is already open, and otherwise replaces the active entry the
- *   way a browser navigates inside the current tab, so selecting through the sidebar never grows the strip.
- * - `newTab` (only the strip's explicit `+`) appends. Session creation and moving a Terminal into a new Session use
- *   `navigate` too: only explicit opens add tabs.
+ * An entry that is already open is only activated (a Preview entry stays a Preview entry). Otherwise:
+ *
+ * - `navigate` (a plain select: a sidebar click, Cmd+N, session creation) is the VS Code "preview" rule. It replaces the
+ *   window's Preview entry in place, or, when there is none, adds the Session right of the active entry as the new
+ *   Preview entry. A kept entry is never replaced, so navigation can never make a tab the user chose vanish.
+ * - `newTab` (an explicit open: the strip's `+`, moving a Terminal into a new Session) inserts a kept entry right of the
+ *   active one, the way a browser opens a link in a new tab. With no active entry it appends. The Preview entry is left
+ *   alone.
  *
  * A full strip drops its oldest non-active entry instead of refusing the Session the user just asked for.
  */
@@ -102,21 +119,59 @@ export function activateSessionInWindow(
     sessionId: string,
     placement: 'navigate' | 'newTab',
 ): WindowOpenSessions {
-    const { openSessionIds, activeSessionId } = readWindowOpenSessions(database, windowKey);
+    const {
+        openSessionIds,
+        activeSessionId,
+        previewSessionId = null,
+    } = readWindowOpenSessions(database, windowKey);
     if (openSessionIds.includes(sessionId))
         return activeSessionId === sessionId
-            ? { openSessionIds, activeSessionId }
-            : writeWindow(database, windowKey, { openSessionIds, activeSessionId: sessionId });
-    const activeIndex = activeSessionId === null ? -1 : openSessionIds.indexOf(activeSessionId);
-    const next =
-        placement === 'navigate' && activeIndex !== -1
-            ? openSessionIds.with(activeIndex, sessionId)
-            : [...openSessionIds, sessionId];
+            ? stored({ openSessionIds, activeSessionId, previewSessionId })
+            : writeWindow(database, windowKey, {
+                  openSessionIds,
+                  activeSessionId: sessionId,
+                  previewSessionId,
+              });
+    const previewIndex = previewSessionId === null ? -1 : openSessionIds.indexOf(previewSessionId);
+    let next: string[];
+    let nextPreview = previewIndex === -1 ? null : previewSessionId;
+    if (placement === 'navigate' && previewIndex !== -1) {
+        next = openSessionIds.with(previewIndex, sessionId);
+        nextPreview = sessionId;
+    } else {
+        const activeIndex = activeSessionId === null ? -1 : openSessionIds.indexOf(activeSessionId);
+        next = openSessionIds.toSpliced(
+            activeIndex === -1 ? openSessionIds.length : activeIndex + 1,
+            0,
+            sessionId,
+        );
+        if (placement === 'navigate') nextPreview = sessionId;
+    }
     while (next.length > MAX_OPEN_SESSIONS_PER_WINDOW) {
         const evictable = next.findIndex((id) => id !== sessionId);
+        if (next[evictable] === nextPreview) nextPreview = null;
         next.splice(evictable, 1);
     }
-    return writeWindow(database, windowKey, { openSessionIds: next, activeSessionId: sessionId });
+    return writeWindow(database, windowKey, {
+        openSessionIds: next,
+        activeSessionId: sessionId,
+        previewSessionId: nextPreview,
+    });
+}
+
+/**
+ * Promotes the window's Preview entry to a kept entry when it is `sessionId`; any other Session leaves the window
+ * untouched. Promotion is the only way an entry stops being a Preview entry besides leaving the strip.
+ */
+function keepOpenSession(
+    database: OpenSessionsDatabase,
+    windowKey: string,
+    sessionId: string,
+): WindowOpenSessions {
+    const window = readWindowOpenSessions(database, windowKey);
+    return window.previewSessionId === sessionId
+        ? writeWindow(database, windowKey, { ...window, previewSessionId: null })
+        : window;
 }
 
 /**
@@ -166,7 +221,12 @@ function replaceWindowOpenSessions(
         );
     }
     activeSessionId ??= openSessionIds[0] ?? null;
-    return writeWindow(database, windowKey, { openSessionIds, activeSessionId });
+    // Every entry this edit adds is kept; the Preview entry survives only while it is still listed.
+    const previewSessionId =
+        previous.previewSessionId && openSessionIds.includes(previous.previewSessionId)
+            ? previous.previewSessionId
+            : null;
+    return writeWindow(database, windowKey, { openSessionIds, activeSessionId, previewSessionId });
 }
 
 /**
@@ -220,12 +280,18 @@ export function reconcileOpenSessions(
             }
         }
         for (const id of kept) claimed.add(id);
+        // A fallback appended above is a kept entry: it is the user's only way to keep working in this window.
+        const previewSessionId =
+            window.previewSessionId && kept.includes(window.previewSessionId)
+                ? window.previewSessionId
+                : null;
         if (
             kept.length !== window.openSessionIds.length ||
-            activeSessionId !== window.activeSessionId
+            activeSessionId !== window.activeSessionId ||
+            previewSessionId !== (window.previewSessionId ?? null)
         )
             isChanged = true;
-        next[windowKey] = { openSessionIds: kept, activeSessionId };
+        next[windowKey] = stored({ openSessionIds: kept, activeSessionId, previewSessionId });
     }
     if (isChanged) database.appState.set('openSessionsByWindow', next);
     return { activeRemoved: isActiveRemoved };
@@ -259,7 +325,13 @@ function moveSessionToWindow(
         source.activeSessionId === sessionId
             ? neighborOf(source.openSessionIds, sessionId, () => true)
             : source.activeSessionId;
-    const nextSource = { openSessionIds, activeSessionId };
+    // Tearing a tab off is a deliberate act, so the moved Session is kept in its new window; the source keeps its Preview
+    // entry unless that is the one that left.
+    const nextSource = stored({
+        openSessionIds,
+        activeSessionId,
+        previewSessionId: source.previewSessionId === sessionId ? null : source.previewSessionId,
+    });
     const target = { openSessionIds: [sessionId], activeSessionId: sessionId };
     database.appState.set('openSessionsByWindow', {
         ...database.appState.get('openSessionsByWindow'),
@@ -283,6 +355,16 @@ export class WindowOpenSessionsStore {
 
     get(windowKey: string): WindowOpenSessions {
         return readWindowOpenSessions(this.database, windowKey);
+    }
+
+    /**
+     * Every Session open in a window other than `windowKey`, for the sidebar's "open in another window" marker.
+     */
+    ownedElsewhere(windowKey: string): string[] {
+        const windows = this.all();
+        return orderedWindowKeys(windows)
+            .filter((key) => key !== windowKey)
+            .flatMap((key) => windows[key].openSessionIds);
     }
 
     /**
@@ -330,6 +412,15 @@ export class WindowOpenSessionsStore {
                 ([key, window]) => key !== PRIMARY_WINDOW_KEY && window.openSessionIds.length > 0,
             )
             .map(([windowKey, window]) => ({ windowKey, ...window }));
+    }
+
+    /**
+     * Promotes the Preview entry to a kept entry, see {@link keepOpenSession}.
+     */
+    keep(windowKey: string, sessionId: string): WindowOpenSessions {
+        return this.database.transaction(() =>
+            keepOpenSession(this.database, windowKey, sessionId),
+        );
     }
 
     set(windowKey: string, requested: readonly string[]): WindowOpenSessions {

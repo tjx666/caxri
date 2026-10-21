@@ -76,7 +76,7 @@ export function ViewContainerTabStrip({
                 className={
                     location === 'panel'
                         ? 'flex h-9 items-end'
-                        : 'grid h-11 flex-1 auto-cols-fr grid-flow-col items-end'
+                        : 'grid h-9 flex-1 auto-cols-fr grid-flow-col items-end'
                 }
                 idPrefix={idPrefix}
                 indicatorMaxWidth={location === 'secondarySidebar' ? 48 : undefined}

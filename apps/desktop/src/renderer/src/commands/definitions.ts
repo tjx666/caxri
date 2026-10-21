@@ -183,6 +183,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('session.closeTab', (context) => context.session.closeTab(), {
         allowInEditable: true,
     }),
+    fromCatalog('session.moveToNewWindow', (context) => context.session.moveToNewWindow(), {
+        allowInEditable: true,
+    }),
     fromCatalog('terminal.new', (context) => context.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.newInSplit', (context) => context.terminal.createInSplit(), {
         allowInEditable: true,

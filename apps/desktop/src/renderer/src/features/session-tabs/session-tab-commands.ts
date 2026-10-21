@@ -8,9 +8,11 @@ import { didSelectSession } from '../session/session-commands';
 import type { SessionTabCloseScope } from './session-tabs-state';
 import {
     activeAfterEdit,
-    appendOpenSession,
+    canMoveSessionToNewWindow,
+    insertOpenSessionAfter,
     moveOpenSession,
     openTabTargetId,
+    previewAfterEdit,
     sessionIdsToClose,
     shiftOpenSession,
     withoutOpenSessions,
@@ -44,6 +46,7 @@ function editOpenSessions(
         applyWindowOpenSessions({
             openSessionIds: next,
             activeSessionId: activeAfterEdit(ids, activeId, next) ?? null,
+            previewSessionId: previewAfterEdit(getBootstrap()?.previewSessionId, next) ?? null,
         });
         const stored = await tryCommand(failure, () =>
             caxri.request('window.openSessions.set', { openSessionIds: next }),
@@ -81,14 +84,48 @@ export function activateSessionTab(sessionId: string): void {
 }
 
 /**
- * Cmd+click and "Open in New Tab": adds the Session to the strip without leaving the current one's place, then shows
- * it. A Session that is already open is only activated, and one that another window owns brings that window forward.
+ * Promotes the Preview entry to a kept entry: a double-click, "Keep Open", Cmd+click, a reorder, or working in the
+ * Session. Does nothing for any other Session, so callers need not check first. Applied optimistically (the tab leaves
+ * its italic style under the pointer) and then replaced with the Server's answer.
+ */
+export async function keepSessionTab(sessionId: string): Promise<void> {
+    const bootstrap = getBootstrap();
+    if (bootstrap?.previewSessionId !== sessionId) return;
+    applyWindowOpenSessions({
+        openSessionIds: getOpenSessionIds().slice(),
+        activeSessionId: bootstrap.selectedSessionId ?? null,
+        previewSessionId: null,
+    });
+    const stored = await tryCommand(translate('sessionTabs.errors.keepFailed'), () =>
+        caxri.request('window.openSessions.keep', { sessionId }),
+    );
+    if (stored) applyWindowOpenSessions(stored);
+    else await refreshWorkbench();
+}
+
+/**
+ * Keeps the active Session's tab when it is the Preview entry. Called for every interaction inside the Session (see
+ * `usePromotePreviewOnInteraction`), so it must stay a cheap synchronous check when there is nothing to keep.
+ */
+export function keepActiveSessionTab(): void {
+    const bootstrap = getBootstrap();
+    const activeId = bootstrap?.selectedSessionId;
+    // Fire-and-forget: keeping toasts its own failure.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard
+    if (activeId && bootstrap.previewSessionId === activeId) void keepSessionTab(activeId);
+}
+
+/**
+ * Cmd+click and "Open in New Tab": adds the Session to the strip right of the active tab as a kept entry, then shows
+ * it. A Session that is already open is activated (and kept, when it was the Preview entry), and one that another
+ * window owns brings that window forward.
  */
 export async function openSessionInNewTab(sessionId: string): Promise<void> {
-    if (!getOpenSessionIds().includes(sessionId)) {
+    if (getOpenSessionIds().includes(sessionId)) await keepSessionTab(sessionId);
+    else {
         const wasStored = await editOpenSessions(
             translate('sessionTabs.errors.openFailed'),
-            (ids) => appendOpenSession(ids, sessionId),
+            (ids, activeId) => insertOpenSessionAfter(ids, sessionId, activeId),
         );
         // A failed append already told the user why. A stored strip that still lacks the Session means another window
         // owns it, and selecting it brings that window forward.
@@ -125,6 +162,8 @@ export async function reorderSessionTab(
     sessionId: string,
     targetIndex: number | undefined,
 ): Promise<void> {
+    // Dragging a tab is deliberate, so it also keeps a Preview tab (VS Code does the same).
+    await keepSessionTab(sessionId);
     await editOpenSessions(translate('sessionTabs.errors.reorderFailed'), (ids) =>
         moveOpenSession(ids, sessionId, targetIndex),
     );
@@ -147,6 +186,25 @@ export async function tearOffSessionTab(
         caxri.request('window.tearOffSession', { sessionId, ...(screenPoint && { screenPoint }) }),
     );
     if (result?.opened) await refreshWorkbench();
+}
+
+/**
+ * "Move to New Window": the non-drag way to tear a tab off (tab menu, sidebar row menu, Command Palette), for users who
+ * cannot or would rather not drag. Main cascades the new window from this one instead of using a release point.
+ */
+export async function moveSessionToNewWindow(sessionId: string): Promise<void> {
+    if (!canMoveSessionToNewWindow(getOpenSessionIds(), sessionId)) return;
+    const result = await tryCommand(translate('sessionTabs.errors.tearOffFailed'), () =>
+        caxri.request('window.tearOffSession', { sessionId, placement: 'cascade' }),
+    );
+    if (result?.opened) await refreshWorkbench();
+}
+
+export function moveActiveSessionToNewWindow(): void {
+    const activeId = getBootstrap()?.selectedSessionId;
+    // Fire-and-forget: the move toasts its own failure.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard
+    if (activeId) void moveSessionToNewWindow(activeId);
 }
 
 export async function shiftSessionTab(sessionId: string, direction: -1 | 1): Promise<void> {

@@ -40,6 +40,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.session.switchMru': '切换到最近使用的会话',
     'commands.session.focusNextAttention': '转到下一个待处理会话',
     'commands.session.closeTab': '关闭打开的会话',
+    'commands.session.moveToNewWindow': '将打开的会话移到新窗口',
     'commands.session.openTab1': '切换到第 1 个打开的会话',
     'commands.session.openTab2': '切换到第 2 个打开的会话',
     'commands.session.openTab3': '切换到第 3 个打开的会话',

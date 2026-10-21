@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { isChatTerminal, listPaneTerminalIds } from '@caxri/protocol';
 import { Code2, Plus, X } from 'lucide-react';
@@ -11,7 +11,8 @@ import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { retainAgentChatComposerState } from '../agent-chat/composer-input/agent-chat-drafts';
 import { chooseProjectFolder } from '../session/session-creation-commands';
-import { useReportViewedSession } from '../session-tabs/use-report-viewed-session';
+import { usePromotePreviewOnInteraction } from '../session-tabs/hooks/use-promote-preview-on-interaction';
+import { useReportViewedSession } from '../session-tabs/hooks/use-report-viewed-session';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { PaneView } from './pane-view';
@@ -112,6 +113,8 @@ export function Workbench() {
     }, [selectedSessionId]);
     useSessionFocusHandoff(selectedSessionId);
     useReportViewedSession(selectedSessionId);
+    const sectionReference = useRef<HTMLElement>(null);
+    usePromotePreviewOnInteraction(sectionReference);
     const liveSessionKey = useWorkbenchStore(
         (state) => state.bootstrap?.sessions.map(({ id }) => id).join('\u{0}') ?? '',
     );
@@ -163,7 +166,10 @@ export function Workbench() {
         );
     }, [chatTerminalKey]);
     return (
-        <section className="workbench grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-background">
+        <section
+            ref={sectionReference}
+            className="workbench grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-background"
+        >
             {session ? (
                 mountOrder.map((sessionId) => (
                     <div

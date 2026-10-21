@@ -14,17 +14,34 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
 - The strip appears only when a window has two or more Open Sessions. With one, the window looks as it
   always did and the pane tab bar stays the title bar. When the strip is shown it takes the drag
   region, the traffic-light inset, and the title-bar fill.
-- The active tab carries a 2px accent top border; the pane tabs below use a plain fill, so one accent
-  shows per screen. Each tab shows the Session's status indicator and title and reads that Session's
-  own state by ID. A crowded strip scrolls instead of shrinking tabs below a minimum width.
-- Plain click on a Session row selects it. That **replaces the active entry** when the Session is not
-  already open (like navigating inside a browser tab), or activates it when it already is, so browsing
-  the sidebar never grows the strip. Only an explicit open adds a tab: Cmd+click, **Open in New Tab** in
-  the Session row menu, and the strip's trailing **+** button (a new Session in the active Session's
-  Project, started like Cmd+N, with `placement: 'newTab'`). Every other creation path (Cmd+N,
-  the sidebar's New Session, moving a Terminal into a new Session, side-chat conversion) behaves like
-  a plain select: it activates the Session, replacing the active entry, or becoming the only entry
-  of an empty list.
+- The Session level is neutral: an inset 28px pill on the 36px title bar, with a raised fill on the active
+  tab and no accent. The accent stays with the focused pane's active tab in the 36px pane row below
+  (see DESIGN.md "Two tab levels"). Each tab shows the Session's status indicator and title and reads
+  that Session's own state by ID. Tabs are 104px to 200px wide and the active tab never drops below
+  150px; a crowded strip scrolls instead of shrinking them further.
+- Every Open Session is either **kept** or the window's one **Preview entry** (the VS Code preview-editor
+  model). A plain click on a Session row selects it: an already open Session is only activated;
+  otherwise the click **replaces the Preview entry in place**, or, when the window has none, adds the
+  Session right of the active tab as the new Preview entry. A kept entry is never replaced by plain
+  navigation, so browsing the sidebar cannot make a tab you chose disappear, and the strip grows only
+  by kept tabs plus at most one Preview tab. The Preview tab's title is italic (muted while inactive) and
+  announces itself to screen readers.
+- A Preview entry becomes kept on a double-click of its tab, **Keep Open** in the tab menu, Cmd+click on
+  its row or **Open in New Tab**, dragging the tab, or any interaction inside the Session (typing,
+  pasting, or a primary-button press anywhere in its Workbench; shortcuts such as `Cmd+1` do not count).
+  A Session stays kept until its tab is closed.
+- Only an explicit open adds a kept tab: Cmd+click, **Open in New Tab** in the Session row menu, the
+  strip's trailing **+** button (a new Session in the active Session's Project, started like Cmd+N, with
+  `placement: 'newTab'`), and moving a Terminal into a new Session. A new tab is **inserted immediately
+  right of the active tab** (the browser and VS Code rule), not appended, so it lands next to where you
+  were working; the Server applies the same rule to the strip's **+** (`activateSessionInWindow`) and the
+  Renderer to the other two (`insertOpenSessionAfter`). With no active tab it appends. Cmd+N, the
+  sidebar's New Session, and side-chat conversion behave like a plain click on the new Session: it
+  becomes or replaces the Preview entry, and typing in it keeps it. A window with one kept tab therefore
+  grows a second (Preview) tab on the first sidebar click, which is also when the strip appears.
+- The Preview entry is persisted with the strip (`previewSessionId`, written only while one exists), so a
+  restart restores it. Server edits that save a strip keep it while it is still listed and never create
+  one; tearing the Preview tab off keeps it in the new window as a kept tab.
 - The **+** sticks to the right edge of the tab rail, so it stays reachable when tabs overflow. The
   strip's empty area to the right of it remains a window drag region. A Session with no tabs in its
   Workbench shows no pane tab bar under the strip, only the empty state.
@@ -40,11 +57,22 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
 | Cmd+1 to Cmd+8 | Switch to the Nth Open Session                                       |
 | Cmd+9          | Switch to the last Open Session (the browser convention)             |
 | Cmd+Alt+1/2/3  | Show the Files, Git, and Status sidebar views (moved from Cmd+1/2/3) |
+| Cmd+Shift+W    | Close Open Session: remove the active tab from the strip             |
 
 The meaning is stable: Cmd+1 to Cmd+9 always address Open Sessions, whether or not the strip is
 visible. Cmd+0 is unchanged. Existing user keybinding files receive the move through
 `defaultKeybindingChanges`; see [keybindings.md](keybindings.md). The switch commands work from an
 editable surface too.
+
+Cmd+W and Cmd+Shift+W close at different levels, and neither archives. Cmd+W closes the active pane
+tab; closing a Session's last pane tab (a Terminal included) leaves the Session open with the empty
+Workbench state, so a keystroke never ends or hides a long-running Session. Cmd+Shift+W (command
+`session.closeTab`, also in the tab context menu and the Command Palette) removes the active Session
+from the strip and leaves it in the sidebar; with a single entry it does nothing, because the window
+keeps at least one. Archiving is always an explicit action (Session menu, sidebar row menu). The
+chord does not collide with window closing: the native menu has no Close Window item and the window
+closes through its traffic light. Closing a Terminal tab runs the ordinary `terminal.close` path, so
+Terminal resume and suspension are untouched.
 
 ## Persistence
 
@@ -69,10 +97,19 @@ a strip), in the two places a Session enters a strip: selecting it, and saving a
   title bar under the cursor, keeps the source window's size, and is clamped to the display. The Renderer
   sends the `dragend` screen point, and Main falls back to the native cursor when the platform reports
   `0,0` (a known Chromium quirk VS Code works around the same way).
+- **Move to New Window** is the non-drag path to the same tear-off, for keyboard and pointer-only use: the Session tab
+  context menu, the sidebar row menu (only for a Session in this window's strip), and the Command Palette command
+  `session.moveToNewWindow` (acts on the active Session). It sends `window.tearOffSession` with
+  `placement: 'cascade'`: there is no release point and the cursor is over the source window, so Main skips the
+  "released over a window" refusals and opens the window cascaded 30px per other window from the source, at its
+  size, clamped to the display. It is disabled with a single entry, like the drag.
+- While a tab drag is in progress the strip stays visible even if its membership fell below two (a Session pruned
+  mid-drag), so the title bar does not jump under the pointer and the drag source is not removed.
 - A tear-off is all or nothing. Main creates the window hidden, the Server moves the Session in one
   transaction (`window.openSessions.moveToWindow`), and only then does the window show. A refusal (the source
   would be left empty, the Session is not open there) destroys the hidden window and changes nothing. A
-  window's last Open Session cannot be torn off; the strip is hidden at one tab, so no drag starts.
+  window's last Open Session cannot be torn off; the strip is hidden at one tab, so no drag starts, and the menu
+  entries are disabled or absent.
 - Closing a torn-off window releases its strip like closing its tab: its unsaved Editor buffers are decided
   for that window only, nothing touches Terminals, and the Session returns to the sidebar's pool and can be
   opened anywhere. Closing the primary window decides unsaved buffers for every window, then closes the
@@ -122,3 +159,40 @@ context, never a global selection. Keep-alive stays the most recent five Session
 Dropping a tab onto another window to merge it is not supported; a tear-off is one-way into a new window. The
 file watcher is single-scope and follows the primary visible Session, so a Session shown only in a torn-off
 window is watched while that window is the primary visible one. Per-window bounds are not persisted.
+
+## Linking the strip and the sidebar
+
+The strip keeps its own order (the user's, never the sidebar's activity order), so three cues connect the
+two surfaces instead of mirroring one in the other:
+
+- **Open markers.** A sidebar row for a Session open in this window shows a 2px neutral edge bar (never
+  the accent), only while the strip is visible. A Session another window owns shows a small window glyph
+  after its title; clicking it brings that window forward. The Server supplies the second set as
+  `bootstrap.otherWindowOpenSessionIds` (disjoint from `openSessionIds`), and a strip edit that changes
+  membership re-reads the other windows' Workbench. Each row selects its own marker as a primitive
+  (`useSessionOpenPlace`), so a strip edit re-renders only the rows that flipped.
+- **Reveal.** Every activation (sidebar click, tab click, Cmd+N, MRU, history, notification) expands the
+  Session's Project and scrolls its row into view (`useSelectedSessionReveal`). The tab context menu's
+  **Reveal in Sidebar** does the same on demand for any tab: it opens a hidden Primary Side Bar, leaves the
+  Activity view, widens a Project's `Show N more` window or the Pinned group down to the row, then scrolls.
+- **Hover link.** Hovering a tab softly highlights its sidebar row, and hovering a row highlights its tab
+  (`linked-session-hover.ts`). Both sides select a boolean for their own Session from one small store.
+
+## Tab and row labels
+
+The strip and the PrimarySidebar name a Session through one pure rule
+(`features/session/session-labels.ts`), so they never disagree. The title chain is the stored title
+(the user's rename or the Agent's), then a snippet of the first prompt (24 characters), then
+`Project · worktree`, then the translated "Untitled". The prompt snippet is an optional input that no
+surface supplies yet.
+
+A muted suffix follows the title only when another non-archived Session carries the same
+(case-insensitive) title, and it escalates only as far as needed: the Project name when the colliding
+Sessions belong to different Projects; else the Agent kind and linked worktree when those differ; else a
+per-Project ordinal such as `#2`. The ordinal is the rank by creation time among every Session of that
+Project with that title, archived or not, so closing, archiving, or reordering a sibling never
+renumbers the rest. The suffix is computed over the whole snapshot rather than the strip alone, which
+keeps a tab and its sidebar row identical.
+
+A tab's tooltip lists the full label, Project, Agent, worktree, status, and the `Cmd+N` chord that
+selects it. The record carries no branch name, so the worktree stands in for it.

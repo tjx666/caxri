@@ -23,16 +23,77 @@ export function shouldTearOffSessionTab(input: {
     return !input.dropped && input.dropEffect === 'none' && input.tabCount >= 2;
 }
 
+/**
+ * Whether "Move to New Window" applies to `sessionId`: it must be in this window's strip, and the strip must hold
+ * another entry, because a window never gives up its last Open Session (the Server refuses with `last_tab`). The menus
+ * hide or disable the entry on this answer, so a refusal stays the stale-state fallback.
+ */
+export function canMoveSessionToNewWindow(
+    openSessionIds: readonly string[],
+    sessionId: string,
+): boolean {
+    return openSessionIds.length >= 2 && openSessionIds.includes(sessionId);
+}
+
 export function isSessionTabStripVisible(openSessionIds: readonly string[]): boolean {
     return openSessionIds.length >= SESSION_TAB_STRIP_MIN_SESSIONS;
 }
 
 /**
- * Adds a Session at the end of the strip. An entry that is already open keeps its place, the way a browser focuses an
- * existing tab instead of duplicating it.
+ * Adds a Session immediately right of `anchorId` (the active entry), the way a browser opens a link in a new tab, so a
+ * new tab lands next to where the user was working instead of at the far end of a long strip. Appends when there is no
+ * anchor or the anchor is not in the strip. An entry that is already open keeps its place, the way a browser focuses an
+ * existing tab instead of duplicating it. The Server applies the same rule to the strip's `+`
+ * (`activateSessionInWindow`), so the optimistic result here and the Server's answer agree.
  */
-export function appendOpenSession(ids: readonly string[], sessionId: string): string[] {
-    return ids.includes(sessionId) ? [...ids] : [...ids, sessionId];
+export function insertOpenSessionAfter(
+    ids: readonly string[],
+    sessionId: string,
+    anchorId: string | undefined,
+): string[] {
+    if (ids.includes(sessionId)) return [...ids];
+    const anchorIndex = anchorId === undefined ? -1 : ids.indexOf(anchorId);
+    return ids.toSpliced(anchorIndex === -1 ? ids.length : anchorIndex + 1, 0, sessionId);
+}
+
+/**
+ * The Preview entry after a strip edit: it stays while it is still listed, and an edit never creates one (a Session the
+ * edit adds is kept). The Server applies the same rule when it stores a strip (`replaceWindowOpenSessions`).
+ */
+export function previewAfterEdit(
+    previewId: string | undefined,
+    nextIds: readonly string[],
+): string | undefined {
+    return previewId !== undefined && nextIds.includes(previewId) ? previewId : undefined;
+}
+
+/**
+ * Whether a DOM event inside the Session counts as the user working in it, which keeps a Preview entry. A bare modifier
+ * and a chord (Cmd/Ctrl + key, the app's own shortcuts such as `Cmd+1`) do not: switching tabs by keyboard must not
+ * keep the tab it lands on. A pointer press counts only for the primary button.
+ */
+export function isKeepingInteraction(event: {
+    type: string;
+    button?: number;
+    key?: string;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+}): boolean {
+    switch (event.type) {
+        case 'keydown':
+            return (
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !['Alt', 'Control', 'Meta', 'Shift'].includes(event.key ?? '')
+            );
+        case 'pointerdown':
+            return (event.button ?? 0) === 0;
+        case 'paste':
+        case 'input':
+            return true;
+        default:
+            return false;
+    }
 }
 
 /**
@@ -121,4 +182,14 @@ export function activeAfterEdit(
 export function openTabTargetId(ids: readonly string[], position: number): string | undefined {
     if (!Number.isSafeInteger(position) || position < 1 || position > 9) return undefined;
     return position === 9 ? ids.at(-1) : ids[position - 1];
+}
+
+/**
+ * The `aria-keyshortcuts` value for the tab at `index` of `count`: `Meta+<position>` for the first eight, and `Meta+9`
+ * on the last tab, which is what `Cmd+9` selects (see {@link openTabTargetId}). A ninth or later tab that is not the
+ * last one has no chord. With nine tabs the ninth is both, and `Meta+9` is right.
+ */
+export function sessionTabShortcutKey(index: number, count: number): string | undefined {
+    if (index < 8) return `Meta+${index + 1}`;
+    return index === count - 1 ? 'Meta+9' : undefined;
 }

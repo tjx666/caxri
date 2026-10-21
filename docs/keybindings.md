@@ -132,6 +132,10 @@ rather than earning a `replace` nobody could ever have stored, which is what hap
 `cmd+4` / `secondarySidebar.showActivity`. Once the version is tagged the entry freezes like every
 one above it.
 
+`Cmd+Shift+W` (Close Open Session) is a plain `add` entry in `defaultKeybindingChanges`; `Cmd+W`
+(`workbench.closeActiveTab`) keeps its binding but no longer archives a Session when it closes the
+last tab (see [open-sessions.md](open-sessions.md#shortcuts)).
+
 ## Contextual bindings (`when`)
 
 A binding may carry `"when": "terminalFocus"`, the only context the schema accepts today.

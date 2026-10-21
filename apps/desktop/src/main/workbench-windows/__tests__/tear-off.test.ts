@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     cascadedBounds,
     createTearOffController,
+    planCommandTearOff,
     planTearOff,
     TEAR_OFF_GRAB_OFFSET,
 } from '../tear-off';
@@ -112,6 +113,32 @@ describe('cascadedBounds', () => {
     });
 });
 
+describe('planCommandTearOff', () => {
+    it('cascades from the source window without any point or refusal', () => {
+        expect(
+            planCommandTearOff({
+                sourceBounds: SOURCE,
+                size: SIZE,
+                otherWindowCount: 0,
+                workAreas: [DISPLAY],
+            }),
+        ).toEqual({ action: 'open', bounds: { x: 130, y: 130, width: 1200, height: 800 } });
+    });
+
+    it('steps further for each other window and stays inside the display', () => {
+        const plan = planCommandTearOff({
+            sourceBounds: { x: 1300, y: 600, width: 1200, height: 800 },
+            size: SIZE,
+            otherWindowCount: 3,
+            workAreas: [DISPLAY],
+        });
+        expect(plan.action).toBe('open');
+        if (plan.action !== 'open') return;
+        expect(plan.bounds.x + plan.bounds.width).toBeLessThanOrEqual(2560);
+        expect(plan.bounds.y + plan.bounds.height).toBeLessThanOrEqual(1440);
+    });
+});
+
 function harness(overrides: { moveSession?: () => Promise<unknown> } = {}) {
     const events: string[] = [];
     const destroy = vi.fn(() => events.push('destroy'));
@@ -199,5 +226,16 @@ describe('createTearOffController', () => {
         });
         expect(result).toEqual({ opened: false });
         expect(events).toEqual([]);
+    });
+
+    it('opens a cascaded window for a command placement even though the cursor is over the source', async () => {
+        const { controller, events } = harness();
+        const result = await controller.tearOff({
+            sourceKey: 'main',
+            sessionId: 's1',
+            placement: 'cascade',
+        });
+        expect(result).toEqual({ opened: true });
+        expect(events).toEqual(['create', 'move']);
     });
 });

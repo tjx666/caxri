@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { reportViewedSession } from './window-viewing-commands';
+import { reportViewedSession } from '../window-viewing-commands';
 
 /**
  * Reports the Session this window shows whenever it changes, including the first render and a switch to none. Takes the

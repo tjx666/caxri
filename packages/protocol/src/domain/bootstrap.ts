@@ -57,6 +57,16 @@ export const bootstrapStateSchema = z.object({
      * truth for existence; the Server already drops archived, deleted, and hidden Sessions. Absent means none.
      */
     openSessionIds: z.array(z.string()).optional(),
+    /**
+     * The requesting window's Preview entry (one of `openSessionIds`): the tab a plain sidebar click replaces. Absent
+     * means every entry is kept.
+     */
+    previewSessionId: z.string().optional(),
+    /**
+     * Sessions that are Open Sessions of another window, so the sidebar can mark them "open in another window". A
+     * Session is open in at most one window, so this never overlaps `openSessionIds`. Absent means none.
+     */
+    otherWindowOpenSessionIds: z.array(z.string()).optional(),
     sessionStates: z.array(sessionStateSchema),
     settings: appSettingsSchema,
     keybindings: z.array(keybindingSchema).max(MAX_KEYBINDINGS),

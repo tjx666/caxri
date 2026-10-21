@@ -4,10 +4,10 @@ import type { ServerEvent } from '@caxri/protocol';
 import type { BrowserWindow, BrowserWindowConstructorOptions, Point } from 'electron';
 
 /**
- * Height of the Renderer's drag header (`h-11`) in CSS pixels, and the traffic-light inset that centers the 14px-tall
+ * Height of the Renderer's drag header (`h-9`) in CSS pixels, and the traffic-light inset that centers the 14px-tall
  * macOS window buttons inside it at 100% zoom.
  */
-const HEADER_HEIGHT_CSS_PX = 44;
+const HEADER_HEIGHT_CSS_PX = 36;
 const TRAFFIC_LIGHT_HEIGHT_PX = 14;
 const TRAFFIC_LIGHT_X_PX = 15;
 
@@ -67,7 +67,7 @@ export function mainWindowChromeOptions(
          */
         titleBarStyle: 'hiddenInset',
         /**
-         * Centers the macOS traffic lights in the Renderer's 44px drag header, scaled by the page zoom.
+         * Centers the macOS traffic lights in the Renderer's 36px drag header, scaled by the page zoom.
          */
         trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
     };
@@ -91,7 +91,7 @@ export interface WindowZoomController {
 /**
  * `settings.changed` names no key, so the controller compares each reload against the last applied level and leaves the
  * windows alone for every unrelated settings write. A failed read keeps the current level. `window.zoomLevel` is one
- * app-wide setting, so every window that shares the Workbench's 44px drag header follows it: the Workbench and the
+ * app-wide setting, so every window that shares the Workbench's 36px drag header follows it: the Workbench and the
  * Agent Commander.
  */
 export function createWindowZoomController(options: {

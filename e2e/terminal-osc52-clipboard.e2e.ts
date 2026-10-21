@@ -192,10 +192,10 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         await running.page.waitForTimeout(1_050);
         await running.clipboard.writeText('CLOSE_SENTINEL');
         /**
-         * Terminal > Close Terminal now archives a Session on its true last tab, same as `Cmd+W`, instead of destroying
-         * the Terminal, so give this Session a sibling Terminal and re-select `secondTerminalId`'s own tab first,
-         * keeping the close below an ordinary one that actually destroys the Terminal this clipboard assertion tracks.
-         * Done before typing the delayed write so the 0.5s race against the close below is unchanged.
+         * The sibling Terminal below keeps the Session from ending up with no tab at all and re-selects
+         * `secondTerminalId`'s own tab first, so the close below stays an ordinary one that destroys the Terminal this
+         * clipboard assertion tracks. Done before typing the delayed write so the 0.5s race against the close below is
+         * unchanged.
          */
         await pressNewTerminal(running.page);
         await waitForNewTerminalId(running.page, [firstTerminalId, secondTerminalId]);

@@ -740,7 +740,7 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
 
         const onlyTab = running.page.locator('.work-tabs .work-tab').first();
         // With one tab, the close button and active accent stay absent. Terminal > Close Terminal on that last tab
-        // archives the Session, the same meaning as `cmd+w`, instead of leaving an empty pane behind.
+        // closes the Terminal and leaves the Session open and empty, the same meaning as `cmd+w`.
         await onlyTab.hover();
         await expect(onlyTab.getByRole('button', { name: 'Close Terminal' })).toHaveCount(0);
         await running.app.evaluate(({ Menu }) => {
@@ -748,9 +748,8 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
                 ?.getMenuItemById('command.terminal.close')
                 ?.click({ triggeredByAccelerator: false });
         });
-        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveAccessibleName(
-            'Archived Sessions (1)',
-        );
+        await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(0);
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);

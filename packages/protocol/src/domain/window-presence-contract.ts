@@ -26,8 +26,9 @@ export const windowKeyParameter = { windowKey: windowKeySchema.optional() };
 
 /**
  * Where a Session created for a window lands in its Open Sessions. Creation behaves like a plain select by default (an
- * open Session is activated, otherwise the active entry is replaced), so creating a Session never grows the strip on
- * its own. `newTab` is the explicit opt-in used by the tab strip's `+` button, which appends the new Session.
+ * open Session is activated, otherwise it becomes or replaces the window's Preview entry), so creating a Session never
+ * grows the set of kept tabs on its own. `newTab` is the explicit opt-in used by the tab strip's `+` button, which
+ * inserts a kept entry right of the active one.
  */
 export const sessionPlacementSchema = z.enum(['newTab']);
 export type SessionPlacement = z.infer<typeof sessionPlacementSchema>;
@@ -47,6 +48,7 @@ export const windowScopedMethods = [
     'session.resume',
     'session.select',
     'terminal.moveToNewSession',
+    'window.openSessions.keep',
     'window.openSessions.set',
 ] as const;
 export type WindowScopedMethod = (typeof windowScopedMethods)[number];
@@ -71,6 +73,12 @@ export const openSessionIdsSchema = z.array(identifierSchema).max(MAX_OPEN_SESSI
 export const windowOpenSessionsSchema = z.object({
     openSessionIds: openSessionIdsSchema,
     activeSessionId: identifierSchema.nullable(),
+    /**
+     * The window's Preview entry: the one Open Session a plain navigation (a sidebar click) replaces instead of adding
+     * a tab. Always one of `openSessionIds` when set; absent or `null` means every entry is kept, which is also how an
+     * older record reads. Kept entries are never replaced by plain navigation.
+     */
+    previewSessionId: identifierSchema.nullable().optional(),
 });
 export type WindowOpenSessions = z.infer<typeof windowOpenSessionsSchema>;
 

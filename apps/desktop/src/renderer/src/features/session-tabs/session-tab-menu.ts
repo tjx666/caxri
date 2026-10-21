@@ -1,12 +1,17 @@
 import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
+import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
+import { readCommandShortcut } from '../../lib/keybindings';
 import { getOpenSessionIds } from '../../stores/open-sessions';
-import { closeSessionTabs } from './session-tab-commands';
-import { sessionIdsToClose } from './session-tabs-state';
+import { getBootstrap } from '../../stores/selectors';
+import { revealSessionInSidebar } from '../session/session-reveal-request';
+import { closeSessionTabs, keepSessionTab, moveSessionToNewWindow } from './session-tab-commands';
+import { canMoveSessionToNewWindow, sessionIdsToClose } from './session-tabs-state';
 
 /**
- * The right-click menu of an Open Session tab. Every entry only edits the strip; none touches the Session itself, which
- * stays in the sidebar. Read when the menu opens, so "Close Tabs to the Right" reflects the strip as it is then.
+ * The right-click menu of an Open Session tab. No entry touches the Session itself, which stays in the sidebar: the
+ * close entries edit the strip and Reveal in Sidebar scrolls to the Session's row. Read when the menu opens, so "Close
+ * Tabs to the Right" reflects the strip as it is then.
  */
 export function sessionTabMenu(sessionId: string): ContextMenuEntries {
     const ids = getOpenSessionIds();
@@ -17,9 +22,28 @@ export function sessionTabMenu(sessionId: string): ContextMenuEntries {
         // eslint-disable-next-line no-void -- intentional floating-promise discard
         void closeSessionTabs(sessionId, scope);
     };
+    const isPreview = getBootstrap()?.previewSessionId === sessionId;
     return [
+        ...(isPreview
+            ? [
+                  {
+                      label: translate('sessionTabs.keepOpen'),
+                      onSelect: () => {
+                          // Fire-and-forget: keeping toasts its own failure.
+                          // eslint-disable-next-line no-void -- intentional floating-promise discard
+                          void keepSessionTab(sessionId);
+                      },
+                  },
+                  CONTEXT_MENU_SEPARATOR,
+              ]
+            : []),
         {
             label: translate('sessionTabs.close'),
+            // The chord closes the active tab, so only the active tab's menu advertises it.
+            shortcut:
+                getBootstrap()?.selectedSessionId === sessionId
+                    ? readCommandShortcut('session.closeTab')
+                    : undefined,
             disabled: sessionIdsToClose(ids, sessionId, 'one').length === 0,
             onSelect: close('one'),
         },
@@ -32,6 +56,22 @@ export function sessionTabMenu(sessionId: string): ContextMenuEntries {
             label: translate('sessionTabs.closeToRight'),
             disabled: sessionIdsToClose(ids, sessionId, 'right').length === 0,
             onSelect: close('right'),
+        },
+        CONTEXT_MENU_SEPARATOR,
+        {
+            label: translate('sessionTabs.moveToNewWindow'),
+            disabled: !canMoveSessionToNewWindow(ids, sessionId),
+            onSelect: () => {
+                // Fire-and-forget: the move toasts its own failure.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard
+                void moveSessionToNewWindow(sessionId);
+            },
+        },
+        {
+            label: translate('sessionTabs.revealInSidebar'),
+            onSelect: () => {
+                revealSessionInSidebar(sessionId);
+            },
         },
     ];
 }

@@ -243,7 +243,7 @@ shared component when every usage shows changing digits (`StatusItem`, `StatTile
   orientations are the same seam, not two thicknesses. The macOS traffic-light clearance is the
   only platform spacing exception: 84px expanded-header and 78px collapsed-header/tab-strip left
   padding while windowed. Both are horizontal clearance for the window controls; fullscreen hides
-  those controls and omits the clearance. The 44px figure under Window chrome is rail height, a
+  those controls and omits the clearance. The 36px figure under Window chrome is rail height, a
   different axis.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
@@ -279,10 +279,11 @@ drift this replaces; do not reintroduce it.
 
 ## Component redlines
 
-**Window chrome**: `titleBarStyle: 'hiddenInset'`. The 44px PrimarySidebar, workbench, and
-SecondarySidebar top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code
-style, so the active tab's `--background` fill reaches the rail's top edge. PrimarySidebar and
-SecondarySidebar rail tabs remain 36px, vertically centered. SecondarySidebar tabs divide the whole
+**Window chrome**: `titleBarStyle: 'hiddenInset'`. The 36px PrimarySidebar, workbench, and
+SecondarySidebar top rails share one bottom edge, and the Open Session strip, when shown, is that
+workbench rail (see **Two tab levels**). Workbench tabs fill the full 36px rail, VS Code
+style, so the active tab's `--background` fill reaches the rail's top edge. The macOS traffic lights
+are centered in 36px (`y: 11`). SecondarySidebar rail tabs fill their 36px rail. SecondarySidebar tabs divide the whole
 rail evenly; a compact capped indicator marks the selected slot. The logo-free PrimarySidebar header is
 the drag region (`-webkit-app-region: drag`, interactive children `no-drag`). The Session history
 back/forward pair is the only control that rail carries, and it opts out of the drag region so the
@@ -290,7 +291,7 @@ buttons navigate instead of moving the window. Add Project has no chrome of its 
 points are `Cmd+O` (which works from a focused Terminal or editor too), the native Project menu, the
 command palette, and the Welcome view's primary action while no Project exists. A workbench-wide
 action that a shortcut, a menu, and the palette all reach does not also earn a hover-revealed button
-in a 44px rail. The collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the
+in a 36px rail. The collapsed PrimarySidebar preserves the same 36px-tall drag region beneath the
 traffic lights.
 
 **Files caption actions**: `New File`, `New Folder`, `Collapse Folders`, in that order. Search left
@@ -668,6 +669,32 @@ label. It follows the tree rules above with the row itself as the focus target: 
 across all rows, arrows to move, Left/Right to collapse and expand, and a leaf renders no control
 of its own, because a row that is already focusable does not need a button inside it to be reached.
 
+**Two tab levels**: a window with two or more Open Sessions stacks two rows, each 36px, with a
+1px `--border` hairline between them (an inset shadow, so the rows keep their height). The outer
+row is the Session level and is the window's title bar (`--title-bar-*` fill, drag region,
+traffic-light inset). Its tabs are inset 28px pills with 6px radius, 11px medium labels, and a 4px
+gap: inactive pills are transparent with `--tab-inactive-foreground` text, hover adds a 35%
+`--elevated` fill, and the active pill is `--elevated` with `--foreground` text, a small shadow,
+and an inset 1px ring of 12% `--foreground`. A stronger hover fill read as the active pill over the
+title-bar fill in both dark and light themes.
+Short 16px `--border` dividers separate idle neighbours and hide beside the active pill, beside a
+hovered pill, and at the row's end. Widths run 104px to 200px, and the active pill never drops
+below 150px. The Session level never uses `--accent`: selecting a Session is not keyboard focus. The
+inner row is the focused pane's tab bar, an ordinary `--surface` bar, and keeps the 2px `--accent`
+top border on the focused pane's active tab even while the strip shows, so the screen's one durable
+accent says where input goes. The strip's trailing `+` is the pane row's `+` (28px `Button`, ghost)
+at the other level, and both levels use the same inset 1px `--foreground` outline for keyboard
+focus. A tab whose title collides with another Session's gets a trailing 11px `--muted` detail (Project, Agent,
+or `#n`), also shown on its sidebar row. The sidebar marks Sessions that are open: a 2px `--muted` edge bar on a
+row open in this window's strip (only while the strip shows), and an 11px `--muted` window glyph after the
+title of a row another window owns; neither uses `--accent`. Hovering a tab or its row echoes the other with
+the same soft hover fill. The window's Preview entry (the tab a plain sidebar click replaces) sets its title in italic, and in `--muted` while inactive; keeping it restores the normal style. Each Session pill ends in one fixed 20px slot shared by the status glyph and the close button, so the title never
+shifts: the glyph fades out as the close button fades in under the pointer or keyboard focus, and the active pill always
+shows the close button. On an inactive pill the running and detached glyphs take 70% and 60% `--foreground` rather than
+the sidebar's `--muted`, and an attention glyph sits on a faint `--warning` disc. "Move to New Window" (tab menu,
+sidebar row menu, Command Palette) is the non-drag tear-off. A single Open Session hides the outer row and the pane bar becomes the title bar again. Every
+color is a semantic token, so a light theme restyles both rows with no extra work.
+
 **Tab strip**: active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
 `--muted`. The active tab always shows its close button; an inactive tab reveals a `--muted` one
@@ -675,7 +702,7 @@ only under the pointer or keyboard focus, VS Code style; hunting for a control t
 there on the tab you are working in is the friction this removes, and keeping the inactive ones
 muted is what stops a crowded rail from reading as a row of X's. A dirty tab shows its dot in that
 slot instead and swaps to the close button on hover/focus, active or not.
-Tabs fill the full 44px rail height. Document tabs fit their full labels; Terminal tabs divide the
+Tabs fill the full 36px rail height. Document tabs fit their full labels; Terminal tabs divide the
 remaining width with their full displayed content as the minimum. Crowded bars scroll rather than
 truncating Terminal labels or imposing a fixed filename cap; the one exception is a single document
 label longer than the whole bar, which truncates 6rem short of it so its own close button stays in view.

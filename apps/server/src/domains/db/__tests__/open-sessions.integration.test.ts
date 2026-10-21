@@ -34,14 +34,35 @@ describe('Open Sessions per window', () => {
         expect(strip(database)).toEqual({ openSessionIds: [a.id, b.id], activeSessionId: b.id });
     });
 
-    it('creates a Session like a plain select: the only entry first, then replacing the active one', () => {
+    it('inserts a newTab Session right of the active entry instead of at the end', () => {
+        const { create, database } = fixture();
+        const a = create();
+        const b = create();
+        const c = create();
+        database.selectSession(a.id, 'main');
+        const d = create();
+        expect(strip(database)).toEqual({
+            openSessionIds: [a.id, d.id, b.id, c.id],
+            activeSessionId: d.id,
+        });
+    });
+
+    it('creates a Session like a plain select: a Preview entry that the next creation replaces', () => {
         const { database, project } = fixture();
         const createPlain = () =>
             database.createSession(project.id, 'shell', undefined, { windowKey: 'main' }).session;
         const a = createPlain();
-        expect(strip(database)).toEqual({ openSessionIds: [a.id], activeSessionId: a.id });
+        expect(strip(database)).toEqual({
+            openSessionIds: [a.id],
+            activeSessionId: a.id,
+            previewSessionId: a.id,
+        });
         const b = createPlain();
-        expect(strip(database)).toEqual({ openSessionIds: [b.id], activeSessionId: b.id });
+        expect(strip(database)).toEqual({
+            openSessionIds: [b.id],
+            activeSessionId: b.id,
+            previewSessionId: b.id,
+        });
     });
 
     it('activates an already open Session without reordering the strip', () => {
@@ -52,19 +73,142 @@ describe('Open Sessions per window', () => {
         expect(strip(database)).toEqual({ openSessionIds: [a.id, b.id], activeSessionId: a.id });
     });
 
-    it('navigates by replacing the active entry, like a browser tab', () => {
+    describe('Preview entry', () => {
+        function plain() {
+            const context = fixture();
+            const make = () =>
+                context.database.createSession(context.project.id, 'shell', undefined, {
+                    selection: 'preserve',
+                }).session;
+            return { ...context, make };
+        }
+
+        it('adds a Preview entry right of the active kept entry when there is none', () => {
+            const { create, database, make } = plain();
+            const a = create();
+            const b = create();
+            database.selectSession(a.id, 'main');
+            const p = make();
+            database.selectSession(p.id, 'main');
+            expect(strip(database)).toEqual({
+                openSessionIds: [a.id, p.id, b.id],
+                activeSessionId: p.id,
+                previewSessionId: p.id,
+            });
+        });
+
+        it('replaces only the Preview entry, in place, and never a kept one', () => {
+            const { create, database, make } = plain();
+            const a = create();
+            const b = create();
+            const p = make();
+            const q = make();
+            database.selectSession(p.id, 'main');
+            database.selectSession(a.id, 'main');
+            database.selectSession(q.id, 'main');
+            expect(strip(database)).toEqual({
+                openSessionIds: [a.id, b.id, q.id],
+                activeSessionId: q.id,
+                previewSessionId: q.id,
+            });
+        });
+
+        it('keeps the Preview entry when an open entry is activated', () => {
+            const { create, database, make } = plain();
+            const a = create();
+            const p = make();
+            database.selectSession(p.id, 'main');
+            database.selectSession(a.id, 'main');
+            expect(strip(database).previewSessionId).toBe(p.id);
+        });
+
+        it('promotes the Preview entry to a kept entry, and ignores any other Session', () => {
+            const { create, database, make } = plain();
+            const a = create();
+            const p = make();
+            const q = make();
+            database.selectSession(p.id, 'main');
+            expect(database.windowOpenSessions.keep('main', a.id).previewSessionId).toBe(p.id);
+            const kept = database.windowOpenSessions.keep('main', p.id);
+            expect(kept).toEqual({ openSessionIds: [a.id, p.id], activeSessionId: p.id });
+            // With nothing left to replace, the next navigation adds a fresh Preview entry.
+            database.selectSession(q.id, 'main');
+            expect(strip(database)).toEqual({
+                openSessionIds: [a.id, p.id, q.id],
+                activeSessionId: q.id,
+                previewSessionId: q.id,
+            });
+        });
+
+        it('inserts an explicit new tab as a kept entry and leaves the Preview entry alone', () => {
+            const { create, database, make } = plain();
+            const a = create();
+            const p = make();
+            database.selectSession(p.id, 'main');
+            const k = create();
+            expect(strip(database)).toEqual({
+                openSessionIds: [a.id, p.id, k.id],
+                activeSessionId: k.id,
+                previewSessionId: p.id,
+            });
+        });
+
+        it('forgets the Preview entry when it is closed, and keeps it across a reorder', () => {
+            const { create, database, make } = plain();
+            const a = create();
+            const p = make();
+            database.selectSession(p.id, 'main');
+            expect(database.windowOpenSessions.set('main', [p.id, a.id]).previewSessionId).toBe(
+                p.id,
+            );
+            expect(database.windowOpenSessions.set('main', [a.id])).toEqual({
+                openSessionIds: [a.id],
+                activeSessionId: a.id,
+            });
+        });
+
+        it('drops the Preview entry when its Session is archived', () => {
+            const { create, database, make } = plain();
+            const a = create();
+            const p = make();
+            database.selectSession(p.id, 'main');
+            database.archiveSession(p.id);
+            expect(strip(database)).toEqual({ openSessionIds: [a.id], activeSessionId: a.id });
+        });
+
+        it('persists the Preview entry in the stored window record', () => {
+            const { create, database, make } = plain();
+            create();
+            const p = make();
+            database.selectSession(p.id, 'main');
+            expect(database.windowOpenSessions.all().main.previewSessionId).toBe(p.id);
+        });
+
+        it('keeps a torn-off Session as a kept entry and leaves the source Preview entry', () => {
+            const { create, database, make } = plain();
+            create();
+            const k = create();
+            const p = make();
+            database.selectSession(p.id, 'main');
+            const moved = database.windowOpenSessions.moveToWindow('main', 'win-1', k.id);
+            expect(moved.target).toEqual({ openSessionIds: [k.id], activeSessionId: k.id });
+            expect(moved.source.previewSessionId).toBe(p.id);
+            const movedPreview = database.windowOpenSessions.moveToWindow('main', 'win-2', p.id);
+            expect(movedPreview.target.previewSessionId).toBeUndefined();
+            expect(movedPreview.source.previewSessionId).toBeUndefined();
+        });
+    });
+
+    it("lists the Sessions other windows own, never the requesting window's own", () => {
         const { create, database, project } = fixture();
         const a = create();
         const b = create();
         const elsewhere = database.createSession(project.id, 'shell', undefined, {
             selection: 'preserve',
         }).session;
-        database.selectSession(a.id, 'main');
-        database.selectSession(elsewhere.id, 'main');
-        expect(strip(database)).toEqual({
-            openSessionIds: [elsewhere.id, b.id],
-            activeSessionId: elsewhere.id,
-        });
+        database.selectSession(elsewhere.id, 'other');
+        expect(database.windowOpenSessions.ownedElsewhere('main')).toEqual([elsewhere.id]);
+        expect(database.windowOpenSessions.ownedElsewhere('other')).toEqual([a.id, b.id]);
     });
 
     it('keeps windows independent', () => {
@@ -76,6 +220,7 @@ describe('Open Sessions per window', () => {
         expect(strip(database, 'other')).toEqual({
             openSessionIds: [a.id],
             activeSessionId: a.id,
+            previewSessionId: a.id,
         });
         expect(strip(database, 'never-written')).toEqual({
             openSessionIds: [],
@@ -154,13 +299,13 @@ describe('Open Sessions per window', () => {
         expect(strip(database, 'other').openSessionIds).not.toContain(a.id);
     });
 
-    it('moves a Terminal into a new Session that replaces the active entry in the requesting window', () => {
+    it('moves a Terminal into a new Session that opens as a kept tab right of the active entry', () => {
         const { create, database } = fixture();
         const a = create();
         const terminal = database.listTerminals(a.id)[0];
         const moved = database.moveTerminalToNewSession(terminal.id, 'main');
         expect(strip(database)).toEqual({
-            openSessionIds: [moved.session.id],
+            openSessionIds: [a.id, moved.session.id],
             activeSessionId: moved.session.id,
         });
     });

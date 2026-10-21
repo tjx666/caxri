@@ -15,6 +15,7 @@ import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { fetchCaxriQuery } from '../../queries/client';
 import { isLocalOnlyAvailable } from '../../stores/environment';
+import { getOpenSessionIds } from '../../stores/open-sessions';
 import { getBootstrap } from '../../stores/selectors';
 import { takeBackFromCommander } from '../agent-commander/commander-handover-commands';
 import { openCommanderHandover } from '../agent-commander/commander-handover-store';
@@ -35,7 +36,8 @@ import {
     openSessionPullRequest,
     setSessionPinned,
 } from '../session/session-commands';
-import { openSessionInNewTab } from '../session-tabs/session-tab-commands';
+import { moveSessionToNewWindow, openSessionInNewTab } from '../session-tabs/session-tab-commands';
+import { canMoveSessionToNewWindow } from '../session-tabs/session-tabs-state';
 import { agentRestartMenuEntry } from '../terminal/agent-restart-commands';
 import {
     agentResumeCommandMenuEntry,
@@ -319,6 +321,14 @@ async function sessionRowMenu({
             onSelect: () => {
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, reports its own failure
                 void openSessionInNewTab(session.id);
+            },
+        },
+        // Only a Session in this window's strip can be torn off, and never the strip's last one.
+        canMoveSessionToNewWindow(getOpenSessionIds(), session.id) && {
+            label: translate('sessionTabs.moveToNewWindow'),
+            onSelect: () => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, reports its own failure
+                void moveSessionToNewWindow(session.id);
             },
         },
         // The external editor runs on this Mac and cannot open a Project on an SSH Host.

@@ -2,15 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import {
     activeAfterEdit,
-    appendOpenSession,
+    canMoveSessionToNewWindow,
+    insertOpenSessionAfter,
+    isKeepingInteraction,
     isSessionTabStripVisible,
     moveOpenSession,
     openTabTargetId,
+    previewAfterEdit,
     sessionIdsToClose,
+    sessionTabShortcutKey,
     shiftOpenSession,
     shouldTearOffSessionTab,
     withoutOpenSessions,
-} from './session-tabs-state';
+} from '../session-tabs-state';
 
 describe('strip visibility', () => {
     it('hides below two Open Sessions and shows from two on', () => {
@@ -20,10 +24,24 @@ describe('strip visibility', () => {
     });
 });
 
-describe('appendOpenSession', () => {
-    it('appends a new entry and leaves an open one where it is', () => {
-        expect(appendOpenSession(['a', 'b'], 'c')).toEqual(['a', 'b', 'c']);
-        expect(appendOpenSession(['a', 'b'], 'a')).toEqual(['a', 'b']);
+describe('insertOpenSessionAfter', () => {
+    it('inserts right of the anchor, not at the end', () => {
+        expect(insertOpenSessionAfter(['a', 'b', 'c'], 'x', 'a')).toEqual(['a', 'x', 'b', 'c']);
+        expect(insertOpenSessionAfter(['a', 'b', 'c'], 'x', 'b')).toEqual(['a', 'b', 'x', 'c']);
+    });
+
+    it('appends after the last entry, and when there is no usable anchor', () => {
+        expect(insertOpenSessionAfter(['a', 'b'], 'x', 'b')).toEqual(['a', 'b', 'x']);
+        expect(insertOpenSessionAfter(['a', 'b'], 'x', undefined)).toEqual(['a', 'b', 'x']);
+        expect(insertOpenSessionAfter(['a', 'b'], 'x', 'gone')).toEqual(['a', 'b', 'x']);
+        expect(insertOpenSessionAfter([], 'x', undefined)).toEqual(['x']);
+    });
+
+    it('leaves an entry that is already open where it is and does not mutate its input', () => {
+        const ids = ['a', 'b', 'c'] as const;
+        expect(insertOpenSessionAfter(ids, 'c', 'a')).toEqual(['a', 'b', 'c']);
+        insertOpenSessionAfter(ids, 'x', 'a');
+        expect(ids).toEqual(['a', 'b', 'c']);
     });
 });
 
@@ -145,5 +163,56 @@ describe('shouldTearOffSessionTab', () => {
         expect(shouldTearOffSessionTab({ dropEffect: 'none', dropped: false, tabCount: 1 })).toBe(
             false,
         );
+    });
+});
+
+describe('sessionTabShortcutKey', () => {
+    it('labels the first eight tabs by position', () => {
+        expect(sessionTabShortcutKey(0, 3)).toBe('Meta+1');
+        expect(sessionTabShortcutKey(7, 20)).toBe('Meta+8');
+    });
+
+    it('labels only the last tab with Meta+9, since Cmd+9 means last', () => {
+        expect(sessionTabShortcutKey(11, 12)).toBe('Meta+9');
+        expect(sessionTabShortcutKey(8, 9)).toBe('Meta+9');
+        expect(sessionTabShortcutKey(8, 12)).toBeUndefined();
+    });
+});
+
+describe('previewAfterEdit', () => {
+    it('keeps the Preview entry while it is listed and drops it once it leaves', () => {
+        expect(previewAfterEdit('p', ['a', 'p'])).toBe('p');
+        expect(previewAfterEdit('p', ['a'])).toBeUndefined();
+    });
+
+    it('never creates a Preview entry', () => {
+        expect(previewAfterEdit(undefined, ['a', 'b'])).toBeUndefined();
+    });
+});
+
+describe('isKeepingInteraction', () => {
+    it('counts typing, pasting, input, and a primary press', () => {
+        expect(isKeepingInteraction({ type: 'keydown', key: 'a' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'keydown', key: 'Enter' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'paste' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'input' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'pointerdown', button: 0 })).toBe(true);
+    });
+
+    it('ignores shortcuts, bare modifiers, secondary buttons, and other events', () => {
+        expect(isKeepingInteraction({ type: 'keydown', key: '1', metaKey: true })).toBe(false);
+        expect(isKeepingInteraction({ type: 'keydown', key: 'c', ctrlKey: true })).toBe(false);
+        expect(isKeepingInteraction({ type: 'keydown', key: 'Shift' })).toBe(false);
+        expect(isKeepingInteraction({ type: 'pointerdown', button: 2 })).toBe(false);
+        expect(isKeepingInteraction({ type: 'pointermove' })).toBe(false);
+    });
+});
+
+describe('canMoveSessionToNewWindow', () => {
+    it('needs the Session in the strip and another entry beside it', () => {
+        expect(canMoveSessionToNewWindow(['a', 'b'], 'a')).toBe(true);
+        expect(canMoveSessionToNewWindow(['a'], 'a')).toBe(false);
+        expect(canMoveSessionToNewWindow(['a', 'b'], 'c')).toBe(false);
+        expect(canMoveSessionToNewWindow([], 'a')).toBe(false);
     });
 });

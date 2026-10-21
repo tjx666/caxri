@@ -84,6 +84,8 @@ export const primarySidebar = {
     'primarySidebar.pinned.revealAriaLabelOne': 'Show {{count}} more pinned Session',
     'primarySidebar.pinned.revealAriaLabelOther': 'Show {{count}} more pinned Sessions',
     'primarySidebar.pinned.pinnedAnnouncement': 'Pinned {{title}}',
+    'primarySidebar.session.openHere': 'Open in a tab',
+    'primarySidebar.session.openElsewhere': 'Open in another window',
 
     // Session row
     'primarySidebar.sessionRow.pinAriaLabel': 'Pin {{title}}',

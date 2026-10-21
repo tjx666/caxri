@@ -110,12 +110,15 @@ describe('Session Activity persistence', () => {
         database.deleteSession(third.id);
         expect(database.windowOpenSessions.get('main').activeSessionId).toBe(second.id);
 
+        // Preview entries only replace each other, so empty the strip to test the fallback alone.
+        database.windowOpenSessions.set('main', []);
         const fourth = database.createSession(project.id, 'shell').session;
         database.touchSessionActivity(first.id, 'user_submission');
         database.selectSession(fourth.id, 'main');
         database.archiveSession(fourth.id);
         expect(database.windowOpenSessions.get('main').activeSessionId).toBe(first.id);
 
+        database.windowOpenSessions.set('main', []);
         const otherProject = database.createProject(join(directory, 'other'));
         database.selectSession(database.createSession(otherProject.id, 'shell').session.id, 'main');
         database.touchSessionActivity(second.id, 'user_submission');

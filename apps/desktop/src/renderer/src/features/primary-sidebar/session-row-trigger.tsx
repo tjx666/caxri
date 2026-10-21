@@ -17,6 +17,10 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
      */
     rowId?: string;
     selected: boolean;
+    /**
+     * The pointer is over this Session's tab in the Open Session strip, which echoes as the row's hover fill.
+     */
+    linkedHover?: boolean;
     renaming: boolean;
     roving: boolean;
     sessionOrder: SessionOrderController;
@@ -51,6 +55,7 @@ export function SessionRowTrigger({
     session,
     rowId: explicitRowId,
     selected,
+    linkedHover = false,
     renaming,
     roving,
     sessionOrder,
@@ -83,6 +88,7 @@ export function SessionRowTrigger({
                 !renaming && 'group-hover/session-row:pr-[var(--session-hover-actions)]',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
+                linkedHover && !selected && 'bg-state-hover',
                 renaming && 'cursor-text',
                 sessionOrder.draggedId === session.id && 'opacity-50',
             )}
