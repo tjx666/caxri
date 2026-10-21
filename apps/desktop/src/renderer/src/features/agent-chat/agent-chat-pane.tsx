@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatActivity } from '@caxri/protocol';
@@ -23,6 +23,7 @@ import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatEmptyState } from './agent-chat-empty-state';
 import type { AgentChatHost } from './agent-chat-host';
 import { agentChatHostCapabilities } from './agent-chat-host';
+import { markAgentChatOnScreen } from './agent-chat-on-screen';
 import { AgentChatComposer } from './composer/agent-chat-composer';
 import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
@@ -167,6 +168,11 @@ export function AgentChatPane({
         { canFork, providerName, supportsRewindFiles },
     );
     const pending = useAgentChatPending(terminalId, snapshot);
+    // The waiting popup leaves out a Chat on screen here, whose own request card already asks.
+    useEffect(
+        () => (isSessionVisible ? markAgentChatOnScreen(terminalId) : undefined),
+        [isSessionVisible, terminalId],
+    );
     const {
         scrollReference,
         contentReference,

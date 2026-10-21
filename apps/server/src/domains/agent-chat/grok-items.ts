@@ -516,6 +516,7 @@ export function mapGrokQuestion(
                     ),
                     // Grok Build accepts any answer text, like its terminal UI's free-form reply.
                     allowsOther: true,
+                    ...(question.multiSelect === true && { multiSelect: true }),
                 },
             ];
         }),

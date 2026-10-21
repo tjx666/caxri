@@ -1,7 +1,8 @@
 /**
  * Agent Chat timeline strings: the transcript, turn fold tooltips, question cards, the plan card, find, the message
- * rail, and the composer copy derived from the Chat's state. Work rows, tool summaries, turn labels, request headings,
- * and failure banners are shared with the phone through `@caxri/protocol`'s `agentChatLabelsEn` catalog.
+ * rail, the waiting popup, and the composer copy derived from the Chat's state. Work rows, tool summaries, turn labels,
+ * request headings, and failure banners are shared with the phone through `@caxri/protocol`'s `agentChatLabelsEn`
+ * catalog.
  */
 export const agentChatTimeline = {
     'agentChat.timeline.emptyDetached': 'Messages appear here once the Chat resumes.',
@@ -106,6 +107,17 @@ export const agentChatTimeline = {
     'agentChat.request.submit': 'Submit',
     'agentChat.request.skip': 'Skip',
     'agentChat.request.cwd': 'in {{cwd}}',
+    'agentChat.waiting.label': 'Waiting for you',
+    'agentChat.waiting.question': 'Waiting for your answer',
+    'agentChat.waiting.approval': 'Waiting for your approval',
+    'agentChat.waiting.openSession': 'Open Session',
+    'agentChat.waiting.collapse': 'Minimize',
+    'agentChat.waiting.expand': 'Show {{count}} pending',
+    'agentChat.waiting.pending': '{{count}} pending',
+    'agentChat.waiting.moreOne': '1 more pending',
+    'agentChat.waiting.moreOther': '{{count}} more pending',
+    'agentChat.waiting.reviewChanges': 'Open the Session to review the changes before you decide.',
+    'agentChat.waiting.agent': 'the Agent',
     'agentChat.plan.label': 'Plan',
     'agentChat.plan.progress': 'Plan: {{completed}} of {{total}} steps done',
     'agentChat.plan.progressWithCurrent':

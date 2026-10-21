@@ -143,6 +143,35 @@ export async function didRunApprovalScenario(
         io.result(startedAt, 'done');
         return true;
     }
+    if (text.includes('ask multi')) {
+        let chosen = 'nothing';
+        await wasToolAllowed(
+            io,
+            'AskUserQuestion',
+            {
+                questions: [
+                    {
+                        header: 'Checks',
+                        question: 'Which checks should run before the pull request?',
+                        multiSelect: true,
+                        options: [
+                            { label: 'Lint', description: 'ESLint and oxlint on changed files' },
+                            { label: 'Unit tests', description: 'Vitest for touched packages' },
+                            { label: 'Type check', description: 'tsc across the workspace' },
+                        ],
+                    },
+                ],
+            },
+            (input) => {
+                const answers = (input.answers as Record<string, string> | undefined) ?? {};
+                chosen = Object.values(answers).join(' + ') || 'nothing';
+                return { content: `User has answered your questions: ${chosen}.` };
+            },
+        );
+        if (!io.isInterrupted()) await io.didStreamFully(`Running ${chosen}.`, 0);
+        io.result(startedAt, 'done');
+        return true;
+    }
     if (text.includes('ask recommended')) {
         let chosen = 'nothing';
         await wasToolAllowed(

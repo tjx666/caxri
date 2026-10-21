@@ -5,7 +5,9 @@ import {
     grokCommands,
     grokModelState,
     grokPermissionOutcome,
+    grokQuestionAnswers,
     mapGrokPermission,
+    mapGrokQuestion,
     mapGrokToolCall,
     mergeGrokToolCall,
 } from '../grok-items';
@@ -232,5 +234,26 @@ describe('grokModelState', () => {
             }),
         ).toEqual({ model: 'grok-a', contextWindow: 256000 });
         expect(grokModelState(undefined)).toEqual({});
+    });
+});
+
+describe('Grok Build questions', () => {
+    const questions = [
+        {
+            question: 'Which tools?',
+            options: [{ label: 'Lint' }, { label: 'Test' }],
+            multiSelect: true,
+        },
+        { question: 'Which mode?', options: [{ label: 'Fast' }] },
+    ];
+
+    it('marks a multiSelect question and answers it with every choice', () => {
+        expect(
+            mapGrokQuestion('call-1', questions).questions.map((question) => question.multiSelect),
+        ).toEqual([true, undefined]);
+        expect(grokQuestionAnswers(questions, { q0: ['Lint', 'Test'], q1: ['Fast'] })).toEqual({
+            outcome: 'accepted',
+            answers: { 'Which tools?': ['Lint', 'Test'], 'Which mode?': 'Fast' },
+        });
     });
 });

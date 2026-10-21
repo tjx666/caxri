@@ -1,7 +1,12 @@
 import { MAX_AGENT_CHAT_DIFF_LENGTH } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { claudeQuestionAnswers, mapClaudeApproval, mapClaudeToolUse } from '../claude-items';
+import {
+    claudeQuestionAnswers,
+    mapClaudeApproval,
+    mapClaudeQuestion,
+    mapClaudeToolUse,
+} from '../claude-items';
 import { settleClaudeToolItem } from '../claude-tool-results';
 
 describe('Claude item mapping', () => {
@@ -300,5 +305,18 @@ describe('Claude item mapping', () => {
         expect(claudeQuestionAnswers(input, { q0: ['A', 'B'], q1: [] })).toEqual({
             'Which?': 'A, B',
         });
+    });
+
+    it('carries a multiSelect question through, and only when Claude Code sets it', () => {
+        const request = mapClaudeQuestion('t3', {
+            questions: [
+                { question: 'Which?', header: 'H', options: [], multiSelect: true },
+                { question: 'Why?', multiSelect: false },
+            ],
+        });
+        expect(request.questions.map((question) => question.multiSelect)).toEqual([
+            true,
+            undefined,
+        ]);
     });
 });

@@ -720,6 +720,23 @@ several callbacks can share one item, so the transport id is never the key.
   while a later question is neither answered nor opened yet, and moves to it; once every question
   has been answered or seen it reads Submit (`questionFormPrimaryAction` in
   `agent-chat-question-flow.ts`).
+- A `multiSelect` question (Claude Code's and Grok Build's `multiSelect: true`) lists its options
+  as checkboxes: a click or a digit key ticks one, Enter moves on, and the answer carries every
+  ticked option plus any typed one. Claude Code receives them joined with `,`, Grok Build as a
+  list. Codex questions have no multi-select form.
+- The Workbench's waiting popup asks for a Chat the user is not looking at. `agentChat.pendingRequests`
+  lists every Chat whose provider is still running and that holds a request, with the user's latest
+  message as context; it reads only Server Core's in-memory projections, so it never starts or
+  resumes a provider. The Renderer re-reads it when an `agentChat.patch` replaces a Chat's
+  `requests` or resets it, and after a reconnect. Chats whose pane is on screen in this window are
+  left out, since their own card already asks. The popup sits top-center below the title bar
+  (`min(640px, 92vw)`), shows the oldest waiting request with the Chat's provider, Session,
+  Project, and an Open Session button, counts the rest ("N more pending"), and folds into an
+  "N pending" pill that unfolds when a new request arrives. A click on a question's option only
+  selects it, so the user confirms with Submit; the popup never takes focus, and its keys
+  (digits, Enter, Cmd+Enter, Cmd+Backspace, Escape to fold) work only while focus is inside it.
+  A file-change approval shows no diff there and points to the Session instead. The design
+  follows LobeHub's `GlobalApprovalNotification`; the Agent Commander window does not show it.
 - An answered question leaves an `answered` notice in the timeline, so the transcript records what
   the user chose after the card disappears.
 - Requests Caxri cannot render are answered immediately (MCP elicitation is declined, anything

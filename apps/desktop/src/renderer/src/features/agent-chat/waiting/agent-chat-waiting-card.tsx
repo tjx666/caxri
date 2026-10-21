@@ -1,0 +1,112 @@
+import type { AgentChatWaitingChat } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
+import { ChevronUp, SquareArrowOutUpRight } from 'lucide-react';
+
+import { Button } from '../../../components/ui/button';
+import { Tooltip } from '../../../components/ui/tooltip';
+import { useTranslation } from '../../../i18n';
+import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
+import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
+import { sessionTitleForDisplay } from '../../session/session-title';
+import { AgentChatRequestCard } from '../transcript/agent-chat-request-card';
+import { openAgentChatWaiting } from './agent-chat-waiting-commands';
+
+/**
+ * The popup's card: which Chat asks (provider, Session, Project), what the user last asked it, and the request itself,
+ * answered in place through the same card the Chat's pane docks above its composer. Only the Chat's first request
+ * shows; the next one takes its place once this one is answered.
+ */
+export function AgentChatWaitingCard({
+    chat,
+    moreCount,
+    onCollapse,
+}: {
+    chat: AgentChatWaitingChat;
+    /**
+     * Requests waiting behind this one, in this Chat and others.
+     */
+    moreCount: number;
+    onCollapse: () => void;
+}) {
+    const { t } = useTranslation();
+    const session = useSessionById(chat.sessionId);
+    const project = useProjectById(session?.projectId);
+    const terminal = useTerminal(chat.terminalId);
+    const provider = terminal?.provider ? agentProviderCatalog[terminal.provider] : undefined;
+    // The read lists only Chats with at least one request (`agentChatWaitingChatSchema`).
+    const request = chat.requests[0];
+    const open = (): void => {
+        // eslint-disable-next-line no-void -- the command reports a failed selection through its own toast
+        void openAgentChatWaiting(chat.sessionId, chat.terminalId);
+    };
+    return (
+        <div className="space-y-2">
+            <header className="flex items-center gap-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
+                    <AgentIdentityIcon identity={terminal?.provider} size={14} />
+                </span>
+                <div className="min-w-0 flex-1 leading-4">
+                    <p className="m-0 flex min-w-0 items-baseline gap-1.5 text-[13px]">
+                        <span className="truncate font-semibold text-foreground">
+                            {session ? sessionTitleForDisplay(session.displayTitle, t) : ''}
+                        </span>
+                        {project && (
+                            <span className="shrink-0 truncate text-muted">
+                                {project.displayTitle}
+                            </span>
+                        )}
+                    </p>
+                    <p className="m-0 text-[11px] text-muted">
+                        {t(
+                            request.kind === 'question'
+                                ? 'agentChat.waiting.question'
+                                : 'agentChat.waiting.approval',
+                        )}
+                    </p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={open}>
+                    <SquareArrowOutUpRight className="size-3.5" />
+                    {t('agentChat.waiting.openSession')}
+                </Button>
+                <Tooltip content={t('agentChat.waiting.collapse')}>
+                    <Button
+                        aria-label={t('agentChat.waiting.collapse')}
+                        size="icon"
+                        variant="ghost"
+                        onClick={onCollapse}
+                    >
+                        <ChevronUp className="size-3.5" />
+                    </Button>
+                </Tooltip>
+            </header>
+            {chat.prompt && (
+                <p className="m-0 line-clamp-2 border-l-2 border-border pl-2 text-[12px] leading-5 wrap-anywhere text-muted">
+                    {chat.prompt}
+                </p>
+            )}
+            <div className="max-h-[min(480px,60vh)] overflow-y-auto border-t border-border pt-2.5">
+                <AgentChatRequestCard
+                    key={request.id}
+                    isFramed={false}
+                    isPointerSelect
+                    linkedItem={undefined}
+                    onAnswered={() => {}}
+                    projectRoot={session?.rootPath}
+                    providerName={provider?.displayName ?? t('agentChat.waiting.agent')}
+                    request={request}
+                    terminalId={chat.terminalId}
+                />
+            </div>
+            {request.kind === 'fileChange' && (
+                <p className="m-0 text-[11px] text-muted">{t('agentChat.waiting.reviewChanges')}</p>
+            )}
+            {moreCount > 0 && (
+                <p className="m-0 text-[11px] text-muted">
+                    {moreCount === 1
+                        ? t('agentChat.waiting.moreOne')
+                        : t('agentChat.waiting.moreOther', { count: moreCount })}
+                </p>
+            )}
+        </div>
+    );
+}

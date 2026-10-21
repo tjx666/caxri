@@ -4,6 +4,7 @@ import { agentActionMethods } from '../agent/agent-action-contract.js';
 import { benchmarkMethods } from '../agent/agent-benchmark-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { agentChatPickedPathSchema } from '../agent/agent-chat-path-references.js';
+import { agentChatWaitingMethods } from '../agent/agent-chat-waiting-contract.js';
 import { commanderMethods } from '../agent/agent-commander-contract.js';
 import {
     commanderDataInternalMethods,
@@ -163,6 +164,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
 export const methods = {
     ...agentActionMethods,
     ...agentChatMethods,
+    ...agentChatWaitingMethods,
     ...agentExcerptMethods,
     ...agentDispatchMethods,
     ...agentDelegationMethods,
