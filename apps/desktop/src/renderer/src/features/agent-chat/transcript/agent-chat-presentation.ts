@@ -41,6 +41,22 @@ export function agentChatEmptyMessage(
 }
 
 /**
+ * Whether the transcript shows the conversation-loading placeholder. Only a Chat bound to an Agent Session has a
+ * conversation to load; a new Chat goes straight to its empty state. It loads while the projection is first read, and
+ * also while that projection is `starting` with no rows yet: a resumed provider replays its history only once it is
+ * ready (Codex returns it from `thread/resume`), so Server Core publishes an empty `starting` snapshot first and the
+ * transcript would otherwise sit blank under the status line.
+ */
+export function isAgentChatConversationLoading(
+    snapshot: Pick<AgentChatSnapshot, 'items' | 'status'> | undefined,
+    { hasConversation, isPending }: { hasConversation: boolean; isPending: boolean },
+): boolean {
+    if (!hasConversation) return false;
+    if (isPending) return true;
+    return snapshot?.status === 'starting' && snapshot.items.length === 0;
+}
+
+/**
  * The `meta` line under an empty, ready Chat's invitation, naming the composer gestures nobody finds by looking: the
  * `/` and `$` menus, attaching (images only when the provider takes them; any other file is inserted as its path), and
  * Shift+Enter. Either sigil opens the same list of commands and skills (`agentChatSlashQuery`), `$` leading with

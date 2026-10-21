@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -49,6 +49,45 @@ async function switchTo(page: Page, sessionId: string): Promise<void> {
                 requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
             }),
     );
+}
+
+interface SwitchFrame {
+    isShown: boolean;
+    hasPlaceholder: boolean;
+    turns: number;
+}
+
+/**
+ * Clicks the Session's card and samples every presented frame until the Chat shows real turns and no placeholder: per
+ * frame, whether the Session is shown, whether the transcript draws placeholder turns, and how many user turns it has.
+ */
+function sampleSwitchFrames(page: Page, chatSessionId: string): Promise<SwitchFrame[]> {
+    return page.evaluate(async (sessionId) => {
+        const samples: SwitchFrame[] = [];
+        document
+            .querySelector<HTMLElement>(`.session-card[data-session-id="${CSS.escape(sessionId)}"]`)
+            ?.click();
+        for (let frame = 0; frame < 600; frame += 1) {
+            // eslint-disable-next-line no-await-in-loop -- one sample per presented frame
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            const session = document.querySelector(
+                `.workbench-session[data-workbench-session-id="${CSS.escape(sessionId)}"]`,
+            );
+            const log = session?.querySelector('[role="log"]');
+            const sample = {
+                isShown: Boolean(session && !session.hasAttribute('hidden')),
+                hasPlaceholder: Boolean(
+                    log?.querySelector(
+                        ':scope [role="status"][aria-busy="true"] [data-slot="skeleton"]',
+                    ),
+                ),
+                turns: log?.querySelectorAll('[data-agent-chat-user-message]').length ?? 0,
+            };
+            samples.push(sample);
+            if (sample.turns > 0 && !sample.hasPlaceholder) break;
+        }
+        return samples;
+    }, chatSessionId);
 }
 
 /**
@@ -131,40 +170,63 @@ test('switching Sessions keeps each Chat where the user left it and never shows 
             'data-workbench-session-id',
             shellSessionId,
         );
-        const frames = await page.evaluate(async (sessionId) => {
-            const samples: Array<{ isShown: boolean; hasPlaceholder: boolean; turns: number }> = [];
-            document
-                .querySelector<HTMLElement>(
-                    `.session-card[data-session-id="${CSS.escape(sessionId)}"]`,
-                )
-                ?.click();
-            for (let frame = 0; frame < 300; frame += 1) {
-                // eslint-disable-next-line no-await-in-loop -- one sample per presented frame
-                await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-                const session = document.querySelector(
-                    `.workbench-session[data-workbench-session-id="${CSS.escape(sessionId)}"]`,
-                );
-                const log = session?.querySelector('[role="log"]');
-                const sample = {
-                    isShown: Boolean(session && !session.hasAttribute('hidden')),
-                    hasPlaceholder: Boolean(
-                        log?.querySelector(
-                            ':scope [role="status"][aria-busy="true"] [data-slot="skeleton"]',
-                        ),
-                    ),
-                    turns: log?.querySelectorAll('[data-agent-chat-user-message]').length ?? 0,
-                };
-                samples.push(sample);
-                if (sample.turns > 0 && !sample.hasPlaceholder) break;
-            }
-            return samples;
-        }, chatSessionId);
+        const frames = await sampleSwitchFrames(page, chatSessionId);
         const shown = frames.filter((frame) => frame.isShown);
         expect(shown.length).toBeGreaterThan(0);
         expect(shown.filter((frame) => !frame.hasPlaceholder && frame.turns === 0)).toEqual([]);
         expect(shown.at(-1)?.hasPlaceholder).toBe(false);
         expect(shown.at(-1)?.turns).toBeGreaterThan(0);
         await page.screenshot({ path: testInfo.outputPath('chat-loaded-after-reload.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * After a restart the Chat's Codex is not running, so switching to it resumes the thread, and Codex replays the history
+ * only once it answers `thread/resume`. Until then the transcript draws placeholder turns, not a blank pane under the
+ * "Starting Codex" status line.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Chat whose Codex is still resuming shows placeholder turns, not a blank transcript', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-session-chat-resume-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    let running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        const chatSessionId = await selectedSessionId(page);
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(`[data-workbench-session-id="${chatSessionId}"]`);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await message.fill('table please');
+        await message.press('Enter');
+        await expect(chat.getByRole('table')).toHaveCount(1);
+        await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await createAdditionalShellSession(page);
+        const shellSessionId = await selectedSessionId(page);
+        await closeAppQuietly(running.app);
+
+        await writeFile(join(directory, 'codex-threads', 'resume-delay-ms'), '2000');
+        running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+        const relaunched = running.page;
+        await expect(sessionCard(relaunched, chatSessionId)).toBeVisible();
+        await expect(relaunched.locator(VISIBLE_SESSION)).toHaveAttribute(
+            'data-workbench-session-id',
+            shellSessionId,
+        );
+        const frames = await sampleSwitchFrames(relaunched, chatSessionId);
+        const shown = frames.filter((frame) => frame.isShown);
+        expect(shown.filter((frame) => !frame.hasPlaceholder && frame.turns === 0)).toEqual([]);
+        expect(shown.filter((frame) => frame.hasPlaceholder).length).toBeGreaterThan(10);
+        expect(shown.at(-1)?.hasPlaceholder).toBe(false);
+        expect(shown.at(-1)?.turns).toBeGreaterThan(0);
+        await relaunched.screenshot({ path: testInfo.outputPath('chat-resumed.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

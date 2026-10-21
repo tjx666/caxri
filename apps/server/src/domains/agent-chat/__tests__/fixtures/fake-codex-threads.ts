@@ -74,6 +74,15 @@ export function recordTurnStart(parameters: Record<string, unknown>) {
 }
 
 /**
+ * How long `thread/resume` waits before answering, read from a `resume-delay-ms` file in the state directory, as a
+ * loaded Codex takes a moment to replay a long thread. Zero when the file is absent.
+ */
+export function resumeDelayMs(): number {
+    const file = stateFile('resume-delay-ms');
+    return fs.existsSync(file) ? Number(fs.readFileSync(file, 'utf8')) || 0 : 0;
+}
+
+/**
  * The saved thread `thread/resume` reopens, or the error Codex answers with. While a `<threadId>.writer-held` file
  * exists beside the thread, resuming it fails as Codex does when another client (the Codex app, a `codex` TUI) still
  * holds that thread's writer; deleting the file releases it.

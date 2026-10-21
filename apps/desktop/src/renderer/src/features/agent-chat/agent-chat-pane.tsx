@@ -68,6 +68,7 @@ import {
     agentChatRecoveryNotice,
     agentChatSendBlock,
     isAgentChatBusy,
+    isAgentChatConversationLoading,
 } from './transcript/agent-chat-presentation';
 import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
@@ -309,9 +310,10 @@ export function AgentChatPane({
                                 onLoad={history.loadOlder}
                                 onOpenAsTerminal={openAsTerminal}
                             />
-                            {/* A Chat with no Agent Session yet has nothing to load and goes straight to its empty
-                                state. */}
-                            {query.isPending && terminal?.agentSessionId && <ConversationLoading />}
+                            {isAgentChatConversationLoading(snapshot, {
+                                hasConversation: Boolean(terminal?.agentSessionId),
+                                isPending: query.isPending,
+                            }) && <ConversationLoading />}
                             <AgentChatExpansionContext value={expansion}>
                                 <AgentChatTaskLinksContext value={taskLinks}>
                                     <AgentChatTimelineBody

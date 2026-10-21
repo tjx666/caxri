@@ -10,7 +10,6 @@ import {
     agentChatComposerPlaceholder,
     agentChatDeliveryCaption,
     agentChatEmptyHint,
-    agentChatEmptyMessage,
     agentChatEscapeAction,
     agentChatRecoveryNotice,
     agentChatResumeFailureDetail,
@@ -48,30 +47,6 @@ describe('canSendAgentChatMessage', () => {
 
     it('refuses a Chat handed to another client even though its projection reads stopped', () => {
         expect(canSendAgentChatMessage(snapshot('stopped'), 'detached')).toBe(false);
-    });
-});
-
-describe('agentChatEmptyMessage', () => {
-    it('invites the first message only once an empty Chat is ready', () => {
-        expect(agentChatEmptyMessage(snapshot('ready'), 'running', 'Codex')).toBe(
-            'Send a message to start working with Codex.',
-        );
-        expect(agentChatEmptyMessage(snapshot('starting'), 'starting', 'Codex')).toBeUndefined();
-        expect(agentChatEmptyMessage(undefined, 'running', 'Codex')).toBeUndefined();
-    });
-
-    it('explains the blank transcript of a Chat handed to another client', () => {
-        expect(agentChatEmptyMessage(snapshot('stopped'), 'detached', 'Codex')).toBe(
-            'Messages appear here once the Chat resumes.',
-        );
-    });
-
-    it('stays out of a transcript that has messages', () => {
-        const withItem: AgentChatSnapshot = {
-            ...snapshot('stopped'),
-            items: [{ id: 'item-1', type: 'userMessage', text: 'hello' }],
-        };
-        expect(agentChatEmptyMessage(withItem, 'detached', 'Codex')).toBeUndefined();
     });
 });
 

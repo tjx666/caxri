@@ -50,10 +50,11 @@
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
  * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
- * that thread fail as Codex does when another client still holds the thread's writer, and an `unsubscribe-fails` file
- * makes `thread/unsubscribe` answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table. An
- * ephemeral `thread/fork` opens a side thread that answers one `turn/start` (`fake-codex-side.ts`). `thread/goal/*`
- * keeps a thread goal that starts its own turns while active (`fake-codex-goals.ts`).
+ * that thread fail as Codex does when another client still holds the thread's writer, a `resume-delay-ms` file delays
+ * every `thread/resume` answer by that many milliseconds, and an `unsubscribe-fails` file makes `thread/unsubscribe`
+ * answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table. An ephemeral `thread/fork`
+ * opens a side thread that answers one `turn/start` (`fake-codex-side.ts`). `thread/goal/*` keeps a thread goal that
+ * starts its own turns while active (`fake-codex-goals.ts`).
  */
 import crypto from 'node:crypto';
 import process from 'node:process';
@@ -109,6 +110,7 @@ import {
     readSavedThread,
     recordThreadOpen,
     recordTurnStart,
+    resumeDelayMs,
     resumeSavedThread,
     saveThread,
     threadPath,
@@ -436,8 +438,13 @@ function handle(message: RpcMessage) {
                 send({ id, error: resumed.error });
                 return;
             }
-            state.thread = resumed.thread;
-            send({ id, result: threadResponse(currentThread()) });
+            const reply = () => {
+                state.thread = resumed.thread;
+                send({ id, result: threadResponse(currentThread()) });
+            };
+            const wait = resumeDelayMs();
+            if (wait > 0) setTimeout(reply, wait);
+            else reply();
             return;
         }
         case 'thread/revert': {
