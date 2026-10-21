@@ -3,7 +3,9 @@ import { CaxriError } from '@caxri/protocol';
 import { isRecord } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { deliveryUnknownError } from './chat-provider';
+import { codexClientMessageId, codexUserInput, isSteerTargetGone } from './codex-input';
 import type { JsonRpcConnection } from './json-rpc-connection';
+import { JsonRpcRequestError } from './json-rpc-connection';
 
 export const TURN_REQUEST_TIMEOUT_MS = 30_000;
 
@@ -107,6 +109,37 @@ export class CodexDeliveryCheck {
             }
             this.host.onDeliveryChecked(method, 'unknown');
             throw deliveryUnknownError('Codex');
+        }
+    }
+
+    /**
+     * Steers a note from Caxri into turn `turnId` under a `notice:` client id, which the timeline shows as a notice
+     * (`isCodexNotice`). Resolves `false` when the turn ended before the note arrived: unlike a message, a note about a
+     * turn that already ended must not start the next one.
+     */
+    async didSteerNotice(
+        connection: JsonRpcConnection,
+        turnId: string,
+        text: string,
+    ): Promise<boolean> {
+        const clientUserMessageId = codexClientMessageId('notice');
+        try {
+            await this.request(connection, 'turn/steer', clientUserMessageId, (timeoutMs) =>
+                connection.request(
+                    'turn/steer',
+                    {
+                        threadId: this.threadId(),
+                        input: codexUserInput({ text }),
+                        expectedTurnId: turnId,
+                        clientUserMessageId,
+                    },
+                    timeoutMs,
+                ),
+            );
+            return true;
+        } catch (error) {
+            if (error instanceof JsonRpcRequestError && isSteerTargetGone(error)) return false;
+            throw error;
         }
     }
 }

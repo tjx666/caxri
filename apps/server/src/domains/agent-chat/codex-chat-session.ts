@@ -555,6 +555,12 @@ class CodexChatSession implements AgentChatProviderSession {
         await this.tasks.stopTask(taskId);
     }
 
+    steerNotice(text: string): Promise<boolean> {
+        const { activeTurnId } = this.options.read();
+        if (!activeTurnId) return Promise.resolve(false);
+        return this.deliveries.didSteerNotice(this.requireConnection(), activeTurnId, text);
+    }
+
     async readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
         if (!this.connection?.isOpen || !this.threadId) return undefined;
         return this.tasks.readTaskHistory(taskId);

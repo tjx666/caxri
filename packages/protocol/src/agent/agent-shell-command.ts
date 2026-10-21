@@ -1,12 +1,27 @@
 /**
- * What a shell command did, when it is one of the file reads, searches, or listings an Agent runs to explore a Project.
- * The Codex app reads `sed -n '1,40p' src/app.ts` as `Read app.ts`, not as a command line, so a run of exploration
- * reads as what the Agent looked at.
+ * What a shell command did, when it is one of the file reads, searches, or listings an Agent runs to explore a Project,
+ * or a test run, commit, push, or pull request step. The Codex app reads `sed -n '1,40p' src/app.ts` as `Read app.ts`,
+ * not as a command line, so a run of exploration reads as what the Agent looked at; the same goes for `vitest run`
+ * reading as a test run.
  */
 export type AgentShellCommandAction =
     | { kind: 'read'; paths: string[] }
-    | { kind: 'search'; pattern: string; path?: string }
-    | { kind: 'list'; path?: string };
+    /**
+     * `isFileNames` when the pattern filters a file listing (`rg --files src | rg '\.test\.ts$'`) rather than file
+     * contents.
+     */
+    | { kind: 'search'; pattern: string; path?: string; isFileNames?: boolean }
+    | { kind: 'list'; path?: string }
+    /**
+     * `targets` are the test files or directories the run names; `command` is the run without wrappers such as `rtk`.
+     */
+    | { kind: 'test'; targets: string[]; command: string }
+    | { kind: 'commit'; message?: string; isPushed: boolean }
+    | { kind: 'push'; branch?: string }
+    | { kind: 'pullRequest'; action: AgentShellPullRequestAction; subject?: string };
+
+export type AgentShellPullRequestAction =
+    'check' | 'close' | 'comment' | 'create' | 'edit' | 'merge';
 
 const READ_COMMANDS = new Set(['cat', 'head', 'tail', 'nl', 'bat', 'less', 'more']);
 const SEARCH_COMMANDS = new Set(['rg', 'grep', 'egrep', 'ag', 'ack']);
@@ -91,15 +106,25 @@ function splitWords(command: string): string[] | null {
 }
 
 /**
- * Splits on unquoted pipeline and list operators. Returns `null` when the command chains anything but pipes after an
- * optional leading `cd <dir> &&`, which only sets where the rest runs.
+ * Splits on unquoted list operators (`&&`, `;`, a newline) into commands, and each command on unquoted pipes into its
+ * stages. Returns `null` for `||` and for an empty command, which no single action describes.
  */
-function splitStages(command: string): string[] | null {
-    const parts: string[] = [];
+function splitList(command: string): string[][] | null {
+    const commands: string[][] = [];
+    let stages: string[] = [];
     let current = '';
     let quote: '"' | "'" | undefined;
     let index = 0;
-    const separators: string[] = [];
+    const didEnd = (isCommandEnd: boolean): boolean => {
+        stages.push(current.trim());
+        current = '';
+        if (stages.includes('')) return false;
+        if (isCommandEnd) {
+            commands.push(stages);
+            stages = [];
+        }
+        return true;
+    };
     while (index < command.length) {
         const char = command[index] ?? '';
         if (quote) {
@@ -109,25 +134,70 @@ function splitStages(command: string): string[] | null {
             continue;
         }
         if (char === '"' || char === "'") quote = char;
-        const operator = ['&&', '||', '|', ';'].find((op) => command.startsWith(op, index));
+        if (command.startsWith('||', index)) return null;
+        const operator = ['&&', ';', '\n', '|'].find((op) => command.startsWith(op, index));
         if (operator && !quote) {
-            parts.push(current.trim());
-            separators.push(operator);
-            current = '';
+            // A trailing `;` or newline ends the last command without starting another.
+            if (operator !== '|' && current.trim() === '' && stages.length === 0) {
+                index += operator.length;
+                continue;
+            }
+            if (!didEnd(operator !== '|')) return null;
             index += operator.length;
             continue;
         }
         current += char;
         index += 1;
     }
-    parts.push(current.trim());
-    if (parts.includes('')) return null;
-    // A leading `cd dir &&` only moves where the command runs.
-    if (separators[0] === '&&' && /^cd\s/u.test(parts[0] ?? '')) {
-        parts.shift();
-        separators.shift();
+    if (quote) return null;
+    if ((current.trim() !== '' || stages.length > 0) && !didEnd(true)) return null;
+    return commands.length > 0 ? commands : null;
+}
+
+/**
+ * A commit message or pull request body passed as `"$(cat <<'EOF' ... EOF)"` spans lines and a substitution no word
+ * split reads. It is replaced by its first line, quoted, which is all a one-line title shows.
+ */
+const HEREDOC_START = /"?\$\(\s*cat\s+<<-?\s*(['"]?)(\w+)\1[ \t]*\n/u;
+
+function inlineHeredocs(command: string): string {
+    let rest = command;
+    let result = '';
+    for (let start = HEREDOC_START.exec(rest); start; start = HEREDOC_START.exec(rest)) {
+        const tag = start[2];
+        const bodyStart = start.index + start[0].length;
+        const lines = rest.slice(bodyStart).split('\n');
+        const endLine = lines.findIndex((line) => line.trim() === tag);
+        if (endLine === -1) return command;
+        const close = /^\s*\)"?/u.exec(lines.slice(endLine + 1).join('\n'));
+        if (!close) return command;
+        const firstLine = lines.slice(0, endLine).find((line) => line.trim() !== '') ?? '';
+        const consumed = lines.slice(0, endLine + 1).join('\n').length + 1 + close[0].length;
+        result += `${rest.slice(0, start.index)}'${firstLine.trim().replaceAll("'", '')}'`;
+        rest = rest.slice(bodyStart + consumed);
     }
-    return separators.every((separator) => separator === '|') ? parts : null;
+    return result + rest;
+}
+
+/**
+ * Redirections an Agent adds only to merge or silence output (`2>&1`, `2>/dev/null`); they change nothing a row names,
+ * while any other redirection still makes the command unreadable to {@link splitWords}.
+ */
+const OUTPUT_PLUMBING = /\s+(?:\d?>&\d|&?\d?>\s*\/dev\/null)(?=\s|$|[;|]|&&)/gu;
+
+/**
+ * Drops what only changes how a command runs, not what it does: environment assignments, `env`, `time`, and the `rtk`
+ * output compressor (`rtk vitest run`, `rtk git push`).
+ */
+const WRAPPERS = new Set(['command', 'env', 'rtk', 'time']);
+
+function withoutWrappers(words: readonly string[]): string[] {
+    let rest = [...words];
+    for (;;) {
+        const [first = ''] = rest;
+        if (!WRAPPERS.has(first) && !/^[A-Za-z_]\w*=/u.test(first)) return rest;
+        rest = rest.slice(1);
+    }
 }
 
 /**
@@ -158,7 +228,7 @@ function positionals(
     return pattern === undefined ? { values } : { values, pattern };
 }
 
-function describeStage(words: readonly string[]): AgentShellCommandAction | null {
+function describeStage(words: readonly string[]): ExploreAction | null {
     const [name = '', ...arguments_] = words;
     const { values, pattern: optionPattern } = positionals(name, arguments_);
     if (READ_COMMANDS.has(name)) return values.length > 0 ? { kind: 'read', paths: values } : null;
@@ -185,19 +255,279 @@ function describeStage(words: readonly string[]): AgentShellCommandAction | null
     return null;
 }
 
+type ExploreAction = Extract<AgentShellCommandAction, { kind: 'list' | 'read' | 'search' }>;
+
 /**
- * Reads a read, search, or listing out of an (already unwrapped) shell command; anything else returns `null` and stays
- * a plain `Ran …` row. Only the first pipeline stage acts; every later stage must be a filter such as `head`.
+ * One pipeline that explores: its first stage reads, searches, or lists, and every later stage only filters what it
+ * printed (`cat app.ts | head -40`). A search over a file listing (`rg --files src | rg test`) finds files by name.
+ */
+function describeExplorePipeline(stages: readonly string[][]): ExploreAction | null {
+    const [first = [], ...rest] = stages;
+    const action = describeStage(first);
+    if (!action) return null;
+    let filtered: ExploreAction = action;
+    for (const words of rest) {
+        const [name = ''] = words;
+        if (FILTER_COMMANDS.has(name)) continue;
+        if (!SEARCH_COMMANDS.has(name)) return null;
+        const filter = describeStage(words);
+        if (filter?.kind !== 'search' || filtered.kind !== 'list') return null;
+        filtered = {
+            kind: 'search',
+            pattern: filter.pattern,
+            ...(filtered.path !== undefined && { path: filtered.path }),
+            isFileNames: true,
+        };
+    }
+    return filtered;
+}
+
+/**
+ * Several explorations chained with `&&` or `;` read as one when they do the same thing: reads list every file (`sed -n
+ * 1,40p a.ts && sed -n 1,40p b.ts` reads `a.ts, b.ts`), and searches or listings keep the first.
+ */
+function mergeExplorations(actions: readonly ExploreAction[]): ExploreAction | null {
+    const first = actions.at(0);
+    if (!first || actions.some((action) => action.kind !== first.kind)) return null;
+    if (first.kind !== 'read') return first;
+    const paths = actions.flatMap((action) => (action.kind === 'read' ? action.paths : []));
+    return { kind: 'read', paths: [...new Set(paths)] };
+}
+
+/**
+ * Package runners that only fetch or locate the tool they start: `bunx vitest`, `pnpm exec jest`, `uv run pytest`.
+ */
+const RUNNER_PREFIXES = new Set(['bunx', 'npx', 'pnpx']);
+
+/**
+ * Tools that start another tool after one subcommand (`pnpm exec`, `uv run`, `python -m`).
+ */
+const RUNNER_SUBCOMMANDS: Readonly<Record<string, readonly string[] | undefined>> = {
+    bun: ['x'],
+    pnpm: ['exec', 'dlx'],
+    poetry: ['run'],
+    python: ['-m'],
+    python3: ['-m'],
+    uv: ['run'],
+    yarn: ['exec', 'dlx'],
+};
+
+function withoutRunner(words: readonly string[]): string[] {
+    const [name = '', second = ''] = words;
+    let rest: string[];
+    if (RUNNER_PREFIXES.has(name)) rest = words.slice(1);
+    else if (RUNNER_SUBCOMMANDS[name]?.includes(second)) rest = words.slice(2);
+    else return [...words];
+    // The runner's own flags (`bunx --bun`, `npx -y`) come before the tool.
+    while (rest[0]?.startsWith('-')) rest = rest.slice(1);
+    return rest;
+}
+
+/**
+ * Test runners started by name, and the subcommand that must follow when the tool does more than test.
+ */
+const TEST_RUNNERS: Readonly<Record<string, string | undefined>> = {
+    ava: undefined,
+    jest: undefined,
+    mocha: undefined,
+    pytest: undefined,
+    rspec: undefined,
+    vitest: undefined,
+    phpunit: undefined,
+    playwright: 'test',
+    deno: 'test',
+    go: 'test',
+    cargo: 'test',
+    dotnet: 'test',
+    swift: 'test',
+    mix: 'test',
+};
+
+/**
+ * Options of a test run whose value is the next word and never a test file (`-c vitest.config.ts`, `-t "name"`).
+ */
+const TEST_VALUE_OPTIONS = new Set([
+    '-c',
+    '--config',
+    '-t',
+    '--testNamePattern',
+    '-g',
+    '--grep',
+    '--project',
+    '--reporter',
+    '--shard',
+    '-k',
+    '-m',
+]);
+
+const PACKAGE_MANAGERS = new Set(['bun', 'npm', 'pnpm', 'yarn']);
+
+/**
+ * The words after the runner when `words` runs tests: a test runner (`vitest run`, `go test`), or a package script
+ * named `test` or `test:*` (`bun run test`, `pnpm test:unit`). `undefined` for anything else.
+ */
+function testArguments(words: readonly string[]): string[] | undefined {
+    const [name = '', second = '', third = ''] = words;
+    if (PACKAGE_MANAGERS.has(name)) {
+        const isRun = second === 'run' || second === 'run-script';
+        const script = isRun ? third : second;
+        // `bun test` is Bun's own runner and `npm t` npm's alias; both pass the rest on like a `test` script.
+        if (/^test(?::|$)/u.test(script) || (name === 'npm' && script === 't'))
+            return words.slice(isRun ? 3 : 2);
+        // `pnpm vitest` and `bun run vitest` start the project's own runner binary.
+        const rest = words.slice(isRun ? 2 : 1);
+        return Object.hasOwn(TEST_RUNNERS, script) ? testArguments(rest) : undefined;
+    }
+    if (!Object.hasOwn(TEST_RUNNERS, name)) return undefined;
+    const subcommand = TEST_RUNNERS[name];
+    if (subcommand !== undefined) return second === subcommand ? words.slice(2) : undefined;
+    if (name === 'vitest' && (second === 'bench' || second === 'init')) return undefined;
+    return words.slice(1).filter((word) => word !== 'run' && word !== 'watch');
+}
+
+/**
+ * The test files or directories a test run names, skipping options and their values. A bare word that is not a path
+ * (`go test ./...` is one, a test name filter is not) is left out.
+ */
+function testTargets(arguments_: readonly string[]): string[] {
+    const targets: string[] = [];
+    for (let index = 0; index < arguments_.length; index += 1) {
+        const argument = arguments_[index] ?? '';
+        if (argument.startsWith('-')) {
+            if (TEST_VALUE_OPTIONS.has(argument)) index += 1;
+            continue;
+        }
+        if (/[\\/]|\.[a-z]+$/iu.test(argument)) targets.push(argument);
+    }
+    return targets;
+}
+
+/**
+ * The value of the first of `options` in `words`, as `-m "message"` or `--message=message`.
+ */
+function optionValue(words: readonly string[], options: readonly string[]): string | undefined {
+    for (let index = 0; index < words.length; index += 1) {
+        const word = words[index] ?? '';
+        if (options.includes(word)) return words[index + 1];
+        const option = options.find((candidate) => word.startsWith(`${candidate}=`));
+        if (option) return word.slice(option.length + 1);
+    }
+    return undefined;
+}
+
+const PULL_REQUEST_ACTIONS: Readonly<Record<string, AgentShellPullRequestAction | undefined>> = {
+    create: 'create',
+    merge: 'merge',
+    edit: 'edit',
+    ready: 'edit',
+    comment: 'comment',
+    review: 'comment',
+    close: 'close',
+    view: 'check',
+    checks: 'check',
+    diff: 'check',
+    status: 'check',
+};
+
+/**
+ * Git subcommands that only look at or stage the work, so `git add -A && git commit -m x` still reads as a commit.
+ */
+const GIT_SETUP_COMMANDS = new Set(['add', 'status', 'diff', 'log', 'fetch', 'show', 'stash']);
+
+type StepAction = Exclude<AgentShellCommandAction, ExploreAction>;
+
+/**
+ * What one command (its first pipeline stage, filters after it ignored) does among tests, Git, and pull requests:
+ * `setup` for a step such as `cd` or `git add` that only prepares the action next to it.
+ */
+function describeStep(words: readonly string[], text: string): StepAction | 'setup' | null {
+    const [name = ''] = words;
+    if (name === 'cd') return 'setup';
+    if (name === 'git') {
+        let rest = words.slice(1);
+        // Global options before the subcommand (`git -C apps/server commit`).
+        while (rest[0] === '-C' || rest[0] === '-c') rest = rest.slice(2);
+        const [subcommand = '', ...arguments_] = rest;
+        if (GIT_SETUP_COMMANDS.has(subcommand)) return 'setup';
+        if (subcommand === 'commit') {
+            const message = optionValue(arguments_, ['-m', '--message', '-am']);
+            return {
+                kind: 'commit',
+                isPushed: false,
+                ...(message?.trim() && { message: message.trim() }),
+            };
+        }
+        if (subcommand === 'push') {
+            const [, branch] = arguments_.filter((word) => !word.startsWith('-'));
+            return branch ? { kind: 'push', branch } : { kind: 'push' };
+        }
+        return null;
+    }
+    if (name === 'gh' && words[1] === 'pr') {
+        const action = PULL_REQUEST_ACTIONS[words[2] ?? ''];
+        if (!action) return null;
+        const arguments_ = words.slice(3);
+        const title = action === 'create' ? optionValue(arguments_, ['--title', '-t']) : undefined;
+        const reference = arguments_.find((word) => !word.startsWith('-'));
+        const number = /^#?(\d+)$|\/pull\/(\d+)/u.exec(reference ?? '');
+        const digits = number?.slice(1).find(Boolean);
+        const subject = title?.trim() ? title.trim() : digits && `#${digits}`;
+        return subject ? { kind: 'pullRequest', action, subject } : { kind: 'pullRequest', action };
+    }
+    const runnerWords = withoutRunner(words);
+    const arguments_ = testArguments(runnerWords);
+    if (arguments_ === undefined) return null;
+    return { kind: 'test', targets: testTargets(arguments_), command: text };
+}
+
+/**
+ * Steps chained together read as one when they are one action with its preparation (`git add -A && git commit`), or the
+ * same action repeated: test runs list every target, and a commit followed by a push reads as both.
+ */
+function mergeSteps(steps: readonly StepAction[]): StepAction | null {
+    const first = steps.at(0);
+    if (!first) return null;
+    if (first.kind === 'test' && steps.every((step) => step.kind === 'test'))
+        return {
+            ...first,
+            targets: [...new Set(steps.flatMap((step) => step.targets))],
+        };
+    if (first.kind === 'commit' && steps.slice(1).every((step) => step.kind === 'push'))
+        return { ...first, isPushed: steps.length > 1 };
+    return steps.length === 1 ? first : null;
+}
+
+/**
+ * Reads an (already unwrapped) shell command as the action it performs; anything else returns `null` and stays a plain
+ * `Ran …` row. Within each command only the first pipeline stage acts, and every later stage must be a filter such as
+ * `head`. A leading `cd <dir>` only moves where the rest runs.
  */
 export function describeShellCommand(command: string): AgentShellCommandAction | null {
-    if (command.includes('\n')) return null;
-    const stages = splitStages(command.trim());
-    if (!stages) return null;
-    const [first = '', ...rest] = stages;
-    for (const stage of rest) {
-        const words = splitWords(stage);
-        if (!words?.[0] || !FILTER_COMMANDS.has(words[0])) return null;
+    const commands = splitList(inlineHeredocs(command.trim()).replaceAll(OUTPUT_PLUMBING, ''));
+    if (!commands) return null;
+    const parsed: Array<{ stages: string[][]; text: string }> = [];
+    for (const stages of commands) {
+        const words = stages.map((stage) => splitWords(stage));
+        if (words.some((stage) => !stage?.[0])) return null;
+        const [first = [], ...rest] = words as string[][];
+        const unwrapped = withoutWrappers(first);
+        if (unwrapped.length === 0) return null;
+        parsed.push({
+            stages: [unwrapped, ...rest.map((stage) => withoutWrappers(stage))],
+            text: unwrapped.join(' '),
+        });
     }
-    const words = splitWords(first);
-    return words && words.length > 0 ? describeStage(words) : null;
+    const body = parsed.filter(({ stages }, index) => index > 0 || stages[0]?.[0] !== 'cd');
+    const explorations = body.map(({ stages }) => describeExplorePipeline(stages));
+    if (explorations.length > 0 && explorations.every(Boolean))
+        return mergeExplorations(explorations as ExploreAction[]);
+    const steps: StepAction[] = [];
+    for (const { stages, text } of body) {
+        const [first = [], ...rest] = stages;
+        if (rest.some(([name = '']) => !FILTER_COMMANDS.has(name))) return null;
+        const step = describeStep(first, text);
+        if (step === null) return null;
+        if (step !== 'setup') steps.push(step);
+    }
+    return mergeSteps(steps);
 }

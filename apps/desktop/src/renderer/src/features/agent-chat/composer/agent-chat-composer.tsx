@@ -7,7 +7,7 @@ import type {
     AgentChatQueuedMessage,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { CAXRI_SKILL_NAME } from '@caxri/protocol';
+import { agentProviderCatalog, CAXRI_SKILL_NAME } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
@@ -35,6 +35,7 @@ import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import type { agentChatSendBlock } from '../transcript/agent-chat-presentation';
 import {
     agentChatComposerPlaceholder,
+    agentChatDeliveryHint,
     agentChatSendTooltip,
     agentChatSendTooltipShortcut,
 } from '../transcript/agent-chat-presentation';
@@ -88,6 +89,11 @@ interface AgentChatComposerProperties {
      * Whether the Chat is on screen in the active pane (see `AgentChatPane`).
      */
     isShown: boolean;
+    /**
+     * Whether the main Agent waits on its subagents (`isAgentChatWaitingOnAgents`); with a provider whose wait a
+     * steered message ends, Enter then steers.
+     */
+    isWaitingOnAgents: boolean;
     /**
      * Opens a background task's tab beside the Chat; absent where the host cannot (see `canOpenBesideChat`).
      */
@@ -172,6 +178,7 @@ export function AgentChatComposer({
     isBusy,
     isQueuePaused,
     isShown,
+    isWaitingOnAgents,
     onOpenTask,
     onSent,
     pendingQueue,
@@ -232,6 +239,11 @@ export function AgentChatComposer({
         terminal,
     });
     const isTurnRunning = activeTurnId !== undefined;
+    const isSteerDefault =
+        isTurnRunning &&
+        isWaitingOnAgents &&
+        terminal?.provider !== undefined &&
+        agentProviderCatalog[terminal.provider].capabilities.chatSteerEndsWait;
     const stash = useAgentChatDraftStash({
         attachments: images.attachments,
         clearAttachments: images.clearSent,
@@ -262,6 +274,7 @@ export function AgentChatComposer({
             edit: {
                 inputReference,
                 isBusy,
+                isSteerDefault,
                 isTurnRunning,
                 options: editOptions,
                 providerName,
@@ -309,6 +322,7 @@ export function AgentChatComposer({
         isBusy,
         isEditing: edit.isEditing,
         isSendable,
+        isSteerDefault,
         isTurnRunning,
         nextQueuedId,
         pastePlainText,
@@ -347,7 +361,11 @@ export function AgentChatComposer({
                     <AgentChatComposerNotices
                         activeTurnId={activeTurnId}
                         activity={activity}
-                        isDrafting={draft.trim().length > 0}
+                        deliveryHint={agentChatDeliveryHint({
+                            hasDraft: draft.trim().length > 0,
+                            isSteerDefault,
+                            isTurnRunning,
+                        })}
                         edit={edit.bar}
                         isContinuing={isContinuing}
                         isEditing={edit.isEditing}
@@ -427,7 +445,7 @@ export function AgentChatComposer({
                         canSaveProjectDefault={canSaveProjectDefault}
                         caxriSkill={caxriSkill}
                         isAttaching={isAttaching || sessionMenu.isPreparing}
-                        isQueueing={!edit.isEditing && (isTurnRunning || isBusy)}
+                        isQueueing={!edit.isEditing && !isSteerDefault && (isTurnRunning || isBusy)}
                         isSendable={isSendable}
                         isStopping={isStopping}
                         onCompact={compact}

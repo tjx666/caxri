@@ -21,7 +21,7 @@ import { clip, isRecord, readableToolInputSummary, tail } from './chat-items';
 import { withCacheRewriteEstimate } from './chat-usage';
 import type { CodexComputerUseBindings } from './codex-computer-use';
 import { codexComputerUseCall } from './codex-computer-use';
-import { codexDelivery } from './codex-input';
+import { codexDelivery, isCodexNotice } from './codex-input';
 
 /**
  * Pure translation from Codex app-server v2 `ThreadItem`s and server requests into the provider-neutral Agent Chat
@@ -203,6 +203,14 @@ export function mapCodexItem(
     const base = { id: clip(raw.id, 200), ...(turnId && { turnId: clip(turnId, 200) }) };
     switch (raw.type) {
         case 'userMessage': {
+            if (isCodexNotice(raw))
+                return {
+                    ...base,
+                    type: 'notice',
+                    kind: 'output',
+                    title: 'Caxri told the Agent',
+                    message: clip(userMessageText(raw.content), 2_000),
+                };
             const imageCount = Math.min(codexUserImageCount(raw.content), MAX_AGENT_CHAT_IMAGES);
             const delivery = codexDelivery(raw);
             return {

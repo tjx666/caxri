@@ -1,6 +1,11 @@
 import { pathBasename } from '@caxri/utils';
 
-import type { AgentChatItem, AgentChatItemStatus, AgentChatTurn } from './agent-chat-contract.js';
+import type {
+    AgentChatItem,
+    AgentChatItemStatus,
+    AgentChatSnapshot,
+    AgentChatTurn,
+} from './agent-chat-contract.js';
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
 import { agentChatMcpToolTitle } from './agent-chat-mcp.js';
@@ -212,6 +217,18 @@ export function agentChatTurnActiveWork(
     }
     const active = agentChatActiveWork(items.slice(start).filter(isAgentChatWorkItem));
     return active && { kind: active.presentation.kind, startedAt: active.item.createdAt };
+}
+
+/**
+ * Whether the main Agent is blocked on its subagents right now: the active turn's newest running work is a wait
+ * (Codex's collab `wait`, multi-agent v2's `wait_agent`), the row that reads `Waiting for agents`. A subagent's own
+ * items live in its task projection, so only the main conversation's wait counts.
+ */
+export function isAgentChatWaitingOnAgents(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items'> | undefined,
+): boolean {
+    if (!snapshot?.activeTurnId) return false;
+    return agentChatTurnActiveWork(snapshot.items, snapshot.activeTurnId)?.kind === 'wait';
 }
 
 /**

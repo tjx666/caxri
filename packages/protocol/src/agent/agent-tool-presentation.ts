@@ -1,5 +1,6 @@
 import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
+import type { AgentShellPullRequestAction } from './agent-shell-command.js';
 import { describeShellCommand } from './agent-shell-command.js';
 
 /**
@@ -15,6 +16,7 @@ export type AgentToolKind =
     | 'agent'
     | 'browser'
     | 'command'
+    | 'commit'
     | 'computer'
     | 'edit'
     | 'image'
@@ -23,11 +25,14 @@ export type AgentToolKind =
     | 'mcp'
     | 'other'
     | 'plan'
+    | 'pullRequest'
+    | 'push'
     | 'question'
     | 'read'
     | 'search'
     | 'skill'
     | 'stop'
+    | 'test'
     | 'thought'
     | 'wait'
     | 'web'
@@ -271,6 +276,10 @@ export const describeAgentTool = (
     }
     const isPath =
         rawSubject !== undefined && FILE_KINDS.has(known.kind) && /[\\/]/u.test(rawSubject);
+    if (isPath && known.kind === 'read') {
+        const skill = describeSkillRead(rawSubject);
+        if (skill) return skill;
+    }
     return {
         ...known,
         subject: isPath ? basename(rawSubject) : rawSubject,
@@ -279,15 +288,26 @@ export const describeAgentTool = (
     };
 };
 
+const PULL_REQUEST_LABELS: Readonly<Record<AgentShellPullRequestAction, string>> = {
+    check: 'Checked PR',
+    close: 'Closed PR',
+    comment: 'Commented on PR',
+    create: 'Opened PR',
+    edit: 'Updated PR',
+    merge: 'Merged PR',
+};
+
 /**
  * A shell command that reads, searches, or lists files reads as that action (`Read app.ts`), the way the Codex app
- * shows exploration; see `describeShellCommand`.
+ * shows exploration, and a test run, commit, push, or pull request step names that step; see `describeShellCommand`.
  */
 function describeShellAction(command: string): AgentToolPresentation | null {
     const action = describeShellCommand(command);
     switch (action?.kind) {
         case 'read': {
             const [only] = action.paths;
+            const skill = action.paths.length === 1 && describeSkillRead(only);
+            if (skill) return skill;
             return {
                 kind: 'read',
                 label: 'Read',
@@ -299,7 +319,7 @@ function describeShellAction(command: string): AgentToolPresentation | null {
         case 'search': {
             return {
                 kind: 'search',
-                label: 'Searched',
+                label: action.isFileNames ? 'Found files' : 'Searched',
                 subject: action.path
                     ? `${action.pattern} in ${basename(action.path)}`
                     : action.pattern,
@@ -312,10 +332,59 @@ function describeShellAction(command: string): AgentToolPresentation | null {
                 ? { kind: 'list', label: 'Listed', subject: basename(path), isCodeSubject: true }
                 : { kind: 'list', label: 'Listed files', isCodeSubject: true };
         }
+        case 'test': {
+            // Go's `./...` pattern names a package tree; its last segment alone would read `...`.
+            const targets = action.targets.map((target) =>
+                target.endsWith('...') ? target : basename(target),
+            );
+            return {
+                kind: 'test',
+                label: 'Ran tests',
+                subject:
+                    targets.length > 0 ? targets.join(', ') : readableShellCommand(action.command),
+                isCodeSubject: true,
+            };
+        }
+        case 'commit': {
+            return {
+                kind: 'commit',
+                label: action.isPushed ? 'Committed and pushed' : 'Committed',
+                ...(action.message !== undefined && { subject: action.message }),
+                isCodeSubject: false,
+            };
+        }
+        case 'push': {
+            return {
+                kind: 'push',
+                label: 'Pushed',
+                ...(action.branch !== undefined && { subject: action.branch }),
+                isCodeSubject: true,
+            };
+        }
+        case 'pullRequest': {
+            return {
+                kind: 'pullRequest',
+                label: PULL_REQUEST_LABELS[action.action],
+                ...(action.subject !== undefined && { subject: action.subject }),
+                isCodeSubject: false,
+            };
+        }
         case undefined: {
             return null;
         }
     }
+}
+
+/**
+ * Reading a skill's `skills/<name>/SKILL.md` is how Codex uses a skill, so the row names the skill with the skill
+ * glyph, as Claude Code's `Skill` tool does, instead of `Read SKILL.md`. The path stays so the row still opens the
+ * file. A `SKILL.md` outside a `skills` folder is an ordinary read.
+ */
+function describeSkillRead(path: string): AgentToolPresentation | undefined {
+    const segments = path.split(/[\\/]+/u);
+    const [folder, name, file] = segments.slice(-3);
+    if (file !== 'SKILL.md' || !name || folder !== 'skills') return undefined;
+    return { kind: 'skill', label: 'Used skill', subject: name, isCodeSubject: true, path };
 }
 
 /**
@@ -352,6 +421,16 @@ const TOOL_LABEL_KEYS: Readonly<Record<string, AgentChatLabelKey>> = {
     'Updated plan': 'agentChat.tool.label.updatedPlan',
     'Proposed plan': 'agentChat.tool.label.proposedPlan',
     'Used skill': 'agentChat.tool.label.usedSkill',
+    'Ran tests': 'agentChat.tool.label.ranTests',
+    'Committed': 'agentChat.tool.label.committed',
+    'Committed and pushed': 'agentChat.tool.label.committedAndPushed',
+    'Pushed': 'agentChat.tool.label.pushed',
+    'Checked PR': 'agentChat.tool.label.checkedPullRequest',
+    'Closed PR': 'agentChat.tool.label.closedPullRequest',
+    'Commented on PR': 'agentChat.tool.label.commentedPullRequest',
+    'Opened PR': 'agentChat.tool.label.openedPullRequest',
+    'Updated PR': 'agentChat.tool.label.updatedPullRequest',
+    'Merged PR': 'agentChat.tool.label.mergedPullRequest',
     'Asked': 'agentChat.tool.label.asked',
     'Viewed image': 'agentChat.tool.label.viewedImage',
     'Thought': 'agentChat.tool.label.thought',
@@ -436,13 +515,21 @@ export const agentToolOutcomeLabel = (
 };
 
 /**
- * Counts tools per kind in first-seen order, so the phrase leads with what the Agent did first.
+ * How many files one read covers: a shell read of several files (`sed -n 1,80p a.ts && sed -n 1,40p b.ts`) counts each.
+ */
+function readFileCount(tool: Pick<ToolCall, 'summary'>): number {
+    const action = tool.summary ? describeShellCommand(unwrapShellCommand(tool.summary)) : null;
+    return action?.kind === 'read' ? action.paths.length : 1;
+}
+
+/**
+ * Counts tools per kind in first-seen order, so the phrase leads with what the Agent did first. Reads count files.
  */
 export const agentToolKindCounts = (tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>) => {
     const counts = new Map<AgentToolKind, number>();
     for (const tool of tools) {
         const { kind } = describeAgentTool(tool);
-        counts.set(kind, (counts.get(kind) ?? 0) + 1);
+        counts.set(kind, (counts.get(kind) ?? 0) + (kind === 'read' ? readFileCount(tool) : 1));
     }
     return [...counts].map(([kind, count]) => ({ kind, count }));
 };

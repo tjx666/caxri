@@ -9,6 +9,7 @@ import {
     agentChatCommandMenuKeyStep,
     agentChatComposerPlaceholder,
     agentChatDeliveryCaption,
+    agentChatDeliveryHint,
     agentChatEmptyHint,
     agentChatEscapeAction,
     agentChatRecoveryNotice,
@@ -167,6 +168,33 @@ describe('agentChatSendAction', () => {
     });
 });
 
+describe('agentChatSendAction while the main Agent waits on subagents', () => {
+    it('offers to steer with Enter instead of queueing', () => {
+        expect(
+            agentChatSendAction(
+                { isTurnRunning: true, isBusy: true, isSteerDefault: true },
+                'Codex',
+            ),
+        ).toMatchObject({ kind: 'steer', shortcut: 'enter' });
+        expect(
+            agentChatSendAction(
+                { isTurnRunning: false, isBusy: false, isSteerDefault: true },
+                'Codex',
+            ),
+        ).toMatchObject({ kind: 'send' });
+    });
+});
+
+describe('agentChatDeliveryHint', () => {
+    it('explains Enter only for a draft typed during a turn', () => {
+        const running = { hasDraft: true, isSteerDefault: false, isTurnRunning: true };
+        expect(agentChatDeliveryHint(running)).toBe('queueOrSteer');
+        expect(agentChatDeliveryHint({ ...running, isSteerDefault: true })).toBe('steer');
+        expect(agentChatDeliveryHint({ ...running, hasDraft: false })).toBeUndefined();
+        expect(agentChatDeliveryHint({ ...running, isTurnRunning: false })).toBeUndefined();
+    });
+});
+
 describe('agentChatSendTooltip', () => {
     const action = { tooltip: 'Send (Enter)' };
     const ready = { block: undefined, hasContent: true, isAttaching: false, isSending: false };
@@ -247,6 +275,7 @@ describe('agentChatSubmitDelivery', () => {
         expect(agentChatSubmitDelivery(key(), running)).toBe('queue');
         expect(agentChatSubmitDelivery(key({ metaKey: true }), running)).toBe('steer');
         expect(agentChatSubmitDelivery(key({ ctrlKey: true }), running)).toBe('steer');
+        expect(agentChatSubmitDelivery(key(), { ...running, isSteerDefault: true })).toBe('steer');
     });
 
     it('queues while compacting even with Cmd, since there is no turn to steer', () => {

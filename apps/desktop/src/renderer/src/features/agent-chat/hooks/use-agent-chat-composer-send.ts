@@ -122,7 +122,10 @@ export function useAgentChatComposerSend({
             if (isSet) setAgentChatGoalMode(terminalId, false);
             return;
         }
-        await edit.submit(draft, async () => submitDraft(draft, delivery));
+        // Send, like Enter, steers while the running turn takes a steered message by default.
+        const sentDelivery =
+            delivery ?? (editInput.isSteerDefault && editInput.isTurnRunning ? 'steer' : undefined);
+        await edit.submit(draft, async () => submitDraft(draft, sentDelivery));
     };
     const compactCommand = agentChatCompactCommand(commands);
     /**

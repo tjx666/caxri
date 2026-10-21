@@ -26,7 +26,19 @@ const tasks = {
     children: new Map<string, FakeThread>(),
     childTurns: new Map<string, FakeTurn>(),
     terminals: new Map<string, FakeTerminal>(),
+    /**
+     * Ends the parent's running `wait`, as multi-agent v2's `wait_agent` returns once a steer arrives.
+     */
+    wakeWait: undefined as (() => void) | undefined,
 };
+
+/**
+ * A steer reached the parent turn: a `wait` it is in returns `Wait interrupted by new input.`
+ */
+export function wakeFakeWait() {
+    tasks.wakeWait?.();
+    tasks.wakeWait = undefined;
+}
 
 /**
  * A child thread's turn, started the way Codex runs a spawned agent: its own `turn/started`, its prompt as the user
@@ -73,7 +85,11 @@ function finishChildTurn(io: FakeCodexIo, child: FakeThread, turn: FakeTurn) {
 export async function runSubagent(
     io: FakeCodexIo,
     turn: FakeTurn,
-    { isHeld, isBrowsing }: { isHeld: boolean; isBrowsing: boolean },
+    {
+        isHeld,
+        isWaiting = false,
+        isBrowsing,
+    }: { isHeld: boolean; isWaiting?: boolean; isBrowsing: boolean },
 ) {
     const parent = io.currentThread();
     const child: FakeThread = { id: crypto.randomUUID(), turns: [], parentThreadId: parent.id };
@@ -123,24 +139,24 @@ export async function runSubagent(
         void io
             .streamMessage(childTurn, 'still working '.repeat(400), 50)
             .then(() => finishChildTurn(io, child, childTurn));
+        if (isWaiting) {
+            // A stopped child never reports back, so only a steer ends this wait.
+            const wait = waitCall(parent.id, child.id);
+            io.startItem(turn, { ...wait });
+            await new Promise<void>((resolve) => {
+                tasks.wakeWait = resolve;
+            });
+            io.completeItem(turn, { ...wait, status: 'completed' });
+            await io.streamMessage(turn, 'Stopped waiting.', 0);
+            return;
+        }
         await io.streamMessage(turn, 'A helper is working on it.', 0);
         return;
     }
     if (isBrowsing) await runBrowserStep(io, childTurn);
     await io.streamMessage(childTurn, 'Found one sample file.', 0);
     finishChildTurn(io, child, childTurn);
-    const wait = {
-        type: 'collabAgentToolCall',
-        id: crypto.randomUUID(),
-        tool: 'wait',
-        status: 'inProgress',
-        senderThreadId: parent.id,
-        receiverThreadIds: [child.id],
-        prompt: null,
-        model: null,
-        reasoningEffort: null,
-        agentsStates: {},
-    };
+    const wait = waitCall(parent.id, child.id);
     io.startItem(turn, { ...wait });
     io.completeItem(turn, {
         ...wait,
@@ -148,6 +164,21 @@ export async function runSubagent(
         agentsStates: { [child.id]: { status: 'completed', message: 'Found one sample file.' } },
     });
     await io.streamMessage(turn, 'The helper finished.', 0);
+}
+
+function waitCall(parentId: string, childId: string) {
+    return {
+        type: 'collabAgentToolCall',
+        id: crypto.randomUUID(),
+        tool: 'wait',
+        status: 'inProgress',
+        senderThreadId: parentId,
+        receiverThreadIds: [childId],
+        prompt: null,
+        model: null,
+        reasoningEffort: null,
+        agentsStates: {},
+    };
 }
 
 /**

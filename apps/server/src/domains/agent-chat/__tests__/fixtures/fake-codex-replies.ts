@@ -1,9 +1,11 @@
 /**
  * Deterministic Codex replies for Chat rendering coverage: `table` streams the transcript's Markdown, `codeblocks`
  * streams fenced code in several languages, `testrun` finishes a multi-step turn whose command fails with a non-zero
- * exit code, `burststream` arrives in a few large deltas, `longstream` thinks quietly and then streams a long reply at
- * a reader's pace, and `weblink` answers with a Markdown link to the web page the message names, `bigdiff` changes one
- * file by 6,000 lines, and `widediff` changes one file with lines wider than a phone.
+ * exit code, `workrows` runs one command of each shell shape the work rows name (a skill read, chained reads, a file
+ * search, a test run, a commit and push, and a pull request), `burststream` arrives in a few large deltas, `longstream`
+ * thinks quietly and then streams a long reply at a reader's pace, and `weblink` answers with a Markdown link to the
+ * web page the message names, `bigdiff` changes one file by 6,000 lines, and `widediff` changes one file with lines
+ * wider than a phone.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -113,6 +115,34 @@ export async function runTestCommands(io: FakeCodexIo, turn: FakeTurn) {
     ran('npm test', '1 failing\n  total() adds the items\n', 1);
     ran('git status --short', ' M src/total.ts\n', 0);
     await io.streamMessage(turn, 'One test fails in `src/total.ts`; the rest pass.', 0);
+}
+
+/**
+ * The `workrows` turn: one completed command per recognized shell shape, wrapped the way Agents run them (`rtk`,
+ * `bunx`, chained with `&&`).
+ */
+export async function runWorkRowCommands(io: FakeCodexIo, turn: FakeTurn) {
+    const commands = [
+        'cat .agents/skills/review/SKILL.md',
+        "sed -n '1,80p' src/total.ts && sed -n '1,40p' src/cart.ts",
+        "rg --files src | rg 'total'",
+        'rtk vitest run src/total.test.ts',
+        "rtk git commit -m 'fix: add the item totals' && rtk git push",
+        "gh pr create --title 'Fix the item totals' --body-file /tmp/body.md",
+    ];
+    for (const command of commands) {
+        io.completeItem(turn, {
+            type: 'commandExecution',
+            id: crypto.randomUUID(),
+            command: `/bin/zsh -lc "${command}"`,
+            cwd: process.cwd(),
+            status: 'completed',
+            aggregatedOutput: '',
+            exitCode: 0,
+            durationMs: 800,
+        });
+    }
+    await io.streamMessage(turn, 'Fixed the totals and opened a pull request.', 0);
 }
 
 /**

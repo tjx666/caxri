@@ -79,8 +79,16 @@ export class CodexThumbnails {
  * thread's rollout, so the marker survives a resume and a Server Core restart (#1610). Verified with codex-cli
  * 0.163.0-alpha.5 for `turn/start`, `turn/steer`, and `thread/resume`.
  */
-export function codexClientMessageId(delivery?: 'queued' | 'steered'): string {
+export function codexClientMessageId(delivery?: 'queued' | 'steered' | 'notice'): string {
     return delivery ? `${delivery}:${randomUUID()}` : randomUUID();
+}
+
+/**
+ * Whether a user message is a notice Caxri itself steered into the turn ({@link codexClientMessageId} `notice`), such as
+ * telling the Agent a subagent was stopped. The timeline shows it as a notice rather than as something the user said.
+ */
+export function isCodexNotice(raw: Record<string, unknown>): boolean {
+    return (stringField(raw.clientId) ?? '').startsWith('notice:');
 }
 
 /**

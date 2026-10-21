@@ -4,7 +4,11 @@ import type {
     AgentChatQueuedMessage,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { agentChatActivity, unsettledAgentChatPendingMessages } from '@caxri/protocol';
+import {
+    agentChatActivity,
+    isAgentChatWaitingOnAgents,
+    unsettledAgentChatPendingMessages,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
@@ -43,6 +47,10 @@ export interface AgentChatComposerView {
     commands: AgentChatSnapshot['commands'] | undefined;
     isBusy: boolean;
     isQueuePaused: boolean;
+    /**
+     * Whether the main Agent waits on its subagents (`isAgentChatWaitingOnAgents`).
+     */
+    isWaitingOnAgents: boolean;
     /**
      * Messages sent to wait in the queue that the projection does not list yet.
      */
@@ -84,6 +92,7 @@ export function selectAgentChatComposerView(
         commands: snapshot?.commands,
         isBusy: isAgentChatBusy(snapshot),
         isQueuePaused: snapshot?.queuePaused ?? false,
+        isWaitingOnAgents: isAgentChatWaitingOnAgents(snapshot),
         pendingQueue,
         queue: snapshot?.queue,
         sendBlock: agentChatSendBlock(snapshot, context.processState),

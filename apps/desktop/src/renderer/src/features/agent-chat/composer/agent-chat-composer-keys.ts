@@ -24,15 +24,20 @@ export type AgentChatComposerKeyAction =
 
 /**
  * What a key in the message input does once prompt history and the suggestion lists passed on it: Escape interrupts a
- * running turn, else cancels an "Edit from here" in progress, and Enter sends, queues, or (with Cmd/Ctrl during a turn)
- * steers. Enter (with or without Cmd/Ctrl) in an empty composer sends the head of the queue now instead, as its Steer
- * or Send now button would, since an empty message has nothing else to send. `undefined` leaves the key to the editor.
+ * running turn, else cancels an "Edit from here" in progress, and Enter sends, queues, or (with Cmd/Ctrl during a turn,
+ * or alone while the main Agent waits on its subagents) steers. Enter (with or without Cmd/Ctrl) in an empty composer
+ * sends the head of the queue now instead, as its Steer or Send now button would, since an empty message has nothing
+ * else to send. `undefined` leaves the key to the editor.
  */
 export function agentChatComposerKeyAction(
     key: AgentChatComposerKey,
     state: {
         isBusy: boolean;
         isEditing: boolean;
+        /**
+         * Whether plain Enter steers the running turn (`agentChatSubmitDelivery`).
+         */
+        isSteerDefault?: boolean;
         isTurnRunning: boolean;
         /**
          * The queued message an empty composer's Enter sends now (`agentChatNextQueuedId`); left out while the composer

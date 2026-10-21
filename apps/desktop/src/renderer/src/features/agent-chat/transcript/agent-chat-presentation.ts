@@ -204,7 +204,9 @@ export function isAgentChatBusy(
 
 /**
  * What submitting the composer does. Enter sends when the Chat is idle and queues while a turn runs or the context is
- * compacting; Cmd+Enter (Ctrl+Enter off macOS) steers the running turn instead. Shift+Enter adds a line, and an IME
+ * compacting; Cmd+Enter (Ctrl+Enter off macOS) steers the running turn instead. While the main Agent waits on its
+ * subagents and its provider ends that wait for a steered message (`isSteerDefault`), plain Enter steers too, as it
+ * does in the Codex TUI: a queued message would sit behind the whole wait. Shift+Enter adds a line, and an IME
  * composition owns Enter until it commits, otherwise confirming a candidate would send a half-typed message.
  * `undefined` means the key is not a submit.
  */
@@ -216,26 +218,47 @@ export function agentChatSubmitDelivery(
         ctrlKey: boolean;
         isComposing: boolean;
     },
-    state: { isTurnRunning: boolean; isBusy: boolean },
+    state: { isTurnRunning: boolean; isBusy: boolean; isSteerDefault?: boolean },
 ): 'send' | 'queue' | 'steer' | undefined {
     if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return undefined;
     const isSteerChord = event.metaKey || event.ctrlKey;
-    if (isSteerChord && state.isTurnRunning) return 'steer';
+    if (state.isTurnRunning && (isSteerChord || state.isSteerDefault)) return 'steer';
     return state.isBusy ? 'queue' : 'send';
 }
 
+export type AgentChatDeliveryHint = 'queueOrSteer' | 'steer';
+
 /**
- * The composer's send affordance for the Chat's state: while a turn runs, Enter queues and Cmd+Enter steers; while the
+ * What the activity row says Enter does with a draft typed during a running turn: queue it (Cmd+Enter steers), or steer
+ * it while Enter steers by default. `undefined` with no turn running or nothing typed.
+ */
+export function agentChatDeliveryHint(state: {
+    hasDraft: boolean;
+    isSteerDefault: boolean;
+    isTurnRunning: boolean;
+}): AgentChatDeliveryHint | undefined {
+    if (!state.isTurnRunning || !state.hasDraft) return undefined;
+    return state.isSteerDefault ? 'steer' : 'queueOrSteer';
+}
+
+/**
+ * The composer's send affordance for the Chat's state: while a turn runs, Enter queues and Cmd+Enter steers, unless the
+ * main Agent waits on its subagents and Enter steers (`isSteerDefault`, see {@link agentChatSubmitDelivery}); while the
  * Chat is otherwise busy (compacting, or draining the queue) a message waits its turn. An idle Chat in plan mode asks
  * for what to plan, since the next message starts a plan rather than changes. `kind` says which one it is, since the
  * label is translated and must not be compared.
  */
 export function agentChatSendAction(
-    state: { isTurnRunning: boolean; isBusy: boolean; isPlanMode?: boolean },
+    state: {
+        isTurnRunning: boolean;
+        isBusy: boolean;
+        isPlanMode?: boolean;
+        isSteerDefault?: boolean;
+    },
     providerName: string,
     t: Translate = translate,
 ): {
-    kind: 'queue' | 'send';
+    kind: 'queue' | 'send' | 'steer';
     label: string;
     tooltip: string;
     /**
@@ -245,6 +268,14 @@ export function agentChatSendAction(
     shortcut?: string;
     placeholder: string;
 } {
+    if (state.isTurnRunning && state.isSteerDefault)
+        return {
+            kind: 'steer',
+            label: t('agentChat.message.steer'),
+            tooltip: t('agentChat.message.steerTooltip'),
+            shortcut: 'enter',
+            placeholder: t('agentChat.message.steerWaitPlaceholder'),
+        };
     if (state.isTurnRunning)
         return {
             kind: 'queue',

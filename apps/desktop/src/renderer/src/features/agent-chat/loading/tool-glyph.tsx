@@ -27,12 +27,15 @@ import {
 import type { LiveGlyphKind } from './presentation';
 
 /**
- * One live glyph per kind. A new tool kind in `@caxri/protocol` fails this table's type until it gets a glyph.
+ * One live glyph per kind. A new tool kind in `@caxri/protocol` fails this table's type until it gets a glyph. A test
+ * run, commit, push, or pull request step is a shell command while it runs, so it types like one until it settles into
+ * its own icon.
  */
 const LIVE_GLYPHS: Record<LiveGlyphKind, ComponentType<GlyphProperties>> = {
     agent: AgentGlyph,
     browser: BrowserGlyph,
     command: CommandGlyph,
+    commit: CommandGlyph,
     compact: CompactGlyph,
     computer: ComputerGlyph,
     edit: EditGlyph,
@@ -42,11 +45,14 @@ const LIVE_GLYPHS: Record<LiveGlyphKind, ComponentType<GlyphProperties>> = {
     mcp: McpGlyph,
     other: OtherGlyph,
     plan: PlanGlyph,
+    pullRequest: CommandGlyph,
+    push: CommandGlyph,
     question: QuestionGlyph,
     read: ReadGlyph,
     search: SearchGlyph,
     skill: SkillGlyph,
     stop: StopGlyph,
+    test: CommandGlyph,
     thought: ThoughtGlyph,
     wait: WaitGlyph,
     web: WebGlyph,

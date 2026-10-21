@@ -9,6 +9,7 @@ import { useIsAgentChatStopping } from '../hooks/use-agent-chat-stop';
 import { useClockTick } from '../hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../loading';
 import { elapsedTimeFigures } from './agent-chat-elapsed-time';
+import type { AgentChatDeliveryHint } from '../transcript/agent-chat-presentation';
 import { AgentChatTurnMetricList } from './agent-chat-turn-metric-list';
 
 /**
@@ -97,14 +98,15 @@ function activityRowState(activity: AgentChatActivity | undefined, isStopRequest
  * working turn also shows what it has spent so far (steps, tokens, estimated cost) on the right, followed by an `Esc to
  * stop` hint that is the first thing a narrow strip drops. While a turn runs and the user has typed something, the row
  * also says what Enter and Cmd+Enter will do with it (keycaps only when the strip is narrow), because the difference
- * between queueing and steering is otherwise invisible until the message lands. A `notice` (why Enter did not send, or
- * that a second Enter sends an unmatched `/` draft as text) takes the live region while it lasts and shows as its own
- * row, so a refused Enter is never silent.
+ * between queueing and steering is otherwise invisible until the message lands; while Enter itself steers (the main
+ * Agent waits on its subagents) it names only that. A `notice` (why Enter did not send, or that a second Enter sends an
+ * unmatched `/` draft as text) takes the live region while it lasts and shows as its own row, so a refused Enter is
+ * never silent.
  */
 export function AgentChatActivityBar({
     activity,
     notice,
-    showsDeliveryHint,
+    deliveryHint,
     terminalId,
     turnId,
 }: {
@@ -114,9 +116,10 @@ export function AgentChatActivityBar({
      */
     notice: string | undefined;
     /**
-     * A turn is running and the draft has content, so Enter queues and Cmd+Enter steers.
+     * Set while a turn runs and the draft has content: Enter queues and Cmd+Enter steers (`queueOrSteer`), or Enter
+     * steers (`steer`).
      */
-    showsDeliveryHint: boolean;
+    deliveryHint: AgentChatDeliveryHint | undefined;
     /**
      * The Chat Terminal, whose pending Stop turns the row into `Stopping…`.
      */
@@ -143,7 +146,7 @@ export function AgentChatActivityBar({
              * itself, so a second "waiting" row would only wedge between the card and its composer. The row returns
              * once the user types, to say what Enter does with the draft. The live region above still announces it.
              */}
-            {activity && (activity.kind !== 'waiting' || showsDeliveryHint) && (
+            {activity && (activity.kind !== 'waiting' || deliveryHint) && (
                 <div
                     aria-hidden="true"
                     className="@container flex h-8 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
@@ -171,7 +174,16 @@ export function AgentChatActivityBar({
                                 <Kbd size="compact">Esc</Kbd> {t('agentChat.activity.stopHint')}
                             </span>
                         )}
-                        {showsDeliveryHint && (
+                        {deliveryHint === 'steer' && (
+                            <span className="shrink-0 text-[11px] whitespace-nowrap">
+                                <Kbd size="compact">Enter</Kbd>
+                                <span className="@max-[420px]:hidden">
+                                    {' '}
+                                    {t('agentChat.activity.steerHint')}
+                                </span>
+                            </span>
+                        )}
+                        {deliveryHint === 'queueOrSteer' && (
                             <span className="shrink-0 text-[11px] whitespace-nowrap">
                                 <Kbd size="compact">Enter</Kbd>
                                 <span className="@max-[420px]:hidden">

@@ -424,6 +424,7 @@ export function AgentChatPane({
                 inputReference={inputReference}
                 isBusy={composerView.isBusy}
                 isQueuePaused={composerView.isQueuePaused}
+                isWaitingOnAgents={composerView.isWaitingOnAgents}
                 isShown={isShown}
                 providerName={providerName}
                 onOpenTask={taskLinks.openTask}
