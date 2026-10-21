@@ -30,4 +30,14 @@ describe('revealed runs', () => {
         expect(moved.settledEnd).toBe(3);
         expect(revealedRunRanges(moved)).toEqual([]);
     });
+
+    it('settles the oldest runs so a long stream keeps a bounded number of spans', () => {
+        let runs = initialRevealedRuns('', 0, 0);
+        for (let length = 1; length <= 100; length += 1)
+            runs = nextRevealedRuns(runs, 'x'.repeat(length));
+        const ranges = revealedRunRanges(runs);
+        expect(ranges).toHaveLength(90);
+        expect(ranges[0]).toEqual([10, 11]);
+        expect(runs.settledEnd).toBe(10);
+    });
 });
