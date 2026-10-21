@@ -480,7 +480,7 @@ describe('workbench IPC with several windows', () => {
     it('trusts every registered window and nothing else, and attributes requests to the sender window', async () => {
         electronMock.handles.clear();
         electronMock.listeners.clear();
-        const { WorkbenchWindows } = await import('../workbench-windows');
+        const { WorkbenchWindows } = await import('../workbench-windows/registry');
         const windows = new WorkbenchWindows();
         const sender = (name: string) => ({
             name,

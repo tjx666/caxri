@@ -6,21 +6,21 @@ import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { app, BrowserWindow, dialog } from 'electron';
 
-import type { RunningWork } from './confirmations';
-import { loadRendererEntry } from './renderer-entry';
-import type { RendererReadiness } from './renderer-readiness';
-import type { DesktopServerConnection } from './server-connection';
-import type { StartupProfile } from './startup-profile';
+import type { RunningWork } from '../confirmations';
+import { loadRendererEntry } from '../renderer-entry';
+import type { RendererReadiness } from '../renderer-readiness';
+import type { DesktopServerConnection } from '../server-connection';
+import type { StartupProfile } from '../startup-profile';
 import {
     mainWindowChromeOptions,
     publishFullScreenState,
     zoomFactorForLevel,
-} from './window-chrome';
-import { confirmWindowClose, createWindowCloseHandler } from './window-close';
-import type { E2EWindowMode } from './window-mode';
-import type { WindowPlacement } from './window-placement';
-import { defaultWindowState, showWhenPlaced, trackWindowState } from './window-placement';
-import { installWorkbenchRendererGuards } from './workbench-renderer-guards';
+} from '../window-chrome';
+import { confirmWindowClose, createWindowCloseHandler } from '../window-close';
+import type { E2EWindowMode } from '../window-mode';
+import type { WindowPlacement } from '../window-placement';
+import { defaultWindowState, showWhenPlaced, trackWindowState } from '../window-placement';
+import { installWorkbenchRendererGuards } from '../workbench-renderer-guards';
 
 /**
  * Whether a Workbench window is the primary window (`main`, with the persisted geometry, the startup profile, and the

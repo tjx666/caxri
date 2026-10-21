@@ -81,7 +81,7 @@ a strip), in the two places a Session enters a strip: selecting it, and saving a
 - Event routing: shared state (Server state, Terminal output, settings) reaches every window; one-shot
   commands (menu accelerators, Editor open requests, toasts) reach only the focused window; an unsaved-Editor
   question or a window's own full-screen state reaches only its window. The table is `EVENT_AUDIENCE` in
-  `apps/desktop/src/main/event-audience.ts` and is exhaustive over server events.
+  `apps/desktop/src/main/workbench-windows/event-audience.ts` and is exhaustive over server events.
 
 Known limits: `desktop.openRequested` goes to the focused window, not necessarily a Session's owner; Terminal
 output is broadcast to every window (each ignores Terminals it does not render); a tear-off window has no

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { EVENT_AUDIENCE, eventAudience } from '../event-audience';
-import { createWorkbenchEventDelivery, WorkbenchWindows } from '../workbench-windows';
+import { createWorkbenchEventDelivery, WorkbenchWindows } from '../registry';
 
 function fakeWindow(options: { focused?: boolean; destroyed?: boolean } = {}) {
     const send = vi.fn();

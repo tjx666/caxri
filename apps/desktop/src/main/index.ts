@@ -42,7 +42,6 @@ import {
 import { createDesktopUpdateService } from './desktop-update-service';
 import { e2eLaunchLogFields } from './e2e-launch';
 import { guardEnvironmentMethods } from './environment-method-policy';
-import { eventAudience } from './event-audience';
 import { createMainEventRelay } from './event-relay';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
@@ -65,7 +64,6 @@ import { shouldContinueStartup } from './server-startup';
 import { composeSshHostEnvironments } from './ssh/host-environment-composition';
 import type { SshHostEnvironments } from './ssh/host-environments';
 import { StartupProfile } from './startup-profile';
-import { createTearOffWindows } from './tear-off-windows';
 import { createTestRootPathResolver } from './test-root';
 import { createWorkbenchUnsavedEditors } from './unsaved-editors';
 import type { UpdateService } from './updates';
@@ -82,8 +80,13 @@ import { createWorkbenchCommandAdapter } from './workbench-command-adapter';
 import { createWorkbenchHandOffs, workbenchCommandDispatcher } from './workbench-hand-offs';
 import { installWorkbenchIpc } from './workbench-ipc';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
-import { createWorkbenchWindowFactory } from './workbench-window';
-import { createWorkbenchEventDelivery, WorkbenchWindows } from './workbench-windows';
+import {
+    createTearOffWindows,
+    createWorkbenchEventDelivery,
+    createWorkbenchWindowFactory,
+    eventAudience,
+    WorkbenchWindows,
+} from './workbench-windows';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));

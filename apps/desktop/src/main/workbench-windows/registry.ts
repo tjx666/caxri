@@ -1,7 +1,7 @@
 import type { ServerEvent } from '@caxri/protocol';
 
+import { PRIMARY_WINDOW_KEY } from '../window-presence-registry';
 import type { EventAudience } from './event-audience';
-import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
 
 /**
  * The IPC sender (a window's `webContents`) a Workbench window is identified by.

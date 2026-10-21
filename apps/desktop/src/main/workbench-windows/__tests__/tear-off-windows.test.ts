@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { WorkbenchWindows } from '../registry';
 import type { TearOffBrowserWindow } from '../tear-off-windows';
 import { createTearOffWindows } from '../tear-off-windows';
-import { WorkbenchWindows } from '../workbench-windows';
 
 const DISPLAY = { x: 0, y: 0, width: 2560, height: 1440 };
 const BOUNDS = { x: 100, y: 100, width: 1200, height: 800 };

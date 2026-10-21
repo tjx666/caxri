@@ -2,12 +2,12 @@ import type { PersistedWindowState } from '@caxri/protocol';
 import { errorMessage, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import type { DesktopServerConnection } from './server-connection';
+import type { DesktopServerConnection } from '../server-connection';
+import type { WindowPlacement } from '../window-placement';
+import { PRIMARY_WINDOW_KEY } from '../window-presence-registry';
+import type { WorkbenchWindowLike, WorkbenchWindows } from './registry';
 import type { TearOffPoint, TearOffRect, TearOffWindowHandle } from './tear-off';
 import { cascadedBounds, createTearOffController } from './tear-off';
-import type { WindowPlacement } from './window-placement';
-import { PRIMARY_WINDOW_KEY } from './window-presence-registry';
-import type { WorkbenchWindowLike, WorkbenchWindows } from './workbench-windows';
 
 /**
  * The slice of a Workbench `BrowserWindow` tear-off needs, so the lifecycle runs under Vitest without Electron.
