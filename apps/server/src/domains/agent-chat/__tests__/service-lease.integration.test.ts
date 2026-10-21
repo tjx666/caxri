@@ -56,6 +56,45 @@ describe('Agent Chat observation lease', () => {
         expect(service.liveCount()).toBe(1);
     });
 
+    it('settles to one provider on the same conversation when a read lands while its reclaim is in flight', async () => {
+        const { agentSessionId, database, service, terminal } = await stoppedBoundChat();
+        service.read(terminal.id);
+        await vi.waitFor(() => expect(service.read(terminal.id).status).toBe('ready'));
+        const items = service.read(terminal.id).items.length;
+
+        const reclaim = service.suspendIdle(terminal.id, 'observation');
+        // The user reopens the Chat before the provider has exited.
+        service.read(terminal.id);
+        await reclaim;
+        expect(service.liveCount()).toBeLessThanOrEqual(1);
+
+        await vi.waitFor(() => expect(service.read(terminal.id).status).toBe('ready'));
+        expect(service.liveCount()).toBe(1);
+        expect(database.getTerminal(terminal.id)?.agentSessionId).toBe(agentSessionId);
+        expect(service.read(terminal.id).items.length).toBe(items);
+    });
+
+    it('resumes a reclaimed Chat exactly once when its Session is reselected during the reclaim', async () => {
+        const { agentSessionId, database, service, spawnProcess, terminal } =
+            await stoppedBoundChat();
+        service.read(terminal.id);
+        await vi.waitFor(() => expect(service.read(terminal.id).status).toBe('ready'));
+        const spawnsBefore = spawnProcess.mock.calls.length;
+
+        const reclaim = service.suspendIdle(terminal.id, 'observation');
+        // A reselection that lands mid-reclaim sees a provider still attached and leaves it alone...
+        service.resumeSuspended(terminal.sessionId);
+        expect(await reclaim).toMatchObject({ lastProcessState: 'suspended' });
+        // ...and the suspension fence's restore after the reclaim (`onSuspendedSessionReselected`) starts it once.
+        service.resumeSuspended(terminal.sessionId);
+        service.resumeSuspended(terminal.sessionId);
+
+        await vi.waitFor(() => expect(service.read(terminal.id).status).toBe('ready'));
+        expect(spawnProcess.mock.calls.length).toBe(spawnsBefore + 1);
+        expect(service.liveCount()).toBe(1);
+        expect(database.getTerminal(terminal.id)?.agentSessionId).toBe(agentSessionId);
+    });
+
     it('does not lease a Chat that has no conversation to resume yet', async () => {
         const { service, terminal, until } = await fixture();
         service.read(terminal.id);

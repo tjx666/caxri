@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from '../../db/terminal-capacity';
 import { fixture } from './chat-service-fixture';
@@ -43,6 +43,24 @@ describe('Agent Chat provider capacity', () => {
             expect(spawnProcess).not.toHaveBeenCalled();
             expect(service.liveCount()).toBe(0);
             expect(database.getTerminal(terminal.id)?.lastProcessState).toBe('stopped');
+        },
+    );
+    it.each(['session', 'global'] as const)(
+        'refuses to resume a suspended Chat on reselection at the %s Terminal limit',
+        async (scope) => {
+            const chat = await fixture();
+            fillCapacity(chat, scope);
+            const { database, service, spawnProcess, terminal } = chat;
+            service.read(terminal.id);
+            database.updateAgentProcessState(terminal.id, 'suspended');
+
+            service.resumeSuspended(terminal.sessionId);
+            await vi.waitFor(() =>
+                expect(database.getTerminal(terminal.id)?.lastProcessState).not.toBe('starting'),
+            );
+
+            expect(spawnProcess).not.toHaveBeenCalled();
+            expect(service.liveCount()).toBe(0);
         },
     );
 });
