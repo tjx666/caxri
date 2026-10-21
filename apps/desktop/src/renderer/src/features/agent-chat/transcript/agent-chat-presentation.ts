@@ -10,6 +10,8 @@ import type { Translate } from '../../../i18n';
 import { translate } from '../../../i18n';
 import type { SuggestionMenuKeyAction } from '../../../lib/suggestion-options';
 import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
+import type { AgentChatSendKey } from '../composer/send/agent-chat-send-tooltip';
+import { agentChatSendBlock, agentChatSendTooltip } from '../composer/send/agent-chat-send-tooltip';
 
 /**
  * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
@@ -232,8 +234,8 @@ export function agentChatSubmitDelivery(
 }
 
 /**
- * Whether Enter steers instead of queueing: a turn runs, its main Agent waits on subagents, and the provider ends that
- * wait for a steered message (`chatSteerEndsWait`).
+ * /** Whether Enter steers instead of queueing: a turn runs, its main Agent waits on subagents, and the provider ends
+ * that wait for a steered message (`chatSteerEndsWait`).
  */
 export function isAgentChatSteerDefault(state: {
     isTurnRunning: boolean;
@@ -245,27 +247,13 @@ export function isAgentChatSteerDefault(state: {
     return agentProviderCatalog[provider].capabilities.chatSteerEndsWait;
 }
 
-export type AgentChatDeliveryHint = 'queueOrSteer' | 'steer';
-
 /**
- * What the activity row says Enter does with a draft typed during a running turn: queue it (Cmd+Enter steers), or steer
- * it while Enter steers by default. `undefined` with no turn running or nothing typed.
- */
-export function agentChatDeliveryHint(state: {
-    hasDraft: boolean;
-    isSteerDefault: boolean;
-    isTurnRunning: boolean;
-}): AgentChatDeliveryHint | undefined {
-    if (!state.isTurnRunning || !state.hasDraft) return undefined;
-    return state.isSteerDefault ? 'steer' : 'queueOrSteer';
-}
-
-/**
- * The composer's send affordance for the Chat's state: while a turn runs, Enter queues and Cmd+Enter steers, unless the
- * main Agent waits on its subagents and Enter steers (`isSteerDefault`, see {@link agentChatSubmitDelivery}); while the
- * Chat is otherwise busy (compacting, or draining the queue) a message waits its turn. An idle Chat in plan mode asks
- * for what to plan, since the next message starts a plan rather than changes. `kind` says which one it is, since the
- * label is translated and must not be compared.
+ * The composer's send affordance for the Chat's state: while a turn runs, Enter queues, Cmd+Enter steers, and Esc stops
+ * the turn, which the tooltip lists as `keys` rather than the placeholder or a hint row spelling them out. While the
+ * main Agent waits on its subagents and Enter steers (`isSteerDefault`, see {@link agentChatSubmitDelivery}), Send is
+ * Steer and its keys say so. While the Chat is otherwise busy (compacting, or draining the queue) a message waits its
+ * turn. An idle Chat in plan mode asks for what to plan, since the next message starts a plan rather than changes.
+ * `kind` says which one it is, since the label is translated and must not be compared.
  */
 export function agentChatSendAction(
     state: {
@@ -281,10 +269,13 @@ export function agentChatSendAction(
     label: string;
     tooltip: string;
     /**
-     * The key the tooltip shows as a keycap through `Tooltip`'s `shortcut`, so the locale string never spells it. The
-     * queue-or-steer tooltip names two keys and keeps them in its text, since a tooltip shows one shortcut.
+     * The key the tooltip shows as a keycap through `Tooltip`'s `shortcut`, so the locale string never spells it.
      */
     shortcut?: string;
+    /**
+     * The keys a running turn answers, listed by the tooltip in place of `tooltip` and `shortcut`.
+     */
+    keys?: readonly AgentChatSendKey[];
     placeholder: string;
 } {
     if (state.isTurnRunning && state.isSteerDefault)
@@ -293,14 +284,24 @@ export function agentChatSendAction(
             label: t('agentChat.message.steer'),
             tooltip: t('agentChat.message.steerTooltip'),
             shortcut: 'enter',
+            keys: [
+                { label: t('agentChat.queue.steer'), shortcut: 'enter' },
+                { label: t('agentChat.message.stopTurn'), shortcut: 'escape' },
+            ],
             placeholder: t('agentChat.message.steerWaitPlaceholder'),
         };
     if (state.isTurnRunning)
         return {
             kind: 'queue',
             label: t('agentChat.message.queue'),
-            tooltip: t('agentChat.message.queueSteerTooltip'),
-            placeholder: t('agentChat.message.queueSteerPlaceholder'),
+            tooltip: t('agentChat.message.queueTooltip'),
+            shortcut: 'enter',
+            keys: [
+                { label: t('agentChat.message.queueTooltip'), shortcut: 'enter' },
+                { label: t('agentChat.queue.steer'), shortcut: 'cmd+enter' },
+                { label: t('agentChat.message.stopTurn'), shortcut: 'escape' },
+            ],
+            placeholder: t('agentChat.message.queuePlaceholder'),
         };
     if (state.isBusy)
         return {
@@ -323,8 +324,8 @@ export function agentChatSendAction(
 
 /**
  * The input's placeholder. Goal mode asks for the goal, as the Codex app does. While a message waits at the head of the
- * queue, an empty input's Enter sends it now (`agentChatComposerKeyAction`), so the placeholder says so instead of
- * describing a follow-up nobody typed yet.
+ * queue, an empty input's Enter sends it now (`agentChatComposerKeyAction`). An idle Chat's placeholder says so; while
+ * a turn runs, the queue's first row carries that Enter chip instead, so the placeholder only invites a follow-up.
  */
 export function agentChatComposerPlaceholder(
     sendAction: { placeholder: string },
@@ -348,76 +349,6 @@ export function agentChatComposerPlaceholder(
             ? 'agentChat.message.steerQueuedPlaceholder'
             : 'agentChat.message.sendQueuedPlaceholder',
     );
-}
-
-/**
- * Why the Chat itself refuses a message right now (`canSendAgentChatMessage`), or `undefined` when it accepts one.
- */
-export function agentChatSendBlock(
-    snapshot: Pick<AgentChatSnapshot, 'status'> | undefined,
-    processState: ProcessState | undefined,
-): 'detached' | 'failed' | 'loading' | undefined {
-    if (processState === 'detached') return 'detached';
-    if (!snapshot) return 'loading';
-    return snapshot.status === 'failed' ? 'failed' : undefined;
-}
-
-/**
- * The Send button's tooltip: what it does, or, while it is disabled, why, so a dead button never leaves the user
- * guessing. The Chat's own refusal wins over the composer's state, since no draft or image fixes it.
- */
-export function agentChatSendTooltip(
-    action: { tooltip: string },
-    state: {
-        block: ReturnType<typeof agentChatSendBlock>;
-        hasContent: boolean;
-        isAttaching: boolean;
-        /**
-         * A Session chosen from the `@` list is being condensed into a reference file.
-         */
-        isPreparingReference?: boolean;
-        isSending: boolean;
-    },
-    t: Translate = translate,
-): string {
-    return sendBlockedReason(state, t) ?? action.tooltip;
-}
-
-/**
- * The keycap the Send button's tooltip shows beside {@link agentChatSendTooltip}'s text: the action's shortcut while
- * Send can act, and none while the tooltip explains why it cannot, where a key would promise a press that does
- * nothing.
- */
-export function agentChatSendTooltipShortcut(
-    action: { shortcut?: string; tooltip: string },
-    state: Parameters<typeof agentChatSendTooltip>[1],
-): string | undefined {
-    return sendBlockedReason(state, translate) === undefined ? action.shortcut : undefined;
-}
-
-function sendBlockedReason(
-    state: Parameters<typeof agentChatSendTooltip>[1],
-    t: Translate,
-): string | undefined {
-    switch (state.block) {
-        case 'loading': {
-            return t('agentChat.message.sendBlockedLoading');
-        }
-        case 'failed': {
-            return t('agentChat.message.sendBlockedFailed');
-        }
-        case 'detached': {
-            return t('agentChat.message.sendBlockedDetached');
-        }
-        case undefined: {
-            break;
-        }
-    }
-    if (state.isPreparingReference) return t('agentChat.message.preparingReference');
-    if (state.isAttaching) return t('agentChat.message.attaching');
-    if (state.isSending) return t('agentChat.message.sending');
-    if (!state.hasContent) return t('agentChat.message.typeToSend');
-    return undefined;
 }
 
 /**

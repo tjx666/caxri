@@ -73,20 +73,21 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(chat.getByRole('button', { name: /^Model: Fake Codex, / })).toBeVisible();
         await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-reply.png') });
+        // The turn ended with its plan unfinished, so the status row leads with where it stopped; its popover lists the
+        // steps.
         const planRow = chat.getByRole('button', {
-            name: 'Plan: 1 of 2 steps done. Current step: Reply',
+            name: 'Plan stopped at 1/2: Reply. Show details',
         });
         await expect(planRow).toHaveAttribute('aria-expanded', 'false');
-        await expect(chat.getByRole('region', { name: 'Plan' }).getByRole('listitem')).toHaveCount(
-            0,
-        );
+        await expect(page.getByRole('region', { name: 'Plan' })).toHaveCount(0);
         await planRow.click();
-        await expect(chat.getByRole('region', { name: 'Plan' }).getByRole('listitem')).toHaveText([
+        await expect(page.getByRole('region', { name: 'Plan' }).getByRole('listitem')).toHaveText([
             'Read the message',
             'Reply',
         ]);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-plan-expanded.png') });
         await planRow.click();
+        await expect(page.getByRole('region', { name: 'Plan' })).toHaveCount(0);
 
         await message.fill('please approve this');
         await message.press('Enter');

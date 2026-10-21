@@ -139,12 +139,10 @@ describe('agentChatQueueCardLabels', () => {
             editTooltip: 'Edit',
             deleteTooltip: 'Delete',
             sendTooltip: 'Add to the running turn now',
-            sendText: 'Steer',
             sendAriaLabel: 'Steer now',
         });
         expect(agentChatQueueCardLabels({ ...message, sendNowLabel: 'Send now' })).toMatchObject({
             sendTooltip: 'Send now',
-            sendText: 'Send now',
             sendAriaLabel: 'Send now',
         });
     });
@@ -167,7 +165,6 @@ describe('agentChatQueueCardLabels', () => {
             editTooltip: 'Sending…',
             deleteTooltip: 'Sending…',
             sendTooltip: 'Sending…',
-            sendText: 'Steer',
             sendAriaLabel: 'Steer now',
         });
     });

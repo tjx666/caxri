@@ -90,7 +90,7 @@ describe('agent chat labels in Simplified Chinese', () => {
         );
         expect(summarizeAgentChatWork([fileChange], zh)).toBe('编辑了 2 个文件');
         expect(agentChatTurnLabel({ durationMs: 121_000, status: 'completed' }, zh)).toBe(
-            '用时 2分钟 1秒',
+            '用时 2分 1秒',
         );
         expect(agentChatItemStatusLabel('failed', zh)).toBe('失败');
     });

@@ -1,18 +1,13 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
-import { ArrowUp, CornerDownLeft, Goal, Lightbulb } from 'lucide-react';
+import { Goal, Lightbulb } from 'lucide-react';
 
-import { Button } from '../../../components/ui/button';
 import { Separator } from '../../../components/ui/separator';
-import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { useCommandShortcut } from '../../../lib/keybindings';
 import { useTerminal } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
-import {
-    AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
-    AgentChatStopButton,
-} from '../agent-chat-stop-button';
+import { AgentChatStopButton } from '../agent-chat-stop-button';
 import { agentChatContextUsage } from '../context/agent-chat-context';
 import { AgentChatContextMeter } from '../context/agent-chat-context-meter';
 import { useAgentChatComposerCommand } from '../hooks/use-agent-chat-composer-command';
@@ -21,44 +16,8 @@ import { AgentChatPermissionMenu } from '../permissions/agent-chat-permission-me
 import { useAgentChatPermissionSelection } from '../permissions/use-agent-chat-permission-selection';
 import { openAgentChatContext, openAgentChatSideChat } from '../tasks/agent-chat-task-opener';
 import { AgentChatAddMenu, AgentChatModeChip } from './agent-chat-add-menu';
-
-/**
- * Sends the form. `aria-disabled` rather than `disabled`: a natively disabled button gets no pointer events in
- * Chromium, so its tooltip, the one place that says why Send is unavailable, would never open. The composer's `submit`
- * refuses an unsendable draft itself.
- */
-function AgentChatSendButton({
-    isQueueing,
-    isSendable,
-    sendAction,
-    shortcut,
-    tooltip,
-}: {
-    isQueueing: boolean;
-    isSendable: boolean;
-    sendAction: { label: string; tooltip: string };
-    shortcut: string | undefined;
-    tooltip: string;
-}) {
-    return (
-        <Tooltip content={tooltip} shortcut={shortcut}>
-            <Button
-                aria-disabled={!isSendable || undefined}
-                aria-label={sendAction.label}
-                className={AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME}
-                size="icon"
-                type="submit"
-                variant="ghost"
-            >
-                {isQueueing ? (
-                    <CornerDownLeft className="size-4" strokeWidth={2.25} />
-                ) : (
-                    <ArrowUp className="size-4" strokeWidth={2.25} />
-                )}
-            </Button>
-        </Tooltip>
-    );
-}
+import { AgentChatSendButton } from './send/agent-chat-send-button';
+import type { AgentChatSendKey } from './send/agent-chat-send-tooltip';
 
 /**
  * The composer card's bottom row, laid out like the Codex app's: `+`, the Plan chip while plan mode is on, and the
@@ -85,6 +44,7 @@ export function AgentChatComposerActions({
     onStop,
     recentSessions,
     sendAction,
+    sendKeys,
     sendShortcut,
     sendTooltip,
     showsStop,
@@ -146,7 +106,11 @@ export function AgentChatComposerActions({
      * The recently opened Sessions `+` offers to cite.
      */
     recentSessions: readonly SessionReferenceCandidate[];
-    sendAction: { label: string; tooltip: string };
+    sendAction: { kind?: 'queue' | 'send' | 'steer'; label: string; tooltip: string };
+    /**
+     * The running turn's keys the Send tooltip lists (`agentChatSendTooltipKeys`).
+     */
+    sendKeys: readonly AgentChatSendKey[] | undefined;
     /**
      * The keycap beside {@link sendTooltip}, absent while the tooltip says why Send cannot act.
      */
@@ -257,6 +221,7 @@ export function AgentChatComposerActions({
                 <AgentChatSendButton
                     isQueueing={isQueueing}
                     isSendable={isSendable}
+                    keys={sendKeys}
                     sendAction={sendAction}
                     shortcut={sendShortcut}
                     tooltip={sendTooltip}

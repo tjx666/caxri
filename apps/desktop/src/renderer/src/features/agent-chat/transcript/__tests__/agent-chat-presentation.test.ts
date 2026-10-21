@@ -4,21 +4,23 @@ import { describe, expect, it } from 'vitest';
 
 import { getTerminalExitPresentation } from '../../../terminal/terminal-exit-presentation';
 import {
+    agentChatSendBlock,
+    agentChatSendTooltip,
+    agentChatSendTooltipKeys,
+    agentChatSendTooltipShortcut,
+} from '../../composer/send/agent-chat-send-tooltip';
+import {
     agentChatAttachLabel,
     agentChatCommandCwd,
     agentChatCommandMenuKeyStep,
     agentChatComposerPlaceholder,
     agentChatDeliveryCaption,
-    agentChatDeliveryHint,
     agentChatEmptyHint,
     agentChatEscapeAction,
     agentChatRecoveryNotice,
     agentChatResumeFailureDetail,
     agentChatSendAction,
-    agentChatSendBlock,
     agentChatSendRefusal,
-    agentChatSendTooltip,
-    agentChatSendTooltipShortcut,
     agentChatSkillLabel,
     agentChatSubmitDelivery,
     canSendAgentChatMessage,
@@ -152,9 +154,15 @@ describe('agentChatSendAction', () => {
             tooltip: 'Queue',
             shortcut: 'enter',
         });
+        // A running turn's tooltip lists its keys instead of the placeholder spelling them out.
         expect(agentChatSendAction({ isTurnRunning: true, isBusy: true }, 'Codex')).toMatchObject({
             label: 'Queue message',
-            placeholder: 'Queue a follow-up (⌘Enter to steer)',
+            placeholder: 'Queue a follow-up',
+            keys: [
+                { label: 'Queue', shortcut: 'enter' },
+                { label: 'Steer', shortcut: 'cmd+enter' },
+                { label: 'Stop turn', shortcut: 'escape' },
+            ],
         });
     });
 
@@ -162,10 +170,10 @@ describe('agentChatSendAction', () => {
         expect(
             agentChatSendAction({ isTurnRunning: false, isBusy: false, isPlanMode: true }, 'Codex'),
         ).toMatchObject({ label: 'Send', placeholder: 'Describe what to plan…' });
-        // A running turn still says what Enter and Cmd+Enter do with a follow-up.
+        // A running turn still invites a follow-up rather than a plan.
         expect(
             agentChatSendAction({ isTurnRunning: true, isBusy: true, isPlanMode: true }, 'Codex'),
-        ).toMatchObject({ placeholder: 'Queue a follow-up (⌘Enter to steer)' });
+        ).toMatchObject({ placeholder: 'Queue a follow-up' });
     });
 });
 
@@ -195,16 +203,6 @@ describe('isAgentChatSteerDefault', () => {
         expect(
             isAgentChatSteerDefault({ ...waiting, isWaitingOnAgents: false, provider: 'codex' }),
         ).toBe(false);
-    });
-});
-
-describe('agentChatDeliveryHint', () => {
-    it('explains Enter only for a draft typed during a turn', () => {
-        const running = { hasDraft: true, isSteerDefault: false, isTurnRunning: true };
-        expect(agentChatDeliveryHint(running)).toBe('queueOrSteer');
-        expect(agentChatDeliveryHint({ ...running, isSteerDefault: true })).toBe('steer');
-        expect(agentChatDeliveryHint({ ...running, hasDraft: false })).toBeUndefined();
-        expect(agentChatDeliveryHint({ ...running, isTurnRunning: false })).toBeUndefined();
     });
 });
 
@@ -243,7 +241,16 @@ describe('agentChatSendTooltip', () => {
         expect(agentChatSendTooltipShortcut(send, ready)).toBe('enter');
         expect(agentChatSendTooltipShortcut(send, { ...ready, hasContent: false })).toBeUndefined();
         expect(agentChatSendTooltipShortcut(send, { ...ready, block: 'loading' })).toBeUndefined();
-        expect(agentChatSendTooltipShortcut({ tooltip: 'Queue · Steer' }, ready)).toBeUndefined();
+        expect(agentChatSendTooltipShortcut({ tooltip: 'Queue' }, ready)).toBeUndefined();
+    });
+
+    it('lists the running turn keys only while Send can act', () => {
+        const keys = [{ label: 'Queue', shortcut: 'enter' }];
+        expect(agentChatSendTooltipKeys({ keys, tooltip: 'Queue' }, ready)).toBe(keys);
+        expect(
+            agentChatSendTooltipKeys({ keys, tooltip: 'Queue' }, { ...ready, isSending: true }),
+        ).toBeUndefined();
+        expect(agentChatSendTooltipKeys({ tooltip: 'Send' }, ready)).toBeUndefined();
     });
 });
 
@@ -412,9 +419,9 @@ describe('agentChatDeliveryCaption', () => {
 });
 
 describe('agentChatComposerPlaceholder', () => {
-    const sendAction = { placeholder: 'Queue a follow-up (⌘Enter to steer)' };
+    const sendAction = { placeholder: 'Queue a follow-up' };
 
-    it('says Enter sends the queued message while one waits, except during an edit', () => {
+    it('invites a follow-up while a message waits in a running turn, and says Enter sends it in an idle Chat', () => {
         const state = {
             hasNextQueued: true,
             hasStash: false,
@@ -422,9 +429,7 @@ describe('agentChatComposerPlaceholder', () => {
             isGoalMode: false,
             isTurnRunning: true,
         };
-        expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
-            'Enter to steer the queued message, or type a follow-up',
-        );
+        expect(agentChatComposerPlaceholder(sendAction, state)).toBe('Type a follow-up');
         expect(agentChatComposerPlaceholder(sendAction, { ...state, isTurnRunning: false })).toBe(
             'Enter to send the queued message, or type a new one',
         );

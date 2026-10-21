@@ -1202,12 +1202,12 @@ a `goal` command; it enters Goal mode), and Plan mode (with its description and 
 trailing check while on); under `Sessions`, the five most recently opened Sessions with an Agent
 conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
 Chromium's file input selects files only. Trailing on the right: the context meter (a
-14px ring that fills with the share of the window in use, its percentage beside it, `--warning`
-from 60% and still `--warning` past 85%, matching the compact alert there, because running low on
-context is advice, not a failure; a `meter` and a Tab stop whose popover gives the token breakdown
-and, when the provider has a compact command, a Compact button; hovering opens it as a preview, and
-Enter, Space, or a click opens it with focus inside so Tab reaches Compact; a preview card opened by
-focus would close as soon as focus left the ring), the model picker (a pill holding a filled `--foreground` bolt while Fast mode is on, not
+14px pie inside a thin ring that fills with the share of the window in use; a quiet `--muted` glyph
+with no number below 85%, and from 85% `--warning` with its percentage beside it, matching the
+compact alert there, because running low on context is advice, not a failure; a `meter` and a Tab
+stop whose popover gives the token breakdown and, when the provider has a compact command, a Compact
+button; it opens on click, Enter, or Space only, with focus inside so Tab reaches Compact, never on
+hover, so a pointer passing over the bottom row never throws a card over the draft), the model picker (a pill holding a filled `--foreground` bolt while Fast mode is on, not
 `--accent`, so the composer keeps one accent per screen (Principle 2), and a workflow glyph
 while ultracode is on, then the model's name and the next turn's effort, which it keeps reading
 while its panel is open so the pill never resizes under the pointer; a spinner replaces the chevron
@@ -1233,34 +1233,42 @@ accept edits, a bot for auto, the `--warning` shield for full access) and trails
 with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
 checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
 circle holding a `--background` up arrow for Send (a return arrow while the message would queue), or
-a small filled square for Stop. That slot
+a small filled square for Stop. While a turn runs, holding Cmd (or Ctrl) turns Send into Steer before
+any key is pressed: an `--accent` circle with an arrow-up-to-line glyph named `Steer`, which a click
+then steers too. That slot
 shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
 never sit side by side. While Send cannot send, its tooltip says why (`Chat loading…`, `Reading
 image…`, `Type a message to send`, or the recovery row to use). While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
-the message and the placeholder says so (`Queue a follow-up (⌘Enter to steer)`); Cmd+Enter steers it
-into the running turn instead, and once a draft is typed the status row names both keys (`Enter to
-queue · ⌘Enter to steer`). Typing `/` or `$` opens the suggestion list above the card under
+the message and the placeholder says so (`Queue a follow-up`); Cmd+Enter steers it into the running
+turn instead. The keys live in Send's tooltip, one row each with its keycap (`Queue` Enter, `Steer`
+⌘Enter, `Stop turn` Esc; while a Codex main Agent waits on its subagents Enter itself steers, so
+Send wears the Steer glyph and lists `Steer` Enter and `Stop turn` Esc), never as a hint row above the input, since a hint shown on every turn
+costs a row the user learns once. Typing `/` or `$` opens the suggestion list above the card under
 `Commands` and `Skills` headings. Each row leads with a 16px muted glyph naming what it is, the
 same glyph that thing wears elsewhere: `SquareSlash` for a command and `Package` for a skill (the
 sent message's invocation chip), a file's type icon (the Files tree), `MessageCircle` for a Session
 (the `+` menu), and `History` for a sent prompt. A `meta` footer names the keys as compact `Kbd`
-keycaps, like the composer strip's `Enter to queue`, ending in `Esc to dismiss` (a list with no row to choose offers only `Esc to dismiss`, never an Enter that would send
+keycaps, like Send's tooltip, ending in `Esc to dismiss` (a list with no row to choose offers only `Esc to dismiss`, never an Enter that would send
 the draft); a query with no match keeps it open on a `No matching command or skill` row. Typing `@`
 opens the same kind of list of other Sessions to cite, each with its Project; a title more than one
 row shares adds when that Session was last opened (`· 3h`), a query with no match reads `No Sessions
 match`, and after a choice the list becomes one spinner row (`Preparing “Title”…`) until the
 reference is written, while Enter waits. Both lists show only while the input has focus. Queued
-messages list in the composer strip (below) as 12px rows, each with Edit (back into the composer),
-Delete, and Send now (Steer while a turn runs); a paused queue is headed by a row that
+messages list in the composer strip (below) as 12px rows showing only the message; hovering a row or
+focusing inside it reveals its ghost icon actions Edit (back into the composer), Delete, and Send
+now (an arrow-up-to-line Steer while a turn runs). While a turn runs and the input is empty, the row
+Enter would steer carries a compact `Enter Steer` keycap chip, hidden while its own actions show,
+and the placeholder reads `Type a follow-up`; a paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send
-reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the composer (recovery row, plan, and requests) is capped
+reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the composer (recovery row and requests) is capped
 at 60% of the pane and scrolls past it. Above everything in the dock, a recovery row explains why the Chat cannot
 continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
-and Resume; while either shows, Send is disabled. Running subagents and background shells list in the
-composer strip with elapsed time and their own Stop, and its `N ended` count (with a disclosure
-chevron, so it reads as a control) expands the ended tasks, most recent first, with how each ended; a shell is named by the Agent's
+and Resume; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the status row
+(below) rather than in rows of their own. Its Background work popover lists failed then running
+tasks with elapsed time and their own Stop, notes that stopping the turn leaves them running, and
+its `N ended` disclosure (with a chevron, so it reads as a control) expands the ended tasks, most recent first, with how each ended; a shell is named by the Agent's
 description of it (Claude Code's `Bash` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
 its timeline row, opens it as
@@ -1269,7 +1277,7 @@ message steered into a running turn carries an 11px `--muted` `Steered` caption;
 ordinary message once delivered and carries none, since `Queued` would read as pending. Escape
 interrupts a running turn regardless, from the composer or anywhere else in the Chat pane that is
 not an editable field or an open menu, list, or dialog. Once Stop is requested the Stop button shows
-a spinner and the status row reads `Stopping…` without the sweep or the Esc hint; a failed request
+a spinner and the status row reads `Stopping…` without the sweep; a failed request
 releases both and a toast says so. While the Chat starts, works, or waits on an answer, a 32px
 status row sits in a strip on top of the card rather than inside it, so the Chat's state never reads
 as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 12px
@@ -1277,10 +1285,21 @@ from the card's sides, its top corners radius-8 and its hairline resting on the 
 the `Editing an earlier message` bar and the idle context notices below use the same strip. Everything
 else that waits above the input joins that strip as hairline-divided sections instead of its own
 card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code's composer drawer):
-Background work below the goal row, then queued messages, then the status row nearest the input, since it
-changes most often. The row holds a spinner (or a `--warning`
-question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
-stop` right-aligned. While the provider pursues a goal, a goal row leads the strip, after the Codex
+queued messages below the goal row, then the status row nearest the input, since it changes most
+often. The status row is the one place the Chat's live state shows: on the left Buddy, the turn's
+verb (which swaps with a short rise, blur, and fade), and the elapsed time (`4m 23s`); on the right
+the turn's spend as bare icon-and-figure pairs with details in tooltips (cost without a `$`), then
+two badges pinned to the far right, the plan (`ListTodo 2/5`) and background work (its glyph and the
+running count, a `--danger` dot while a failure is unseen). Each badge opens one popover anchored to
+the row on click, showing only its own section; clicking the other badge swaps the content in place
+while a pill slides between the badges and the popover's height springs. After the turn the row
+stays only while something still needs the user, leading with it instead of the verb: one running
+task inline with its Stop, `N background tasks running`, unseen failures in `--danger`, or `Plan
+stopped at 2/5` with the current step. A failure counts as seen once the user opened the task list
+and closed the popover; opening the plan does not clear it, and only failures that ended during the
+latest turn count. The row unfolds and folds rather than popping, badges pop in and out, numbers
+roll, and all of it honors reduced motion. References: the Codex app's and Mux's compact turn
+summaries, Warp's and VS Code's one-line agent status. While the provider pursues a goal, a goal row leads the strip, after the Codex
 app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
 `Goal paused`, `Goal stalled`, `Goal hit usage limits`, `Goal budget reached`, `Goal achieved`), the
 objective truncated in `--muted`, the goal's time (`1h 37m 29s`, ticking each second only while an
@@ -1291,8 +1310,8 @@ divided from it by a vertical hairline, and changes the placeholder to `Describe
 measurable outcomes for best results`; Enter then sets the draft as the goal, and the chip or
 Backspace in an empty input leaves the mode. A working turn's label is one playful phrase chosen per turn from Caxri's own list (`Mapping the terrain…`),
 so a long turn reads as progress rather than a stall; a waiting one shows no row, since the
-approval or question card right above the composer is the waiting state, and returns as `Waiting
-for your approval` or `Waiting for your answer` only while a draft needs the Enter hint. On an idle Chat the same row
+approval or question card right above the composer is the waiting state, unless the plan or
+background work badges have something to show, and then the row holds only those badges. On an idle Chat the same row
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
 and context high enough to read `consider compacting` in `--warning` (a suggestion, since nothing failed) with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort

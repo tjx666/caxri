@@ -12,8 +12,12 @@ import { agentChatContextPercent } from './agent-chat-context';
 import { contextCategoryLabel } from './category-labels';
 import { inRequestOrder, segmentShade } from './composition';
 
-const RADIUS = 5.5;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+/**
+ * The pie's slice is a circle stroked as wide as its own diameter, so a dash of `share × circumference` paints a
+ * sector; the outline ring sits just outside it.
+ */
+const PIE_RADIUS = 2.6;
+const PIE_CIRCUMFERENCE = 2 * Math.PI * PIE_RADIUS;
 
 const TONE_CLASS_NAMES: Record<AgentChatContextUsage['tone'], string> = {
     normal: 'text-muted',
@@ -128,15 +132,14 @@ function ContextCard({
 }
 
 /**
- * How much of the context window the conversation uses, as a filling ring with the percentage beside it, the way the
- * Codex app shows it; the percentage's digits roll as a response moves it. Both measure against the window the provider
- * compacts at, so the ring turns `--danger` exactly when the composer suggests compacting. Its card gives the token
- * counts, what fills the window when the provider reports it, a Details button opening the Chat's Context tab when the
- * provider can describe its context, and a Compact button when the provider has a compact command. Hovering opens the
- * card as a preview; it is a popover rather than a preview card because it holds that button: a preview card opened by
- * focus closes as soon as focus leaves the ring, so Tab could never reach Compact. Enter, Space, or a click on the ring
- * (a Tab stop) opens the same card with focus inside it, and Escape hands focus back. The ring is a `meter`, so a
- * screen reader hears the share as a value with the counts as its text.
+ * How much of the context window the conversation uses, as a small filling pie in the composer's bottom row. It stays a
+ * quiet neutral glyph with no number until the share reaches where the composer suggests compacting; from there it
+ * turns `--warning` and shows the percentage, whose digits roll as a response moves it. Both measure against the window
+ * the provider compacts at. Its card gives the token counts, what fills the window when the provider reports it, a
+ * Details button opening the Chat's Context tab when the provider can describe its context, and a Compact button when
+ * the provider has a compact command. The card opens on click only, so passing the pointer over the composer's bottom
+ * row never throws a card over the draft; Enter or Space on the pie (a Tab stop) opens it with focus inside, and Escape
+ * hands focus back. The pie is a `meter`, so a screen reader hears the share as a value with the counts as its text.
  */
 export function AgentChatContextMeter({
     onCompact,
@@ -163,10 +166,7 @@ export function AgentChatContextMeter({
     return (
         <Popover>
             <PopoverTrigger
-                closeDelay={120}
-                delay={300}
                 nativeButton={false}
-                openOnHover
                 render={
                     <span
                         aria-label={description}
@@ -186,12 +186,12 @@ export function AgentChatContextMeter({
             >
                 <svg aria-hidden className="size-3.5 -rotate-90" viewBox="0 0 14 14">
                     <circle
-                        className="stroke-current opacity-25"
+                        className="stroke-current opacity-40"
                         cx="7"
                         cy="7"
                         fill="none"
-                        r={RADIUS}
-                        strokeWidth="1.75"
+                        r="6.25"
+                        strokeWidth="1.25"
                     />
                     {usage.used > 0 && (
                         <circle
@@ -199,15 +199,14 @@ export function AgentChatContextMeter({
                             cx="7"
                             cy="7"
                             fill="none"
-                            r={RADIUS}
-                            strokeDasharray={CIRCUMFERENCE}
-                            strokeDashoffset={CIRCUMFERENCE * (1 - usage.used)}
-                            strokeLinecap="round"
-                            strokeWidth="1.75"
+                            r={PIE_RADIUS}
+                            strokeDasharray={PIE_CIRCUMFERENCE}
+                            strokeDashoffset={PIE_CIRCUMFERENCE * (1 - usage.used)}
+                            strokeWidth={PIE_RADIUS * 2}
                         />
                     )}
                 </svg>
-                <AnimatedNumber suffix="%" value={percent} />
+                {usage.tone === 'warning' && <AnimatedNumber suffix="%" value={percent} />}
             </PopoverTrigger>
             <PopoverContent align="end" className="w-60 overflow-visible p-2.5" side="top">
                 <ContextCard

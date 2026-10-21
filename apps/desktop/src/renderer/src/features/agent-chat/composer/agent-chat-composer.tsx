@@ -32,12 +32,7 @@ import { useAgentChatPromptHistory } from '../hooks/use-agent-chat-prompt-histor
 import { useAgentChatSessionMenu } from '../hooks/use-agent-chat-session-menu';
 import { useAgentChatStop } from '../hooks/use-agent-chat-stop';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
-import type { agentChatSendBlock } from '../transcript/agent-chat-presentation';
-import {
-    agentChatComposerPlaceholder,
-    agentChatSendTooltip,
-    agentChatSendTooltipShortcut,
-} from '../transcript/agent-chat-presentation';
+import { agentChatComposerPlaceholder } from '../transcript/agent-chat-presentation';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
 import { AgentChatComposerEditor } from './agent-chat-composer-editor';
 import { AgentChatComposerNotices } from './agent-chat-composer-notices';
@@ -45,6 +40,12 @@ import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { agentChatNextQueuedId } from './agent-chat-queue';
+import type { agentChatSendBlock } from './send/agent-chat-send-tooltip';
+import {
+    agentChatSendTooltip,
+    agentChatSendTooltipKeys,
+    agentChatSendTooltipShortcut,
+} from './send/agent-chat-send-tooltip';
 
 /**
  * How many recent Sessions the composer's Add menu offers to cite, as the Codex app lists a handful of recent chats.
@@ -127,6 +128,7 @@ interface AgentChatComposerProperties {
               | 'model'
               | 'models'
               | 'permissionMode'
+              | 'plan'
               | 'planMode'
               | 'queuePauseReason'
               | 'tasks'
@@ -319,6 +321,7 @@ export function AgentChatComposer({
     };
     const sendTooltip = agentChatSendTooltip(sendAction, sendState, t);
     const sendShortcut = agentChatSendTooltipShortcut(sendAction, sendState);
+    const sendKeys = agentChatSendTooltipKeys(sendAction, sendState);
     const composerKeys = useAgentChatComposerEnter({
         cancelEdit: edit.cancel,
         clearAttachments: () => images.clearSent(images.attachments),
@@ -352,21 +355,19 @@ export function AgentChatComposer({
             <div className="relative">
                 <AgentChatComposerStrip
                     activeTurnId={activeTurnId}
+                    enterQueuedId={isTurnRunning && !hasContent ? nextQueuedId : undefined}
                     isQueuePaused={isQueuePaused}
                     isTurnRunning={isTurnRunning}
                     pendingQueue={pendingQueue}
                     queue={queue}
                     snapshot={snapshot}
                     terminalId={terminalId}
-                    onOpenTask={onOpenTask}
                     onQueueAction={focusInput}
                     onQueueEdit={restoreQueued}
                 >
                     <AgentChatComposerNotices
                         activeTurnId={activeTurnId}
                         activity={activity}
-                        isDrafting={draft.trim().length > 0}
-                        isSteerDefault={isSteerDefault}
                         edit={edit.bar}
                         isContinuing={isContinuing}
                         isEditing={edit.isEditing}
@@ -377,10 +378,12 @@ export function AgentChatComposer({
                                 ? t('agentChat.slash.confirmSendAsText')
                                 : undefined)
                         }
+                        snapshot={snapshot}
                         terminalId={terminalId}
-                        usage={snapshot?.usage}
                         onCompact={compact}
                         onContinueInNewChat={continueInNewChat}
+                        onOpenTask={onOpenTask}
+                        onPopoverClosed={() => inputReference.current?.element ?? null}
                     />
                 </AgentChatComposerStrip>
                 <form
@@ -392,8 +395,12 @@ export function AgentChatComposer({
                         event.preventDefault();
                         // The Send button disables itself while the message is in flight, which would drop its focus.
                         focusInput();
+                        // A Send button held with Cmd turned into Steer and says so through its `delivery` value.
+                        const { submitter } = event.nativeEvent;
+                        const isSteer =
+                            submitter instanceof HTMLButtonElement && submitter.value === 'steer';
                         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                        void submit();
+                        void submit(isSteer ? 'steer' : undefined);
                     }}
                 >
                     <AgentChatSuggestionMenu
@@ -466,6 +473,7 @@ export function AgentChatComposer({
                         }
                         onStop={stopAndFocus}
                         sendAction={sendAction}
+                        sendKeys={sendKeys}
                         sendShortcut={sendShortcut}
                         sendTooltip={sendTooltip}
                         recentSessions={sessionMenu.recentCandidates(RECENT_SESSION_LIMIT)}

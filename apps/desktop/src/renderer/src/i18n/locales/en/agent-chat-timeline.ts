@@ -34,14 +34,12 @@ export const agentChatTimeline = {
     'agentChat.message.sendTooltip': 'Send',
     'agentChat.message.queue': 'Queue message',
     'agentChat.message.queueTooltip': 'Queue',
-    'agentChat.message.queueSteerTooltip': 'Queue (Enter) · Steer (⌘Enter)',
     'agentChat.message.queuePlaceholder': 'Queue a follow-up',
-    'agentChat.message.queueSteerPlaceholder': 'Queue a follow-up (⌘Enter to steer)',
     'agentChat.message.steer': 'Steer message',
     'agentChat.message.steerTooltip': 'Steer',
     'agentChat.message.steerWaitPlaceholder': 'Waiting for subagents. Enter steers this turn',
-    'agentChat.message.steerQueuedPlaceholder':
-        'Enter to steer the queued message, or type a follow-up',
+    'agentChat.message.steerQueuedPlaceholder': 'Type a follow-up',
+    'agentChat.message.stopTurn': 'Stop turn',
     'agentChat.message.sendQueuedPlaceholder':
         'Enter to send the queued message, or type a new one',
     'agentChat.message.planPlaceholder': 'Describe what to plan…',

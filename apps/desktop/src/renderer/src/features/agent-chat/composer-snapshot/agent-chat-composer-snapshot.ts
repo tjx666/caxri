@@ -12,12 +12,9 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
+import { agentChatSendBlock } from '../composer/send/agent-chat-send-tooltip';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
-import {
-    agentChatSendBlock,
-    isAgentChatBusy,
-    isAgentChatSteerDefault,
-} from '../transcript/agent-chat-presentation';
+import { isAgentChatBusy, isAgentChatSteerDefault } from '../transcript/agent-chat-presentation';
 
 /**
  * The part of a Chat snapshot the composer reads. `items` keeps only the user's own messages: prompt recall and "Edit
@@ -33,6 +30,7 @@ type AgentChatComposerSnapshot = Pick<
     | 'model'
     | 'models'
     | 'permissionMode'
+    | 'plan'
     | 'planMode'
     | 'queuePauseReason'
     | 'tasks'
@@ -115,6 +113,7 @@ export function selectAgentChatComposerView(
             model: snapshot.model,
             models: snapshot.models,
             permissionMode: snapshot.permissionMode,
+            plan: snapshot.plan,
             planMode: snapshot.planMode,
             queuePauseReason: snapshot.queuePauseReason,
             tasks: snapshot.tasks,

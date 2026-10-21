@@ -1,11 +1,9 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { agentChatDockedPlan } from '@caxri/protocol';
 import { CircleAlert, Info, RotateCcw, SquareTerminal, Unplug } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { AgentChatPlanCard } from './tools/agent-chat-plan-card';
 import type { AgentChatRecoveryNotice } from './transcript/agent-chat-presentation';
 import { AgentChatRequestCard } from './transcript/agent-chat-request-card';
 
@@ -73,8 +71,9 @@ function AgentChatRecoveryBanner({
 }
 
 /**
- * What docks above the composer, outside the scrolling timeline: the recovery banner, the Agent's plan, each pending
- * approval or question. Background work and queued messages join the composer's strip instead (`AgentChatComposer`).
+ * What docks above the composer, outside the scrolling timeline: the recovery banner and each pending approval or
+ * question. The Agent's plan, background work, and queued messages join the composer's strip instead
+ * (`AgentChatComposer`).
  */
 export function AgentChatDock({
     answeredRequestIds,
@@ -100,7 +99,6 @@ export function AgentChatDock({
     onOpenAsTerminal: (() => void) | undefined;
     onRecover: () => void;
 }) {
-    const dockedPlan = agentChatDockedPlan(snapshot);
     return (
         <div className="mx-auto flex max-h-[60%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
             <AgentChatRecoveryBanner
@@ -108,12 +106,6 @@ export function AgentChatDock({
                 onOpenAsTerminal={onOpenAsTerminal}
                 onRecover={onRecover}
             />
-            {dockedPlan && (
-                <AgentChatPlanCard
-                    isTurnRunning={dockedPlan.isTurnRunning}
-                    plan={dockedPlan.plan}
-                />
-            )}
             {snapshot?.requests
                 .filter((request) => !answeredRequestIds.has(request.id))
                 .map((request) => (

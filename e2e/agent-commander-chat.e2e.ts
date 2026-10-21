@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import type { CommanderSnapshot } from '@caxri/protocol';
 
+import { openBackgroundWork } from './support/agent-chat-status-row.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -76,7 +77,9 @@ if (process.argv.includes('app-server')) {
         await message.fill('start a subagent hold');
         await message.press('Enter');
 
-        const strip = commander.getByRole('region', { name: 'Background work' });
+        // The status row's Background work popover lists the subagent; the window cannot open its tab.
+        const chat = commander.locator('body');
+        const strip = await openBackgroundWork(commander, chat);
         await expect(strip.getByText('Inspect the fixtures')).toBeVisible();
         await expect(
             strip.getByRole('button', { name: /^Open Inspect the fixtures/u }),
@@ -112,7 +115,7 @@ if (process.argv.includes('app-server')) {
         });
 
         // Clicking the row opens nothing, and the Commander Session's stored layout never gains a task tab.
-        await strip.getByText('Inspect the fixtures').click();
+        await (await openBackgroundWork(commander, chat)).getByText('Inspect the fixtures').click();
         const { identity, workbench } = await pageRequest<CommanderSnapshot>(
             running.page,
             'commander.snapshot',
@@ -122,8 +125,12 @@ if (process.argv.includes('app-server')) {
         );
         expect(JSON.stringify(state ?? {})).not.toContain('caxri-agent-task://');
 
-        // Once the subagent ends and the strip moves on, the folded row still names it.
-        await strip.getByRole('button', { name: /^Stop Inspect the fixtures/u }).click();
+        // Once the subagent ends and the status row moves on, the folded row still names it.
+        await (
+            await openBackgroundWork(commander, chat)
+        )
+            .getByRole('button', { name: /^Stop Inspect the fixtures/u })
+            .click();
         await fold.click();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
         await expect(reveal).toBeVisible();

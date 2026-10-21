@@ -8,7 +8,6 @@ import {
 } from '@caxri/protocol';
 
 import { useTerminal } from '../../../stores/selectors';
-import { learnAgentChatDeliveryHint } from '../activity/agent-chat-delivery-hint';
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import {
     didRewindAgentChat,
@@ -151,8 +150,6 @@ export function useAgentChatSubmit({
         const sentAttachments = attachments;
         const message = agentChatMessageInput(sent, sentAttachments, providerName);
         const snapshot = cachedAgentChatSnapshot(terminalId);
-        // Sending while a turn runs queues or steers, so the user has met both shortcuts.
-        if (snapshot?.activeTurnId) learnAgentChatDeliveryHint();
         const pendingId = showAgentChatPendingMessage(terminalId, snapshot, {
             text: message.text,
             images: (message.images ?? []).map(({ thumbnail }) => ({ thumbnail })),

@@ -25,11 +25,11 @@ function metricTooltip(metric: AgentChatTurnMetric, t: Translate): string {
 }
 
 /**
- * What the running turn has spent so far, on the right of the composer strip: steps, tokens, and estimated cost, each
- * behind its icon (cost with a `$`) and split by hairlines, with a pointer tooltip naming it. The figures roll to each
- * new value in tabular digits, so a climbing count reads as progress and the row never shifts. A narrow strip keeps
- * only the token count. The strip is hidden from assistive technology; the Usage page and the status bar carry the
- * accessible figures.
+ * What the running turn has spent so far, on the right of the composer's status row: steps, tokens, and estimated cost,
+ * each a bare figure behind its icon and split by hairlines, with a pointer tooltip naming it (and the cost's currency:
+ * the dollar glyph already says it, so the figure carries no `$`). The figures roll to each new value in tabular
+ * digits, so a climbing count reads as progress and the row never shifts. A narrow strip keeps only the token count.
+ * The figures are hidden from assistive technology; the Usage page and the status bar carry the accessible figures.
  */
 export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage | undefined }) {
     const { t } = useTranslation();
@@ -57,7 +57,6 @@ export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage |
                                 <Icon className="size-3.5 shrink-0" />
                                 <AnimatedNumber
                                     fractionDigits={metric.figure.fractionDigits}
-                                    prefix={metric.kind === 'cost' ? '$' : undefined}
                                     suffix={metric.figure.suffix}
                                     value={metric.figure.value}
                                 />

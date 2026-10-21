@@ -223,6 +223,11 @@
      */
     --motion-summary-phrase-enter: 320ms;
     --motion-text-reveal: 500ms;
+    /*
+     * The composer status row swapping one piece of text or one badge for another (a new verb rising in, a badge
+     * popping in, the popover changing section). Longer than feedback so the old and new content visibly trade places.
+     */
+    --motion-status-swap: 240ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     /*

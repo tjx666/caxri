@@ -111,10 +111,6 @@ export interface AgentChatQueueCardLabels {
     editTooltip: string;
     deleteTooltip: string;
     sendTooltip: string;
-    /**
-     * The send button's visible text: `Steer` while a turn runs, `Send now` otherwise.
-     */
-    sendText: string;
     sendAriaLabel: string;
 }
 
@@ -124,7 +120,6 @@ export function agentChatQueueCardLabels(
 ): AgentChatQueueCardLabels {
     const isSteer = entry.sendNowLabel === 'Steer';
     const sendLabels = {
-        sendText: t(isSteer ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow'),
         sendAriaLabel: t(isSteer ? 'agentChat.queue.steerNow' : 'agentChat.queue.sendNow'),
     };
     if (entry.isPending) {
