@@ -865,7 +865,7 @@ The work-tab `Compacting` accessory is the other state-motion exception: only th
 while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Live Agent Chat work is the third: a highlight sweeps across the text of what is still running
 (a running tool's whole title, verb and subject together, `Thinking`, the composer's working line)
 through the `.activity-shimmer` class. By default (`agentChat.statusShimmer: dwell`) the sweep crosses
-once in the first third of `--motion-activity-dwell` (2600ms) and rests for the remainder, so a long turn
+once, linearly, in the first 35% of `--motion-activity-dwell` (4000ms, about 1.4s) and rests for the remainder, so a long turn
 is not under constant motion; `continuous` keeps the linear 2200ms sweep and `off` holds the text still.
 The row's tool glyph never swaps for a spinner, so a column of rows does not flicker as each starts and
 ends; instead a row the user watched run acts out its tool while it runs (a bookworm inching along a

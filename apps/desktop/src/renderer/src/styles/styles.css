@@ -166,7 +166,7 @@
     --motion-overlay-exit: 100ms;
     --motion-compaction-pulse: 1800ms;
     --motion-activity-shimmer: 2200ms;
-    --motion-activity-dwell: 2600ms;
+    --motion-activity-dwell: 4000ms;
     --motion-skeleton-pulse: 2000ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
@@ -264,8 +264,9 @@
     }
 
     /*
-     * The Chat's default (`agentChat.statusShimmer`): one softer, slanted sweep over the first third
-     * of the period, then a rest, so a long turn's text is not under constant motion.
+     * The Chat's default (`agentChat.statusShimmer`): one softer, slanted sweep over the first 35% of
+     * the period (about 1.4s, linear like Codex's 1s-in-4s summary shimmer), then a rest, so a long
+     * turn's text is not under constant motion. An eased sweep doubled its mid-text speed and read as a flash.
      */
     [data-agent-chat-status-shimmer='dwell'] .activity-shimmer {
         background-image: linear-gradient(
@@ -275,8 +276,7 @@
             currentColor 58% 100%
         );
         background-size: 250% 100%;
-        animation: activity-dwell-shimmer var(--motion-activity-dwell) cubic-bezier(0.4, 0, 0.2, 1)
-            infinite;
+        animation: activity-dwell-shimmer var(--motion-activity-dwell) linear infinite;
     }
 
     [data-agent-chat-status-shimmer='off'] .activity-shimmer {
@@ -290,7 +290,7 @@
     0% {
         background-position: 100% 0;
     }
-    31%,
+    35%,
     100% {
         background-position: 0 0;
     }
@@ -300,8 +300,8 @@
  * Sidebar list labels clip overflowing text with a right-edge fade instead of an ellipsis. The
  * ellipsis glyph spends ~3ch of row width on punctuation. `--overflow-fade-size` defaults to 8px
  * for 11px metadata, whose call sites reserve that much trailing padding; 13px Session and Project
- * titles widen it to 20px (about one and a half characters, like Codex's sidebar) because an 8px
- * fade over a 13px glyph reads as a hard cut rather than a fade. Apply this to a flex-1 (or
+ * titles widen it to 16px (about one character, measured against Codex's sidebar) because an 8px
+ * fade over a 13px glyph reads as a hard cut rather than a fade, while 20px wasted visible width. Apply this to a flex-1 (or
  * otherwise wider-than-content) box so short labels never reach the mask zone.
  *
  * `--overflow-fade-start` and `--overflow-fade-end` are the faded widths at each edge. A Session
