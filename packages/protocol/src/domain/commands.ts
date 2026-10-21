@@ -1,22 +1,21 @@
 import { z } from 'zod';
 
 /**
- * One command per Open Session position, `session.openTab9` meaning the last one. They are nine ids rather than one
- * command with an index argument because the default-keybinding migrator dedupes additions by command, so nine bindings
- * of a single command would only ever add the first.
+ * One command per Pinned Session position, `session.openPinned9` meaning the last one. They are nine ids rather than
+ * one command with an index argument because the default-keybinding migrator dedupes additions by command, so nine
+ * bindings of a single command would only ever add the first.
  */
-export const sessionOpenTabCommandIds = [
-    'session.openTab1',
-    'session.openTab2',
-    'session.openTab3',
-    'session.openTab4',
-    'session.openTab5',
-    'session.openTab6',
-    'session.openTab7',
-    'session.openTab8',
-    'session.openTab9',
+export const sessionOpenPinnedCommandIds = [
+    'session.openPinned1',
+    'session.openPinned2',
+    'session.openPinned3',
+    'session.openPinned4',
+    'session.openPinned5',
+    'session.openPinned6',
+    'session.openPinned7',
+    'session.openPinned8',
+    'session.openPinned9',
 ] as const;
-export type SessionOpenTabCommandId = (typeof sessionOpenTabCommandIds)[number];
 
 /**
  * Builtin catalog IDs for palette, shortcuts, native menus, and command-backed buttons. Extension commands are open
@@ -45,9 +44,7 @@ export const commandIds = [
     'session.openArchived',
     'session.search',
     'session.focusNextAttention',
-    'session.closeTab',
-    'session.moveToNewWindow',
-    ...sessionOpenTabCommandIds,
+    ...sessionOpenPinnedCommandIds,
     'agentActions.open',
     'terminal.new',
     'terminal.newInSplit',

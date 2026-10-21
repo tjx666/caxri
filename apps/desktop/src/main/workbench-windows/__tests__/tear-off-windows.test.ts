@@ -36,7 +36,6 @@ function setup(
             windows.add(windowKey, window);
             return window;
         },
-        cursorPoint: () => ({ x: 1800, y: 1000 }),
         logger: () => ({ write: log }) as never,
         primaryReady: () => Promise.resolve(),
         register: vi.fn(),

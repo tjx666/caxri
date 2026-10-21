@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-export interface TearOffPoint {
+interface TearOffPoint {
     x: number;
     y: number;
 }
@@ -18,20 +18,7 @@ export interface TearOffRect {
 /**
  * Closed reasons a tear-off opens nothing, logged as `window.tear_off_rejected`.
  */
-export type TearOffRejection =
-    'inside_window' | 'last_tab' | 'not_open' | 'over_other_window' | 'window_failed';
-
-export type TearOffPlan =
-    { action: 'open'; bounds: TearOffRect } | { action: 'reject'; reason: TearOffRejection };
-
-/**
- * Where inside the new window the dragged tab's grab point lands: the window opens with its title bar under the cursor,
- * the way VS Code offsets an auxiliary window by the tab's own offset (`maybeCreateAuxiliaryEditorPartAt`).
- */
-export const TEAR_OFF_GRAB_OFFSET: TearOffPoint = { x: 80, y: 20 };
-
-const MIN_WINDOW_WIDTH = 960;
-const MIN_WINDOW_HEIGHT = 640;
+export type TearOffRejection = 'open_elsewhere' | 'shown_session' | 'window_failed';
 
 const isInside = (rect: TearOffRect, point: TearOffPoint): boolean =>
     point.x >= rect.x &&
@@ -60,62 +47,21 @@ function workAreaFor(
 }
 
 /**
- * Decides whether releasing a dragged tab at `point` opens a window and where. Pure, so the placement rules run under
- * Vitest without Electron.
- *
- * - Released over the source window (a cancelled or mis-aimed drag) or over another Workbench window (merging into it is
- *   not supported) opens nothing.
- * - Otherwise the window keeps the source window's normal size, shrunk to fit the display under the point, and is moved
- *   so its title bar sits under the cursor and the whole window stays inside that display's work area.
+ * Bounds for a Session opened in a new window: it cascades from the source window (30px per other window, clamped to
+ * the display), since the command has no drop point to honor.
  */
-export function planTearOff(input: {
-    point: TearOffPoint;
-    sourceBounds: TearOffRect;
-    otherBounds: readonly TearOffRect[];
-    workAreas: readonly TearOffRect[];
-    size: { width: number; height: number };
-}): TearOffPlan {
-    const { point, sourceBounds, otherBounds, workAreas, size } = input;
-    if (isInside(sourceBounds, point)) return { action: 'reject', reason: 'inside_window' };
-    if (otherBounds.some((bounds) => isInside(bounds, point)))
-        return { action: 'reject', reason: 'over_other_window' };
-    const area = workAreaFor(workAreas, point);
-    const width = Math.min(Math.max(size.width, MIN_WINDOW_WIDTH), area?.width ?? size.width);
-    const height = Math.min(Math.max(size.height, MIN_WINDOW_HEIGHT), area?.height ?? size.height);
-    const wantedX = point.x - TEAR_OFF_GRAB_OFFSET.x;
-    const wantedY = point.y - TEAR_OFF_GRAB_OFFSET.y;
-    if (!area) return { action: 'open', bounds: { x: wantedX, y: wantedY, width, height } };
-    return {
-        action: 'open',
-        bounds: {
-            x: Math.min(Math.max(wantedX, area.x), area.x + area.width - width),
-            y: Math.min(Math.max(wantedY, area.y), area.y + area.height - height),
-            width,
-            height,
-        },
-    };
-}
-
-/**
- * Bounds for a Session moved to a new window by a command rather than a drag. There is no release point to honor and
- * the cursor is over the source window, so the new window cascades from the source (30px per other window, clamped to
- * the display) and the "released over a window" refusals do not apply.
- */
-export function planCommandTearOff(input: {
+export function planNewWindowBounds(input: {
     sourceBounds: TearOffRect;
     size: { width: number; height: number };
     otherWindowCount: number;
     workAreas: readonly TearOffRect[];
-}): TearOffPlan {
+}): TearOffRect {
     const { sourceBounds, size, otherWindowCount, workAreas } = input;
-    return {
-        action: 'open',
-        bounds: cascadedBounds(
-            { ...sourceBounds, width: size.width, height: size.height },
-            Math.min(otherWindowCount, 8),
-            workAreas,
-        ),
-    };
+    return cascadedBounds(
+        { ...sourceBounds, width: size.width, height: size.height },
+        Math.min(otherWindowCount, 8),
+        workAreas,
+    );
 }
 
 /**
@@ -144,10 +90,6 @@ export interface TearOffWindowHandle {
 }
 
 export interface TearOffControllerOptions<W extends TearOffWindowHandle> {
-    /**
-     * Native cursor, used when the Renderer's `dragend` carried no usable point.
-     */
-    cursorPoint: () => TearOffPoint;
     /**
      * Creates and registers a hidden Workbench window under `windowKey`. The window shows itself once `placement`
      * resolves and stays hidden when it rejects.
@@ -188,12 +130,12 @@ function refusalReason(error: unknown): TearOffRejection {
         typeof error === 'object' && error !== null && 'details' in error
             ? (error.details as { reason?: unknown } | undefined)?.reason
             : undefined;
-    return reason === 'last_tab' || reason === 'not_open' ? reason : 'window_failed';
+    return reason === 'open_elsewhere' || reason === 'shown_session' ? reason : 'window_failed';
 }
 
 /**
- * Orchestrates one tab tear-off so a Session is never left in zero or two windows: the hidden window exists first, the
- * Server move runs second, and the window only shows once the move succeeded. A failed move destroys the window and
+ * Opens one Session in a new window so a Session is never left in zero or two windows: the hidden window exists first,
+ * the Server move runs second, and the window only shows once the move succeeded. A failed move destroys the window and
  * leaves the Server's strips as they were, because the move is one transaction.
  */
 export function createTearOffController<W extends TearOffWindowHandle>(
@@ -210,29 +152,16 @@ export function createTearOffController<W extends TearOffWindowHandle>(
         async tearOff(input: {
             sourceKey: string;
             sessionId: string;
-            screenPoint?: TearOffPoint;
-            placement?: 'cascade';
         }): Promise<{ opened: boolean }> {
             const startedAt = now();
             const source = options.sourceBounds(input.sourceKey);
             if (!source) return reject('window_failed');
-            const otherBounds = options.otherBounds(input.sourceKey);
-            const plan =
-                input.placement === 'cascade'
-                    ? planCommandTearOff({
-                          sourceBounds: source.bounds,
-                          size: source.size,
-                          otherWindowCount: otherBounds.length,
-                          workAreas: options.workAreas(),
-                      })
-                    : planTearOff({
-                          point: input.screenPoint ?? options.cursorPoint(),
-                          sourceBounds: source.bounds,
-                          otherBounds,
-                          workAreas: options.workAreas(),
-                          size: source.size,
-                      });
-            if (plan.action === 'reject') return reject(plan.reason);
+            const bounds = planNewWindowBounds({
+                sourceBounds: source.bounds,
+                size: source.size,
+                otherWindowCount: options.otherBounds(input.sourceKey).length,
+                workAreas: options.workAreas(),
+            });
             const windowKey = options.mintKey?.() ?? `win-${randomUUID()}`;
             const moved = Promise.withResolvers<void>();
             // Rejections are handled below; this keeps an unhandled-rejection report off the hidden window's gate.
@@ -243,7 +172,7 @@ export function createTearOffController<W extends TearOffWindowHandle>(
                 window = options.createWindow({
                     windowKey,
                     sessionId: input.sessionId,
-                    bounds: plan.bounds,
+                    bounds,
                     placement: moved.promise,
                 });
             } catch {

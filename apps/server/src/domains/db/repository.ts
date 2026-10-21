@@ -53,7 +53,6 @@ import { reorderProject } from './project-ordering';
 import {
     hideProject,
     isRestorableProjectRoot,
-    listOpenableSessionIds,
     listVisibleProjects,
     listVisibleSessions,
     reconcileWindowsAfterRemoval,
@@ -112,7 +111,7 @@ export class CaxriDatabase {
         this.commanderTasks = this.db.commanderTasks;
         this.commanderPendingNotices = this.db.commanderPendingNotices;
         this.terminalSurfaces = new TerminalSurfaces(this.db);
-        this.windowOpenSessions = new WindowOpenSessionsStore(this.db, listOpenableSessionIds);
+        this.windowOpenSessions = new WindowOpenSessionsStore(this.db);
     }
 
     private insertTerminal(

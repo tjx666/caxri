@@ -29,8 +29,6 @@ export interface CommandContext {
     };
     session: {
         archiveSelected(): void;
-        closeTab(): void;
-        moveToNewWindow(): void;
         compactWarm(): void;
         canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;
@@ -40,9 +38,9 @@ export interface CommandContext {
         navigateHistory(direction: SessionNavigationDirection): void;
         openArchived(): void;
         /**
-         * Shows the Open Session at `position` (1 to 9, 9 meaning the last).
+         * Shows the Pinned Session at `position` (1 to 9, 9 meaning the last).
          */
-        openTab(position: number): void;
+        openPinned(position: number): void;
         openPullRequestSelected(): void;
         renameSelected(): void;
         renameSelectedWithAi(): void;

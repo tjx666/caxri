@@ -53,15 +53,11 @@ export const bootstrapStateSchema = z.object({
      */
     selectedSessionId: z.string().optional(),
     /**
-     * The requesting window's Open Sessions in strip order. A working set that readers must never treat as a source of
-     * truth for existence; the Server already drops archived, deleted, and hidden Sessions. Absent means none.
+     * The requesting window's Open Sessions: the Session it shows. A working set that readers must never treat as a
+     * source of truth for existence; the Server already drops archived, deleted, and hidden Sessions. Absent means
+     * none.
      */
     openSessionIds: z.array(z.string()).optional(),
-    /**
-     * The requesting window's Preview entry (one of `openSessionIds`): the tab a plain sidebar click replaces. Absent
-     * means every entry is kept.
-     */
-    previewSessionId: z.string().optional(),
     /**
      * Sessions that are Open Sessions of another window, so the sidebar can mark them "open in another window". A
      * Session is open in at most one window, so this never overlaps `openSessionIds`. Absent means none.

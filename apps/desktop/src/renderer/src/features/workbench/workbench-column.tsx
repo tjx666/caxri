@@ -9,7 +9,6 @@ import {
     useChromeLayoutStore,
 } from '../../stores/chrome-layout';
 import { Panel } from '../panel/panel';
-import { SessionTabStrip } from '../session-tabs/session-tab-strip';
 import { PanelDivider } from './panel-divider';
 import { Workbench } from './workbench';
 
@@ -19,9 +18,6 @@ import { Workbench } from './workbench';
  * The Panel lives inside this column rather than spanning the full window, so the PrimarySidebar and SecondarySidebar
  * keep their full height: the same arrangement VS Code ships, and the one that protects the SecondarySidebar's file and
  * source control trees from losing vertical room to a log stream.
- *
- * The Open Session strip is the first row, above the Workbench and the Panel, so it spans the column the way a title
- * bar does and the Panel's resize math (which only sees the grid below it) is untouched.
  */
 export function WorkbenchColumn() {
     const { t } = useTranslation();
@@ -39,7 +35,6 @@ export function WorkbenchColumn() {
 
     return (
         <div className="workbench-column flex min-h-0 min-w-0 flex-col">
-            <SessionTabStrip />
             <div
                 className={cn(
                     'grid min-h-0 min-w-0 flex-1',

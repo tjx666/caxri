@@ -32,15 +32,10 @@ export interface MainWindowMethodOptions {
      */
     windowPresence?: Pick<WindowPresenceRegistry, 'setViewing'>;
     /**
-     * Moves one Open Session of the calling window into a new window; see `createTearOffController`. Absent in an SSH
-     * Host window, which is a single window.
+     * Opens a Session in a new window for the calling window; see `createTearOffController`. Absent in an SSH Host
+     * window, which is a single window.
      */
-    tearOffSession?(input: {
-        sourceKey: string;
-        sessionId: string;
-        screenPoint?: { x: number; y: number };
-        placement?: 'cascade';
-    }): Promise<{ opened: boolean }>;
+    tearOffSession?(input: { sourceKey: string; sessionId: string }): Promise<{ opened: boolean }>;
 }
 
 const WINDOW_METHODS = [

@@ -16,7 +16,6 @@ import {
     settlePendingSessionTitle,
 } from '../../stores/workbench-session-titles';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
-import { keepBusyPreviewBeforeSelection } from '../session-tabs/session-tab-keep-commands';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
@@ -35,8 +34,6 @@ const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {}
  * without queueing a second full `app.bootstrap` behind it.
  */
 async function didRequestSelection(sessionId: string): Promise<boolean> {
-    // A busy Preview tab is kept rather than replaced by this selection.
-    await keepBusyPreviewBeforeSelection(sessionId);
     const convergence = registerSessionCommandConvergence('session.select');
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
     const selected = await tryCommand(translate('session.errors.selectFailed'), async () => {

@@ -34,19 +34,15 @@ export const commandDescriptions = {
         'Switch between active Sessions in recently used order',
     'commands.description.session.focusNextAttention':
         'Select the next Session with an event you have not opened yet',
-    'commands.description.session.closeTab':
-        'Close the active Open Session tab and move to its neighbor; the Session itself stays in the sidebar',
-    'commands.description.session.moveToNewWindow':
-        'Move the active Open Session out of the tab strip into its own window; needs at least two Open Sessions',
-    'commands.description.session.openTab1': 'Show Session 1 in the Open Session tab strip',
-    'commands.description.session.openTab2': 'Show Session 2 in the Open Session tab strip',
-    'commands.description.session.openTab3': 'Show Session 3 in the Open Session tab strip',
-    'commands.description.session.openTab4': 'Show Session 4 in the Open Session tab strip',
-    'commands.description.session.openTab5': 'Show Session 5 in the Open Session tab strip',
-    'commands.description.session.openTab6': 'Show Session 6 in the Open Session tab strip',
-    'commands.description.session.openTab7': 'Show Session 7 in the Open Session tab strip',
-    'commands.description.session.openTab8': 'Show Session 8 in the Open Session tab strip',
-    'commands.description.session.openTab9': 'Show the last Session in the Open Session tab strip',
+    'commands.description.session.openPinned1': 'Select Session 1 in the Pinned group',
+    'commands.description.session.openPinned2': 'Select Session 2 in the Pinned group',
+    'commands.description.session.openPinned3': 'Select Session 3 in the Pinned group',
+    'commands.description.session.openPinned4': 'Select Session 4 in the Pinned group',
+    'commands.description.session.openPinned5': 'Select Session 5 in the Pinned group',
+    'commands.description.session.openPinned6': 'Select Session 6 in the Pinned group',
+    'commands.description.session.openPinned7': 'Select Session 7 in the Pinned group',
+    'commands.description.session.openPinned8': 'Select Session 8 in the Pinned group',
+    'commands.description.session.openPinned9': 'Select the last Session in the Pinned group',
     'commands.description.session.navigateBack':
         'Return to the Session you were viewing before this one',
     'commands.description.session.navigateForward':

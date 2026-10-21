@@ -31,6 +31,7 @@ describe('reconcileDefaultKeybindings', () => {
             ),
         ).toEqual({
             additions: [{ key: 'cmd+3', command: 'secondarySidebar.showStatus' }],
+            removals: [],
             replacements: [{ index: 0, binding: { key: 'cmd+p', command: 'pathBrowser.open' } }],
             value: [
                 { key: 'cmd+p', command: 'pathBrowser.open' },
@@ -48,6 +49,7 @@ describe('reconcileDefaultKeybindings', () => {
             reconcileDefaultKeybindings([previous], [{ type: 'replace', previous, current }]),
         ).toEqual({
             additions: [],
+            removals: [],
             replacements: [{ index: 0, binding: current }],
             value: [current],
         });
@@ -63,9 +65,66 @@ describe('reconcileDefaultKeybindings', () => {
 
         expect(reconcileDefaultKeybindings(original, changes)).toEqual({
             additions: [],
+            removals: [],
             replacements: [],
             value: original,
         });
+    });
+
+    it('removes only the exact old default and reports its input index', () => {
+        const previous = { key: 'cmd+shift+w', command: 'session.closeTab' };
+        const kept = { key: 'cmd+t', command: 'terminal.new' };
+        const remove = [{ type: 'remove', previous }] satisfies readonly DefaultKeybindingChange[];
+
+        expect(reconcileDefaultKeybindings([kept, previous], remove)).toEqual({
+            additions: [],
+            removals: [1],
+            replacements: [],
+            value: [kept],
+        });
+        const custom = { ...previous, key: 'cmd+alt+w' };
+        expect(reconcileDefaultKeybindings([custom], remove).removals).toEqual([]);
+        expect(
+            reconcileDefaultKeybindings([{ ...previous, when: 'terminalFocus' as const }], remove)
+                .removals,
+        ).toEqual([]);
+    });
+
+    it('frees a removed default chord for a later addition in the same batch', () => {
+        const previous = { key: 'cmd+shift+w', command: 'session.closeTab' };
+        const binding = { key: 'cmd+shift+w', command: 'window.close' };
+
+        expect(
+            reconcileDefaultKeybindings(
+                [previous],
+                [
+                    { type: 'remove', previous },
+                    { type: 'add', binding },
+                ],
+            ),
+        ).toEqual({ additions: [binding], removals: [0], replacements: [], value: [binding] });
+    });
+
+    /**
+     * The caller writes additions after its in-place edits, so an edit aimed at an entry this batch added has no index
+     * in the file to address. It reshapes the addition instead.
+     */
+    it('folds a replace or remove aimed at a same-batch addition into the additions', () => {
+        const added = { key: 'cmd+2', command: 'session.openTab2' };
+        const renamed = { key: 'cmd+2', command: 'session.openPinned2' };
+        const withdrawn = { key: 'cmd+shift+w', command: 'session.closeTab' };
+
+        expect(
+            reconcileDefaultKeybindings(
+                [],
+                [
+                    { type: 'add', binding: added },
+                    { type: 'add', binding: withdrawn },
+                    { type: 'replace', previous: added, current: renamed },
+                    { type: 'remove', previous: withdrawn },
+                ],
+            ),
+        ).toEqual({ additions: [renamed], removals: [], replacements: [], value: [renamed] });
     });
 
     it('does not mistake contextual or argument-bearing custom entries for an exact old default', () => {
@@ -87,6 +146,7 @@ describe('reconcileDefaultKeybindings', () => {
 
         expect(reconcileDefaultKeybindings([], [{ type: 'add', binding }])).toEqual({
             additions: [binding],
+            removals: [],
             replacements: [],
             value: [binding],
         });
@@ -94,6 +154,7 @@ describe('reconcileDefaultKeybindings', () => {
         const custom = { ...binding, key: 'cmd+enter', args: { text: 'custom' } };
         expect(reconcileDefaultKeybindings([custom], [{ type: 'add', binding }])).toEqual({
             additions: [],
+            removals: [],
             replacements: [],
             value: [custom],
         });
@@ -110,6 +171,7 @@ describe('reconcileDefaultKeybindings', () => {
 
         expect(reconcileDefaultKeybindings([held], [{ type: 'add', binding: sequence }])).toEqual({
             additions: [],
+            removals: [],
             replacements: [],
             value: [held],
         });

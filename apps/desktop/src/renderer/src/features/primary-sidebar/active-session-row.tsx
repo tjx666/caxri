@@ -5,28 +5,21 @@ import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protoc
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
-import { useSessionOpenPlace } from '../../stores/open-sessions';
+import { useIsSessionOpenElsewhere } from '../../stores/open-sessions';
 import { CommanderSessionMarker } from '../agent-commander/commander-session-marker';
 import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionTitleForDisplay } from '../session/session-title';
-import {
-    clearLinkedHoveredSession,
-    setLinkedHoveredSession,
-    useIsLinkedSessionHovered,
-} from '../session-tabs/linked-session-hover';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { SessionActivityCard } from './session-activity-card';
-import { SessionOpenEdge } from './session-open-edge';
 import { SessionOpenLabel } from './session-open-label';
-import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { canSuggestSessionTitle } from './session-rename-draft';
 import { SessionRenameInput } from './session-rename-input';
 import { SessionRowActions } from './session-row-actions';
 import { SessionRowMenu } from './session-row-menu';
+import { SessionRowStatus } from './session-row-status';
 import { SessionRowTrigger } from './session-row-trigger';
-import { SessionStatusIndicator } from './session-status-indicator';
 import { SessionSubagentRows } from './session-subagent-rows';
 
 interface ActiveSessionRowProperties {
@@ -75,6 +68,11 @@ interface ActiveSessionRowProperties {
     rowId?: string;
     selected: boolean;
     session: SessionRecord;
+    /**
+     * The Switch to Pinned Session chord to show in place of the row's status while its modifier is held. Pinned group
+     * only.
+     */
+    shortcutHint?: string;
     /**
      * Whether Chat Sessions list their subagents under the row (`primarySidebar.showSubagents`).
      */
@@ -134,6 +132,7 @@ export function ActiveSessionRow({
     rowId,
     selected,
     session,
+    shortcutHint,
     showSubagents = false,
     subagentRovingRowId,
     terminal,
@@ -144,9 +143,8 @@ export function ActiveSessionRow({
     // The shared label rule (collision suffix included); `title` above stays the plain stored title for rename and the
     // tree row's accessible name.
     const label = useSessionLabel(session.id);
-    // Both read per row as primitives, so a strip edit or a hover re-renders only the rows it concerns.
-    const openPlace = useSessionOpenPlace(session.id);
-    const isLinkedHover = useIsLinkedSessionHovered(session.id);
+    // Read per row as a primitive, so another window's navigation re-renders only the rows it concerns.
+    const isOpenElsewhere = useIsSessionOpenElsewhere(session.id);
     const project = {
         displayTitle: projectDisplayTitle,
         icon: projectIcon,
@@ -178,7 +176,6 @@ export function ActiveSessionRow({
             session={session}
             rowId={rowId}
             selected={selected}
-            linkedHover={isLinkedHover}
             renaming={renaming}
             roving={roving}
             sessionOrder={sessionOrder}
@@ -233,7 +230,7 @@ export function ActiveSessionRow({
                             {label.suffix}
                         </span>
                     )}
-                    <SessionOpenLabel place={openPlace} />
+                    <SessionOpenLabel isOpenElsewhere={isOpenElsewhere} />
                     {/*
                      * `aria-hidden` because the row's accessible name is composed elsewhere and would otherwise read
                      * the Project twice; the hover card names it for anyone who needs the full sentence. Allowed to
@@ -257,33 +254,18 @@ export function ActiveSessionRow({
                 <CommanderSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
             )}
             {/*
-             * Lifecycle signals take priority over the PR. The wrapper follows the rendered glyph's width, so an idle
-             * Session with no PR gives the otherwise invisible 14px slot back to its title; every visible glyph still
-             * lands on the same right edge. On pointer hover every glyph steps aside for Pin/Archive (~42px): its slot
-             * collapses entirely, because a 14px ghost track would still let the title paint through those buttons,
-             * and a glyph squeezed in beside them read as a third, unlabeled action. What the glyph said stays in the
-             * hover card that opens on the same hover. With no visible glyph the wrapper is not rendered at all
-             * (`hidden` until a child that is not itself `.hidden` exists): a zero-width flex item still costs the
-             * row's 8px gap, which left an idle row's title fading out well short of the row's edge.
+             * On pointer hover every glyph steps aside for Pin/Archive (~42px): its slot collapses entirely, because a
+             * 14px ghost track would still let the title paint through those buttons, and a glyph squeezed in beside
+             * them read as a third, unlabeled action.
              */}
-            <span
-                className={cn(
-                    'session-indicators hidden flex-none items-center justify-end has-[>:not(.hidden)]:flex',
-                    HIDDEN_ON_ROW_HOVER,
-                )}
-            >
-                <SessionStatusIndicator
-                    fallback={
-                        !renaming && (
-                            <SessionPullRequestIndicator
-                                pullRequest={pullRequestUnavailable ? undefined : pullRequest}
-                            />
-                        )
-                    }
-                    session={session}
-                    terminal={terminal}
-                />
-            </span>
+            <SessionRowStatus
+                className={HIDDEN_ON_ROW_HOVER}
+                pullRequest={pullRequestUnavailable ? undefined : pullRequest}
+                renaming={renaming}
+                session={session}
+                shortcutHint={shortcutHint}
+                terminal={terminal}
+            />
         </SessionRowTrigger>
     );
     /*
@@ -292,12 +274,7 @@ export function ActiveSessionRow({
      * focus never reaches describe nothing.
      */
     const row = (
-        <div
-            className="session-row group/session-row relative [--session-hover-actions:2.875rem]"
-            onPointerEnter={() => setLinkedHoveredSession(session.id)}
-            onPointerLeave={() => clearLinkedHoveredSession(session.id)}
-        >
-            <SessionOpenEdge place={openPlace} />
+        <div className="session-row group/session-row relative [--session-hover-actions:2.875rem]">
             {sessionOrder.dropTarget?.anchorSessionId === session.id && (
                 <div
                     aria-hidden="true"

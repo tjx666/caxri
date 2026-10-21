@@ -55,10 +55,23 @@ export type DefaultKeybindingChange =
           type: 'replace';
           current: ArgumentFreeDefaultKeybinding;
           previous: ArgumentFreeDefaultKeybinding;
+      }
+    /**
+     * Withdraws a default whose command no longer exists. Only the exact old default is dropped; a user's own binding
+     * of the same command or chord stays, the way a `replace` leaves a customized entry alone.
+     */
+    | {
+          type: 'remove';
+          previous: ArgumentFreeDefaultKeybinding;
       };
 
 export interface DefaultKeybindingReconciliation {
     additions: DefaultKeybinding[];
+    /**
+     * Indexes into the input array, ascending. Replacement indexes refer to the same input array, so a caller patching
+     * the source applies replacements first and removals last, from the highest index down.
+     */
+    removals: number[];
     replacements: Array<{ binding: ArgumentFreeDefaultKeybinding; index: number }>;
     value: Keybinding[];
 }
@@ -73,17 +86,25 @@ export function reconcileDefaultKeybindings(
     keybindings: readonly Keybinding[],
     changes: readonly DefaultKeybindingChange[],
 ): DefaultKeybindingReconciliation {
-    const value = [...keybindings];
-    const additions: DefaultKeybinding[] = [];
-    const replacements: Array<{ binding: ArgumentFreeDefaultKeybinding; index: number }> = [];
+    /**
+     * A removed entry is left as a hole until the end so every index stays an index into the input array, which is what
+     * the caller's source edits address. Entries past the input are this batch's additions: a later change that edits
+     * one edits the addition itself, because the caller writes additions after its in-place edits and an index past the
+     * file's end addresses nothing there.
+     */
+    const value: Array<Keybinding | undefined> = [...keybindings];
+    const removals: number[] = [];
+    const replacements = new Map<number, ArgumentFreeDefaultKeybinding>();
+    const present = (): Keybinding[] => value.filter((binding) => binding !== undefined);
     const isChordOccupied = (key: string, ignoredIndex?: number): boolean => {
         const shortcut = normalizeShortcut(key);
         // A chord that opens a sequence is never free for a single-chord default: dispatch would arm the pending
         // chord instead of running it.
-        if (!shortcutLeadingChord(shortcut) && buildChordLeadingChords(value).has(shortcut))
+        if (!shortcutLeadingChord(shortcut) && buildChordLeadingChords(present()).has(shortcut))
             return true;
         return value.some(
             (binding, index) =>
+                binding !== undefined &&
                 index !== ignoredIndex &&
                 areShortcutsColliding(normalizeShortcut(binding.key), shortcut),
         );
@@ -92,18 +113,17 @@ export function reconcileDefaultKeybindings(
     for (const change of changes) {
         if (change.type === 'add') {
             if (
-                value.length >= MAX_KEYBINDINGS ||
-                value.some((binding) => binding.command === change.binding.command) ||
+                present().length >= MAX_KEYBINDINGS ||
+                value.some((binding) => binding?.command === change.binding.command) ||
                 isChordOccupied(change.binding.key)
             )
                 continue;
-            const binding = { ...change.binding };
-            value.push(binding);
-            additions.push(binding);
+            value.push({ ...change.binding });
             continue;
         }
 
         const matchingIndexes = value.flatMap((binding, index) =>
+            binding !== undefined &&
             binding.args === undefined &&
             binding.command === change.previous.command &&
             binding.key === change.previous.key &&
@@ -113,6 +133,14 @@ export function reconcileDefaultKeybindings(
         );
         if (matchingIndexes.length !== 1) continue;
         const index = matchingIndexes[0];
+        if (change.type === 'remove') {
+            value[index] = undefined;
+            if (index < keybindings.length) {
+                removals.push(index);
+                replacements.delete(index);
+            }
+            continue;
+        }
         /**
          * A command rename often keeps its chord. The exact old default being replaced cannot conflict with itself,
          * while any other entry on that normalized chord must still preserve the user's file unchanged.
@@ -120,10 +148,18 @@ export function reconcileDefaultKeybindings(
         if (isChordOccupied(change.current.key, index)) continue;
         const binding = { ...change.current };
         value[index] = binding;
-        replacements.push({ binding, index });
+        if (index < keybindings.length) replacements.set(index, binding);
     }
 
-    return { additions, replacements, value };
+    // The phone's Hermes runtime lacks ES2023 `toSorted`, and `removals` is local, so it sorts in place.
+
+    removals.sort((left, right) => left - right);
+    return {
+        additions: value.slice(keybindings.length).filter((binding) => binding !== undefined),
+        removals,
+        replacements: [...replacements].map(([index, binding]) => ({ binding, index })),
+        value: present(),
+    };
 }
 
 /**

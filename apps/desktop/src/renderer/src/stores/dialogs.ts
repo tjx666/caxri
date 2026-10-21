@@ -1,4 +1,4 @@
-import type { AgentProvider, SessionPlacement } from '@caxri/protocol';
+import type { AgentProvider } from '@caxri/protocol';
 
 import { createStore } from '../lib/store';
 
@@ -16,11 +16,11 @@ export type SettingsView =
     | 'agent-suspension';
 
 /**
- * Which control the open Session-creation menu belongs under. The Project heading's New Session button, the
- * empty-Project row's own New Session button, and the Open Session strip's `+` are separate anchors for the same menu,
- * and several of them can render a trigger for one Project at once.
+ * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the
+ * empty-Project row's own New Session button are separate anchors for the same menu, and both can render a trigger for
+ * one Project at once.
  */
-export type CreateSessionAnchor = 'heading' | 'emptyProject' | 'sessionTabs';
+export type CreateSessionAnchor = 'heading' | 'emptyProject';
 
 /**
  * A status-bar chip whose popover can also be opened from a command. Both chips hang off the Session the status bar
@@ -77,11 +77,6 @@ interface DialogState {
      */
     createSessionMenu?: {
         anchor: CreateSessionAnchor;
-        /**
-         * The tab strip's `+` opens this menu when no default Agent is configured; its choice still has to open a new
-         * tab.
-         */
-        placement?: SessionPlacement;
         projectId: string;
     };
     /**
@@ -136,11 +131,7 @@ interface DialogState {
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
-    openCreateSessionMenu(
-        projectId: string,
-        anchor: CreateSessionAnchor,
-        placement?: SessionPlacement,
-    ): void;
+    openCreateSessionMenu(projectId: string, anchor: CreateSessionAnchor): void;
     requestSessionRename(sessionId: string, options?: { suggest?: boolean }): void;
     clearSessionRenameRequest(): void;
     openStatusBarPicker(picker: StatusBarPicker): void;
@@ -211,8 +202,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
     askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
-    openCreateSessionMenu: (projectId, anchor, placement) =>
-        set({ createSessionMenu: { anchor, projectId, ...(placement && { placement }) } }),
+    openCreateSessionMenu: (projectId, anchor) => set({ createSessionMenu: { anchor, projectId } }),
     closeCreateSessionMenu: () => set({ createSessionMenu: undefined }),
     requestSessionRename: (sessionId, options) =>
         set((state) => ({

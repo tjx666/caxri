@@ -1,6 +1,6 @@
 import type { DefaultKeybindingChange } from '../configuration/config-files.js';
 import { filesCoreKeybindings } from '../registry/core-contributions.js';
-import { sessionOpenTabCommandIds } from './commands.js';
+import { sessionOpenPinnedCommandIds } from './commands.js';
 import type { Keybinding } from './domain.js';
 
 /**
@@ -107,7 +107,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+\\', command: 'terminal.newInSplit' },
     /**
      * `Cmd+Option+Arrow` moves keyboard focus between panes, iTerm2 style. `Cmd+K` is the reserved chord prefix and
-     * `Cmd+<number>` is taken by the Open Session tabs, so neither of VS Code's own pane-navigation families is free
+     * `Cmd+<number>` is taken by the Pinned Sessions, so neither of VS Code's own pane-navigation families is free
      * here. `allowInEditable` lets the chord reach through a focused xterm: split view is otherwise mouse-only while a
      * Terminal owns focus.
      */
@@ -116,11 +116,6 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+alt+arrowup', command: 'workbench.focusPaneUp' },
     { key: 'cmd+alt+arrowdown', command: 'workbench.focusPaneDown' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
-    /**
-     * `Cmd+Shift+W` closes the Open Session tab, the level above `Cmd+W`'s pane tab. It stays clear of the window
-     * level: the native menu has no Close Window item, and the window closes through its traffic light.
-     */
-    { key: 'cmd+shift+w', command: 'session.closeTab' },
     { key: 'cmd+s', command: 'editor.save' },
     /**
      * `Cmd+Alt+K` mirrors the "copy selection reference" chord used with VS Code agent extensions. It must fire while
@@ -195,13 +190,13 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'cmd+shift+b', command: 'developer.reportBug' },
     /**
-     * `Cmd+1` to `Cmd+9` switch Open Session tabs, the browser and VS Code convention, with `Cmd+9` meaning the last
-     * tab. The Secondary Side Bar views moved to `Cmd+Alt+1` to `Cmd+Alt+3` to make room. The meaning is stable: it
-     * does not depend on whether the strip is visible, and each chord has its own command id (see
-     * `sessionOpenTabCommandIds`). Last in the list so a migrated file receives them after the sidebar views vacate
-     * `Cmd+1` to `Cmd+3`.
+     * `Cmd+1` to `Cmd+9` select the Nth Pinned Session, the browser and VS Code "Nth tab" convention with `Cmd+9`
+     * meaning the last one: the Pinned group is the window's short list now that a window shows a single Session. The
+     * Secondary Side Bar views moved to `Cmd+Alt+1` to `Cmd+Alt+3` to make room, and each chord has its own command id
+     * (see `sessionOpenPinnedCommandIds`). Last in the list so a migrated file receives them after the sidebar views
+     * vacate `Cmd+1` to `Cmd+3`.
      */
-    ...sessionOpenTabCommandIds.map((command, index): Keybinding => ({
+    ...sessionOpenPinnedCommandIds.map((command, index): Keybinding => ({
         key: `cmd+${index + 1}`,
         command,
     })),
@@ -384,12 +379,29 @@ export const defaultKeybindingChanges = [
         previous: { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
         current: { key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' },
     },
-    ...sessionOpenTabCommandIds.map((command, index): DefaultKeybindingChange => ({
+    /**
+     * The Open Session tab commands as v0.0.120 shipped them. Spelled out rather than derived from the current command
+     * list: a released change must keep naming what released files actually contain.
+     */
+    ...Array.from({ length: 9 }, (_, index): DefaultKeybindingChange => ({
         type: 'add',
-        binding: { key: `cmd+${index + 1}`, command },
+        binding: { key: `cmd+${index + 1}`, command: `session.openTab${index + 1}` },
     })),
     {
         type: 'add',
         binding: { key: 'cmd+shift+w', command: 'session.closeTab' },
+    },
+    /**
+     * The Open Session strip is gone (a window shows one Session), so its numbered chords move to the Pinned group on
+     * the same keys and its close chord has nothing left to close.
+     */
+    ...sessionOpenPinnedCommandIds.map((command, index): DefaultKeybindingChange => ({
+        type: 'replace',
+        previous: { key: `cmd+${index + 1}`, command: `session.openTab${index + 1}` },
+        current: { key: `cmd+${index + 1}`, command },
+    })),
+    {
+        type: 'remove',
+        previous: { key: 'cmd+shift+w', command: 'session.closeTab' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

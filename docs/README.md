@@ -42,7 +42,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [keybindings.md](keybindings.md)                                   | Keybinding format and chord sequences                          |
 | [low-cost-generation.md](low-cost-generation.md)                   | Automatic Session-naming sandbox                               |
 | [notifications.md](notifications.md)                               | Notification center history and reminders                      |
-| [open-sessions.md](open-sessions.md)                               | Per-window Open Session tab strip and presence                 |
+| [open-sessions.md](open-sessions.md)                               | Per-window Open Session, secondary windows, and presence       |
 | [process-explorer.md](process-explorer.md)                         | Process Explorer, resource thresholds, and runaway alerts      |
 | [provider-messaging.md](provider-messaging.md)                     | Peer Inbox provider-messaging support and the verified matrix  |
 | [quality-toolchain.md](quality-toolchain.md)                       | Unified mechanical-quality tooling                             |

@@ -6,10 +6,13 @@ import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { useWorkbenchStore } from '../../stores/workbench';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
+import { useHeldModifierChord } from './hooks/use-held-modifier-chord';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
+import { pinnedShortcutCommand, pinnedShortcutHint } from './pinned-shortcut-hints';
 import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
     PINNED_GROUP_ROW_ID,
@@ -114,6 +117,12 @@ export function PinnedSessionGroup({
 }: PinnedSessionGroupProperties) {
     const visibleSessionIds = useVisibleSessionIds(visibleSessions);
     const { t } = useTranslation();
+    /**
+     * Holding the Switch to Pinned Session modifier reveals each row's chord in place of its status, the way a browser
+     * reveals tab numbers: the binding is otherwise invisible, and its target depends on the group's current order.
+     */
+    const heldChord = useHeldModifierChord();
+    const keybindings = useWorkbenchStore((state) => state.bootstrap?.keybindings);
     if (sessions.length === 0) return null;
     const revealRowId = primarySidebarRevealRowId(PINNED_GROUP_ROW_ID);
     return (
@@ -187,6 +196,14 @@ export function PinnedSessionGroup({
                             const project = projects[session.id];
                             if (!project) return null;
                             const rowId = primarySidebarPinnedRowId(session.id);
+                            const shortcutHint = pinnedShortcutHint(
+                                keybindings,
+                                pinnedShortcutCommand(
+                                    sessions.findIndex(({ id }) => id === session.id),
+                                    sessions.length,
+                                ),
+                                heldChord,
+                            );
                             return (
                                 <MemoizedActiveSessionRow
                                     key={session.id}
@@ -210,6 +227,7 @@ export function PinnedSessionGroup({
                                     selected={session.id === selectedSessionId}
                                     session={session}
                                     sessionOrder={sessionOrder}
+                                    shortcutHint={shortcutHint}
                                     showProjectName
                                     showSubagents={showSubagents}
                                     subagentRovingRowId={rovingSubagentRowId(

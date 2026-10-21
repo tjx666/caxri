@@ -1,6 +1,5 @@
-import type { BootstrapState, ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
-import { translate } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { sessionWorktreeProject } from '../primary-sidebar/project-visibility';
 import { sessionAgentTerminal } from './session-agent-terminal';
@@ -53,21 +52,4 @@ export function labelsFor(
     const labels = sessionLabels(inputs, untitledLabel);
     memoSlot.current = { labels, projects, sessions, terminals, untitledLabel };
     return labels;
-}
-
-/**
- * The label of one Session outside React, for announcements.
- */
-export function sessionLabelOf(
-    bootstrap: Pick<BootstrapState, 'projects' | 'sessions' | 'terminals'> | undefined,
-    sessionId: string,
-): SessionLabel | undefined {
-    return bootstrap
-        ? labelsFor(
-              bootstrap.sessions,
-              bootstrap.projects,
-              bootstrap.terminals,
-              translate('session.untitled'),
-          ).get(sessionId)
-        : undefined;
 }

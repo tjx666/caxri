@@ -65,14 +65,13 @@ describe('window.tearOffSession', () => {
                     tearOffSession,
                 )({
                     method: 'window.tearOffSession',
-                    params: { sessionId: 'session-1', screenPoint: { x: 5, y: 6 } },
+                    params: { sessionId: 'session-1' },
                 }),
             ),
         ).resolves.toEqual({ opened: true });
         expect(tearOffSession).toHaveBeenCalledExactlyOnceWith({
             sourceKey: 'win-a',
             sessionId: 'session-1',
-            screenPoint: { x: 5, y: 6 },
         });
     });
 

@@ -33,8 +33,8 @@ _Avoid_: Remote Environment, backend, Host
 
 **Session View**:
 One Client's presentation of a Session, including its pane layout, open resources, active resource, and
-an optional Workbench Root override. It never owns the resources it presents. Which Sessions a window
-keeps open is separate: see Open Session.
+an optional Workbench Root override. It never owns the resources it presents. Which Session a window
+shows is separate: see Open Session.
 _Avoid_: Session state, Desktop state
 
 ## Work
@@ -50,19 +50,11 @@ document Drafts, and Agent activity and Attention.
 _Avoid_: Conversation, tab, Session View
 
 **Open Session**:
-A Session kept in one window's tab strip, ordered and persisted per window. It is a working set, not
-proof of existence: archived, deleted, and hidden Sessions drop out of every strip. The window shows
-exactly one Open Session at a time, and a Session belongs to at most one window: dragging its tab out, or choosing Move to New Window,
-opens a new window, and opening it from another window brings the owner forward. A new tab opens right of
-the active one, and the sidebar marks which Sessions are open here or in another window. Each Open Session
-is kept or the window's one **Preview entry**.
-_Avoid_: Open tab, selected Session
-
-**Preview entry**:
-The one Open Session of a window that a plain sidebar click replaces instead of adding a tab, shown with
-an italic title. Double-clicking its tab, opening it in a new tab, or working in the Session makes it
-kept, and plain navigation never replaces a kept Open Session.
-_Avoid_: Temporary tab, preview Session
+The one Session a window shows, persisted per window. Selecting another Session replaces it. It is
+not proof of existence: archived, deleted, and hidden Sessions leave every window. A Session is the
+Open Session of at most one window: choosing Open in New Window moves it into a new window, and
+selecting it from another window brings that window forward.
+_Avoid_: Open tab, Preview entry, selected Session
 
 **Workbench Root**:
 The currently selected authorized Project whose Files, Editor, Search, and Git surfaces a Session

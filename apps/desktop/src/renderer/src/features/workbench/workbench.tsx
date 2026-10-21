@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { isChatTerminal, listPaneTerminalIds } from '@caxri/protocol';
 import { Code2, Plus, X } from 'lucide-react';
@@ -10,9 +10,8 @@ import { useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { retainAgentChatComposerState } from '../agent-chat/composer-input/agent-chat-drafts';
+import { useReportViewedSession } from '../session/hooks/use-report-viewed-session';
 import { chooseProjectFolder } from '../session/session-creation-commands';
-import { usePromotePreviewOnInteraction } from '../session-tabs/hooks/use-promote-preview-on-interaction';
-import { useReportViewedSession } from '../session-tabs/hooks/use-report-viewed-session';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { PaneView } from './pane-view';
@@ -81,10 +80,8 @@ function NoSessionSurface() {
 
 /**
  * The Workbench is the pane tree of the selected Session: there is no Terminal-versus-Editor surface switch, because
- * every tab lives in the bar of the pane that holds it. The Open Session strip (`features/session-tabs`) sits above it
- * in `WorkbenchColumn`, outside this component, and nothing here subscribes to it: each retained Workbench is keyed by
- * its Session ID and reads only that Session's state, so switching or reordering Open Sessions re-renders the strip and
- * the incoming and outgoing Workbench, never the others.
+ * every tab lives in the bar of the pane that holds it. Each retained Workbench is keyed by its Session ID and reads
+ * only that Session's state, so switching Sessions re-renders the incoming and outgoing Workbench, never the others.
  *
  * It holds one `PaneView` per recently used Session rather than only the selected one. Rebuilding the tree on every
  * switch meant tearing down and re-creating every xterm, re-attaching WebGL, and replaying the Server snapshot, which
@@ -115,8 +112,6 @@ export function Workbench() {
     }, [selectedSessionId]);
     useSessionFocusHandoff(selectedSessionId);
     useReportViewedSession(selectedSessionId);
-    const sectionReference = useRef<HTMLElement>(null);
-    usePromotePreviewOnInteraction(sectionReference);
     const liveSessionKey = useWorkbenchStore(
         (state) => state.bootstrap?.sessions.map(({ id }) => id).join('\u{0}') ?? '',
     );
@@ -168,10 +163,7 @@ export function Workbench() {
         );
     }, [chatTerminalKey]);
     return (
-        <section
-            ref={sectionReference}
-            className="workbench grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-background"
-        >
+        <section className="workbench grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-background">
             {session ? (
                 mountOrder.map((sessionId) => (
                     <div

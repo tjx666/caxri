@@ -186,8 +186,6 @@ export const coreForwardedMethods = [
     'terminal.switchSurface',
     'theme.get',
     'theme.update',
-    'window.openSessions.keep',
-    'window.openSessions.set',
 ] as const satisfies readonly ServerMethod[];
 
 export type CoreForwardedMethod = (typeof coreForwardedMethods)[number];

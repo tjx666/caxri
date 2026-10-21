@@ -258,8 +258,6 @@ export const effectfulCommandRecovery = {
     'session.delete': 'memory',
     'session.deleteMany': 'memory',
     'session.select': 'durable',
-    'window.openSessions.keep': 'durable',
-    'window.openSessions.set': 'durable',
     'window.tearOffSession': 'memory',
     'window.reportViewing': 'memory',
     'session.markRead': 'durable',

@@ -10,7 +10,6 @@ import { ScrollFade } from '../../components/scroll-fade';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
-import { useIsSessionTabStripVisible } from '../../stores/open-sessions';
 import { useIsFullScreen, useSessionState, useTerminal } from '../../stores/selectors';
 import { editorTabActionsPath } from '../editor/document-tab-path-actions';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
@@ -342,29 +341,6 @@ function PaneTabList({
     );
 }
 
-/**
- * One pane's own tab bar. Every pane has one, split or not, and the bar never branches on what its tabs hold: the two
- * tab components differ only in what they render inside the same `WorkTab`.
- */
-/**
- * How the Open Session strip reshapes a pane bar. While the strip shows it is the window's title bar, so the root pane
- * bar becomes an ordinary surface: no drag region, no traffic-light inset, and no title-bar fill. It keeps the accent:
- * the Session level above is neutral, so the focused pane's active tab stays the screen's one durable accent (DESIGN.md
- * principle 2 and "Two tab levels"). A boolean selector, so every retained Workbench re-renders only when the strip
- * appears or disappears.
- *
- * With the strip owning the title bar, a Session whose Workbench holds no tab at all has nothing left for the root bar:
- * no tabs to list, no actions (`PaneTabActions` renders nothing for an empty pane), no drag region to keep, and no
- * other pane to drop a tab from. Rendering it would leave an empty band under the strip above the empty state.
- */
-function usePaneTabBarChrome(isRootBar: boolean, hasAnyTab: boolean) {
-    const isSessionTabStripVisible = useIsSessionTabStripVisible();
-    return {
-        isHidden: isRootBar && isSessionTabStripVisible && !hasAnyTab,
-        isTitleBar: isRootBar && !isSessionTabStripVisible,
-    };
-}
-
 interface PaneTabBarProperties {
     /**
      * Whether the Workbench holds more than one tab. The active accent and close buttons have no choice to express
@@ -373,6 +349,10 @@ interface PaneTabBarProperties {
      */
     hasTabsToSwitch: boolean;
     isOnlySessionTerminal: boolean;
+    /**
+     * The bar of the pane at the layout's top-left, which doubles as the window's title bar: it carries the drag region
+     * and the traffic-light inset, since nothing sits above the Workbench.
+     */
     isRootBar: boolean;
     pane: PaneNode;
     tabListLabel: string;
@@ -383,23 +363,18 @@ interface PaneTabBarProperties {
     spansWindowWidth: boolean;
 }
 
-export function PaneTabBar(properties: PaneTabBarProperties) {
-    const chrome = usePaneTabBarChrome(
-        properties.isRootBar,
-        properties.hasTabsToSwitch || properties.pane.tabs.length > 0,
-    );
-    if (chrome.isHidden) return null;
-    return <PaneTabBarContent {...properties} isTitleBar={chrome.isTitleBar} />;
-}
-
-function PaneTabBarContent({
+/**
+ * One pane's own tab bar. Every pane has one, split or not, and the bar never branches on what its tabs hold: the two
+ * tab components differ only in what they render inside the same `WorkTab`.
+ */
+export function PaneTabBar({
     hasTabsToSwitch,
     isOnlySessionTerminal,
-    isTitleBar,
+    isRootBar,
     pane,
     tabListLabel,
     spansWindowWidth,
-}: PaneTabBarProperties & { isTitleBar: boolean }) {
+}: PaneTabBarProperties) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
     const listReference = useRef<HTMLDivElement>(null);
@@ -435,9 +410,9 @@ function PaneTabBarContent({
                 // Only the Workbench-level bar carries the frameless window's drag region and the windowed traffic-light
                 // inset; a pane bar inside a split is an ordinary surface. Being the drag region is also what earns it
                 // the title-bar fill: a pane bar inside a split is not a title bar and keeps `surface`.
-                isTitleBar &&
+                isRootBar &&
                     'bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
-                isTitleBar &&
+                isRootBar &&
                     !isPrimarySidebarVisible &&
                     !isFullScreen &&
                     'pl-(--traffic-light-clearance)',
@@ -457,7 +432,7 @@ function PaneTabBarContent({
                 dropIndicatorLeft={dropIndicatorLeft}
                 isDropTarget={isDropTarget}
                 isOnlySessionTerminal={isOnlySessionTerminal}
-                isRootBar={isTitleBar}
+                isRootBar={isRootBar}
                 listReference={listReference}
                 orderedTabs={orderedTabs}
                 paneId={pane.id}
@@ -482,7 +457,7 @@ function PaneTabBarContent({
                 goes for a bar that stops in the middle of the window: the leading pane of a side-by-side split has a
                 neighbour on its right, not the window corner, so reserving the strip there is the dead space this
                 exists to avoid rather than the grab handle it exists to provide. */}
-            {isTitleBar && spansWindowWidth && !isPrimarySidebarVisible && (
+            {isRootBar && spansWindowWidth && !isPrimarySidebarVisible && (
                 <div aria-hidden="true" className="work-tabs-drag-handle h-9 w-8 flex-none" />
             )}
         </div>

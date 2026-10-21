@@ -29,8 +29,7 @@ import { executeCommand } from './execute';
 
 /**
  * Cmd+W and Close Terminal act on a pane tab, never on the Session: closing the last pane tab leaves the Session open
- * and empty, and archiving stays an explicit command (`session.archive`). The Open Session level has its own command,
- * `session.closeTab`, covered in `execute.test.ts`.
+ * and empty, and archiving stays an explicit command (`session.archive`).
  */
 describe('closing the last pane tab', () => {
     beforeEach(() => {

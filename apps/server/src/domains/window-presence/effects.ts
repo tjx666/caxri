@@ -22,7 +22,7 @@ interface PresenceEffectsOptions {
  */
 export function createPresenceEffects(options: PresenceEffectsOptions): {
     /**
-     * The presence reports and Open Session strip edits Desktop Main and its Renderers send.
+     * The presence reports and Open Session moves Desktop Main and its Renderers send.
      */
     handlers: ReturnType<typeof createWindowPresenceHandlers>;
     /**
@@ -81,10 +81,6 @@ export function createPresenceEffects(options: PresenceEffectsOptions): {
     return {
         handlers: createWindowPresenceHandlers({
             database: options.database,
-            onSessionActivated: (sessionId) => {
-                options.terminalSuspension.observeVisibility();
-                restoreInterruptedTerminalsInBackground(sessionId);
-            },
             presence,
             sendFullStateChange: options.sendFullStateChange,
         }),

@@ -296,7 +296,6 @@ if (ownsProfileInstance) {
         // The factory and the tear-off controller reference each other; the call happens long after both exist.
         // eslint-disable-next-line no-use-before-define, @typescript-eslint/no-use-before-define
         createWindow: (input) => createWorkbenchWindow({ role: 'tearOff', ...input }),
-        cursorPoint: () => screen.getCursorScreenPoint(),
         logger: () => mainLogger,
         primaryReady: (primary) => rendererReadiness.wait(primary.webContents),
         register: (windowKey, window, sessionId) => {

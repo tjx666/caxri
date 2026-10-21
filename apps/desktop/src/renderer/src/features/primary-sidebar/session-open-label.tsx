@@ -1,17 +1,14 @@
 import { AppWindow } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
-import type { SessionOpenPlace } from '../../stores/open-sessions';
 
 /**
- * The part of the marker that follows the title: a window glyph for a Session another window owns, and screen-reader
- * text for both places, since the edge bar and the glyph are visual only.
+ * The marker that follows the title of a Session another window has open: a window glyph, plus screen-reader text
+ * because the glyph is visual only. Selecting such a row brings that window forward.
  */
-export function SessionOpenLabel({ place }: { place: SessionOpenPlace | undefined }) {
+export function SessionOpenLabel({ isOpenElsewhere }: { isOpenElsewhere: boolean }) {
     const { t } = useTranslation();
-    if (place === 'here')
-        return <span className="sr-only">{t('primarySidebar.session.openHere')}</span>;
-    if (place !== 'elsewhere') return null;
+    if (!isOpenElsewhere) return null;
     return (
         <>
             <AppWindow

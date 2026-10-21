@@ -28,7 +28,6 @@ import { useSelectedSessionReveal } from './hooks/use-selected-session-reveal';
 import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
-import { useSessionRevealRequest } from './hooks/use-session-reveal-request';
 import { useSessionSubagentNodes } from './hooks/use-session-subagent-nodes';
 import { PinnedSessionGroup } from './pinned-session-group';
 import { unpinnedSessions } from './pinned-session-order';
@@ -38,6 +37,7 @@ import { ProjectGroupList } from './project-group-list';
 import { hasProjectDragType } from './project-order';
 import { sessionWorktreeProject, topLevelProjects } from './project-visibility';
 import { SESSION_REVEAL_STEP } from './session-list-window';
+import { SessionSelectionGlideFill } from './session-selection-glide-fill';
 
 const NO_RECORDS: never[] = [];
 const onAddProject = (): void => executeCommand('project.create');
@@ -142,12 +142,6 @@ export function PrimarySidebarProjectTree() {
         sidebarSessions,
     });
     const projectWindows = sessionWindows.windows;
-    useSessionRevealRequest({
-        revealPinnedSession: pinnedGroup.revealSession,
-        revealSessionRow,
-        revealThrough: sessionWindows.revealThrough,
-        sessions,
-    });
     const pinnedSessionIds = useMemo(
         () => pinnedGroup.visibleSessions.map((session) => session.id),
         [pinnedGroup.visibleSessions],
@@ -244,6 +238,10 @@ export function PrimarySidebarProjectTree() {
                 onPointerEnter={() => projectCollapse.setIsHovered(true)}
                 onPointerLeave={() => projectCollapse.setIsHovered(false)}
             >
+                <SessionSelectionGlideFill
+                    list={projectListReference}
+                    selectedSessionId={selectedSessionId}
+                />
                 {/*
                  * The tree element holds Project and Session rows and nothing else. The empty-state action and the two
                  * live regions below sit outside it on purpose: inside a `role="tree"`, every focusable element has to

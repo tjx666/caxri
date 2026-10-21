@@ -146,6 +146,7 @@ export const session = {
     'session.errors.openInEditorFailed': 'Opening the Project in the external editor failed',
     'session.errors.deleteFailed': 'Session deletion failed',
     'session.errors.moveToNewSessionFailed': 'Move to new session failed',
+    'session.errors.openInNewWindowFailed': 'Unable to open the Session in a new window',
     'session.errors.archiveFailed': 'Session archive failed',
     'session.errors.restoreFailed': 'Session restore failed',
     'session.errors.createFailed': 'Session creation failed',

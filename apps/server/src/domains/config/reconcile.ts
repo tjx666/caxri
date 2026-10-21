@@ -75,7 +75,9 @@ export function prepareKeybindingsSource(
                     [replacement.index, property],
                     replacement.binding[property],
                 );
-    let bindingCount = keybindings.length;
+    for (const index of reconciliation.removals.toReversed())
+        preparedSource = edit(preparedSource, [index], undefined);
+    let bindingCount = keybindings.length - reconciliation.removals.length;
     for (const addition of reconciliation.additions) {
         preparedSource = edit(preparedSource, [bindingCount], addition);
         bindingCount += 1;

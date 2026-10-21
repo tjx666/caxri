@@ -3,15 +3,24 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { defaultKeybindingChanges, defaultKeybindings } from '@caxri/protocol';
+import type { Keybinding } from '@caxri/protocol';
+import {
+    defaultKeybindingChanges,
+    defaultKeybindings,
+    reconcileDefaultKeybindings,
+} from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ConfigService } from '../config';
 
 const temporaryDirectories: string[] = [];
-const migratedDefaultKeybindingAdditions = defaultKeybindingChanges.flatMap((change) =>
-    change.type === 'add' ? [change.binding] : [],
-);
+/**
+ * The defaults the reviewed changes append to `bindings`, in their final form: an addition a later change moves on
+ * (Cmd+3 Status to Cmd+Alt+3, or an Open Session chord to its Pinned Session command) lands already moved.
+ */
+function migratedDefaultKeybindingAdditions(bindings: readonly Keybinding[]): Keybinding[] {
+    return reconcileDefaultKeybindings(bindings, defaultKeybindingChanges).additions;
+}
 
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
@@ -47,7 +56,10 @@ describe('Configuration default reconciliation', () => {
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+p', command: 'pathBrowser.open' },
             { key: 'cmd+t', command: 'terminal.new' },
-            ...migratedDefaultKeybindingAdditions,
+            ...migratedDefaultKeybindingAdditions([
+                { key: 'alt+p', command: 'pathBrowser.open' },
+                { key: 'cmd+t', command: 'terminal.new' },
+            ]),
         ]);
         const source = await readFile(service.keybindingsPath, 'utf8');
         expect(source).toContain('// Keep the explanation attached to the migrated default.');
@@ -120,7 +132,7 @@ describe('Configuration default reconciliation', () => {
 
         expect(service.getKeybindings().value).toEqual([
             ...customized,
-            ...migratedDefaultKeybindingAdditions,
+            ...migratedDefaultKeybindingAdditions(customized),
         ]);
         expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+alt+o"');
         await service.close();
@@ -143,7 +155,7 @@ describe('Configuration default reconciliation', () => {
 
         expect(service.getKeybindings().value).toEqual([
             ...conflicted,
-            ...migratedDefaultKeybindingAdditions,
+            ...migratedDefaultKeybindingAdditions(conflicted),
         ]);
         expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "alt+p"');
         await service.close();
@@ -193,7 +205,7 @@ describe('Configuration default reconciliation', () => {
 
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+`', command: 'session.switchMru' },
-            ...migratedDefaultKeybindingAdditions,
+            ...migratedDefaultKeybindingAdditions(previous),
         ]);
         expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+`"');
         await service.close();
@@ -215,7 +227,9 @@ describe('Configuration default reconciliation', () => {
 
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+alt+1', command: 'secondarySidebar.showFiles' },
-            ...migratedDefaultKeybindingAdditions,
+            ...migratedDefaultKeybindingAdditions([
+                { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+            ]),
         ]);
         const saved = await readFile(service.keybindingsPath, 'utf8');
         expect(saved).toContain('secondarySidebar.showStatus');

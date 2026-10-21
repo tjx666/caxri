@@ -5,7 +5,6 @@ import type { SessionRecord } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
 import { didSelectSession } from '../session/session-commands';
-import { openSessionInNewTab } from '../session-tabs/session-tab-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
@@ -17,10 +16,6 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
      */
     rowId?: string;
     selected: boolean;
-    /**
-     * The pointer is over this Session's tab in the Open Session strip, which echoes as the row's hover fill.
-     */
-    linkedHover?: boolean;
     renaming: boolean;
     roving: boolean;
     sessionOrder: SessionOrderController;
@@ -55,7 +50,6 @@ export function SessionRowTrigger({
     session,
     rowId: explicitRowId,
     selected,
-    linkedHover = false,
     renaming,
     roving,
     sessionOrder,
@@ -88,7 +82,6 @@ export function SessionRowTrigger({
                 !renaming && 'group-hover/session-row:pr-[var(--session-hover-actions)]',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
-                linkedHover && !selected && 'bg-state-hover',
                 renaming && 'cursor-text',
                 sessionOrder.draggedId === session.id && 'opacity-50',
             )}
@@ -105,15 +98,11 @@ export function SessionRowTrigger({
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => onFocusChange(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => onFocusChange(false)}
-            onClick={(event) => {
+            onClick={() => {
                 if (renaming) return;
-                // Cmd+click opens the Session in a new Open Session tab, the browser gesture for "link in new tab".
-                // The selected row included: it is the entry that is already open, which only activates.
-                // Fire-and-forget: both commands report their own failures through a toast.
+                // Fire-and-forget: selection reports its own failures through a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
-                if (event.metaKey) void openSessionInNewTab(session.id);
-                // eslint-disable-next-line no-void -- intentional floating-promise discard
-                else if (!selected) void didSelectSession(session.id);
+                if (!selected) void didSelectSession(session.id);
             }}
             onDoubleClick={onBeginRename}
             onKeyDown={(event) => {

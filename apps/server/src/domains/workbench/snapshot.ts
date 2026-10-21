@@ -27,7 +27,6 @@ export function createWorkbenchSnapshots(dependencies: {
         selection: Pick<
             BootstrapState,
             | 'openSessionIds'
-            | 'previewSessionId'
             | 'otherWindowOpenSessionIds'
             | 'selectedProjectId'
             | 'selectedSessionId'
@@ -75,10 +74,6 @@ export function createWorkbenchSnapshots(dependencies: {
                 ? database.windowOpenSessions.get(windowKey)
                 : { openSessionIds: [], activeSessionId: null };
             const openSessionIds = window.openSessionIds.filter((id) => openable.has(id));
-            const previewSessionId =
-                window.previewSessionId && openSessionIds.includes(window.previewSessionId)
-                    ? window.previewSessionId
-                    : undefined;
             const selectedSessionId =
                 window.activeSessionId !== null && openable.has(window.activeSessionId)
                     ? window.activeSessionId
@@ -88,7 +83,6 @@ export function createWorkbenchSnapshots(dependencies: {
                 : undefined;
             return workbenchState(database.listVisibleProjects(), sessions, {
                 openSessionIds,
-                ...(previewSessionId && { previewSessionId }),
                 otherWindowOpenSessionIds: windowKey
                     ? database.windowOpenSessions
                           .ownedElsewhere(windowKey)

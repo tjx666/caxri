@@ -50,16 +50,13 @@ describe('tear-off window protocol', () => {
 describe('window.tearOffSession', () => {
     const { params } = windowDesktopMethods['window.tearOffSession'];
 
-    it('takes a Session and an optional drop point, never a window key or bounds', () => {
+    it('takes only a Session, never a window key or bounds', () => {
         expect(params.safeParse({ sessionId: 'session-1' }).success).toBe(true);
-        expect(
-            params.safeParse({ sessionId: 'session-1', screenPoint: { x: -10.5, y: 4 } }).success,
-        ).toBe(true);
         expect(params.parse({ sessionId: 'session-1', windowKey: 'win-x', bounds: {} })).toEqual({
             sessionId: 'session-1',
         });
-        expect(params.safeParse({ sessionId: 'session-1', screenPoint: { x: 1 } }).success).toBe(
-            false,
-        );
+        expect(params.parse({ sessionId: 'session-1', screenPoint: { x: 1, y: 2 } })).toEqual({
+            sessionId: 'session-1',
+        });
     });
 });

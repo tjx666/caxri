@@ -33,13 +33,7 @@ import {
 } from './session-search.js';
 import { terminalKindSchema, terminalRecordSchema } from './terminal-record.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
-import {
-    openSessionIdsSchema,
-    sessionPlacementSchema,
-    windowKeyParameter,
-    windowKeySchema,
-    windowOpenSessionsSchema,
-} from './window-presence-contract.js';
+import { windowKeyParameter, windowKeySchema } from './window-presence-contract.js';
 
 const serverWrite = commandPolicy('server', 'write');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -143,11 +137,6 @@ export const sessionMethods = {
              * The window that becomes active on the new Session. Supplied by Desktop Main.
              */
             ...windowKeyParameter,
-            /**
-             * `newTab` inserts the new Session right of the window's active Open Session; omitted, creation replaces
-             * the active entry like a plain select.
-             */
-            placement: sessionPlacementSchema.optional(),
         }),
         result: z.object({
             session: sessionRecordSchema,
@@ -171,38 +160,14 @@ export const sessionMethods = {
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
     /**
-     * Makes `sessionId` the requesting window's active Session, adds it to that window's Open Sessions, and touches its
-     * recency. `windowKey` is supplied by Desktop Main from the trusted sender, never by a Renderer.
+     * Makes `sessionId` the Session the requesting window shows (its only Open Session) and touches its recency. A
+     * Session open in another window brings that window forward instead. `windowKey` is supplied by Desktop Main from
+     * the trusted sender, never by a Renderer.
      */
     'session.select': {
         ...serverWrite,
         params: windowSessionParameters,
         result: windowSessionResultSchema,
-    },
-    /**
-     * Replaces the requesting window's Open Sessions strip with the ordered IDs. It never carries the active Session:
-     * that changes only through `session.select`, so a delayed strip save cannot overwrite a newer selection. The
-     * Server drops unknown, archived, and hidden Sessions; when the active entry is no longer listed it moves to that
-     * entry's neighbor in the previous strip. It answers with the strip and active Session it stored. Navigating to a
-     * Session goes through `session.select`; this method adds an entry without selecting it, reorders, and closes.
-     */
-    /**
-     * Promotes the window's Preview entry to a kept entry (double-click, Cmd+click, or any input in that Session), so a
-     * plain navigation no longer replaces it. Answers with the stored strip; a Session that is not the Preview entry
-     * leaves the strip as it was.
-     */
-    'window.openSessions.keep': {
-        ...serverWrite,
-        params: z.object({ ...windowKeyParameter, sessionId: identifierSchema }),
-        result: windowOpenSessionsSchema,
-    },
-    'window.openSessions.set': {
-        ...serverWrite,
-        params: z.object({
-            ...windowKeyParameter,
-            openSessionIds: openSessionIdsSchema,
-        }),
-        result: windowOpenSessionsSchema,
     },
     'session.markRead': {
         ...commandPolicy('server', 'write', ['sessions.write']),

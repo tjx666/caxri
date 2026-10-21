@@ -1,103 +1,23 @@
-import type { WindowOpenSessions } from '@caxri/protocol';
-
-import { useSessionTabDragStore } from './session-tab-drag';
-import { mergeStructurally } from './structural-sharing';
 import { useWorkbenchStore } from './workbench';
 
 /**
- * The strip appears from this many Open Sessions on. One Open Session is just "the Session you are in", and a lone tab
- * would only spend 36px of title bar on a choice that does not exist.
+ * Whether `sessionId` is open in another window, for the sidebar's marker. A window holds only the Session it shows,
+ * and the Server keeps windows disjoint, so this is exactly "another window shows it": selecting the row brings that
+ * window forward instead of opening the Session here.
  */
-export const SESSION_TAB_STRIP_MIN_SESSIONS = 2;
-
-const NO_OPEN_SESSIONS: readonly string[] = [];
-
-/**
- * This window's Open Sessions live in the Server snapshot (`bootstrap.openSessionIds`), not in a second Renderer store,
- * so there is no copy to drift from the Server's pruning of archived and deleted Sessions. These readers are the only
- * way the strip and the Workbench look at them, and every one selects a stable slice: `mergeStructurally` keeps the
- * array's identity until its contents change, so a Session switch or a Terminal title change re-renders none of these
- * consumers, and a reorder re-renders only the strip.
- */
-export function useOpenSessionIds(): readonly string[] {
-    return useWorkbenchStore((state) => state.bootstrap?.openSessionIds ?? NO_OPEN_SESSIONS);
-}
-
-/**
- * A boolean, so the many `PaneView`s of a keep-alive Workbench re-render only when the strip appears or disappears, not
- * on every edit to it. It also holds while a tab drag is in progress, so the strip never disappears under the pointer.
- */
-export function useIsSessionTabStripVisible(): boolean {
-    const hasEnoughSessions = useWorkbenchStore(
-        (state) => (state.bootstrap?.openSessionIds?.length ?? 0) >= SESSION_TAB_STRIP_MIN_SESSIONS,
-    );
-    const isDragging = useSessionTabDragStore((state) => state.isDragging);
-    return hasEnoughSessions || isDragging;
-}
-
-/**
- * Where a Session is open, for the sidebar's marker: `here` in this window's strip, `elsewhere` in another window's,
- * and `undefined` when it is in no strip. `here` is withheld while the strip is hidden (fewer than
- * {@link SESSION_TAB_STRIP_MIN_SESSIONS} entries), because a marker for "the Session you are in" with no strip to point
- * at would only be noise. The Server keeps the two sets disjoint (a Session is open in at most one window).
- */
-export type SessionOpenPlace = 'here' | 'elsewhere';
-
-export function sessionOpenPlace(
-    openSessionIds: readonly string[] | undefined,
+export function isSessionOpenElsewhere(
     otherWindowOpenSessionIds: readonly string[] | undefined,
     sessionId: string,
-): SessionOpenPlace | undefined {
-    if (
-        openSessionIds &&
-        openSessionIds.length >= SESSION_TAB_STRIP_MIN_SESSIONS &&
-        openSessionIds.includes(sessionId)
-    )
-        return 'here';
-    return otherWindowOpenSessionIds?.includes(sessionId) ? 'elsewhere' : undefined;
+): boolean {
+    return otherWindowOpenSessionIds?.includes(sessionId) ?? false;
 }
 
 /**
- * One Session's {@link SessionOpenPlace}, selected as a primitive so a row re-renders only when its own marker flips,
- * not on every strip edit or Session switch.
+ * {@link isSessionOpenElsewhere} for one row, selected as a primitive so a row re-renders only when its own marker
+ * flips, not on every Session switch.
  */
-export function useSessionOpenPlace(sessionId: string): SessionOpenPlace | undefined {
+export function useIsSessionOpenElsewhere(sessionId: string): boolean {
     return useWorkbenchStore((state) =>
-        sessionOpenPlace(
-            state.bootstrap?.openSessionIds,
-            state.bootstrap?.otherWindowOpenSessionIds,
-            sessionId,
-        ),
+        isSessionOpenElsewhere(state.bootstrap?.otherWindowOpenSessionIds, sessionId),
     );
-}
-
-/**
- * Whether `sessionId` is this window's Preview entry (the tab a plain sidebar click replaces), as a boolean so only the
- * tab whose state flips re-renders.
- */
-export function useIsPreviewSession(sessionId: string): boolean {
-    return useWorkbenchStore((state) => state.bootstrap?.previewSessionId === sessionId);
-}
-
-export function getOpenSessionIds(): readonly string[] {
-    return useWorkbenchStore.getState().bootstrap?.openSessionIds ?? NO_OPEN_SESSIONS;
-}
-
-/**
- * Writes a strip edit into the snapshot, both for the optimistic update before the Server answers and for the Server's
- * own answer. A `null` active Session leaves the current selection alone: the Server only reports `null` for an empty
- * strip, which a window that still shows a Session never has.
- */
-export function applyWindowOpenSessions(window: WindowOpenSessions): void {
-    useWorkbenchStore.setState((current) => {
-        if (!current.bootstrap) return current;
-        const next = {
-            ...current.bootstrap,
-            // No Preview entry means every entry is kept.
-            previewSessionId: window.previewSessionId ?? undefined,
-            openSessionIds: window.openSessionIds,
-            selectedSessionId: window.activeSessionId ?? current.bootstrap.selectedSessionId,
-        };
-        return { bootstrap: mergeStructurally(current.bootstrap, next) };
-    });
 }
