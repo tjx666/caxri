@@ -17,7 +17,6 @@ import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 import type { ExternalStatusRunner, ExternalStatusSource } from '../external-status';
 import {
     AcceptanceStore,
-    ExternalStatusCliError,
     ExternalStatusCommandTelemetry,
     GitHubPullRequestStore,
     isNoPullRequest,
@@ -39,8 +38,7 @@ import { summaryCacheTtlMs } from './cache-ttl';
 import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-over';
 import { pendingSummaryEntry } from './carry-over';
 import { EmptyCheckRollupTracker } from './empty-check-rollup';
-import { projectStatusCliError } from './external';
-import { emptyGitHubLoad } from './github-load';
+import { emptyGitHubLoad, failedGitHubLoad } from './github-load';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear';
 import type { ProjectStatusClock, ProjectStatusServiceOptions } from './options';
 import { projectStatusClock } from './options';
@@ -390,7 +388,10 @@ export class ProjectStatusService {
                     isForced,
                     onParseFailure: (error) => this.logExternalParseFailure('lh', error),
                 }),
-                this.extras.attach(cwd, context, parsed.pullRequest, isForced),
+                this.extras.attach(cwd, context, parsed.pullRequest, {
+                    ignoredChecks: this.ignoredChecks(),
+                    isForced,
+                }),
             ]);
             return {
                 pullRequest,
@@ -405,14 +406,7 @@ export class ProjectStatusService {
         } catch (error) {
             if (isNoPullRequest(error)) return empty();
             this.logExternalParseFailure('gh', error);
-            const failure =
-                error instanceof ExternalStatusCliError
-                    ? error
-                    : new ExternalStatusCliError('gh', 'other', String(error));
-            return {
-                ...empty(),
-                errors: [projectStatusCliError('gh', failure.kind, { retryAt: failure.retryAt })],
-            };
+            return failedGitHubLoad(error);
         }
     }
 

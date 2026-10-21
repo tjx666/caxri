@@ -194,6 +194,32 @@ bar, the sidebar sweep, and Source Control pay for a field only the Status panel
   without `unresolvedReviewThreads` (meaning "not read", distinct from an empty list), and the
   command telemetry records the cause.
 
+### Previous check verdict for the Status panel
+
+`statusCheckRollup` covers only the head commit, so while the head's checks are running or failing
+the panel could not say whether the commit before it had passed. `PreviousChecksStore`
+(`apps/server/src/domains/project-status/previous-checks.ts`) answers that, so the user can judge
+whether a small follow-up commit (a docs fix, say) is likely to repeat the earlier verdict.
+
+- Only an open or draft pull request whose filtered rollup is not `success` or `neutral` is queried;
+  a green pull request spends nothing.
+- One GraphQL query reads the last 11 commits and each one's check contexts. Walking back from the
+  head, the first commit whose checks (after `projectStatus.ignoredChecks`) settled as `success` or
+  `failure` wins. Commits with no checks (intermediate commits of one push), only cancelled checks
+  (superseded runs), or checks still running are skipped. The commit is named by its message title;
+  the panel never shows a hash.
+- The files changed from that commit to the head come from the REST compare endpoint, which uses
+  the REST budget rather than GraphQL points. A failed compare still reports the verdict without
+  files.
+- A settled answer is keyed by head SHA and the ignored-check rules and re-read every 10 minutes:
+  an earlier commit's verdict changes only when its checks are re-run, so polling a long CI run
+  costs a handful of queries. An answer that skipped a still-running commit expires after 90s; a
+  manual refresh always asks again.
+- The panel marks the change `docs only` when every file is Markdown-like prose or an image under
+  `docs/`, and never when the compare list reached GitHub's 300-file limit.
+- After a rebase or force push, the earlier commits leave the pull request's commit list and no
+  verdict is shown.
+
 ### One circuit per source
 
 `ExternalStatusLimiter` (`limiter.ts`) wraps every `gh`, `lh`, `linear`, and `vc` spawn. `git` is local and

@@ -20,6 +20,7 @@ export type {
     ProjectStatusDeploymentCommit,
     ProjectStatusError,
     ProjectStatusLinearIssue,
+    ProjectStatusPreviousChecks,
     ProjectStatusRepository,
     ProjectStatusReviewThread,
     ProjectStatusState,

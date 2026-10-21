@@ -5,6 +5,7 @@ import type { StatusNode } from './status-item';
 import { item } from './status-item';
 import { durationLabel, ignoredChecksLabel, projectStatusStateLabel } from './status-labels';
 import { linkText, stateIcons, stateTones } from './status-presentation';
+import { previousChecksNode } from './status-previous-checks';
 
 type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
 type PullRequestCheck = PullRequest['checks'][number];
@@ -96,15 +97,22 @@ function checkRow(id: string, check: PullRequestCheck): StatusNode {
 }
 
 /**
- * The pull request row's children: each check that needs a look, running and passed ones folded when there are many
- * (see {@link partitionPullRequestChecks}), then the count of checks the user chose to ignore. Row ids keep each check's
- * index in the provider's list, so a check folding or unfolding as others finish does not change its identity.
+ * The pull request row's children: the previous commit's verdict when the head's checks are not green (it leads, so it
+ * stays in view above an expanded list of running checks), each check that needs a look, running and passed ones folded
+ * when there are many (see {@link partitionPullRequestChecks}), then the count of checks the user chose to ignore. Row
+ * ids keep each check's index in the provider's list, so a check folding or unfolding as others finish does not change
+ * its identity.
  */
 export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest): StatusNode[] {
     const { listed, folded } = partitionPullRequestChecks(pullRequest.checks);
     const rowFor = (check: PullRequestCheck) =>
         checkRow(`${prefix}:check:${pullRequest.checks.indexOf(check)}`, check);
-    const nodes = listed.map(rowFor);
+    const nodes = [
+        ...(pullRequest.previousChecks
+            ? [previousChecksNode(prefix, pullRequest.previousChecks)]
+            : []),
+        ...listed.map(rowFor),
+    ];
     for (const { fold, checks } of folded)
         nodes.push(
             item(`${prefix}:${fold.key}`, fold.label(checks.length), {

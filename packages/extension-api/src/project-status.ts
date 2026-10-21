@@ -60,6 +60,33 @@ export interface ProjectStatusReviewThread {
 }
 
 /**
+ * The newest commit before a pull request's head whose checks reached a verdict, shown while the head's own checks are
+ * unfinished or failing.
+ */
+export interface ProjectStatusPreviousChecks {
+    /**
+     * The commit message's first line.
+     */
+    title: string;
+    /**
+     * The commit's rollup after `projectStatus.ignoredChecks`.
+     */
+    state: 'success' | 'failure';
+    /**
+     * How many commits sit between it and the head; `1` is the head's parent.
+     */
+    commitsBefore: number;
+    /**
+     * The commit inside the pull request on GitHub.
+     */
+    url: string;
+    /**
+     * Files changed from this commit to the head; absent when the comparison could not be read.
+     */
+    changedFiles?: Array<{ path: string; additions: number; deletions: number }>;
+}
+
+/**
  * One row of the review summary Codex keeps on a pull request, which says whether a review ran and which commit it
  * covered even when it left no comment.
  */
@@ -291,6 +318,10 @@ export interface ProjectStatusRepository {
          * Codex's review summary rows; empty when the pull request has none, absent when they were not read.
          */
         codexReviews?: ProjectStatusCodexReview[];
+        /**
+         * Present only while the head's checks are unfinished or failing and an earlier commit's checks settled.
+         */
+        previousChecks?: ProjectStatusPreviousChecks;
     };
     linearIssues: ProjectStatusLinearIssue[];
     acceptances: ProjectStatusAcceptance[];
