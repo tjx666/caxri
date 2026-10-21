@@ -12,8 +12,8 @@
  * - `browsestep`: a Computer Use browser step that binds a tab, then one that drives it and stays running briefly before
  *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
- * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop. With
- *   `reconnect`, a stream retry notice comes first.
+ * - `slow`: a titled thought, a running command, two token usage reports, and a long streamed reply that `turn/interrupt`
+ *   can stop. With `reconnect`, a stream retry notice comes before the reply.
  * - `burststream`: a reply that arrives in a few large deltas 400ms apart, the way a busy provider delivers text.
  * - `longstream`: a titled thought, a quiet pause of a few seconds, then a reply of forty numbered paragraphs streamed
  *   over about 30 seconds, which `turn/interrupt` can stop.
@@ -97,9 +97,9 @@ import {
     runWebLink,
     runWideDiff,
 } from './fake-codex-replies.ts';
-import { CODEX_RECONNECTING } from './fake-codex-retry.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
+import { runSlow } from './fake-codex-slow.ts';
 import {
     didHandleTaskRequest,
     dropTerminalsSilently,
@@ -304,25 +304,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('ask')) {
         await runQuestion(io, turn);
     } else if (text.includes('slow')) {
-        // A titled thought and a command still running while the reply streams, so live work is on screen.
-        completeItem(turn, {
-            type: 'reasoning',
-            id: crypto.randomUUID(),
-            summary: ['**Planning the reply**\n\nTake it slow.'],
-            content: [],
-        });
-        const command = {
-            type: 'commandExecution',
-            id: crypto.randomUUID(),
-            command: '/bin/zsh -lc "rg -n slow src"',
-            cwd: process.cwd(),
-            aggregatedOutput: '',
-        };
-        startItem(turn, { ...command, status: 'inProgress' });
-        if (text.includes('reconnect')) notify('error', { turnId: turn.id, ...CODEX_RECONNECTING });
-        await streamMessage(turn, 'word '.repeat(200), 50);
-        // An interrupted turn leaves the command dangling, which closing the turn settles.
-        if (!turn.interrupted) completeItem(turn, { ...command, status: 'completed', exitCode: 0 });
+        await runSlow(io, turn, text.includes('reconnect'));
     } else if (text.includes('codeblocks')) {
         await runCodeBlocks(io, turn);
     } else if (text.includes('testrun')) {

@@ -11,6 +11,7 @@ import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-la
 import { translateAgentChatLabel } from './agent-chat-labels.js';
 import { agentChatLabelsEn } from './agent-chat-labels-en.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
+import type { AgentChatTurnUsage } from './agent-chat-usage.js';
 import { agentChatTurnActiveWork } from './agent-chat-work.js';
 import type { AgentToolKind } from './agent-tool-presentation.js';
 
@@ -244,6 +245,10 @@ export type AgentChatActivity =
            * which kind of tool runs. Absent between steps, while the Agent is only composing its reply.
            */
           work?: { kind: AgentToolKind; startedAt: number | undefined };
+          /**
+           * What the turn has spent so far, once its first model response was counted.
+           */
+          usage?: AgentChatTurnUsage;
       }
     | { kind: 'compacting'; text: string; isStoppable: boolean }
     | { kind: 'waiting'; text: string };
@@ -260,7 +265,7 @@ export function agentChatActivity(
     snapshot:
         | Pick<
               AgentChatSnapshot,
-              'status' | 'activeTurnId' | 'items' | 'operation' | 'requests' | 'turns'
+              'status' | 'activeTurnId' | 'items' | 'operation' | 'requests' | 'turns' | 'turnUsage'
           >
         | undefined,
     providerName: string,
@@ -285,11 +290,13 @@ export function agentChatActivity(
         };
     if (!turnId) return undefined;
     const work = agentChatTurnActiveWork(snapshot.items, turnId);
+    const usage = snapshot.turnUsage?.turnId === turnId ? snapshot.turnUsage : undefined;
     return {
         kind: 'working',
         text: `${agentChatWorkingVerb(turnId, t)}…`,
         startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
         ...(work && { work }),
+        ...(usage && { usage }),
     };
 }
 

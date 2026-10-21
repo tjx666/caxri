@@ -32,6 +32,7 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import { ChatTurnUsage, claudeTurnResponse } from './chat-turn-usage';
 import { claudeResponseUsage } from './claude-context';
 import { ClaudeContextTracker } from './claude-context-report';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
@@ -122,6 +123,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private readonly tasks: ClaudeTasks;
     private readonly toolClock = new ClaudeToolClock();
+    private readonly turnUsage = new ChatTurnUsage();
     private readonly planLimits = new ClaudePlanLimits();
 
     private query: Query | undefined;
@@ -233,6 +235,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         }));
         if (mapped.plan) operations.push({ op: 'state', state: { plan: mapped.plan } });
         if (operations.length > 0) this.options.apply(operations);
+        this.turnUsage.record(this.options, claudeTurnResponse(message));
         const usage = claudeResponseUsage(message, this.options.read(), this.turns.contextWindow);
         if (usage) {
             this.options.apply([{ op: 'state', state: { usage } }]);
@@ -307,6 +310,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
         // A subagent's own conversation goes to its task tab, not the parent timeline.
         if ('parent_tool_use_id' in message && message.parent_tool_use_id) {
             if (CHILD_CONVERSATION_TYPES.has(message.type)) this.tasks.onChildMessage(message);
+            // A subagent's responses are part of what the turn that started it spends.
+            if (message.type === 'assistant')
+                this.turnUsage.record(this.options, claudeTurnResponse(message.message));
             return;
         }
         switch (message.type) {

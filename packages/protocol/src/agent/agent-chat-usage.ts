@@ -51,3 +51,20 @@ export const agentChatUsageSchema = z.strictObject({
 });
 
 export type AgentChatUsage = z.infer<typeof agentChatUsageSchema>;
+
+/**
+ * What one turn has spent so far, summed over every model response it made. Claude subagents' responses are included; a
+ * Codex subagent runs in its own thread and is not counted. Server Core adds each response as it arrives, so a running
+ * turn's figures grow live; they start over when the next turn begins. `requests` counts model responses, the steps of
+ * the Agent loop. `totalTokens` uses the Usage page's definition (`input + output + cacheRead + cacheWrite`). `costUsd`
+ * is the standard API price estimated from the bundled price list, absent while no response came from a priced model;
+ * subscription plans spend allowance rather than billing it.
+ */
+export const agentChatTurnUsageSchema = z.strictObject({
+    turnId: z.string().min(1).max(200),
+    requests: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+    costUsd: z.number().nonnegative().optional(),
+});
+
+export type AgentChatTurnUsage = z.infer<typeof agentChatTurnUsageSchema>;

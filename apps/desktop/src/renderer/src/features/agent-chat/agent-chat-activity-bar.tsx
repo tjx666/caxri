@@ -6,6 +6,7 @@ import { Kbd } from '../../components/ui/kbd';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { AgentChatTurnMetricList } from './agent-chat-turn-metric-list';
 import { useIsAgentChatStopping } from './hooks/use-agent-chat-stop';
 import { useClockTick } from './hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from './loading';
@@ -42,39 +43,12 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 }
 
 /**
- * How the row reads for this activity: `Stopping…` once Stop was requested for a working turn, the sweep everywhere but
- * while waiting or stopping, and the Esc hint while the turn (or a stoppable compaction) can still be stopped.
+ * How the row reads for this activity: `Stopping…` once Stop was requested for a working turn, and the sweep everywhere
+ * but while waiting or stopping.
  */
 function activityRowState(activity: AgentChatActivity | undefined, isStopRequested: boolean) {
     const isStopping = activity?.kind === 'working' && isStopRequested;
-    const isStoppable =
-        activity?.kind === 'working' || (activity?.kind === 'compacting' && activity.isStoppable);
-    return {
-        isStopping,
-        isSweeping: !isStopping && activity?.kind !== 'waiting',
-        canStop: !isStopping && isStoppable,
-    };
-}
-
-/**
- * A pointer shortcut for the Esc hint. It stays out of the tab order and the accessibility tree with the rest of its
- * row: the composer's Stop button is the accessible control.
- */
-function StopHint({ isTrailing, onStop }: { isTrailing: boolean; onStop: () => void }) {
-    const { t } = useTranslation();
-    return (
-        <button
-            className={cn(
-                '-mr-1.5 shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-[11px] text-muted transition-colors hover:bg-elevated hover:text-foreground',
-                isTrailing && 'ml-auto',
-            )}
-            tabIndex={-1}
-            type="button"
-            onClick={onStop}
-        >
-            <Kbd size="compact">Esc</Kbd> {t('agentChat.activity.stopHint')}
-        </button>
-    );
+    return { isStopping, isSweeping: !isStopping && activity?.kind !== 'waiting' };
 }
 
 /**
@@ -83,17 +57,17 @@ function StopHint({ isTrailing, onStop }: { isTrailing: boolean; onStop: () => v
  * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall; a turn
  * waiting on the user shows no row of its own, since its request card right above already says so, and holds still once
  * a draft brings the row back, since nothing is in progress until the user answers. The polite live region stays
- * mounted so transitions between starting, working, and waiting are announced, while the ticking time never is. The Esc
- * hint is also clickable, so pointing at it gives feedback instead of reading as dead text. While a turn runs and the
- * user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the difference between
- * queueing and steering is otherwise invisible until the message lands. A `notice` (why Enter did not send, or that a
- * second Enter sends an unmatched `/` draft as text) takes the live region while it lasts and shows as its own row, so
- * a refused Enter is never silent.
+ * mounted so transitions between starting, working, and waiting are announced, while the ticking time never is. A
+ * working turn also shows what it has spent so far (steps, tokens, estimated cost) on the right, where a stop hint used
+ * to sit: the composer's Stop button and Esc already stop the turn, so the hint only repeated them. While a turn runs
+ * and the user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the difference
+ * between queueing and steering is otherwise invisible until the message lands. A `notice` (why Enter did not send, or
+ * that a second Enter sends an unmatched `/` draft as text) takes the live region while it lasts and shows as its own
+ * row, so a refused Enter is never silent.
  */
 export function AgentChatActivityBar({
     activity,
     notice,
-    onStop,
     showsDeliveryHint,
     terminalId,
     turnId,
@@ -103,7 +77,6 @@ export function AgentChatActivityBar({
      * A short-lived composer message (`useAgentChatComposerNotice`), or a hint that lasts while its draft does.
      */
     notice: string | undefined;
-    onStop: () => void;
     /**
      * A turn is running and the draft has content, so Enter queues and Cmd+Enter steers.
      */
@@ -118,8 +91,8 @@ export function AgentChatActivityBar({
     turnId: string | undefined;
 }) {
     const { t } = useTranslation();
-    // Once Stop was requested the row says so, stops sweeping, and drops the Esc hint: Stop cannot be asked twice.
-    const { isStopping, isSweeping, canStop } = activityRowState(
+    // Once Stop was requested the row says so and stops sweeping.
+    const { isStopping, isSweeping } = activityRowState(
         activity,
         useIsAgentChatStopping(terminalId, turnId),
     );
@@ -137,7 +110,7 @@ export function AgentChatActivityBar({
             {activity && (activity.kind !== 'waiting' || showsDeliveryHint) && (
                 <div
                     aria-hidden="true"
-                    className="flex h-8 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
+                    className="@container flex h-8 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
                     data-agent-chat-composer-strip-row=""
                 >
                     {activity.kind === 'waiting' ? (
@@ -151,13 +124,20 @@ export function AgentChatActivityBar({
                     {activity.kind === 'working' && activity.startedAt !== undefined && (
                         <ElapsedTime startedAt={activity.startedAt} />
                     )}
+                    {activity.kind === 'working' && (
+                        <AgentChatTurnMetricList className="ml-auto" usage={activity.usage} />
+                    )}
                     {showsDeliveryHint && (
-                        <span className="ml-auto shrink-0 text-[11px] whitespace-nowrap">
+                        <span
+                            className={cn(
+                                'shrink-0 text-[11px] whitespace-nowrap',
+                                activity.kind !== 'working' || !activity.usage ? 'ml-auto' : 'ml-1',
+                            )}
+                        >
                             <Kbd size="compact">Enter</Kbd> {t('agentChat.activity.enterHint')} ·{' '}
                             <Kbd size="compact">⌘Enter</Kbd> {t('agentChat.activity.steerHint')}
                         </span>
                     )}
-                    {canStop && <StopHint isTrailing={!showsDeliveryHint} onStop={onStop} />}
                 </div>
             )}
             {notice && (

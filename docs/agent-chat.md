@@ -765,8 +765,14 @@ several callbacks can share one item, so the transport id is never the key.
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
   A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
-  answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and `Esc to
-stop`, which is also a pointer shortcut for Stop. Only the label is the polite live region, so the ticking time is never announced.
+  answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
+  has spent so far, as LobeHub's composer tray does: steps (model responses), tokens (the Usage page's `total`), and
+  the cost estimated from the bundled price list, each behind an icon with a pointer tooltip. A figure still at zero
+  is hidden, a single step too, and a strip narrower than 360px keeps only tokens. Server Core sums each Claude
+  response once by message id (subagent responses included) and each Codex request of the parent thread from
+  `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. The strip
+  carries no stop hint: the composer's Stop button and Esc already stop the turn. Only the label is the polite live
+  region, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
   keeps its own text.
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),

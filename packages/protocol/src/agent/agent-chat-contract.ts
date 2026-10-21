@@ -23,7 +23,7 @@ import {
 import { agentChatMcpServerSchema, MAX_AGENT_CHAT_MCP_SERVERS } from './agent-chat-mcp.js';
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
-import { agentChatUsageSchema } from './agent-chat-usage.js';
+import { agentChatTurnUsageSchema, agentChatUsageSchema } from './agent-chat-usage.js';
 import { agentChatDelegatedTaskSchema } from './agent-delegated-task.js';
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
@@ -447,6 +447,10 @@ export const agentChatSnapshotSchema = z.strictObject({
     mcpServers: z.array(agentChatMcpServerSchema).max(MAX_AGENT_CHAT_MCP_SERVERS).optional(),
     usage: agentChatUsageSchema.optional(),
     /**
+     * The latest turn's spend so far; a Client shows it only while that turn is the active one.
+     */
+    turnUsage: agentChatTurnUsageSchema.optional(),
+    /**
      * Provider-wide work in progress that is not a turn, such as compacting the context.
      */
     operation: z.enum(['compacting']).optional(),
@@ -505,6 +509,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 mcpServers: agentChatSnapshotSchema.shape.mcpServers.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
+                turnUsage: agentChatSnapshotSchema.shape.turnUsage.unwrap().nullable(),
                 truncated: agentChatSnapshotSchema.shape.truncated,
                 historyId: agentChatSnapshotSchema.shape.historyId.unwrap(),
                 operation: agentChatSnapshotSchema.shape.operation.unwrap().nullable(),
