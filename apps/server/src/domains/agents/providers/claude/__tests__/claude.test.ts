@@ -37,9 +37,9 @@ vi.mock('../../../../executables', async (importOriginal) => {
      * the assertion about what this test owns: the Agent's own variables survive, and PATH comes from the login shell
      * rather than from the caller.
      */
-    const serverProcessEnvironment: typeof actual.serverProcessEnvironment = (variables = {}) =>
+    const agentProcessEnvironment: typeof actual.agentProcessEnvironment = (variables = {}) =>
         Promise.resolve({ ...variables, PATH: mocks.loginPath });
-    return { ...actual, runExternalCommand, serverProcessEnvironment };
+    return { ...actual, agentProcessEnvironment, runExternalCommand };
 });
 
 import type { AgentProviderSessionRenameContext } from '../../../contract';

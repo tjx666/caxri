@@ -11,7 +11,7 @@ import { runningWork } from './support/running-work.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 
-test('Finder-like launch PATH starts a Node-dependent Codex launcher', async () => {
+test('Finder-like launch gives a Node-dependent Codex launcher the login-shell PATH and exports', async () => {
     const testInfo = test.info();
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-login-path-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -38,6 +38,7 @@ fs.appendFileSync(${JSON.stringify(probeLog)}, JSON.stringify({
   caxriE2E: process.env.CAXRI_E2E,
   githubToken: process.env.GITHUB_TOKEN,
   path: process.env.PATH,
+  shellExported: process.env.SHELL_EXPORTED_API_KEY,
   version,
 }) + '\n');
 if (version) {
@@ -53,8 +54,8 @@ if (version) {
         loginShell,
         `#!/bin/sh
 if [ "$1" = "-lic" ]; then
-  printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
-  exit 0
+  export PATH='${bin}:/usr/bin:/bin' SHELL_EXPORTED_API_KEY=from-login-shell
+  exec /bin/sh -c "$2"
 fi
 exec /bin/zsh "$@"
 `,
@@ -121,12 +122,14 @@ exec /bin/zsh "$@"
                                 caxriE2E?: string;
                                 githubToken?: string;
                                 path?: string;
+                                shellExported?: string;
                                 version: boolean;
                             },
                     );
                 return {
                     filtered: records.every((record) => !record.caxriE2E && !record.githubToken),
                     path: records.at(0)?.path,
+                    shellExported: records.find((record) => !record.version)?.shellExported,
                     running: records.some((record) => !record.version),
                     version: records.some((record) => record.version),
                 };
@@ -134,6 +137,7 @@ exec /bin/zsh "$@"
             .toEqual({
                 filtered: true,
                 path: `${bin}:/usr/bin:/bin`,
+                shellExported: 'from-login-shell',
                 running: true,
                 version: true,
             });

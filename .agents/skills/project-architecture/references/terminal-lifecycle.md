@@ -5,8 +5,15 @@ builds structured launch plans with a persisted cwd and filtered environment, an
 the private protocol. Terminal Host exclusively spawns and owns the resulting PTYs. Each provider owns
 bounded launch executable and argument settings; configured initial args precede provider-owned resume
 args. Agent executables use a cached, bounded login-shell PATH shared with version probes, while normal
-Shell Terminals retain their existing login-shell startup. Standard proxy and custom-CA variables are
-retained, while unrelated credentials, workflow markers, and Caxri-internal variables are excluded.
+Shell Terminals retain their existing login-shell startup. Agent processes (PTY launches, Chat
+providers, rename one-shots) start from every variable the user's interactive login shell exports
+(`agentProcessEnvironment` in `apps/server/src/domains/executables.ts`), so API keys and toolchain
+variables from startup files match the user's own terminal; Caxri's allowlisted launch context wins
+over that snapshot (an isolated test `HOME` or `CODEX_HOME` stays), the login-shell PATH wins over
+both, and shell bookkeeping (`PWD`, `SHLVL`, ...) and the `CAXRI_*` namespace are dropped. The
+snapshot is re-read for an Agent launch once it is a minute old. Variables that only Caxri's own
+process environment carries (a workflow marker, a token exported to the shell that started Caxri)
+are still excluded.
 
 Desktop Main forwards a narrow E2E-only Agent policy to Server Core: default launches block every
 provider, fake mode maps declared providers to absolute fixture executables, and real mode permits

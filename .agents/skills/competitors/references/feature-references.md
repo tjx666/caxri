@@ -54,6 +54,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **File changes and symlinks**: Path-based change events and rename behavior. Evidence: `apps/server/src/domains/files/mutations.ts`; `listing.ts`.
 - **Welcome and Add Project copy; Chinese UI style**: "Folder" wording; VS Code Simplified Chinese conventions. Evidence: `DESIGN.md` (welcome); `docs/i18n.md`.
 - **File icons; codicons**: vscode-icons look; six vendored codicons (copied, CC BY 4.0). Evidence: `THIRD_PARTY_NOTICES.md`; `apps/desktop/src/renderer/src/icons/codicons/`; `licenses/VSCODE_CODICONS_LICENSE.txt`.
+- **Agent environment from the interactive login shell**: Resolving a GUI launch's environment by running `$SHELL -i -l -c` and parsing the printed environment between markers. Evidence: `apps/server/src/domains/executables.ts` (`agentEnvironment`).
 
 ## GitLens (MIT, except `plus/` directories)
 

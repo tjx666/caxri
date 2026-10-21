@@ -24,7 +24,7 @@ import { expandLaunchArguments } from '@caxri/utils';
 // Server providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders, AgentRunAutonomy, defaultAgentEnvironment, readVersion } from '../agents';
-import { serverProcessEnvironment } from '../executables';
+import { agentProcessEnvironment } from '../executables';
 import { assertTerminalWorkingDirectory, resolveTerminalExecutable } from './launch';
 import type {
     TerminalManagerOptions,
@@ -85,7 +85,7 @@ export class TerminalLaunchPlanner {
     private readonly agentRunAutonomy = new AgentRunAutonomy();
 
     constructor(private readonly options: TerminalLaunchPlannerOptions) {
-        this.agentEnvironment = options.agentEnvironment ?? serverProcessEnvironment;
+        this.agentEnvironment = options.agentEnvironment ?? agentProcessEnvironment;
     }
 
     async resolve(

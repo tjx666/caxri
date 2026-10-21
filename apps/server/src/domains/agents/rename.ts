@@ -2,7 +2,7 @@ import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, isCaxriError } from '@caxri/protocol';
 import { coerce, gte } from 'semver';
 
-import { serverProcessEnvironment } from '../executables';
+import { agentProcessEnvironment } from '../executables';
 import type { AgentEnvironment } from './contract';
 
 export function assertAgentRenameVersion(
@@ -20,19 +20,20 @@ export function assertAgentRenameVersion(
 }
 
 /**
- * Keeps provider subprocesses on the same secret-minimized environment boundary as every other Server command while
- * honoring test, portable, and custom Agent homes supplied through the Agent integration seam.
+ * Gives provider subprocesses the same environment as a launched Agent (the user's interactive login-shell variables
+ * under Caxri's allowlisted launch context) while honoring test, portable, and custom Agent homes supplied through the
+ * Agent integration seam.
  *
- * The login-shell PATH is part of that boundary, not an extra. A GUI-launched Server Core inherits macOS's launchd PATH
- * (`/usr/bin:/bin:/usr/sbin:/sbin`), and several Agent CLIs (`codex` among them) are installed as `/bin/sh` shims that
- * `exec node`. Handing such a shim the launchd PATH makes it exit 127 within milliseconds, which surfaced as an
+ * The login-shell PATH is part of that environment, not an extra. A GUI-launched Server Core inherits macOS's launchd
+ * PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), and several Agent CLIs (`codex` among them) are installed as `/bin/sh` shims
+ * that `exec node`. Handing such a shim the launchd PATH makes it exit 127 within milliseconds, which surfaced as an
  * unexplained "could not rename the Agent session".
  */
 export async function agentCommandEnvironment(
     environment: AgentEnvironment,
 ): Promise<NodeJS.ProcessEnv> {
     return {
-        ...(await serverProcessEnvironment(environment.variables)),
+        ...(await agentProcessEnvironment(environment.variables)),
         HOME: environment.homeDirectory,
     };
 }
