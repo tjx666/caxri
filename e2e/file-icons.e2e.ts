@@ -97,7 +97,8 @@ test('Files secondarySidebar identifies symlinks by their target instead of an u
         ]);
 
         const directoryLink = tree.getByRole('treeitem').first();
-        await expect(directoryLink).toHaveAttribute('title', /dist → src \(symlink\)$/);
+        // The link facts moved from a native `title` to the cursor Tooltip plus this `aria-describedby` text.
+        await expect(directoryLink).toHaveAccessibleDescription('Symlink to src.');
         await expect(directoryLink).not.toHaveAttribute('aria-disabled', 'true');
         await expect(directoryLink).toHaveAttribute('aria-expanded', 'false');
         await directoryLink.click();
