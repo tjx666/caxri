@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import type { SessionRecord } from '@caxri/protocol';
+import type { SessionRecord, TerminalSurface } from '@caxri/protocol';
+import { isChatTerminal } from '@caxri/protocol';
 
 import { useOnVisible } from '@/hooks/use-on-visible';
 
 import { useCaxriQuery } from '../../queries/client';
-import { useSelectedSession } from '../../stores/selectors';
+import { useSelectedSession, useTerminal } from '../../stores/selectors';
 import {
     isAgentChatOnScreen,
     useAgentChatOnScreenStore,
@@ -18,22 +19,26 @@ interface AttentionVisibility {
 }
 
 /**
- * Whether the Session's primary Chat holds a question or approval the user has not been shown: the Chat has a pending
- * request and its pane is not on screen in this window. Selecting the Session alone does not show the request (the Chat
- * can sit on a background tab), so acknowledging then would clear the attention glyph from the sidebar row and the tab
- * while the Agent is still blocked on the user.
+ * Whether the Session's primary Chat holds a question or approval the user has not been shown: the Chat is waiting on
+ * the user and its pane is not on screen in this window. Selecting the Session alone does not show the request (the
+ * Chat can sit on a background tab), so acknowledging then would clear the attention glyph from the sidebar row and the
+ * tab while the Agent is still blocked on the user.
+ *
+ * The Session's own `waiting` state counts as well as the pending-request list: it arrives in the same update that sets
+ * `hasUnread`, while the list is a separate query that lands a few milliseconds later, after the acknowledgement has
+ * already been sent. It counts only for a Chat, because a PTY Terminal has no Chat pane to show and would never clear.
  */
 export function isChatRequestUnseen(
-    session: Pick<SessionRecord, 'primaryAgentTerminalId'>,
+    session: Pick<SessionRecord, 'lastActivityState' | 'primaryAgentTerminalId'>,
+    primaryTerminal: { surface?: TerminalSurface } | undefined,
     waitingTerminalIds: ReadonlySet<string>,
     onScreen: Readonly<Record<string, number>>,
 ): boolean {
     const terminalId = session.primaryAgentTerminalId;
-    return (
-        terminalId !== undefined &&
-        waitingTerminalIds.has(terminalId) &&
-        !isAgentChatOnScreen(onScreen, terminalId)
-    );
+    if (terminalId === undefined || !primaryTerminal || !isChatTerminal(primaryTerminal))
+        return false;
+    const isWaiting = waitingTerminalIds.has(terminalId) || session.lastActivityState === 'waiting';
+    return isWaiting && !isAgentChatOnScreen(onScreen, terminalId);
 }
 
 /**
@@ -73,6 +78,7 @@ export function useSessionAttentionAcknowledgement(): void {
         { staleTime: Infinity },
     );
     const onScreen = useAgentChatOnScreenStore((state) => state.counts);
+    const primaryTerminal = useTerminal(session?.primaryAgentTerminalId ?? '');
     const waitingTerminalIds = useMemo(
         () => new Set(data?.chats.map((chat) => chat.terminalId)),
         [data],
@@ -83,7 +89,8 @@ export function useSessionAttentionAcknowledgement(): void {
      * query and lets acknowledgement proceed as before.
      */
     const hasUnseenChatRequest = session
-        ? arePendingRequestsLoading || isChatRequestUnseen(session, waitingTerminalIds, onScreen)
+        ? arePendingRequestsLoading ||
+          isChatRequestUnseen(session, primaryTerminal, waitingTerminalIds, onScreen)
         : false;
 
     const acknowledge = useCallback((): void => {

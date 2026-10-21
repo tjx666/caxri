@@ -61,11 +61,27 @@ describe('Session attention with a pending Chat request', () => {
     });
 
     it('treats only an off-screen primary Chat with a request as unseen', () => {
+        const chat = { surface: 'chat' as const };
+        const idle = { ...session, lastActivityState: 'idle' as const };
         const waiting = new Set(['terminal-1']);
-        expect(isChatRequestUnseen(session, waiting, {})).toBe(true);
-        expect(isChatRequestUnseen(session, waiting, { 'terminal-1': 1 })).toBe(false);
-        expect(isChatRequestUnseen(session, new Set(), {})).toBe(false);
-        expect(isChatRequestUnseen(session, new Set(['terminal-2']), {})).toBe(false);
-        expect(isChatRequestUnseen({ primaryAgentTerminalId: undefined }, waiting, {})).toBe(false);
+        expect(isChatRequestUnseen(idle, chat, waiting, {})).toBe(true);
+        expect(isChatRequestUnseen(idle, chat, waiting, { 'terminal-1': 1 })).toBe(false);
+        expect(isChatRequestUnseen(idle, chat, new Set(), {})).toBe(false);
+        expect(isChatRequestUnseen(idle, chat, new Set(['terminal-2']), {})).toBe(false);
+        expect(
+            isChatRequestUnseen({ ...idle, primaryAgentTerminalId: undefined }, chat, waiting, {}),
+        ).toBe(false);
+    });
+
+    it('counts the Session waiting state before the pending-request list catches up', () => {
+        expect(isChatRequestUnseen(session, { surface: 'chat' }, new Set(), {})).toBe(true);
+        expect(
+            isChatRequestUnseen(session, { surface: 'chat' }, new Set(), { 'terminal-1': 1 }),
+        ).toBe(false);
+    });
+
+    it('never holds a waiting PTY Terminal, which has no Chat pane to show', () => {
+        expect(isChatRequestUnseen(session, {}, new Set(['terminal-1']), {})).toBe(false);
+        expect(isChatRequestUnseen(session, undefined, new Set(), {})).toBe(false);
     });
 });
