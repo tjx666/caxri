@@ -7,7 +7,7 @@ import {
     questionOptionIndexForArrow,
     questionOptionIndexForKey,
     questionPanelKeyAction,
-} from '../agent-chat-question-flow';
+} from './agent-chat-question-flow';
 
 describe('questionOptionIndexForKey', () => {
     it('maps digits 1 to 9 onto existing options only', () => {

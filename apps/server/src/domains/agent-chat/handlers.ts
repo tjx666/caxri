@@ -1,9 +1,9 @@
 import type { DomainHandlers } from '../domain-services';
 import type { createSessionCreator } from '../session';
 import { readChatImage } from './chat-images';
-import { readWaitingChats } from './chat-waiting';
 import type { AgentChatService } from './service';
 import type { AgentChatServiceOptions } from './service-options';
+import { readWaitingChats } from './waiting/chat-waiting';
 
 /**
  * Core methods a Client uses to read and drive a Chat Terminal. `records` locates the provider's on-disk record, which

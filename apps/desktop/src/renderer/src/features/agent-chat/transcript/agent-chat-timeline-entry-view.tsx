@@ -8,8 +8,8 @@ import { AgentChatUserMessage } from '../messages/agent-chat-user-message';
 import { AgentChatWorkGroup } from '../tools/agent-chat-work-group';
 import { AgentChatTurnArtifactList } from '../turns/agent-chat-turn-artifact-list';
 import { AgentChatTurnFold } from '../turns/agent-chat-turn-fold';
-import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
+import { AgentChatAnsweredQuestions } from './questions/agent-chat-answered-questions';
 
 type MessageItem = Extract<AgentChatTimelineEntry, { kind: 'item' }>['item'];
 

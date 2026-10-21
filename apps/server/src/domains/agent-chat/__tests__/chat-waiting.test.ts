@@ -5,8 +5,8 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { WaitingChatSource } from '../chat-waiting';
-import { readWaitingChats } from '../chat-waiting';
+import type { WaitingChatSource } from '../waiting/chat-waiting';
+import { readWaitingChats } from '../waiting/chat-waiting';
 
 const approval: AgentChatRequest = {
     id: 'request-1',

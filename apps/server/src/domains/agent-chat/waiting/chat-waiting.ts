@@ -4,7 +4,7 @@ import {
     AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH,
 } from '@caxri/protocol';
 
-import { clip } from './chat-items';
+import { clip } from '../chat-items';
 
 /**
  * One Chat as {@link readWaitingChats} sees it: its projection, and whether a provider is still there to answer.

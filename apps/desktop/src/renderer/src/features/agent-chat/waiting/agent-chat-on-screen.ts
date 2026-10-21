@@ -1,6 +1,6 @@
 import { omit } from 'es-toolkit';
 
-import { createStore } from '../../lib/store';
+import { createStore } from '../../../lib/store';
 
 interface AgentChatOnScreenState {
     /**

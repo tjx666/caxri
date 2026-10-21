@@ -3,12 +3,12 @@ import { useId } from 'react';
 import type { AgentChatItem } from '@caxri/protocol';
 import { ChevronRight, CircleQuestionMark } from 'lucide-react';
 
-import { useTranslation } from '../../../i18n';
-import { cn } from '../../../lib/utilities';
-import { useAgentChatExpansion } from '../hooks/use-agent-chat-expansion';
-import { AgentChatNotice } from '../messages/agent-chat-message';
-import { agentChatChevronMotion } from './agent-chat-disclosure';
-import { agentChatItemExpansionKey } from './agent-chat-expansion';
+import { useTranslation } from '../../../../i18n';
+import { cn } from '../../../../lib/utilities';
+import { useAgentChatExpansion } from '../../hooks/use-agent-chat-expansion';
+import { AgentChatNotice } from '../../messages/agent-chat-message';
+import { agentChatChevronMotion } from '../agent-chat-disclosure';
+import { agentChatItemExpansionKey } from '../agent-chat-expansion';
 
 const ROW_CLASS_NAME =
     'flex min-w-0 items-center gap-2 px-1 py-0.5 text-[12px] leading-5 text-muted';

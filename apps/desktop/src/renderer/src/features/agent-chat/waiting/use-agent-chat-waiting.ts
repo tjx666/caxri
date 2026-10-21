@@ -4,8 +4,8 @@ import type { AgentChatWaitingChat } from '@caxri/protocol';
 
 import { useCaxriQuery } from '../../../queries/client';
 import { useSessions } from '../../../stores/selectors';
-import { isAgentChatOnScreen, useAgentChatOnScreenStore } from '../agent-chat-on-screen';
 import { useAgentChatPendingStore } from '../transcript/agent-chat-pending';
+import { isAgentChatOnScreen, useAgentChatOnScreenStore } from './agent-chat-on-screen';
 import type { AgentChatWaitingArrivals, AgentChatWaitingView } from './agent-chat-waiting-queue';
 import {
     agentChatWaitingQueue,
