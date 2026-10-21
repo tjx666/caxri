@@ -9,6 +9,7 @@ import { readBoundedRegularFileText } from '@caxri/system';
 import Database from 'better-sqlite3';
 
 import type { AgentEnvironment } from './contract';
+import { compactInlineMediaPayloads } from './inline-media';
 import { claudeTranscriptRoot } from './providers/claude/paths';
 import { resolveCodexStateDirectories } from './providers/codex/paths';
 import type { SqliteColumn } from './providers/codex/state-databases';
@@ -50,6 +51,13 @@ const TITLE_MAX_CHARACTERS = 120;
  */
 const HEAD_CHUNK_BYTES = 64 * 1024;
 const HEAD_BUDGET_BYTES = 256 * 1024;
+/**
+ * A record the head budget cuts off is read to its end with inline media collapsed while it buffers, because the first
+ * prompt often carries a pasted screenshot that alone outweighs the budget. Without media such a record stays small;
+ * these caps only bound a pathological line.
+ */
+const STRADDLING_RECORD_MAX_BYTES = 64 * 1024 * 1024;
+const STRADDLING_RECORD_MAX_CHARS = 256 * 1024;
 /**
  * Claude Code appends `ai-title` / `custom-title` records after later turns, so the newest title lives at the end.
  */
@@ -104,7 +112,8 @@ export function parseConversationCandidate(
 
 /**
  * Yields complete lines from `[start, end)` of a regular file without following a final symlink. A range that starts
- * mid-file drops its leading partial line; a trailing partial line is dropped when the range ends before EOF.
+ * mid-file drops its leading partial line. A trailing partial line is read on toward `lineLimit` (EOF for a head read)
+ * to its newline, collapsing inline media as it buffers, and is dropped when it ends past the straddling-record caps.
  *
  * @yields {Record<string, unknown>} Each line that parses as a JSON object.
  */
@@ -112,6 +121,7 @@ async function* readJsonRecords(
     handle: FileHandle,
     start: number,
     end: number,
+    lineLimit = end,
 ): AsyncGenerator<Record<string, unknown>> {
     const buffer = Buffer.alloc(HEAD_CHUNK_BYTES);
     const decoder = new StringDecoder('utf8');
@@ -151,11 +161,40 @@ async function* readJsonRecords(
             if (record) yield record;
         }
     }
-    // A final line without a newline is complete only at EOF.
-    if (!isFragmentPending && pending) {
-        const record = parse(pending + decoder.end());
-        if (record) yield record;
+    if (isFragmentPending || !pending) return;
+    const straddleLimit = Math.min(lineLimit, end + STRADDLING_RECORD_MAX_BYTES);
+    pending = compactInlineMediaPayloads(pending);
+    while (position < straddleLimit && pending.length <= STRADDLING_RECORD_MAX_CHARS) {
+        // eslint-disable-next-line no-await-in-loop -- sequential-by-offset read, see comment above
+        const { bytesRead } = await handle.read(
+            buffer,
+            0,
+            Math.min(HEAD_CHUNK_BYTES, straddleLimit - position),
+            position,
+        );
+        if (bytesRead === 0) break;
+        position += bytesRead;
+        pending = compactInlineMediaPayloads(
+            pending + decoder.write(buffer.subarray(0, bytesRead)),
+        );
+        const newline = pending.indexOf('\n');
+        if (newline !== -1) {
+            const record = parse(pending.slice(0, newline));
+            if (record) yield record;
+            return;
+        }
     }
+    // A final line without a newline is complete only at EOF.
+    if (position < lineLimit || pending.length > STRADDLING_RECORD_MAX_CHARS) return;
+    const record = parse(pending + decoder.end());
+    if (record) yield record;
+}
+
+/**
+ * The head of a transcript: its first `HEAD_BUDGET_BYTES`, plus the rest of the record that budget cuts off.
+ */
+function readHeadRecords(handle: FileHandle, size: number) {
+    return readJsonRecords(handle, 0, Math.min(size, HEAD_BUDGET_BYTES), size);
 }
 
 async function openTranscript(path: string) {
@@ -299,7 +338,7 @@ async function parseClaudeConversation(
     let hasStoppedEarly = false;
     try {
         const headEnd = Math.min(opened.size, HEAD_BUDGET_BYTES);
-        for await (const record of readJsonRecords(opened.handle, 0, headEnd)) {
+        for await (const record of readHeadRecords(opened.handle, opened.size)) {
             scanClaudeTitle(record, titles);
             /**
              * The first entry point names how the conversation started. A `--print` run (`sdk-cli`) is a scripted
@@ -355,8 +394,7 @@ async function parseCodexConversation(
     let cwd: string | undefined;
     let hasMeta = false;
     try {
-        const headEnd = Math.min(opened.size, HEAD_BUDGET_BYTES);
-        for await (const record of readJsonRecords(opened.handle, 0, headEnd)) {
+        for await (const record of readHeadRecords(opened.handle, opened.size)) {
             if (!hasMeta && record.type === 'session_meta') {
                 hasMeta = true;
                 const payload = objectField(record, 'payload');
@@ -512,7 +550,7 @@ async function parseGrokConversation(
     if (!opened) return;
     const prompt = new FirstPromptCollector();
     try {
-        const records = readJsonRecords(opened.handle, 0, Math.min(opened.size, HEAD_BUDGET_BYTES));
+        const records = readHeadRecords(opened.handle, opened.size);
         for await (const record of records) {
             prompt.accept(record);
             if (prompt.isComplete) break;

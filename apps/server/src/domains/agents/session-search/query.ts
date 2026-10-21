@@ -15,6 +15,12 @@ const MAX_SNIPPET_CHARACTERS = 200;
 const HIGHLIGHT_START = '\u{1}';
 const HIGHLIGHT_END = '\u{2}';
 const ELLIPSIS = '…';
+/**
+ * Chinese, Japanese, and Korean text is written without spaces around numbers and Latin words ("21 个 token"), while the
+ * same sentence elsewhere may carry them ("21 个 token"), so a query term splits where a CJK run meets other text.
+ */
+const SCRIPT_RUN_PATTERN =
+    /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu;
 
 export interface ParsedSessionQuery {
     /**
@@ -29,6 +35,11 @@ export interface ParsedSessionQuery {
      * Terms too short for the trigram index, matched with `LIKE`.
      */
     substrings: string[];
+    /**
+     * The whole query without whitespace, when it has several terms: a message holding it contiguously (spacing aside)
+     * is the sentence the user pasted or remembers, and outranks one that merely holds the terms apart.
+     */
+    phrase?: string;
 }
 
 function characterLength(text: string): number {
@@ -36,14 +47,16 @@ function characterLength(text: string): number {
 }
 
 export function parseSessionQuery(query: string): ParsedSessionQuery {
-    const terms = [
-        ...new Set(
-            normalizeSessionSearchText(query).trim().toLowerCase().split(/\s+/u).filter(Boolean),
-        ),
-    ].slice(0, MAX_TERMS);
+    const normalized = normalizeSessionSearchText(query).trim().toLowerCase();
+    const words = normalized.split(/\s+/u).filter(Boolean);
+    const terms = [...new Set(words.flatMap((word) => word.match(SCRIPT_RUN_PATTERN) ?? []))].slice(
+        0,
+        MAX_TERMS,
+    );
     const indexed = terms.filter((term) => characterLength(term) >= MIN_INDEXED_TERM_LENGTH);
     return {
         terms,
+        ...(terms.length > 1 && { phrase: words.join('') }),
         // A quoted FTS5 string is a literal phrase; a doubled quote escapes a quote inside it.
         ...(indexed.length > 0 && {
             ftsQuery: indexed.map((term) => `"${term.replaceAll('"', '""')}"`).join(' '),
@@ -107,36 +120,74 @@ export function snippetFromMarkers(
 }
 
 /**
- * The excerpt around a substring match, for a query whose terms were all too short for the full-text index.
+ * Where `phrase` (which holds no whitespace) starts in `lower`, ignoring the whitespace inside `lower`.
+ */
+function phraseIndex(lower: string, phrase: string): number {
+    const characters = lower.matchAll(/\S/gu).toArray();
+    // One entry per UTF-16 unit, so an index into the compact text maps back to `lower`.
+    const positions = characters.flatMap(({ 0: character, index }) =>
+        Array.from({ length: character.length }, (_, offset) => index + offset),
+    );
+    const index = characters
+        .map(([character]) => character)
+        .join('')
+        .indexOf(phrase);
+    return index === -1 ? Infinity : positions[index];
+}
+
+/**
+ * The excerpt around a match in one message: around the phrase when the message holds it, otherwise around the first
+ * term, with every term highlighted.
  */
 export function snippetAround(
     role: SessionSearchSnippet['role'],
     messageText: string,
     terms: readonly string[],
+    phrase?: string,
 ): SessionSearchSnippet {
     const text = messageText.replaceAll(/\s+/gu, ' ').trim();
     const lower = text.toLowerCase();
-    const first = Math.min(
-        ...terms.map((term) => {
-            const index = lower.indexOf(term);
-            return index === -1 ? Infinity : index;
-        }),
-    );
+    const anchor = phrase === undefined ? Infinity : phraseIndex(lower, phrase);
+    const first = Number.isFinite(anchor)
+        ? anchor
+        : Math.min(
+              ...terms.map((term) => {
+                  const index = lower.indexOf(term);
+                  return index === -1 ? Infinity : index;
+              }),
+          );
     const begin = Number.isFinite(first) ? Math.max(0, first - SNIPPET_LEADING_CHARACTERS) : 0;
     const prefix = begin > 0 ? ELLIPSIS : '';
     const window = `${prefix}${text.slice(begin, begin + MAX_SNIPPET_CHARACTERS)}`;
-    const windowLower = window.toLowerCase();
-    const highlights: Array<[number, number]> = [];
+    return bounded({ role, text: window, highlights: termRanges(window, terms) });
+}
+
+/**
+ * Adds highlights for `terms` to an FTS5 snippet, whose own markers cover only the terms the full-text index matched: a
+ * short term such as a number or a single Chinese character is found by substring and would otherwise stay plain.
+ */
+export function withTermHighlights(
+    snippet: SessionSearchSnippet,
+    terms: readonly string[],
+): SessionSearchSnippet {
+    const ranges = [...snippet.highlights, ...termRanges(snippet.text, terms)].toSorted(
+        (left, right) => left[0] - right[0],
+    );
+    return { ...snippet, highlights: mergeRanges(ranges).slice(0, 32) };
+}
+
+function termRanges(text: string, terms: readonly string[]): Array<[number, number]> {
+    const lower = text.toLowerCase();
+    const ranges: Array<[number, number]> = [];
     for (const term of terms) {
         for (
-            let index = windowLower.indexOf(term);
+            let index = lower.indexOf(term);
             index !== -1;
-            index = windowLower.indexOf(term, index + term.length)
+            index = lower.indexOf(term, index + term.length)
         )
-            highlights.push([index, index + term.length]);
+            ranges.push([index, index + term.length]);
     }
-    highlights.sort((left, right) => left[0] - right[0]);
-    return bounded({ role, text: window, highlights: mergeRanges(highlights) });
+    return mergeRanges(ranges.toSorted((left, right) => left[0] - right[0]));
 }
 
 function mergeRanges(ranges: ReadonlyArray<[number, number]>): Array<[number, number]> {

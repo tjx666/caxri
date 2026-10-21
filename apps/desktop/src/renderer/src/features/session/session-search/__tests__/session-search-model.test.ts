@@ -52,6 +52,8 @@ describe('Session search model', () => {
         expect(sessionSearchFindQuery(entry, '  probe with   only 21 ')).toBe('probe with only 21');
         expect(sessionSearchFindQuery(entry, '`probe` with only')).toBe('probe with only');
         expect(sessionSearchFindQuery(entry, 'waits 21 probe')).toBe('probe');
+        // A query typed without the message's spaces finds the phrase as the message writes it.
+        expect(sessionSearchFindQuery(entry, 'only21tokens')).toBe('only 21 tokens');
         expect(sessionSearchFindQuery(base, 'probe')).toBeUndefined();
     });
 
