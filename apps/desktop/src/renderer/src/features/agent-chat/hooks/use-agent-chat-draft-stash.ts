@@ -20,10 +20,11 @@ import type { AgentChatAttachment } from '../composer-input/agent-chat-drafts';
 import { LONG_NOTICE_MS, useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
 
 /**
- * Ctrl+S stashes the composer's draft and empties it, and Ctrl+S in an empty composer brings it back, as Claude Code's
- * prompt stash does: for a long prompt that has to wait while a quick question goes first. Sending a message also
- * brings the stash back once the composer is empty again, so the set-aside prompt is ready right after the question.
- * The stash keeps the text, the caret, the attachments, and Goal mode.
+ * Ctrl+S stashes the composer's draft and empties it, Ctrl+S in an empty composer brings it back, and Ctrl+S with a
+ * draft while a stash waits swaps the two, as Claude Code's prompt stash does: for a long prompt that has to wait while
+ * a quick question goes first. Sending a message also brings the stash back once the composer is empty again, so the
+ * set-aside prompt is ready right after the question. The stash keeps the text, the caret, the attachments, and Goal
+ * mode.
  */
 export function useAgentChatDraftStash({
     attachments,
@@ -60,7 +61,7 @@ export function useAgentChatDraftStash({
         // A controlled value change leaves the caret where it was; put it back where the user stashed it.
         requestAnimationFrame(() => input?.setSelectionRange(caret, caret));
     };
-    const didHandleKey = (event: AgentChatComposerKeyEvent): boolean => {
+    const didHandleKey = (event: AgentChatComposerKeyEvent, isEditing = false): boolean => {
         const isStashKey = isAgentChatDraftStashKey({
             key: event.key,
             altKey: event.altKey,
@@ -74,14 +75,35 @@ export function useAgentChatDraftStash({
             attachmentCount: attachments.length,
             draft,
             hasStash: stash !== undefined,
+            isEditing,
         });
         switch (action) {
             case 'ignore': {
                 return false;
             }
-            case 'refuse-occupied': {
+            case 'refuse-editing': {
                 event.preventDefault();
-                notice.show(translate('agentChat.stash.occupied'));
+                notice.show(translate('agentChat.stash.editing'));
+                return true;
+            }
+            case 'swap': {
+                event.preventDefault();
+                if (!stash) return true;
+                const saved = stash;
+                store({
+                    text: draft,
+                    caret: event.currentTarget.selectionStart,
+                    attachments,
+                    isGoalMode,
+                });
+                setDraft(() => saved.text);
+                clearAttachments(attachments);
+                restoreAttachments(saved.attachments);
+                setAgentChatGoalMode(terminalId, saved.isGoalMode);
+                notice.show(translate('agentChat.stash.swapped'), LONG_NOTICE_MS);
+                const input = inputReference.current;
+                const caret = Math.min(saved.caret, saved.text.length);
+                requestAnimationFrame(() => input?.setSelectionRange(caret, caret));
                 return true;
             }
             case 'stash': {

@@ -58,20 +58,24 @@ export function isAgentChatDraftStashKey(event: {
     );
 }
 
-export type AgentChatStashAction = 'ignore' | 'refuse-occupied' | 'restore' | 'stash';
+export type AgentChatStashAction = 'ignore' | 'refuse-editing' | 'restore' | 'stash' | 'swap';
 
 /**
- * What Ctrl+S does. A draft (text beyond whitespace, or an attachment) is stashed only when no stash exists; with one
- * waiting it is refused so the earlier stash is never overwritten. A whitespace-only input (a stray Shift+Enter) counts
- * as empty, so Ctrl+S restores. With nothing to stash or restore the key is left alone.
+ * What Ctrl+S does. A draft (text beyond whitespace, or an attachment) is stashed when no stash exists; with one
+ * waiting the two trade places (`swap`), so neither is lost and the key never dead-ends. A whitespace-only input (a
+ * stray Shift+Enter) counts as empty, so Ctrl+S restores. With nothing to stash or restore the key is left alone. While
+ * an earlier message is being edited the input belongs to that edit, so the key is refused (`refuse-editing`) with a
+ * notice rather than silently ignored.
  */
 export function decideAgentChatStashAction(state: {
     attachmentCount: number;
     draft: string;
     hasStash: boolean;
+    isEditing?: boolean;
 }): AgentChatStashAction {
+    if (state.isEditing) return 'refuse-editing';
     const hasDraft = state.draft.trim() !== '' || state.attachmentCount > 0;
-    if (hasDraft) return state.hasStash ? 'refuse-occupied' : 'stash';
+    if (hasDraft) return state.hasStash ? 'swap' : 'stash';
     return state.hasStash ? 'restore' : 'ignore';
 }
 

@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
     bootstrap: undefined as unknown,
     didSelectSession: vi.fn((): Promise<boolean> => Promise.resolve(true)),
     didSendAgentChatMessage: vi.fn((): Promise<boolean> => Promise.resolve(true)),
-    findPaneTabId: vi.fn((): string | undefined => 'tab'),
     request: vi.fn((): Promise<unknown> => Promise.resolve(undefined)),
     sessionState: undefined as unknown,
 }));
@@ -29,7 +28,6 @@ vi.mock('../../../../stores/toasts', () => ({
 }));
 vi.mock('../../../../stores/workbench', () => ({ refreshWorkbench: vi.fn() }));
 vi.mock('../../../session/session-commands', () => ({ didSelectSession: mocks.didSelectSession }));
-vi.mock('../../../workbench/pane-actions', () => ({ findPaneTabId: mocks.findPaneTabId }));
 vi.mock('../../agent-chat-commands', () => ({
     didSendAgentChatMessage: mocks.didSendAgentChatMessage,
 }));
@@ -38,7 +36,7 @@ import {
     askAgentChatSideQuestion,
     convertAgentChatSideChatToSession,
     discardAgentChatSideChat,
-    discardAgentChatSideChatIfClosed,
+    discardAgentChatSideChatIfChatGone,
     retryAgentChatSideQuestion,
     useAgentChatSideChatStore,
 } from '../agent-chat-side-chat-commands';
@@ -60,7 +58,6 @@ beforeEach(() => {
     mocks.request.mockReset();
     mocks.didSelectSession.mockClear();
     mocks.didSendAgentChatMessage.mockClear();
-    mocks.findPaneTabId.mockReset().mockReturnValue('tab');
     mocks.bootstrap = bootstrap();
     mocks.sessionState = {};
 });
@@ -118,31 +115,25 @@ describe('askAgentChatSideQuestion', () => {
     });
 });
 
-describe('discardAgentChatSideChatIfClosed', () => {
+describe('discardAgentChatSideChatIfChatGone', () => {
     beforeEach(() => {
         mocks.request.mockResolvedValue({ response: 'a' });
     });
 
-    it('keeps the thread while its tab is open or its Session is not on screen', async () => {
+    it('keeps the thread when its tab closed but its Chat is still there', async () => {
         await askAgentChatSideQuestion(terminalId, 'q');
-        discardAgentChatSideChatIfClosed(terminalId);
+        discardAgentChatSideChatIfChatGone(terminalId);
         expect(thread()).toHaveLength(1);
 
-        mocks.findPaneTabId.mockReturnValue(undefined);
         mocks.bootstrap = bootstrap('other-session');
-        discardAgentChatSideChatIfClosed(terminalId);
+        discardAgentChatSideChatIfChatGone(terminalId);
         expect(thread()).toHaveLength(1);
     });
 
-    it('discards it once the tab is closed in the shown Session, or the Chat is gone', async () => {
-        await askAgentChatSideQuestion(terminalId, 'q');
-        mocks.findPaneTabId.mockReturnValue(undefined);
-        discardAgentChatSideChatIfClosed(terminalId);
-        expect(thread()).toBeUndefined();
-
+    it('discards it once the Chat is gone', async () => {
         await askAgentChatSideQuestion(terminalId, 'q');
         mocks.bootstrap = { ...bootstrap(), terminals: [] };
-        discardAgentChatSideChatIfClosed(terminalId);
+        discardAgentChatSideChatIfChatGone(terminalId);
         expect(thread()).toBeUndefined();
     });
 });

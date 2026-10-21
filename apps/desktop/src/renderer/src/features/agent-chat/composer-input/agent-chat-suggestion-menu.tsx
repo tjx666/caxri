@@ -67,7 +67,11 @@ export function AgentChatSuggestionMenu({
             <SuggestionList
                 activeIndex={commandMenu.activeIndex}
                 emptyText={t('agentChat.slash.noMatches')}
-                footer={agentChatSuggestionFooter('commands', commandMenu.suggestions.length > 0)}
+                footer={agentChatSuggestionFooter(
+                    'commands',
+                    commandMenu.suggestions.length > 0,
+                    commandMenu.matches[commandMenu.activeIndex],
+                )}
                 headingAt={(index) => {
                     const heading = agentChatMenuGroupHeading(commandMenu.matches, index);
                     if (heading === undefined) return;

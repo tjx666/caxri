@@ -1,8 +1,10 @@
 import type { AgentAction } from '@caxri/protocol';
+import { completeAgentChatAction } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import type { SuggestionKeyHint, SuggestionOption } from '../../../lib/suggestion-options';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
+import { isAgentChatGoalAction } from './agent-chat-slash-commands';
 
 export function agentChatActionSuggestion(action: AgentAction): SuggestionOption {
     return {
@@ -46,12 +48,22 @@ export function agentChatSessionSuggestions(
 }
 
 /**
+ * Whether choosing `action` from the slash menu runs it on the spot. Only a command with nothing left to type runs; a
+ * skill, a command that takes arguments, and `/goal` (which enters Goal mode) only fill the input or switch mode.
+ */
+function isAgentChatChoiceRunnable(action: AgentAction): boolean {
+    return !isAgentChatGoalAction(action) && completeAgentChatAction(action) === action.invocation;
+}
+
+/**
  * The keys a suggestion list's `meta` footer names, always ending in Escape. A list with no row to choose offers only
- * Escape, so it never promises an Enter that would send the draft instead.
+ * Escape, so it never promises an Enter that would send the draft instead. The commands list names what Enter does to
+ * the `highlighted` row: "to run" for a bare command, "to insert" for one that only fills the input.
  */
 export function agentChatSuggestionFooter(
     list: 'commands' | 'history' | 'sessions',
     hasMatches: boolean,
+    highlighted?: AgentAction,
 ): SuggestionKeyHint[] {
     const dismiss = { keys: 'Esc', action: translate('common.keyHint.dismiss') };
     if (!hasMatches) return [dismiss];
@@ -61,7 +73,14 @@ export function agentChatSuggestionFooter(
             return [
                 move,
                 { keys: 'Tab', action: translate('agentChat.slash.keyHintComplete') },
-                { keys: 'Enter', action: translate('agentChat.slash.keyHintRun') },
+                {
+                    keys: 'Enter',
+                    action: translate(
+                        highlighted && !isAgentChatChoiceRunnable(highlighted)
+                            ? 'agentChat.slash.keyHintInsert'
+                            : 'agentChat.slash.keyHintRun',
+                    ),
+                },
                 dismiss,
             ];
         }

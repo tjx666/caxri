@@ -41,17 +41,23 @@ describe('agent chat draft stash', () => {
 });
 
 describe('decideAgentChatStashAction', () => {
-    const decide = (draft: string, hasStash: boolean, attachmentCount = 0) =>
-        decideAgentChatStashAction({ attachmentCount, draft, hasStash });
+    const decide = (draft: string, hasStash: boolean, attachmentCount = 0, isEditing = false) =>
+        decideAgentChatStashAction({ attachmentCount, draft, hasStash, isEditing });
 
     it('stashes a draft when nothing is stashed', () => {
         expect(decide('hello', false)).toBe('stash');
         expect(decide('', false, 1)).toBe('stash');
     });
 
-    it('refuses to overwrite an existing stash', () => {
-        expect(decide('hello', true)).toBe('refuse-occupied');
-        expect(decide('', true, 2)).toBe('refuse-occupied');
+    it('swaps the draft with an existing stash instead of refusing', () => {
+        expect(decide('hello', true)).toBe('swap');
+        expect(decide('', true, 2)).toBe('swap');
+    });
+
+    it('refuses while an earlier message is being edited', () => {
+        expect(decide('hello', false, 0, true)).toBe('refuse-editing');
+        expect(decide('', true, 0, true)).toBe('refuse-editing');
+        expect(decide('', false, 0, true)).toBe('refuse-editing');
     });
 
     it('restores in an empty or whitespace-only input', () => {

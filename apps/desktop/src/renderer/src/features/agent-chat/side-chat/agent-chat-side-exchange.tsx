@@ -2,6 +2,7 @@ import { RotateCcw } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Spinner } from '../../../components/ui/spinner';
+import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { AgentChatMessage } from '../messages/agent-chat-message';
 import type { SideChatExchange } from './agent-chat-side-thread';
@@ -44,10 +45,20 @@ export function AgentChatSideExchange({
                     role="alert"
                 >
                     <span className="min-w-0 flex-1 wrap-anywhere">{exchange.error}</span>
-                    <Button disabled={!canRetry} size="sm" variant="secondary" onClick={onRetry}>
-                        <RotateCcw aria-hidden="true" className="size-3" />
-                        {t('agentChat.sideChat.retry')}
-                    </Button>
+                    <Tooltip content={t('agentChat.sideChat.waitForAnswer')} disabled={canRetry}>
+                        {/* aria-disabled, not disabled: a natively disabled button never opens its tooltip. */}
+                        <Button
+                            aria-disabled={!canRetry || undefined}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                if (canRetry) onRetry();
+                            }}
+                        >
+                            <RotateCcw aria-hidden="true" className="size-3" />
+                            {t('agentChat.sideChat.retry')}
+                        </Button>
+                    </Tooltip>
                 </div>
             )}
         </li>

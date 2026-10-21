@@ -25,22 +25,16 @@ function metricTooltip(metric: AgentChatTurnMetric, t: Translate): string {
 
 /**
  * What the running turn has spent so far, on the right of the composer strip: steps, tokens, and estimated cost, each
- * behind its icon and split by hairlines, with a pointer tooltip naming it. The figures tick in tabular digits so the
- * row never shifts. A narrow strip keeps only the token count. The strip is hidden from assistive technology; the Usage
- * page and the status bar carry the accessible figures.
+ * behind its icon (cost with a `$`) and split by hairlines, with a pointer tooltip naming it. The figures tick in
+ * tabular digits so the row never shifts. A narrow strip keeps only the token count. The strip is hidden from assistive
+ * technology; the Usage page and the status bar carry the accessible figures.
  */
-export function AgentChatTurnMetricList({
-    className,
-    usage,
-}: {
-    className?: string;
-    usage: AgentChatTurnUsage | undefined;
-}) {
+export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage | undefined }) {
     const { t } = useTranslation();
     const metrics = agentChatTurnMetrics(usage);
     if (metrics.length === 0) return null;
     return (
-        <span className={cn('flex shrink-0 items-center gap-2.5 text-[11px]', className)}>
+        <span className="flex shrink-0 items-center gap-2.5 text-[11px]">
             {metrics.map((metric, index) => {
                 const Icon = METRIC_ICONS[metric.kind];
                 const isNarrowHidden = metric.kind !== 'tokens';
@@ -58,7 +52,9 @@ export function AgentChatTurnMetricList({
                                 data-agent-chat-turn-metric={metric.kind}
                             >
                                 <Icon className="size-3.5 shrink-0" />
-                                <span className="truncate">{metric.value}</span>
+                                <span className="truncate">
+                                    {metric.kind === 'cost' ? `$${metric.value}` : metric.value}
+                                </span>
                             </span>
                         </Tooltip>
                     </Fragment>
