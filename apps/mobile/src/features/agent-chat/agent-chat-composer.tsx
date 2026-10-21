@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { TextInput } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { Text, View } from 'react-native';
 
 import type { AgentAction, AgentProvider } from '@caxri/protocol';
@@ -218,7 +218,7 @@ const useFocusRequest = ({
     isVisible: boolean;
     onComposerFocused?: () => void;
 }) => {
-    const inputReference = useRef<TextInput>(null);
+    const inputReference = useRef<TextInputInstance>(null);
     useEffect(() => {
         if (!focusComposer || !isVisible || !isEditable || !inputReference.current) return;
         inputReference.current.focus();

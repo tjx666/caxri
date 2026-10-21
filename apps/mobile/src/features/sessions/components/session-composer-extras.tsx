@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import type { ScrollViewInstance } from 'react-native';
 import {
     ActivityIndicator,
     Image,
@@ -87,7 +88,7 @@ export const SessionComposerAttachments = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const strip = useRef<ScrollView>(null);
+    const strip = useRef<ScrollViewInstance>(null);
     const shownCount = useRef(images.attachments.length);
     if (images.attachments.length === 0) return null;
     return (

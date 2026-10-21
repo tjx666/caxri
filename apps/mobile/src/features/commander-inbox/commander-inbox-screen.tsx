@@ -184,7 +184,7 @@ export const CommanderInboxScreen = () => {
                                     total: query.data.total,
                                 })}
                             </Text>
-                        ) : null
+                        ) : undefined
                     }
                     onRefresh={refresh}
                     refreshing={isObservable && query.isRefetching}

@@ -1,4 +1,5 @@
 import { Fragment, useRef } from 'react';
+import type { ScrollViewInstance } from 'react-native';
 import { Pressable, ScrollView, Text } from 'react-native';
 
 import type { FileEntry } from '@caxri/protocol';
@@ -26,7 +27,7 @@ export const FilesBreadcrumb = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const scroll = useRef<ScrollView>(null);
+    const scroll = useRef<ScrollViewInstance>(null);
     return (
         <ScrollView
             contentContainerStyle={styles.crumbTrail}

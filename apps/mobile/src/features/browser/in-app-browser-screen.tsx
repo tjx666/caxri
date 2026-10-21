@@ -1,6 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ComponentType } from 'react';
 import { useCallback, useRef, useState } from 'react';
+import type { HostInstance } from 'react-native';
 import { BackHandler, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WebViewNavigation } from 'react-native-webview';
@@ -101,7 +102,7 @@ export const InAppBrowserScreen = () => {
      * Remounts the WebView after Android kills its renderer, as the Terminal does.
      */
     const [generation, setGeneration] = useState(0);
-    const menuAnchor = useRef<View>(null);
+    const menuAnchor = useRef<HostInstance>(null);
     const menu = usePopoverAnchor(menuAnchor, { side: 'above' });
 
     // Android Back walks the page's history first, then closes the browser like any other screen.

@@ -462,7 +462,7 @@ export const AttentionCards = ({
                                 )}
                             </Text>
                         </Pressable>
-                    ) : null
+                    ) : undefined
                 }
                 renderItem={renderCard}
             />

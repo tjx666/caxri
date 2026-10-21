@@ -1,6 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ComponentType, ReactElement } from 'react';
 import { useCallback, useEffect, useId, useState } from 'react';
-import type { LayoutChangeEvent, StyleProp, TextStyle, ViewStyle } from 'react-native';
+import type { LayoutChangeEvent, StyleProp, TextStyle, ViewProps, ViewStyle } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
     cancelAnimation,
@@ -13,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import MaskedView from '@react-native-masked-view/masked-view';
+import MaskedViewClass from '@react-native-masked-view/masked-view';
 
 import {
     SHIMMER_GRADIENT_SCALE,
@@ -21,6 +22,16 @@ import {
     SHIMMER_SWEEP_MS,
     shimmerGradientOffset,
 } from './shimmer-text-geometry';
+
+/**
+ * The package's declaration builds its class from `ReactNative.NativeMethods`, which React Native 0.88 no longer
+ * exports, so TypeScript can no longer treat the class as a JSX component. 0.3.2 is the latest release and Expo SDK
+ * 58's pin; the runtime component is unchanged, so only its props are restated here.
+ * https://github.com/callstack/masked-view/blob/master/types/index.d.ts
+ */
+const MaskedView = MaskedViewClass as unknown as ComponentType<
+    ViewProps & { maskElement: ReactElement }
+>;
 
 interface TextSize {
     height: number;

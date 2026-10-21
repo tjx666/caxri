@@ -1,6 +1,6 @@
 # Caxri Mobile
 
-The Expo SDK 57 development client for Caxri's paired Agent Session companion.
+The Expo SDK 58 development client for Caxri's paired Agent Session companion.
 
 For Android installation, download `Caxri-Mobile-<version>-android-arm64.apk` from the
 [latest Release](https://github.com/tjx666/caxri/releases/latest). Open it on an arm64 Android phone,
@@ -61,7 +61,7 @@ JDK 17 from `JAVA_HOME` or reuses an existing Gradle-managed JDK 17; newer Andro
 JBRs are rejected because AGP 8.12's Prefab process can treat their native-access warning as a build
 failure. Install **SDK Platform** `36`, **SDK Build Tools** `35.0.0` and `36.0.0`, **CMake**
 `3.22.1`, and the exact **NDK (Side by side)** version declared by the current React Native package;
-for React Native 0.86.3 that is `27.1.12297006`. Expo's library modules use Android Gradle Plugin
+for React Native 0.88.0 that is `27.1.12297006`. Expo's library modules use Android Gradle Plugin
 8.12's `35.0.0` default while the app module explicitly uses React Native's `36.0.0`. The build
 preflight checks the complete toolchain and exits before Gradle starts when one item is missing, so
 it never downloads or changes the Android toolchain as a side effect.
@@ -78,9 +78,9 @@ toolchain, a plain semver entry resolves the package without its required `expo`
 peer context, producing a broken direct symlink even though transitive copies are valid. Remove the
 alias only after `pnpm peers check` and Expo Doctor both pass with a plain entry.
 
-`react-native-reanimated` stays at `4.5.1` while Expo 57's module core accepts
-`react-native-worklets` through `0.10.x`; this is the current compatible pair also exercised by T3
-Code Mobile. Re-run `expo install --check` before changing either version.
+`react-native-reanimated` and `react-native-worklets` stay on the exact pair Expo SDK 58 bundles
+(`4.7.1` and `0.13.0`): Expo's module core accepts only a matching worklets line. Re-run
+`expo install --check` before changing either version.
 
 ## Explicit Android device selection
 

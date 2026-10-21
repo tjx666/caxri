@@ -169,7 +169,7 @@ export const ArchivedSessionsScreen = () => {
                                 total: archived.data.total,
                             })}
                         </Text>
-                    ) : null
+                    ) : undefined
                 }
                 onRefresh={() => {
                     // eslint-disable-next-line no-void -- The query renders refresh failures.

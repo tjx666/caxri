@@ -29,6 +29,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return (
         <ConfigProvider
             config={LOBE_CONFIG}
+            // Version 6 otherwise mounts stylesheet links for its CDN web fonts and KaTeX. Caxri bundles its own
+            // fonts, and a packaged `file://` Renderer offline would log a load failure for each of them.
+            enableCustomFonts={false}
             locale={locale}
             // Required by the library for its animated components. Caxri renders none of them, so the tree-shakable
             // `m` variant is enough and keeps the full `motion` bundle out.
