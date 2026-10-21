@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import type { MethodSpec } from '../transport/method-spec.js';
-import { commandPolicy } from '../transport/method-spec.js';
+import { commandPolicy, ownerOnlyCommandPolicy } from '../transport/method-spec.js';
 import { bootstrapStateSchema } from './bootstrap.js';
 import {
     canceledResultSchema,
@@ -275,7 +275,7 @@ export const sessionMethods = {
      * this is its own command rather than a `sessionRecordSchema` field; see `permissionAutoAllowStatusSchema`.
      */
     'session.permissionAutoAllowStatus': {
-        ...commandPolicy('server', 'read', ['sessions.read']),
+        ...ownerOnlyCommandPolicy('server', 'read', ['sessions.read']),
         params: z.object({ sessionId: identifierSchema }),
         result: permissionAutoAllowStatusSchema,
     },

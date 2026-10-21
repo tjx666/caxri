@@ -16,6 +16,12 @@ export interface MethodSpec {
     owner: CommandOwner;
     effect: CommandEffect;
     requiredCapabilities: readonly Capability[];
+    /**
+     * `owner` restricts the method to the user's own clients (Desktop and the human CLI). Capabilities alone cannot
+     * express it: an Agent Endpoint grant can carry the same capability. Server Core enforces it from the spec, so a
+     * new owner-only method needs no second list.
+     */
+    principal?: 'owner';
     idempotency: CommandIdempotency;
     params: z.ZodType;
     result: z.ZodType;
@@ -33,4 +39,15 @@ export function commandPolicy<Owner extends CommandOwner, Effect extends Command
         requiredCapabilities,
         idempotency: effect === 'read' ? 'none' : 'request',
     } as const;
+}
+
+/**
+ * A `commandPolicy` that only the owner's own clients (Desktop, human CLI) may call; see `MethodSpec.principal`.
+ */
+export function ownerOnlyCommandPolicy<Owner extends CommandOwner, Effect extends CommandEffect>(
+    owner: Owner,
+    effect: Effect,
+    requiredCapabilities: readonly Capability[] = ['desktop'],
+) {
+    return { ...commandPolicy(owner, effect, requiredCapabilities), principal: 'owner' } as const;
 }

@@ -1,5 +1,5 @@
 import type { CommandExecutionContext } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, getMethodSpec } from '@caxri/protocol';
 
 export const projectScope = (context: CommandExecutionContext): string[] | null => {
     switch (context.principal.kind) {
@@ -20,18 +20,12 @@ export const assertProjectScope = (context: CommandExecutionContext, projectId: 
 };
 
 /**
- * Commander hand-over is the user's action, and it spans Projects by design (a conversation import can even add one).
- * An `agent:control` grant gives an Agent Endpoint `agents.control`, so the capability alone cannot keep a granted
- * Agent from handing over or taking back Sessions in other Projects; only the owner's own clients may call these.
+ * Refuses a method whose spec declares `principal: 'owner'` for every principal except the user's own clients (Desktop,
+ * human CLI). Capabilities cannot do this: an `agent:control` grant gives an Agent Endpoint the same ones. The spec is
+ * the only source, so a new owner-only method cannot be left open by a forgotten list.
  */
-const ownerOnlyCommanderMethods: ReadonlySet<string> = new Set([
-    'commander.conversations',
-    'commander.session.handOver',
-    'commander.session.takeBack',
-]);
-
-export const assertOwnerHandover = (context: CommandExecutionContext, method: string): void => {
-    if (!ownerOnlyCommanderMethods.has(method)) return;
+export const assertOwnerOnlyMethod = (context: CommandExecutionContext, method: string): void => {
+    if (getMethodSpec(method)?.principal !== 'owner') return;
     if (context.principal.kind === 'desktop' || context.principal.kind === 'human-cli') return;
-    throw new CaxriError('FORBIDDEN', 'Only the owner can hand Sessions to the Commander');
+    throw new CaxriError('FORBIDDEN', 'This method is restricted to the owner');
 };

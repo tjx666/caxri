@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import type { MethodSpec } from '../transport/method-spec.js';
-import { commandPolicy } from '../transport/method-spec.js';
+import { ownerOnlyCommandPolicy } from '../transport/method-spec.js';
 import { delegationProviderSchema } from './agent-delegation-settings.js';
 
 /**
@@ -220,8 +220,9 @@ export type CommanderConversationReference = z.infer<typeof commanderConversatio
 
 /**
  * Hand-over requests are the user's, never an Agent's. `agents.control` alone is not enough: an `agent:control` grant
- * also gives it to an Agent Endpoint, so Server Core refuses these methods for every principal other than the Desktop
- * and the human CLI owner. The Commander can never take a Session the user did not give it.
+ * also gives it to an Agent Endpoint, so these methods declare `principal: 'owner'` and Server Core refuses them for
+ * every principal other than the Desktop and the human CLI. The Commander can never take a Session the user did not
+ * give it.
  */
 export const commanderHandoverMethods = {
     /**
@@ -230,7 +231,7 @@ export const commanderHandoverMethods = {
      * Project contains it.
      */
     'commander.session.handOver': {
-        ...commandPolicy('server', 'control', ['agents.control']),
+        ...ownerOnlyCommandPolicy('server', 'control', ['agents.control']),
         params: commanderHandoverRequestSchema,
         result: commanderHandoverResultSchema,
     },
@@ -239,7 +240,7 @@ export const commanderHandoverMethods = {
      * the Commander only loses the right to start or continue work there.
      */
     'commander.session.takeBack': {
-        ...commandPolicy('server', 'control', ['agents.control']),
+        ...ownerOnlyCommandPolicy('server', 'control', ['agents.control']),
         params: z.strictObject({ sessionId: identifierSchema }),
         result: z.strictObject({
             sessionId: identifierSchema,
@@ -248,10 +249,10 @@ export const commanderHandoverMethods = {
     },
     /**
      * The Sessions the Commander manages, for the Workbench's Commander marker and menu, with the recent take-backs
-     * typing caused. IDs and timestamps only.
+     * typing caused. IDs and timestamps only. Owner-only: it spans every Project and has no Agent consumer.
      */
     'commander.managedSessions': {
-        ...commandPolicy('server', 'read', ['agents.read']),
+        ...ownerOnlyCommandPolicy('server', 'read', ['agents.read']),
         params: z.object({}).default({}),
         result: commanderManagedSessionsSchema,
     },
@@ -259,7 +260,7 @@ export const commanderHandoverMethods = {
      * Agent conversations found in the providers' own history that no Caxri Terminal is bound to, newest first.
      */
     'commander.conversations': {
-        ...commandPolicy('server', 'read', ['agents.control']),
+        ...ownerOnlyCommandPolicy('server', 'read', ['agents.control']),
         params: z.object({}).default({}),
         result: z.strictObject({
             conversations: z.array(commanderConversationSchema).max(MAX_COMMANDER_CONVERSATIONS),
