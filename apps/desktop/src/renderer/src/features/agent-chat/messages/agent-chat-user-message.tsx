@@ -26,8 +26,8 @@ import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatUserMessageActions } from './agent-chat-user-message-actions';
 import {
+    agentChatFirstImageNumber,
     agentChatUserMessageSegments,
-    hasAgentChatImagePlaceholders,
 } from './agent-chat-user-message-text';
 
 /**
@@ -44,7 +44,7 @@ import {
  * conversation, as Claude Code's `/rewind` "Restore code" does. A right-click offers the same actions in a native menu
  * (`agentChatUserMessageMenu`), so they are reachable without finding the hover row; a message read back from history
  * lists Edit and Fork there disabled with why. Files and folders the message cites (`agentChatTextWithPathReferences`)
- * show as chips under its images rather than as the reference block the provider received; clicking one shows it in
+ * show as chips above its bubble rather than as the reference block the provider received; clicking one shows it in
  * Finder.
  */
 export function AgentChatUserMessage({
@@ -113,21 +113,16 @@ export function AgentChatUserMessage({
             ref={container}
             onContextMenu={menu.onContextMenu}
         >
-            {images && images.length > 0 && (
-                <AgentChatMessageImages
-                    className="max-w-[85%]"
-                    images={images}
-                    isNumbered={hasAgentChatImagePlaceholders(words, images.length)}
-                    message={terminalId === undefined ? undefined : { terminalId, itemId: id }}
-                />
-            )}
             <AgentChatPathReferenceChips references={references} skills={skills} />
             {delegatedTask ? (
                 <AgentChatDelegatedTaskBubble task={delegatedTask} text={text} />
             ) : (
-                words && (
+                (words || (images && images.length > 0)) && (
                     <AgentChatUserMessageBubble
                         images={images}
+                        imageRecord={
+                            terminalId === undefined ? undefined : { terminalId, itemId: id }
+                        }
                         isEditing={isEditing}
                         text={words}
                         onOpenFile={onOpenFile}
@@ -140,20 +135,26 @@ export function AgentChatUserMessage({
 }
 
 /**
- * The message bubble, shared with a message still on its way (`AgentChatPendingTimeline`). A long message clamps to
- * twelve lines with Show more; the message being edited keeps a `--muted` outline, which marks it without competing
- * with the edit banner's accent for attention.
+ * The message bubble, shared with a message still on its way (`AgentChatPendingTimeline`): the text, then the images it
+ * carried, in one bubble as LobeHub's chat lays a message out. A long message clamps to twelve lines with Show more
+ * (the images stay visible under it); the message being edited keeps a `--muted` outline, which marks it without
+ * competing with the edit banner's accent for attention.
  */
 export function AgentChatUserMessageBubble({
     images,
+    imageRecord,
     isEditing,
     text,
     onOpenFile,
 }: {
     /**
-     * The message's images, which its `[Image #N]` placeholders show as pills.
+     * The message's images, shown under its text; its `[Image #N]` placeholders show them as pills.
      */
     images?: ReadonlyArray<{ thumbnail?: string }>;
+    /**
+     * Where the sent message lives, so an image without a thumbnail is read back from the provider's record.
+     */
+    imageRecord?: { terminalId: string; itemId: string };
     isEditing: boolean;
     text: string;
     onOpenFile?: (target: string) => void;
@@ -169,21 +170,24 @@ export function AgentChatUserMessageBubble({
                 'max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground select-text',
                 isEditing && 'outline outline-1 outline-muted',
             )}
+            data-agent-chat-user-bubble=""
         >
-            <div className={cn(!isExpanded && 'line-clamp-12')} ref={textReference}>
-                {invocation ? (
-                    <>
-                        <AgentChatInvocationChip invocation={invocation.invocation} />
-                        <UserMessageText
-                            images={images}
-                            text={invocation.rest}
-                            onOpenFile={onOpenFile}
-                        />
-                    </>
-                ) : (
-                    <UserMessageText images={images} text={text} onOpenFile={onOpenFile} />
-                )}
-            </div>
+            {text && (
+                <div className={cn(!isExpanded && 'line-clamp-12')} ref={textReference}>
+                    {invocation ? (
+                        <>
+                            <AgentChatInvocationChip invocation={invocation.invocation} />
+                            <UserMessageText
+                                images={images}
+                                text={invocation.rest}
+                                onOpenFile={onOpenFile}
+                            />
+                        </>
+                    ) : (
+                        <UserMessageText images={images} text={text} onOpenFile={onOpenFile} />
+                    )}
+                </div>
+            )}
             {isCut && (
                 <button
                     aria-expanded={isExpanded}
@@ -193,6 +197,14 @@ export function AgentChatUserMessageBubble({
                 >
                     {t(isExpanded ? 'agentChat.message.showLess' : 'agentChat.message.showMore')}
                 </button>
+            )}
+            {images && images.length > 0 && (
+                <AgentChatMessageImages
+                    className={cn(text && 'mt-2')}
+                    firstNumber={agentChatFirstImageNumber(text, images.length)}
+                    images={images}
+                    message={imageRecord}
+                />
             )}
         </div>
     );
@@ -226,7 +238,7 @@ function UserMessageText({
                 <AgentChatImagePill
                     key={position}
                     number={segment.number}
-                    thumbnail={images?.[segment.number - 1]?.thumbnail}
+                    thumbnail={images?.[segment.index]?.thumbnail}
                 />
             );
         if (segment.kind === 'file')

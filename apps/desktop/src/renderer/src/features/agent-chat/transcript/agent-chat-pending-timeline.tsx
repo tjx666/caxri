@@ -1,11 +1,9 @@
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import { AgentChatMessageImages } from '../attachments/agent-chat-message-images';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
 import type { useAgentChatPending } from '../hooks/use-agent-chat-pending';
 import { AgentChatUserMessageBubble } from '../messages/agent-chat-user-message';
-import { hasAgentChatImagePlaceholders } from '../messages/agent-chat-user-message-text';
 import { AgentChatAskingQuestions } from './agent-chat-answered-questions';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
@@ -29,15 +27,8 @@ function AgentChatPendingUserMessage({
             className="flex flex-col items-end gap-1.5 opacity-60"
             data-agent-chat-pending=""
         >
-            {message.images.length > 0 && (
-                <AgentChatMessageImages
-                    className="max-w-[85%]"
-                    images={message.images}
-                    isNumbered={hasAgentChatImagePlaceholders(text, message.images.length)}
-                />
-            )}
             <AgentChatPathReferenceChips references={references} skills={skills} />
-            {text && (
+            {(text || message.images.length > 0) && (
                 <AgentChatUserMessageBubble
                     images={message.images}
                     isEditing={false}

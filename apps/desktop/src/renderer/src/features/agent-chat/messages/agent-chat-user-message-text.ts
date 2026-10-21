@@ -7,28 +7,49 @@ import { agentChatImageTokenRanges } from '@caxri/protocol';
  */
 export type AgentChatUserMessageSegment =
     | { kind: 'text'; text: string }
-    | { kind: 'image'; text: string; number: number }
+    | { kind: 'image'; text: string; number: number; index: number }
     | { kind: 'file'; text: string; file: string }
     | { kind: 'url'; text: string; url: string };
 
 /**
+ * The number the message's first image goes by in its `[Image #N]` placeholders, or `undefined` when the text places
+ * none of its `imageCount` images. Caxri numbers each message's images from 1, as Codex and Orca do, but the Claude
+ * Code CLI keeps counting across the conversation, so a conversation started there can send one image as `[Image #3]`;
+ * the lowest placeholder then names the first image.
+ */
+export function agentChatFirstImageNumber(text: string, imageCount: number): number | undefined {
+    if (imageCount === 0) return undefined;
+    const numbers = agentChatImageTokenRanges(text).map(({ number }) => number);
+    if (numbers.length === 0) return undefined;
+    if (numbers.some((number) => number <= imageCount)) return 1;
+    return Math.min(...numbers);
+}
+
+/**
  * Splits a user's message into its text, the paths they typed or dropped in, and the URLs they pasted, in order. File
  * paths are found only when the Chat can open them. Where a path and a URL overlap (`https://a.dev/x.ts`), the run that
- * starts first wins, which is always the URL. A placeholder is an image only when the message has that many images
- * (`imageCount`); otherwise it is what the user typed.
+ * starts first wins, which is always the URL. A placeholder is an image only when it names one of the message's
+ * `imageCount` images (see `agentChatFirstImageNumber`); otherwise it is what the user typed. An image segment's
+ * `index` is its image's place in the message.
  */
 export function agentChatUserMessageSegments(
     text: string,
     options: { withFiles: boolean; imageCount?: number },
 ): AgentChatUserMessageSegment[] {
     const imageCount = options.imageCount ?? 0;
+    const first = agentChatFirstImageNumber(text, imageCount) ?? 1;
     const runs = [
         ...agentChatImageTokenRanges(text).flatMap(({ from, number, to }) =>
-            number <= imageCount
+            number >= first && number - first < imageCount
                 ? [
                       {
                           index: from,
-                          segment: { kind: 'image', text: text.slice(from, to), number } as const,
+                          segment: {
+                              kind: 'image',
+                              text: text.slice(from, to),
+                              number,
+                              index: number - first,
+                          } as const,
                       },
                   ]
                 : [],
@@ -52,11 +73,4 @@ export function agentChatUserMessageSegments(
     }
     if (offset < text.length) segments.push({ kind: 'text', text: text.slice(offset) });
     return segments;
-}
-
-/**
- * Whether `text` places any of its `imageCount` images with a placeholder, so their tiles wear the numbers it uses.
- */
-export function hasAgentChatImagePlaceholders(text: string, imageCount: number): boolean {
-    return agentChatImageTokenRanges(text).some(({ number }) => number <= imageCount);
 }
