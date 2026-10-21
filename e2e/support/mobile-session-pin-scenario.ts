@@ -41,7 +41,7 @@ export async function executeMobileSessionPinScenario(
         await tapMobileCheckByBounds(serial, 'session-action-pin');
         await waitForNoCheck(serial, 'session-actions-sheet');
         await waitForCheck(serial, 'session-group-pinned');
-        await waitForCheck(serial, 'session-group-attention');
+        await waitForNoCheck(serial, 'session-group-attention');
         await capture(environment, 'pinned', artifacts);
         await waitForMobile(
             () => pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap'),

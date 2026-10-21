@@ -100,6 +100,12 @@ describe('mobile pull request merge model', () => {
             'Some checks did not pass',
         );
         expect(pullRequestChecksSummary(pr({ checkCount: 0 }), translate)).toBeUndefined();
+        expect(
+            pullRequestChecksSummary({ ...failing, lifecycle: 'merged' }, translate),
+        ).toBeUndefined();
+        expect(
+            pullRequestChecksSummary({ ...failing, lifecycle: 'closed' }, translate),
+        ).toBeUndefined();
     });
 
     it("explains a refused merge, keeping GitHub's own reason", () => {

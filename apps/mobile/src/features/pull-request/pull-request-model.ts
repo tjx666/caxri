@@ -118,10 +118,6 @@ export function pullRequestReadiness(pullRequest: MobilePullRequest, t: Translat
 }
 
 /**
- * The checks line: `3 of 9 checks failed: lint, e2e, docs, and 1 more`, `9 checks passed`, `Checks running`, or nothing
- * when the pull request has no checks. Names come from the rollup after ignored checks were filtered out.
- */
-/**
  * The sentence saying what the merge will do, as Desktop's Status merge button says it: the method Server Core reported
  * for this repository and the branch it merges into, plus why when it is not squash (the first choice). Without a
  * reported method it states the selection order instead.
@@ -140,12 +136,18 @@ export function pullRequestMergeMethodNote(
     return `${sentence} ${t(mergeMethod === 'merge' ? 'pullRequest.method.noSquash' : 'pullRequest.method.noSquashOrMerge')}`;
 }
 
+/**
+ * The checks line: `3 of 9 checks failed: lint, e2e, docs, and 1 more`, `9 checks passed`, `Checks running`, or nothing
+ * when the pull request has no checks. Names come from the rollup after ignored checks were filtered out. A merged or
+ * closed pull request shows none: its checks no longer gate anything, and `Merged` above `2 of 4 checks failed` reads
+ * as a contradiction.
+ */
 export function pullRequestChecksSummary(
     pullRequest: MobilePullRequest,
     t: Translate,
 ): string | undefined {
-    const { checkCount, failedCheckCount, failedChecks } = pullRequest;
-    if (checkCount === 0) return undefined;
+    const { checkCount, failedCheckCount, failedChecks, lifecycle } = pullRequest;
+    if (checkCount === 0 || lifecycle === 'merged' || lifecycle === 'closed') return undefined;
     if (failedCheckCount > 0) {
         const rest = failedCheckCount - failedChecks.length;
         const names =
