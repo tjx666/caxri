@@ -507,7 +507,7 @@ export const settingsSpec = [
         key: 'projectStatus.autoArchiveOnPullRequestSettled',
         title: 'Auto-archive after pull request merge or close',
         description:
-            'Archives a Session once its pull request is merged or closed and its Agent is idle. A running Agent is never archived, and nothing is deleted: find the Session under Archived Sessions to restore it.',
+            'Archives a Session once its pull request is merged or closed and its Agent is idle. A running Agent, or one with a background shell or subagent still running, is never archived, and nothing is deleted: find the Session under Archived Sessions to restore it.',
         category: 'projectStatus',
         keywords: ['archive', 'merge', 'close', 'pull request', 'pr', 'session', 'automatic'],
         default: true,

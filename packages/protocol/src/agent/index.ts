@@ -33,6 +33,7 @@ export * from './agent-chat-trackers.js';
 export * from './agent-chat-turn-artifacts.js';
 export * from './agent-chat-turn-fold.js';
 export * from './agent-chat-usage.js';
+export * from './agent-chat-waiting-contract.js';
 export * from './agent-chat-work.js';
 export * from './agent-chat-work-output.js';
 export * from './agent-commander-contract.js';

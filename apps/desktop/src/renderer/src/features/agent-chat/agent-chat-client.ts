@@ -17,6 +17,10 @@ import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
 import { subscribeAgentChatCacheRetention } from './agent-chat-cache-retention';
 import { subscribeAgentChatHistoryRetention } from './transcript/agent-chat-history-client';
+import {
+    invalidateAgentChatWaiting,
+    isAgentChatWaitingPatch,
+} from './waiting/agent-chat-waiting-client';
 
 function agentChatQueryKey(terminalId: string) {
     return caxriQueryKey('agentChat.read', { terminalId });
@@ -231,6 +235,7 @@ export function subscribeAgentChatPatches(queryClient: QueryClient): () => void 
         switch (event.event) {
             case 'agentChat.patch': {
                 cache.apply(event.payload);
+                if (isAgentChatWaitingPatch(event.payload)) invalidateAgentChatWaiting(queryClient);
                 break;
             }
             case 'agentChat.taskPatch': {
@@ -241,6 +246,7 @@ export function subscribeAgentChatPatches(queryClient: QueryClient): () => void 
                 cache.resync();
                 taskCache.resync();
                 invalidateAgentChatQueries(queryClient);
+                invalidateAgentChatWaiting(queryClient);
                 break;
             }
             default: {

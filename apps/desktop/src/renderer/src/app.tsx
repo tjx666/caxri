@@ -8,6 +8,7 @@ import { useCommandShortcuts } from './commands/use-command-shortcuts';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
 import { subscribeAgentChatPatches } from './features/agent-chat/agent-chat-client';
+import { AgentChatWaitingPopup } from './features/agent-chat/waiting/agent-chat-waiting-popup';
 import { CommanderHandoverDialog } from './features/agent-commander/commander-handover-dialog';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-approval-store';
@@ -301,6 +302,7 @@ export function App() {
                     <ConnectSshHostDialog />
                     <SshHostFolderPickerDialog />
                     <ConfirmationDialog />
+                    <AgentChatWaitingPopup />
                     <ToastOutlet />
                     <WindowZoomHud />
                     <ScreencastOverlay />

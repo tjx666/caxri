@@ -72,6 +72,10 @@ export const agentChatRequestSchema = z.discriminatedUnion('kind', [
                         )
                         .max(20),
                     allowsOther: z.boolean(),
+                    /**
+                     * The user may pick several options; the answer lists every one. Absent means one option.
+                     */
+                    multiSelect: z.boolean().optional(),
                 }),
             )
             .max(MAX_AGENT_CHAT_QUESTIONS),

@@ -312,6 +312,7 @@ export function mapClaudeQuestion(
                     ),
                     // Claude Code always lets the user type their own answer.
                     allowsOther: true,
+                    ...(question.multiSelect === true && { multiSelect: true }),
                 },
             ];
         }),

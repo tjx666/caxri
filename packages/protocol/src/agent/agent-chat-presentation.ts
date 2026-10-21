@@ -118,22 +118,28 @@ export function agentChatQuestionOption(label: string): { isRecommended: boolean
 }
 
 /**
- * Builds the `answers` response for a question request. A typed "Other" answer replaces the chosen option for its
- * question; an unanswered question is omitted (the provider decides how to treat it), and `isComplete` tells the card
- * whether every question has an answer yet. Only the request's own questions are read, so a stale selection for a
- * question the request no longer asks never reaches the provider.
+ * Builds the `answers` response for a question request. A typed "Other" answer replaces the chosen option for a
+ * one-option question and joins the chosen options of a `multiSelect` one; an unanswered question is omitted (the
+ * provider decides how to treat it), and `isComplete` tells the card whether every question has an answer yet. Only the
+ * request's own questions are read, so a stale selection for a question the request no longer asks never reaches the
+ * provider.
  */
 export function agentChatQuestionAnswers(
     request: Extract<AgentChatRequest, { kind: 'question' }>,
-    selected: Readonly<Record<string, string | undefined>>,
+    selected: Readonly<Record<string, string | readonly string[] | undefined>>,
     other: Readonly<Record<string, string | undefined>>,
 ): { answers: Record<string, string[]>; isComplete: boolean } {
     const answers: Record<string, string[]> = {};
     for (const question of request.questions) {
         const typed = other[question.id]?.trim();
         const chosen = selected[question.id];
-        if (typed) answers[question.id] = [typed];
-        else if (chosen) answers[question.id] = [chosen];
+        const picked = typeof chosen === 'string' ? [chosen] : [...(chosen ?? [])];
+        const answer = question.multiSelect
+            ? [...picked, ...(typed ? [typed] : [])]
+            : typed
+              ? [typed]
+              : picked.slice(0, 1);
+        if (answer.length > 0) answers[question.id] = answer;
     }
     return {
         answers,
@@ -157,6 +163,29 @@ export function agentChatQuestionDefaults(
         if (recommended) selected[question.id] = recommended.label;
     }
     return selected;
+}
+
+/**
+ * The ticked options a `multiSelect` question starts with: its recommended option, for the same reason
+ * {@link agentChatQuestionDefaults} preselects one. Questions taking one option are left out.
+ */
+export function agentChatQuestionMultiDefaults(
+    request: Extract<AgentChatRequest, { kind: 'question' }>,
+): Record<string, string[]> {
+    const defaults = agentChatQuestionDefaults(request);
+    const picked: Record<string, string[]> = {};
+    for (const question of request.questions) {
+        const recommended = defaults[question.id];
+        if (recommended && question.multiSelect) picked[question.id] = [recommended];
+    }
+    return picked;
+}
+
+/**
+ * Ticks or unticks one option of a `multiSelect` question, keeping the rest in the order they were ticked.
+ */
+export function toggleAgentChatQuestionOption(picked: readonly string[], label: string): string[] {
+    return picked.includes(label) ? picked.filter((each) => each !== label) : [...picked, label];
 }
 
 /**

@@ -410,7 +410,11 @@ export const agentChatMethods = {
                 z.strictObject({ kind: z.literal('decision'), decision: agentChatDecisionSchema }),
                 z.strictObject({
                     kind: z.literal('answers'),
-                    answers: z.record(z.string().max(200), z.array(z.string().max(2_000)).max(10)),
+                    /**
+                     * Question id to its answer. A `multiSelect` question may carry every one of its (at most 20)
+                     * options plus a typed answer.
+                     */
+                    answers: z.record(z.string().max(200), z.array(z.string().max(2_000)).max(21)),
                 }),
             ]),
         }),

@@ -6,6 +6,7 @@ import {
     questionFormPrimaryAction,
     questionOptionIndexForArrow,
     questionOptionIndexForKey,
+    questionPanelKeyAction,
 } from '../agent-chat-question-flow';
 
 describe('questionOptionIndexForKey', () => {
@@ -78,5 +79,26 @@ describe('questionCardHeadings', () => {
             title: 'Codex has a question',
             questionHeader: undefined,
         });
+    });
+});
+
+describe('questionPanelKeyAction', () => {
+    const single = { cursor: 0, isIgnored: false, isMulti: false, optionCount: 2 };
+    const multi = { ...single, isMulti: true };
+
+    it('picks with a digit, reaches the typed row past the last option, and moves with arrows', () => {
+        expect(questionPanelKeyAction('2', single)).toEqual({ kind: 'pick', index: 1 });
+        expect(questionPanelKeyAction('3', single)).toEqual({ kind: 'typed' });
+        expect(questionPanelKeyAction('ArrowDown', single)).toEqual({ kind: 'move', index: 1 });
+        expect(questionPanelKeyAction('x', single)).toBeUndefined();
+    });
+
+    it('moves on with Enter only in a multiSelect question, whose rows are checkboxes', () => {
+        expect(questionPanelKeyAction('Enter', multi)).toEqual({ kind: 'advance' });
+        expect(questionPanelKeyAction('Enter', single)).toBeUndefined();
+    });
+
+    it('leaves modified keys and typing in the free-text input alone', () => {
+        expect(questionPanelKeyAction('1', { ...single, isIgnored: true })).toBeUndefined();
     });
 });

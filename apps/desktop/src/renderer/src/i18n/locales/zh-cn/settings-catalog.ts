@@ -282,7 +282,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.projectStatus.autoArchiveOnPullRequestSettled.title': '拉取请求合并或关闭后自动归档',
     'settings.projectStatus.autoArchiveOnPullRequestSettled.description':
-        '会话的拉取请求合并或关闭、且 Agent 空闲后自动归档该会话。运行中的 Agent 永远不会被归档，也不会删除任何内容；可在已归档会话中找回。',
+        '会话的拉取请求合并或关闭、且 Agent 空闲后自动归档该会话。运行中的 Agent，或仍有后台 shell、subagent 在运行的会话，都不会被归档，也不会删除任何内容；可在已归档会话中找回。',
 
     'settings.projectStatus.notifications.enabled.title': '交付失败通知',
     'settings.projectStatus.notifications.enabled.description':

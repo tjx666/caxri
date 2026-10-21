@@ -77,3 +77,34 @@ export function questionCardHeadings(
         ? { title, questionHeader: header }
         : { title: `${title} · ${header}`, questionHeader: undefined };
 }
+
+/**
+ * What a key pressed in a question's panel does: `pick` the option a digit names (tick it on a `multiSelect` question,
+ * answer with it otherwise), `typed` for the digit just past the last option (the free-text row), `move` to the row an
+ * arrow reaches, or `advance` on Enter in a `multiSelect` question, whose rows are checkboxes rather than answers.
+ * `cursor` is the selected option of a single-choice question or the focused row of a `multiSelect` one. A key with a
+ * modifier, or one typed in the free-text input, does nothing here.
+ */
+export type QuestionPanelKeyAction =
+    | { kind: 'advance' }
+    | { kind: 'move'; index: number }
+    | { kind: 'pick'; index: number }
+    | { kind: 'typed' };
+
+export function questionPanelKeyAction(
+    key: string,
+    {
+        cursor,
+        isIgnored,
+        isMulti,
+        optionCount,
+    }: { cursor: number; isIgnored: boolean; isMulti: boolean; optionCount: number },
+): QuestionPanelKeyAction | undefined {
+    if (isIgnored) return undefined;
+    if (isMulti && key === 'Enter') return { kind: 'advance' };
+    const picked = questionOptionIndexForKey(key, optionCount + 1);
+    if (picked !== undefined)
+        return picked < optionCount ? { kind: 'pick', index: picked } : { kind: 'typed' };
+    const next = questionOptionIndexForArrow(key, cursor, optionCount);
+    return next === undefined ? undefined : { kind: 'move', index: next };
+}

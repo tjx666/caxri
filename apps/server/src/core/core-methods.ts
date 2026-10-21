@@ -14,6 +14,7 @@ export const coreForwardedMethods = [
     'agentChat.configure',
     'agentChat.fork',
     'agentChat.interrupt',
+    'agentChat.pendingRequests',
     'agentChat.previewRestoreFiles',
     'agentChat.read',
     'agentChat.readContext',

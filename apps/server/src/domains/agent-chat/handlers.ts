@@ -1,6 +1,7 @@
 import type { DomainHandlers } from '../domain-services';
 import type { createSessionCreator } from '../session';
 import { readChatImage } from './chat-images';
+import { readWaitingChats } from './chat-waiting';
 import type { AgentChatService } from './service';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -23,6 +24,7 @@ export function createAgentChatHandlers(
     | 'agentChat.configure'
     | 'agentChat.fork'
     | 'agentChat.interrupt'
+    | 'agentChat.pendingRequests'
     | 'agentChat.previewRestoreFiles'
     | 'agentChat.read'
     | 'agentChat.readContext'
@@ -46,6 +48,19 @@ export function createAgentChatHandlers(
         'agentChat.askSideQuestion': ({ terminalId, question, history }) =>
             agentChat.askSideQuestion(terminalId, question, history),
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
+        'agentChat.pendingRequests': () => ({
+            chats: readWaitingChats(
+                Array.from(agentChat.states.terminalIds(), (terminalId) => {
+                    const state = agentChat.states.get(terminalId)!;
+                    return {
+                        terminalId,
+                        snapshot: state.projection.snapshot,
+                        isOpen: state.session?.isOpen === true,
+                    };
+                }),
+                (terminalId) => records.database.getTerminal(terminalId)?.sessionId,
+            ),
+        }),
         'agentChat.send': async ({ terminalId, text, images, delivery }) => {
             await agentChat.send(terminalId, { text, ...(images && { images }) }, delivery);
             return null;

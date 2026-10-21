@@ -11,6 +11,7 @@ import { useColorizedCode } from '../../../components/markdown/use-colorized-cod
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
+import { cn } from '../../../lib/utilities';
 import { answerAgentChatRequest } from '../agent-chat-commands';
 import {
     AGENT_CHAT_APPROVAL_ATTRIBUTE,
@@ -53,6 +54,104 @@ function ApprovalToolSummary({ name, summary }: { name: string; summary: string 
 }
 
 /**
+ * An approval's body: what it would act on and the decision buttons.
+ */
+function ApprovalBody({
+    choices,
+    isAnswering,
+    linkedItem,
+    projectRoot,
+    request,
+    respond,
+    title,
+}: {
+    choices: ReturnType<typeof agentChatApprovalChoices>;
+    isAnswering: boolean;
+    linkedItem: AgentChatItem | undefined;
+    projectRoot: string | undefined;
+    request: Exclude<AgentChatRequest, { kind: 'question' }>;
+    respond: (response: AgentChatResponse) => void;
+    title: string;
+}) {
+    const { t } = useTranslation();
+    const cwd =
+        request.kind === 'command' ? agentChatCommandCwd(request.cwd, projectRoot) : undefined;
+    const command = request.kind === 'command' ? request.command : undefined;
+    // Painted with the editor's colors like the command on a work row, so the approval reads the same as the run.
+    const { html: commandHtml } = useColorizedCode(command ?? '', 'shell', Boolean(command));
+    return (
+        <>
+            <h3 className="m-0 text-[12px] font-semibold text-foreground">{title}</h3>
+            {request.kind === 'tool' && request.summary && (
+                <ApprovalToolSummary name={request.name} summary={request.summary} />
+            )}
+            {command && (
+                <pre className={APPROVAL_PRE_CLASS_NAME}>
+                    {commandHtml ? (
+                        /**
+                         * Monaco's colorizer escapes the source and wraps it only in its own color-class spans;
+                         * `colorizeCode` rejects any other markup shape before it reaches here.
+                         */
+                        <code dangerouslySetInnerHTML={{ __html: commandHtml }} />
+                    ) : (
+                        <code>{command}</code>
+                    )}
+                </pre>
+            )}
+            {cwd && (
+                <p className="m-0 font-mono text-[11px] wrap-anywhere text-muted">
+                    {t('agentChat.request.cwd', { cwd })}
+                </p>
+            )}
+            {request.kind === 'fileChange' && <ApprovalFiles item={linkedItem} />}
+            {request.reason && <p className="m-0 text-muted">{request.reason}</p>}
+            <div className="flex flex-wrap gap-2">
+                {choices.map(({ decision, label }) => {
+                    const button = (
+                        <Button
+                            aria-keyshortcuts={
+                                decision === 'accept'
+                                    ? 'Meta+Enter'
+                                    : decision === 'decline'
+                                      ? 'Meta+Backspace'
+                                      : undefined
+                            }
+                            disabled={isAnswering}
+                            key={decision}
+                            size="sm"
+                            variant={
+                                decision === 'accept'
+                                    ? 'default'
+                                    : decision === 'decline'
+                                      ? 'ghost'
+                                      : 'secondary'
+                            }
+                            onClick={() => respond({ kind: 'decision', decision })}
+                        >
+                            {label}
+                        </Button>
+                    );
+                    if (decision === 'acceptForSession') return button;
+                    return (
+                        <Tooltip
+                            content={label}
+                            key={decision}
+                            shortcut={
+                                decision === 'accept'
+                                    ? AGENT_CHAT_APPROVE_SHORTCUT
+                                    : AGENT_CHAT_DENY_SHORTCUT
+                            }
+                        >
+                            {button}
+                        </Tooltip>
+                    );
+                })}
+            </div>
+        </>
+    );
+}
+
+/**
  * A pending approval or question. It sits above the composer rather than in the timeline so the turn that waits on it
  * can never scroll it out of view. Answering takes it away at once (`answerAgentChatRequest`), and a failed answer
  * brings it back; its controls go inert on the first answer, so a double click cannot answer twice. The first approval
@@ -60,6 +159,8 @@ function ApprovalToolSummary({ name, summary }: { name: string; summary: string 
  * its buttons' tooltips say so.
  */
 export function AgentChatRequestCard({
+    isFramed = true,
+    isPointerSelect = false,
     linkedItem,
     onAnswered,
     projectRoot,
@@ -67,6 +168,15 @@ export function AgentChatRequestCard({
     request,
     terminalId,
 }: {
+    /**
+     * A click on a question's option only selects it (see `AgentChatQuestionForm`).
+     */
+    isPointerSelect?: boolean;
+    /**
+     * Draws the card's own warning frame; off where a surrounding surface (the waiting popup) already frames it, so the
+     * request does not read as a card nested in a card.
+     */
+    isFramed?: boolean;
     /**
      * Timeline item the request gates, when the provider linked one.
      */
@@ -104,97 +214,37 @@ export function AgentChatRequestCard({
                 respond({ kind: 'decision', decision });
         },
     });
-    const cwd =
-        request.kind === 'command' ? agentChatCommandCwd(request.cwd, projectRoot) : undefined;
-    const command = request.kind === 'command' ? request.command : undefined;
-    // Painted with the editor's colors like the command on a work row, so the approval reads the same as the run.
-    const { html: commandHtml } = useColorizedCode(command ?? '', 'shell', Boolean(command));
     const title = agentChatRequestTitle(request, providerName, t);
     return (
         <section
             ref={cardReference}
             aria-busy={isAnswering}
             aria-label={title}
-            className="space-y-2 rounded-lg border border-warning bg-surface px-3 py-2.5 text-[12px] leading-5"
+            className={cn(
+                'space-y-2 text-[12px] leading-5',
+                isFramed && 'rounded-lg border border-warning bg-surface px-3 py-2.5',
+            )}
             {...(request.kind !== 'question' && { [AGENT_CHAT_APPROVAL_ATTRIBUTE]: '' })}
         >
             {request.kind === 'question' ? (
                 <AgentChatQuestionForm
                     isAnswering={isAnswering}
+                    isPointerSelect={isPointerSelect}
                     providerName={providerName}
                     request={request}
                     respond={respond}
                     title={title}
                 />
             ) : (
-                <>
-                    <h3 className="m-0 text-[12px] font-semibold text-foreground">{title}</h3>
-                    {request.kind === 'tool' && request.summary && (
-                        <ApprovalToolSummary name={request.name} summary={request.summary} />
-                    )}
-                    {command && (
-                        <pre className={APPROVAL_PRE_CLASS_NAME}>
-                            {commandHtml ? (
-                                /**
-                                 * Monaco's colorizer escapes the source and wraps it only in its own color-class spans;
-                                 * `colorizeCode` rejects any other markup shape before it reaches here.
-                                 */
-                                <code dangerouslySetInnerHTML={{ __html: commandHtml }} />
-                            ) : (
-                                <code>{command}</code>
-                            )}
-                        </pre>
-                    )}
-                    {cwd && (
-                        <p className="m-0 font-mono text-[11px] wrap-anywhere text-muted">
-                            {t('agentChat.request.cwd', { cwd })}
-                        </p>
-                    )}
-                    {request.kind === 'fileChange' && <ApprovalFiles item={linkedItem} />}
-                    {request.reason && <p className="m-0 text-muted">{request.reason}</p>}
-                    <div className="flex flex-wrap gap-2">
-                        {choices.map(({ decision, label }) => {
-                            const button = (
-                                <Button
-                                    aria-keyshortcuts={
-                                        decision === 'accept'
-                                            ? 'Meta+Enter'
-                                            : decision === 'decline'
-                                              ? 'Meta+Backspace'
-                                              : undefined
-                                    }
-                                    disabled={isAnswering}
-                                    key={decision}
-                                    size="sm"
-                                    variant={
-                                        decision === 'accept'
-                                            ? 'default'
-                                            : decision === 'decline'
-                                              ? 'ghost'
-                                              : 'secondary'
-                                    }
-                                    onClick={() => respond({ kind: 'decision', decision })}
-                                >
-                                    {label}
-                                </Button>
-                            );
-                            if (decision === 'acceptForSession') return button;
-                            return (
-                                <Tooltip
-                                    content={label}
-                                    key={decision}
-                                    shortcut={
-                                        decision === 'accept'
-                                            ? AGENT_CHAT_APPROVE_SHORTCUT
-                                            : AGENT_CHAT_DENY_SHORTCUT
-                                    }
-                                >
-                                    {button}
-                                </Tooltip>
-                            );
-                        })}
-                    </div>
-                </>
+                <ApprovalBody
+                    choices={choices}
+                    isAnswering={isAnswering}
+                    linkedItem={linkedItem}
+                    projectRoot={projectRoot}
+                    request={request}
+                    respond={respond}
+                    title={title}
+                />
             )}
         </section>
     );

@@ -17,6 +17,7 @@ function harness(options: {
     archiveEnabled?: boolean;
     agentState?: string;
     notice?: MergeNoticeOutcome;
+    backgroundWork?: boolean;
 }) {
     const clock = { now: 1_000_000 };
     const session = {
@@ -26,10 +27,15 @@ function harness(options: {
     const archive = vi.fn(() => Promise.resolve());
     const notifyMerged = vi.fn(() => Promise.resolve(options.notice ?? 'sent'));
     const write = vi.fn();
-    const state = { archiveEnabled: options.archiveEnabled ?? true };
+    const state = {
+        archiveEnabled: options.archiveEnabled ?? true,
+        backgroundWork: options.backgroundWork ?? false,
+    };
     const settlement = new PullRequestSettlement({
         archive,
+        backgroundRecheckMs: 30_000,
         database: { getSession: () => session } as never,
+        hasBackgroundWork: () => state.backgroundWork,
         isAutoArchiveEnabled: () => state.archiveEnabled,
         logger: { write },
         notifyMerged,
@@ -85,7 +91,8 @@ describe('PullRequestSettlement', () => {
         settlement.observeActivity({ sessionId: 's', from: 'running', to: 'completed' });
         await flush();
         expect(archive).toHaveBeenCalledWith('s');
-        expect(outcomes()).toEqual(['deferred', 'archived']);
+        // The notice-turn wait and the busy turn are two distinct reasons, each logged once.
+        expect(outcomes()).toEqual(['deferred', 'deferred', 'archived']);
     });
 
     it('archives a closed pull request immediately when the Agent is idle, without any notice', async () => {
@@ -122,6 +129,32 @@ describe('PullRequestSettlement', () => {
         await flush();
         expect(archive).not.toHaveBeenCalled();
         expect(outcomes()).toEqual(['deferred']);
+    });
+
+    it('keeps a Session whose turn ended while a background shell or subagent still runs', async () => {
+        vi.useFakeTimers();
+        try {
+            const { archive, outcomes, settlement, state } = harness({
+                backgroundWork: true,
+                notice: 'self-merged',
+            });
+            settlement.observePullRequest('s', pullRequest('open'), pullRequest('merged'));
+            await vi.advanceTimersByTimeAsync(0);
+            expect(archive).not.toHaveBeenCalled();
+
+            // Still watching on the next recheck: no archive and no second log line.
+            await vi.advanceTimersByTimeAsync(30_000);
+            expect(archive).not.toHaveBeenCalled();
+            expect(outcomes()).toEqual(['deferred']);
+
+            // The background work finished without any activity change; the recheck still archives.
+            state.backgroundWork = false;
+            await vi.advanceTimersByTimeAsync(30_000);
+            expect(archive).toHaveBeenCalledWith('s');
+            expect(outcomes()).toEqual(['deferred', 'archived']);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('does nothing when the setting is off, and says so', async () => {

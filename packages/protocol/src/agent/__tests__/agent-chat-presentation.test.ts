@@ -12,10 +12,12 @@ import {
     agentChatPlanProgress,
     agentChatQuestionAnswers,
     agentChatQuestionDefaults,
+    agentChatQuestionMultiDefaults,
     agentChatQuestionOption,
     agentChatWorkingVerb,
     isAgentChatItemVisible,
     sentenceStartProvider,
+    toggleAgentChatQuestionOption,
 } from '../agent-chat-presentation.js';
 import { emptyAgentChatSnapshot } from '../agent-chat-reducer.js';
 import type { AgentChatRequest } from '../agent-chat-requests.js';
@@ -158,6 +160,71 @@ describe('agentChatQuestionAnswers', () => {
         expect(
             agentChatQuestionAnswers(request, { a: 'One', stale: 'Old' }, { b: 'Why not' }),
         ).toEqual({ answers: { a: ['One'], b: ['Why not'] }, isComplete: true });
+    });
+});
+
+describe('multiSelect questions', () => {
+    const request: Extract<AgentChatRequest, { kind: 'question' }> = {
+        id: 'q',
+        kind: 'question',
+        questions: [
+            {
+                id: 'tools',
+                header: 'Tools',
+                question: 'Which tools?',
+                options: [
+                    { label: 'Lint (Recommended)', description: '' },
+                    { label: 'Test', description: '' },
+                    { label: 'Build', description: '' },
+                ],
+                allowsOther: true,
+                multiSelect: true,
+            },
+            {
+                id: 'mode',
+                header: 'Mode',
+                question: 'Which mode?',
+                options: [{ label: 'Fast (Recommended)', description: '' }],
+                allowsOther: true,
+            },
+        ],
+    };
+
+    it('answers every ticked option, then the typed one', () => {
+        expect(
+            agentChatQuestionAnswers(
+                request,
+                { tools: ['Test', 'Lint (Recommended)'], mode: 'Fast (Recommended)' },
+                { tools: ' Format ' },
+            ),
+        ).toEqual({
+            answers: {
+                tools: ['Test', 'Lint (Recommended)', 'Format'],
+                mode: ['Fast (Recommended)'],
+            },
+            isComplete: true,
+        });
+    });
+
+    it('leaves a multiSelect question with nothing ticked unanswered', () => {
+        expect(agentChatQuestionAnswers(request, { tools: [] }, {}).answers).not.toHaveProperty(
+            'tools',
+        );
+    });
+
+    it('answers a single-choice question with one option even when handed several', () => {
+        expect(agentChatQuestionAnswers(request, { mode: ['A', 'B'] }, {}).answers).toEqual({
+            mode: ['A'],
+        });
+    });
+
+    it('starts only multiSelect questions ticked, on their recommendation', () => {
+        expect(agentChatQuestionMultiDefaults(request)).toEqual({ tools: ['Lint (Recommended)'] });
+    });
+
+    it('toggles an option and keeps the ticking order', () => {
+        expect(toggleAgentChatQuestionOption(['Test'], 'Build')).toEqual(['Test', 'Build']);
+        expect(toggleAgentChatQuestionOption(['Test', 'Build'], 'Test')).toEqual(['Build']);
     });
 });
 

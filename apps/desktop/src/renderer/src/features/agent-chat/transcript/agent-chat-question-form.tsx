@@ -1,4 +1,4 @@
-import type { KeyboardEvent, RefObject } from 'react';
+import type { KeyboardEvent, MouseEvent, RefObject } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
@@ -16,27 +16,29 @@ import { Input, InputGroup } from '../../../components/ui/input';
 import { Kbd } from '../../../components/ui/kbd';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import type { QuestionFormPrimaryAction } from './agent-chat-question-flow';
+import { useAgentChatQuestionPicks } from '../hooks/use-agent-chat-question-picks';
+import type { QuestionFormPrimaryAction, QuestionPanelKeyAction } from './agent-chat-question-flow';
 import {
     agentChatQuestionResponse,
     questionCardHeadings,
     questionFormPrimaryAction,
-    questionOptionIndexForArrow,
-    questionOptionIndexForKey,
+    questionPanelKeyAction,
 } from './agent-chat-question-flow';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 type QuestionOption = QuestionRequest['questions'][number]['options'][number];
 
 /**
- * One numbered answer row, a radio in a radio group. A click, Enter, Space, or its digit answers with it, as in the
- * Codex app. The selected row (the recommended option to start with, then wherever the arrow keys move) takes the
+ * One numbered answer row, a radio in a radio group, or a checkbox when the question takes several options. A click,
+ * Enter, Space, or its digit answers with a radio row, as in the Codex app; a checkbox row toggles instead and the
+ * footer sends. The selected row (the recommended option to start with, then wherever the arrow keys move) takes the
  * list's selection fill and an arrow, and a hovered row shows the same arrow, so either reads as "this answers"; the
  * recommended option also carries a badge that stays when the selection moves elsewhere.
  */
 function QuestionOptionRow({
     buttonReference,
     isAnswering,
+    isCheckbox,
     isFocusable,
     isSelected,
     number,
@@ -46,12 +48,16 @@ function QuestionOptionRow({
     buttonReference: (element: HTMLButtonElement | null) => void;
     isAnswering: boolean;
     /**
+     * The question takes several options: the row is a checkbox and `isSelected` says it is ticked.
+     */
+    isCheckbox: boolean;
+    /**
      * Roving tab stop: only the selected row (or the first, before any selection) is in the tab order.
      */
     isFocusable: boolean;
     isSelected: boolean;
     number: number;
-    onAnswer: () => void;
+    onAnswer: (event: MouseEvent<HTMLButtonElement>) => void;
     option: QuestionOption;
 }) {
     const { t } = useTranslation();
@@ -71,7 +77,7 @@ function QuestionOptionRow({
             )}
             data-recommended={isRecommended || undefined}
             disabled={isAnswering}
-            role="radio"
+            role={isCheckbox ? 'checkbox' : 'radio'}
             tabIndex={isFocusable ? 0 : -1}
             type="button"
             onClick={onAnswer}
@@ -108,14 +114,21 @@ function QuestionOptionRow({
                     </span>
                 )}
             </span>
-            <ArrowRight
-                aria-hidden
-                className={cn(
-                    // Like the Codex app, the arrow centers on the whole row while the number stays with the title.
-                    'size-3.5 shrink-0 self-center',
-                    !isSelected && 'invisible group-hover/option:visible',
-                )}
-            />
+            {isCheckbox ? (
+                <Check
+                    aria-hidden
+                    className={cn('size-3.5 shrink-0 self-center', !isSelected && 'invisible')}
+                />
+            ) : (
+                <ArrowRight
+                    aria-hidden
+                    className={cn(
+                        // Like the Codex app, the arrow centers on the whole row while the number stays with the title.
+                        'size-3.5 shrink-0 self-center',
+                        !isSelected && 'invisible group-hover/option:visible',
+                    )}
+                />
+            )}
         </button>
     );
 }
@@ -305,15 +318,25 @@ function QuestionFormFooter({
  * is still unopened the primary button reads Next and opens it, so a submission never records an unseen question as
  * skipped or accepts its default unread; after that, Submit sends whatever is answered. The recommended option starts
  * selected, so Next through to Submit accepts every recommendation. Skip (or Esc) dismisses the whole request.
+ *
+ * A `multiSelect` question lists checkboxes instead: a click, Space, or a digit ticks an option, and Enter or the
+ * primary button moves on with every ticked option (plus a typed answer, when there is one).
  */
 export function AgentChatQuestionForm({
     isAnswering,
+    isPointerSelect = false,
     providerName,
     request,
     respond,
     title,
 }: {
     isAnswering: boolean;
+    /**
+     * A click on an option only selects it; Enter, a digit, or the primary button still answers. For a card that shows
+     * up on its own (the waiting popup), where a click meant for whatever was under the pointer must not send an
+     * answer. The Chat's own card keeps click-to-answer.
+     */
+    isPointerSelect?: boolean;
     providerName: string;
     request: QuestionRequest;
     respond: (response: AgentChatResponse) => void;
@@ -341,9 +364,16 @@ export function AgentChatQuestionForm({
      */
     const shouldFocusQuestion = useRef(false);
     const question = request.questions.at(index);
+    const {
+        picked,
+        ticked,
+        toggle: toggleOption,
+    } = useAgentChatQuestionPicks(request, question?.id, isAnswering);
     const options = question?.options ?? [];
     const allowsTyping = question !== undefined && (question.allowsOther || options.length === 0);
-    const { answers } = agentChatQuestionAnswers(request, selected, typed);
+    const isMulti = question?.multiSelect === true;
+    const choices = { ...selected, ...picked };
+    const { answers } = agentChatQuestionAnswers(request, choices, typed);
     const isAnswered = question !== undefined && Object.hasOwn(answers, question.id);
     const typedAnswer = question ? (typed[question.id]?.trim() ?? '') : '';
     /**
@@ -352,8 +382,9 @@ export function AgentChatQuestionForm({
      */
     const isEnterSends =
         isAnswered && agentChatNextUnansweredQuestion(request, answers, index, seen) === undefined;
+    // A multiSelect question has ticked rows rather than one selected option.
     const selectedIndex = options.findIndex(
-        (option) => !typedAnswer && option.label === selected[question?.id ?? ''],
+        (option) => !isMulti && !typedAnswer && option.label === selected[question?.id ?? ''],
     );
 
     useEffect(() => {
@@ -370,7 +401,11 @@ export function AgentChatQuestionForm({
         nextTyped: Partial<Record<string, string>>,
     ): void => {
         if (isAnswering) return;
-        const nextAnswers = agentChatQuestionAnswers(request, nextSelected, nextTyped).answers;
+        const nextAnswers = agentChatQuestionAnswers(
+            request,
+            { ...nextSelected, ...picked },
+            nextTyped,
+        ).answers;
         const nextIndex = agentChatNextUnansweredQuestion(request, nextAnswers, index, seen);
         if (nextIndex === undefined) return respond(agentChatQuestionResponse(nextAnswers));
         shouldFocusQuestion.current =
@@ -392,29 +427,51 @@ export function AgentChatQuestionForm({
         setSelected((current) => ({ ...current, [question.id]: label }));
         setTyped(withoutTyped());
     };
-    const onPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-        if (event.metaKey || event.ctrlKey || event.altKey) return;
-        if (event.target instanceof HTMLInputElement) return;
-        const picked = questionOptionIndexForKey(event.key, options.length + 1);
-        if (picked !== undefined) {
-            event.preventDefault();
-            const option = options.at(picked);
-            if (option) answerWithOption(option.label);
-            else if (allowsTyping) inputReference.current?.focus();
-            return;
+    /**
+     * A row's click. `detail` is 0 for a click the keyboard synthesized (Enter or Space on the focused row), which
+     * answers even where a pointer click only selects.
+     */
+    const clickOption = (label: string, event: MouseEvent<HTMLButtonElement>): void => {
+        if (isMulti) return toggleOption(label);
+        if (isPointerSelect && event.detail > 0) return selectOption(label);
+        answerWithOption(label);
+    };
+    const runKeyAction = (action: QuestionPanelKeyAction): void => {
+        const option = 'index' in action ? options.at(action.index) : undefined;
+        if (action.kind === 'advance') {
+            if (isAnswered) advance(selected, typed);
+        } else if (action.kind === 'typed') {
+            if (allowsTyping) inputReference.current?.focus();
+        } else if (option && action.kind === 'pick') {
+            if (isMulti) toggleOption(option.label);
+            else answerWithOption(option.label);
+        } else if (action.kind === 'move') {
+            if (option && !isMulti) selectOption(option.label);
+            optionReferences.current[action.index]?.focus();
         }
-        const next = questionOptionIndexForArrow(event.key, selectedIndex, options.length);
-        if (next === undefined) return;
+    };
+    const onPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+        const action = questionPanelKeyAction(event.key, {
+            cursor: isMulti
+                ? optionReferences.current.indexOf(document.activeElement as HTMLButtonElement)
+                : selectedIndex,
+            isIgnored:
+                event.metaKey ||
+                event.ctrlKey ||
+                event.altKey ||
+                event.target instanceof HTMLInputElement,
+            isMulti,
+            optionCount: options.length,
+        });
+        if (!action) return;
         event.preventDefault();
-        const option = options.at(next);
-        if (option) selectOption(option.label);
-        optionReferences.current[next]?.focus();
+        runKeyAction(action);
     };
     const optionList = (
         <div
             aria-label={question?.question}
             className="-mx-2 flex flex-col gap-0.5"
-            role="radiogroup"
+            role={isMulti ? 'group' : 'radiogroup'}
         >
             {options.map((option, optionIndex) => (
                 <QuestionOptionRow
@@ -422,12 +479,13 @@ export function AgentChatQuestionForm({
                         optionReferences.current[optionIndex] = element;
                     }}
                     isAnswering={isAnswering}
+                    isCheckbox={isMulti}
                     isFocusable={optionIndex === Math.max(selectedIndex, 0)}
-                    isSelected={optionIndex === selectedIndex}
+                    isSelected={isMulti ? ticked.has(option.label) : optionIndex === selectedIndex}
                     key={option.label}
                     number={optionIndex + 1}
                     option={option}
-                    onAnswer={() => answerWithOption(option.label)}
+                    onAnswer={(event) => clickOption(option.label, event)}
                 />
             ))}
         </div>
