@@ -145,13 +145,23 @@ one-off public-safe plugin and isolated configuration, block model network reque
 only that test's generated feedback. Never use private hooks or existing business transcripts.
 
 For ordinary Agent UI verification in a dev instance, run fake providers. Outside the controlled
-exception above, never discover or invoke a host CLI. Build the environment with
-`e2e/support/agent-fixture.ts`'s `createFakeAgentMode` plus `createE2EAgentEnvironment`, export its
-`e2eAgentEnvironmentKeys()` values together with `CAXRI_E2E=1` and `CAXRI_E2E_WINDOW_MODE=visible`, then
-start `switch-worktree dev`. Without `CAXRI_E2E=1` the fake executables are ignored while the isolated
-`CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent, confirm with
-`ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. Set `CAXRI_TEST_ROOT_PATH` to the
-task-owned fixture folder to use the existing test-root grant without a native folder picker.
+exception above, never discover or invoke a host CLI. Prepare a task-owned fixture folder and start
+the dev instance with its exports; `--provider` takes `claude` (default), `codex`, or `grok`:
+
+```bash
+eval "$(bun run .agents/skills/debug/scripts/fake-agent-development-environment.ts /tmp/<task> --provider claude)"
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev --user-data-dir /tmp/<task>/profile
+```
+
+The exports include `CAXRI_E2E=1`; without it the fake executables are ignored while the isolated
+`CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent,
+confirm with `ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. `CAXRI_TEST_ROOT_PATH`
+points at `/tmp/<task>/project`, so Add Project (`Cmd+O`) uses the existing test-root grant without a
+native folder picker. To set up a multi-step scenario, drive the dev window from a short Bun script that
+calls Playwright's `chromium.connectOverCDP('http://127.0.0.1:<cdpPort>')` and reuses the E2E helpers
+(`createProjectSession`, `openAgentChat`, `createAdditionalShellSession`) instead of clicking through
+agent-browser; the helpers match English labels, so set `workbench.language` to `en` first through
+`settings.update`. Capture the result with `worktree-browser.ts`.
 If that fixture does not cover the flow, export `V8_INSPECTOR_PORT=<port>` (electron-vite passes it to
 Main as `--inspect`) and replace `dialog.showOpenDialog` through `Runtime.evaluate`, as
 `e2e/support/packaged-project-dialog.ts` does. Prefer `switch-worktree dev --user-data-dir <absolute

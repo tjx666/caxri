@@ -7,12 +7,12 @@ import {
     formatCheckSummary,
     lintBucketsForFiles,
     lintPipelineForFile,
-    parseCheckArguments,
     playwrightArguments,
     runLint,
     selectE2ESpecs,
     testCandidatesForFile,
 } from './check';
+import { parseCheckArguments } from './check-arguments';
 import { canAffectTypes, shouldRunKnip, shouldTypecheck } from './default-gates';
 
 describe('final lint validation', () => {
@@ -170,6 +170,12 @@ describe('parseCheckArguments', () => {
             test: true,
             type: false,
         });
+    });
+
+    it('rejects a newline-joined file list instead of checking nothing', () => {
+        expect(() => parseCheckArguments(['apps/a.ts\napps/b.ts', '--lint'])).toThrow(
+            /contains a newline/u,
+        );
     });
 
     it('uses explicit selectors without adding defaults', () => {
