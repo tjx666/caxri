@@ -26,6 +26,8 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.session.focusNextAttention': '选择下一个有未查看事件的会话',
     'commands.description.session.closeTab':
         '关闭当前打开的会话标签并切换到相邻标签，会话本身仍保留在侧边栏',
+    'commands.description.session.moveToNewWindow':
+        '将当前打开的会话从标签栏移到独立窗口，至少需要两个打开的会话',
     'commands.description.session.openTab1': '显示标签栏中的第 1 个会话',
     'commands.description.session.openTab2': '显示标签栏中的第 2 个会话',
     'commands.description.session.openTab3': '显示标签栏中的第 3 个会话',

@@ -2,6 +2,7 @@ import type { DragEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { getOpenSessionIds } from '../../../stores/open-sessions';
+import { useSessionTabDragStore } from '../../../stores/session-tab-drag';
 import { resolveTabDropIndex } from '../../workbench/pane-drop-zone';
 import { reorderSessionTab, tearOffSessionTab } from '../session-tab-commands';
 import { SESSION_TAB_DRAG_TYPE, shouldTearOffSessionTab } from '../session-tabs-state';
@@ -68,9 +69,24 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
         const clear = (): void => {
             setDropIndicatorLeft(undefined);
             draggedIdReference.current = undefined;
+            useSessionTabDragStore.getState().setDragging(false);
+        };
+        /**
+         * The drag source can leave the DOM mid-drag, and a detached source never reports `dragend`. Pointer events are
+         * withheld for the whole native drag, so the first one afterwards proves it is over. It resets only the strip
+         * flag: the drop bookkeeping above must survive any stray event that arrives while the drag is still live.
+         */
+        const releaseStrip = (): void => {
+            if (useSessionTabDragStore.getState().isDragging)
+                useSessionTabDragStore.getState().setDragging(false);
         };
         addEventListener('dragend', clear);
-        return () => removeEventListener('dragend', clear);
+        addEventListener('pointermove', releaseStrip);
+        return () => {
+            removeEventListener('dragend', clear);
+            removeEventListener('pointermove', releaseStrip);
+            useSessionTabDragStore.getState().setDragging(false);
+        };
     }, []);
     return {
         dropIndicatorLeft,
@@ -79,6 +95,7 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
             if (!sessionId) return;
             draggedIdReference.current = sessionId;
             droppedReference.current = false;
+            useSessionTabDragStore.getState().setDragging(true);
             event.dataTransfer.setData(SESSION_TAB_DRAG_TYPE, sessionId);
             event.dataTransfer.effectAllowed = 'move';
         },

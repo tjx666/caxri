@@ -97,10 +97,19 @@ a strip), in the two places a Session enters a strip: selecting it, and saving a
   title bar under the cursor, keeps the source window's size, and is clamped to the display. The Renderer
   sends the `dragend` screen point, and Main falls back to the native cursor when the platform reports
   `0,0` (a known Chromium quirk VS Code works around the same way).
+- **Move to New Window** is the non-drag path to the same tear-off, for keyboard and pointer-only use: the Session tab
+  context menu, the sidebar row menu (only for a Session in this window's strip), and the Command Palette command
+  `session.moveToNewWindow` (acts on the active Session). It sends `window.tearOffSession` with
+  `placement: 'cascade'`: there is no release point and the cursor is over the source window, so Main skips the
+  "released over a window" refusals and opens the window cascaded 30px per other window from the source, at its
+  size, clamped to the display. It is disabled with a single entry, like the drag.
+- While a tab drag is in progress the strip stays visible even if its membership fell below two (a Session pruned
+  mid-drag), so the title bar does not jump under the pointer and the drag source is not removed.
 - A tear-off is all or nothing. Main creates the window hidden, the Server moves the Session in one
   transaction (`window.openSessions.moveToWindow`), and only then does the window show. A refusal (the source
   would be left empty, the Session is not open there) destroys the hidden window and changes nothing. A
-  window's last Open Session cannot be torn off; the strip is hidden at one tab, so no drag starts.
+  window's last Open Session cannot be torn off; the strip is hidden at one tab, so no drag starts, and the menu
+  entries are disabled or absent.
 - Closing a torn-off window releases its strip like closing its tab: its unsaved Editor buffers are decided
   for that window only, nothing touches Terminals, and the Session returns to the sidebar's pool and can be
   opened anywhere. Closing the primary window decides unsaved buffers for every window, then closes the

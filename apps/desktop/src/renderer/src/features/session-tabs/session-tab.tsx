@@ -29,6 +29,15 @@ import { sessionTabMenu } from './session-tab-menu';
 import { sessionTabTooltip } from './session-tab-tooltip';
 import { sessionTabShortcutKey } from './session-tabs-state';
 
+/**
+ * The status glyph on a Session tab, one step louder than in the sidebar: the pill sits on the title-bar fill with no
+ * row of its own, so the sidebar's `--muted` running ring nearly vanishes on an inactive tab. A running or detached
+ * glyph takes a 70% or 60% foreground, and an attention glyph gets a faint warning disc behind its ring. The variants
+ * are keyed on the status class so the attention glyph keeps `--warning`.
+ */
+const SESSION_TAB_STATUS_CLASS =
+    '[&.session-status-running]:text-foreground/70 [&.session-status-detached]:text-foreground/60 [&.session-status-attention]:rounded-full [&.session-status-attention]:bg-warning/15';
+
 function isNavigationKey(key: string): key is WorkTabNavigationKey {
     return ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key);
 }
@@ -203,30 +212,45 @@ export function SessionTab({
                         {isPreview && (
                             <span className="sr-only">{t('sessionTabs.previewHint')}</span>
                         )}
-                        <SessionStatusIndicator session={session} terminal={terminal} />
                     </button>
                 </Tooltip>
-                <Tooltip content={closeLabel}>
-                    <button
-                        type="button"
-                        aria-label={closeLabel}
-                        tabIndex={-1}
+                {/* One fixed 20px slot shared by the status glyph and the close button, so the title never shifts
+                    when one hands over to the other. The glyph fades out as the close button fades in under the
+                    pointer or keyboard focus; the active tab always shows the close button (VS Code's rule, as on
+                    pane tabs) and so never shows its glyph, which the sidebar row and the tooltip still carry. */}
+                <span className="session-tab-trailing relative size-5 flex-none">
+                    <span
                         className={cn(
-                            'tab-close grid h-5 w-5 flex-none cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-[var(--selection)] hover:text-foreground',
-                            // VS Code's rule, as on pane tabs: the active tab always offers its close button, an
-                            // inactive one reveals it under the pointer or keyboard focus.
-                            'pointer-events-none text-muted opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
-                            isActive && 'pointer-events-auto text-inherit opacity-100',
+                            'absolute inset-0 grid place-items-center transition-opacity duration-100 group-focus-within:opacity-0 group-hover:opacity-0',
+                            isActive && 'opacity-0',
                         )}
-                        onClick={() => {
-                            // Fire-and-forget: closing toasts its own failure.
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard
-                            void closeSessionTabs(sessionId);
-                        }}
                     >
-                        <X size={12} />
-                    </button>
-                </Tooltip>
+                        <SessionStatusIndicator
+                            session={session}
+                            terminal={terminal}
+                            className={SESSION_TAB_STATUS_CLASS}
+                        />
+                    </span>
+                    <Tooltip content={closeLabel}>
+                        <button
+                            type="button"
+                            aria-label={closeLabel}
+                            tabIndex={-1}
+                            className={cn(
+                                'tab-close absolute inset-0 grid cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-[var(--selection)] hover:text-foreground',
+                                'pointer-events-none text-muted opacity-0 transition-opacity duration-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
+                                isActive && 'pointer-events-auto text-inherit opacity-100',
+                            )}
+                            onClick={() => {
+                                // Fire-and-forget: closing toasts its own failure.
+                                // eslint-disable-next-line no-void -- intentional floating-promise discard
+                                void closeSessionTabs(sessionId);
+                            }}
+                        >
+                            <X size={12} />
+                        </button>
+                    </Tooltip>
+                </span>
             </div>
         </ContextMenuTrigger>
     );

@@ -68,12 +68,17 @@ export const windowDesktopMethods = {
      * `screenPoint` is where the drag ended (screen coordinates); Main falls back to the native cursor when it is
      * absent. `opened` is false for a normal refusal (released over a window, last tab, not open), never an error. Main
      * mints the new window's key and chooses its bounds; a Renderer supplies neither.
+     *
+     * `placement: 'cascade'` is the non-drag path ("Move to New Window" in a menu or the Command Palette): there is no
+     * release point, and the cursor is over the source window, so the window opens cascaded from the source instead and
+     * `screenPoint` is ignored. Absent means the drag-out placement.
      */
     'window.tearOffSession': {
         ...desktopControl,
         params: z.object({
             sessionId: identifierSchema,
             screenPoint: z.object({ x: z.number(), y: z.number() }).optional(),
+            placement: z.enum(['cascade']).optional(),
         }),
         result: z.object({ opened: z.boolean() }),
     },

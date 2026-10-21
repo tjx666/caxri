@@ -39,6 +39,7 @@ export interface MainWindowMethodOptions {
         sourceKey: string;
         sessionId: string;
         screenPoint?: { x: number; y: number };
+        placement?: 'cascade';
     }): Promise<{ opened: boolean }>;
 }
 

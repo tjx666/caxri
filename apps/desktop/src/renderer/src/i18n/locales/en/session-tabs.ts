@@ -11,6 +11,7 @@ export const sessionTabs = {
     'sessionTabs.openInNewTab': 'Open in New Tab',
     'sessionTabs.keepOpen': 'Keep Open',
     'sessionTabs.previewHint': 'Preview. The next Session you open replaces this tab.',
+    'sessionTabs.moveToNewWindow': 'Move to New Window',
     'sessionTabs.revealInSidebar': 'Reveal in Sidebar',
     'sessionTabs.tooltip.project': 'Project: {{value}}',
     'sessionTabs.tooltip.agent': 'Agent: {{value}}',

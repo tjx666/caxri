@@ -112,6 +112,15 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         keywords: ['tab', 'close tab'],
         when: 'openSessionStrip',
     },
+    {
+        id: 'session.moveToNewWindow',
+        title: 'Move Open Session to New Window',
+        category: 'Session',
+        description:
+            'Move the active Open Session out of the tab strip into its own window; needs at least two Open Sessions',
+        keywords: ['tab', 'tear off', 'detach', 'window'],
+        when: 'openSessionStrip',
+    },
     ...sessionOpenTabCommandIds.map((id, index): CommandDefinition => ({
         id,
         title: index === 8 ? 'Switch to Last Open Session' : `Switch to Open Session ${index + 1}`,

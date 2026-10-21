@@ -23,6 +23,18 @@ export function shouldTearOffSessionTab(input: {
     return !input.dropped && input.dropEffect === 'none' && input.tabCount >= 2;
 }
 
+/**
+ * Whether "Move to New Window" applies to `sessionId`: it must be in this window's strip, and the strip must hold
+ * another entry, because a window never gives up its last Open Session (the Server refuses with `last_tab`). The menus
+ * hide or disable the entry on this answer, so a refusal stays the stale-state fallback.
+ */
+export function canMoveSessionToNewWindow(
+    openSessionIds: readonly string[],
+    sessionId: string,
+): boolean {
+    return openSessionIds.length >= 2 && openSessionIds.includes(sessionId);
+}
+
 export function isSessionTabStripVisible(openSessionIds: readonly string[]): boolean {
     return openSessionIds.length >= SESSION_TAB_STRIP_MIN_SESSIONS;
 }

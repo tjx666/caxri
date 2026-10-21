@@ -5,8 +5,8 @@ import { readCommandShortcut } from '../../lib/keybindings';
 import { getOpenSessionIds } from '../../stores/open-sessions';
 import { getBootstrap } from '../../stores/selectors';
 import { revealSessionInSidebar } from '../session/session-reveal-request';
-import { closeSessionTabs, keepSessionTab } from './session-tab-commands';
-import { sessionIdsToClose } from './session-tabs-state';
+import { closeSessionTabs, keepSessionTab, moveSessionToNewWindow } from './session-tab-commands';
+import { canMoveSessionToNewWindow, sessionIdsToClose } from './session-tabs-state';
 
 /**
  * The right-click menu of an Open Session tab. No entry touches the Session itself, which stays in the sidebar: the
@@ -58,6 +58,15 @@ export function sessionTabMenu(sessionId: string): ContextMenuEntries {
             onSelect: close('right'),
         },
         CONTEXT_MENU_SEPARATOR,
+        {
+            label: translate('sessionTabs.moveToNewWindow'),
+            disabled: !canMoveSessionToNewWindow(ids, sessionId),
+            onSelect: () => {
+                // Fire-and-forget: the move toasts its own failure.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard
+                void moveSessionToNewWindow(sessionId);
+            },
+        },
         {
             label: translate('sessionTabs.revealInSidebar'),
             onSelect: () => {

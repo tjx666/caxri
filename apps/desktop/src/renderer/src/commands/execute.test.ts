@@ -111,6 +111,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             session: {
                 archiveSelected: record('session.archive'),
                 closeTab: record('session.closeTab'),
+                moveToNewWindow: record('session.moveToNewWindow'),
                 compactWarm: record('session.compactWarm'),
                 canNavigateHistory: () => true,
                 create: record('session.create'),
@@ -402,12 +403,14 @@ describe('executeCommand', () => {
         executeCommand('session.openTab5', undefined, context);
         executeCommand('session.openTab9', undefined, context);
         executeCommand('session.closeTab', undefined, context);
+        executeCommand('session.moveToNewWindow', undefined, context);
 
         expect(calls).toEqual([
             'session.openTab(1)',
             'session.openTab(5)',
             'session.openTab(9)',
             'session.closeTab',
+            'session.moveToNewWindow',
         ]);
     });
 

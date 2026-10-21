@@ -97,6 +97,28 @@ export function planTearOff(input: {
 }
 
 /**
+ * Bounds for a Session moved to a new window by a command rather than a drag. There is no release point to honor and
+ * the cursor is over the source window, so the new window cascades from the source (30px per other window, clamped to
+ * the display) and the "released over a window" refusals do not apply.
+ */
+export function planCommandTearOff(input: {
+    sourceBounds: TearOffRect;
+    size: { width: number; height: number };
+    otherWindowCount: number;
+    workAreas: readonly TearOffRect[];
+}): TearOffPlan {
+    const { sourceBounds, size, otherWindowCount, workAreas } = input;
+    return {
+        action: 'open',
+        bounds: cascadedBounds(
+            { ...sourceBounds, width: size.width, height: size.height },
+            Math.min(otherWindowCount, 8),
+            workAreas,
+        ),
+    };
+}
+
+/**
  * Bounds for a torn-off window restored at launch. Per-window bounds are not persisted yet, so each reopens cascaded
  * below and right of the primary window, clamped to the display like a fresh tear-off.
  */
@@ -189,17 +211,27 @@ export function createTearOffController<W extends TearOffWindowHandle>(
             sourceKey: string;
             sessionId: string;
             screenPoint?: TearOffPoint;
+            placement?: 'cascade';
         }): Promise<{ opened: boolean }> {
             const startedAt = now();
             const source = options.sourceBounds(input.sourceKey);
             if (!source) return reject('window_failed');
-            const plan = planTearOff({
-                point: input.screenPoint ?? options.cursorPoint(),
-                sourceBounds: source.bounds,
-                otherBounds: options.otherBounds(input.sourceKey),
-                workAreas: options.workAreas(),
-                size: source.size,
-            });
+            const otherBounds = options.otherBounds(input.sourceKey);
+            const plan =
+                input.placement === 'cascade'
+                    ? planCommandTearOff({
+                          sourceBounds: source.bounds,
+                          size: source.size,
+                          otherWindowCount: otherBounds.length,
+                          workAreas: options.workAreas(),
+                      })
+                    : planTearOff({
+                          point: input.screenPoint ?? options.cursorPoint(),
+                          sourceBounds: source.bounds,
+                          otherBounds,
+                          workAreas: options.workAreas(),
+                          size: source.size,
+                      });
             if (plan.action === 'reject') return reject(plan.reason);
             const windowKey = options.mintKey?.() ?? `win-${randomUUID()}`;
             const moved = Promise.withResolvers<void>();

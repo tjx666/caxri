@@ -43,6 +43,7 @@ export const commands = {
     'commands.session.switchMru': 'Switch to Recently Used Session',
     'commands.session.focusNextAttention': 'Go to Next Session Needing Attention',
     'commands.session.closeTab': 'Close Open Session',
+    'commands.session.moveToNewWindow': 'Move Open Session to New Window',
     'commands.session.openTab1': 'Switch to Open Session 1',
     'commands.session.openTab2': 'Switch to Open Session 2',
     'commands.session.openTab3': 'Switch to Open Session 3',

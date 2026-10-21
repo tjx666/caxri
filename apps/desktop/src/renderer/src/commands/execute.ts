@@ -70,6 +70,7 @@ import {
 } from '../features/session/session-rename-commands';
 import {
     closeActiveSessionTab,
+    moveActiveSessionToNewWindow,
     openSessionTabAtPosition,
 } from '../features/session-tabs/session-tab-commands';
 import {
@@ -227,6 +228,7 @@ const commandContext: CommandContext = {
         },
         archiveSelected: archiveSelectedSession,
         closeTab: closeActiveSessionTab,
+        moveToNewWindow: moveActiveSessionToNewWindow,
         compactWarm: compactWarmSessions,
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,

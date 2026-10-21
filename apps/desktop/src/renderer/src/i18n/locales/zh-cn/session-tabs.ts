@@ -11,6 +11,7 @@ export const sessionTabs = {
     'sessionTabs.openInNewTab': '在新标签页中打开',
     'sessionTabs.keepOpen': '保持打开',
     'sessionTabs.previewHint': '预览。下一个打开的会话会替换此标签页。',
+    'sessionTabs.moveToNewWindow': '移到新窗口',
     'sessionTabs.revealInSidebar': '在侧边栏中显示',
     'sessionTabs.tooltip.project': '项目：{{value}}',
     'sessionTabs.tooltip.agent': 'Agent：{{value}}',

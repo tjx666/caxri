@@ -36,6 +36,8 @@ export const commandDescriptions = {
         'Select the next Session with an event you have not opened yet',
     'commands.description.session.closeTab':
         'Close the active Open Session tab and move to its neighbor; the Session itself stays in the sidebar',
+    'commands.description.session.moveToNewWindow':
+        'Move the active Open Session out of the tab strip into its own window; needs at least two Open Sessions',
     'commands.description.session.openTab1': 'Show Session 1 in the Open Session tab strip',
     'commands.description.session.openTab2': 'Show Session 2 in the Open Session tab strip',
     'commands.description.session.openTab3': 'Show Session 3 in the Open Session tab strip',

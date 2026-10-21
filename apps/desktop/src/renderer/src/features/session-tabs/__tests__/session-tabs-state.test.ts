@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     activeAfterEdit,
+    canMoveSessionToNewWindow,
     insertOpenSessionAfter,
     isKeepingInteraction,
     isSessionTabStripVisible,
@@ -204,5 +205,14 @@ describe('isKeepingInteraction', () => {
         expect(isKeepingInteraction({ type: 'keydown', key: 'Shift' })).toBe(false);
         expect(isKeepingInteraction({ type: 'pointerdown', button: 2 })).toBe(false);
         expect(isKeepingInteraction({ type: 'pointermove' })).toBe(false);
+    });
+});
+
+describe('canMoveSessionToNewWindow', () => {
+    it('needs the Session in the strip and another entry beside it', () => {
+        expect(canMoveSessionToNewWindow(['a', 'b'], 'a')).toBe(true);
+        expect(canMoveSessionToNewWindow(['a'], 'a')).toBe(false);
+        expect(canMoveSessionToNewWindow(['a', 'b'], 'c')).toBe(false);
+        expect(canMoveSessionToNewWindow([], 'a')).toBe(false);
     });
 });

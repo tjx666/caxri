@@ -46,6 +46,7 @@ export const commandIds = [
     'session.search',
     'session.focusNextAttention',
     'session.closeTab',
+    'session.moveToNewWindow',
     ...sessionOpenTabCommandIds,
     'agentActions.open',
     'terminal.new',

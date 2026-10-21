@@ -147,6 +147,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | Visible delegation layout             | Herdr                                           | Sibling pane that keeps the caller's focus                        | `apps/server/src/domains/agent-delegation/layout.ts`; `herdr.md`                                                      |
 | Activity ranking                      | Herdr, Kero                                     | Attention ranked above running work                               | `docs/activity-view.md`                                                                                               |
 | Terminal font loading                 | Kero                                            | Font cascade                                                      | `apps/desktop/src/renderer/src/features/terminal/terminal-fonts.ts`                                                   |
+| Session tab trailing slot             | Superset                                        | One fixed slot shared by the status glyph and the close button    | `DESIGN.md` (Two tab levels); `apps/desktop/src/renderer/src/features/session-tabs/session-tab.tsx`                   |
 | Window presence                       | Superset                                        | Stable per-window key and per-client visible and focused tracking | `docs/adr/0017-per-window-session-presence.md`; `apps/desktop/src/main/window-presence-registry.ts`                   |
 
 ## Streaming Markdown references

@@ -8,6 +8,7 @@ import { didSelectSession } from '../session/session-commands';
 import type { SessionTabCloseScope } from './session-tabs-state';
 import {
     activeAfterEdit,
+    canMoveSessionToNewWindow,
     insertOpenSessionAfter,
     moveOpenSession,
     openTabTargetId,
@@ -185,6 +186,25 @@ export async function tearOffSessionTab(
         caxri.request('window.tearOffSession', { sessionId, ...(screenPoint && { screenPoint }) }),
     );
     if (result?.opened) await refreshWorkbench();
+}
+
+/**
+ * "Move to New Window": the non-drag way to tear a tab off (tab menu, sidebar row menu, Command Palette), for users who
+ * cannot or would rather not drag. Main cascades the new window from this one instead of using a release point.
+ */
+export async function moveSessionToNewWindow(sessionId: string): Promise<void> {
+    if (!canMoveSessionToNewWindow(getOpenSessionIds(), sessionId)) return;
+    const result = await tryCommand(translate('sessionTabs.errors.tearOffFailed'), () =>
+        caxri.request('window.tearOffSession', { sessionId, placement: 'cascade' }),
+    );
+    if (result?.opened) await refreshWorkbench();
+}
+
+export function moveActiveSessionToNewWindow(): void {
+    const activeId = getBootstrap()?.selectedSessionId;
+    // Fire-and-forget: the move toasts its own failure.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard
+    if (activeId) void moveSessionToNewWindow(activeId);
 }
 
 export async function shiftSessionTab(sessionId: string, direction: -1 | 1): Promise<void> {

@@ -1,5 +1,6 @@
 import type { WindowOpenSessions } from '@caxri/protocol';
 
+import { useSessionTabDragStore } from './session-tab-drag';
 import { mergeStructurally } from './structural-sharing';
 import { useWorkbenchStore } from './workbench';
 
@@ -24,12 +25,14 @@ export function useOpenSessionIds(): readonly string[] {
 
 /**
  * A boolean, so the many `PaneView`s of a keep-alive Workbench re-render only when the strip appears or disappears, not
- * on every edit to it.
+ * on every edit to it. It also holds while a tab drag is in progress, so the strip never disappears under the pointer.
  */
 export function useIsSessionTabStripVisible(): boolean {
-    return useWorkbenchStore(
+    const hasEnoughSessions = useWorkbenchStore(
         (state) => (state.bootstrap?.openSessionIds?.length ?? 0) >= SESSION_TAB_STRIP_MIN_SESSIONS,
     );
+    const isDragging = useSessionTabDragStore((state) => state.isDragging);
+    return hasEnoughSessions || isDragging;
 }
 
 /**
