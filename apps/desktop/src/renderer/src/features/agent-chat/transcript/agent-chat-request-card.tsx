@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import {
@@ -23,7 +23,7 @@ import {
     useAgentChatApprovalKeys,
 } from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatFileChanges } from '../turns/agent-chat-file-changes';
-import { agentChatCommandCwd } from './agent-chat-presentation';
+import { agentChatCommandCwd, isApprovalClickGuarded } from './agent-chat-presentation';
 import { AgentChatQuestionForm } from './questions/agent-chat-question-form';
 
 /**
@@ -57,23 +57,38 @@ function ApprovalToolSummary({ name, summary }: { name: string; summary: string 
  * An approval's body: what it would act on and the decision buttons.
  */
 function ApprovalBody({
+    armDelayMs,
     choices,
     isAnswering,
     linkedItem,
     projectRoot,
     request,
     respond,
+    reviewHint,
     title,
 }: {
+    /**
+     * Pointer clicks are ignored for this long after the card appears (see `isApprovalClickGuarded`).
+     */
+    armDelayMs: number;
     choices: ReturnType<typeof agentChatApprovalChoices>;
     isAnswering: boolean;
     linkedItem: AgentChatItem | undefined;
     projectRoot: string | undefined;
     request: Exclude<AgentChatRequest, { kind: 'question' }>;
     respond: (response: AgentChatResponse) => void;
+    reviewHint: string | undefined;
     title: string;
 }) {
     const { t } = useTranslation();
+    // The card is keyed by request, so mount time is when this request appeared.
+    const [shownAt] = useState(() => performance.now());
+    const [isArmed, setArmed] = useState(armDelayMs <= 0);
+    useEffect(() => {
+        if (armDelayMs <= 0) return;
+        const timer = setTimeout(() => setArmed(true), armDelayMs);
+        return () => clearTimeout(timer);
+    }, [armDelayMs]);
     const cwd =
         request.kind === 'command' ? agentChatCommandCwd(request.cwd, projectRoot) : undefined;
     const command = request.kind === 'command' ? request.command : undefined;
@@ -105,6 +120,7 @@ function ApprovalBody({
             )}
             {request.kind === 'fileChange' && <ApprovalFiles item={linkedItem} />}
             {request.reason && <p className="m-0 text-muted">{request.reason}</p>}
+            {reviewHint && <p className="m-0 text-muted">{reviewHint}</p>}
             <div className="flex flex-wrap gap-2">
                 {choices.map(({ decision, label }) => {
                     const button = (
@@ -116,6 +132,7 @@ function ApprovalBody({
                                       ? 'Meta+Backspace'
                                       : undefined
                             }
+                            aria-disabled={!isArmed || undefined}
                             disabled={isAnswering}
                             key={decision}
                             size="sm"
@@ -126,7 +143,18 @@ function ApprovalBody({
                                       ? 'ghost'
                                       : 'secondary'
                             }
-                            onClick={() => respond({ kind: 'decision', decision })}
+                            onClick={(event) => {
+                                // `aria-disabled` keeps focus where it is; the click is refused here instead.
+                                if (
+                                    isApprovalClickGuarded({
+                                        armDelayMs,
+                                        detail: event.detail,
+                                        elapsedMs: performance.now() - shownAt,
+                                    })
+                                )
+                                    return;
+                                respond({ kind: 'decision', decision });
+                            }}
                         >
                             {label}
                         </Button>
@@ -159,15 +187,32 @@ function ApprovalBody({
  * its buttons' tooltips say so.
  */
 export function AgentChatRequestCard({
+    approvalArmDelayMs = 0,
     isFramed = true,
     isPointerSelect = false,
     linkedItem,
     onAnswered,
+    onEscape,
     projectRoot,
     providerName,
     request,
+    reviewHint,
     terminalId,
 }: {
+    /**
+     * Ignores pointer clicks on the approval buttons for this long after the card appears; for a card that drops in on
+     * its own (the waiting popup), where the second click of a double click aimed at the previous card must not decide
+     * this one.
+     */
+    approvalArmDelayMs?: number;
+    /**
+     * Replaces Escape's Skip on a question with this action (the waiting popup folds instead of skipping).
+     */
+    onEscape?: () => void;
+    /**
+     * Muted line above an approval's buttons.
+     */
+    reviewHint?: string;
     /**
      * A click on a question's option only selects it (see `AgentChatQuestionForm`).
      */
@@ -230,6 +275,7 @@ export function AgentChatRequestCard({
                 <AgentChatQuestionForm
                     isAnswering={isAnswering}
                     isPointerSelect={isPointerSelect}
+                    onEscape={onEscape}
                     providerName={providerName}
                     request={request}
                     respond={respond}
@@ -237,12 +283,14 @@ export function AgentChatRequestCard({
                 />
             ) : (
                 <ApprovalBody
+                    armDelayMs={approvalArmDelayMs}
                     choices={choices}
                     isAnswering={isAnswering}
                     linkedItem={linkedItem}
                     projectRoot={projectRoot}
                     request={request}
                     respond={respond}
+                    reviewHint={reviewHint}
                     title={title}
                 />
             )}

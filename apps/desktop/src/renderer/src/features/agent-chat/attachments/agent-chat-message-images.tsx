@@ -88,7 +88,12 @@ function MessageImage({
                         className={TILE_CLASS_NAME}
                         role="img"
                     >
-                        <ImageIcon className="size-5" />
+                        <div className="flex flex-col items-center gap-1 px-1 text-center">
+                            <ImageIcon className="size-5" />
+                            <span className="text-[11px] leading-4">
+                                {t('agentChat.message.imageUnavailable')}
+                            </span>
+                        </div>
                     </div>
                 </Tooltip>
             );

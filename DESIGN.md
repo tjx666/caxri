@@ -1491,11 +1491,12 @@ one card top-center below the title bar, `min(640px, 92vw)` wide on `--elevated`
 shadow, entering on `--motion-overlay-enter` with the enter curve and leaving on
 `--motion-overlay-exit`. It is not a toast: it never expires, because the Agent stays blocked until
 someone answers. It shows one request at a time (oldest first) and a muted "N more pending" line,
-and folds into an "N pending" pill that unfolds again only when a new request arrives, so folding
+and folds into an "N waiting for you" pill that unfolds again only when a new request arrives, so folding
 means "not now" rather than "mute". It sits under dialogs (`z-40`) and never takes focus, so it
 cannot steal keystrokes from the composer the user is typing in; its keys work once focus is in it.
-A click on a question's option only selects it, because a stray click on a card that just dropped in
-must not send an answer.
+A click on a question's option only selects it, and an approval's buttons ignore the pointer for
+about 450ms after its card drops in, because a stray click on a card that just dropped in must not
+send an answer. Esc folds the popup on both card types; Skip stays an explicit button.
 
 **Software update**: a release Caxri finds on its own raises a notification and nothing more. A
 modal belongs to a user who asked; Caxri is opened while someone is already doing something else,

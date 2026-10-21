@@ -69,7 +69,7 @@ function TaskEntry({
         <li
             className={cn(
                 'group/task flex min-w-0 items-center gap-1 rounded text-[12px] leading-5',
-                onOpenTask && 'hover:bg-[var(--selection)]',
+                onOpenTask && 'hover:bg-list-hover-background',
             )}
         >
             {onOpenTask ? (

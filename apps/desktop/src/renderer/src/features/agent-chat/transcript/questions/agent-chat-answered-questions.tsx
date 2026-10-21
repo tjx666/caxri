@@ -77,12 +77,12 @@ export function AgentChatAnsweredQuestions({
             </button>
             {isExpanded && (
                 <dl className="m-0 mt-1 space-y-2 px-1 text-[12px] leading-5" id={detailId}>
-                    {answers.map(({ answer, question }) => (
-                        <div key={question}>
+                    {answers.map(({ answer, question }, index) => (
+                        <div key={index}>
                             <dt className="wrap-anywhere text-muted select-text">{question}</dt>
                             <dd
                                 className={cn(
-                                    'm-0 wrap-anywhere text-muted opacity-70 select-text',
+                                    'm-0 wrap-anywhere text-foreground select-text',
                                     !answer && 'italic',
                                 )}
                             >

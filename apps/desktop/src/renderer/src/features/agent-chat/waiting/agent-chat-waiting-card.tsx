@@ -8,6 +8,7 @@ import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
 import { sessionTitleForDisplay } from '../../session/session-title';
+import { AGENT_CHAT_APPROVAL_ARM_DELAY_MS } from '../transcript/agent-chat-presentation';
 import { AgentChatRequestCard } from '../transcript/agent-chat-request-card';
 import { openAgentChatWaiting } from './agent-chat-waiting-commands';
 
@@ -56,13 +57,6 @@ export function AgentChatWaitingCard({
                             </span>
                         )}
                     </p>
-                    <p className="m-0 text-[11px] text-muted">
-                        {t(
-                            request.kind === 'question'
-                                ? 'agentChat.waiting.question'
-                                : 'agentChat.waiting.approval',
-                        )}
-                    </p>
                 </div>
                 <Button size="sm" variant="secondary" onClick={open}>
                     <SquareArrowOutUpRight className="size-3.5" />
@@ -87,8 +81,15 @@ export function AgentChatWaitingCard({
             <div className="max-h-[min(480px,60vh)] overflow-y-auto border-t border-border pt-2.5">
                 <AgentChatRequestCard
                     key={request.id}
+                    approvalArmDelayMs={AGENT_CHAT_APPROVAL_ARM_DELAY_MS}
                     isFramed={false}
                     isPointerSelect
+                    reviewHint={
+                        request.kind === 'fileChange'
+                            ? t('agentChat.waiting.reviewChanges')
+                            : undefined
+                    }
+                    onEscape={onCollapse}
                     linkedItem={undefined}
                     onAnswered={() => {}}
                     projectRoot={session?.rootPath}
@@ -97,9 +98,6 @@ export function AgentChatWaitingCard({
                     terminalId={chat.terminalId}
                 />
             </div>
-            {request.kind === 'fileChange' && (
-                <p className="m-0 text-[11px] text-muted">{t('agentChat.waiting.reviewChanges')}</p>
-            )}
             {moreCount > 0 && (
                 <p className="m-0 text-[11px] text-muted">
                     {moreCount === 1

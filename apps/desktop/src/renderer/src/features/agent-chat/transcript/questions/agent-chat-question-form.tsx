@@ -325,12 +325,17 @@ function QuestionFormFooter({
 export function AgentChatQuestionForm({
     isAnswering,
     isPointerSelect = false,
+    onEscape,
     providerName,
     request,
     respond,
     title,
 }: {
     isAnswering: boolean;
+    /**
+     * Runs on Escape instead of skipping the request, for a card whose surface owns Escape (the waiting popup folds).
+     */
+    onEscape?: () => void;
     /**
      * A click on an option only selects it; Enter, a digit, or the primary button still answers. For a card that shows
      * up on its own (the waiting popup), where a click meant for whatever was under the pointer must not send an
@@ -526,7 +531,8 @@ export function AgentChatQuestionForm({
                 if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
                 event.preventDefault();
                 event.stopPropagation();
-                if (!isAnswering) respond({ kind: 'decision', decision: 'cancel' });
+                if (onEscape) onEscape();
+                else if (!isAnswering) respond({ kind: 'decision', decision: 'cancel' });
             }}
             onSubmit={(event) => {
                 // Enter in the free-text row answers this question, the way Enter on an option row does.

@@ -12,6 +12,7 @@ import { cn } from '../../../lib/utilities';
 import { useIsSessionTabStripVisible } from '../../../stores/open-sessions';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatWaitingCard } from './agent-chat-waiting-card';
+import { AgentChatWaitingStatus } from './agent-chat-waiting-status';
 import { useAgentChatWaiting } from './use-agent-chat-waiting';
 
 const SURFACE_CLASS_NAME =
@@ -21,10 +22,11 @@ const SURFACE_CLASS_NAME =
  * Asks, from anywhere in the window, what a Chat that is not on screen waits on: a question or an approval from a
  * provider that is still running. It drops in 4px below the window's top chrome (the 36px title bar, or the Open
  * Session strip plus the Terminal tab bar under it) so it never covers a tab or the New Terminal button, one request at
- * a time, and folds into an "N pending" pill the user can reopen; a new request unfolds it again. It never takes focus:
- * the keys a request answers to (option digits, Enter, Cmd+Enter, Cmd+Backspace) work only once the user has moved
- * focus into it, and the card carries the pane attribute so approval keys stay inside the popup instead of reaching a
- * Chat behind it. The layout follows LobeHub's `GlobalApprovalNotification` (design only; the code is Caxri's own).
+ * a time, and folds into an "N waiting for you" pill the user can reopen; a new request unfolds it again. It never
+ * takes focus: the keys a request answers to (option digits, Enter, Cmd+Enter, Cmd+Backspace) work only once the user
+ * has moved focus into it, and the card carries the pane attribute so approval keys stay inside the popup instead of
+ * reaching a Chat behind it. The layout follows LobeHub's `GlobalApprovalNotification` (design only; the code is
+ * Caxri's own).
  */
 export function AgentChatWaitingPopup() {
     const { t } = useTranslation();
@@ -44,7 +46,7 @@ export function AgentChatWaitingPopup() {
               ease: motionEasing('--motion-ease-exit'),
           };
     const onKeyDown = (event: KeyboardEvent): void => {
-        // A question's form answers Escape itself (Skip); anywhere else in the card it folds the popup.
+        // A question's form hands Escape to the card, which folds the popup instead of skipping the question.
         if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing)
             return;
         event.preventDefault();
@@ -59,9 +61,7 @@ export function AgentChatWaitingPopup() {
                     isSessionTabStripVisible ? 'top-19' : 'top-10',
                 )}
             >
-                <span className="sr-only" role="status">
-                    {current ? pendingLabel : ''}
-                </span>
+                <AgentChatWaitingStatus chat={current} />
                 <AnimatePresence initial={false} mode="wait">
                     {current && isCollapsed && (
                         <m.button
