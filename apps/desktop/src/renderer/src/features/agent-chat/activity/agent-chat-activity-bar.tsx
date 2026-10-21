@@ -49,8 +49,13 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
     const figures = elapsedTimeFigures(useClockTick('second') - startedAt, t);
     if (!figures) return null;
     const { minutes, separator, seconds } = figures;
+    const text = `${minutes ? `${minutes.prefix}${minutes.value}${minutes.suffix}` : ''}${separator}${seconds.prefix}${seconds.value}${seconds.suffix}`;
     return (
-        <span className="shrink-0 whitespace-pre tabular-nums">
+        <span
+            className="shrink-0 whitespace-pre tabular-nums"
+            data-agent-chat-elapsed-time=""
+            data-value={text}
+        >
             <AnimatedNumberGroup>
                 {minutes && (
                     <AnimatedNumber

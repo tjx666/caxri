@@ -434,19 +434,37 @@ export const agentToolKindCounts = (tools: ReadonlyArray<Pick<ToolCall, 'name' |
 };
 
 /**
+ * The phrases of {@link summarizeAgentToolGroup}, one per kind in the order the Agent first used it, each after the
+ * first carrying its leading separator (`Ran 3 commands`, `, read 2 files`), so a surface can mark a kind joining the
+ * summary while the kinds already there keep their place.
+ */
+export const agentToolGroupPhrases = (
+    tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): Array<{ kind: AgentToolKind; text: string }> =>
+    agentToolKindCounts(tools).map(({ kind, count }, index) => {
+        const phrase = t(`agentChat.tool.group.${kind}${count === 1 ? 'One' : 'Other'}`, {
+            count,
+        });
+        return {
+            kind,
+            text:
+                index === 0
+                    ? phrase.charAt(0).toUpperCase() + phrase.slice(1)
+                    : t('agentChat.tool.groupSeparator') + phrase,
+        };
+    });
+
+/**
  * `Ran 3 commands, read 2 files`: one phrase per kind, in the order the Agent first used it.
  */
 export const summarizeAgentToolGroup = (
     tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
-): string => {
-    const phrase = agentToolKindCounts(tools)
-        .map(({ kind, count }) =>
-            t(`agentChat.tool.group.${kind}${count === 1 ? 'One' : 'Other'}`, { count }),
-        )
-        .join(t('agentChat.tool.groupSeparator'));
-    return phrase.charAt(0).toUpperCase() + phrase.slice(1);
-};
+): string =>
+    agentToolGroupPhrases(tools, t)
+        .map(({ text }) => text)
+        .join('');
 
 /**
  * The whole minutes and seconds {@link formatShortDuration} writes, for a surface that animates them separately.

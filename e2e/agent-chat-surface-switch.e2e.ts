@@ -205,7 +205,11 @@ if (process.argv.includes('app-server')) {
             'animation-name',
             'activity-dwell-shimmer',
         );
-        await expect(session.getByText(/^\d+s$/u)).toBeVisible();
+        // The seconds roll through NumberFlow, whose shadow root holds every digit, so read the time the row shows.
+        await expect(session.locator('[data-agent-chat-elapsed-time]')).toHaveAttribute(
+            'data-value',
+            /^\d+s$/u,
+        );
         // Live work reads in the present tense with its subject, sweeping the highlight across the whole title, and a
         // thought shows its Codex title.
         const liveRow = session.getByRole('button', { name: 'Searching slow in src' });

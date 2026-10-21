@@ -173,6 +173,11 @@
      * turn's elapsed time, so each roll settles before the next starts.
      */
     --motion-number-roll: 600ms;
+    /*
+     * A phrase joining a Chat work summary (`, waited for Agent`) fading in from a slight blur. Longer than an overlay
+     * enter so a kind appearing at the end of an otherwise unchanged line still catches the eye.
+     */
+    --motion-summary-phrase-enter: 320ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     /*

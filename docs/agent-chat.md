@@ -797,7 +797,7 @@ several callbacks can share one item, so the transport id is never the key.
   the cost estimated from the bundled price list (shown with a `$`), each behind an icon with a pointer tooltip. A figure still at zero
   is hidden, a single step too, and a strip narrower than 360px keeps only tokens. The elapsed time, these figures, and
   the context ring's percentage roll their changed digits to each new value (`AnimatedNumber`, see `DESIGN.md`
-  "Motion"); the live time keeps `0s` on a whole minute so its seconds never fade out for one tick. Server Core sums each Claude
+  "Motion"). Only a change after 1.5s of stillness rolls, so the ticking seconds and tokens climbing while a reply streams jump while minutes, steps, and cost roll; the live time keeps `0s` on a whole minute so its seconds never fade out for one tick. Server Core sums each Claude
   response once by message id (subagent responses included) and each Codex request of the parent thread from
   `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. A compact `Esc to stop` hint follows the metrics
   while the turn runs and drops first on a strip narrower than 480px; the `Enter to queue · ⌘Enter to steer` hint keeps only
@@ -827,6 +827,10 @@ several callbacks can share one item, so the transport id is never the key.
   description or background state for a command, so its rows show the command line. Consecutive work collapses
   into one summary row. While work is active, that row shows the newest running action and target
   ("Reading app.ts", "Running git status --short"); after all work settles it switches to the aggregate.
+  Once some work has settled, a newly running action takes over the row only after it has run for 1s
+  (`agentChatWorkSummaryItems`), so a burst of brief calls keeps counting up instead of flashing each one.
+  A kind that joins the summary after it appeared (`, waited for Agent`) fades in; a count changing inside a phrase,
+  and the phrases already there when a Chat opens, stay still (`agentChatWorkSummaryPhrases`).
   Once a turn ends its work and commentary fold behind `Worked for X`
   (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
   a transient retry in view. A retry reads as a `--warning` row whose icon and words name the cause

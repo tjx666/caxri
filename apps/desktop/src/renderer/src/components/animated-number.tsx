@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { Format } from '@number-flow/react';
 import NumberFlow, { NumberFlowGroup } from '@number-flow/react';
 
+import { useIsQuietSinceChange } from '../hooks/use-is-quiet-since-change';
 import { useShouldReduceMotion } from '../hooks/use-should-reduce-motion';
 import { motionDurationMs, motionEasing } from '../lib/motion';
 import { cn } from '../lib/utilities';
@@ -25,9 +26,17 @@ function numberRollTimings() {
 }
 
 /**
+ * How long a figure must hold still before its next change rolls. Comfortably longer than one roll, so a figure that
+ * changes every second (the elapsed seconds) or many times a second (tokens while a reply streams) jumps instead of
+ * never coming to rest, while minutes, steps, and cost, which move slowly, still roll.
+ */
+const ROLL_AFTER_QUIET_MS = 1500;
+
+/**
  * A live figure whose digits roll to each new value instead of swapping in place, so a count that climbs while the user
- * watches reads as movement rather than flicker. Wraps NumberFlow (https://number-flow.barvian.me) with Caxri's motion
- * tokens, the shared reduced-motion preference, and fixed `en-US` digits, which every compact figure in the app uses.
+ * watches reads as movement rather than flicker. Only a change after a quiet spell rolls (`ROLL_AFTER_QUIET_MS`). Wraps
+ * NumberFlow (https://number-flow.barvian.me) with Caxri's motion tokens, the shared reduced-motion preference, and
+ * fixed `en-US` digits, which every compact figure in the app uses.
  *
  * NumberFlow draws into a shadow root that holds a column of every digit at each position, so the element's text is not
  * the figure; a test reads the value from an attribute its owner sets instead. It labels itself as an image named by
@@ -60,6 +69,7 @@ export function AnimatedNumber({
     value: number;
 }) {
     const isReduced = useShouldReduceMotion();
+    const isQuiet = useIsQuietSinceChange(value, ROLL_AFTER_QUIET_MS);
     const [timings] = useState(numberRollTimings);
     const format: Format = {
         maximumFractionDigits: fractionDigits,
@@ -68,7 +78,7 @@ export function AnimatedNumber({
     };
     return (
         <NumberFlow
-            animated={!isReduced}
+            animated={!isReduced && isQuiet}
             className={cn('tabular-nums', className)}
             digits={digits}
             format={format}

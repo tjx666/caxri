@@ -18,6 +18,7 @@ import * as motionReact from 'motion/react';
 import * as tailwindMerge from 'tailwind-merge';
 import * as zustand from 'zustand';
 
+import * as AnimatedNumber from '@/components/animated-number';
 import * as ShortcutBadge from '@/components/shortcut-badge';
 import * as Alert from '@/components/ui/alert';
 import * as Button from '@/components/ui/button';
@@ -51,7 +52,9 @@ import * as useContextMenu from '@/hooks/use-context-menu';
 import * as useDebouncedValue from '@/hooks/use-debounced-value';
 import * as useEditorOptions from '@/hooks/use-editor-options';
 import * as useFocusOnRevision from '@/hooks/use-focus-on-revision';
+import * as useHasLasted from '@/hooks/use-has-lasted';
 import * as useIsOverflowing from '@/hooks/use-is-overflowing';
+import * as useIsQuietSinceChange from '@/hooks/use-is-quiet-since-change';
 import * as useLatestReference from '@/hooks/use-latest-reference';
 import * as useModalRegistration from '@/hooks/use-modal-registration';
 import * as useOnVisible from '@/hooks/use-on-visible';
@@ -81,6 +84,7 @@ export default {
     'zustand': zustand,
     '@/lib/utilities': utilities,
     '@/lib/motion': motionLib,
+    '@/components/animated-number': AnimatedNumber,
     '@/components/shortcut-badge': ShortcutBadge,
     '@/components/ui/alert': Alert,
     '@/components/ui/button': Button,
@@ -114,7 +118,9 @@ export default {
     '@/hooks/use-debounced-value': useDebouncedValue,
     '@/hooks/use-editor-options': useEditorOptions,
     '@/hooks/use-focus-on-revision': useFocusOnRevision,
+    '@/hooks/use-has-lasted': useHasLasted,
     '@/hooks/use-is-overflowing': useIsOverflowing,
+    '@/hooks/use-is-quiet-since-change': useIsQuietSinceChange,
     '@/hooks/use-latest-reference': useLatestReference,
     '@/hooks/use-modal-registration': useModalRegistration,
     '@/hooks/use-on-visible': useOnVisible,

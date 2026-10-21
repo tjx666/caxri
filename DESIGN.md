@@ -856,7 +856,9 @@ layer:
    figure whose changed digits roll to the new value behind an edge fade, used only for the live
    Agent Chat figures below. `AnimatedNumber` sets its timings from `--motion-number-roll` (600ms,
    `--motion-ease-emphasized`) with characters fading on `--motion-overlay-enter`, never
-   NumberFlow's own spring, and reads reduced motion through `useShouldReduceMotion`.
+   NumberFlow's own spring, and reads reduced motion through `useShouldReduceMotion`. Only a change
+   after the figure held still for 1.5s rolls; a figure changing faster (seconds, streaming tokens)
+   jumps, so the strip never stays in motion.
 
 Timing lives in the `--motion-*` tokens in `styles.css` (`:root`): the single source for CSS
 transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallbacks, and tests:
@@ -868,7 +870,8 @@ shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear); loading
 skeleton blocks pulse on `--motion-skeleton-pulse` (2000ms, ease-in-out) after fading in on
-`--motion-overlay-enter`; live figures roll on `--motion-number-roll` (600ms). JS resolves tokens
+`--motion-overlay-enter`; live figures roll on `--motion-number-roll` (600ms); a phrase joining a Chat work
+summary fades in from a slight blur on `--motion-summary-phrase-enter` (320ms, enter curve). JS resolves tokens
 through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
 literal. The enter curve `--motion-ease-enter` is easeOutQuint `cubic-bezier(0.23, 1, 0.32, 1)`,
