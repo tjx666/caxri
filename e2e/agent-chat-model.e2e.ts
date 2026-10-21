@@ -98,12 +98,10 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         );
         // Fake Codex's model has no list price, so no cost is guessed.
         await expect(strip.locator('[data-agent-chat-turn-metric="cost"]')).toHaveCount(0);
-        // A dropped stream reads as a warning row naming the cause and the attempt, with Codex's detail beneath.
-        const retry = chat
-            .getByRole('status')
-            .filter({ hasText: 'Connection lost, retrying (2/5)' });
-        await expect(retry).toBeVisible();
-        await expect(retry).toContainText('stream disconnected before completion');
+        // A dropped stream's retry row settles once the reply streams again: "Connection lost, retrying (2/5)" turns into
+        // the retries it took, with the stale detail dropped (`agentChatRetryHeadline`). It is plain text, not a status.
+        await expect(chat.getByText('Recovered after 2 retries')).toBeVisible();
+        await expect(chat.getByText('stream disconnected before completion')).toHaveCount(0);
         await expect(chat.locator('form [data-agent-chat-composer-strip-row]')).toHaveCount(0);
         await expect(chat.getByText('Esc to stop')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-working-composer.png') });
