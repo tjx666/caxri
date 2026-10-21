@@ -58,9 +58,9 @@ the device. If the signing certificate differs, stop instead of uninstalling or 
 
 The Android build requires JDK 17 and the SDK under `~/Library/Android/sdk`. It accepts an explicit
 JDK 17 from `JAVA_HOME` or reuses an existing Gradle-managed JDK 17; newer Android Studio preview
-JBRs are rejected because AGP 8.12's Prefab process can treat their native-access warning as a build
+JBRs are rejected because AGP's Prefab process can treat their native-access warning as a build
 failure. Install the **SDK Platform**, **SDK Build Tools**, and exact **NDK (Side by side)** versions
-declared by the current React Native package, plus Build Tools `35.0.0` and **CMake** `3.22.1`. For
+declared by the current React Native package, plus Build Tools `36.0.0` and **CMake** `3.22.1`. For
 React Native 0.88.0 that is SDK Platform `37.0` (the SDK Manager publishes API 37 only as
 `platforms;android-37.0`), Build Tools `37.0.0`, and NDK `27.1.12297006`. The build
 preflight checks the complete toolchain and exits before Gradle starts when one item is missing, so
