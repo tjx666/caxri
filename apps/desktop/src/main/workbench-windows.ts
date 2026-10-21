@@ -27,10 +27,16 @@ export interface WorkbenchWindowLike {
 export class WorkbenchWindows<W extends WorkbenchWindowLike = WorkbenchWindowLike> {
     private readonly windows = new Map<string, W>();
     private readonly keys = new WeakMap<object, string>();
+    /**
+     * The sender recorded at `add` time. A `closed` window is already destroyed, and reading `window.webContents` on a
+     * destroyed `BrowserWindow` throws, so `remove` must not touch the window itself.
+     */
+    private readonly senders = new Map<string, object>();
 
     add(windowKey: string, window: W): void {
         this.windows.set(windowKey, window);
         this.keys.set(window.webContents, windowKey);
+        this.senders.set(windowKey, window.webContents);
     }
 
     /**
@@ -39,10 +45,10 @@ export class WorkbenchWindows<W extends WorkbenchWindowLike = WorkbenchWindowLik
      * key.
      */
     remove(windowKey: string, options: { keepSenderTrust?: boolean } = {}): void {
-        const window = this.windows.get(windowKey);
-        if (!window) return;
-        this.windows.delete(windowKey);
-        if (!options.keepSenderTrust) this.keys.delete(window.webContents);
+        if (!this.windows.delete(windowKey)) return;
+        const sender = this.senders.get(windowKey);
+        this.senders.delete(windowKey);
+        if (sender && !options.keepSenderTrust) this.keys.delete(sender);
     }
 
     get(windowKey: string): W | undefined {

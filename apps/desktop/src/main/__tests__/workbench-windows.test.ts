@@ -14,6 +14,23 @@ function fakeWindow(options: { focused?: boolean; destroyed?: boolean } = {}) {
 }
 
 describe('WorkbenchWindows', () => {
+    it('removes a window whose BrowserWindow already throws on webContents (a closed window)', () => {
+        const windows = new WorkbenchWindows();
+        const webContents = { send: vi.fn() };
+        let isDestroyed = false;
+        windows.add('win-1', {
+            isDestroyed: () => isDestroyed,
+            isFocused: () => false,
+            get webContents() {
+                if (isDestroyed) throw new TypeError('Object has been destroyed');
+                return webContents;
+            },
+        });
+        isDestroyed = true;
+        expect(() => windows.remove('win-1')).not.toThrow();
+        expect(windows.isWorkbenchSender(webContents)).toBe(false);
+    });
+
     it('lists the primary window first and resolves senders to keys', () => {
         const windows = new WorkbenchWindows();
         const tearOff = fakeWindow();
