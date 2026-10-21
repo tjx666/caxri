@@ -88,7 +88,7 @@ async function fixture() {
         createLogger(join(directory, 'rename-logs')),
     );
     cleanups.push(async () => {
-        coordinator.close();
+        await coordinator.close();
         database.close();
         await flushLoggers();
         await rm(directory, { recursive: true, force: true });
@@ -510,7 +510,7 @@ describe('Automatic Session rename synchronization', () => {
             );
             expect(f.rename).toHaveBeenCalledOnce();
         } finally {
-            coordinator.close();
+            await coordinator.close();
             reopened.close();
         }
     });

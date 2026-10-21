@@ -1,7 +1,7 @@
 import type { AgentOperation, AgentProvider, ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { errorMessage, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, SingleFlight } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
@@ -23,6 +23,7 @@ import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdo
 import { AgentMaintenanceTurns } from './maintenance-turns';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import { probeActivity } from './metadata-activity-baseline';
+import { ProbeQueue } from './probe-queue';
 import { detectForegroundAgentProvider } from './process-detection';
 import { ProcessIdentityProbe } from './process-identity-probe';
 // oxlint-disable-next-line react-doctor/no-barrel-import -- Provider clusters require a public barrel.
@@ -47,8 +48,7 @@ export class AgentCoordinator {
     private readonly lifecycleWatchdogs: AgentLifecycleWatchdogs;
     private readonly excludedAgentSessionIdsByTerminal = new Map<string, Set<string>>();
     private readonly refreshes: CoalescedScheduler<string>;
-    private readonly probes = new SingleFlight<string, void>();
-    private readonly trailingProbeRequests = new Set<string>();
+    private readonly probes = new ProbeQueue((terminalId) => this.probeOnce(terminalId));
     private readonly shellInputs = new Map<string, ShellInputState>();
     private readonly processIdentityProbe = new ProcessIdentityProbe();
     private readonly shellProcessProbe: ShellProcessProbe;
@@ -122,7 +122,7 @@ export class AgentCoordinator {
         });
         this.refreshes = new CoalescedScheduler(
             options.refreshDelayMs ?? AGENT_METADATA_REFRESH_DELAY_MS,
-            (terminalId: string) => this.probe(terminalId),
+            (terminalId: string) => this.probes.probe(terminalId),
         );
         this.hookSessionRebinds = new CodexHookSessionRebindTracker(
             database,
@@ -139,7 +139,7 @@ export class AgentCoordinator {
             (terminalId) => this.lifecycle.emitMetadataChange(terminalId),
             async (terminalId, launchId) => {
                 if (this.launchIdsByTerminal.get(terminalId) !== launchId) return false;
-                await this.probe(terminalId);
+                await this.probes.probe(terminalId);
                 const terminal = this.database.getTerminal(terminalId);
                 return (
                     this.launchIdsByTerminal.get(terminalId) === launchId &&
@@ -201,17 +201,9 @@ export class AgentCoordinator {
         return true;
     }
 
-    private async probe(terminalId: string, shouldRetryClaim = true): Promise<void> {
-        const isJoining = this.probes.has(terminalId);
-        if (isJoining) this.trailingProbeRequests.add(terminalId);
-        await this.probes.run(terminalId, () => this.probeOnce(terminalId, shouldRetryClaim));
-        if (isJoining) return;
-        if (this.trailingProbeRequests.delete(terminalId))
-            await this.probe(terminalId, shouldRetryClaim);
-    }
-
     /**
-     * Runs one serialized observation. {@link probe} preserves a trailing read requested while this one is in flight.
+     * Runs one serialized observation. {@link ProbeQueue} preserves a trailing read requested while this one is in
+     * flight.
      */
     private async probeOnce(terminalId: string, shouldRetryClaim = true): Promise<void> {
         try {
@@ -706,11 +698,11 @@ export class AgentCoordinator {
 
     probeTerminal(terminalId: string): void {
         // eslint-disable-next-line no-void -- probe handles failures; synchronous callers cannot await it.
-        void this.probe(terminalId);
+        void this.probes.probe(terminalId);
     }
 
     probeTerminalNow(terminalId: string): Promise<void> {
-        return this.probe(terminalId);
+        return this.probes.probe(terminalId);
     }
 
     probeSessionPrimaryAgent(sessionId: string): void {
@@ -742,7 +734,7 @@ export class AgentCoordinator {
             this.forgetTerminal(terminal.id);
     }
 
-    close(): void {
+    async close(): Promise<void> {
         this.refreshes.close();
         this.shellProcessProbe.close();
         this.shellInputs.clear();
@@ -758,5 +750,6 @@ export class AgentCoordinator {
         this.maintenanceTurns.clear();
         this.metadataActivityBaselines.clear();
         this.lifecycleWatchdogs.close();
+        await this.probes.close();
     }
 }

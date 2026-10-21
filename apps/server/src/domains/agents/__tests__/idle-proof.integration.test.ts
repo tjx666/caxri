@@ -20,7 +20,7 @@ async function fixture(provider: 'claude' | 'grok' = 'claude') {
         onLifecycleApplied: (signal) => applied.push(signal),
     });
     onTestFinished(async () => {
-        coordinator.close();
+        await coordinator.close();
         database.close();
         await logger.flush();
         await rm(directory, { recursive: true, force: true });

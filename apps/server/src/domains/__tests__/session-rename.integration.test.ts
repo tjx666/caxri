@@ -77,7 +77,7 @@ describe('Session rename', () => {
             service.forgetSession(created.session.id);
             expect(service.revision(created.session.id)).toBe(0);
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -318,7 +318,7 @@ describe('Session rename', () => {
                 expect.objectContaining({ agentSessionId: 'agent-session-b' }),
             );
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -384,7 +384,7 @@ describe('Session rename', () => {
                 { fields: { provider: 'codex', reason: 'agent-session-unidentified' } },
             );
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -443,7 +443,7 @@ describe('Session rename', () => {
                 { fields: { provider: 'grok', reason: 'provider-rename-unsupported' } },
             );
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -515,7 +515,7 @@ describe('Session rename', () => {
             );
             expect(database.getSession(created.session.id)?.displayTitle).toBe('Later title');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

@@ -84,7 +84,7 @@ describe('AgentCoordinator provider title propagation', () => {
                 .toBe(claudeSessionId);
             expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });
@@ -173,7 +173,7 @@ describe('AgentCoordinator provider title propagation', () => {
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
                 .toBe('Refine Session Naming');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             database.close();
         }
     });

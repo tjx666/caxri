@@ -426,7 +426,7 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
                 .toBe('running');
             expect(detectedProviders).toContain('claude');
         } finally {
-            coordinator.close();
+            await coordinator.close();
             await manager.shutdown('orderly');
             await drainTrackedPtys();
             database.close();

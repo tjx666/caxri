@@ -390,7 +390,7 @@ export async function createDomainServices(
         await agentChat.shutdown();
         await benchmark.service.shutdown();
         await terminalSupervision.close();
-        coordinator.close();
+        await coordinator.close();
         longPastes.close();
         unsubscribeTerminalSettings();
         await terminals.shutdown('orderly');
