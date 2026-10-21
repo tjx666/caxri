@@ -75,3 +75,11 @@ to suppress attention notifications for an agent a client is already looking at.
 set is capped at 3 and retains dirty tabs (see the retention section above). Caxri's presence model
 (visible versus focused, per window) follows this split; Caxri reports from native window state
 rather than the DOM.
+
+## Plan limit window labels (2026-10-21)
+
+Source checked at `068f272a00ffef3f00ec30ec4cfa3a631be97624`. The Claude usage source declares each window with a
+long and a short label (`plugins/claude-usage-source/server/usage.ts`): `Session` / `5h` and `Weekly` / `wk`, and a
+model-scoped weekly window as `Weekly · <model>`. The sidebar shows the short form after the share (`31% 5h`); the
+usage modal shows the long form (`Weekly`, Chinese `每周`). The Codex usage source has no short label and names its
+windows `Primary limit` / `Secondary limit`.
