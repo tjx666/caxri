@@ -6,7 +6,9 @@ import {
     describeAgentTool,
     formatNoticeableDuration,
     formatShortDuration,
+    isNoticeableDuration,
     readableShellCommand,
+    shortDurationParts,
     summarizeAgentToolGroup,
     unwrapShellCommand,
 } from '../agent-tool-presentation';
@@ -234,6 +236,20 @@ describe('formatNoticeableDuration', () => {
         expect(formatNoticeableDuration(1000)).toBe('1s');
         expect(formatNoticeableDuration(65_000)).toBe('1m 5s');
     });
+
+    it('agrees with isNoticeableDuration on the threshold', () => {
+        expect(isNoticeableDuration(undefined)).toBe(false);
+        expect(isNoticeableDuration(999)).toBe(false);
+        expect(isNoticeableDuration(1000)).toBe(true);
+    });
+});
+
+describe('shortDurationParts', () => {
+    it('rounds to whole seconds the way formatShortDuration does', () => {
+        expect(shortDurationParts(400)).toEqual({ minutes: 0, seconds: 0 });
+        expect(shortDurationParts(59_600)).toEqual({ minutes: 1, seconds: 0 });
+        expect(shortDurationParts(534_000)).toEqual({ minutes: 8, seconds: 54 });
+    });
 });
 
 describe('agentToolActiveLabel', () => {
@@ -325,11 +341,39 @@ describe('Codex subagent tools', () => {
         });
     });
 
-    it('summarizes a wait and the completion it returned as one wait', () => {
+    it('summarizes a wait and the completion it returned as one wait on that subagent', () => {
         expect(
             summarizeAgentToolGroup([
                 { name: 'wait' },
                 { name: 'agentCompleted', summary: '/root/pr_watch_waiter' },
+            ]),
+        ).toBe('Waited for Pr watch waiter');
+    });
+
+    it('says whom a wait waited for when the Server names its subagent', () => {
+        const wait = describeAgentTool({ name: 'wait', summary: 'Review the diff' });
+        expect(wait).toEqual({
+            kind: 'wait',
+            label: 'Waited for',
+            subject: 'Review the diff',
+            isCodeSubject: false,
+        });
+        expect(agentToolActiveLabel(wait)).toBe('Waiting for');
+        expect(summarizeAgentToolGroup([{ name: 'wait', summary: 'Review the diff' }])).toBe(
+            'Waited for Review the diff',
+        );
+        expect(
+            summarizeAgentToolGroup([
+                { name: 'exec_command', summary: 'git status' },
+                { name: 'wait', summary: 'Review the diff' },
+                { name: 'wait', summary: 'Review the diff' },
+            ]),
+        ).toBe('Ran 1 command, waited for Review the diff');
+        // Waits on different subagents keep the plain phrase.
+        expect(
+            summarizeAgentToolGroup([
+                { name: 'wait', summary: 'Review the diff' },
+                { name: 'wait', summary: 'Lint' },
             ]),
         ).toBe('Waited for agents');
     });

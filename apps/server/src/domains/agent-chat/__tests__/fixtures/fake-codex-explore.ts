@@ -24,7 +24,9 @@ export async function runExplore(io: FakeCodexIo, turn: FakeTurn, isGradual: boo
         };
         if (isGradual && !command.startsWith('sed ')) {
             io.startItem(turn, { ...item, status: 'inProgress' });
-            await delay(1200);
+            // Well past the 1s a running call waits before it names itself in the summary (`agentChatWorkSummaryItems`),
+            // so the running label stays on screen long enough to read.
+            await delay(2500);
         }
         io.completeItem(turn, item);
     };

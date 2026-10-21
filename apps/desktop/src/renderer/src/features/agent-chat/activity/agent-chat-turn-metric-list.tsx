@@ -4,6 +4,7 @@ import type { AgentChatTurnUsage } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import { CircleDollarSign, Coins, Footprints } from 'lucide-react';
 
+import { AnimatedNumber } from '../../../components/animated-number';
 import { Tooltip } from '../../../components/ui/tooltip';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
@@ -25,9 +26,10 @@ function metricTooltip(metric: AgentChatTurnMetric, t: Translate): string {
 
 /**
  * What the running turn has spent so far, on the right of the composer strip: steps, tokens, and estimated cost, each
- * behind its icon (cost with a `$`) and split by hairlines, with a pointer tooltip naming it. The figures tick in
- * tabular digits so the row never shifts. A narrow strip keeps only the token count. The strip is hidden from assistive
- * technology; the Usage page and the status bar carry the accessible figures.
+ * behind its icon (cost with a `$`) and split by hairlines, with a pointer tooltip naming it. The figures roll to each
+ * new value in tabular digits, so a climbing count reads as progress and the row never shifts. A narrow strip keeps
+ * only the token count. The strip is hidden from assistive technology; the Usage page and the status bar carry the
+ * accessible figures.
  */
 export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage | undefined }) {
     const { t } = useTranslation();
@@ -50,11 +52,15 @@ export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage |
                                     isNarrowHidden && '@max-[360px]:hidden',
                                 )}
                                 data-agent-chat-turn-metric={metric.kind}
+                                data-value={metric.value}
                             >
                                 <Icon className="size-3.5 shrink-0" />
-                                <span className="truncate">
-                                    {metric.kind === 'cost' ? `$${metric.value}` : metric.value}
-                                </span>
+                                <AnimatedNumber
+                                    fractionDigits={metric.figure.fractionDigits}
+                                    prefix={metric.kind === 'cost' ? '$' : undefined}
+                                    suffix={metric.figure.suffix}
+                                    value={metric.figure.value}
+                                />
                             </span>
                         </Tooltip>
                     </Fragment>

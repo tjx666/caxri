@@ -328,6 +328,15 @@ export interface ChatSideExchange {
 }
 
 /**
+ * What {@link AgentChatProviderSession.saveDefaults} wrote: the config keys, and whether another config layer overrides
+ * them.
+ */
+export interface AgentChatDefaultsSave {
+    keys: string[];
+    isOverridden: boolean;
+}
+
+/**
  * One live provider process bound to one Chat Terminal.
  */
 export interface AgentChatProviderSession {
@@ -366,6 +375,13 @@ export interface AgentChatProviderSession {
      * that lists no models omits it: validation already rejects every switch it could receive.
      */
     configure?(config: AgentChatModelChange): Promise<void>;
+    /**
+     * Saves a switch the user made in the model picker as the provider's default, so the next new Chat starts with it,
+     * the way the provider's own client does (Codex's TUI writes `model`, `model_reasoning_effort`, and `service_tier`
+     * to `config.toml`). Only the service's user-facing `configure` calls it; a benchmark run's switch stays its own.
+     * Returns the config keys written and whether a higher-priority config layer still overrides them.
+     */
+    saveDefaults?(config: AgentChatModelChange): Promise<AgentChatDefaultsSave>;
     /**
      * Applies a validated permission level and plan mode to the live provider, for the next turn onward; a running turn
      * keeps its own where the provider allows. A provider that fixes them at launch (Grok Build) omits it, and the

@@ -9,6 +9,7 @@ import {
     localDateWeekday,
     remainingLimitPercent,
     shiftLocalDate,
+    tokenCountParts,
 } from '../usage-format.js';
 
 describe('usage formatters', () => {
@@ -25,6 +26,13 @@ describe('usage formatters', () => {
         expect(formatTokens(999)).toBe('999');
         expect(formatTokens(999_999)).toBe('1M');
         expect(formatTokens(1_250_000)).toBe('1.3M');
+    });
+
+    it('splits a token count into the figure and suffix that format it', () => {
+        expect(tokenCountParts(900.4)).toEqual({ value: 900, suffix: '' });
+        expect(tokenCountParts(38_940)).toEqual({ value: 38.9, suffix: 'k' });
+        expect(tokenCountParts(389_000)).toEqual({ value: 389, suffix: 'k' });
+        expect(tokenCountParts(999_999)).toEqual({ value: 1, suffix: 'M' });
     });
 
     it('formats ratios', () => {

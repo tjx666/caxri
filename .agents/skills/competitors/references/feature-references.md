@@ -156,6 +156,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Readable Chat beside a side pane**: `fitsBesidePortal`: a 420px floor for the conversation beside a Portal, and the working sidebar steps aside while the Portal is open. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`; `docs/agent-chat.md`.
 - **Chat turn spend in the composer strip**: `OpStatusTray`: steps, tokens, and price-list cost of the running turn behind icons, split by hairlines; zero hidden, steps above one; four decimals below a cent; only tokens when narrow; no stop hint. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metric-list.tsx`; `docs/agent-chat.md`.
 
+## NumberFlow (MIT)
+
+- **Rolling live figures in the Chat composer**: Digit roll with edge fades for a changing number, used as the `@number-flow/react` dependency for the running turn's elapsed time, steps, tokens, cost, and the context percentage. Evidence: `apps/desktop/src/renderer/src/components/animated-number.tsx`; `DESIGN.md` (Motion).
+
 ## Termany
 
 - **One Session per window**: A Session belongs to one window (`PageClaims`, one page per window); opening it elsewhere focuses the owner (also: cmux, LobeHub `TopicPopupGuard`). Evidence: `docs/open-sessions.md`; `apps/server/src/domains/db/open-sessions.ts`.
@@ -177,6 +181,8 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Chat side chat (`/btw`, `Cmd+;`)**: Quick side question answered from the Chat's context beside the running turn, opened by `/btw <question>` or `Cmd+;`; no effect on the main conversation. Reference: Claude Code desktop app. Evidence: `docs/agent-chat.md` (Side chat); `packages/protocol/src/domain/default-keybindings.ts`.
 - **Chat side chat pane and Convert to Session**: Follow-up thread in a pane beside the main conversation; a thread can be promoted to a conversation of its own. Reference: LobeHub (Portal Thread). Evidence: `docs/agent-chat.md` (Side chat).
 - **Status panel Review group**: Review status and commit read from Codex's PR review summary comment. Reference: Codex. Evidence: `apps/server/src/domains/project-status/codex-review-summary.ts`; `docs/external-status-quota.md`.
+- **Picker choice as the new-Chat default**: A model, effort, or Fast switch is written to `config.toml` through app-server `config/batchWrite` (`service_tier` spelled `fast` or `default`), as the TUI's picker persists it. Reference: Codex TUI. Evidence: `apps/server/src/domains/agent-chat/codex-models.ts`; `docs/agent-chat.md` (Fast mode).
+- **A wait names the subagent it waits for**: one receiver reads `Waiting for <agent>`, several fall back to the plain phrase, as the TUI's `waiting_begin` titles a collab wait. Reference: Codex TUI (`codex-rs/tui/src/multi_agents.rs`). Evidence: `apps/server/src/domains/agent-chat/codex-items.ts`; `packages/protocol/src/agent/agent-tool-presentation.ts`; `docs/agent-chat.md` (Codex tasks).
 - **Restore code, Fast mode, spinner verbs**: `/rewind` "Restore code"; `/fast`; spinner style. Reference: Claude Code. Evidence: `docs/agent-chat.md`; `DESIGN.md` (Chat status).
 - **Chat inline image placeholders**: `[Image #N]` written where the image was pasted (the TUIs); drawn as an atomic inline pill with a thumbnail (Cursor's mentions). Reference: Claude Code, Codex, Cursor. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/attachments/agent-chat-image-placeholders.ts`.
 - **Sidebar title edge fade**: About a character and a half of mask fade at the clipped edge; both edges stay faded while a hovered title scrolls. Reference: Codex app. Evidence: `apps/desktop/src/renderer/src/styles/styles.css` (`.overflow-fade`); `DESIGN.md` (Primary sidebar).

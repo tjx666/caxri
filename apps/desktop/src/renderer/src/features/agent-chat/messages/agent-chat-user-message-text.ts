@@ -2,14 +2,45 @@ import { proseFileReferences, proseWebLinks } from '@caxri/markdown';
 import { agentChatImageTokenRanges } from '@caxri/protocol';
 
 /**
- * A run of a user's message: plain text, a file path that opens in the editor, a web link, or the `[Image #N]`
- * placeholder of one of the message's images.
+ * A run of a user's message: plain text, a file path that opens in the editor, an absolute path drawn as the pill the
+ * composer showed for it, a web link, or the `[Image #N]` placeholder of one of the message's images.
  */
 export type AgentChatUserMessageSegment =
     | { kind: 'text'; text: string }
     | { kind: 'image'; text: string; number: number; index: number }
     | { kind: 'file'; text: string; file: string }
+    | { kind: 'path'; text: string; path: string; isDirectory: boolean }
     | { kind: 'url'; text: string; url: string };
+
+/**
+ * A whole-word absolute path, as the composer writes a dropped Files entry, Editor tab, or Project (shell-quoted when
+ * it holds a space; a folder ends in `/`). At least two segments, so a slash command such as `/btw` stays text; a path
+ * with a line (`/repo/a.ts:12`) stays a file link.
+ */
+const ABSOLUTE_PATH = /(?<=^|\s)(?:'(\/[^'\n/]+\/[^'\n]*)'|(\/[^\s'"`/]+\/[^\s'"`]*))(?=$|\s)/gu;
+
+function absolutePathRuns(text: string) {
+    return text
+        .matchAll(ABSOLUTE_PATH)
+        .flatMap((match) => {
+            // Exactly one alternative matched; the other group is `undefined` at runtime despite its `string` type.
+            const path = match[1] || match[2];
+            if (/:\d+(?::\d+)?$/u.test(path)) return [];
+            const isDirectory = path.endsWith('/');
+            return [
+                {
+                    index: match.index,
+                    segment: {
+                        kind: 'path',
+                        text: match[0],
+                        path: isDirectory ? path.replace(/\/+$/u, '') : path,
+                        isDirectory,
+                    } as const,
+                },
+            ];
+        })
+        .toArray();
+}
 
 /**
  * The number the message's first image goes by in its `[Image #N]` placeholders, or `undefined` when the text places
@@ -27,11 +58,12 @@ export function agentChatFirstImageNumber(text: string, imageCount: number): num
 }
 
 /**
- * Splits a user's message into its text, the paths they typed or dropped in, and the URLs they pasted, in order. File
- * paths are found only when the Chat can open them. Where a path and a URL overlap (`https://a.dev/x.ts`), the run that
- * starts first wins, which is always the URL. A placeholder is an image only when it names one of the message's
- * `imageCount` images (see `agentChatFirstImageNumber`); otherwise it is what the user typed. An image segment's
- * `index` is its image's place in the message.
+ * Splits a user's message into its text, the paths they typed or dropped in, and the URLs they pasted, in order. A
+ * whole-word absolute path is a pill whether or not files can open (see `ABSOLUTE_PATH`). File paths are found only
+ * when the Chat can open them. Where a path and a URL overlap (`https://a.dev/x.ts`), the run that starts first wins,
+ * which is always the URL. A placeholder is an image only when it names one of the message's `imageCount` images (see
+ * `agentChatFirstImageNumber`); otherwise it is what the user typed. An image segment's `index` is its image's place in
+ * the message.
  */
 export function agentChatUserMessageSegments(
     text: string,
@@ -55,6 +87,8 @@ export function agentChatUserMessageSegments(
                   ]
                 : [],
         ),
+        // Before the file links: where both start, the path pill wins.
+        ...absolutePathRuns(text),
         ...proseWebLinks(text).map((link) => ({
             index: link.index,
             segment: { kind: 'url', text: link.text, url: link.url } as const,

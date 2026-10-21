@@ -852,6 +852,13 @@ layer:
    only): fine presence/timing control and future layout math: the work tab strip's enter/exit
    (opacity plus width), future drag reorder and shared-element transitions. Its easing comes
    from the same tokens through `motionEasing` in `lib/motion.ts`, never a library preset.
+5. **NumberFlow** (`@number-flow/react`, only through `components/animated-number.tsx`): a live
+   figure whose changed digits roll to the new value behind an edge fade, used only for the live
+   Agent Chat figures below. `AnimatedNumber` sets its timings from `--motion-number-roll` (600ms,
+   `--motion-ease-emphasized`) with characters fading on `--motion-overlay-enter`, never
+   NumberFlow's own spring, and reads reduced motion through `useShouldReduceMotion`. Only a change
+   after the figure held still for 1.5s rolls; a figure changing faster (seconds, streaming tokens)
+   jumps, so the strip never stays in motion.
 
 Timing lives in the `--motion-*` tokens in `styles.css` (`:root`): the single source for CSS
 transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallbacks, and tests:
@@ -863,7 +870,9 @@ shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear); loading
 skeleton blocks pulse on `--motion-skeleton-pulse` (2000ms, ease-in-out) after fading in on
-`--motion-overlay-enter`. JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
+`--motion-overlay-enter`; live figures roll on `--motion-number-roll` (600ms); a phrase joining a Chat work
+summary fades in from a slight blur on `--motion-summary-phrase-enter` (320ms, enter curve). JS resolves tokens
+through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
 literal. The enter curve `--motion-ease-enter` is easeOutQuint `cubic-bezier(0.23, 1, 0.32, 1)`,
 which answers the pointer in the first frames instead of the keyword `ease-out`'s slow start;
@@ -899,7 +908,11 @@ ends; instead a row the user watched run acts out its tool while it runs (a book
 book for a read, a hopping lens for a search, a typewriter for a new file, a snail for a wait; one
 16px glyph per tool kind in `features/agent-chat/loading/glyphs/`, `agentChat.animatedToolIcons`),
 then settles to its still icon with a one-shot stamp, or a small shrug when it failed (the trailing
-status glyph alone carries the failure color). Rows that were already settled when they mounted stay
+status glyph alone carries the failure color). The composer's live figures roll their changed digits
+(the NumberFlow layer): the running turn's elapsed time, which rolls forward like a clock, its
+steps, tokens, and cost, and the context ring's percentage, so a climbing count reads as progress
+rather than flicker. Other figures, including settled history and the Usage page, change in place.
+Rows that were already settled when they mounted stay
 still. With Buddy chosen, Buddy also replaces the composer status line's spinner and acts out the
 turn's current tool (reads with its eyes sweeping, runs with a jog and a drop of sweat, yawns once one
 tool has run for 30 seconds), smiles with a heart when hovered, and wears a party hat in about one turn
@@ -911,7 +924,7 @@ keyboard-focused clipped sidebar titles may scroll solely to reveal their text, 
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
 attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
-but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text stays still, Chat tool glyphs show their still icons and Buddy holds its resting face, and Motion durations come
+but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text stays still, live figures change in place, Chat tool glyphs show their still icons and Buddy holds its resting face, and Motion durations come
 from the shared `useShouldReduceMotion` hook
 (`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS),
 without changing focus, selection, command, query, or lifecycle behavior.

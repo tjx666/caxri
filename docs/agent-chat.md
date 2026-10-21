@@ -452,7 +452,12 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
 - **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
   `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
   spawned child, so notifications from an unknown thread are held briefly (8 threads, 500 each) until
-  a spawn item names it. Stopping interrupts the child's turn; history comes from `thread/read`. A
+  a spawn item names it. Codex's `wait` and `closeAgent` items name their receivers only by thread id,
+  so the Server writes the subagents' Background work titles (a spawn's first prompt line, a v2 path
+  name) as their summary, rebuilt from the spawn items on resume: a row reads `Waited for Review the
+diff`, and a work summary whose waits name one subagent reads `waited for Review the diff`, as the
+  Codex TUI's `Waiting for <agent>` does. Stopping interrupts the child's turn; history comes from
+  `thread/read`. A
   `commandExecution` with a `processId` still running when its turn ends becomes a shell task;
   Caxri initializes with `experimentalApi: true` so `thread/backgroundTerminals/terminate` can stop
   it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`. A resumed
@@ -795,11 +800,15 @@ several callbacks can share one item, so the transport id is never the key.
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
   has spent so far, as LobeHub's composer tray does: steps, tokens (the Usage page's `total`), and
   the cost estimated from the bundled price list (shown with a `$`), each behind an icon with a pointer tooltip. A figure still at zero
-  is hidden, a single step too, and a strip narrower than 360px keeps only tokens. Server Core sums each Claude
+  is hidden, a single step too, and a strip narrower than 360px keeps only tokens. The elapsed time, these figures, and
+  the context ring's percentage roll their changed digits to each new value (`AnimatedNumber`, see `DESIGN.md`
+  "Motion"). Only a change after 1.5s of stillness rolls, so the ticking seconds and tokens climbing while a reply streams jump while minutes, steps, and cost roll; the live time keeps `0s` on a whole minute so its seconds never fade out for one tick. Server Core sums each Claude
   response once by message id (subagent responses included) and each Codex request of the parent thread from
   `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. A compact `Esc to stop` hint follows the metrics
   while the turn runs and drops first on a strip narrower than 480px; the `Enter to queue · ⌘Enter to steer` hint keeps only
-  its keycaps below 420px. Only the label is the polite live
+  its keycaps below 420px. That hint retires once learned: it shows in the first three running turns with a draft and
+  never again after the user sends during a turn (`useIsAgentChatDeliveryHintShown`, device-local); Send's tooltip
+  keeps both shortcuts. Only the label is the polite live
   region, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
   keeps its own text.
@@ -825,6 +834,10 @@ several callbacks can share one item, so the transport id is never the key.
   description or background state for a command, so its rows show the command line. Consecutive work collapses
   into one summary row. While work is active, that row shows the newest running action and target
   ("Reading app.ts", "Running git status --short"); after all work settles it switches to the aggregate.
+  Once some work has settled, a newly running action takes over the row only after it has run for 1s
+  (`agentChatWorkSummaryItems`), so a burst of brief calls keeps counting up instead of flashing each one.
+  A kind that joins the summary after it appeared (`, waited for Agent`) fades in; a count changing inside a phrase,
+  and the phrases already there when a Chat opens, stay still (`agentChatWorkSummaryPhrases`).
   Once a turn ends its work and commentary fold behind `Worked for X`
   (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
   a transient retry in view. A retry reads as a `--warning` row whose icon and words name the cause
@@ -1250,8 +1263,10 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
   Editor tab, or a Project dragged from inside Caxri is inserted at the caret as its absolute path
   (shell-quoted only when needed), drawn as an atomic pill with its file-type icon and name; the
-  message carries the path itself (`agent-chat-path-pills.ts`). A Terminal drop still writes the
-  path relative to where the Terminal stands.
+  message carries the path itself (`agent-chat-path-pills.ts`), a folder's with a trailing `/`.
+  The sent bubble draws each whole-word absolute path as the same pill (a trailing `/` picks the
+  folder icon) and opens it like a file link; a path with a `:line` suffix stays a file link. A
+  Terminal drop still writes the path relative to where the Terminal stands.
 - **Caxri skill.** Caxri skill in `+` attaches a skill card to the tray (an icon tile, `Caxri
 skill`, and `Skill`), so a request such as "open a Session for this" needs no prompt about the
   CLI. The row is a checkbox: choosing it again removes the card, and one message carries the card
@@ -1495,7 +1510,13 @@ while on, like the Plan chip, show the pressed `--selection` fill, never the acc
 - **Codex**: a model offers Fast when `model/list` lists a `priority` (or `fast`) service tier,
   falling back to the deprecated `additionalSpeedTiers`. The toggle rides on the next `turn/start`
   as `serviceTier: "priority"`, or `"default"` to turn it off (a null tier would keep the thread's
-  saved one), and `thread/start` and `thread/resume` report it back after a restart.
+  saved one), and `thread/start` and `thread/resume` report it back after a restart. A picker
+  switch (Fast, model, or effort) is also saved as the default for new Chats through
+  `config/batchWrite` (`service_tier = "fast"` or `"default"`, `model`, `model_reasoning_effort` in
+  the user's `config.toml`), as the Codex TUI saves its picker, because a new thread starts from that
+  config. Only the user-facing `agentChat.configure` saves; a benchmark's direct session switch does
+  not. `agent_chat.defaults_saved` logs the outcome; `overridden` means a higher-priority config
+  layer (a profile or a managed config) still wins.
 - **Claude Code**: a model offers Fast when its `supportsFastMode` is true. The SDK reports
   `fast_mode_state` on the `initialize` response, the init message, and every `result`; `cooldown`
   counts as on. When it reports a plan, policy, or provider block (any `fast_mode_disabled_reason`

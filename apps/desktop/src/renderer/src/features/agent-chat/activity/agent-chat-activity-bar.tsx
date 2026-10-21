@@ -1,13 +1,14 @@
 import type { AgentChatActivity } from '@caxri/protocol';
-import { formatNoticeableDuration } from '@caxri/protocol';
 import { Info, MessageCircleQuestionMark } from 'lucide-react';
 
+import { AnimatedNumber, AnimatedNumberGroup } from '../../../components/animated-number';
 import { Kbd } from '../../../components/ui/kbd';
 import { Spinner } from '../../../components/ui/spinner';
 import { useTranslation } from '../../../i18n';
 import { useIsAgentChatStopping } from '../hooks/use-agent-chat-stop';
 import { useClockTick } from '../hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../loading';
+import { elapsedTimeFigures } from './agent-chat-elapsed-time';
 import { AgentChatTurnMetricList } from './agent-chat-turn-metric-list';
 
 /**
@@ -35,10 +36,46 @@ function WorkingIndicatorGlyph({
     return <Spinner className="size-3.5 shrink-0" role="presentation" />;
 }
 
+/**
+ * The tens of a seconds count stop at 5, so 59 rolls forward to 00.
+ */
+const SECONDS_DIGITS = { 1: { max: 5 } };
+
+/**
+ * How long the turn has run, its digits rolling forward like a clock's every second (`elapsedTimeFigures`).
+ */
 function ElapsedTime({ startedAt }: { startedAt: number }) {
     const { t } = useTranslation();
-    const label = formatNoticeableDuration(useClockTick('second') - startedAt, t);
-    return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
+    const figures = elapsedTimeFigures(useClockTick('second') - startedAt, t);
+    if (!figures) return null;
+    const { minutes, separator, seconds } = figures;
+    const text = `${minutes ? `${minutes.prefix}${minutes.value}${minutes.suffix}` : ''}${separator}${seconds.prefix}${seconds.value}${seconds.suffix}`;
+    return (
+        <span
+            className="shrink-0 whitespace-pre tabular-nums"
+            data-agent-chat-elapsed-time=""
+            data-value={text}
+        >
+            <AnimatedNumberGroup>
+                {minutes && (
+                    <AnimatedNumber
+                        prefix={minutes.prefix}
+                        suffix={minutes.suffix}
+                        trend={1}
+                        value={minutes.value}
+                    />
+                )}
+                {separator}
+                <AnimatedNumber
+                    digits={SECONDS_DIGITS}
+                    prefix={seconds.prefix}
+                    suffix={seconds.suffix}
+                    trend={1}
+                    value={seconds.value}
+                />
+            </AnimatedNumberGroup>
+        </span>
+    );
 }
 
 /**

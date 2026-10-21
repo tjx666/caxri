@@ -42,6 +42,8 @@ describe('Codex Chat background work with a fake app-server', () => {
             expect.objectContaining({
                 type: 'toolCall',
                 name: 'wait',
+                // The wait names the subagent it waited for by its Background work title.
+                summary: 'Inspect the fixtures',
                 output: 'Found one sample file.',
             }),
         );

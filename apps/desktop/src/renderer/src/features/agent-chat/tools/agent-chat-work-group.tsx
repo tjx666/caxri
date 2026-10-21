@@ -3,6 +3,7 @@ import { memo, useContext, useId, useMemo, useRef } from 'react';
 
 import type { AgentChatTask, AgentChatWorkItem } from '@caxri/protocol';
 import {
+    agentChatActiveWork,
     agentChatFileChangesStat,
     agentChatOutputLanguage,
     agentChatReasoningTitle,
@@ -12,12 +13,13 @@ import {
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
     agentChatWorkSummaryGlyph,
+    agentChatWorkSummaryItems,
+    agentChatWorkSummaryPhrases,
     agentToolActiveLabel,
     describeAgentChatWorkRow,
     isAgentChatWorkRunning,
     splitAgentChatWork,
     stripLineNumberGutter,
-    summarizeAgentChatWork,
     unwrapShellCommand,
 } from '@caxri/protocol';
 import { ChevronRight } from 'lucide-react';
@@ -25,6 +27,7 @@ import { ChevronRight } from 'lucide-react';
 import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { CodeView } from '../../../components/markdown/code-view';
+import { useHasLasted } from '../../../hooks/use-has-lasted';
 import { useScrollEdges } from '../../../hooks/use-scroll-edges';
 import { useTranslation } from '../../../i18n';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
@@ -44,6 +47,7 @@ import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatToolArguments } from './agent-chat-tool-arguments';
 import { AgentChatWorkFileLink } from './agent-chat-work-file-link';
 import { AgentChatWorkGlyph } from './agent-chat-work-glyph';
+import { AgentChatWorkSummaryTitle } from './work-summary/agent-chat-work-summary-title';
 
 /**
  * An expanded file change shows every file's diff when it touches only a few files; a wider change starts as headers.
@@ -459,6 +463,13 @@ function WorkList({ children }: { children: ReactNode }) {
 }
 
 /**
+ * How long a tool call runs before the summary row names it (`Running pnpm lint`). A call that settles sooner leaves
+ * the row on its settled summary, which only updates its counts, instead of flashing the running title and glyph
+ * animation.
+ */
+const SUMMARY_RUNNING_DELAY_MS = 1000;
+
+/**
  * Ordinary work as one stable summary row (`Ran 3 commands, read 2 files`) that lists each piece when expanded.
  */
 function AgentChatWorkSummary({
@@ -471,10 +482,15 @@ function AgentChatWorkSummary({
     onOpenFile?: (target: string) => void;
 }) {
     const { t } = useTranslation();
-    const failureStatus = agentChatWorkGroupFailure(items);
-    const summary = summarizeAgentChatWork(items, t);
-    const glyph = agentChatWorkSummaryGlyph(items);
-    const isRunning = items.some(isAgentChatWorkRunning);
+    const shouldShowRunning = useHasLasted(
+        agentChatActiveWork(items)?.item.id,
+        SUMMARY_RUNNING_DELAY_MS,
+    );
+    const described = agentChatWorkSummaryItems(items, shouldShowRunning);
+    const failureStatus = agentChatWorkGroupFailure(described);
+    const phrases = agentChatWorkSummaryPhrases(described, t);
+    const glyph = agentChatWorkSummaryGlyph(described);
+    const isRunning = described.some(isAgentChatWorkRunning);
     return (
         <DisclosureRow
             containedItems={items}
@@ -490,7 +506,7 @@ function AgentChatWorkSummary({
             }
             // Like a single running row, the live summary sweeps its title instead of trailing a spinner.
             isRunning={isRunning}
-            title={<span className="min-w-0 truncate">{summary}</span>}
+            title={<AgentChatWorkSummaryTitle phrases={phrases} />}
             trailing={
                 <>
                     {items.length === 1 && items[0] ? (

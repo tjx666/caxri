@@ -89,8 +89,8 @@ test('returning to a Chat counts the turns that finished while away', async ({},
             )
             .toEqual({ completed: 2, queued: 0 });
         await sessionCard(page, chatId).click();
-        const hint = page.getByRole('status').filter({ hasText: 'since you last looked' });
-        await expect(hint).toContainText('2 turns since you last looked');
+        const hint = page.getByRole('status').filter({ hasText: 'since you left' });
+        await expect(hint).toContainText('2 replies since you left');
         const jumpToLatest = page
             .locator(VISIBLE_SESSION)
             .getByRole('button', { name: 'Jump to latest' });
@@ -103,7 +103,10 @@ test('returning to a Chat counts the turns that finished while away', async ({},
         ]);
         expect(hintBox!.y).toBeGreaterThanOrEqual(transcriptBox!.y + transcriptBox!.height - 1);
         await page.screenshot({ path: testInfo.outputPath('return-hint.png') });
-        await hint.getByRole('button', { name: 'Jump to first' }).click();
+        // The whole message jumps, not only its trailing words.
+        await hint.getByText('2 replies since you left').hover();
+        await page.screenshot({ path: testInfo.outputPath('return-hint-hover.png') });
+        await hint.getByText('2 replies since you left').click();
         await expect(hint).toBeHidden();
         // Up at the first missed prompt, Jump to latest takes the same slot.
         await expect(jumpToLatest).toHaveCSS('opacity', '1');

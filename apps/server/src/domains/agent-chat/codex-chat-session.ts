@@ -21,6 +21,7 @@ import {
     stringField,
 } from './chat-items';
 import type {
+    AgentChatDefaultsSave,
     AgentChatDriver,
     AgentChatProviderSession,
     AgentChatSessionHost,
@@ -268,7 +269,9 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     private onItem(raw: unknown, turnId: string | undefined, isStarted: boolean): void {
-        const mapped = mapCodexItem(raw, turnId, isStarted, this.computerUse);
+        const mapped = mapCodexItem(raw, turnId, isStarted, this.computerUse, (id) =>
+            this.tasks.agentName(id),
+        );
         const item = mapped && this.thumbnails.apply(mapped, raw);
         const operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
         const type = isRecord(raw) ? raw.type : undefined;
@@ -509,6 +512,10 @@ class CodexChatSession implements AgentChatProviderSession {
         this.requireConnection();
         this.models.configure(change);
         return Promise.resolve();
+    }
+
+    saveDefaults(change: AgentChatModelChange): Promise<AgentChatDefaultsSave> {
+        return this.models.saveDefaults(this.requireConnection(), change);
     }
 
     setPermission(permission: AgentChatPermission): Promise<void> {

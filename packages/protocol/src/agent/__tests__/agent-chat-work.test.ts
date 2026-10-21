@@ -9,6 +9,8 @@ import {
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
     agentChatWorkKind,
+    agentChatWorkSummaryItems,
+    agentChatWorkSummaryPhrases,
     agentChatWorkVerb,
     describeAgentChatWork,
     isAgentChatWorkRunning,
@@ -182,6 +184,73 @@ describe('agentChatWorkDuration', () => {
         expect(agentChatWorkDuration({ ...tool, durationMs: 300 })).toBeNull();
         expect(agentChatWorkDuration({ ...tool, durationMs: 2_000 })).toBeNull();
         expect(agentChatWorkDuration({ ...tool, status: 'failed', durationMs: 1_200 })).toBe('1s');
+    });
+});
+
+describe('agentChatWorkSummaryItems', () => {
+    const settled: AgentChatWorkItem = {
+        id: 'settled',
+        type: 'command',
+        command: 'printf settled',
+        output: '',
+        status: 'completed',
+    };
+    const running: AgentChatWorkItem = {
+        id: 'running',
+        type: 'command',
+        command: 'printf running',
+        output: '',
+        status: 'running',
+    };
+
+    it('keeps a settled summary while a brief call runs, then describes the call once it is shown', () => {
+        expect(summarizeAgentChatWork(agentChatWorkSummaryItems([settled, running], false))).toBe(
+            'Ran 1 command',
+        );
+        expect(summarizeAgentChatWork(agentChatWorkSummaryItems([settled, running], true))).toBe(
+            'Running printf running',
+        );
+    });
+
+    it('describes running work at once when nothing has settled yet', () => {
+        expect(summarizeAgentChatWork(agentChatWorkSummaryItems([running], false))).toBe(
+            'Running printf running',
+        );
+    });
+});
+
+describe('agentChatWorkSummaryPhrases', () => {
+    const command: AgentChatWorkItem = {
+        id: 'command',
+        type: 'command',
+        command: 'printf done',
+        output: '',
+        status: 'completed',
+    };
+    const failed: AgentChatWorkItem = { ...command, id: 'failed', status: 'failed' };
+    const edit: AgentChatWorkItem = {
+        id: 'edit',
+        type: 'fileChange',
+        changes: [{ path: 'src/app.ts', kind: 'update', diff: '' }],
+        status: 'completed',
+    };
+
+    it('keys one phrase per kind, so a count change keeps its key and a new kind adds one', () => {
+        expect(agentChatWorkSummaryPhrases([command])).toEqual([
+            { key: 'command', text: 'Ran 1 command' },
+        ]);
+        expect(agentChatWorkSummaryPhrases([command, command, edit])).toEqual([
+            { key: 'command', text: 'Ran 2 commands' },
+            { key: 'edit', text: ', edited 1 file' },
+        ]);
+    });
+
+    it('ends with the failure count and joins into the summary text', () => {
+        const phrases = agentChatWorkSummaryPhrases([edit, failed]);
+        expect(phrases.at(-1)).toEqual({ key: 'failures', text: ', 1 failed' });
+        expect(phrases.map(({ text }) => text).join('')).toBe(
+            summarizeAgentChatWork([edit, failed]),
+        );
     });
 });
 

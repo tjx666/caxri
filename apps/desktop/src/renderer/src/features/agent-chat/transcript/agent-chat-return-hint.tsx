@@ -30,17 +30,20 @@ export function AgentChatReturnHint({
     return (
         <div
             className={cn(
-                'absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-elevated pr-0.5 pl-3 text-xs text-foreground shadow-[0_8px_24px_var(--shadow)]',
+                'absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-elevated pr-0.5 text-xs text-foreground shadow-[0_8px_24px_var(--shadow)]',
+                anchorId === undefined ? 'pl-3' : 'pl-0.5',
                 // Fades and rises in on the overlay tokens like Jump to latest. The pane unmounts the hint, so only the
                 // enter can animate here.
                 'transition-[opacity,translate] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-safe:starting:translate-y-1 motion-safe:starting:opacity-0',
             )}
             role="status"
         >
-            <span className="tabular-nums">{label}</span>
-            {anchorId !== undefined && (
+            {anchorId === undefined ? (
+                <span className="tabular-nums">{label}</span>
+            ) : (
+                // The whole message is the jump target, not only its trailing words; only Dismiss stays apart.
                 <Button
-                    className="ml-1"
+                    className="rounded-full pl-2.5 text-xs"
                     size="sm"
                     variant="ghost"
                     onClick={() => {
@@ -48,6 +51,7 @@ export function AgentChatReturnHint({
                         onDismiss();
                     }}
                 >
+                    <span className="mr-1 tabular-nums">{label}</span>
                     <ArrowUp aria-hidden="true" className="size-3.5" />
                     {t(
                         count === 1

@@ -57,6 +57,20 @@ export function readFakeConfig(): { config: Record<string, unknown>; origins: ob
 }
 
 /**
+ * The `config/batchWrite` answer: appends the edits to `config-writes.jsonl`, standing in for the user's `config.toml`.
+ */
+export function writeFakeConfig(parameters: Record<string, unknown>): {
+    status: 'ok';
+    version: string;
+} {
+    fs.appendFileSync(
+        stateFile('config-writes.jsonl'),
+        `${JSON.stringify({ edits: parameters.edits })}\n`,
+    );
+    return { status: 'ok', version: 'fake' };
+}
+
+/**
  * Appends the permission, collaboration-mode, and service-tier fields of one `turn/start` to `turn-starts.jsonl`.
  */
 export function recordTurnStart(parameters: Record<string, unknown>) {

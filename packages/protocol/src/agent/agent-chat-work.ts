@@ -7,6 +7,7 @@ import { agentChatMcpToolTitle } from './agent-chat-mcp.js';
 import type { AgentToolKind, AgentToolPresentation } from './agent-tool-presentation.js';
 import {
     agentToolActiveLabel,
+    agentToolGroupPhrases,
     agentToolKindCounts,
     agentToolLabel,
     agentToolOutcomeLabel,
@@ -14,7 +15,6 @@ import {
     formatNoticeableDuration,
     formatShortDuration,
     parseAgentMcpToolName,
-    summarizeAgentToolGroup,
 } from './agent-tool-presentation.js';
 
 /**
@@ -299,6 +299,21 @@ export function agentChatWorkGroupFailure(
 }
 
 /**
+ * The items a work summary row describes. While its running item is not yet shown (`shouldShowRunning` is false), the
+ * row keeps describing the work that already settled, so a call that finishes within moments never flips a settled
+ * `Edited 5 files` to `Running pnpm lint` and back. A group with nothing settled yet describes its running work at
+ * once.
+ */
+export function agentChatWorkSummaryItems(
+    items: readonly AgentChatWorkItem[],
+    shouldShowRunning: boolean,
+): readonly AgentChatWorkItem[] {
+    if (shouldShowRunning) return items;
+    const settled = items.filter((item) => !isAgentChatWorkRunning(item));
+    return settled.length > 0 ? settled : items;
+}
+
+/**
  * `Ran 3 commands, read 2 files` for a group, counting each changed file as one edit. Reasoning only names the group
  * when it is all the group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a
  * collapsed group never reads as a clean run.
@@ -307,21 +322,38 @@ export function summarizeAgentChatWork(
     items: readonly AgentChatWorkItem[],
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
+    return agentChatWorkSummaryPhrases(items, t)
+        .map(({ text }) => text)
+        .join('');
+}
+
+/**
+ * {@link summarizeAgentChatWork} as keyed phrases that join into it: the running action, the thinking label, or one
+ * phrase per tool kind (`Edited 1 file`, `, ran 3 commands`) followed by the failure count (`, 1 failed`). A key stays
+ * the same while its phrase only updates a count, so the Renderer can animate a phrase that joins the summary.
+ */
+export function agentChatWorkSummaryPhrases(
+    items: readonly AgentChatWorkItem[],
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): Array<{ key: string; text: string }> {
     const active = agentChatActiveWork(items);
     if (active) {
         const verb = agentToolActiveLabel(active.presentation, t);
-        return [verb, active.presentation.subject].filter(Boolean).join(' ');
+        const text = [verb, active.presentation.subject].filter(Boolean).join(' ');
+        return [{ key: 'active', text }];
     }
     const tools = agentChatWorkSummaryTools(items);
-    if (tools.length === 0)
-        return t(
-            items.some((item) => item.type === 'reasoning' && item.streaming)
-                ? 'agentChat.tool.label.thinking'
-                : 'agentChat.tool.label.thought',
-        );
+    if (tools.length === 0) {
+        const isThinking = items.some((item) => item.type === 'reasoning' && item.streaming);
+        const label = isThinking ? 'agentChat.tool.label.thinking' : 'agentChat.tool.label.thought';
+        return [{ key: 'reasoning', text: t(label) }];
+    }
+    const phrases = agentToolGroupPhrases(tools, t).map(({ kind, text }) => ({ key: kind, text }));
     const failed = items.filter((item) => isAgentChatWorkUnsuccessful(item)).length;
-    const summary = summarizeAgentToolGroup(tools, t);
-    return failed > 0 ? t('agentChat.workGroup.withFailures', { summary, count: failed }) : summary;
+    if (failed === 0) return phrases;
+    // The failure template wraps the whole summary; an empty summary leaves exactly the text it appends.
+    const failures = t('agentChat.workGroup.withFailures', { summary: '', count: failed });
+    return [...phrases, { key: 'failures', text: failures }];
 }
 
 /**

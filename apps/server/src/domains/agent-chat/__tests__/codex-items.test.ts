@@ -293,6 +293,27 @@ describe('Codex item mapping', () => {
             summary: '2 agents',
             output: 'Done.',
         });
+        // With the subagents' names known, the wait says whom it waits for; one unnamed receiver keeps the count.
+        const wait = {
+            type: 'collabAgentToolCall',
+            id: 'w',
+            tool: 'wait',
+            status: 'inProgress',
+            receiverThreadIds: ['a', 'b'],
+            prompt: null,
+        };
+        const names = new Map([
+            ['a', 'Find the bug'],
+            ['b', 'Lint'],
+        ]);
+        expect(mapCodexItem(wait, 't', true, undefined, (id) => names.get(id))).toMatchObject({
+            summary: 'Find the bug, Lint',
+        });
+        expect(
+            mapCodexItem(wait, 't', true, undefined, (id) =>
+                id === 'a' ? 'Find the bug' : undefined,
+            ),
+        ).toMatchObject({ summary: '2 agents' });
         expect(
             mapCodexItem(
                 {

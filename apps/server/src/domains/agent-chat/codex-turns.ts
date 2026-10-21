@@ -5,8 +5,15 @@ import type {
     AgentChatTurn,
 } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, MAX_TRACKED_TURNS, stringField } from './chat-items';
-import { mapCodexItem } from './codex-items';
+import {
+    clip,
+    closeDanglingItem,
+    isRecord,
+    MAX_TRACKED_TURNS,
+    promptTitle,
+    stringField,
+} from './chat-items';
+import { codexAgentName, mapCodexItem } from './codex-items';
 
 /**
  * Pure turn bookkeeping for a Codex Chat: rebuilding the projection from resumed history and closing a finished turn.
@@ -43,6 +50,45 @@ function turnStartMs(turn: Json): number | undefined {
 }
 
 /**
+ * The name a subagent goes by in the Chat (its Background work title), by thread id.
+ */
+type CodexAgentName = (threadId: string) => string | undefined;
+
+/**
+ * The subagents a recorded thread started, named as the live Background work list titles them (a v1 spawn's first
+ * prompt line, a v2 subagent's path name), so a resumed `wait` still says whom it waited for.
+ */
+export function codexAgentNames(rawTurns: readonly unknown[]): CodexAgentName {
+    const names = new Map<string, string>();
+    const rawItems = rawTurns.flatMap((turn) =>
+        isRecord(turn) && Array.isArray(turn.items) ? (turn.items as unknown[]) : [],
+    );
+    for (const raw of rawItems) {
+        const spawned = isRecord(raw) ? spawnedAgent(raw) : undefined;
+        if (spawned && !names.has(spawned.threadId)) names.set(spawned.threadId, spawned.name);
+    }
+    return (threadId) => names.get(threadId);
+}
+
+/**
+ * The subagent one recorded item started, if it is a spawn (`collabAgentToolCall`) or a v2 `started` activity.
+ */
+function spawnedAgent(raw: Json): { threadId: string; name: string } | undefined {
+    if (raw.type === 'collabAgentToolCall' && raw.tool === 'spawnAgent') {
+        const receivers: unknown[] = Array.isArray(raw.receiverThreadIds)
+            ? raw.receiverThreadIds
+            : [];
+        const threadId = stringField(receivers[0]);
+        const name = promptTitle(raw.prompt);
+        return threadId && name ? { threadId, name } : undefined;
+    }
+    if (raw.type !== 'subAgentActivity' || raw.kind !== 'started') return undefined;
+    const threadId = stringField(raw.agentThreadId);
+    const name = codexAgentName(raw.agentPath, 1_000);
+    return threadId && name ? { threadId, name } : undefined;
+}
+
+/**
  * One recorded turn's items, with the dangling ones closed unless the turn is still running. The user message that
  * opened the turn is dated by `startedAt`; a message steered in later, and every other item, stays undated until
  * {@link itemTimeOperations} finds its own time.
@@ -52,11 +98,12 @@ export function historyItems(
     turnId: string,
     isRunning: boolean,
     startedAt?: number,
+    agentName?: CodexAgentName,
 ): AgentChatItem[] {
     if (!Array.isArray(rawItems)) return [];
     let isOpeningMessage = true;
     return rawItems.flatMap((rawItem) => {
-        const mapped = mapCodexItem(rawItem, turnId, false);
+        const mapped = mapCodexItem(rawItem, turnId, false, undefined, agentName);
         if (!mapped) return [];
         const isOpening = isOpeningMessage && mapped.type === 'userMessage';
         if (mapped.type === 'userMessage') isOpeningMessage = false;
@@ -101,6 +148,7 @@ export function historyOperations(
     const turns: AgentChatTurn[] = [];
     const items: AgentChatItem[] = [];
     let activeTurnId: string | undefined;
+    const names = codexAgentNames(rawTurns);
     for (const rawTurn of rawTurns) {
         if (!isRecord(rawTurn)) continue;
         const turnId = stringField(rawTurn.id);
@@ -113,7 +161,7 @@ export function historyOperations(
             ...(typeof rawTurn.durationMs === 'number' &&
                 rawTurn.durationMs >= 0 && { durationMs: rawTurn.durationMs }),
         });
-        items.push(...historyItems(rawTurn.items, turnId, isRunning, turnStartMs(rawTurn)));
+        items.push(...historyItems(rawTurn.items, turnId, isRunning, turnStartMs(rawTurn), names));
     }
     const operations: AgentChatPatchOperation[] = [{ op: 'reset' }];
     for (const item of items) operations.push({ op: 'upsertItem', item });

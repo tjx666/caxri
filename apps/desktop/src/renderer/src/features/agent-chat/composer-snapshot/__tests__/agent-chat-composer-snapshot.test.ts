@@ -85,6 +85,14 @@ describe('Agent Chat composer snapshot selection', () => {
         expect(running.isBusy).toBe(true);
     });
 
+    it('keeps the Fast mode and ultracode states the model picker toggles', () => {
+        const view = selectAgentChatComposerView(
+            { ...snapshot([prompt], 1), fast: true, ultracode: false },
+            context,
+        );
+        expect(view.snapshot).toMatchObject({ fast: true, ultracode: false });
+    });
+
     it('says loading before the first snapshot', () => {
         expect(selectAgentChatComposerView(undefined, context).sendBlock).toBe('loading');
     });

@@ -71,6 +71,12 @@ export const logEventCatalog = {
          */
         forkReleaseFailed: 'agent_chat.fork_release_failed',
         /**
+         * A model, effort, or Fast mode switch from the picker saved as the provider's default for new Chats (Codex
+         * `config/batchWrite`), with a closed `outcome` (`saved`, `overridden` when a higher-priority config layer
+         * still wins, `failed`), the provider, and the comma-joined config `keys` it wrote. Never carries the values.
+         */
+        defaultsSaved: 'agent_chat.defaults_saved',
+        /**
          * One side question (`/btw`) with a closed `outcome` (`answered`, `refused`, `failed`), a closed `reason` when
          * it was not answered (`unsupported`, `notRunning`, `timeout`, `empty`, `providerError`, else null), the
          * provider, how many earlier exchanges it carried (`historyLength`), and the duration. Never carries question

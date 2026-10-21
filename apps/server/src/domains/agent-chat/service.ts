@@ -26,6 +26,7 @@ import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
+import { saveChatDefaults } from './chat-session-logs';
 import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
@@ -304,7 +305,10 @@ export class AgentChatService {
     async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {
         await this.enqueue(terminalId, async (session, state) => {
             const config = resolveAgentChatModelChange(state.projection.snapshot, change);
-            if (Object.keys(config).length > 0) await session.configure?.(config);
+            if (Object.keys(config).length === 0) return;
+            await session.configure?.(config);
+            // eslint-disable-next-line no-void -- logs its own failure and never rejects; the switch already applied
+            void saveChatDefaults(session, config, this.options, terminalId);
         });
     }
 
