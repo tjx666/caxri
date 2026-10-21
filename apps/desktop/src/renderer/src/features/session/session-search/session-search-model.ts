@@ -51,10 +51,29 @@ export function snippetSegments(snippet: SessionSearchSnippet): SnippetSegment[]
 }
 
 /**
+ * The part of `text` that spells `phrase` once whitespace is ignored on both sides, as the message writes it.
+ */
+function phraseInText(text: string, phrase: string): string | undefined {
+    const compactPhrase = phrase.replaceAll(/\s+/gu, '').toLowerCase();
+    if (!compactPhrase) return undefined;
+    const characters = text.toLowerCase().matchAll(/\S/gu).toArray();
+    // One entry per UTF-16 unit, so an index into the compact text maps back to `text`.
+    const positions = characters.flatMap(({ 0: character, index }) =>
+        Array.from({ length: character.length }, (_, offset) => index + offset),
+    );
+    const start = characters
+        .map(([character]) => character)
+        .join('')
+        .indexOf(compactPhrase);
+    if (start === -1) return undefined;
+    return text.slice(positions[start], positions[start + compactPhrase.length - 1] + 1);
+}
+
+/**
  * What find in the opened Chat searches for, so a message match lands on that message: the whole query when the quoted
- * message holds it as one phrase (a pasted sentence), otherwise the longest matched term the quote shows. Undefined
- * when the row did not match on message text. Find searches rendered text, so Markdown markers are dropped the way the
- * index drops them.
+ * message holds it as one phrase (a pasted sentence, or "21 个 token" for "21 个 token"), written as the message spaces
+ * it, otherwise the longest matched term the quote shows. Undefined when the row did not match on message text. Find
+ * searches rendered text, so Markdown markers are dropped the way the index drops them.
  */
 export function sessionSearchFindQuery(
     entry: SessionSearchEntry,
@@ -62,9 +81,11 @@ export function sessionSearchFindQuery(
 ): string | undefined {
     const { snippet } = entry.match;
     if (!snippet || !entry.agentSessionId) return undefined;
-    const phrase = normalizeSessionSearchText(query).replaceAll(/\s+/gu, ' ').trim();
-    const text = snippet.text.replaceAll(/\s+/gu, ' ').toLowerCase();
-    if (phrase && text.includes(phrase.toLowerCase())) return phrase;
+    const phrase = phraseInText(
+        snippet.text.replaceAll(/\s+/gu, ' '),
+        normalizeSessionSearchText(query),
+    );
+    if (phrase) return phrase;
     return snippetSegments(snippet)
         .filter((segment) => segment.isMatch)
         .map((segment) => segment.text)

@@ -3,7 +3,13 @@ import type { AgentProvider, SessionSearchMatchField, SessionSearchSnippet } fro
 import type { AgentEnvironment } from '../contract';
 import type { IndexerPassReport } from './indexer';
 import { SessionSearchIndexer } from './indexer';
-import { metadataMatch, parseSessionQuery, snippetAround, snippetFromMarkers } from './query';
+import {
+    metadataMatch,
+    parseSessionQuery,
+    snippetAround,
+    snippetFromMarkers,
+    withTermHighlights,
+} from './query';
 import type { SessionSearchStore, StoredTranscript } from './store';
 
 /**
@@ -45,7 +51,11 @@ export interface IndexedConversationHit {
     snippet?: SessionSearchSnippet;
     messageCount?: number;
     /**
-     * Orders hits that matched on the same field; higher is better.
+     * A message holds the whole query as one phrase, spacing aside; such a hit outranks others on the same field.
+     */
+    isPhraseMatch?: boolean;
+    /**
+     * Orders hits that matched on the same field and phrase; higher is better.
      */
     score: number;
 }
@@ -77,6 +87,11 @@ interface ContentHit {
     hits: number;
     rank?: number;
     bestMessageId: number;
+    /**
+     * The newest message holding the whole query as one phrase, which the snippet quotes instead of the best-ranked
+     * one.
+     */
+    phraseMessageId?: number;
 }
 
 export function conversationKey(provider: string, agentSessionId: string): string {
@@ -96,10 +111,14 @@ const matchFieldOrder: Record<SessionSearchMatchField, number> = {
 };
 
 export function compareHits(
-    left: { field: SessionSearchMatchField; score: number },
-    right: { field: SessionSearchMatchField; score: number },
+    left: { field: SessionSearchMatchField; isPhraseMatch?: boolean; score: number },
+    right: { field: SessionSearchMatchField; isPhraseMatch?: boolean; score: number },
 ): number {
-    return matchFieldOrder[left.field] - matchFieldOrder[right.field] || right.score - left.score;
+    return (
+        matchFieldOrder[left.field] - matchFieldOrder[right.field] ||
+        Number(right.isPhraseMatch ?? false) - Number(left.isPhraseMatch ?? false) ||
+        right.score - left.score
+    );
 }
 
 /**
@@ -184,7 +203,7 @@ export class SessionSearchEngine {
 
     /**
      * Folds per-transcript matches into per-conversation ones, keeping the best-ranked message (or, for a substring
-     * scan with no ranking, the newest).
+     * scan with no ranking, the newest) and the newest message holding the whole query as a phrase.
      */
     private contentHits(
         parsed: ReturnType<typeof parseSessionQuery>,
@@ -218,21 +237,46 @@ export class SessionSearchEngine {
                 if (row.rank !== undefined) existing.rank = row.rank;
             }
         }
+        if (parsed.phrase === undefined || merged.size === 0) return merged;
+        for (const row of this.store.phraseMatches(
+            parsed.ftsQuery,
+            parsed.substrings,
+            parsed.phrase,
+            providers,
+        )) {
+            const match = merged.get(keyByTranscript.get(row.transcript) ?? '');
+            if (match && row.messageId > (match.phraseMessageId ?? -Infinity))
+                match.phraseMessageId = row.messageId;
+        }
         return merged;
     }
 
     private snippet(
         parsed: ReturnType<typeof parseSessionQuery>,
         messageId: number,
+        isPhraseMatch: boolean,
     ): SessionSearchSnippet | undefined {
-        if (parsed.ftsQuery) {
+        if (!isPhraseMatch && parsed.ftsQuery) {
             const row = this.store.snippet(parsed.ftsQuery, messageId);
             return (
-                row && snippetFromMarkers(row.role === 'user' ? 'user' : 'assistant', row.snippet)
+                row &&
+                withTermHighlights(
+                    snippetFromMarkers(row.role === 'user' ? 'user' : 'assistant', row.snippet),
+                    parsed.substrings,
+                )
             );
         }
+        // FTS5 centers its excerpt on the indexed terms alone, which may sit far from the phrase.
         const message = this.store.message(messageId);
-        return message && snippetAround(message.role, message.text, parsed.substrings);
+        return (
+            message &&
+            snippetAround(
+                message.role,
+                message.text,
+                parsed.terms,
+                isPhraseMatch ? parsed.phrase : undefined,
+            )
+        );
     }
 
     private async refreshInBackground(): Promise<void> {
@@ -309,10 +353,12 @@ export class SessionSearchEngine {
         for (const [key, match] of content) {
             const conversation = conversations.get(key);
             if (!conversation || !isAllowed(key)) continue;
-            bestMessages.set(key, match.bestMessageId);
+            bestMessages.set(key, match.phraseMessageId ?? match.bestMessageId);
+            const isPhraseMatch = match.phraseMessageId !== undefined;
             const existing = hits.get(key);
             if (existing) {
                 existing.messageCount = match.hits;
+                if (isPhraseMatch) existing.isPhraseMatch = true;
                 continue;
             }
             const score =
@@ -322,13 +368,14 @@ export class SessionSearchEngine {
             hits.set(key, {
                 ...this.hit(conversation, 'content', score),
                 messageCount: match.hits,
+                ...(isPhraseMatch && { isPhraseMatch }),
             });
         }
         const ranked = hits.values().toArray().toSorted(compareHits).slice(0, request.limit);
         for (const hit of ranked) {
             const messageId = bestMessages.get(hit.key);
             if (messageId === undefined) continue;
-            const snippet = this.snippet(parsed, messageId);
+            const snippet = this.snippet(parsed, messageId, hit.isPhraseMatch ?? false);
             if (snippet) hit.snippet = snippet;
         }
         return { hits: ranked, status, usedSubstringScan: parsed.substrings.length > 0 };

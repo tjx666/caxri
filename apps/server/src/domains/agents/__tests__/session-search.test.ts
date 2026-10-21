@@ -181,6 +181,76 @@ describe('Session search index', () => {
         expect(engine.search({ query: '', limit: 10 }).hits).toHaveLength(2);
     });
 
+    it('indexes a conversation whose first prompt carries a screenshot larger than the head budget', async () => {
+        // A pasted screenshot is inlined as base64 in the first prompt's record, which alone outweighs the head read.
+        const screenshot = 'iVBORw0KGgo'.padEnd(400 * 1024, 'A');
+        await writeTranscript(
+            BILLING,
+            [
+                user(BILLING, '', {
+                    message: {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                source: {
+                                    type: 'base64',
+                                    media_type: 'image/png',
+                                    data: screenshot,
+                                },
+                            },
+                            { type: 'text', text: 'Why does the chart legend overlap the axis?' },
+                        ],
+                    },
+                }),
+                assistant(BILLING, 'The legend is anchored before the axis labels are measured.'),
+            ],
+            NOW - DAY,
+        );
+        await engine.indexer.refresh();
+
+        const [hit] = engine.search({ query: 'axis labels are measured', limit: 10 }).hits;
+        expect(hit).toMatchObject({ agentSessionId: BILLING, field: 'content' });
+        expect(hit.title).toContain('chart legend');
+    });
+
+    it('ranks a conversation holding the query as one phrase first and quotes that message', async () => {
+        // The other conversation holds every term apart and repeats the long one, which bm25 alone would prefer.
+        await writeTranscript(
+            ONBOARDING,
+            [
+                user(ONBOARDING, 'Count token usage: token totals, token rates, token caps.'),
+                assistant(ONBOARDING, '每个 token 都计费，token 表格有 42 行。'),
+            ],
+            NOW,
+        );
+        await writeTranscript(
+            BILLING,
+            [
+                user(BILLING, 'How long does the batch run take?'),
+                assistant(BILLING, '这次只用了 42 个 token 就完成了，但排队等了很久。'),
+                user(BILLING, 'Then shorten the token budget.'),
+            ],
+            NOW - 20 * DAY,
+        );
+        await engine.indexer.refresh();
+
+        for (const query of ['42个token', '42 个 token']) {
+            const { hits } = engine.search({ query, limit: 10 });
+            expect(hits.map((hit) => hit.agentSessionId)).toEqual([BILLING, ONBOARDING]);
+            const snippet = hits[0].snippet!;
+            expect(snippet.text).toContain('只用了 42 个 token 就完成了');
+            expect(
+                snippet.highlights.map(([start, end]) => snippet.text.slice(start, end)),
+            ).toEqual(['42', '个', 'token']);
+            // The FTS excerpt of the other conversation highlights the short terms too.
+            const other = hits[1].snippet!;
+            expect(other.highlights.map(([start, end]) => other.text.slice(start, end))).toEqual(
+                expect.arrayContaining(['42', '个']),
+            );
+        }
+    });
+
     it('matches text copied from a rendered message against its Markdown source', async () => {
         const ALERTS = 'ad5e6f70-8192-4da3-9eb4-d6f708192a3b';
         await writeTranscript(
@@ -229,7 +299,18 @@ describe('Session search query', () => {
             terms: ['invoice', 'ab'],
             ftsQuery: '"invoice"',
             substrings: ['ab'],
+            phrase: 'invoiceinvoiceab',
         });
+    });
+
+    it('splits a term where Chinese meets digits or Latin text', () => {
+        expect(parseSessionQuery('只用42个token')).toEqual({
+            terms: ['只用', '42', '个', 'token'],
+            ftsQuery: '"token"',
+            substrings: ['只用', '42', '个'],
+            phrase: '只用42个token',
+        });
+        expect(parseSessionQuery('token').phrase).toBeUndefined();
     });
 
     it('needs every term in one field and an ID fragment of four characters', () => {

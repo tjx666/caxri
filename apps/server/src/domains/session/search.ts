@@ -63,6 +63,7 @@ interface Holdings {
 
 interface RankedEntry {
     entry: SessionSearchEntry;
+    isPhraseMatch?: boolean;
     score: number;
 }
 
@@ -323,8 +324,8 @@ export class SessionSearchService {
 
 function compareRanked(left: RankedEntry, right: RankedEntry): number {
     return compareHits(
-        { field: left.entry.match.field, score: left.score },
-        { field: right.entry.match.field, score: right.score },
+        { field: left.entry.match.field, isPhraseMatch: left.isPhraseMatch, score: left.score },
+        { field: right.entry.match.field, isPhraseMatch: right.isPhraseMatch, score: right.score },
     );
 }
 
@@ -344,6 +345,7 @@ function heldEntry(held: HeldConversation, hit: IndexedConversationHit): RankedE
             ...(hit.cwd !== undefined && { cwd: hit.cwd }),
             match: matchOf(hit),
         },
+        ...(hit.isPhraseMatch && { isPhraseMatch: true }),
         score: hit.field === 'recent' ? updatedAt : hit.score,
     };
 }
@@ -360,6 +362,7 @@ function externalEntry(hit: IndexedConversationHit): RankedEntry {
             updatedAt: Math.trunc(hit.updatedAt),
             match: matchOf(hit),
         },
+        ...(hit.isPhraseMatch && { isPhraseMatch: true }),
         score: hit.score,
     };
 }

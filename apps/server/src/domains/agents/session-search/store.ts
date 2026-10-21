@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
  * Bumped whenever the schema or what is extracted from a transcript changes. The index is derived data, so a mismatch
  * drops the file and rebuilds it from the providers' transcripts instead of migrating.
  */
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE transcripts (
@@ -166,10 +166,43 @@ function toParameters(transcript: TranscriptUpsert) {
 }
 
 /**
+ * A message's text with its whitespace removed, so a query phrase matches it however the two are spaced.
+ */
+const COMPACT_MESSAGE_TEXT =
+    "REPLACE(REPLACE(REPLACE(REPLACE(m.text, ' ', ''), char(10), ''), char(9), ''), char(13), '')";
+
+/**
  * Escapes `%`, `_`, and the escape character itself for a `LIKE ... ESCAPE '\'` substring pattern.
  */
 function likePattern(term: string): string {
     return `%${term.replaceAll(/[%_\\]/gu, (character) => `\\${character}`)}%`;
+}
+
+/**
+ * The messages that hold every query term in a searchable transcript: an FTS5 match for the indexed terms, `LIKE` for
+ * the short ones.
+ */
+function contentFilter(
+    ftsQuery: string | undefined,
+    substrings: readonly string[],
+    providers: readonly AgentProvider[] | undefined,
+) {
+    const conditions = [`t.state IN ${SEARCHABLE_STATES}`];
+    if (ftsQuery) conditions.unshift('messages_fts MATCH ?');
+    if (providers?.length)
+        conditions.push(`t.provider IN (${providers.map(() => '?').join(', ')})`);
+    conditions.push(...substrings.map(() => String.raw`m.text LIKE ? ESCAPE '\'`));
+    return {
+        from: ftsQuery
+            ? 'FROM messages_fts f JOIN messages m ON m.id = f.rowid JOIN transcripts t ON t.id = m.transcript'
+            : 'FROM messages m JOIN transcripts t ON t.id = m.transcript',
+        where: conditions.join(' AND '),
+        parameters: [
+            ...(ftsQuery ? [ftsQuery] : []),
+            ...(providers ?? []),
+            ...substrings.map(likePattern),
+        ],
+    };
 }
 
 function openIndexDatabase(path: string): Database.Database {
@@ -327,33 +360,38 @@ export class SessionSearchStore {
         substrings: readonly string[],
         providers?: readonly AgentProvider[],
     ): ContentMatchRow[] {
-        const providerFilter = providers?.length
-            ? ` AND t.provider IN (${providers.map(() => '?').join(', ')})`
-            : '';
-        const substringFilter = substrings
-            .map(() => String.raw` AND m.text LIKE ? ESCAPE '\'`)
-            .join('');
-        const patterns = substrings.map(likePattern);
-        if (ftsQuery)
-            return this.database
-                .prepare(
-                    `SELECT m.transcript AS transcript, COUNT(*) AS hits, MIN(f.rank) AS rank, m.id AS bestMessageId
-                    FROM messages_fts f
-                    JOIN messages m ON m.id = f.rowid
-                    JOIN transcripts t ON t.id = m.transcript
-                    WHERE messages_fts MATCH ? AND t.state IN ${SEARCHABLE_STATES}${providerFilter}${substringFilter}
-                    GROUP BY m.transcript`,
-                )
-                .all(ftsQuery, ...(providers ?? []), ...patterns) as ContentMatchRow[];
+        const { from, where, parameters } = contentFilter(ftsQuery, substrings, providers);
         return this.database
             .prepare(
-                `SELECT m.transcript AS transcript, COUNT(*) AS hits, MAX(m.id) AS bestMessageId
-                FROM messages m
-                JOIN transcripts t ON t.id = m.transcript
-                WHERE t.state IN ${SEARCHABLE_STATES}${providerFilter}${substringFilter}
-                GROUP BY m.transcript`,
+                ftsQuery
+                    ? `SELECT m.transcript AS transcript, COUNT(*) AS hits, MIN(f.rank) AS rank, m.id AS bestMessageId
+                    ${from} WHERE ${where} GROUP BY m.transcript`
+                    : `SELECT m.transcript AS transcript, COUNT(*) AS hits, MAX(m.id) AS bestMessageId
+                    ${from} WHERE ${where} GROUP BY m.transcript`,
             )
-            .all(...(providers ?? []), ...patterns) as ContentMatchRow[];
+            .all(...parameters) as ContentMatchRow[];
+    }
+
+    /**
+     * The newest message per transcript that holds `phrase` contiguously once whitespace is ignored, among the messages
+     * `contentMatches` counts for the same terms.
+     */
+    phraseMatches(
+        ftsQuery: string | undefined,
+        substrings: readonly string[],
+        phrase: string,
+        providers?: readonly AgentProvider[],
+    ): Array<{ transcript: number; messageId: number }> {
+        const { from, where, parameters } = contentFilter(ftsQuery, substrings, providers);
+        return this.database
+            .prepare(
+                String.raw`SELECT m.transcript AS transcript, MAX(m.id) AS messageId
+                ${from} WHERE ${where} AND ${COMPACT_MESSAGE_TEXT} LIKE ? ESCAPE '\' GROUP BY m.transcript`,
+            )
+            .all(...parameters, likePattern(phrase)) as Array<{
+            transcript: number;
+            messageId: number;
+        }>;
     }
 
     /**
