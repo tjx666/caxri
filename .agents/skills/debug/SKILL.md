@@ -157,14 +157,18 @@ The exports include `CAXRI_E2E=1`; without it the fake executables are ignored w
 `CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent,
 confirm with `ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. `CAXRI_TEST_ROOT_PATH`
 points at `/tmp/<task>/project`, so Add Project (`Cmd+O`) uses the existing test-root grant without a
-native folder picker. To set up a multi-step scenario, drive the dev window from a short Bun script that
-calls Playwright's `chromium.connectOverCDP('http://127.0.0.1:<cdpPort>')` and reuses the E2E helpers
-(`createProjectSession`, `openAgentChat`, `createAdditionalShellSession`) instead of clicking through
-agent-browser; the helpers match English labels, so set `workbench.language` to `en` first through
-`settings.update`. Capture the result with `worktree-browser.ts`.
-If that fixture does not cover the flow, export `V8_INSPECTOR_PORT=<port>` (electron-vite passes it to
-Main as `--inspect`) and replace `dialog.showOpenDialog` through `Runtime.evaluate`, as
-`e2e/support/packaged-project-dialog.ts` does. Prefer `switch-worktree dev --user-data-dir <absolute
+native folder picker. A new Agent opens as a Terminal unless `session.openAgentsInChat` is on; the
+tab bar's Chat toggle switches an open one. Run the repeated Caxri steps through
+`.agents/skills/debug/scripts/drive-app.ts` instead of hand-writing Playwright: `language en`
+(English labels for the E2E helpers), `send <text>` into the Chat message box, `idle` until a reply
+stops changing the window, `search <query>` in Session search, and `screenshot`, each with an
+optional `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
+which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
+throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as a string, never a
+partial patch. If the fixture's test root does not cover the flow, export
+`V8_INSPECTOR_PORT=<port>` (electron-vite passes it to Main as `--inspect`) before `dev`, then run
+`drive-app.ts stub-folder-dialog <absolute path> --inspector-port <port>` so Main's folder picker
+returns that path, as `e2e/support/packaged-project-dialog.ts` does. Prefer `switch-worktree dev --user-data-dir <absolute
 task temp dir>` for a fixture run, so fixture Projects never reach the worktree profile. Otherwise, before stopping, close every fixture Terminal, archive its Sessions
 (`session.archive`), and verify `app.bootstrap` contains no fixture Agent Terminals. A later plain
 `dev` run must not restore a synthetic conversation with a real CLI. Do not delete the Project
