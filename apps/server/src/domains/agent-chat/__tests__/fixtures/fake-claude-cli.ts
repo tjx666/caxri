@@ -178,6 +178,8 @@ function record(entry: Json) {
         `${JSON.stringify({
             parentUuid: state.lastUuid,
             isSidechain: false,
+            // The real CLI stamps an SDK-started session this way; Session search keys its hosted-conversation rule on it.
+            entrypoint: 'sdk-ts',
             sessionId,
             cwd: process.cwd(),
             uuid,
