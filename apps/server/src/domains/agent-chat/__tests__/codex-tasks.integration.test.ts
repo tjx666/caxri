@@ -104,6 +104,46 @@ describe('Codex Chat background work with a fake app-server', () => {
         });
     });
 
+    it('tells a main Agent waiting on a subagent the user stopped it, ending the wait', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'subagent hold waiting' });
+        const waiting = await until(
+            (snapshot) =>
+                agentTask(snapshot)?.canStop === true &&
+                snapshot.items.some(
+                    (item) =>
+                        item.type === 'toolCall' &&
+                        item.name === 'wait' &&
+                        item.status === 'running',
+                ),
+        );
+        const turnId = waiting.activeTurnId;
+        expect(turnId).toBeTypeOf('string');
+        await service.stopTask(terminal.id, agentTask(waiting)?.id ?? '');
+        const done = await until((snapshot) => !snapshot.activeTurnId);
+        // The note was steered into the same turn, shown as a notice rather than as the user's words.
+        const notice = done.items.find(
+            (item) => item.type === 'notice' && item.title === 'Caxri told the Agent',
+        );
+        expect(notice).toMatchObject({ turnId, kind: 'output' });
+        expect(notice?.type === 'notice' && notice.message).toContain(
+            'The user stopped the subagent "Inspect the fixtures',
+        );
+        expect(itemTexts(done.items)).toEqual(['subagent hold waiting', 'Stopped waiting.']);
+    });
+
+    it('starts no turn to tell an idle main Agent about a stopped subagent', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'subagent hold' });
+        const running = await until(
+            (snapshot) => !snapshot.activeTurnId && agentTask(snapshot)?.canStop === true,
+        );
+        await service.stopTask(terminal.id, agentTask(running)?.id ?? '');
+        const stopped = await until((snapshot) => agentTask(snapshot)?.status === 'stopped');
+        expect(stopped.activeTurnId).toBeUndefined();
+        expect(stopped.items.some((item) => item.type === 'notice')).toBe(false);
+    });
+
     it('rebuilds a subagent task from thread/read after a restart', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'use a subagent' });
@@ -250,6 +290,8 @@ describe('Codex Chat background work with a fake app-server', () => {
     it('shows compaction in progress and the compacted notice only once it completes', async () => {
         const { service, terminal, signals, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');
+        await service.send(terminal.id, { text: 'hello' });
+        await until((snapshot) => !snapshot.activeTurnId && snapshot.usage?.totalTokens === 1200);
         await service.runCommand(terminal.id, 'compact');
         const compacting = await until((snapshot) => snapshot.operation === 'compacting');
         expect(compacting.items.some((item) => item.type === 'notice')).toBe(false);
@@ -261,7 +303,11 @@ describe('Codex Chat background work with a fake app-server', () => {
         const compacted = await until(
             (snapshot) => snapshot.operation === undefined && !snapshot.activeTurnId,
         );
-        expect(compacted.items).toEqual([expect.objectContaining({ kind: 'compacted' })]);
+        // Codex reports no sizes with the item; the usage before and after it bracket the compaction.
+        expect(compacted.items.find((item) => item.type === 'notice')).toMatchObject({
+            kind: 'compacted',
+            compaction: { beforeTokens: 1200, afterTokens: 300, trigger: 'manual' },
+        });
         const phases = signals.map((signal) => signal.phase);
         expect(phases).toContain('compactionStarted');
         expect(phases.indexOf('compactionStarted')).toBeLessThan(

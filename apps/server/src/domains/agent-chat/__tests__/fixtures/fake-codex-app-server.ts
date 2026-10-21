@@ -28,8 +28,9 @@
  *   short reply, so a Client folds the work behind its `Worked for` row and shows the failed command's exit code.
  * - `subagent`: a `spawnAgent` collab call whose child thread runs its own turn (notifications with the child's
  *   `threadId`, some before the spawn completes, as real Codex sends them), then a `wait` call reporting its result.
- *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away. With
- *   `browsestep`, the child runs the `browsestep` steps first.
+ *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away; with
+ *   `waiting` as well, the parent instead stays in a `wait` call that only a `turn/steer` ends. With `browsestep`, the
+ *   child runs the `browsestep` steps first.
  * - `background`: a unified-exec command (with a `processId`) that outlives its turn, streaming output until
  *   `thread/backgroundTerminals/terminate` stops it. With `flood`, it emits Codex's 10,000 output deltas at once; with
  *   `quiet`, it prints one line a second instead of one every 30 ms, so a phone screen showing it can settle.
@@ -96,6 +97,7 @@ import {
     runTestCommands,
     runWebLink,
     runWideDiff,
+    runWorkRowCommands,
 } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
@@ -106,6 +108,7 @@ import {
     runBackgroundCommand,
     runSubagent,
     startUnannouncedTerminal,
+    wakeFakeWait,
 } from './fake-codex-tasks.ts';
 import {
     fakeCodexStateDirectory,
@@ -270,6 +273,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('subagent')) {
         await runSubagent(io, turn, {
             isHeld: text.includes('hold'),
+            isWaiting: text.includes('waiting'),
             isBrowsing: text.includes('browsestep'),
         });
     } else if (text.includes('vanish')) {
@@ -310,6 +314,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runCodeBlocks(io, turn);
     } else if (text.includes('testrun')) {
         await runTestCommands(io, turn);
+    } else if (text.includes('workrows')) {
+        await runWorkRowCommands(io, turn);
     } else if (text.includes('table')) {
         await runMarkdownTable(io, turn);
     } else if (text.includes('fail')) {
@@ -543,6 +549,7 @@ function handle(message: RpcMessage) {
             };
             startItem(turn, user);
             completeItem(turn, user);
+            wakeFakeWait();
             return;
         }
         case 'thread/items/list': {

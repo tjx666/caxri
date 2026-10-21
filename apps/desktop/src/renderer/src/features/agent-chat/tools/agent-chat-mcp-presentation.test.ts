@@ -13,7 +13,7 @@ const toolCall = (
 const shell = (id: string): AgentChatWorkItem => ({
     type: 'command',
     id,
-    command: 'pnpm test',
+    command: 'pnpm build',
     output: '',
     status: 'completed',
 });

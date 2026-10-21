@@ -57,6 +57,7 @@ export function useAgentChatComposerEdit({
     focusInput,
     inputReference,
     isBusy,
+    isSteerDefault,
     isTurnRunning,
     options,
     providerName,
@@ -74,6 +75,10 @@ export function useAgentChatComposerEdit({
     focusInput: () => void;
     inputReference: RefObject<AgentChatComposerInput | null>;
     isBusy: boolean;
+    /**
+     * Whether Enter steers the running turn rather than queueing (`agentChatSubmitDelivery`).
+     */
+    isSteerDefault: boolean;
     isTurnRunning: boolean;
     options: AgentChatComposerEditOptions;
     providerName: string;
@@ -160,7 +165,12 @@ export function useAgentChatComposerEdit({
         sendAction: active
             ? agentChatEditSendAction(isTurnRunning, providerName, t)
             : agentChatSendAction(
-                  { isTurnRunning, isBusy, isPlanMode: snapshot?.planMode === true },
+                  {
+                      isTurnRunning,
+                      isBusy,
+                      isPlanMode: snapshot?.planMode === true,
+                      isSteerDefault,
+                  },
                   providerName,
                   t,
               ),

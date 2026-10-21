@@ -32,6 +32,7 @@ export function useAgentChatComposerEnter({
     isBusy,
     isEditing,
     isSendable,
+    isSteerDefault,
     isTurnRunning,
     nextQueuedId,
     pastePlainText,
@@ -53,6 +54,7 @@ export function useAgentChatComposerEnter({
     isBusy: boolean;
     isEditing: boolean;
     isSendable: boolean;
+    isSteerDefault: boolean;
     isTurnRunning: boolean;
     /**
      * The queued message an empty composer's Enter sends now (`agentChatNextQueuedId`).
@@ -116,6 +118,7 @@ export function useAgentChatComposerEnter({
         const action = agentChatComposerKeyAction(key, {
             isBusy,
             isEditing,
+            isSteerDefault,
             isTurnRunning,
             nextQueuedId:
                 isEditing || hasPendingQueue || sendState.hasContent || sendState.isSending

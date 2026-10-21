@@ -3,12 +3,21 @@ import type {
     AgentChatItem,
     AgentChatQueuedMessage,
     AgentChatSnapshot,
+    AgentProvider,
 } from '@caxri/protocol';
-import { agentChatActivity, unsettledAgentChatPendingMessages } from '@caxri/protocol';
+import {
+    agentChatActivity,
+    isAgentChatWaitingOnAgents,
+    unsettledAgentChatPendingMessages,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
-import { agentChatSendBlock, isAgentChatBusy } from '../transcript/agent-chat-presentation';
+import {
+    agentChatSendBlock,
+    isAgentChatBusy,
+    isAgentChatSteerDefault,
+} from '../transcript/agent-chat-presentation';
 
 /**
  * The part of a Chat snapshot the composer reads. `items` keeps only the user's own messages: prompt recall and "Edit
@@ -44,6 +53,10 @@ export interface AgentChatComposerView {
     isBusy: boolean;
     isQueuePaused: boolean;
     /**
+     * Whether Enter steers instead of queueing, because the main Agent waits on subagents (`isAgentChatSteerDefault`).
+     */
+    isSteerDefault: boolean;
+    /**
      * Messages sent to wait in the queue that the projection does not list yet.
      */
     pendingQueue: readonly AgentChatPendingMessage[];
@@ -63,6 +76,7 @@ export function selectAgentChatComposerView(
         hasConversation: boolean;
         pendingMessages: readonly AgentChatPendingMessage[];
         processState: Parameters<typeof agentChatSendBlock>[1];
+        provider: AgentProvider | undefined;
         providerName: string;
         t: Translate;
     },
@@ -84,6 +98,11 @@ export function selectAgentChatComposerView(
         commands: snapshot?.commands,
         isBusy: isAgentChatBusy(snapshot),
         isQueuePaused: snapshot?.queuePaused ?? false,
+        isSteerDefault: isAgentChatSteerDefault({
+            isTurnRunning: snapshot?.activeTurnId !== undefined,
+            isWaitingOnAgents: isAgentChatWaitingOnAgents(snapshot),
+            provider: context.provider,
+        }),
         pendingQueue,
         queue: snapshot?.queue,
         sendBlock: agentChatSendBlock(snapshot, context.processState),

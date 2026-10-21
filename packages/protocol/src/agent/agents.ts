@@ -115,6 +115,12 @@ export interface AgentProviderCatalogEntry {
          * `/btw`) from its context without adding it to the conversation.
          */
         chatSideQuestion: boolean;
+        /**
+         * Whether a message steered into the running turn ends the main Agent's wait on its subagents, so the
+         * composer's Enter steers while it waits instead of queueing behind the whole wait. A stopped subagent never
+         * reports back to such a provider, so stopping one while the Agent waits also tells it (`steerNotice`).
+         */
+        chatSteerEndsWait: boolean;
         messaging: boolean;
         nativeRename: boolean;
     };
@@ -161,6 +167,10 @@ export const agentProviderCatalog = {
              * The SDK's `Query.askSideQuestion`, the control request behind Claude Code's `/btw`.
              */
             chatSideQuestion: true,
+            /**
+             * A foreground `Agent` call blocks until the subagent returns, and a steered message waits for it.
+             */
+            chatSteerEndsWait: false,
             messaging: true,
             nativeRename: true,
         },
@@ -185,6 +195,12 @@ export const agentProviderCatalog = {
              * An ephemeral, read-only `thread/fork` that answers one turn; the source thread is never touched.
              */
             chatSideQuestion: true,
+            /**
+             * Multi-agent v2's `wait_agent` returns `Wait interrupted by new input.` as soon as a `turn/steer` arrives,
+             * as Enter does in the Codex TUI; v1's `wait` still runs to its result or timeout, and the steered message
+             * is read right after it. An interrupted subagent deliberately does not notify its parent.
+             */
+            chatSteerEndsWait: true,
             messaging: true,
             nativeRename: true,
         },
@@ -216,6 +232,7 @@ export const agentProviderCatalog = {
              * Grok Build's ACP agent has no side-question request.
              */
             chatSideQuestion: false,
+            chatSteerEndsWait: false,
             messaging: false,
             nativeRename: false,
         },

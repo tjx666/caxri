@@ -4,6 +4,7 @@ import { AgentChatActivityBar } from '../activity/agent-chat-activity-bar';
 import { useIsAgentChatDeliveryHintShown } from '../activity/agent-chat-delivery-hint';
 import { AgentChatContextAlerts } from '../context/agent-chat-context-alerts';
 import { AgentChatPlanPaceAlert } from '../tools/agent-chat-plan-pace-alert';
+import { agentChatDeliveryHint } from '../transcript/agent-chat-presentation';
 import type { AgentChatEditBarProperties } from './agent-chat-edit-bar';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 
@@ -18,6 +19,7 @@ export function AgentChatComposerNotices({
     isContinuing,
     isDrafting,
     isEditing,
+    isSteerDefault,
     notice,
     onCompact,
     onContinueInNewChat,
@@ -29,11 +31,14 @@ export function AgentChatComposerNotices({
     edit: AgentChatEditBarProperties | undefined;
     isContinuing: boolean;
     /**
-     * Whether the input holds a draft; during a running turn the activity row then shows the queue and steer shortcuts
-     * until the user learned them (`useIsAgentChatDeliveryHintShown`).
+     * Whether the input holds a draft; during a running turn the activity row then says what Enter does with it. The
+     * queue and steer shortcuts show only until the user learned them (`useIsAgentChatDeliveryHintShown`); Enter
+     * steering while the Agent waits on subagents (`isSteerDefault`) always says so, because it breaks the usual
+     * queueing rule.
      */
     isDrafting: boolean;
     isEditing: boolean;
+    isSteerDefault: boolean;
     notice: string | undefined;
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
@@ -41,13 +46,22 @@ export function AgentChatComposerNotices({
     usage: AgentChatSnapshot['usage'] | undefined;
 }) {
     const hasStripRoom = !activity && !isEditing;
-    const showsDeliveryHint = useIsAgentChatDeliveryHintShown(activeTurnId, isDrafting);
+    const deliveryHint = agentChatDeliveryHint({
+        hasDraft: isDrafting,
+        isSteerDefault,
+        isTurnRunning: activeTurnId !== undefined,
+    });
+    const showsQueueHint = useIsAgentChatDeliveryHintShown(
+        activeTurnId,
+        deliveryHint === 'queueOrSteer',
+    );
+    const shownHint = deliveryHint === 'steer' || showsQueueHint ? deliveryHint : undefined;
     return (
         <>
             <AgentChatActivityBar
                 activity={activity}
                 notice={notice}
-                showsDeliveryHint={showsDeliveryHint}
+                deliveryHint={shownHint}
                 terminalId={terminalId}
                 turnId={activeTurnId}
             />

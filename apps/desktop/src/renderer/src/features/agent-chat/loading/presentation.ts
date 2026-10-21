@@ -16,10 +16,14 @@ export type WorkingIndicator = AppSettings['agentChat.workingIndicator'];
 
 const MOOD_BY_KIND: Partial<Record<AgentToolKind, BuddyMood>> = {
     command: 'run',
+    commit: 'run',
     edit: 'run',
     list: 'search',
+    pullRequest: 'run',
+    push: 'run',
     read: 'read',
     search: 'search',
+    test: 'run',
     wait: 'wait',
     web: 'read',
     write: 'run',

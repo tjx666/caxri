@@ -50,6 +50,12 @@ export const logEventCatalog = {
          */
         taskFinished: 'agent_chat.task_finished',
         /**
+         * After the user stopped a subagent, whether Caxri told the main Agent so its wait ends, with a closed
+         * `outcome` (`steered`, `notWaiting` when the turn was not waiting on subagents, `turnEnded` when the turn
+         * ended before the note arrived, `failed`). Never carries message text.
+         */
+        taskStopNoticed: 'agent_chat.task_stop_noticed',
+        /**
          * One "Edit from here" with a closed `outcome` (`rewound`, `refused`, `failed`, or `resendFailed` when the
          * record was rewound but the restart or the edited message's send failed), a closed `reason` for a refusal or
          * capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the error

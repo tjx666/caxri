@@ -871,7 +871,8 @@ shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear); loading
 skeleton blocks pulse on `--motion-skeleton-pulse` (2000ms, ease-in-out) after fading in on
 `--motion-overlay-enter`; live figures roll on `--motion-number-roll` (600ms); a phrase joining a Chat work
-summary fades in from a slight blur on `--motion-summary-phrase-enter` (320ms, enter curve). JS resolves tokens
+summary fades in from a slight blur on `--motion-summary-phrase-enter` (320ms, enter curve); a streaming
+Agent Chat reply fades in on `--motion-text-reveal` (500ms, linear). JS resolves tokens
 through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
 literal. The enter curve `--motion-ease-enter` is easeOutQuint `cubic-bezier(0.23, 1, 0.32, 1)`,
@@ -896,6 +897,12 @@ an unread event is the only thing that colors the Agent icon, so a still amber d
 with it; the collapsed Project heading's static warning dot summarizes rows that already ping. The
 motion belongs to the ring, never the Agent mark itself; swapping among the three list projections
 remains instant.
+
+A streaming Agent Chat reply is a content-motion exception, as in the Codex app: each run of
+characters the stream pacer adds fades in from transparent (`.text-reveal`,
+`components/markdown/revealing-text.tsx`), so the tail of the reply reads as a short gradient instead
+of hard-edged typing. Text the reply already held when it mounted (a Chat opened mid-stream) shows at
+once, a settled reply renders plain text, and reduced motion shows every run at once.
 
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
 while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Live Agent Chat work is the third: a highlight sweeps across the text of what is still running
@@ -1369,7 +1376,13 @@ the kind its phrase names first (an MCP lead shows that call's server icon), end
 failed or were declined, whose expanded list scrolls past 240px and fades its clipped edge over
 24px. A shell command that only reads, searches, or lists files reads as that action (`sed -n
 '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is `Searched foo in src`), keeping its command
-line in the expanded view. A finished turn folds everything except the prompt, the final reply, and
+line in the expanded view. Explorations chained with `&&` read as one (`Read a.ts, b.ts`), a search
+over `rg --files` reads `Found files`, and a read of a skill's `SKILL.md` reads `Used skill
+review` with the skill glyph. A test run (`Ran tests a.test.ts`, flask glyph), a commit
+(`Committed` with its message, or `Committed and pushed`), a push (`Pushed feat/x`), and a `gh pr`
+step (`Opened PR`, `Merged PR #12`, `Checked PR`) name the step the same way, through wrappers
+such as `rtk`, `bunx`, `cd dir &&`, environment assignments, and `2>&1`; while running they keep
+the command's live glyph. A finished turn folds everything except the prompt, the final reply, and
 notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
 (`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. A turn
 the user stopped names it (`Stopped by you after 1m 7s`) and keeps the stop glyph in `--muted`,
@@ -1473,7 +1486,10 @@ dismissal. Every variant auto-dismisses after 4s of visible, non-interacting tim
 such an action routinely opens a confirmation the user can still cancel and deleting the card first
 would take the only way back to the offer. Stack
 bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
-Use the close or action button to dismiss; clicking the message body does not dismiss it. An
+Use the close or action button to dismiss; clicking the message body does not dismiss it. Both
+are borderless compact chrome: the action sits on a quiet `--state-hover-ink-quiet` wash that
+deepens to `--state-hover-ink` on hover, and the close button is a bare `X` that gains the same
+wash on hover, never an outlined circle. An
 extension inline action may declare its own success and failure toasts, which carry an `Open on
 GitHub` action when they report on GitHub; the merge-method success toast is one. Sonner's
 internal transition/removal timing is a third-party exception to the motion token layers above;

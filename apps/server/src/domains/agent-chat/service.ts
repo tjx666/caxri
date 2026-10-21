@@ -381,7 +381,7 @@ export class AgentChatService {
 
     async stopTask(terminalId: string, taskId: string): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
-        await stopChatTask(this.states.get(terminalId), taskId);
+        await stopChatTask(this.options.logger, terminalId, this.states.get(terminalId), taskId);
     }
 
     /**

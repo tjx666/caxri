@@ -223,7 +223,8 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         message: z.string().max(2_000).optional(),
         /**
          * For `compacted`: how large the context was before and after, and whether the user or the provider started it,
-         * when the provider reports them (Claude Code's `compact_metadata`).
+         * when the provider reports them (Claude Code's `compact_metadata`) or Caxri can read them off the usage on
+         * both sides of the compaction (Codex).
          */
         compaction: z
             .strictObject({

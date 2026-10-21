@@ -367,7 +367,7 @@ describe('agentChatActivity', () => {
                 },
                 'Codex',
             ),
-        ).toMatchObject({ kind: 'working', work: { kind: 'command', startedAt: 50 } });
+        ).toMatchObject({ kind: 'working', work: { kind: 'test', startedAt: 50 } });
     });
 
     it('loads an existing conversation instead of claiming to start the Agent', () => {

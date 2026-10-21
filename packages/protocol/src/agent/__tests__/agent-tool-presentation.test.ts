@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    agentToolActiveLabel,
-    agentToolOutcomeLabel,
-    describeAgentTool,
     formatNoticeableDuration,
     formatShortDuration,
     isNoticeableDuration,
-    readableShellCommand,
     shortDurationParts,
+} from '../agent-chat-labels';
+import {
+    agentToolActiveLabel,
+    agentToolOutcomeLabel,
+    describeAgentTool,
+    readableShellCommand,
     summarizeAgentToolGroup,
     unwrapShellCommand,
 } from '../agent-tool-presentation';
@@ -73,10 +75,124 @@ describe('describeAgentTool', () => {
         });
     });
 
+    it('reads chained explorations as one, and a filtered file listing as finding files', () => {
+        const describe = (summary: string) => describeAgentTool({ name: 'Bash', summary });
+        expect(
+            describe("sed -n '1,230p' src/config.ts && sed -n '1,220p' src/rotate.ts"),
+        ).toMatchObject({ kind: 'read', subject: 'config.ts, rotate.ts' });
+        expect(describe('cat a.ts; cat a.ts')).toMatchObject({ kind: 'read', path: 'a.ts' });
+        expect(describe(String.raw`rg --files scripts/rotation | rg '\.test\.ts'"$"''`)).toEqual({
+            kind: 'search',
+            label: 'Found files',
+            subject: String.raw`\.test\.ts$ in rotation`,
+            isCodeSubject: true,
+        });
+        expect(describe('rtk rg -n TODO src')).toMatchObject({
+            kind: 'search',
+            subject: 'TODO in src',
+        });
+        // Different explorations chained together are still a plain command.
+        expect(describe('cat a.ts && rg TODO')).toMatchObject({ kind: 'command' });
+    });
+
+    it("names a skill when Codex reads the skill's SKILL.md", () => {
+        expect(
+            describeAgentTool({ name: 'Bash', summary: 'cat .agents/skills/review/SKILL.md' }),
+        ).toEqual({
+            kind: 'skill',
+            label: 'Used skill',
+            subject: 'review',
+            isCodeSubject: true,
+            path: '.agents/skills/review/SKILL.md',
+        });
+        expect(
+            describeAgentTool({ name: 'Read', summary: '/work/.claude/skills/review/SKILL.md' }),
+        ).toMatchObject({ kind: 'skill', subject: 'review' });
+        expect(describeAgentTool({ name: 'Bash', summary: 'cat SKILL.md' })).toMatchObject({
+            kind: 'read',
+        });
+    });
+
+    it('reads a test run by its targets, through rtk and package runners', () => {
+        const describe = (summary: string) => describeAgentTool({ name: 'Bash', summary });
+        expect(describe('rtk vitest run src/a.test.ts src/b.test.ts')).toEqual({
+            kind: 'test',
+            label: 'Ran tests',
+            subject: 'a.test.ts, b.test.ts',
+            isCodeSubject: true,
+        });
+        expect(
+            describe('bunx vitest run -t "parses" -c vitest.config.ts src/a.test.ts'),
+        ).toMatchObject({ kind: 'test', subject: 'a.test.ts' });
+        expect(describe('CI=1 pnpm test:unit')).toMatchObject({
+            kind: 'test',
+            subject: 'pnpm test:unit',
+        });
+        for (const command of [
+            'bun run test',
+            'npm test',
+            'bun test',
+            'pnpm vitest',
+            'uv run pytest tests/unit',
+            'python -m pytest -k slow',
+            'go test ./...',
+            'cargo test',
+            'bunx playwright test e2e/app.e2e.ts',
+            'cd apps/server && rtk vitest run src/a.test.ts 2>&1 | tail -20',
+        ])
+            expect(describe(command)).toMatchObject({ kind: 'test', label: 'Ran tests' });
+        expect(describe('go test ./internal/...')).toMatchObject({ subject: './internal/...' });
+        for (const command of ['vitest bench', 'playwright install', 'bun scripts/test.ts'])
+            expect(describe(command)).toMatchObject({ kind: 'command' });
+    });
+
+    it('reads a commit, push, or pull request step, with its message or title', () => {
+        const describe = (summary: string) => describeAgentTool({ name: 'Bash', summary });
+        expect(describe('git add -A && rtk git commit -m "fix(chat): stop waiting"')).toEqual({
+            kind: 'commit',
+            label: 'Committed',
+            subject: 'fix(chat): stop waiting',
+            isCodeSubject: false,
+        });
+        expect(
+            describe(
+                'git commit -m "$(cat <<\'EOF\'\nfeat: steer while waiting\n\nBody text.\nEOF\n)" && git push',
+            ),
+        ).toMatchObject({
+            kind: 'commit',
+            label: 'Committed and pushed',
+            subject: 'feat: steer while waiting',
+        });
+        expect(describe('rtk git push -u origin feat/wait-steer')).toEqual({
+            kind: 'push',
+            label: 'Pushed',
+            subject: 'feat/wait-steer',
+            isCodeSubject: true,
+        });
+        expect(
+            describe(
+                'gh pr create --base main --title "Steer while waiting" --body-file /tmp/body.md',
+            ),
+        ).toMatchObject({
+            kind: 'pullRequest',
+            label: 'Opened PR',
+            subject: 'Steer while waiting',
+        });
+        expect(describe('rtk gh pr merge 2383 --squash')).toMatchObject({
+            label: 'Merged PR',
+            subject: '#2383',
+        });
+        expect(
+            describe('gh pr checks https://github.com/owner/project/pull/12 --watch'),
+        ).toMatchObject({ label: 'Checked PR', subject: '#12' });
+        for (const command of ['git status', 'git commit --amend && rm -rf out', 'gh pr list'])
+            expect(describe(command)).toMatchObject({ kind: 'command' });
+    });
+
     it('keeps any other command a command', () => {
         const describe = (summary: string) => describeAgentTool({ name: 'Bash', summary });
         for (const command of [
-            'bun run test',
+            'bun run build',
             'cat a.ts > b.ts',
             "sed -i 's/a/b/' app.ts",
             'sed s/a/b/ app.ts',
@@ -187,6 +303,18 @@ describe('summarizeAgentToolGroup', () => {
                 { name: 'mcp__docs__read', summary: 'c' },
             ]),
         ).toBe('Ran 2 searches, called 1 MCP tool');
+    });
+
+    it('counts every file a chained shell read covers', () => {
+        expect(
+            summarizeAgentToolGroup([
+                {
+                    name: 'shell',
+                    summary: `/bin/zsh -lc "sed -n '1,80p' a.ts && sed -n '1,40p' b.ts"`,
+                },
+                { name: 'Read', summary: '/c.ts' },
+            ]),
+        ).toBe('Read 3 files');
     });
 });
 

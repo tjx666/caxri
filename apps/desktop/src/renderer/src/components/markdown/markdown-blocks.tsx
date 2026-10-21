@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import type { MarkdownBlock, MarkdownListItem } from '@caxri/markdown';
 import { isSameMarkdownTree } from '@caxri/markdown';
@@ -19,7 +19,7 @@ import { TableBlock } from './table-block';
  * Monaco colorization (see `CodeBlock`). Shared by extension hover cards and Agent Chat messages.
  *
  * `isStreaming` marks the last block as still being written, which keeps work that only pays off for settled content
- * (code colorization) off the block every delta changes.
+ * (code colorization) off the block every delta changes, and fades in the text that arrives while it streams.
  */
 export function MarkdownBlocks({
     blocks,
@@ -35,9 +35,19 @@ export function MarkdownBlocks({
     isStreaming?: boolean;
 } & Partial<Pick<MarkdownRenderContext, 'variant'>> &
     Omit<MarkdownRenderContext, 'variant'>) {
+    const [mountedAt] = useState(() => performance.now());
+    const revealSince = isStreaming ? mountedAt : undefined;
     const context = useMemo(
-        () => ({ diagrams, onOpenFile, onOpenUrl, referenceTerminalId, skills, variant }),
-        [diagrams, onOpenFile, onOpenUrl, referenceTerminalId, skills, variant],
+        () => ({
+            diagrams,
+            onOpenFile,
+            onOpenUrl,
+            referenceTerminalId,
+            revealSince,
+            skills,
+            variant,
+        }),
+        [diagrams, onOpenFile, onOpenUrl, referenceTerminalId, revealSince, skills, variant],
     );
     return (
         <MarkdownContext value={context}>

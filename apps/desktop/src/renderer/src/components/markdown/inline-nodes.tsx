@@ -5,6 +5,7 @@ import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { Tooltip } from '../ui/tooltip';
 import { useMarkdownContext } from './markdown-context';
+import { RevealingText } from './revealing-text';
 import { WebLink } from './web-link';
 
 const LINK_CLASS_NAME =
@@ -85,10 +86,19 @@ function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> 
     );
 }
 
+function InlineText({ value }: { value: string }) {
+    const { revealSince } = useMarkdownContext();
+    return revealSince === undefined ? (
+        value
+    ) : (
+        <RevealingText revealSince={revealSince} value={value} />
+    );
+}
+
 function InlineNode({ node }: { node: MarkdownInline }) {
     switch (node.type) {
         case 'text': {
-            return node.value;
+            return <InlineText value={node.value} />;
         }
         case 'code': {
             return <InlineCode node={node} />;

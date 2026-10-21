@@ -69,6 +69,11 @@ export interface MarkdownRenderContext {
      * Marks inline code that names a known skill. Without it, such code stays plain.
      */
     skills?: MarkdownSkillHost;
+    /**
+     * Set while the tree is a reply still streaming in: when (`performance.now()`) its renderer mounted. Text that
+     * arrives after it fades in (`RevealingText`). Settled content leaves it unset and renders plain text.
+     */
+    revealSince?: number;
 }
 
 export const MarkdownContext = createContext<MarkdownRenderContext>({

@@ -436,7 +436,13 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   task this process never saw (a resumed Chat, an evicted projection); `taskId` may also be the id of
   the timeline row that started the task, so a subagent row stays openable after a restart.
   `agentChat.stopTask` stops one task without ending the turn. A provider exit marks every running
-  task stopped.
+  task stopped. A Codex subagent stopped this way never reports back to its parent (multi-agent v2
+  treats an interrupted child turn as non-final), so a main Agent waiting on it would wait out the
+  whole `wait_agent` timeout. When the main turn is in a running `wait`, Server Core therefore steers
+  a note into it saying the user stopped that subagent (`steerNotice`, a `turn/steer` whose
+  `clientUserMessageId` starts `notice:`); the steer ends the wait, and the timeline shows the note
+  as a `Caxri told the Agent` notice rather than a user message. It never starts a turn: an idle or
+  not-waiting Chat gets no note. `agent_chat.task_stop_noticed` records the closed outcome.
 - **Claude Code.** A subagent's task id is its `Agent`/`Task` tool use id. Metadata comes from the
   tool call and the `task_started`, `task_progress`, `task_notification`, `task_updated`, and
   `background_tasks_changed` system messages. A background shell uses Claude's `task_id` and links
@@ -557,7 +563,14 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
   nothing is sent twice automatically.
 - The queue survives a restart of the Chat and goes out once the new process is ready; it is never
   persisted across Server Core restarts.
-- In the composer, Enter queues during a turn and Cmd+Enter steers. Queued entries form one list
+- In the composer, Enter queues during a turn and Cmd+Enter steers. While a Codex main Agent waits
+  on its subagents (the active turn's newest running work is a `wait`), plain Enter steers too, as
+  it does in the Codex TUI: multi-agent v2's `wait_agent` returns as soon as a steer arrives, while a
+  queued message would sit behind the whole wait. The send button then reads `Steer message`, the
+  placeholder and the activity hint say Enter steers, and a slash command still queues. The
+  provider capability `chatSteerEndsWait` owns this; Claude Code's foreground `Agent` call and Grok
+  Build keep Enter queueing. Codex's older v1 `wait` does not wake on a steer, so there the steered
+  message is read once the wait returns. Queued entries form one list
   above the composer, each with Edit (back into the composer), Delete, and Steer or Send now; a
   paused queue says so in the list header with Resume. Enter (or Cmd+Enter) in an empty composer
   sends the head of the queue now, as its Steer or Send now would, and the placeholder says so while

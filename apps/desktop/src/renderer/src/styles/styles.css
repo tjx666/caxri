@@ -108,33 +108,77 @@
     font-weight: 400;
 }
 
-.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-button] {
+/*
+ * Toast buttons are compact chrome, not form buttons: no outline box, a quiet ink wash that deepens on hover, and the
+ * focus ring every other control uses. Sonner's own hover rule for the close button
+ * (`[data-sonner-toast][data-styled='true']:hover [data-close-button]:hover`) outranks a plain selector, so these repeat
+ * `[data-styled='true']` and the toast's `:hover` to win on specificity instead of `!important`.
+ */
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button] {
     grid-row: 2;
     grid-column: 4;
     justify-self: end;
+    height: 24px;
     margin: 0;
+    padding: 0 10px;
+    border: none;
+    border-radius: 6px;
     color: var(--foreground);
-    background: var(--elevated);
-    border: 1px solid var(--border);
+    background: var(--state-hover-ink-quiet);
+    font-weight: 500;
+    transition: background-color 120ms ease;
 }
 
-.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-cancel] {
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-cancel] {
     grid-column: 3;
-}
-
-.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
-    top: 6px;
-    right: 6px;
-    left: auto;
-    transform: none;
     color: var(--muted);
-    background: var(--elevated);
-    border-color: var(--border);
+    background: transparent;
 }
 
-.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover {
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']:hover
+    [data-button]:hover {
+    background: var(--state-hover-ink);
+}
+
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']:hover
+    [data-cancel]:hover {
     color: var(--foreground);
-    background: var(--surface);
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-close-button] {
+    top: 8px;
+    right: 8px;
+    left: auto;
+    width: 20px;
+    height: 20px;
+    transform: none;
+    border: none;
+    border-radius: 4px;
+    color: var(--muted);
+    background: transparent;
+    box-shadow: none;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']:hover
+    [data-close-button]:hover {
+    color: var(--foreground);
+    background: var(--state-hover-ink);
+}
+
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']
+    [data-button]:focus-visible,
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']
+    [data-close-button]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--state-focus-ring);
 }
 
 :root {
@@ -178,6 +222,7 @@
      * enter so a kind appearing at the end of an otherwise unchanged line still catches the eye.
      */
     --motion-summary-phrase-enter: 320ms;
+    --motion-text-reveal: 500ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     /*
@@ -240,6 +285,24 @@
             skeleton-reveal var(--motion-overlay-enter) var(--motion-ease-enter),
             skeleton-pulse var(--motion-skeleton-pulse) ease-in-out var(--motion-overlay-enter)
                 infinite;
+    }
+}
+
+/*
+ * A streaming Agent Chat reply fades in as it arrives, the way the Codex app reveals its replies:
+ * each run of characters the pacer adds (`components/markdown/revealing-text.tsx`) starts
+ * transparent and settles over `--motion-text-reveal`. Linear timing keeps the reply's tail an even
+ * gradient a few characters long. Reduced motion shows the text at once.
+ */
+@keyframes text-reveal {
+    from {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .text-reveal {
+        animation: text-reveal var(--motion-text-reveal) linear both;
     }
 }
 

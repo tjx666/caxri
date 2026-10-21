@@ -79,8 +79,16 @@ export class CodexThumbnails {
  * thread's rollout, so the marker survives a resume and a Server Core restart (#1610). Verified with codex-cli
  * 0.163.0-alpha.5 for `turn/start`, `turn/steer`, and `thread/resume`.
  */
-export function codexClientMessageId(delivery?: 'queued' | 'steered'): string {
+export function codexClientMessageId(delivery?: 'queued' | 'steered' | 'notice'): string {
     return delivery ? `${delivery}:${randomUUID()}` : randomUUID();
+}
+
+/**
+ * Whether a user message is a notice Caxri itself steered into the turn ({@link codexClientMessageId} `notice`), such as
+ * telling the Agent a subagent was stopped. The timeline shows it as a notice rather than as something the user said.
+ */
+export function isCodexNotice(raw: Record<string, unknown>): boolean {
+    return (stringField(raw.clientId) ?? '').startsWith('notice:');
 }
 
 /**
@@ -102,4 +110,36 @@ export function codexDelivery(raw: Record<string, unknown>): 'queued' | 'steered
  */
 export function isSteerTargetGone(error: JsonRpcRequestError): boolean {
     return /^(?:no active turn to steer|expected active turn id)/u.test(error.message);
+}
+
+/**
+ * User inputs that are references rather than text; the Chat shows their name in brackets.
+ */
+const REFERENCE_INPUT_TYPES = new Set<unknown>(['mention', 'skill']);
+
+const IMAGE_INPUT_TYPES = new Set<unknown>(['image', 'localImage']);
+
+/**
+ * How many images a user message carried. Codex echoes the full image (a data URL or a local path), which is never
+ * copied into the projection; the session pairs a message it sent with the thumbnails the Client made.
+ */
+export function codexUserImageCount(content: unknown): number {
+    if (!Array.isArray(content)) return 0;
+    return content.filter((input) => isRecord(input) && IMAGE_INPUT_TYPES.has(input.type)).length;
+}
+
+/**
+ * A user message's text as the Chat shows it, with references (mentions, skills) as their name in brackets.
+ */
+export function userMessageText(content: unknown): string {
+    if (!Array.isArray(content)) return '';
+    return content
+        .flatMap((input) => {
+            if (!isRecord(input)) return [];
+            if (input.type === 'text') return [stringField(input.text) ?? ''];
+            if (REFERENCE_INPUT_TYPES.has(input.type))
+                return [`[${stringField(input.name) ?? stringField(input.path) ?? ''}]`];
+            return [];
+        })
+        .join('\n');
 }

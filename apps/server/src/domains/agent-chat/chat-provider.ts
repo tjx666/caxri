@@ -427,6 +427,12 @@ export interface AgentChatProviderSession {
      */
     stopTask(taskId: string): Promise<void>;
     /**
+     * Steers a note from Caxri, not from the user, into the running turn, and never starts a turn: resolves `false`
+     * when no turn is running or it ended before the note arrived. Providers whose waits a stopped subagent still ends
+     * omit it (`chatSteerEndsWait`).
+     */
+    steerNotice?(text: string): Promise<boolean>;
+    /**
      * Rebuilds a task the session holds no projection for from the provider's own record. `taskId` is a task id or the
      * id of the timeline item that started the task. Resolves `undefined` when the provider does not know it.
      */

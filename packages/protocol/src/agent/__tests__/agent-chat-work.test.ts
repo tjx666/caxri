@@ -13,6 +13,7 @@ import {
     agentChatWorkSummaryPhrases,
     agentChatWorkVerb,
     describeAgentChatWork,
+    isAgentChatWaitingOnAgents,
     isAgentChatWorkRunning,
     splitAgentChatWork,
     summarizeAgentChatWork,
@@ -152,11 +153,20 @@ describe('describeAgentChatWork', () => {
             describeAgentChatWork({
                 id: 'c',
                 type: 'command',
-                command: 'npm test',
+                command: 'make build',
                 status: 'interrupted',
                 output: '',
             }).label,
         ).toBe('Stopped running');
+        expect(
+            describeAgentChatWork({
+                id: 't',
+                type: 'command',
+                command: 'npm test',
+                status: 'failed',
+                output: '',
+            }).label,
+        ).toBe('Failed to run tests');
         expect(change('running').label).toBe('Edited');
     });
 });
@@ -445,6 +455,36 @@ describe('agentChatWorkKind', () => {
             agentChatWorkKind([command('c1'), read('x')] as AgentChatWorkItem[]),
         ).toBeUndefined();
         expect(agentChatWorkKind([thought('r')] as AgentChatWorkItem[])).toBe('thought');
+    });
+});
+
+describe('isAgentChatWaitingOnAgents', () => {
+    const wait = (status: 'completed' | 'running'): AgentChatItem => ({
+        id: 'w',
+        turnId: 'turn-1',
+        type: 'toolCall',
+        name: 'wait',
+        status,
+        createdAt: 5,
+    });
+
+    it('is true only while the active turn is in a running wait', () => {
+        expect(
+            isAgentChatWaitingOnAgents({ activeTurnId: 'turn-1', items: [wait('running')] }),
+        ).toBe(true);
+        expect(
+            isAgentChatWaitingOnAgents({ activeTurnId: 'turn-1', items: [wait('completed')] }),
+        ).toBe(false);
+        expect(isAgentChatWaitingOnAgents({ items: [wait('running')] })).toBe(false);
+        expect(
+            isAgentChatWaitingOnAgents({
+                activeTurnId: 'turn-1',
+                items: [
+                    wait('running'),
+                    { ...read('r', 'turn-1'), status: 'running', createdAt: 9 },
+                ],
+            }),
+        ).toBe(false);
     });
 });
 
