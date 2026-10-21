@@ -32,11 +32,12 @@ export function usePromotePreviewOnInteraction(
             )
                 keepActiveSessionTab();
         };
+        const controller = new AbortController();
         for (const type of KEEPING_EVENTS)
-            container.addEventListener(type, onInteraction, { capture: true });
-        return () => {
-            for (const type of KEEPING_EVENTS)
-                container.removeEventListener(type, onInteraction, true);
-        };
+            container.addEventListener(type, onInteraction, {
+                capture: true,
+                signal: controller.signal,
+            });
+        return () => controller.abort();
     }, [containerReference]);
 }
