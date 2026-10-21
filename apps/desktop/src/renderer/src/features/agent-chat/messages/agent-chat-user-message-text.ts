@@ -14,15 +14,16 @@ export type AgentChatUserMessageSegment =
 /**
  * The number the message's first image goes by in its `[Image #N]` placeholders, or `undefined` when the text places
  * none of its `imageCount` images. Caxri numbers each message's images from 1, as Codex and Orca do, but the Claude
- * Code CLI keeps counting across the conversation, so a conversation started there can send one image as `[Image #3]`;
- * the lowest placeholder then names the first image.
+ * Code CLI keeps counting across the conversation, so a conversation started there can send its images as `[Image #3]`
+ * and `[Image #4]`; when the placeholders fit within the message's images that way, the lowest names the first image.
  */
 export function agentChatFirstImageNumber(text: string, imageCount: number): number | undefined {
     if (imageCount === 0) return undefined;
     const numbers = agentChatImageTokenRanges(text).map(({ number }) => number);
     if (numbers.length === 0) return undefined;
-    if (numbers.some((number) => number <= imageCount)) return 1;
-    return Math.min(...numbers);
+    const lowest = Math.min(...numbers);
+    if (Math.max(...numbers) - lowest < imageCount) return lowest;
+    return numbers.some((number) => number <= imageCount) ? 1 : lowest;
 }
 
 /**

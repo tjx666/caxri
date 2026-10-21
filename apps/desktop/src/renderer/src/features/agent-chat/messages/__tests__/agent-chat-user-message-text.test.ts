@@ -65,8 +65,10 @@ describe('agentChatFirstImageNumber', () => {
         expect(agentChatFirstImageNumber('see [Image #2] and [Image #9]', 2)).toBe(1);
     });
 
-    it('starts from the lowest placeholder when every one is past the message images', () => {
+    it('starts from the lowest placeholder when the placeholders fit the message images', () => {
         expect(agentChatFirstImageNumber('what is in [Image #3]?', 1)).toBe(3);
+        expect(agentChatFirstImageNumber('[Image #2] and [Image #3]', 2)).toBe(2);
+        expect(agentChatFirstImageNumber('[Image #1] and [Image #2]', 2)).toBe(1);
     });
 
     it('is undefined when the text places no image', () => {

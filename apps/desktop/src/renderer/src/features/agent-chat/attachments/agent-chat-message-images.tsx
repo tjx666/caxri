@@ -10,7 +10,10 @@ import {
     useAgentChatImageOriginal,
     useAgentChatImageThumbnail,
 } from '../hooks/use-agent-chat-image-thumbnail';
-import { agentChatSentImageOriginal } from './agent-chat-sent-image-originals';
+import {
+    agentChatSentImageOriginal,
+    hasAgentChatSentImageOriginal,
+} from './agent-chat-sent-image-originals';
 
 /**
  * Images a sent message carried. A resumed conversation knows an image was there but not its preview; when `message`
@@ -69,8 +72,11 @@ function MessageImage({
     const [isPreviewOpen, setPreviewOpen] = useState(false);
     const record = message && { ...message, index };
     const restored = useAgentChatImageThumbnail(thumbnail ? undefined : record);
-    const sent = agentChatSentImageOriginal(thumbnail);
-    const original = useAgentChatImageOriginal(record, { isEnabled: isPreviewOpen && !sent });
+    // The data URL is megabytes long, so it is built only while the preview shows it.
+    const sent = isPreviewOpen ? agentChatSentImageOriginal(thumbnail) : undefined;
+    const original = useAgentChatImageOriginal(record, {
+        isEnabled: isPreviewOpen && !hasAgentChatSentImageOriginal(thumbnail),
+    });
     const label = t('agentChat.attachments.imageNumber', { number: (firstNumber ?? 1) + index });
     const source = thumbnail ?? restored.thumbnail;
     if (!source) {

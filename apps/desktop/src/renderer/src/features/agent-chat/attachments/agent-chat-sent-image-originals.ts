@@ -42,6 +42,13 @@ export function agentChatSentImageOriginal(thumbnail: string | undefined): strin
 }
 
 /**
+ * Whether this window still holds the original sent behind `thumbnail`, without building its data URL.
+ */
+export function hasAgentChatSentImageOriginal(thumbnail: string | undefined): boolean {
+    return thumbnail !== undefined && originals.has(thumbnail);
+}
+
+/**
  * Drops every retained original; tests only.
  */
 export function clearAgentChatSentImageOriginals(): void {
