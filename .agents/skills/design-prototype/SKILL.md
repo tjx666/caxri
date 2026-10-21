@@ -1,6 +1,6 @@
 ---
 name: design-prototype
-description: Produce an interactive single-file HTML design prototype using the REAL Caxri design system (the Renderer's shadcn primitives + theme.css tokens + Tailwind v4 semantic utilities) with production-style React; no build step, opens directly in a browser. Use when asked for a design prototype / interactive mockup / 交互原型 / 出个原型 / 讨论原型设计, or to explore a redesign of a surface before committing to implementation.
+description: Produce an interactive single-file HTML design prototype using the REAL Caxri design system (the Renderer's shadcn primitives + theme.css tokens + Tailwind v4 semantic utilities) with production-style React; no build step, opens directly in a browser. Use when asked for a design prototype / interactive mockup / 交互原型 / 出个原型 / 讨论原型设计, or to explore a redesign of a surface before committing to implementation. Also use when the user wants to see or compare a visual or motion effect before adopting it ("得实际看看效果").
 ---
 
 # Design Prototype
@@ -14,6 +14,17 @@ Promotion to production is mostly "split into files", not "rewrite".
 Prototype code may be quick-and-dirty (one file, inline data, no IPC), but the **interaction must
 be complete**: states, transitions, and affordances are the point of a prototype, not its code
 style.
+
+## Showing an effect to the user
+
+When the user wants to judge how something looks or moves before adopting it, hand them a
+prototype, not a screen recording: it lets them replay, switch states, and compare variants side by
+side. For example, choosing when the composer strip's figures roll took two dev-app recordings with
+a temporarily patched fake Agent, while a prototype with "Always roll" and "Roll after quiet" strips
+and a phase switch answered it directly. Import the production component when it exists (add it to
+`assets/entry.mjs`) so the prototype shows the real behavior. This changes only what the user
+reviews: the agent's own acceptance of a Renderer change still uses the CDP checks and recordings
+`AGENTS.md` and the `debug` skill require.
 
 ## How it works
 
