@@ -137,7 +137,7 @@ describe('per-worktree CDP port', () => {
 
 describe('dev launch profile', () => {
     const program =
-        "require('node:fs').writeFileSync(process.argv[1], process.env.CAXRI_USER_DATA_DIR)";
+        "require('node:fs').writeFileSync(process.argv[1], process.env.CAXRI_USER_DATA_DIR); setTimeout(() => {}, 100)";
 
     it('ignores an inherited CAXRI_USER_DATA_DIR, which Agent Terminals point at the installed app', async () => {
         const fixture = await createFixture();
