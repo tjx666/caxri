@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { AgentEnvironment } from '../contract';
 import { claudeTranscriptRoot } from '../providers/claude/paths';
+import { excludedFields } from '../session-search/client';
 import { SessionSearchEngine } from '../session-search/engine';
 import { metadataMatch, parseSessionQuery } from '../session-search/query';
 import { SessionSearchStore } from '../session-search/store';
@@ -212,6 +213,65 @@ describe('Session search index', () => {
         const [hit] = engine.search({ query: 'axis labels are measured', limit: 10 }).hits;
         expect(hit).toMatchObject({ agentSessionId: BILLING, field: 'content' });
         expect(hit.title).toContain('chart legend');
+    });
+
+    it('counts each transcript the pass excludes by its cause', async () => {
+        await seed();
+        const sidechain = '9c4f5d6e-7081-4c92-8da3-c5e6f708192a';
+        const folderless = 'ad506e7f-8192-4da3-9eb4-d6f708192a3b';
+        const oversized = 'be617f80-92a3-4eb4-8fc5-e708192a3b4c';
+        const readImage = 'cf7280a1-a3b4-4fc5-90d6-f8192a3b4c5d';
+        await writeTranscript(
+            sidechain,
+            [user(sidechain, 'Audit the ledger', { isSidechain: true })],
+            NOW,
+        );
+        await writeTranscript(folderless, [user(folderless, 'Hello', { cwd: undefined })], NOW);
+        // Plain text is not inline media, so this first prompt stays past the head read's caps.
+        await writeTranscript(oversized, [user(oversized, 'x'.repeat(600 * 1024))], NOW);
+        // An image read with the Read tool is stored twice in the tool result; both copies collapse, so the folder
+        // only that record carries is still found.
+        const image = 'iVBORw0KGgo'.padEnd(300 * 1024, 'A');
+        await writeTranscript(
+            readImage,
+            [
+                user(readImage, 'Crop the chart to its legend', { cwd: undefined }),
+                user(readImage, '', {
+                    message: {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'tool_result',
+                                content: [
+                                    {
+                                        type: 'image',
+                                        source: {
+                                            type: 'base64',
+                                            media_type: 'image/png',
+                                            data: image,
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                    toolUseResult: { type: 'image', file: { base64: image, type: 'image/png' } },
+                }),
+            ],
+            NOW,
+        );
+
+        const { excluded } = await engine.indexer.refresh();
+
+        expect(excluded).toEqual({ missingFolder: 1, oversizedRecord: 1, sidechain: 1 });
+        expect(engine.search({ query: 'crop the chart', limit: 10 }).hits[0]).toMatchObject({
+            agentSessionId: readImage,
+        });
+        expect(excludedFields({ scripted: 1, oversizedRecord: 2 })).toMatchObject({
+            excludedScripted: 1,
+            excludedOversizedRecord: 2,
+            excludedMissingFolder: 0,
+        });
     });
 
     it('ranks a conversation holding the query as one phrase first and quotes that message', async () => {

@@ -5,6 +5,8 @@ import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEnvironment } from '../contract';
+import type { ConversationExclusionReason } from '../external-conversation-parsers';
+import { conversationExclusionReasons } from '../external-conversation-parsers';
 import type { IndexSearchRequest, IndexSearchResponse, IndexStatus } from './engine';
 import type {
     ConversationIdentity,
@@ -62,6 +64,21 @@ export class SessionSearchIndexUnavailableError extends Error {
 /**
  * The caller's abort reason when it is an Error (fetch-style `AbortError` or a custom one), else a standard one.
  */
+/**
+ * One count per exclusion reason (`excludedOversizedRecord`, ...), zeros included, so a log query can sum any cause
+ * across passes without knowing which ones occurred.
+ */
+export function excludedFields(
+    excluded: Partial<Record<ConversationExclusionReason, number>>,
+): Record<string, number> {
+    return Object.fromEntries(
+        conversationExclusionReasons.map((reason) => [
+            `excluded${reason[0].toUpperCase()}${reason.slice(1)}`,
+            excluded[reason] ?? 0,
+        ]),
+    );
+}
+
 function abortError(signal: AbortSignal | undefined): Error {
     const reason: unknown = signal?.reason;
     return reason instanceof Error ? reason : new DOMException('Aborted', 'AbortError');
@@ -153,15 +170,17 @@ export class SessionSearchIndex {
         switch (reply.type) {
             case 'pass': {
                 this.lastStatus = reply.status;
-                const { durationMs, ...counts } = reply.report;
-                logger.write(
-                    counts.failed > 0 ? 'warn' : 'debug',
-                    logEventCatalog.sessionSearch.indexPass,
-                    {
-                        durationMs,
-                        fields: { ...counts, conversations: reply.status.conversations },
+                const { durationMs, excluded, ...counts } = reply.report;
+                // A record past the head read's caps hides a real conversation, so it is as loud as a failed file.
+                const isLossy = counts.failed > 0 || (excluded.oversizedRecord ?? 0) > 0;
+                logger.write(isLossy ? 'warn' : 'debug', logEventCatalog.sessionSearch.indexPass, {
+                    durationMs,
+                    fields: {
+                        ...counts,
+                        ...excludedFields(excluded),
+                        conversations: reply.status.conversations,
                     },
-                );
+                });
                 this.scheduleIdle();
                 return;
             }

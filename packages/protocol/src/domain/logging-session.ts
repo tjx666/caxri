@@ -35,7 +35,9 @@ export const sessionContextLogEvents = {
  */
 export const sessionSearchLogEvents = {
     /**
-     * One incremental index pass: duration and discovered / changed / failed / removed transcript counts.
+     * One incremental index pass: duration, discovered / changed / failed / removed transcript counts, and one
+     * `excluded<Reason>` count per closed exclusion reason. Logged at `warn` when a file failed or a record past the
+     * head read's caps (`excludedOversizedRecord`) hid a conversation.
      */
     indexPass: 'session_search.index_pass',
     /**
