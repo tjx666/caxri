@@ -62,7 +62,7 @@ export async function readDevelopmentProcess(
     }
 }
 
-export interface DevelopmentLaunchInfo {
+interface DevelopmentLaunchInfo {
     cdpPort: number;
     profile: string;
     worktreeId: string;

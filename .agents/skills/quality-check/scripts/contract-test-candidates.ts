@@ -43,7 +43,7 @@ const PROTOTYPE_RUNTIME_SOURCES = [
  * in `assets/entry.mjs`. A hook added under `hooks/` once merged with a green focused check and then turned `main`'s
  * full suite red, because nothing imports the test's subject from the new file.
  */
-export function prototypeRuntimeContractTestCandidates(files: readonly string[]): string[] {
+function prototypeRuntimeContractTestCandidates(files: readonly string[]): string[] {
     return files.some((file) =>
         PROTOTYPE_RUNTIME_SOURCES.some((prefix) => file.replaceAll('\\', '/').startsWith(prefix)),
     )
