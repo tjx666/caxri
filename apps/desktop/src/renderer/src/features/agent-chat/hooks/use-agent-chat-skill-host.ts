@@ -25,12 +25,13 @@ export function useAgentChatSkillHost(terminalId: string): MarkdownSkillHost | u
         { enabled: isAgentRunning, retry: false, staleTime: AGENT_ACTION_DISCOVERY_STALE_MS },
     );
     const actions = discovery.data?.actions;
+    const referenceOnlySkills = discovery.data?.referenceOnlySkills;
     return useMemo(() => {
-        const index = agentChatSkillIndex(actions);
+        const index = agentChatSkillIndex(actions, referenceOnlySkills);
         if (index.size === 0) return;
         return {
             match: (code) => agentChatSkillMatch(index, code),
             Reference: AgentChatSkillReference,
         };
-    }, [actions]);
+    }, [actions, referenceOnlySkills]);
 }

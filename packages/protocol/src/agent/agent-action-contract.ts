@@ -132,6 +132,11 @@ export function mergeAgentActions(
 export const agentActionListResultSchema = z.strictObject({
     provider: agentProviderSchema,
     actions: z.array(agentActionSchema).max(MAX_AGENT_ACTIONS),
+    /**
+     * Skills whose metadata sets `user-invocable: false`: the user cannot start them from a menu, but the Agent still
+     * loads and names them, so a reply mentioning one is still marked as that skill. Never offered in a menu.
+     */
+    referenceOnlySkills: z.array(agentActionInvocationSchema).max(MAX_AGENT_ACTIONS).default([]),
     discovery: z.enum(['complete', 'partial']),
 });
 

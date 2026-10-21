@@ -35,7 +35,7 @@ async function discoverTerminalActions(
               adapter,
               adapter.roots({ cwd: terminal.cwd, projectRoot }, environment),
           )
-        : { actions: [], files: new Map<string, string>(), partial: false };
+        : { actions: [], referenceOnly: [], files: new Map<string, string>(), partial: false };
     return { provider, discovered };
 }
 
@@ -62,9 +62,14 @@ export async function listAgentActions(
         discovered.actions,
         settings['agents.providers'][provider].actions,
     );
+    const listed = new Set(actions.map(({ invocation }) => invocation));
     return {
         provider,
         actions,
+        referenceOnlySkills: discovered.referenceOnly
+            .filter((action) => action.kind === 'skill' && !listed.has(action.invocation))
+            .map(({ invocation }) => invocation)
+            .slice(0, MAX_AGENT_ACTIONS),
         discovery:
             discovered.partial || actions.length >= MAX_AGENT_ACTIONS
                 ? ('partial' as const)
@@ -86,7 +91,9 @@ export async function readAgentAction(
     const { discovered } = await discoverTerminalActions(database, environment, terminalId, {
         requireRunning: false,
     });
-    const action = discovered.actions.find((candidate) => candidate.invocation === invocation);
+    const action = [...discovered.actions, ...discovered.referenceOnly].find(
+        (candidate) => candidate.invocation === invocation,
+    );
     const file = discovered.files.get(invocation);
     if (!action || !file)
         throw new CaxriError('NOT_FOUND', 'No skill or command file has this name');
