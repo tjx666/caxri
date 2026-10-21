@@ -14,12 +14,25 @@ import type { MergeNoticeOutcome, MergeNoticeRequest } from './merge-notice';
 const MERGE_NOTICE_TURN_GRACE_MS = 20_000;
 
 /**
+ * How often a deferred archive re-checks a Session whose turn ended while a background shell or subagent still runs.
+ * Such work can finish without moving the Session's activity state, so the activity stream alone would never retry.
+ */
+const BACKGROUND_WORK_RECHECK_MS = 30_000;
+
+/**
+ * Why an archive was deferred: the Agent is mid-turn or waiting on the user, a merge-notice turn may still start, or
+ * the turn ended while a background shell or subagent it started keeps working (an Agent that says "I'll watch it in
+ * the background").
+ */
+type DeferReason = 'agent-busy' | 'background-work' | 'notice-turn';
+
+/**
  * Closed outcome of one automatic archive decision, logged so "why did my Session disappear" and "why did it stay" both
  * have an answer.
  *
  * - `archived`: archived now.
- * - `deferred`: the Agent is running or waiting on the user, or a merge-notice turn may still start; retried on the next
- *   activity change.
+ * - `deferred`: not archived yet, with a `reason` from {@link DeferReason}; retried on the next activity change or
+ *   recheck. Logged again only when the reason changes.
  * - `disabled`: the setting was off when the decision came due.
  * - `reopened`: the pull request went back to open or draft before the archive happened.
  * - `session-gone`: the Session was deleted or already archived.
@@ -49,6 +62,11 @@ export interface PullRequestSettlementOptions {
      * Whether the settle-time archive should wait for a Session's Agent to finish.
      */
     turnGraceMs?: number;
+    /**
+     * Whether a Session's Agent still has a background shell or subagent running after its turn ended.
+     */
+    hasBackgroundWork?(sessionId: string): boolean;
+    backgroundRecheckMs?: number;
 }
 
 interface PendingArchive {
@@ -58,7 +76,10 @@ interface PendingArchive {
     quietUntil: number;
     timer?: NodeJS.Timeout;
     url: string;
-    wasDeferred: boolean;
+    /**
+     * The last logged deferral, so each distinct reason is logged once per pending archive.
+     */
+    deferredReason?: DeferReason;
 }
 
 function isSettled(state: SessionPullRequest['state'] | undefined): boolean {
@@ -92,7 +113,6 @@ export class PullRequestSettlement {
                 ? this.now() + (this.options.turnGraceMs ?? MERGE_NOTICE_TURN_GRACE_MS)
                 : 0,
             url: pullRequest.url,
-            wasDeferred: false,
         });
         await this.attempt(sessionId);
     }
@@ -115,17 +135,33 @@ export class PullRequestSettlement {
         const isBusy =
             session.lastActivityState === 'running' || session.lastActivityState === 'waiting';
         const wait = entry.quietUntil - this.now();
-        if (isBusy || wait > 0) {
-            if (!entry.wasDeferred) {
-                entry.wasDeferred = true;
-                this.log(sessionId, 'deferred', { agentState: session.lastActivityState });
+        const reason: DeferReason | undefined = isBusy
+            ? 'agent-busy'
+            : wait > 0
+              ? 'notice-turn'
+              : this.options.hasBackgroundWork?.(sessionId)
+                ? 'background-work'
+                : undefined;
+        if (reason) {
+            if (entry.deferredReason !== reason) {
+                entry.deferredReason = reason;
+                this.log(sessionId, 'deferred', {
+                    agentState: session.lastActivityState,
+                    reason,
+                });
             }
             clearTimeout(entry.timer);
-            if (!isBusy) {
-                entry.timer = setTimeout(() => {
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard
-                    void this.attempt(sessionId);
-                }, wait + 1);
+            // A busy Agent is retried by its next activity change; the other two have no event that reliably fires.
+            if (reason !== 'agent-busy') {
+                entry.timer = setTimeout(
+                    () => {
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard
+                        void this.attempt(sessionId);
+                    },
+                    reason === 'notice-turn'
+                        ? wait + 1
+                        : (this.options.backgroundRecheckMs ?? BACKGROUND_WORK_RECHECK_MS),
+                );
                 entry.timer.unref();
             }
             return;

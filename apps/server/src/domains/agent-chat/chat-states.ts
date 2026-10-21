@@ -370,6 +370,19 @@ export class ChatStates {
     }
 
     /**
+     * Whether any of a Session's Chats still runs a background shell or subagent, read from in-memory projections; a
+     * turn can end while such work keeps going.
+     */
+    hasRunningTasks(sessionId: string): boolean {
+        for (const [terminalId, state] of this.states) {
+            if (!state.projection.snapshot.tasks?.some((task) => task.status === 'running'))
+                continue;
+            if (this.options.database.getTerminal(terminalId)?.sessionId === sessionId) return true;
+        }
+        return false;
+    }
+
+    /**
      * Number of live provider processes, optionally limited to one Session.
      */
     liveCount(sessionId?: string): number {

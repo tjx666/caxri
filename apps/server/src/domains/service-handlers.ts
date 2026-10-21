@@ -270,6 +270,7 @@ export function createServiceHandlers(services: {
     const pullRequestSettlement = new PullRequestSettlement({
         archive: (sessionId) => services.archiveSession(sessionId),
         database,
+        hasBackgroundWork: (sessionId) => services.agentChat.states.hasRunningTasks(sessionId),
         isAutoArchiveEnabled: () =>
             configuration.getSettings().value['projectStatus.autoArchiveOnPullRequestSettled'],
         logger,

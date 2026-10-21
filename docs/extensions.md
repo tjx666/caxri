@@ -455,8 +455,12 @@ archives a Session whose pull request was seen open and then became merged or cl
 sidebar's own Archive operation (metadata only; nothing on disk is deleted, and Archived Sessions
 can restore it). It waits until the Agent is idle: a running or waiting Agent defers the archive
 until its turn ends, and the merge notice's turn gets a 20 second grace window so the Agent can finish
-reacting to it first. Each decision logs `session_pull_requests.auto_archive` with a closed
-`outcome` (`archived`, `deferred`, `disabled`, `failed`, `reopened`, `session-gone`).
+reacting to it first. A Chat turn that ended while a background shell or subagent it started still
+runs (an Agent watching a deploy in the background) also defers; that work can finish without an
+activity change, so the archive re-checks every 30 seconds. Each decision logs
+`session_pull_requests.auto_archive` with a closed `outcome` (`archived`, `deferred`, `disabled`,
+`failed`, `reopened`, `session-gone`); `deferred` carries a `reason` (`agent-busy`, `notice-turn`,
+`background-work`) and is logged again when the reason changes.
 
 The shared Renderer owns virtualization, the side bar scroll cue
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md)), ThemeIcon rendering, roving focus,
