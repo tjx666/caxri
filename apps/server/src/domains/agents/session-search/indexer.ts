@@ -4,11 +4,14 @@ import { normalizeSessionSearchText } from '@caxri/protocol';
 import { mapWithConcurrency } from '@caxri/system';
 
 import type { AgentEnvironment } from '../contract';
-import type { CodexThreadIndex, ParsedConversation } from '../external-conversation-parsers';
+import type {
+    CodexThreadIndex,
+    ConversationExclusionReason,
+    ParsedConversation,
+} from '../external-conversation-parsers';
 import {
-    parseConversationCandidate,
+    classifyConversationCandidate,
     readCodexThreadIndex,
-    settled,
 } from '../external-conversation-parsers';
 import { compactInlineMediaPayloads } from '../inline-media';
 import type { DiscoveredTranscript } from '../transcript-discovery';
@@ -62,6 +65,11 @@ export interface IndexerPassReport {
     changed: number;
     failed: number;
     removed: number;
+    /**
+     * Changed transcripts this pass stored as not a conversation, by cause. A rebuild re-reads every transcript, so its
+     * pass counts the whole index; `oversizedRecord` is the cause that hides a real conversation.
+     */
+    excluded: Partial<Record<ConversationExclusionReason, number>>;
 }
 
 interface FileIdentity {
@@ -187,19 +195,16 @@ export class SessionSearchIndexer {
         transcript: Pick<StoredTranscript, 'agentSessionId' | 'path' | 'provider'>,
         identity: FileIdentity,
         codex: CodexThreadIndex | undefined,
-    ): Promise<ParsedConversation | undefined> {
-        const parsed = await settled(() =>
-            parseConversationCandidate(
-                {
-                    provider: transcript.provider,
-                    providerSessionId: transcript.agentSessionId,
-                    path: transcript.path,
-                    updatedAt: identity.mtimeMs,
-                },
-                codex?.names ?? new Map(),
-            ),
+    ): Promise<ParsedConversation | ConversationExclusionReason> {
+        return classifyConversationCandidate(
+            {
+                provider: transcript.provider,
+                providerSessionId: transcript.agentSessionId,
+                path: transcript.path,
+                updatedAt: identity.mtimeMs,
+            },
+            codex?.names ?? new Map(),
         );
-        return parsed ?? undefined;
     }
 
     private async runPassOnce(): Promise<IndexerPassReport> {
@@ -243,10 +248,12 @@ export class SessionSearchIndexer {
             ),
         );
         let failed = 0;
+        const excluded: IndexerPassReport['excluded'] = {};
         for (const entry of changed) {
             try {
                 // eslint-disable-next-line no-await-in-loop -- one file at a time bounds memory and open handles
-                await this.indexTranscript(entry, codex);
+                const reason = await this.indexTranscript(entry, codex);
+                if (reason) excluded[reason] = (excluded[reason] ?? 0) + 1;
             } catch {
                 failed += 1;
             }
@@ -261,6 +268,7 @@ export class SessionSearchIndexer {
             changed: changed.length,
             failed,
             removed,
+            excluded,
         };
     }
 
@@ -280,10 +288,13 @@ export class SessionSearchIndexer {
         }
     }
 
+    /**
+     * Indexes one changed transcript, returning why it was stored as not a conversation when it was.
+     */
     private async indexTranscript(
         { found, identity, stored }: ChangedTranscript,
         codex: CodexThreadIndex,
-    ): Promise<void> {
+    ): Promise<ConversationExclusionReason | undefined> {
         const isSameFile =
             stored !== undefined &&
             stored.inode === identity.inode &&
@@ -305,7 +316,7 @@ export class SessionSearchIndexer {
         };
         const parsed =
             found.provider === 'codex' && codex.skipped.has(found.agentSessionId)
-                ? undefined
+                ? 'scripted'
                 : await this.parse(
                       {
                           provider: found.provider,
@@ -315,7 +326,7 @@ export class SessionSearchIndexer {
                       identity,
                       codex,
                   );
-        if (!parsed) {
+        if (typeof parsed === 'string') {
             if (stored) this.store.clearMessages(stored.id);
             this.store.saveTranscript({
                 ...base,
@@ -323,7 +334,7 @@ export class SessionSearchIndexer {
                 isSkippingLine: false,
                 indexedChars: 0,
             });
-            return;
+            return parsed;
         }
         const conversation: TranscriptUpsert = {
             ...base,
@@ -338,6 +349,7 @@ export class SessionSearchIndexer {
         const id = this.store.saveTranscript({ ...conversation, size: -1 });
         const final = await this.scanContent({ ...conversation, id }, identity);
         this.store.saveTranscript(final);
+        return undefined;
     }
 
     private async scanContent(
@@ -459,6 +471,6 @@ export class SessionSearchIndexer {
             identity,
             codex,
         );
-        return parsed && { ...parsed, updatedAt: identity.mtimeMs };
+        return typeof parsed === 'string' ? undefined : { ...parsed, updatedAt: identity.mtimeMs };
     }
 }

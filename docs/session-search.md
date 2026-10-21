@@ -83,7 +83,10 @@ Session never appears; everything else is external. Before adding an external co
 Server rereads its transcript, so a stale index row never decides the folder or title.
 
 Diagnostic logs record only counts, durations, and closed reasons (`session_search.*` events):
-never a query, title, path, or message text.
+never a query, title, path, or message text. Each index pass counts the transcripts it stored as not
+a conversation by cause (scripted run, subagent sidechain, delegated task, missing folder or prompt,
+unreadable, and a few more), and logs at warning level when a first record ran past the head read's
+caps, the one cause that hides a real conversation.
 
 ## Reference implementations
 

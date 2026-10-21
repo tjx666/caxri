@@ -1,24 +1,25 @@
-import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import type { FileHandle } from 'node:fs/promises';
-import { open } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 
 import { readBoundedRegularFileText } from '@caxri/system';
 import Database from 'better-sqlite3';
 
 import type { AgentEnvironment } from './contract';
-import { compactInlineMediaPayloads } from './inline-media';
 import { claudeTranscriptRoot } from './providers/claude/paths';
 import { resolveCodexStateDirectories } from './providers/codex/paths';
 import type { SqliteColumn } from './providers/codex/state-databases';
 import { findCodexStateDatabases } from './providers/codex/state-databases';
 import { extractAgentTitleMessage } from './title-generation';
+import type { HeadReadOutcome } from './transcript-head-reader';
+import {
+    HEAD_BUDGET_BYTES,
+    openTranscript,
+    readHeadRecords,
+    readJsonRecords,
+} from './transcript-head-reader';
 
 /**
- * Bounded transcript reads and per-provider parsing for `external-conversations.ts`. Every reader here sees only a
- * bounded head (and for Claude a bounded tail) of one transcript, and nothing here logs content, titles, or paths.
+ * Per-provider transcript parsing for `external-conversations.ts` and the Session search index. Every parser sees only
+ * a bounded head (and for Claude a bounded tail) of one transcript, and nothing here logs content, titles, or paths.
  */
 
 export type ExternalConversationProvider = 'claude' | 'codex' | 'grok';
@@ -43,21 +44,26 @@ export interface ParsedConversation {
      */
     isHosted?: boolean;
 }
+
+/**
+ * Why a transcript is not a conversation the user had, or could not be read as one. Closed, so the index pass can count
+ * each cause; `oversizedRecord` is a record past the head read's caps, the one cause that hides a real conversation.
+ */
+export const conversationExclusionReasons = [
+    'unreadable',
+    'scripted',
+    'sidechain',
+    'delegation',
+    'mismatchedId',
+    'missingMetadata',
+    'missingFolder',
+    'missingPrompt',
+    'oversizedRecord',
+] as const;
+export type ConversationExclusionReason = (typeof conversationExclusionReasons)[number];
+
+type ConversationParse = ParsedConversation | ConversationExclusionReason;
 const TITLE_MAX_CHARACTERS = 120;
-/**
- * Every field this module needs sits at the start of a transcript. A Codex rollout opens with a ~20 KiB `session_meta`
- * record and injected AGENTS.md / environment blocks, which put the first real prompt past 100 KiB in practice, so the
- * head budget is larger than one chunk. Reading stops as soon as the needed fields are found.
- */
-const HEAD_CHUNK_BYTES = 64 * 1024;
-const HEAD_BUDGET_BYTES = 256 * 1024;
-/**
- * A record the head budget cuts off is read to its end with inline media collapsed while it buffers, because the first
- * prompt often carries a pasted screenshot that alone outweighs the budget. Without media such a record stays small;
- * these caps only bound a pathological line.
- */
-const STRADDLING_RECORD_MAX_BYTES = 64 * 1024 * 1024;
-const STRADDLING_RECORD_MAX_CHARS = 256 * 1024;
 /**
  * Claude Code appends `ai-title` / `custom-title` records after later turns, so the newest title lives at the end.
  */
@@ -94,10 +100,28 @@ export async function settled<T>(work: () => Promise<T>): Promise<T | undefined>
     }
 }
 
-export function parseConversationCandidate(
+export async function parseConversationCandidate(
     candidate: ConversationCandidate,
     codexNames: ReadonlyMap<string, string>,
 ): Promise<ParsedConversation | undefined> {
+    const parsed = await classifyConversationCandidate(candidate, codexNames);
+    return typeof parsed === 'string' ? undefined : parsed;
+}
+
+/**
+ * Parses a candidate, or names why it is not a conversation. An unexpected fault reads as `unreadable`.
+ */
+export async function classifyConversationCandidate(
+    candidate: ConversationCandidate,
+    codexNames: ReadonlyMap<string, string>,
+): Promise<ConversationParse> {
+    return (await settled(() => parseCandidate(candidate, codexNames))) ?? 'unreadable';
+}
+
+function parseCandidate(
+    candidate: ConversationCandidate,
+    codexNames: ReadonlyMap<string, string>,
+): Promise<ConversationParse> {
     switch (candidate.provider) {
         case 'claude':
             return parseClaudeConversation(candidate);
@@ -106,108 +130,6 @@ export function parseConversationCandidate(
         case 'grok':
             return parseGrokConversation(candidate);
     }
-}
-
-// Bounded content reads
-
-/**
- * Yields complete lines from `[start, end)` of a regular file without following a final symlink. A range that starts
- * mid-file drops its leading partial line. A trailing partial line is read on toward `lineLimit` (EOF for a head read)
- * to its newline, collapsing inline media as it buffers, and is dropped when it ends past the straddling-record caps.
- *
- * @yields {Record<string, unknown>} Each line that parses as a JSON object.
- */
-async function* readJsonRecords(
-    handle: FileHandle,
-    start: number,
-    end: number,
-    lineLimit = end,
-): AsyncGenerator<Record<string, unknown>> {
-    const buffer = Buffer.alloc(HEAD_CHUNK_BYTES);
-    const decoder = new StringDecoder('utf8');
-    let position = start;
-    let pending = '';
-    let isFragmentPending = start > 0;
-    const parse = (line: string) => {
-        try {
-            const value: unknown = JSON.parse(line);
-            return value && typeof value === 'object' && !Array.isArray(value)
-                ? (value as Record<string, unknown>)
-                : undefined;
-        } catch {
-            return;
-        }
-    };
-    while (position < end) {
-        // Each read continues where the previous one stopped, so the reads are inherently sequential.
-        // eslint-disable-next-line no-await-in-loop -- sequential-by-offset read, see comment above
-        const { bytesRead } = await handle.read(
-            buffer,
-            0,
-            Math.min(HEAD_CHUNK_BYTES, end - position),
-            position,
-        );
-        if (bytesRead === 0) break;
-        position += bytesRead;
-        pending += decoder.write(buffer.subarray(0, bytesRead));
-        const lines = pending.split('\n');
-        pending = lines.pop() ?? '';
-        if (isFragmentPending && lines.length > 0) {
-            lines.shift();
-            isFragmentPending = false;
-        }
-        for (const line of lines) {
-            const record = parse(line);
-            if (record) yield record;
-        }
-    }
-    if (isFragmentPending || !pending) return;
-    const straddleLimit = Math.min(lineLimit, end + STRADDLING_RECORD_MAX_BYTES);
-    pending = compactInlineMediaPayloads(pending);
-    while (position < straddleLimit && pending.length <= STRADDLING_RECORD_MAX_CHARS) {
-        // eslint-disable-next-line no-await-in-loop -- sequential-by-offset read, see comment above
-        const { bytesRead } = await handle.read(
-            buffer,
-            0,
-            Math.min(HEAD_CHUNK_BYTES, straddleLimit - position),
-            position,
-        );
-        if (bytesRead === 0) break;
-        position += bytesRead;
-        pending = compactInlineMediaPayloads(
-            pending + decoder.write(buffer.subarray(0, bytesRead)),
-        );
-        const newline = pending.indexOf('\n');
-        if (newline !== -1) {
-            const record = parse(pending.slice(0, newline));
-            if (record) yield record;
-            return;
-        }
-    }
-    // A final line without a newline is complete only at EOF.
-    if (position < lineLimit || pending.length > STRADDLING_RECORD_MAX_CHARS) return;
-    const record = parse(pending + decoder.end());
-    if (record) yield record;
-}
-
-/**
- * The head of a transcript: its first `HEAD_BUDGET_BYTES`, plus the rest of the record that budget cuts off.
- */
-function readHeadRecords(handle: FileHandle, size: number) {
-    return readJsonRecords(handle, 0, Math.min(size, HEAD_BUDGET_BYTES), size);
-}
-
-async function openTranscript(path: string) {
-    let handle: FileHandle;
-    try {
-        handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
-    } catch {
-        return;
-    }
-    const metadata = await settled(() => handle.stat());
-    if (metadata?.isFile()) return { handle, size: metadata.size };
-    await settled(() => handle.close());
-    return;
 }
 
 /**
@@ -261,17 +183,19 @@ function displayTitle(text: string | undefined): string | undefined {
 
 /**
  * Applies the rules shared by every provider: the delegated-task pointer marks a Caxri child, and a conversation with
- * neither a provider title nor a user prompt is empty.
+ * neither a provider title nor a user prompt is empty. A missing field the head read may have skipped is blamed on it.
  */
 function finishConversation(
     cwd: string | undefined,
     providerTitle: string | undefined,
     prompt: string | undefined,
-): ParsedConversation | undefined {
-    if (!cwd || !isAbsolute(cwd)) return;
-    if (prompt && DELEGATION_POINTER_PATTERN.test(prompt.trim())) return;
+    head?: HeadReadOutcome,
+): ConversationParse {
+    const missing = head?.hasDroppedRecord ? 'oversizedRecord' : undefined;
+    if (!cwd || !isAbsolute(cwd)) return missing ?? 'missingFolder';
+    if (prompt && DELEGATION_POINTER_PATTERN.test(prompt.trim())) return 'delegation';
     const title = displayTitle(providerTitle) ?? displayTitle(prompt);
-    if (!title && !prompt) return;
+    if (!title && !prompt) return missing ?? 'missingPrompt';
     return title ? { cwd, title } : { cwd };
 }
 
@@ -325,9 +249,10 @@ function scanClaudeTitle(record: Record<string, unknown>, titles: ClaudeTitles):
  */
 async function parseClaudeConversation(
     candidate: ConversationCandidate,
-): Promise<ParsedConversation | undefined> {
+): Promise<ConversationParse> {
     const opened = await openTranscript(candidate.path);
-    if (!opened) return;
+    if (!opened) return 'unreadable';
+    const head: HeadReadOutcome = { hasDroppedRecord: false };
     const configDirectory = dirname(dirname(dirname(candidate.path)));
     const projectRoot = dirname(candidate.path);
     const titles: ClaudeTitles = {};
@@ -338,7 +263,7 @@ async function parseClaudeConversation(
     let hasStoppedEarly = false;
     try {
         const headEnd = Math.min(opened.size, HEAD_BUDGET_BYTES);
-        for await (const record of readHeadRecords(opened.handle, opened.size)) {
+        for await (const record of readHeadRecords(opened.handle, opened.size, head)) {
             scanClaudeTitle(record, titles);
             /**
              * The first entry point names how the conversation started. A `--print` run (`sdk-cli`) is a scripted
@@ -346,8 +271,9 @@ async function parseClaudeConversation(
              * `claude -p --resume`, which appends one to an Agent Chat transcript.
              */
             firstEntrypoint ??= stringField(record, 'entrypoint');
-            if (firstEntrypoint === 'sdk-cli') return;
-            if (record.type === 'user' && record.isSidechain === true && !prompt.prompt) return;
+            if (firstEntrypoint === 'sdk-cli') return 'scripted';
+            if (record.type === 'user' && record.isSidechain === true && !prompt.prompt)
+                return 'sidechain';
             const cwd = stringField(record, 'cwd');
             if (cwd && isAbsolute(cwd)) {
                 firstCwd ??= cwd;
@@ -376,8 +302,9 @@ async function parseClaudeConversation(
         resumableCwd ?? firstCwd,
         titles.customTitle ?? titles.aiTitle ?? titles.summary,
         prompt.prompt,
+        head,
     );
-    return conversation && firstEntrypoint?.startsWith('sdk')
+    return typeof conversation !== 'string' && firstEntrypoint?.startsWith('sdk')
         ? { ...conversation, isHosted: true }
         : conversation;
 }
@@ -387,23 +314,25 @@ async function parseClaudeConversation(
 async function parseCodexConversation(
     candidate: ConversationCandidate,
     threadName: string | undefined,
-): Promise<ParsedConversation | undefined> {
+): Promise<ConversationParse> {
     const opened = await openTranscript(candidate.path);
-    if (!opened) return;
+    if (!opened) return 'unreadable';
+    const head: HeadReadOutcome = { hasDroppedRecord: false };
     const prompt = new FirstPromptCollector();
     let cwd: string | undefined;
     let hasMeta = false;
     try {
-        for await (const record of readHeadRecords(opened.handle, opened.size)) {
+        for await (const record of readHeadRecords(opened.handle, opened.size, head)) {
             if (!hasMeta && record.type === 'session_meta') {
                 hasMeta = true;
                 const payload = objectField(record, 'payload');
                 const id = stringField(payload, 'id');
                 // The rollout name and its own metadata must agree on the thread being resumed.
-                if (id?.toLowerCase() !== candidate.providerSessionId.toLowerCase()) return;
+                if (id?.toLowerCase() !== candidate.providerSessionId.toLowerCase())
+                    return 'mismatchedId';
                 const source = payload?.source;
-                if (source !== undefined && typeof source !== 'string') return;
-                if (source && CODEX_SKIPPED_SOURCES.has(source)) return;
+                if (source !== undefined && typeof source !== 'string') return 'scripted';
+                if (source && CODEX_SKIPPED_SOURCES.has(source)) return 'scripted';
                 cwd = stringField(payload, 'cwd');
                 continue;
             }
@@ -413,8 +342,8 @@ async function parseCodexConversation(
     } finally {
         await opened.handle.close();
     }
-    if (!hasMeta) return;
-    return finishConversation(cwd, threadName, prompt.prompt);
+    if (!hasMeta) return head.hasDroppedRecord ? 'oversizedRecord' : 'missingMetadata';
+    return finishConversation(cwd, threadName, prompt.prompt, head);
 }
 
 export interface CodexThreadIndex {
@@ -520,17 +449,15 @@ async function readJsonObject(path: string, maxBytes: number) {
  * `summary.json` records `info.{id,cwd}`, `session_kind` (`null` for an interactive conversation), and Grok's own
  * `generated_title`. A conversation without a readable summary has not been flushed and is skipped.
  */
-async function parseGrokConversation(
-    candidate: ConversationCandidate,
-): Promise<ParsedConversation | undefined> {
+async function parseGrokConversation(candidate: ConversationCandidate): Promise<ConversationParse> {
     const sessionRoot = dirname(candidate.path);
     const summary = await readJsonObject(join(sessionRoot, 'summary.json'), GROK_SUMMARY_MAX_BYTES);
-    if (!summary) return;
+    if (!summary) return 'missingMetadata';
     const kind = summary.session_kind;
-    if (typeof kind === 'string' && GROK_SKIPPED_KINDS.has(kind)) return;
+    if (typeof kind === 'string' && GROK_SKIPPED_KINDS.has(kind)) return 'scripted';
     const info = objectField(summary, 'info');
     const id = stringField(info, 'id');
-    if (id !== undefined && id !== candidate.providerSessionId) return;
+    if (id !== undefined && id !== candidate.providerSessionId) return 'mismatchedId';
     let cwd = stringField(info, 'cwd');
     if (!cwd) {
         // Long cwd names are hashed into the directory name; Grok then records the cwd in a `.cwd` marker.
@@ -543,14 +470,15 @@ async function parseGrokConversation(
                 )
             ).trim();
         } catch {
-            return;
+            return 'missingFolder';
         }
     }
     const opened = await openTranscript(candidate.path);
-    if (!opened) return;
+    if (!opened) return 'unreadable';
+    const head: HeadReadOutcome = { hasDroppedRecord: false };
     const prompt = new FirstPromptCollector();
     try {
-        const records = readHeadRecords(opened.handle, opened.size);
+        const records = readHeadRecords(opened.handle, opened.size, head);
         for await (const record of records) {
             prompt.accept(record);
             if (prompt.isComplete) break;
@@ -558,5 +486,5 @@ async function parseGrokConversation(
     } finally {
         await opened.handle.close();
     }
-    return finishConversation(cwd, stringField(summary, 'generated_title'), prompt.prompt);
+    return finishConversation(cwd, stringField(summary, 'generated_title'), prompt.prompt, head);
 }
