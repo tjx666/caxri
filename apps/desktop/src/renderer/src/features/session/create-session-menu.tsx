@@ -1,7 +1,7 @@
 import type { MouseEventHandler, ReactElement } from 'react';
 import { cloneElement, useEffect } from 'react';
 
-import type { ProjectRecord, SessionPlacement } from '@caxri/protocol';
+import type { ProjectRecord } from '@caxri/protocol';
 import { SquareDashed, SquarePen } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -36,20 +36,15 @@ import {
  * trigger as well as the Project, because one Project can render more than one of these at a time.
  *
  * The Project heading's button opens the list on hover, so picking an Agent needs no extra click. With a configured
- * default Agent it splits the way the tab strip's `+` does: a press creates the default and the tooltip names it;
- * without one a press opens the same list.
+ * default Agent it splits: a press creates the default and the tooltip names it; without one a press opens the same
+ * list.
  */
 function SessionCreationMenu({
     anchor,
-    placement,
     project,
     trigger,
 }: {
     anchor: CreateSessionAnchor;
-    /**
-     * Where the created Session lands in the window's Open Sessions; only the strip's `+` passes `newTab`.
-     */
-    placement?: SessionPlacement;
     project: ProjectRecord;
     /**
      * Typed to accept an `onClick` override rather than the looser default `ReactElement` props: the default-Agent
@@ -179,10 +174,10 @@ function SessionCreationMenu({
                 }
                 if (splitTarget && details.reason === 'trigger-press') {
                     details.cancel();
-                    beginSessionCreation(project.id, anchor, placement);
+                    beginSessionCreation(project.id, anchor);
                     return;
                 }
-                openSessionCreationMenu(project.id, anchor, placement);
+                openSessionCreationMenu(project.id, anchor);
             }}
         >
             {triggerWithTooltip}
@@ -300,28 +295,6 @@ export function EmptyProjectSessionMenu({
                     <SquarePen size={13} /> {t('session.create.newSession')}
                 </button>
             }
-        />
-    );
-}
-
-/**
- * The Open Session strip's trailing `+` and the menu it anchors: a new Session in the active Session's Project, opened
- * as a new tab. Like the empty-Project row it renders its own menu so the Agent list opens under the `+` rather than at
- * the Project heading in the Primary Side Bar, across the window from the pointer.
- */
-export function SessionTabCreateMenu({
-    project,
-    trigger,
-}: {
-    project: ProjectRecord;
-    trigger: ReactElement<{ 'aria-label'?: string }>;
-}) {
-    return (
-        <SessionCreationMenu
-            anchor="sessionTabs"
-            placement="newTab"
-            project={project}
-            trigger={trigger}
         />
     );
 }

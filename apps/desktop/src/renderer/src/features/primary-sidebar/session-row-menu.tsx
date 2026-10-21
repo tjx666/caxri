@@ -16,7 +16,6 @@ import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { fetchCaxriQuery } from '../../queries/client';
 import { isLocalOnlyAvailable } from '../../stores/environment';
-import { getOpenSessionIds } from '../../stores/open-sessions';
 import { getBootstrap } from '../../stores/selectors';
 import { forkAgentChat } from '../agent-chat/agent-chat-commands';
 import { takeBackFromCommander } from '../agent-commander/commander-handover-commands';
@@ -40,8 +39,10 @@ import {
     openSessionPullRequest,
     setSessionPinned,
 } from '../session/session-commands';
-import { moveSessionToNewWindow, openSessionInNewTab } from '../session-tabs/session-tab-commands';
-import { canMoveSessionToNewWindow } from '../session-tabs/session-tabs-state';
+import {
+    canOpenSessionInNewWindow,
+    openSessionInNewWindow,
+} from '../session/session-window-commands';
 import { agentRestartMenuEntry } from '../terminal/agent-restart-commands';
 import {
     agentResumeCommandMenuEntry,
@@ -331,19 +332,12 @@ async function sessionRowMenu({
             onSelect: () => revokePermissionAutoAllow(session.id),
         },
         CONTEXT_MENU_SEPARATOR,
-        {
-            label: translate('sessionTabs.openInNewTab'),
+        // Never the Session this window shows (the window would be empty) or one another window already has open.
+        canOpenSessionInNewWindow(getBootstrap(), session.id) && {
+            label: translate('primarySidebar.sessionMenu.openInNewWindow'),
             onSelect: () => {
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, reports its own failure
-                void openSessionInNewTab(session.id);
-            },
-        },
-        // Only a Session in this window's strip can be torn off, and never the strip's last one.
-        canMoveSessionToNewWindow(getOpenSessionIds(), session.id) && {
-            label: translate('sessionTabs.moveToNewWindow'),
-            onSelect: () => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, reports its own failure
-                void moveSessionToNewWindow(session.id);
+                void openSessionInNewWindow(session.id);
             },
         },
         // The external editor runs on this Mac and cannot open a Project on an SSH Host.

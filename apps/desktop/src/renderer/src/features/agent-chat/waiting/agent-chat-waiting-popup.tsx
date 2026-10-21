@@ -9,7 +9,6 @@ import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 import { useTranslation } from '../../../i18n';
 import { motionDurationMs, motionEasing } from '../../../lib/motion';
 import { cn } from '../../../lib/utilities';
-import { useIsSessionTabStripVisible } from '../../../stores/open-sessions';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatWaitingCard } from './agent-chat-waiting-card';
 import { AgentChatWaitingStatus } from './agent-chat-waiting-status';
@@ -20,19 +19,17 @@ const SURFACE_CLASS_NAME =
 
 /**
  * Asks, from anywhere in the window, what a Chat that is not on screen waits on: a question or an approval from a
- * provider that is still running. It drops in 4px below the window's top chrome (the 36px title bar, or the Open
- * Session strip plus the Terminal tab bar under it) so it never covers a tab or the New Terminal button, one request at
- * a time, and folds into an "N waiting for you" pill the user can reopen; a new request unfolds it again. It never
- * takes focus: the keys a request answers to (option digits, Enter, Cmd+Enter, Cmd+Backspace) work only once the user
- * has moved focus into it, and the card carries the pane attribute so approval keys stay inside the popup instead of
- * reaching a Chat behind it. The layout follows LobeHub's `GlobalApprovalNotification` (design only; the code is
- * Caxri's own).
+ * provider that is still running. It drops in 4px below the window's 36px title bar so it never covers a tab or the New
+ * Terminal button, one request at a time, and folds into an "N waiting for you" pill the user can reopen; a new request
+ * unfolds it again. It never takes focus: the keys a request answers to (option digits, Enter, Cmd+Enter,
+ * Cmd+Backspace) work only once the user has moved focus into it, and the card carries the pane attribute so approval
+ * keys stay inside the popup instead of reaching a Chat behind it. The layout follows LobeHub's
+ * `GlobalApprovalNotification` (design only; the code is Caxri's own).
  */
 export function AgentChatWaitingPopup() {
     const { t } = useTranslation();
     const { count, current, isCollapsed, setCollapsed } = useAgentChatWaiting();
     const shouldReduceMotion = useShouldReduceMotion();
-    const isSessionTabStripVisible = useIsSessionTabStripVisible();
     const enter = shouldReduceMotion
         ? { duration: 0 }
         : {
@@ -55,12 +52,7 @@ export function AgentChatWaitingPopup() {
     const pendingLabel = t('agentChat.waiting.pending', { count });
     return (
         <LazyMotion strict features={domAnimation}>
-            <div
-                className={cn(
-                    'pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4',
-                    isSessionTabStripVisible ? 'top-19' : 'top-10',
-                )}
-            >
+            <div className="pointer-events-none fixed inset-x-0 top-10 z-40 flex justify-center px-4">
                 <AgentChatWaitingStatus chat={current} />
                 <AnimatePresence initial={false} mode="wait">
                     {current && isCollapsed && (

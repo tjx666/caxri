@@ -18,12 +18,12 @@ export const windowLogEvents = {
     renderProcessGone: 'window.render_process_gone',
     responsive: 'window.responsive',
     /**
-     * A tab dragged out of every window opened a new Workbench window, with the time the Server move took.
+     * Open in New Window opened a new Workbench window, with the time the Server move took.
      */
     tearOffOpened: 'window.tear_off_opened',
     /**
-     * A tear-off that did not open a window, with a closed `reason`: `inside_window`, `over_other_window`, `last_tab`,
-     * `not_open`, or `window_failed`.
+     * An Open in New Window that did not open one, with a closed `reason`: `shown_session` (the source window shows
+     * that Session), `open_elsewhere` (another window has it open), or `window_failed`.
      */
     tearOffRejected: 'window.tear_off_rejected',
     /**

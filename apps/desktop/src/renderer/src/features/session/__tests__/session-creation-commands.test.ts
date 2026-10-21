@@ -173,27 +173,6 @@ describe('Session creation commands', () => {
         expect(mocks.openCreateSessionMenu).not.toHaveBeenCalled();
     });
 
-    it('asks for a new tab only when the caller passes the newTab placement', async () => {
-        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'codex' } });
-
-        beginSessionCreation('project-1', 'heading', 'newTab');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
-            projectId: 'project-1',
-            defaultAgent: 'codex',
-            placement: 'newTab',
-        });
-    });
-
-    it('carries the newTab placement into the Agent list when no default Agent is configured', () => {
-        mocks.getBootstrap.mockReturnValue({ settings: {} });
-
-        beginSessionCreation('project-1', 'heading', 'newTab');
-
-        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading', 'newTab');
-    });
-
     it('opens a Chat-capable default Agent as a Chat when Open in Chat is on', async () => {
         mocks.getBootstrap.mockReturnValue({
             settings: { 'session.defaultAgent': 'codex', 'session.openAgentsInChat': true },
@@ -262,7 +241,7 @@ describe('Session creation commands', () => {
         if (anchor) beginSessionCreation('project-1', anchor);
         else beginSessionCreation('project-1');
 
-        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', expected, undefined);
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', expected);
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
         expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
     });
@@ -279,7 +258,7 @@ describe('Session creation commands', () => {
         beginSessionCreation('project-1');
 
         expect(mocks.setPrimarySidebarVisible).toHaveBeenCalledWith(true);
-        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading', undefined);
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
     });
 
     it('leaves the Primary Side Bar alone when the default Agent short-circuits the choice', async () => {

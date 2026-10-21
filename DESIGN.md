@@ -280,8 +280,8 @@ drift this replaces; do not reintroduce it.
 ## Component redlines
 
 **Window chrome**: `titleBarStyle: 'hiddenInset'`. The 36px PrimarySidebar, workbench, and
-SecondarySidebar top rails share one bottom edge, and the Open Session strip, when shown, is that
-workbench rail (see **Two tab levels**). Workbench tabs fill the full 36px rail, VS Code
+SecondarySidebar top rails share one bottom edge, and the workbench rail is the focused pane's tab
+bar, which doubles as the title bar (see **One tab level**). Workbench tabs fill the full 36px rail, VS Code
 style, so the active tab's `--background` fill reaches the rail's top edge. The macOS traffic lights
 are centered in 36px (`y: 11`). SecondarySidebar rail tabs fill their 36px rail. SecondarySidebar tabs divide the whole
 rail evenly; a compact capped indicator marks the selected slot. The logo-free PrimarySidebar header is
@@ -507,7 +507,7 @@ size, matching Codex; one character read as a hard cut rather than a fade.
 A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
 rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
 the New Session menu is open the name makes room and fades before them. Hovering New Session lists
-the Agents. With a configured default Agent it splits like the tab strip's +: a press creates the
+the Agents. With a configured default Agent it splits: a press creates the
 default Agent (the tooltip names it, `New Codex Chat Session`); without one a press opens the list.
 Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
 at a steady reading speed and holding at the end. While a title scrolls, its left edge fades in as
@@ -669,31 +669,17 @@ label. It follows the tree rules above with the row itself as the focus target: 
 across all rows, arrows to move, Left/Right to collapse and expand, and a leaf renders no control
 of its own, because a row that is already focusable does not need a button inside it to be reached.
 
-**Two tab levels**: a window with two or more Open Sessions stacks two rows, each 36px, with a
-1px `--border` hairline between them (an inset shadow, so the rows keep their height). The outer
-row is the Session level and is the window's title bar (`--title-bar-*` fill, drag region,
-traffic-light inset). Its tabs are inset 28px pills with 6px radius, 11px medium labels, and a 4px
-gap: inactive pills are transparent with `--tab-inactive-foreground` text, hover adds a 35%
-`--elevated` fill, and the active pill is `--elevated` with `--foreground` text, a small shadow,
-and an inset 1px ring of 12% `--foreground`. A stronger hover fill read as the active pill over the
-title-bar fill in both dark and light themes.
-Short 16px `--border` dividers separate idle neighbours and hide beside the active pill, beside a
-hovered pill, and at the row's end. Widths run 104px to 200px, and the active pill never drops
-below 150px. The Session level never uses `--accent`: selecting a Session is not keyboard focus. The
-inner row is the focused pane's tab bar, an ordinary `--surface` bar, and keeps the 2px `--accent`
-top border on the focused pane's active tab even while the strip shows, so the screen's one durable
-accent says where input goes. The strip's trailing `+` is the pane row's `+` (28px `Button`, ghost)
-at the other level, and both levels use the same inset 1px `--foreground` outline for keyboard
-focus. A tab whose title collides with another Session's gets a trailing 11px `--muted` detail (Project, Agent,
-or `#n`), also shown on its sidebar row. The sidebar marks Sessions that are open: a 2px `--muted` edge bar on a
-row open in this window's strip (only while the strip shows), and an 11px `--muted` window glyph after the
-title of a row another window owns; neither uses `--accent`. Hovering a tab or its row echoes the other with
-the same soft hover fill. The window's Preview entry (the tab a plain sidebar click replaces, unless its Session is running or needs attention, which keeps it instead) sets its title in italic, and in `--muted` while inactive; keeping it restores the normal style. Each Session pill ends in one fixed 20px slot shared by the status glyph and the close button, so the title never
-shifts: the glyph fades out as the close button fades in under the pointer or keyboard focus, and the active pill always
-shows the close button; while the active Session runs or needs attention, its glyph moves before the title instead of disappearing. On an inactive pill the running and detached glyphs take 70% and 60% `--foreground` rather than
-the sidebar's `--muted`, and an attention glyph sits on a faint `--warning` disc. "Move to New Window" (tab menu,
-sidebar row menu, Command Palette) is the non-drag tear-off. A single Open Session hides the outer row and the pane bar becomes the title bar again. Every
-color is a semantic token, so a light theme restyles both rows with no extra work.
+**One tab level**: the Workbench has a single 36px horizontal row, the focused pane's tab bar, which
+is also the window's title bar (`--title-bar-*` fill, drag region, traffic-light inset). There is no
+Session tab level: the PrimarySidebar is the Session switcher, so switching Sessions never adds or
+removes a row and the content below never jumps. A Session's title therefore appears on its sidebar
+row and nowhere else in the chrome. The sidebar marks a row another window shows with an 11px
+`--muted` window glyph after its title, never `--accent`; a title that collides with another
+Session's gets a trailing 11px `--muted` detail (Project, Agent, or `#n`). Holding the Switch to
+Pinned Session modifier alone for 400ms swaps each Pinned row's status glyph for a compact
+`ShortcutBadge` with its live chord (`⌘1`), hidden on row hover like the glyph it replaces; releasing
+the modifier or pressing any other key restores the glyph. "Open in New Window" in the sidebar row
+menu is the way to see two Sessions at once.
 
 **Tab strip**: active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
@@ -865,8 +851,9 @@ transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallb
 disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
 `cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, exit curve); work tabs
 enter `--motion-tab-enter` (140ms, enter curve) and exit `--motion-tab-exit` (110ms, exit curve); the
-shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
-`--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
+shared chrome tab indicator and the PrimarySidebar's selected-row fill move with
+`--motion-chrome-switch` (160ms, `--motion-ease-emphasized`), the row fill as one ghost gliding from
+the previous row while the Workbench content switches instantly; overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear); loading
 skeleton blocks pulse on `--motion-skeleton-pulse` (2000ms, ease-in-out) after fading in on

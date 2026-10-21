@@ -25,15 +25,6 @@ export type WindowKey = z.infer<typeof windowKeySchema>;
 export const windowKeyParameter = { windowKey: windowKeySchema.optional() };
 
 /**
- * Where a Session created for a window lands in its Open Sessions. Creation behaves like a plain select by default (an
- * open Session is activated, otherwise it becomes or replaces the window's Preview entry), so creating a Session never
- * grows the set of kept tabs on its own. `newTab` is the explicit opt-in used by the tab strip's `+` button, which
- * inserts a kept entry right of the active one.
- */
-export const sessionPlacementSchema = z.enum(['newTab']);
-export type SessionPlacement = z.infer<typeof sessionPlacementSchema>;
-
-/**
  * Requests that act for one Desktop window. Desktop Main injects the sender's {@link WindowKey} into exactly these
  * (overwriting anything a Renderer supplied), so a Renderer can never act as another window. A caller without a window,
  * such as the CLI, omits the key and gets no per-window effect.
@@ -48,8 +39,6 @@ export const windowScopedMethods = [
     'session.resume',
     'session.select',
     'terminal.moveToNewSession',
-    'window.openSessions.keep',
-    'window.openSessions.set',
 ] as const;
 export type WindowScopedMethod = (typeof windowScopedMethods)[number];
 
@@ -60,25 +49,13 @@ export function isWindowScopedMethod(method: string): method is WindowScopedMeth
 }
 
 /**
- * Upper bound on the Open Sessions of one window. Open Sessions are a working set, not a source of truth for existence,
- * so the bound only protects the persisted cell and the strip from unbounded growth.
- */
-export const MAX_OPEN_SESSIONS_PER_WINDOW = 100;
-
-export const openSessionIdsSchema = z.array(identifierSchema).max(MAX_OPEN_SESSIONS_PER_WINDOW);
-
-/**
- * One window's Open Session working set: the ordered strip and which entry the window currently shows.
+ * One window's Open Session: `openSessionIds` holds exactly the Session it shows (or nothing), and `activeSessionId`
+ * names it. The list shape and its bound of 100 remain so a cell written while windows kept a tab strip still parses;
+ * ownership reads only `activeSessionId`, so such a cell's extra entries claim nothing.
  */
 export const windowOpenSessionsSchema = z.object({
-    openSessionIds: openSessionIdsSchema,
+    openSessionIds: z.array(identifierSchema).max(100),
     activeSessionId: identifierSchema.nullable(),
-    /**
-     * The window's Preview entry: the one Open Session a plain navigation (a sidebar click) replaces instead of adding
-     * a tab. Always one of `openSessionIds` when set; absent or `null` means every entry is kept, which is also how an
-     * older record reads. Kept entries are never replaced by plain navigation.
-     */
-    previewSessionId: identifierSchema.nullable().optional(),
 });
 export type WindowOpenSessions = z.infer<typeof windowOpenSessionsSchema>;
 

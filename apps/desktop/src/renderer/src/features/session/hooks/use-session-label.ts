@@ -4,8 +4,8 @@ import { labelsFor } from '../session-label-snapshot';
 import type { SessionLabel } from '../session-labels';
 
 /**
- * The title and collision suffix of one Session, shared by the Open Session strip and the PrimarySidebar so the two
- * always name a Session the same way. Two primitive selectors keep a row quiet through changes that did not touch it.
+ * The title and collision suffix of one Session's PrimarySidebar row, from the same rule every Session label uses. Two
+ * primitive selectors keep a row quiet through changes that did not touch it.
  */
 export function useSessionLabel(sessionId: string): { suffix?: string; title: string } {
     const { t } = useTranslation();

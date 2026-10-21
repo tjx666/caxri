@@ -35,6 +35,18 @@ async function createRuntime() {
     return { project, runtime };
 }
 
+/**
+ * The error a handler rejects with, or `undefined` when it resolves, so a refusal's `details` can be matched.
+ */
+async function refusal(run: () => unknown): Promise<unknown> {
+    try {
+        await run();
+    } catch (error) {
+        return error;
+    }
+    return undefined;
+}
+
 describe('per-window Open Sessions', () => {
     it('bootstraps each window with its own selection and Open Sessions', async () => {
         const { project, runtime } = await createRuntime();
@@ -68,7 +80,7 @@ describe('per-window Open Sessions', () => {
         }
     });
 
-    it('edits a strip, drops unknown Sessions, and prunes a deleted Session from every window', async () => {
+    it('replaces a window Open Session on navigation and prunes a deleted Session from every window', async () => {
         const { project, runtime } = await createRuntime();
         try {
             const a = await runtime.handlers['session.create']({
@@ -87,22 +99,24 @@ describe('per-window Open Sessions', () => {
                 windowKey: 'win-a',
             });
 
-            const stored = await runtime.handlers['window.openSessions.set']({
-                windowKey: 'win-b',
-                openSessionIds: [b.session.id, 'unknown', a.session.id, c.session.id],
-            });
-            expect(stored).toEqual({
-                openSessionIds: [b.session.id, a.session.id],
-                activeSessionId: b.session.id,
-            });
-
-            await runtime.handlers['session.delete']({
+            await runtime.handlers['session.select']({
                 sessionId: a.session.id,
                 windowKey: 'win-b',
             });
+            await runtime.handlers['session.select']({
+                sessionId: b.session.id,
+                windowKey: 'win-b',
+            });
+            const shown = await runtime.handlers['app.bootstrap']({ windowKey: 'win-b' });
+            expect(shown.openSessionIds).toEqual([b.session.id]);
+            expect(shown.selectedSessionId).toBe(b.session.id);
+
+            await runtime.handlers['session.delete']({
+                sessionId: b.session.id,
+                windowKey: 'win-b',
+            });
             const state = await runtime.handlers['app.bootstrap']({ windowKey: 'win-b' });
-            expect(state.openSessionIds).toEqual([b.session.id]);
-            expect(state.selectedSessionId).toBe(b.session.id);
+            expect(state.openSessionIds).not.toContain(b.session.id);
             const other = await runtime.handlers['app.bootstrap']({ windowKey: 'win-a' });
             expect(other.openSessionIds).toEqual([c.session.id]);
         } finally {
@@ -110,10 +124,10 @@ describe('per-window Open Sessions', () => {
         }
     });
 
-    it('reports a plain select as the Preview entry and keeps it on request', async () => {
+    it('creating a Session in a window replaces what the window shows', async () => {
         const { project, runtime } = await createRuntime();
         try {
-            const a = await runtime.handlers['session.create']({
+            await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
                 windowKey: 'win-a',
@@ -122,46 +136,39 @@ describe('per-window Open Sessions', () => {
                 projectId: project.id,
                 defaultAgent: 'shell',
                 windowKey: 'win-a',
-                placement: 'newTab',
             });
-            const first = await runtime.handlers['app.bootstrap']({ windowKey: 'win-a' });
-            expect(first.openSessionIds).toEqual([a.session.id, b.session.id]);
-            expect(first.previewSessionId).toBe(a.session.id);
-
-            const kept = await runtime.handlers['window.openSessions.keep']({
-                sessionId: a.session.id,
-                windowKey: 'win-a',
-            });
-            expect(kept.previewSessionId).toBeUndefined();
-            const second = await runtime.handlers['app.bootstrap']({ windowKey: 'win-a' });
-            expect(second.previewSessionId).toBeUndefined();
+            const state = await runtime.handlers['app.bootstrap']({ windowKey: 'win-a' });
+            expect(state.openSessionIds).toEqual([b.session.id]);
+            expect(state).not.toHaveProperty('previewSessionId');
         } finally {
             await runtime.close();
         }
     });
 
-    it('tears a Session off into a new window and redirects selects of it to that window', async () => {
+    it('opens a Session in a new window and redirects selects of it to that window', async () => {
         const { project, runtime } = await createRuntime();
         try {
             const a = await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
                 windowKey: 'main',
-                placement: 'newTab',
             });
             const b = await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
                 windowKey: 'main',
-                placement: 'newTab',
             });
 
             const moved = await runtime.handlers['window.openSessions.moveToWindow']({
-                sessionId: b.session.id,
+                sessionId: a.session.id,
                 windowKey: 'main',
                 targetWindowKey: 'win-tear',
             });
             expect(moved.target).toEqual({
+                openSessionIds: [a.session.id],
+                activeSessionId: a.session.id,
+            });
+            expect(moved.source).toEqual({
                 openSessionIds: [b.session.id],
                 activeSessionId: b.session.id,
             });
@@ -170,17 +177,34 @@ describe('per-window Open Sessions', () => {
             ]);
 
             const redirected = await runtime.handlers['session.select']({
-                sessionId: b.session.id,
+                sessionId: a.session.id,
                 windowKey: 'main',
             });
             expect(redirected.ownerWindowKey).toBe('win-tear');
             const main = await runtime.handlers['app.bootstrap']({ windowKey: 'main' });
-            expect(main.openSessionIds).toEqual([a.session.id]);
-            expect(main.selectedSessionId).toBe(a.session.id);
+            expect(main.openSessionIds).toEqual([b.session.id]);
+            expect(main.selectedSessionId).toBe(b.session.id);
+
+            const shownRefusal = await refusal(() =>
+                runtime.handlers['window.openSessions.moveToWindow']({
+                    sessionId: b.session.id,
+                    windowKey: 'main',
+                    targetWindowKey: 'win-other',
+                }),
+            );
+            expect(shownRefusal).toMatchObject({ details: { reason: 'shown_session' } });
+            const ownedRefusal = await refusal(() =>
+                runtime.handlers['window.openSessions.moveToWindow']({
+                    sessionId: a.session.id,
+                    windowKey: 'main',
+                    targetWindowKey: 'win-other',
+                }),
+            );
+            expect(ownedRefusal).toMatchObject({ details: { reason: 'open_elsewhere' } });
 
             await runtime.handlers['window.openSessions.release']({ windowKey: 'win-tear' });
             const reselected = await runtime.handlers['session.select']({
-                sessionId: b.session.id,
+                sessionId: a.session.id,
                 windowKey: 'main',
             });
             expect(reselected.ownerWindowKey).toBeUndefined();
@@ -206,20 +230,6 @@ describe('requests without a window', () => {
             expect(anonymous.selectedSessionId).toBeUndefined();
             expect(anonymous.openSessionIds ?? []).toEqual([]);
             expect(main.openSessionIds ?? []).toEqual([]);
-        } finally {
-            await runtime.close();
-        }
-    });
-
-    it('rejects a strip edit that names no window', async () => {
-        const { runtime } = await createRuntime();
-        try {
-            expect(() =>
-                runtime.handlers['window.openSessions.set']({
-                    windowKey: undefined,
-                    openSessionIds: [],
-                }),
-            ).toThrow('requires a window');
         } finally {
             await runtime.close();
         }

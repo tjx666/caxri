@@ -144,6 +144,7 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.errors.openInEditorFailed': '在外部编辑器中打开项目失败',
     'session.errors.deleteFailed': '删除会话失败',
     'session.errors.moveToNewSessionFailed': '移动到新会话失败',
+    'session.errors.openInNewWindowFailed': '无法在新窗口中打开会话',
     'session.errors.archiveFailed': '归档会话失败',
     'session.errors.restoreFailed': '恢复会话失败',
     'session.errors.createFailed': '创建会话失败',

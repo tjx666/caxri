@@ -88,7 +88,6 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.pinned.revealAriaLabelOne': '再显示 {{count}} 个置顶会话',
     'primarySidebar.pinned.revealAriaLabelOther': '再显示 {{count}} 个置顶会话',
     'primarySidebar.pinned.pinnedAnnouncement': '已置顶 {{title}}',
-    'primarySidebar.session.openHere': '已在标签页中打开',
     'primarySidebar.session.openElsewhere': '已在其他窗口中打开',
 
     // Session row
@@ -115,6 +114,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.sessionMenu.resumeAgent': '恢复 Agent',
     'primarySidebar.sessionMenu.detachAgent': '分离 Agent',
     'primarySidebar.sessionMenu.turnOffAlwaysAllow': '在此会话中关闭“始终允许”',
+    'primarySidebar.sessionMenu.openInNewWindow': '在新窗口中打开',
     'primarySidebar.sessionMenu.openProjectInEditor': '在编辑器中打开项目',
     'primarySidebar.sessionMenu.openPullRequest': '打开 Pull Request #{{number}}',
     'primarySidebar.sessionMenu.goToCreatingSession': '前往创建它的会话',

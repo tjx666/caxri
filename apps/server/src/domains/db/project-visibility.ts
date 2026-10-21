@@ -83,7 +83,7 @@ export function listVisibleSessions(database: CaxriDatabaseConnection): SessionR
  * The Sessions a window may keep open: not archived and inside a Project the Workbench presents. Every writer and
  * pruner of `openSessionsByWindow` measures against this one definition.
  */
-export function listOpenableSessionIds(database: CaxriDatabaseConnection): Set<string> {
+function listOpenableSessionIds(database: CaxriDatabaseConnection): Set<string> {
     return new Set(
         listVisibleSessions(database)
             .filter((session) => session.archivedAt === undefined)

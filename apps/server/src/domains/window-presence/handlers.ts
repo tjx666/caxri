@@ -1,5 +1,3 @@
-import { CaxriError } from '@caxri/protocol';
-
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import { currentConnectionId } from './request-origin';
@@ -8,11 +6,6 @@ import type { WindowPresence } from './window-presence';
 interface WindowPresenceHandlerOptions {
     database: Pick<CaxriDatabase, 'windowOpenSessions'>;
     /**
-     * Runs when a strip edit moved a window onto a different Session (closing the active entry), so the newly shown
-     * Session gets the same Terminal restore a plain `session.select` gives it.
-     */
-    onSessionActivated: (sessionId: string) => void;
-    /**
      * Pushes the full `state.changed` so every Renderer refetches its own strip after a transfer or release.
      */
     sendFullStateChange: (reason: 'window.openSessions') => void;
@@ -20,15 +13,7 @@ interface WindowPresenceHandlerOptions {
 }
 
 /**
- * Whether the two strips list different Sessions, ignoring order.
- */
-function hasMembershipChanged(before: readonly string[], after: readonly string[]): boolean {
-    const afterSet = new Set(after);
-    return before.length !== after.length || before.some((id) => !afterSet.has(id));
-}
-
-/**
- * Per-window presence reports from Desktop Main, and the Open Session strip edits a Renderer makes.
+ * Per-window presence reports from Desktop Main, and the Open Session moves and releases it asks for.
  */
 export function createWindowPresenceHandlers(
     options: WindowPresenceHandlerOptions,
@@ -37,13 +22,11 @@ export function createWindowPresenceHandlers(
     | 'window.closePresence'
     | 'window.openSessions.listTearOffs'
     | 'window.openSessions.moveToWindow'
-    | 'window.openSessions.keep'
     | 'window.openSessions.release'
-    | 'window.openSessions.set'
     | 'window.reportPresence'
     | 'window.seedPresence'
 > {
-    const { database, onSessionActivated, presence, sendFullStateChange } = options;
+    const { database, presence, sendFullStateChange } = options;
     return {
         'window.reportPresence': (report) => {
             presence.report(currentConnectionId(), report);
@@ -58,17 +41,13 @@ export function createWindowPresenceHandlers(
             return null;
         },
         'window.openSessions.moveToWindow': ({ sessionId, windowKey, targetWindowKey }) => {
-            const before = database.windowOpenSessions.get(windowKey).activeSessionId;
+            // The source window keeps the Session it shows (the move refuses that one), so only the target's view changes.
             const moved = database.windowOpenSessions.moveToWindow(
                 windowKey,
                 targetWindowKey,
                 sessionId,
             );
             presence.noteViewing(targetWindowKey, sessionId);
-            if (moved.source.activeSessionId !== before) {
-                presence.noteViewing(windowKey, moved.source.activeSessionId);
-                if (moved.source.activeSessionId) onSessionActivated(moved.source.activeSessionId);
-            }
             sendFullStateChange('window.openSessions');
             return moved;
         },
@@ -78,33 +57,5 @@ export function createWindowPresenceHandlers(
             return null;
         },
         'window.openSessions.listTearOffs': () => database.windowOpenSessions.listTearOffs(),
-        'window.openSessions.keep': ({ windowKey, sessionId }) => {
-            if (!windowKey)
-                throw new CaxriError('VALIDATION', 'An Open Session edit requires a window');
-            return database.windowOpenSessions.keep(windowKey, sessionId);
-        },
-        'window.openSessions.set': ({ windowKey, openSessionIds }) => {
-            if (!windowKey)
-                throw new CaxriError('VALIDATION', 'An Open Session edit requires a window');
-            const key = windowKey;
-            const previous = database.windowOpenSessions.get(key);
-            const before = previous.activeSessionId;
-            const stored = database.windowOpenSessions.set(key, openSessionIds);
-            // Another window marks this window's Sessions in its sidebar ("open in another window"), so a change in
-            // membership (not a plain reorder) re-reads its Workbench. Skipped with one window, where nobody to tell.
-            const hasOtherWindow = Object.keys(database.windowOpenSessions.all()).some(
-                (windowKey) => windowKey !== key,
-            );
-            if (
-                hasOtherWindow &&
-                hasMembershipChanged(previous.openSessionIds, stored.openSessionIds)
-            )
-                sendFullStateChange('window.openSessions');
-            if (stored.activeSessionId !== before) {
-                presence.noteViewing(key, stored.activeSessionId);
-                if (stored.activeSessionId) onSessionActivated(stored.activeSessionId);
-            }
-            return stored;
-        },
     };
 }

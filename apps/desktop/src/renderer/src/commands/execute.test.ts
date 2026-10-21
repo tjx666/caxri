@@ -110,8 +110,6 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             session: {
                 archiveSelected: record('session.archive'),
-                closeTab: record('session.closeTab'),
-                moveToNewWindow: record('session.moveToNewWindow'),
                 compactWarm: record('session.compactWarm'),
                 canNavigateHistory: () => true,
                 create: record('session.create'),
@@ -120,7 +118,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 detachSelected: record('session.detach'),
                 navigateHistory: record('session.navigateHistory'),
                 openArchived: record('session.openArchived'),
-                openTab: record('session.openTab'),
+                openPinned: record('session.openPinned'),
                 openPullRequestSelected: record('session.openPullRequest'),
                 renameSelected: record('session.rename'),
                 renameSelectedWithAi: record('session.renameWithAi'),
@@ -397,20 +395,16 @@ describe('executeCommand', () => {
         expect(calls).toEqual(['session.selectAdjacent(1)', 'session.selectAdjacent(-1)']);
     });
 
-    it('maps each numbered Open Session command to its position, with the ninth meaning the last', () => {
+    it('maps each numbered Pinned Session command to its position, with the ninth meaning the last', () => {
         const { calls, context } = recordingContext();
-        executeCommand('session.openTab1', undefined, context);
-        executeCommand('session.openTab5', undefined, context);
-        executeCommand('session.openTab9', undefined, context);
-        executeCommand('session.closeTab', undefined, context);
-        executeCommand('session.moveToNewWindow', undefined, context);
+        executeCommand('session.openPinned1', undefined, context);
+        executeCommand('session.openPinned5', undefined, context);
+        executeCommand('session.openPinned9', undefined, context);
 
         expect(calls).toEqual([
-            'session.openTab(1)',
-            'session.openTab(5)',
-            'session.openTab(9)',
-            'session.closeTab',
-            'session.moveToNewWindow',
+            'session.openPinned(1)',
+            'session.openPinned(5)',
+            'session.openPinned(9)',
         ]);
     });
 

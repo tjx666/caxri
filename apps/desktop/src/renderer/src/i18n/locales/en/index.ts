@@ -26,7 +26,6 @@ import { rendererPerformance } from './renderer-performance';
 import { screencast } from './screencast';
 import { secondarySidebar } from './secondary-sidebar';
 import { session } from './session';
-import { sessionTabs } from './session-tabs';
 import { settings } from './settings';
 import { shellCommand } from './shell-command';
 import { sshHost } from './ssh-host';
@@ -72,7 +71,6 @@ export const enResources = {
     ...screencast,
     ...secondarySidebar,
     ...session,
-    ...sessionTabs,
     ...settings,
     ...shellCommand,
     ...sshHost,

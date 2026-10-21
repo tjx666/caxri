@@ -130,7 +130,6 @@ test('Fork Session copies a whole Codex Chat into a new Session from the sidebar
             'Open as Terminal',
             'Restart Agent',
             'Detach Agent',
-            'Open in New Tab',
             'Open Project in Editor',
             'Copy',
             'Archive',

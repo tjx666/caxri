@@ -84,7 +84,6 @@ export const primarySidebar = {
     'primarySidebar.pinned.revealAriaLabelOne': 'Show {{count}} more pinned Session',
     'primarySidebar.pinned.revealAriaLabelOther': 'Show {{count}} more pinned Sessions',
     'primarySidebar.pinned.pinnedAnnouncement': 'Pinned {{title}}',
-    'primarySidebar.session.openHere': 'Open in a tab',
     'primarySidebar.session.openElsewhere': 'Open in another window',
 
     // Session row
@@ -112,6 +111,7 @@ export const primarySidebar = {
     'primarySidebar.sessionMenu.resumeAgent': 'Resume Agent',
     'primarySidebar.sessionMenu.detachAgent': 'Detach Agent',
     'primarySidebar.sessionMenu.turnOffAlwaysAllow': 'Turn Off Always Allow in This Session',
+    'primarySidebar.sessionMenu.openInNewWindow': 'Open in New Window',
     'primarySidebar.sessionMenu.openProjectInEditor': 'Open Project in Editor',
     'primarySidebar.sessionMenu.openPullRequest': 'Open Pull Request #{{number}}',
     'primarySidebar.sessionMenu.goToCreatingSession': 'Go to Creating Session',

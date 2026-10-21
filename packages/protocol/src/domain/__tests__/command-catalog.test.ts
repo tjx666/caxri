@@ -67,15 +67,18 @@ describe('command registry', () => {
         ).toEqual([{ key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' }]);
         const changes: readonly DefaultKeybindingChange[] = defaultKeybindingChanges;
         for (const [index, change] of changes.entries()) {
+            // A removal names no current default.
+            if (change.type === 'remove') continue;
             const current = change.type === 'add' ? change.binding : change.current;
             /**
-             * A change a later `replace` moves on (Cmd+3 Status to Cmd+Alt+3) is history, not a current default.
+             * A change a later `replace` moves on (Cmd+3 Status to Cmd+Alt+3) or a later `remove` withdraws is history,
+             * not a current default.
              */
             const isSuperseded = changes
                 .slice(index + 1)
                 .some(
                     (later) =>
-                        later.type === 'replace' &&
+                        later.type !== 'add' &&
                         later.previous.key === current.key &&
                         later.previous.command === current.command,
                 );

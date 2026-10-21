@@ -64,21 +64,14 @@ export const windowDesktopMethods = {
         result: z.null(),
     },
     /**
-     * Moves one Open Session of the sending window into a new window, the gesture of dragging its tab out of the strip.
-     * `screenPoint` is where the drag ended (screen coordinates); Main falls back to the native cursor when it is
-     * absent. `opened` is false for a normal refusal (released over a window, last tab, not open), never an error. Main
-     * mints the new window's key and chooses its bounds; a Renderer supplies neither.
-     *
-     * `placement: 'cascade'` is the non-drag path ("Move to New Window" in a menu or the Command Palette): there is no
-     * release point, and the cursor is over the source window, so the window opens cascaded from the source instead and
-     * `screenPoint` is ignored. Absent means the drag-out placement.
+     * Opens a Session in a new window, the sidebar row menu's "Open in New Window". Main mints the new window's key and
+     * cascades it from the sending window; a Renderer supplies neither. `opened` is false for a normal refusal (the
+     * Session is the one the sender shows, or another window has it open), never an error.
      */
     'window.tearOffSession': {
         ...desktopControl,
         params: z.object({
             sessionId: identifierSchema,
-            screenPoint: z.object({ x: z.number(), y: z.number() }).optional(),
-            placement: z.enum(['cascade']).optional(),
         }),
         result: z.object({ opened: z.boolean() }),
     },

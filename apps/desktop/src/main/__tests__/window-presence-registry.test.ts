@@ -309,7 +309,9 @@ describe('window key tagging', () => {
         expect(
             withWindowKey('session.select', { sessionId: 's1', windowKey: 'spoofed' }, 'main'),
         ).toEqual({ sessionId: 's1', windowKey: 'main' });
-        expect(withWindowKey('window.openSessions.set', {}, 'main')).toEqual({ windowKey: 'main' });
+        expect(withWindowKey('session.create', {}, 'main')).toEqual({
+            windowKey: 'main',
+        });
     });
 
     it('leaves requests that act for no window, and senders without a key, untouched', () => {

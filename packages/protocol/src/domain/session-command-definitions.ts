@@ -1,5 +1,5 @@
 import type { CommandDefinition } from './command-catalog.js';
-import { sessionOpenTabCommandIds } from './commands.js';
+import { sessionOpenPinnedCommandIds } from './commands.js';
 
 /**
  * Commands that act on Sessions in the Primary Side Bar: creating, renaming, archiving, detaching, selecting, and
@@ -103,34 +103,17 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         description: 'Select the next Session with an event you have not opened yet',
         keywords: ['attention', 'unread', 'waiting', 'inbox'],
     },
-    {
-        id: 'session.closeTab',
-        title: 'Close Open Session',
-        category: 'Session',
-        description:
-            'Close the active Open Session tab and move to its neighbor; the Session itself stays in the sidebar',
-        keywords: ['tab', 'close tab'],
-        when: 'openSessionStrip',
-    },
-    {
-        id: 'session.moveToNewWindow',
-        title: 'Move Open Session to New Window',
-        category: 'Session',
-        description:
-            'Move the active Open Session out of the tab strip into its own window; needs at least two Open Sessions',
-        keywords: ['tab', 'tear off', 'detach', 'window'],
-        when: 'openSessionStrip',
-    },
-    ...sessionOpenTabCommandIds.map((id, index): CommandDefinition => ({
+    ...sessionOpenPinnedCommandIds.map((id, index): CommandDefinition => ({
         id,
-        title: index === 8 ? 'Switch to Last Open Session' : `Switch to Open Session ${index + 1}`,
+        title:
+            index === 8 ? 'Switch to Last Pinned Session' : `Switch to Pinned Session ${index + 1}`,
         category: 'Session',
         description:
             index === 8
-                ? 'Show the last Session in the Open Session tab strip'
-                : `Show Session ${index + 1} in the Open Session tab strip`,
-        keywords: ['tab', 'switch tab'],
-        when: 'openSessionStrip',
+                ? 'Select the last Session in the Pinned group'
+                : `Select Session ${index + 1} in the Pinned group`,
+        keywords: ['pin', 'pinned', 'switch', 'tab'],
+        when: 'pinnedSessions',
     })),
     {
         id: 'session.navigateBack',

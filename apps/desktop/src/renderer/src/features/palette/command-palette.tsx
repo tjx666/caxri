@@ -18,8 +18,8 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useIsLocalOnlyAvailable, useIsSshHost } from '../../stores/environment';
-import { useIsSessionTabStripVisible } from '../../stores/open-sessions';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
+import { pinnedSessions } from '../primary-sidebar/pinned-session-order';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { hasDetachedAgentTerminal, hasLiveAgentTerminal } from '../session/session-agent-commands';
@@ -154,7 +154,8 @@ function CommandPaletteBody() {
     const pullRequests = useCaxriQuery('session.pullRequests', undefined, {
         staleTime: SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
     }).data;
-    const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
+    const allSessions = useSessions() ?? NO_RECORDS;
+    const sessions = activeSessionsInSidebarOrder(projects, allSessions);
     const selectedSession = useSelectedSession();
     const terminals = useTerminals();
     const activeResource = useActivePaneTab()?.resource;
@@ -176,7 +177,6 @@ function CommandPaletteBody() {
         {},
         { enabled: isLocalOnlyAvailable, staleTime: 0 },
     ).data?.sessionIds;
-    const isSessionTabStripVisible = useIsSessionTabStripVisible();
     const whenContext = {
         ...commanderPaletteWhenContext({
             isLocalOnlyAvailable,
@@ -184,7 +184,7 @@ function CommandPaletteBody() {
             selectedSessionId: selectedSession?.id,
         }),
         localMachine: isLocalOnlyAvailable,
-        openSessionStrip: isSessionTabStripVisible,
+        pinnedSessions: pinnedSessions(allSessions).length > 0,
         sshHost: isSshHost,
         sessionHasLiveAgent:
             selectedSession !== undefined && hasLiveAgentTerminal(selectedSession.id, terminals),

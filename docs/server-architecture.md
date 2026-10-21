@@ -222,7 +222,7 @@ Server domain state and Client presentation state are deliberately separate:
 | Server       | Project, Session, active Workbench Root, Terminal, Draft, Agent Run, Activity, Attention |
 | Session View | pane layout, open resources, active pane, view state, optional Workbench Root override   |
 | Connection   | subscriptions, attachment identity, flow control, transient focus                        |
-| Window       | Open Session strip, viewed Session, focus and visibility (see ADR 0017)                  |
+| Window       | Open Session, viewed Session, focus and visibility (see ADR 0017)                        |
 
 A Session View is persisted by the Server under `(Client ID, Session)`, but only that Client writes it.
 It does not participate in shared domain revision conflicts. A View may override the active Workbench

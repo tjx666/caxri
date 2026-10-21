@@ -6,7 +6,7 @@ import type { DesktopServerConnection } from '../server-connection';
 import type { WindowPlacement } from '../window-placement';
 import { PRIMARY_WINDOW_KEY } from '../window-presence-registry';
 import type { WorkbenchWindowLike, WorkbenchWindows } from './registry';
-import type { TearOffPoint, TearOffRect, TearOffWindowHandle } from './tear-off';
+import type { TearOffRect, TearOffWindowHandle } from './tear-off';
 import { cascadedBounds, createTearOffController } from './tear-off';
 
 /**
@@ -23,7 +23,6 @@ export interface TearOffWindowsOptions<W extends TearOffBrowserWindow> {
      * Creates a hidden tear-off Workbench window that shows once `placement` resolves (and stays hidden if it rejects).
      */
     createWindow(input: { windowKey: string; placement: Promise<WindowPlacement> }): W;
-    cursorPoint: () => TearOffPoint;
     logger: () => StructuredLogger | undefined;
     /**
      * Registers a new window's native presence and, with `sessionId`, the Session it renders.
@@ -75,7 +74,6 @@ export function createTearOffWindows<W extends TearOffBrowserWindow>(
     const controller = createTearOffController<W>({
         createWindow: ({ placement, windowKey, sessionId, bounds }) =>
             createTearOffWindow({ windowKey, sessionId, bounds, gate: placement }),
-        cursorPoint: options.cursorPoint,
         discardWindow: (windowKey) => {
             keepStripKeys.add(windowKey);
             windows.remove(windowKey);

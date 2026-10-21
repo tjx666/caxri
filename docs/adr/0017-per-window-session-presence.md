@@ -79,3 +79,25 @@ Tear-off windows land the second window this ADR anticipated. The decisions:
   quitting keeps strips so the windows restore at launch.
 
 The file watcher stays single-scope. Behavior is documented in [Open Sessions](../open-sessions.md).
+
+## Amendment: one Open Session per window (2026-10-22)
+
+The Session tab strip is removed. A window's Open Sessions are now exactly the Session it shows, and the
+decisions above that describe a kept working set, the Preview entry, `window.openSessions.keep` and `set`,
+and drag tear-off no longer apply.
+
+- **Why.** Two stacked 36px rows made the content jump whenever the strip appeared, and a Session's title
+  showed three times (sidebar row, Session tab, pane tab). The PrimarySidebar already lists every Session,
+  so a second switcher in the title bar duplicated it. VS Code likewise keeps one tab row per window and uses windows, not tabs, to show a second workspace.
+- **Selection replaces.** `activateSessionInWindow` writes `[sessionId]`. Keeping a hidden working set would
+  have kept claiming Sessions under the one-window rule while nothing on screen showed them.
+- **Ownership stays.** A Session is still the Open Session of at most one window, and selecting it elsewhere
+  still raises its owner.
+- **A second window replaces a second tab.** The sidebar row's **Open in New Window** sends
+  `window.tearOffSession { sessionId }`; Main always cascades the new window. The move refuses
+  `shown_session` (the source would be empty), `open_elsewhere`, and `target_in_use`.
+- **Shortcuts move to Pinned.** `Cmd+1` to `Cmd+9` switch to the Pinned group's Sessions, the only stable
+  ordering the sidebar offers. Existing keybinding files migrate in place, and the removed Close Open Session
+  default is deleted through a new `remove` default-keybinding change.
+
+Behavior is documented in [Open Sessions](../open-sessions.md).

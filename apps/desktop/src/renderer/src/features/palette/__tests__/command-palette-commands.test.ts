@@ -73,7 +73,7 @@ describe('isCommandVisibleInPalette', () => {
         agentChatPermissionModes: false,
         agentChatPlanMode: false,
         agentChatSideChat: false,
-        openSessionStrip: false,
+        pinnedSessions: false,
     };
     const localWindow = {
         commanderHandOverAvailable: true,
@@ -211,7 +211,7 @@ describe('commanderPaletteWhenContext', () => {
             agentChatPlanMode: false,
             agentChatSideChat: false,
             localMachine: true,
-            openSessionStrip: false,
+            pinnedSessions: false,
             sessionHasDetachedAgent: false,
             sessionHasLiveAgent: false,
             sessionHasPullRequest: false,

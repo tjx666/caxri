@@ -1,9 +1,4 @@
-import type {
-    SessionPlacement,
-    TerminalKind,
-    TerminalRecord,
-    TerminalSurface,
-} from '@caxri/protocol';
+import type { TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
 import { canUseAgentChat, CaxriError } from '@caxri/protocol';
 
 import type { AgentCoordinator } from '../agents';
@@ -29,10 +24,9 @@ export function inheritChatPermission(
 
 /**
  * Whether a new Session also becomes a window's active one. `preserve` leaves every window alone (remote creation,
- * background work); otherwise the named window shows the Session like a plain select, or as a new entry of its strip
- * when `placement` is `newTab`.
+ * background work); otherwise the named window shows the Session like a plain select.
  */
-export type CreationSelection = 'preserve' | { windowKey?: string; placement?: SessionPlacement };
+export type CreationSelection = 'preserve' | { windowKey?: string };
 
 const selectionOptions = (selection: CreationSelection) =>
     selection === 'preserve'
@@ -40,7 +34,6 @@ const selectionOptions = (selection: CreationSelection) =>
         : {
               selection: 'select' as const,
               ...(selection.windowKey !== undefined && { windowKey: selection.windowKey }),
-              ...(selection.placement !== undefined && { placement: selection.placement }),
           };
 
 export function createSessionCreator(dependencies: {
@@ -199,14 +192,11 @@ export function createSessionCreationHandlers(
     'mobile.session.create' | 'mobile.session.createForPrincipal' | 'session.create'
 > {
     return {
-        'session.create': ({ projectId, defaultAgent, surface, windowKey, placement }) =>
+        'session.create': ({ projectId, defaultAgent, surface, windowKey }) =>
             createSessionForProject(
                 projectId,
                 defaultAgent,
-                {
-                    ...(windowKey !== undefined && { windowKey }),
-                    ...(placement !== undefined && { placement }),
-                },
+                windowKey !== undefined ? { windowKey } : {},
                 undefined,
                 surface,
             ),
