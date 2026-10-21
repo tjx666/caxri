@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-10-21 @ `403f8de9a` (`main`)                                                                      |
+| **Last full audit**      | 2026-10-21 @ `d0e5f01fc` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `403f8de9a`               |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `d0e5f01fc`               |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -31,26 +31,117 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ## OPEN
 
-Full audit 2026-10-21 @ `403f8de9a` revalidated every prior entry. The fix batch in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
-resolved most of them; the entries below keep the part that still needs a product decision or its own design.
+Full audit 2026-10-21 @ `d0e5f01fc` revalidated every prior entry. The fix batch in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
+resolved most of them, and the fix batch of [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332) resolved the later audit's findings; the entries below keep the part that still needs a product decision or its own design.
 
 ### AD-lifecycle-chat-idle-providers: [OPEN · Architecture debt · L]
 
 - **Summary:** Reading a stopped Chat still starts its provider, because model lists, commands, and live state come from the provider rather than from a transcript reader.
 - **Evidence:** `apps/server/src/domains/agent-chat/service.ts` `read()` still starts a bound Chat. The ownership half is fixed: a read-started provider holds an observation lease (`apps/server/src/domains/agent-chat/chat-suspension.ts`) that the idle sweep reclaims two minutes after its Session is left, independent of the idle-suspension setting (`apps/server/src/domains/terminal/suspension-policy.ts`), and every provider start, PTY relaunch, and restore passes the 16-per-Session and 32-global capacity gate in `apps/server/src/domains/db/models/terminals.ts`. Covered by `service-lease.integration.test.ts`, `service-capacity.integration.test.ts`, and `terminal-restart-capacity.integration.test.ts`.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 with the fix
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 @ d0e5f01fc (still present)
 - **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): a pure read starts no provider. Reclaim is bounded by time and count: only the newest `MAX_CHAT_OBSERVATION_LEASES` read leases wait out the window, and a read that starts a provider sweeps the older ones at once (`terminal/__tests__/suspension-chat.test.ts`). Reclaim races with read, reselection, and input, plus the capacity gate on resume, are covered by `service-lease.integration.test.ts`, `service-capacity.integration.test.ts`, and `suspension-chat.test.ts`.
 
 ### AD-layout-flat-family-enforcement: [OPEN · Architecture debt · M]
 
 - **Summary:** Desktop Main (116 direct modules) and the Server `agent-chat` domain (96, with flat `chat-`, `claude-`, `codex-`, and `grok-` families) are still flat; they can no longer grow, but nothing has moved into family directories yet.
 - **Evidence:** `scripts/directory-density-baseline.ts` records shrink-only caps for those owners, their prefix families, the Renderer `features/agent-chat` root, and every nested subdirectory below a guarded owner that reaches `DIRECTORY_DENSITY_NESTED_THRESHOLD` (12) files; `scripts/__tests__/directory-density-ratchet.test.ts` fails on growth and on an untightened shrink, and `scripts/run-ci-focused-checks.ts` routes affected and draft pull requests touching those directories to it.
-- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 with the fix
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 @ d0e5f01fc (ratchet went red at that commit; restored by the [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332) batch, which also moved agent-chat entries and added protocol density caps)
 - **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): pure moves into provider and family directories, tightening the recorded caps as they land.
+
+### AD-contract-provider-literal-comparisons: [OPEN · Architecture debt · M]
+
+- **Summary:** Provider identity is still compared against string literals in several modules, so adding or renaming a provider needs a repository-wide search instead of one registry edit.
+- **Evidence:** About 55 comparison sites, for example `apps/server/src/domains/session/compaction.ts`, `agent-chat/chat-history.ts`, `agent-chat/chat-images.ts`, `agent-runtime/turn-context.ts`, and `agent-benchmark/launch.ts`; hand-written provider ID lists in `packages/protocol/src/agent/agent-delegation-settings.ts`, `apps/server/src/domains/agents/external-conversation-parsers.ts`, `apps/mobile/src/features/sessions/new-session-model.ts`, and `apps/desktop/src/renderer/src/features/benchmark/benchmark-selection.ts`.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 @ d0e5f01fc
+- **Remediation target / Acceptance:** [issue caxri#2335](https://github.com/tjx666/caxri/issues/2335): route provider-specific branching through the provider registry or capability flags; a guard fails on new literal comparisons.
+
+### AD-toolchain-electron-45-stable-pin: [OPEN · Modernization opportunity · S]
+
+- **Summary:** Electron is still pinned to `45.0.0-beta.6` although the stack baseline's exit condition (45.0.0 stable, published 2026-10-21) is met; the upgrade waits on the 24-hour `minimumReleaseAge`. Docs also cite Chromium 155 while the runtime is Chromium 156.
+- **Evidence:** `electron` in the root `package.json` and `apps/desktop/package.json`; the `minimumReleaseAge` exclusion in `pnpm-workspace.yaml`; `.agents/skills/project-architecture/references/stack-baseline.md`; `docs/startup-performance.md`.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 @ d0e5f01fc
+- **Remediation target / Acceptance:** [issue caxri#2333](https://github.com/tjx666/caxri/issues/2333): move to Electron 45 stable once native modules and the packaging checks pass, then update the stack baseline.
+
+### AD-contract-mobile-view-reply-roles: [OPEN · Contract drift · S]
+
+- **Summary:** Mobile pairing defines `view` and `reply` roles, but every new pairing is granted `control` and no API changes a role, so the weaker roles cannot be assigned.
+- **Evidence:** `control` is hardcoded in the device registry; the authorization doc now states this (docs corrected in [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332)). The remaining gap is a product decision on role assignment.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 @ d0e5f01fc
+- **Remediation target / Acceptance:** [issue caxri#2334](https://github.com/tjx666/caxri/issues/2334): decide whether to ship role selection at pairing or remove the unused roles.
+
+### AD-persist-delegation-collected-answers: [OPEN · Architecture debt · S]
+
+- **Summary:** Capacity pruning never evicts completed delegation answers because the store cannot tell whether a caller already read them, so a long-lived profile can still fill the 1,024-record cap with completed tasks and new delegations fail with `CAPACITY`.
+- **Evidence:** `pruneForAdmission` in `apps/server/src/domains/db/models/agent-delegations.ts` only removes settled records with no `answer`.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix batch
+- **Remediation target / Acceptance:** [issue caxri#2338](https://github.com/tjx666/caxri/issues/2338): persist a collected marker when an answer is read and let pruning remove collected records oldest first.
+
+### AD-toolchain-knip-entry-exports: [OPEN · Coverage or observability gap · S]
+
+- **Summary:** Knip does not check unused exports from package entry barrels, so dead public exports accumulate unnoticed; nine were found and deleted by hand.
+- **Evidence:** Measured with `--include-entry-exports`: 379 additional reports, mostly barrel exports in `packages/protocol`, `packages/mobile-transport`, and `packages/markdown`, plus framework default exports and extension `activate` functions. Many are likely false positives; the config is unchanged.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix batch
+- **Remediation target / Acceptance:** [issue caxri#2337](https://github.com/tjx666/caxri/issues/2337): triage the report with ignore rules for framework entries, then enable `includeEntryExports` when the residue is small.
 
 ---
 
 ## RESOLVED
+
+### AD-lifecycle-multi-window-watcher-focus: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** With several windows open, focusing a window on a different Session did not rewatch, and the quit prompt could attach to the wrong window; a failed tear-off strip release left a stale strip with no trace.
+- **Evidence:** `effects.ts` now also subscribes to `presence.onCurrentChange` and re-runs only the watcher step (`effects.test.ts`); the quit prompt parent is `workbenchWindows.focusedOrPrimary()` (`docs/process-model.md`); `tear-off-windows.ts` retries the strip release once and logs `window.tear_off_release_failed`, with retry and give-up tests.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332). After two failed releases the stale strip remains until next launch (no reconcile-on-restore pass).
+
+### AD-authority-commander-owner-policy: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Owner-only protection for commander methods lived in a hard-coded set, so a new commander method could be reachable by an Agent principal; Agent identity and cwd validation was duplicated between the known and unknown phase paths.
+- **Evidence:** `MethodSpec.principal` with `ownerOnlyCommandPolicy`, read by `assertOwnerOnlyMethod`; a protocol contract test covers every Agent-reachable and control `commander.*` method; `validateAgentIdentity` and `validateAgentCwd` serve both phase paths in `server.ts` with a shared table test.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332). The two reads left owner-only are tracked as `AD-authority-owner-reads-not-project-scoped`.
+
+### AD-persist-atomic-write-duplication: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Several modules hand-rolled temp-file-and-rename writes with different durability, and delegation import and the project search copy each had their own bounded-read or drift risk.
+- **Evidence:** `atomicWriteFile` (`durable`, `file`, `none`) in `packages/system/src/filesystem/atomic-write-file.ts` now serves `atomic-file.ts`, private JSON store, process manifest, pricing, argv config, ssh config, and the CLI launcher, with a unit test; delegation import uses `readBoundedTextFile`; a contract test compares the Worker-bound server copy of the project search file with the package copy.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332), except the updater (`AD-persist-atomic-write-updates-streaming`).
+
+### AD-persist-delegation-cap-and-repair-guards: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Agent delegation records hit the 1024 cap permanently and rejected new tasks; the terminal-tab repair write path and the database drop list had no regression guard.
+- **Evidence:** `AgentDelegationsModel.insert` prunes the oldest settled, answer-less, unlinked records before admitting a new one and removes their task directories (`reclaimPrunedDelegationFiles`), keeping the `CAPACITY` error as backstop (`docs/agent-delegation.md`); new tests pin the revision/CONFLICT behavior after a `terminalTabRepair` read and that the drop list matches the current schema tables.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332).
+
+### AD-lifecycle-terminal-exit-finalize: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** If cancelling the Agent or capturing the snapshot failed when a Terminal exited naturally, the Terminal stayed shown as live.
+- **Evidence:** `settleTerminalExit` in `apps/server/src/terminal-host/execution-event-projection.ts` isolates the failure and logs `terminalHost.error` phase `exit-finalize`; `projectExecutionExit` always clears state and sends `terminal.exit` without a snapshot (`runtime-generation.test.ts`). Nine unused protocol and mobile-transport exports were also deleted.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332).
+
+### AD-contract-security-docs-and-skill-drift: [RESOLVED · Contract drift · S]
+
+- **Summary:** Security and pairing docs omitted CLI-mediated egress, the Renderer path opener, and the accepted test seams, mis-stated mobile role changes, and the re-render audit skill recommended a Profiler test the repo does not allow.
+- **Evidence:** `.agents/skills/project-architecture/references/security.md` sections "CLI-mediated egress", "Renderer-requested path opener", and "Accepted test seams"; the authorization doc now states the fixed `control` role; `react-rerender-audit/SKILL.md` step 6 rewritten; a comment explains the direct delivery of `agentCommander.inboxRequested`.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332). The role-assignment decision stays open as `AD-contract-mobile-view-reply-roles`.
+
+### AD-release-gate-main-ci-and-density: [RESOLVED · Coverage or observability gap · M]
+
+- **Summary:** A red main CI or a directory-density regression could merge or ship because neither the required `guards` job nor release preparation checked them.
+- **Evidence:** `guards.yml` runs the density ratchet; `assertMainCiHealthy` in `prepare-release.ts` fails when the newest completed non-release `ci.yml` run on `main` failed (unit tests for failure, pass, and empty cases; rule in the `release` skill).
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332). Remaining gap: `AD-release-gate-ratchet-duplication`.
+
+### AD-lifecycle-chat-states-revision-and-pr-teardown: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Chat state revisions lacked floors and PR settlement teardown was incomplete; the protocol directory had no density caps or placement rule.
+- **Evidence:** Fixed by a concurrent agent in the same batch (F9, F17); not re-verified by this ledger pass beyond the batch report.
+- **First seen:** 2026-10-21 @ d0e5f01fc · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332).
 
 ### AD-domain-line-budget-splits: [RESOLVED · Architecture debt · M]
 
@@ -144,7 +235,7 @@ resolved most of them; the entries below keep the part that still needs a produc
 
 - **Summary:** Desktop and Mobile each implement the Agent Chat revision-chain hold, replay, and re-read logic, so a sync fix lands twice and the two clients can drift.
 - **Evidence:** `packages/protocol/src/agent/agent-chat-revision-convergence.ts` owns hold, replay, gap, overflow, re-read, and dispose decisions for both clients; vectors in `packages/protocol/src/agent/__tests__/agent-chat-revision-convergence.test.ts`.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 with the fix
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 @ d0e5f01fc (still present)
 - **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
 - **Remediation target / Acceptance:** [issue caxri#1801](https://github.com/tjx666/caxri/issues/1801): one pure revision-chain core in `packages/protocol/src/agent/` used by both clients.
 
@@ -152,7 +243,7 @@ resolved most of them; the entries below keep the part that still needs a produc
 
 - **Summary:** `features/agent-chat` keeps 80+ files flat although `turn-*`, `task*`, and `find*` families form cohesive sub-domains, so placing and finding Chat code costs every change a directory scan.
 - **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/` keeps 12 direct production modules; families live in sub-domain directories such as `turns/`, `tasks/`, `composer/`, and `find/`.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 with the fix
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 @ d0e5f01fc (still present)
 - **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
 - **Remediation target / Acceptance:** [issue caxri#1802](https://github.com/tjx666/caxri/issues/1802): pure moves into sub-domain directories with before/after visual parity.
 
@@ -160,7 +251,7 @@ resolved most of them; the entries below keep the part that still needs a produc
 
 - **Summary:** The glossary names the feature SSH Host and lists Remote as an alias to avoid in new code, yet the protocol methods are `remote.*`, Main splits the feature between `ssh/remote-*.ts` and flat `remote-*` siblings, and the doc is titled Remote SSH; Environment is used as a concept without a glossary entry.
 - **Evidence:** `packages/protocol/src/desktop/ssh-host-contract.ts` exposes `sshHost.*` methods; Main owners live in `apps/desktop/src/main/ssh/`; `docs/ssh-host.md` is the living doc and `GLOSSARY.md` defines Environment. `scripts/__tests__/ssh-host-vocabulary.test.ts` rejects the retired spellings.
-- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 with the fix
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 @ d0e5f01fc (ratchet went red at that commit; restored by the [issue caxri#2332](https://github.com/tjx666/caxri/issues/2332) batch, which also moved agent-chat entries and added protocol density caps)
 - **Resolved:** 2026-10-21 via [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264)
 - **Remediation target / Acceptance:** [issue caxri#1994](https://github.com/tjx666/caxri/issues/1994): one SSH Host vocabulary across protocol, Main modules, and docs, with Environment defined in the glossary.
 
@@ -996,12 +1087,15 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-e2e-worker-local-error-gate      | `E2EErrorGate` state is isolated per Playwright worker process; pool orchestration may use more than one worker                                                                                                                          | `e2e/support/error-gate.ts`, `scripts/run-e2e-pools.ts`                                            |
 | IT-e2e-parallel-safe-default        | Specs default to the three-worker `parallel-safe` pool; only `desktopExclusiveSpecs` entries with a closed reason stay on one worker, and mechanical capabilities are enforced by source derivation and at launch                        | `e2e/support/pools.ts`, `docs/ci-performance.md`                                                   |
 | IT-external-document-in-place-save  | Saving a file outside every Project overwrites it in place to keep its inode, mode, and extended attributes, so a crash mid-save can truncate it; Project saves stay atomic                                                              | `apps/desktop/src/main/external-documents.ts`, [ADR 0013](adr/0013-editable-external-documents.md) |
+| IT-commander-owner-reads            | `commander.managedSessions` and `session.permissionAutoAllowStatus` are owner-only rather than project-scoped for Agent principals; handlers carry no principal context and no Agent consumer exists                                     | `packages/protocol/src/transport/method-spec.ts`, `agent-messaging.md`                             |
+| IT-updater-streamed-rename          | The Desktop updater streams the DMG to a temp file, verifies hash and size, then renames it itself instead of using `atomicWriteFile`, which takes in-memory data                                                                        | `apps/desktop/src/main/updates.ts`                                                                 |
+| IT-guards-density-ratchet-subset    | `guards` runs only the about 1.4 s directory-density ratchet among whole-tree contract tests; `checks` still runs it and the slower workspace contract, so merging before `checks` finishes remains possible for those                   | `.github/workflows/guards.yml`, `scripts/run-ci-focused-checks.ts`                                 |
 
 ---
 
 ## Current priority guide (OPEN at 2026-10-21)
 
-**Top priorities:** `AD-lifecycle-chat-idle-providers` → `AD-layout-flat-family-enforcement`.
+**Top priorities:** `AD-lifecycle-chat-idle-providers` → `AD-layout-flat-family-enforcement` → `AD-contract-provider-literal-comparisons` → `AD-toolchain-electron-45-stable-pin`.
 
 ## Historical priority guide (all resolved)
 

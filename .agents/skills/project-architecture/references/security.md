@@ -113,3 +113,56 @@ It uses Node's `fetch`, uploads no user data, and is replaced by an immediate fa
   `model_prices_and_context_window.json` on raw.githubusercontent.com when a Usage report finds the
   cached copy older than a day. 15 s timeout; the body is streamed and dropped past 16 MiB. Any
   failure falls back to the cached copy, then the snapshot bundled at build time.
+
+### CLI-mediated egress
+
+Server Core also reaches the network indirectly, through CLIs it spawns with structured argv. These
+calls carry the user's own CLI credentials and are not covered by the Node `fetch` rule above.
+
+- **External status** (`apps/server/src/domains/external-status/command.ts`): the delivery-metadata
+  probes spawn `gh`, `git`, `lh`, `linear`, and `vc` (`ExternalStatusSource`). `git` is local; the
+  others answer to a remote API budget and a per-source rate-limit circuit. Each call has an 8 s
+  timeout and a 4 MiB output cap and runs with `CI=1` and `LC_ALL=C`.
+- **GitHub token**: `gh` calls receive `GH_TOKEN` read once from `gh auth token` (a process-wide
+  cache that is invalidated on a 401 or not-logged-in result). The token stays in the child
+  environment and is never logged or returned to the Renderer.
+- **Linear credential**: for `linear`, `LINEAR_API_KEY` is set to an empty string so the CLI cannot
+  fall back to a `.env` file inside the repository it runs in; the user's configured workspace
+  credentials stay authoritative.
+- **GitHub references** (`apps/server/src/domains/external-status/github-reference.ts`): `gh api`
+  is pinned with `--hostname github.com`, so a link never makes `gh` contact a host named by its
+  configuration or `GH_HOST`.
+- **Merge settings** (`apps/server/src/domains/project-status/merge-method.ts`): `gh repo view
+--json` reads a repository's allowed merge methods, cached per repository slug.
+- **Pull request merge** (`apps/server/src/domains/git/pull-request-merge.ts`): the only mutating
+  call. It runs `gh repo view` then `gh pr merge` only for an explicit user merge action (Desktop
+  or a `control` mobile device), with the method chosen from the repository settings.
+
+## Renderer-requested path opener
+
+`agentChat.openPathReference` lets the Renderer ask Main to open a path from a file or folder chip
+in a sent message (`apps/desktop/src/main/agent-chat-path-picker.ts`, dispatched in
+`apps/desktop/src/main/main-methods.ts`). The Renderer can supply only an absolute path string.
+Main resolves it with `realpath`; a folder opens in Finder, while a file, an `.app`, or any
+executable bundle (including a symlink resolving to one) is only revealed in its folder, so a click
+never runs or launches anything. A missing path answers `NOT_FOUND`.
+
+The path is not held to a Project root because it came from the user's own drop, paste, or pick
+and the action is limited to reveal or open-folder, which grants no read or write of file contents.
+It is classified `local-only` in `apps/desktop/src/main/environment-method-policy.ts`: an SSH Host
+window cannot trigger it, because the path would name a file on the remote machine, not the
+machine whose Finder opens. User-facing behavior is in [Agent Chat](../../../../docs/agent-chat.md).
+
+## Accepted test seams
+
+- **Preload E2E bridge** (`apps/desktop/src/preload/index.ts`): `window.caxriE2E` (request gates,
+  call counters, the one-shot mobile pairing link bridge) and the poll-interval override are
+  exposed only when `CAXRI_E2E=1`, so a packaged install never has them. They record no arbitrary
+  requests and persist nothing. `__caxriWorktree` is exposed whenever `switch-worktree dev` sets
+  `CAXRI_WORKTREE_PATH`; it holds only a local path.
+- **Root provider fault** (`apps/desktop/src/renderer/src/root-provider-fault.ts`,
+  `root-provider-fault-probe.tsx`): a `sessionStorage` key makes the next root render throw so the
+  recovery screen can be proven for a provider-level failure. Unlike the preload seams it is not
+  gated by `CAXRI_E2E`. This is accepted: the only actor who can set the key is code already
+  running in the Renderer, the effect is one self-clearing crash that Reload recovers from, and it
+  exposes no data or capability.
