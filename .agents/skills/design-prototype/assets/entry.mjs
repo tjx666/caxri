@@ -61,6 +61,7 @@ import * as useRelativeTime from '@/hooks/use-relative-time';
 import * as useResourceLoad from '@/hooks/use-resource-load';
 import * as useScrollEdge from '@/hooks/use-scroll-edge';
 import * as useScrollEdges from '@/hooks/use-scroll-edges';
+import * as useSessionExcerpts from '@/hooks/use-session-excerpts';
 import * as useShouldReduceMotion from '@/hooks/use-should-reduce-motion';
 import * as useStartupLoaderRemoval from '@/hooks/use-startup-loader-removal';
 import * as useWorkbenchAppearance from '@/hooks/use-workbench-appearance';
@@ -123,6 +124,7 @@ export default {
     '@/hooks/use-resource-load': useResourceLoad,
     '@/hooks/use-scroll-edge': useScrollEdge,
     '@/hooks/use-scroll-edges': useScrollEdges,
+    '@/hooks/use-session-excerpts': useSessionExcerpts,
     '@/hooks/use-should-reduce-motion': useShouldReduceMotion,
     '@/hooks/use-startup-loader-removal': useStartupLoaderRemoval,
     '@/hooks/use-workbench-appearance': useWorkbenchAppearance,
