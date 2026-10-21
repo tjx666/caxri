@@ -215,7 +215,7 @@ export class ProcessExplorerWindowController {
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
                 /**
-                 * Same reasoning as the Agent Commander window: the header is the Workbench's zoomed 44px drag header,
+                 * Same reasoning as the Agent Commander window: the header is the Workbench's zoomed 36px drag header,
                  * and the window opens at the app zoom instead of flashing at 100% first.
                  */
                 trafficLightPosition: trafficLightPositionForZoom(zoomFactor),

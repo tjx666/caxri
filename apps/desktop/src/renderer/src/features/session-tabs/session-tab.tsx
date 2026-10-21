@@ -17,6 +17,7 @@ import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { activateSessionTab, closeSessionTabs } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
 import { sessionTabMenu } from './session-tab-menu';
+import { sessionTabShortcutKey } from './session-tabs-state';
 
 function isNavigationKey(key: string): key is WorkTabNavigationKey {
     return ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key);
@@ -28,8 +29,9 @@ function isNavigationKey(key: string): key is WorkTabNavigationKey {
  * Session (a boolean), and its Agent Terminal. Switching or reordering tabs therefore re-renders the tabs that changed,
  * never every tab, and no Workbench subscribes to any of it.
  *
- * Visual language follows a pane tab (`WorkTab`): the same `--tab-*` fills, the 2px accent on the active tab, the close
- * button revealed on hover and focus (always on the active tab), and the hairline between tabs.
+ * Session level of DESIGN.md's "Two tab levels": an inset neutral pill (raised fill when active, a quiet hover fill
+ * otherwise, short dividers between idle neighbours) and the close button revealed on hover and focus (always on the
+ * active tab). It carries no accent; that stays with the focused pane's active tab below.
  */
 export function SessionTab({
     count,
@@ -78,10 +80,16 @@ export function SessionTab({
         <ContextMenuTrigger menu={(): ContextMenuEntries => sessionTabMenu(sessionId)}>
             <div
                 className={cn(
-                    'session-tab group relative flex h-full min-w-32 flex-1 basis-0 items-center border-r border-border bg-tab-inactive-background pr-1.5 text-tab-inactive-foreground [-webkit-app-region:no-drag] hover:bg-tab-hover-background hover:text-tab-hover-foreground',
-                    'max-w-56',
+                    // An inset pill on the strip's title-bar fill. Selection is a neutral raised fill, never the accent:
+                    // the accent belongs to the focused pane's active tab (DESIGN.md "Two tab levels"). Widths:
+                    // 104px floor so five or six fit a 1280px window, 200px cap, and the active tab keeps 150px so
+                    // its title stays readable however crowded the strip gets.
+                    'session-tab group relative flex h-7 max-w-50 min-w-26 flex-1 basis-0 items-center rounded-md pr-1 text-[11px] font-medium text-tab-inactive-foreground [-webkit-app-region:no-drag] hover:bg-elevated/60 hover:text-foreground',
+                    // The short divider after this tab. It hides beside the active tab, beside a hovered tab, and at
+                    // the end of the row, so a pill never sits flush against a line.
+                    "after:pointer-events-none after:absolute after:top-1.5 after:-right-[2.5px] after:h-4 after:w-px after:bg-border after:content-[''] hover:after:opacity-0 has-[+.session-tab-new]:after:hidden has-[+.session-tab:hover]:after:opacity-0 has-[+[data-tab-active]]:after:opacity-0",
                     isActive &&
-                        "active bg-tab-active-background text-tab-active-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-['']",
+                        'active min-w-37.5 bg-elevated text-foreground shadow-sm after:opacity-0 hover:bg-elevated',
                 )}
                 data-session-tab-id={sessionId}
                 data-tab-active={isActive || undefined}
@@ -94,9 +102,9 @@ export function SessionTab({
                         aria-posinset={index + 1}
                         aria-selected={isActive}
                         aria-setsize={count}
-                        aria-keyshortcuts={index < 9 ? `Meta+${index + 1}` : undefined}
+                        aria-keyshortcuts={sessionTabShortcutKey(index, count)}
                         tabIndex={isActive ? 0 : -1}
-                        className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
+                        className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
                         onClick={() => activateSessionTab(sessionId)}
                         onKeyDown={onKeyDown}
                         // Middle-click closes, matching pane tabs and every browser; the mousedown guard stops the

@@ -78,9 +78,10 @@ function SessionTabStripBar() {
     return (
         <div
             className={cn(
-                // The frameless window's title bar while the strip shows: 44px like the sidebar rails, so the traffic
-                // lights stay centered in it and the three rails keep one bottom edge.
-                'session-tab-strip flex h-11 flex-none bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
+                // The frameless window's title bar while the strip shows: 36px like the sidebar rails and the pane row
+                // below it, so the traffic lights stay centered in it and the rails keep one bottom edge. The 1px
+                // hairline to the pane row is an inset shadow, not a border, so it does not eat into that height.
+                'session-tab-strip flex h-9 flex-none bg-title-bar-active-background text-title-bar-active-foreground shadow-[inset_0_-1px_0_var(--border)] [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
                 !isPrimarySidebarVisible && !isFullScreen && 'pl-(--traffic-light-clearance)',
             )}
             data-session-tab-strip=""
@@ -100,7 +101,7 @@ function SessionTabStripBar() {
                 {dropIndicatorLeft !== undefined && (
                     <div
                         aria-hidden="true"
-                        className="session-tab-drop-marker pointer-events-none absolute top-1 bottom-1 z-10 w-0.5 bg-accent"
+                        className="session-tab-drop-marker pointer-events-none absolute top-1.5 bottom-1.5 z-10 w-0.5 bg-accent"
                         style={{ left: dropIndicatorLeft }}
                     >
                         <span className="absolute -top-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-accent" />
@@ -112,7 +113,7 @@ function SessionTabStripBar() {
                     data-tab-scroll-rail=""
                     className="work-tab-scroll relative flex min-w-0 flex-1 overflow-x-auto"
                 >
-                    <div role="none" className="flex h-11 min-w-full items-stretch">
+                    <div role="none" className="flex h-9 min-w-full items-center gap-1 px-1">
                         <span
                             ref={startSentinel}
                             aria-hidden="true"
@@ -147,7 +148,7 @@ function SessionTabStripBar() {
             {!isPrimarySidebarVisible && (
                 <div
                     aria-hidden="true"
-                    className="session-tab-strip-drag-handle h-11 w-8 flex-none"
+                    className="session-tab-strip-drag-handle h-9 w-8 flex-none"
                 />
             )}
         </div>

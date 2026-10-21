@@ -57,7 +57,7 @@ export function PaneTabActions({
     const isFloating = !hasTabsToSwitch;
     return (
         <div
-            className={`tab-actions relative flex h-11 flex-none items-center [-webkit-app-region:no-drag] ${editorPath || hasTabsToSwitch ? 'px-1' : ''}`}
+            className={`tab-actions relative flex h-9 flex-none items-center [-webkit-app-region:no-drag] ${editorPath || hasTabsToSwitch ? 'px-1' : ''}`}
         >
             {editorPath && <EditorTabActions paneId={paneId} path={editorPath} />}
             {hasPaneTabs && (
@@ -65,7 +65,7 @@ export function PaneTabActions({
                     className={cn(
                         'flex items-center',
                         isFloating &&
-                            'absolute top-0 right-full z-[5] h-11 pr-1 [-webkit-app-region:no-drag]',
+                            'absolute top-0 right-full z-[5] h-9 pr-1 [-webkit-app-region:no-drag]',
                         isFloating && !surfaceTerminal && REVEAL_ON_HOVER,
                     )}
                 >

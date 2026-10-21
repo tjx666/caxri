@@ -48,7 +48,7 @@ export function AgentCommanderHeader() {
     return (
         <header
             className={cn(
-                'agent-commander-header flex h-11 flex-none items-center gap-2 bg-surface pr-3 [-webkit-app-region:drag]',
+                'agent-commander-header flex h-9 flex-none items-center gap-2 bg-surface pr-3 [-webkit-app-region:drag]',
                 isFullScreen ? 'pl-3' : 'pl-(--traffic-light-clearance)',
             )}
         >

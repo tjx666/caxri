@@ -7,6 +7,7 @@ import {
     moveOpenSession,
     openTabTargetId,
     sessionIdsToClose,
+    sessionTabShortcutKey,
     shiftOpenSession,
     shouldTearOffSessionTab,
     withoutOpenSessions,
@@ -145,5 +146,18 @@ describe('shouldTearOffSessionTab', () => {
         expect(shouldTearOffSessionTab({ dropEffect: 'none', dropped: false, tabCount: 1 })).toBe(
             false,
         );
+    });
+});
+
+describe('sessionTabShortcutKey', () => {
+    it('labels the first eight tabs by position', () => {
+        expect(sessionTabShortcutKey(0, 3)).toBe('Meta+1');
+        expect(sessionTabShortcutKey(7, 20)).toBe('Meta+8');
+    });
+
+    it('labels only the last tab with Meta+9, since Cmd+9 means last', () => {
+        expect(sessionTabShortcutKey(11, 12)).toBe('Meta+9');
+        expect(sessionTabShortcutKey(8, 9)).toBe('Meta+9');
+        expect(sessionTabShortcutKey(8, 12)).toBeUndefined();
     });
 });

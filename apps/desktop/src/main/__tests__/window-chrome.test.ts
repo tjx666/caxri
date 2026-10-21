@@ -17,10 +17,10 @@ describe('window zoom', () => {
         expect(zoomFactorForLevel(-1)).toBeCloseTo(1 / 1.2);
     });
 
-    it('keeps the traffic lights centered in the zoomed 44px header', () => {
-        expect(trafficLightPositionForZoom(1)).toEqual({ x: 15, y: 15 });
-        expect(trafficLightPositionForZoom(1.44)).toEqual({ x: 15, y: 25 });
-        expect(trafficLightPositionForZoom(1 / 1.2)).toEqual({ x: 15, y: 11 });
+    it('keeps the traffic lights centered in the zoomed 36px header', () => {
+        expect(trafficLightPositionForZoom(1)).toEqual({ x: 15, y: 11 });
+        expect(trafficLightPositionForZoom(1.44)).toEqual({ x: 15, y: 19 });
+        expect(trafficLightPositionForZoom(1 / 1.2)).toEqual({ x: 15, y: 8 });
     });
 });
 

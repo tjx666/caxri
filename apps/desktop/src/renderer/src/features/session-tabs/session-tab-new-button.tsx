@@ -1,11 +1,17 @@
 import { Plus } from 'lucide-react';
 
+import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { SessionTabCreateMenu } from '../session/create-session-menu';
 
+/**
+ * The same `Button` as the pane row's `+` (28px square, radius 8, `--selection` hover), so the two read as one control
+ * at two levels. Its keyboard focus is the tabs' inset 1px outline rather than `Button`'s accent glow: the strip must
+ * not spend a second accent, and one focus language keeps tabbing through the strip consistent.
+ */
 const BUTTON_CLASS =
-    'flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted outline-none hover:bg-tab-hover-background hover:text-tab-hover-foreground focus-visible:shadow-[0_0_0_2px_var(--accent)] disabled:cursor-not-allowed disabled:opacity-45 data-[popup-open]:bg-tab-hover-background data-[popup-open]:text-tab-hover-foreground';
+    'text-muted hover:text-foreground focus-visible:border-transparent focus-visible:shadow-none focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground data-[popup-open]:bg-[var(--selection)] data-[popup-open]:text-foreground';
 
 /**
  * The strip's trailing `+`: a new Session in the active Session's Project, started the way `Cmd+N` starts one (the
@@ -24,12 +30,18 @@ export function SessionTabNewButton() {
     });
     const label = t('sessionTabs.new');
     const button = (
-        <button type="button" aria-label={label} disabled={!project} className={BUTTON_CLASS}>
+        <Button
+            aria-label={label}
+            className={BUTTON_CLASS}
+            disabled={!project}
+            size="icon"
+            variant="ghost"
+        >
             <Plus size={14} />
-        </button>
+        </Button>
     );
     return (
-        <div className="session-tab-new sticky right-0 z-[5] flex h-11 flex-none items-center bg-title-bar-active-background px-1 [-webkit-app-region:no-drag] window-inactive:bg-title-bar-inactive-background">
+        <div className="session-tab-new sticky right-0 z-[5] flex h-9 flex-none items-center bg-title-bar-active-background pl-1 [-webkit-app-region:no-drag] window-inactive:bg-title-bar-inactive-background">
             {project ? <SessionTabCreateMenu project={project} trigger={button} /> : button}
         </div>
     );

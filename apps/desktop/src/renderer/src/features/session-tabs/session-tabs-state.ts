@@ -122,3 +122,13 @@ export function openTabTargetId(ids: readonly string[], position: number): strin
     if (!Number.isSafeInteger(position) || position < 1 || position > 9) return undefined;
     return position === 9 ? ids.at(-1) : ids[position - 1];
 }
+
+/**
+ * The `aria-keyshortcuts` value for the tab at `index` of `count`: `Meta+<position>` for the first eight, and `Meta+9`
+ * on the last tab, which is what `Cmd+9` selects (see {@link openTabTargetId}). A ninth or later tab that is not the
+ * last one has no chord. With nine tabs the ninth is both, and `Meta+9` is right.
+ */
+export function sessionTabShortcutKey(index: number, count: number): string | undefined {
+    if (index < 8) return `Meta+${index + 1}`;
+    return index === count - 1 ? 'Meta+9' : undefined;
+}

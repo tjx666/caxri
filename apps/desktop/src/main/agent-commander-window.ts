@@ -130,7 +130,7 @@ export class AgentCommanderWindowController {
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
                 /**
-                 * The header is the Workbench's 44px drag header, so the traffic lights sit where they do there, and
+                 * The header is the Workbench's 36px drag header, so the traffic lights sit where they do there, and
                  * the window opens at the app zoom instead of flashing at 100% first.
                  */
                 trafficLightPosition: trafficLightPositionForZoom(zoomFactor),

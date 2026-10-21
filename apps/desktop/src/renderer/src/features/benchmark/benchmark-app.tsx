@@ -53,7 +53,7 @@ function BenchmarkHeader() {
     return (
         <header
             className={cn(
-                'flex h-11 flex-none items-center gap-2 bg-surface pr-3 [-webkit-app-region:drag]',
+                'flex h-9 flex-none items-center gap-2 bg-surface pr-3 [-webkit-app-region:drag]',
                 isFullScreen ? 'pl-3' : 'pl-(--traffic-light-clearance)',
             )}
         >

@@ -5,7 +5,7 @@ import { useWorkbenchStore } from './workbench';
 
 /**
  * The strip appears from this many Open Sessions on. One Open Session is just "the Session you are in", and a lone tab
- * would only spend 44px of title bar on a choice that does not exist.
+ * would only spend 36px of title bar on a choice that does not exist.
  */
 export const SESSION_TAB_STRIP_MIN_SESSIONS = 2;
 

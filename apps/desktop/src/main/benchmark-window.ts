@@ -70,7 +70,7 @@ export class BenchmarkWindowController {
                 title: 'Benchmark — Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
-                // The header is a 44px drag header like the Workbench's, and the window opens at the app zoom.
+                // The header is a 36px drag header like the Workbench's, and the window opens at the app zoom.
                 trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
                 webPreferences: {
                     preload: join(this.options.currentDirectory, '../preload/index.cjs'),

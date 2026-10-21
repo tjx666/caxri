@@ -237,7 +237,7 @@ export function App() {
                     {!isPrimarySidebarVisible && !isFullScreen && (
                         <div
                             aria-hidden="true"
-                            className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-(--traffic-light-clearance) [-webkit-app-region:drag]"
+                            className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-9 w-(--traffic-light-clearance) [-webkit-app-region:drag]"
                         />
                     )}
                     {isPrimarySidebarVisible && (

@@ -14,9 +14,11 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
 - The strip appears only when a window has two or more Open Sessions. With one, the window looks as it
   always did and the pane tab bar stays the title bar. When the strip is shown it takes the drag
   region, the traffic-light inset, and the title-bar fill.
-- The active tab carries a 2px accent top border; the pane tabs below use a plain fill, so one accent
-  shows per screen. Each tab shows the Session's status indicator and title and reads that Session's
-  own state by ID. A crowded strip scrolls instead of shrinking tabs below a minimum width.
+- The Session level is neutral: an inset 28px pill on the 36px title bar, with a raised fill on the active
+  tab and no accent. The accent stays with the focused pane's active tab in the 36px pane row below
+  (see DESIGN.md "Two tab levels"). Each tab shows the Session's status indicator and title and reads
+  that Session's own state by ID. Tabs are 104px to 200px wide and the active tab never drops below
+  150px; a crowded strip scrolls instead of shrinking them further.
 - Plain click on a Session row selects it. That **replaces the active entry** when the Session is not
   already open (like navigating inside a browser tab), or activates it when it already is, so browsing
   the sidebar never grows the strip. Only an explicit open adds a tab: Cmd+click, **Open in New Tab** in

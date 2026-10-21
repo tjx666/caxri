@@ -54,12 +54,12 @@ test('primarySidebar titlebar is logo-free, holds only history and the Activity 
                 height: titlebarBounds.height,
             };
         });
-        expect(titlebarMetrics).toMatchObject({ appRegion: 'drag', height: 44 });
+        expect(titlebarMetrics).toMatchObject({ appRegion: 'drag', height: 36 });
         expect(
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.getWindowButtonPosition(),
             ),
-        ).toEqual({ x: 15, y: 15 });
+        ).toEqual({ x: 15, y: 11 });
 
         // macOS hides the traffic lights in fullscreen; the logo takes their place.
         await publishFullScreenState(running.app, true);
