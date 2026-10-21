@@ -98,7 +98,7 @@ export function fixReviewCommentsAction(
         },
         icon: new ThemeIcon('send'),
         label: 'Fix',
-        tone: 'success',
+        tone: 'danger',
         tooltip: `Send ${summary} to this Session's Agent to review`,
         // The Renderer's success toast names the Agent that received the prompt; only the failure prefix is ours.
         feedback: { failure: "Couldn't send the comments" },

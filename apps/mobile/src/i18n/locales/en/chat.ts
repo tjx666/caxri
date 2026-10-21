@@ -114,7 +114,7 @@ export const chat = {
     'chat.model.model': 'Model',
     'chat.model.paceDismiss': 'Hide for today',
     'chat.model.paceWarning':
-        '{{limit}} is running ahead of pace: {{left}}, where an even pace would leave about {{even}}%. Ease off to make it last.',
+        '{{limit}} is on track to run out before it resets: {{left}}. Ease off to make it last.',
     'chat.model.planLimits': 'Plan limits',
     'chat.model.reasoningEffort': 'Reasoning effort',
     'chat.model.switchEffortFailed': 'Unable to switch the reasoning effort. Try again.',

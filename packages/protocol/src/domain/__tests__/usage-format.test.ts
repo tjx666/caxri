@@ -86,18 +86,21 @@ describe('limitPaceShortfall', () => {
         ],
     });
 
-    it('reports a weekly window that has less left than an even pace would leave', () => {
-        // 5 of 7 days left: an even pace leaves 71%; 40% is far behind.
+    it('reports a weekly window whose pace so far would run it out before it resets', () => {
+        // 60% used in 2 of 7 days projects 210%, so the week runs out.
         expect(limitPaceShortfall(weekly(60, 5), NOW)).toEqual({
             window: { windowMinutes: 10_080, usedPercent: 60, resetsAt: NOW + 5 * DAY },
             evenPacePercent: 71,
         });
     });
 
-    it('stays quiet on pace, within the margin, for short windows, and without a reset time', () => {
+    it('stays quiet on first-workday bursts, on course, for short windows, and without a reset time', () => {
+        // 14% used after 12 hours of 7 days: less than a tenth of the window has elapsed, too early to project.
+        expect(limitPaceShortfall(weekly(14, 6.5), NOW)).toBeUndefined();
+        // 20% used in 2 of 7 days projects 70%: the week lasts.
         expect(limitPaceShortfall(weekly(20, 5), NOW)).toBeUndefined();
-        // 71% even, 68% left: within the 5-point margin.
-        expect(limitPaceShortfall(weekly(32, 5), NOW)).toBeUndefined();
+        // 28% used in 2 of 7 days projects exactly 98%, still short of the limit.
+        expect(limitPaceShortfall(weekly(28, 5), NOW)).toBeUndefined();
         expect(
             limitPaceShortfall(
                 {
@@ -109,5 +112,10 @@ describe('limitPaceShortfall', () => {
             ),
         ).toBeUndefined();
         expect(limitPaceShortfall(null, NOW)).toBeUndefined();
+    });
+
+    it('starts projecting once a tenth of the window has elapsed', () => {
+        // 0.8 of 7 days elapsed is past 10%: 14% used projects about 123%.
+        expect(limitPaceShortfall(weekly(14, 6.2), NOW)?.window.usedPercent).toBe(14);
     });
 });

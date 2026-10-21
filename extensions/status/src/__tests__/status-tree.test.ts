@@ -161,7 +161,7 @@ describe('Status extension tree', () => {
         expect(pr?.item.trailingIcon).toBeUndefined();
         const branch = node.children?.find((child) => child.item.id?.endsWith(':branch'));
         expect(branch?.item.iconPath?.id).toBe('git-pull-request-open');
-        expect(pr?.item.description).toBeUndefined();
+        expect(pr?.item.description).toBe('1 cancelled');
         expect(pr?.item.accessibilityInformation?.label).toBe('#1 Cancelled, Open, CI canceled');
         expect((pr?.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
             label: 'checks',

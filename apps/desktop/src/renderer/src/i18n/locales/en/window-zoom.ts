@@ -5,6 +5,7 @@ export const windowZoom = {
     'windowZoom.hud.zoomOut': 'Zoom Out',
     'windowZoom.hud.zoomIn': 'Zoom In',
     'windowZoom.hud.reset': 'Reset',
+    'windowZoom.hud.resetTooltip': 'Reset zoom to 100%',
     'windowZoom.indicator.label': 'Window zoom {{percent}}%',
     'windowZoom.indicator.tooltip': 'Window zoomed to {{percent}}%. Click to adjust or reset.',
 } as const;

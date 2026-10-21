@@ -111,6 +111,19 @@ describe('pullRequestCheckSummary', () => {
         ).toBe('1 failing · 3 running · 1 queued');
     });
 
+    it('counts a cancelled check so a cancelled-only red pull request says why', () => {
+        expect(pullRequestCheckSummary([passed('Lint'), { name: 'E2E', state: 'cancelled' }])).toBe(
+            '1 cancelled',
+        );
+        expect(
+            pullRequestCheckSummary([
+                { name: 'Test', state: 'failure' },
+                { name: 'E2E', state: 'cancelled' },
+                { name: 'Build', state: 'pending' },
+            ]),
+        ).toBe('1 failing · 1 cancelled · 1 running');
+    });
+
     it('says nothing when every check settled without a failure', () => {
         expect(
             pullRequestCheckSummary([passed('Lint'), { name: 'Skip', state: 'neutral' }]),

@@ -57,8 +57,8 @@ function agentUsageChipWindows(
 
 /**
  * The chip text: conversation tokens, estimated cost, and every live rate-limit window shortest first, e.g. `1.2M ·
- * $3.40 · 5h 38% · 7d 88% left` (windows per {@link agentUsageChipWindows}), so the 5-hour and weekly plan limits read
- * apart and never as context or token use. Cost follows {@link agentUsageCostLabel}. The limit is the newest
+ * $3.40 · 5h 38% left · 7d 88% left` (windows per {@link agentUsageChipWindows}), so the 5-hour and weekly plan limits
+ * read apart and never as context or token use. Cost follows {@link agentUsageCostLabel}. The limit is the newest
  * account-wide reading the Server has seen, which may come from another conversation, so the hover card states its age
  * and each window's reset.
  */
@@ -74,16 +74,14 @@ export function agentUsageLabel(
     const windows = agentUsageChipWindows(readout.limit, now, options);
     if (windows.length > 0)
         parts.push(
-            t('statusBar.usage.chipLimitsLeft', {
-                windows: windows
-                    .map((window) =>
-                        t('statusBar.usage.chipLimitWindow', {
-                            window: shortLimitWindowName(window.windowMinutes),
-                            percent: remainingLimitPercent(window.usedPercent),
-                        }),
-                    )
-                    .join(' · '),
-            }),
+            windows
+                .map((window) =>
+                    t('statusBar.usage.chipLimitWindow', {
+                        window: shortLimitWindowName(window.windowMinutes),
+                        percent: remainingLimitPercent(window.usedPercent),
+                    }),
+                )
+                .join(' · '),
         );
     return parts.join(' · ');
 }
@@ -98,10 +96,10 @@ export type AgentUsageLimitTone = 'warning';
 
 /**
  * Warning while any live window the chip shows is at or past the warning threshold, or while the plan's multi-day
- * window runs ahead of an even pace (`limitPaceShortfall`, the same function and margin the Chat composer's pace row
+ * window is projected to run out before it resets (`limitPaceShortfall`, the same function the Chat composer's pace row
  * uses). Both follow the displayed figures, so the colour never disagrees with a number beside it: a nearly spent
  * weekly limit warns even while the 5-hour window has room, and a weekly limit at 70% left with 6 of 7 days to go warns
- * before it is nearly spent, when slowing down still helps.
+ * before it is nearly spent, when slowing down still helps. The first tenth of a window never warns on pace.
  */
 export function agentUsageLimitTone(
     readout: AgentUsageReadout,
@@ -118,9 +116,8 @@ export function agentUsageLimitTone(
 
 /**
  * The tooltip sentence that says why the chip warns when the cause is pace rather than a nearly spent window, e.g.
- * `Weekly limit: 70% left, resets in 6d 14h. An even pace would leave about 93% by now; ...`. Naming the even-pace
- * share says how far ahead the user is and that the warning clears as the window's clock catches up. Undefined while
- * every window is on pace.
+ * `Weekly limit: 70% left, resets in 6d 14h. At this rate it runs out before it resets; ...`. The note says the warning
+ * is a projection and clears as usage slows or the window's clock catches up. Undefined while every window is on pace.
  */
 export function agentUsagePaceNote(
     readout: AgentUsageReadout,
@@ -129,9 +126,8 @@ export function agentUsagePaceNote(
 ): string | undefined {
     const shortfall = limitPaceShortfall(readout.limit, now);
     if (!shortfall) return undefined;
-    const { evenPacePercent, window } = shortfall;
+    const { window } = shortfall;
     return t('statusBar.usage.paceNote', {
-        evenPace: evenPacePercent,
         window: localizedLimitWindowName(window.windowMinutes, t),
         percent: remainingLimitPercent(window.usedPercent),
         reset: localizedLimitReset(window.resetsAt, now, t),

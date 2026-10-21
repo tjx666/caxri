@@ -326,7 +326,7 @@ recognized but could not read is `unknown`: `--muted` and not clickable, because
 destination and must not look like it does. When the bar's content does not fit, whole chips drop
 one at a time, lowest first: child-process count, memory, Agent output speed, Agent conversation
 usage, Linear issue, acceptance, pull request. A chip in its warning state (the usage chip once a
-limit is nearly spent or running ahead of an even pace, which its tooltip explains) drops only after
+limit is nearly spent or, at the current rate, on track to run out before it resets, which its tooltip explains) drops only after
 every calm chip, because hiding a warning defeats it. A chip's label is never truncated. The decision is by
 measured width, not fixed window breakpoints, because which chips are present (an Agent's two chips,
 a Commander chip, a debugging disclosure) changes how much room the rest needs; a hidden chip is
@@ -357,8 +357,8 @@ provider without one show no dot.
 The hover card breaks it down by last response, turn, and conversation (the turn row folds into the
 conversation row while both cover the same responses), lists provider incidents as at most one line
 plus `+N more`, charts the recent responses, and states the method (see `docs/agent-throughput.md`).
-Beside it, the conversation's running usage (`1.2M · $3.40 · 5h 62%`: tokens, estimated cost, and
-the shortest rate-limit window that has not reset) appears once the transcript records a billed
+Beside it, the conversation's running usage (`1.2M · $3.40 · 5h 62% left`: tokens, estimated cost, and
+the share left of each shown rate-limit window, every window saying `left` so none reads as used) appears once the transcript records a billed
 request. Cost is left out while no model has a price, since `$0.00` would read as free. The hover
 card breaks tokens down by kind and lists every limit window with its reset; clicking opens Usage
 (see `docs/usage.md`). Blame lives here and nowhere else. The editor header once

@@ -113,8 +113,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.model.limitsNote': '账户级用量：来自任一对话的最新读数。',
     'chat.model.model': '模型',
     'chat.model.paceDismiss': '今天不再提示',
-    'chat.model.paceWarning':
-        '{{limit}}用得偏快：{{left}}，均匀使用此时应剩约 {{even}}%，照这个速度可能撑不到重置，注意控制用量。',
+    'chat.model.paceWarning': '{{limit}}照当前速度会在重置前用完：{{left}}，注意控制用量。',
     'chat.model.planLimits': '套餐限额',
     'chat.model.reasoningEffort': '推理强度',
     'chat.model.switchEffortFailed': '无法切换推理强度，请重试。',
