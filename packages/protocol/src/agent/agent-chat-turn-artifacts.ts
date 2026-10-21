@@ -9,8 +9,8 @@ import type {
 import { agentChatDiffLines, agentChatDiffLinesStat } from './agent-chat-diff.js';
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
-import type { AgentChatTrackerArtifact } from './agent-chat-tracker-artifact.js';
-import { collectAgentChatTrackers } from './agent-chat-trackers.js';
+import type { AgentChatTrackerArtifact } from './trackers/agent-chat-tracker-artifact.js';
+import { collectAgentChatTrackers } from './trackers/agent-chat-trackers.js';
 
 /**
  * One file a finished turn changed, merged across every edit the turn made to it.

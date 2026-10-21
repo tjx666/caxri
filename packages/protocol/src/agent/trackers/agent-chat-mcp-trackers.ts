@@ -1,4 +1,5 @@
-import type { AgentChatItem } from './agent-chat-contract.js';
+import type { AgentChatItem } from '../agent-chat-contract.js';
+import { parseAgentMcpToolName } from '../agent-tool-presentation.js';
 import type {
     AgentChatTrackerArtifact,
     AgentChatTrackerStatus,
@@ -15,7 +16,6 @@ import {
     parseJsonRecord,
     stringOf,
 } from './agent-chat-tracker-artifact.js';
-import { parseAgentMcpToolName } from './agent-tool-presentation.js';
 
 type ToolCallItem = Extract<AgentChatItem, { type: 'toolCall' }>;
 

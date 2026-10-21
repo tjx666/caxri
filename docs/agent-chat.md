@@ -955,7 +955,7 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, a
   `gh api` POST to `repos/o/r/pulls|issues` or PATCH to `repos/o/r/pulls|issues/N` (how an Agent
   rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. Collection lives in
-  `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and `agent-chat-trackers.ts`, Undo in the
+  `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and its `trackers/` subdirectory, Undo in the
   Desktop `agent-chat-undo.ts`. The phone shows the same cards without Undo and Review; see
   [Mobile](#mobile).
 - Review on that card opens the turn as one diff in a `Turn changes` tab beside the Chat, in the

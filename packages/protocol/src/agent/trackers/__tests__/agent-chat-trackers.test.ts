@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatItem } from '../agent-chat-contract';
+import type { AgentChatItem } from '../../agent-chat-contract';
 import {
     agentChatTrackerExcerpt,
     trackerExcerptText,

@@ -1,4 +1,5 @@
-import type { AgentChatItem } from './agent-chat-contract.js';
+import type { AgentChatItem } from '../agent-chat-contract.js';
+import { unwrapShellCommand } from '../agent-tool-presentation.js';
 import { toolCallTrackerArtifact } from './agent-chat-mcp-trackers.js';
 import type { AgentChatTrackerArtifact } from './agent-chat-tracker-artifact.js';
 import {
@@ -8,7 +9,6 @@ import {
     parseJsonRecord,
     stringOf,
 } from './agent-chat-tracker-artifact.js';
-import { unwrapShellCommand } from './agent-tool-presentation.js';
 
 type CommandItem = Extract<AgentChatItem, { type: 'command' }>;
 
