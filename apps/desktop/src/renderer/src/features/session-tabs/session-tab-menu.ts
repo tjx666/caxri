@@ -1,6 +1,7 @@
 import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
+import { readCommandShortcut } from '../../lib/keybindings';
 import { getOpenSessionIds } from '../../stores/open-sessions';
 import { getBootstrap } from '../../stores/selectors';
 import { revealSessionInSidebar } from '../session/session-reveal-request';
@@ -38,6 +39,11 @@ export function sessionTabMenu(sessionId: string): ContextMenuEntries {
             : []),
         {
             label: translate('sessionTabs.close'),
+            // The chord closes the active tab, so only the active tab's menu advertises it.
+            shortcut:
+                getBootstrap()?.selectedSessionId === sessionId
+                    ? readCommandShortcut('session.closeTab')
+                    : undefined,
             disabled: sessionIdsToClose(ids, sessionId, 'one').length === 0,
             onSelect: close('one'),
         },

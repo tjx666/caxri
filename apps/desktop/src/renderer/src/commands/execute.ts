@@ -47,7 +47,6 @@ import {
 } from '../features/session/session-agent-commands';
 import {
     archiveSelectedSession,
-    archiveSession,
     openArchivedSessions,
 } from '../features/session/session-archive-commands';
 import {
@@ -65,7 +64,6 @@ import {
     beginSessionCreation,
     chooseProjectFolder,
 } from '../features/session/session-creation-commands';
-import { lastTabTerminalSessionId } from '../features/session/session-last-tab';
 import {
     renameSelectedSession,
     renameSelectedSessionWithAi,
@@ -191,22 +189,6 @@ function isTerminalSurfaceFocused(): boolean {
     return focused instanceof Element && focused.closest('.xterm') !== null;
 }
 
-/**
- * Closing a Terminal that is its Session's only tab would otherwise leave an empty pane with nothing left to close;
- * archiving the Session instead reaches the same one-keystroke end state a document tab's `Cmd+W` already does.
- * `terminal.close` and `workbench.closeActiveTab` share this decision through `lastTabTerminalSessionId` so a
- * Terminal's last tab means the same thing regardless of which command closed it.
- */
-function closeTerminalTabOrArchiveSession(terminalId: string): void {
-    const sessionId = lastTabTerminalSessionId(
-        getBootstrap()?.terminals ?? [],
-        getPaneLayout(),
-        terminalId,
-    );
-    if (sessionId) archiveSession(sessionId);
-    else closeTerminal(terminalId);
-}
-
 // Command handlers below are fire-and-forget by design: each async action already funnels its
 // own failures into a toast via `tryCommand` (or an equivalent internal try/catch), and the
 // registry's `run(context, arguments_)` contract (see `./registry`) is synchronous, so none of
@@ -320,14 +302,14 @@ const commandContext: CommandContext = {
         },
         closeActive: () => {
             const terminalId = activeTerminalId();
-            if (terminalId) closeTerminalTabOrArchiveSession(terminalId);
+            if (terminalId) closeTerminal(terminalId);
         },
     },
     workbench: {
         closeActiveTab: () => {
             const tab = getActivePaneTab();
             if (tab?.resource.kind === 'terminal') {
-                closeTerminalTabOrArchiveSession(tab.resource.terminalId);
+                closeTerminal(tab.resource.terminalId);
             }
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else if (tab) void closeDocumentTabs([tab.id]);

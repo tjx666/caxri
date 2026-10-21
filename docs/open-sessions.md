@@ -57,11 +57,22 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
 | Cmd+1 to Cmd+8 | Switch to the Nth Open Session                                       |
 | Cmd+9          | Switch to the last Open Session (the browser convention)             |
 | Cmd+Alt+1/2/3  | Show the Files, Git, and Status sidebar views (moved from Cmd+1/2/3) |
+| Cmd+Shift+W    | Close Open Session: remove the active tab from the strip             |
 
 The meaning is stable: Cmd+1 to Cmd+9 always address Open Sessions, whether or not the strip is
 visible. Cmd+0 is unchanged. Existing user keybinding files receive the move through
 `defaultKeybindingChanges`; see [keybindings.md](keybindings.md). The switch commands work from an
 editable surface too.
+
+Cmd+W and Cmd+Shift+W close at different levels, and neither archives. Cmd+W closes the active pane
+tab; closing a Session's last pane tab (a Terminal included) leaves the Session open with the empty
+Workbench state, so a keystroke never ends or hides a long-running Session. Cmd+Shift+W (command
+`session.closeTab`, also in the tab context menu and the Command Palette) removes the active Session
+from the strip and leaves it in the sidebar; with a single entry it does nothing, because the window
+keeps at least one. Archiving is always an explicit action (Session menu, sidebar row menu). The
+chord does not collide with window closing: the native menu has no Close Window item and the window
+closes through its traffic light. Closing a Terminal tab runs the ordinary `terminal.close` path, so
+Terminal resume and suspension are untouched.
 
 ## Persistence
 

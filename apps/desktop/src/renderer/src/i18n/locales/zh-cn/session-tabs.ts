@@ -1,7 +1,7 @@
 export const sessionTabs = {
     'sessionTabs.listLabel': '已打开的会话',
     'sessionTabs.new': '新建会话',
-    'sessionTabs.close': '关闭标签页',
+    'sessionTabs.close': '关闭打开的会话',
     'sessionTabs.closeNamed': '关闭 {{title}}',
     'sessionTabs.moveLeft': '标签页左移',
     'sessionTabs.moveRight': '标签页右移',

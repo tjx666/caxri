@@ -174,7 +174,7 @@ test('Archived Sessions manager deletes only after native confirmation', async (
     }
 });
 
-test('Cmd+W on a Session’s last Terminal tab archives the Session instead of closing the Terminal', async () => {
+test('Cmd+W on a Session’s last Terminal tab closes the Terminal and leaves the Session open', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-archive-close-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -183,7 +183,7 @@ test('Cmd+W on a Session’s last Terminal tab archives the Session instead of c
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        const firstSessionId = await selectedSessionId(running.page);
+        await selectedSessionId(running.page);
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
         const bootstrap = () =>
@@ -207,12 +207,16 @@ test('Cmd+W on a Session’s last Terminal tab archives the Session instead of c
 
         await running.page.keyboard.press('Meta+W');
 
-        await expect(sessionCard(running.page, secondSessionId)).toHaveCount(0);
-        await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
-        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveAccessibleName(
-            'Archived Sessions (1)',
-        );
-        // Archiving parks the Terminal instead of closing it.
+        // The Terminal closes, but Cmd+W never archives: the Session stays selected, listed, and empty.
+        await expect
+            .poll(async () =>
+                (await bootstrap()).terminals.filter(
+                    (terminal) => terminal.sessionId === secondSessionId,
+                ),
+            )
+            .toHaveLength(0);
+        await expect(sessionCard(running.page, secondSessionId)).toHaveClass(/active/);
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveCount(0);
         expect((await bootstrap()).terminals.map((terminal) => terminal.id)).toContain(
             secondTerminalIds[0],
         );
