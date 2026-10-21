@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { GitReader } from './prepare-release';
-import { assertReleaseSource, prepareRelease, runPrepareRelease } from './prepare-release';
+import { assertMainCiHealthy, assertReleaseSource, prepareRelease, runPrepareRelease } from './prepare-release';
 import type { ReleaseSourceReader } from './release-sources';
 import {
     discoverReleaseSourcePaths,
@@ -83,6 +83,8 @@ function cleanReleaseGit(overrides: Record<string, string> = {}): GitReader {
         );
     };
 }
+
+const greenMainCi = async () => JSON.stringify([{ conclusion: 'success', displayTitle: 'fix: x', headSha: 'a'.repeat(40) }]);
 
 describe('release version preparation', () => {
     it('compares strict SemVer without runtime dependencies in the pre-install CI boundary', () => {
@@ -207,10 +209,10 @@ describe('release version preparation', () => {
             ),
         ).rejects.toThrow('match origin/main');
 
-        await expect(runPrepareRelease(['0.0.25'], cwd, cleanReleaseGit())).resolves.toMatchObject({
+        await expect(runPrepareRelease(['0.0.25'], cwd, cleanReleaseGit(), greenMainCi)).resolves.toMatchObject({
             version: '0.0.25',
         });
-        await expect(runPrepareRelease([], cwd, cleanReleaseGit())).rejects.toThrow('Usage');
+        await expect(runPrepareRelease([], cwd, cleanReleaseGit(), greenMainCi)).rejects.toThrow('Usage');
     });
 
     it('rejects malformed, unchanged, and older explicit versions', async () => {
@@ -222,5 +224,30 @@ describe('release version preparation', () => {
 
         const older = await fixture();
         await expect(prepareRelease(older, '0.0.23')).rejects.toThrow('must be newer');
+    });
+});
+
+describe('assertMainCiHealthy', () => {
+    const run = (conclusion: string, displayTitle: string) => ({
+        conclusion,
+        displayTitle,
+        headSha: 'b'.repeat(40),
+    });
+
+    it('refuses when the latest non-release run failed, even behind a green release run', async () => {
+        await expect(
+            assertMainCiHealthy(async () =>
+                JSON.stringify([run('success', 'release: v0.0.122'), run('failure', 'feat: x (#2313)')]),
+            ),
+        ).rejects.toThrow('failed');
+    });
+
+    it('passes when the latest non-release run succeeded or no runs exist', async () => {
+        await expect(
+            assertMainCiHealthy(async () =>
+                JSON.stringify([run('failure', 'release: v0.0.121'), run('success', 'fix: y')]),
+            ),
+        ).resolves.toBeUndefined();
+        await expect(assertMainCiHealthy(async () => '[]')).resolves.toBeUndefined();
     });
 });

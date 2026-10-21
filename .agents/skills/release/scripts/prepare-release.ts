@@ -111,6 +111,53 @@ export async function assertReleaseSource(
     }
 }
 
+/**
+Reads the latest completed CI runs on `main` as a JSON string (newest first).
+*/
+export type MainCiReader = () => Promise<string>;
+
+const defaultMainCiReader: MainCiReader = async () => {
+    const { stdout } = await execFileAsync(
+        'gh',
+        [
+            'run',
+            'list',
+            '--workflow',
+            'ci.yml',
+            '--branch',
+            'main',
+            '--status',
+            'completed',
+            '--limit',
+            '20',
+            '--json',
+            'conclusion,displayTitle,headSha',
+        ],
+        { encoding: 'utf8' },
+    );
+    return stdout;
+};
+
+/**
+ * Refuses to prepare a release while `main`'s latest completed CI run for a non-release commit failed.
+ * Release commits take the lightweight CI fast-path that skips tests and relies on the merged PRs' hosted
+ * checks, and `checks` is not a required status, so a PR can merge before it turns red (v0.0.122 shipped
+ * that way). Release commits are skipped because their own run proves nothing about the tree.
+ */
+export async function assertMainCiHealthy(readRuns: MainCiReader = defaultMainCiReader): Promise<void> {
+    const runs = JSON.parse(await readRuns()) as Array<{
+        conclusion: string;
+        displayTitle: string;
+        headSha: string;
+    }>;
+    const latest = runs.find((run) => !/^release: v\d/u.test(run.displayTitle));
+    if (latest?.conclusion === 'failure') {
+        throw new Error(
+            `Release preparation refused: the latest completed CI run on main (${latest.headSha.slice(0, 9)}, "${latest.displayTitle}") failed; land a fix first`,
+        );
+    }
+}
+
 export async function prepareRelease(cwd: string, target: string): Promise<PreparedRelease> {
     const root = resolve(cwd);
     const manifestPaths = await discoverReleaseManifestPaths(root);
@@ -160,11 +207,13 @@ export async function runPrepareRelease(
     arguments_: string[],
     cwd = process.cwd(),
     readGit: GitReader = defaultGitReader,
+    readMainCi: MainCiReader = defaultMainCiReader,
 ): Promise<PreparedRelease> {
     if (arguments_.length !== 1) {
         throw new Error('Usage: bun run release:prepare -- <major|minor|patch|version>');
     }
     await assertReleaseSource(cwd, readGit);
+    await assertMainCiHealthy(readMainCi);
     return prepareRelease(cwd, arguments_[0]);
 }
 

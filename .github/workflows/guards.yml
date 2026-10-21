@@ -102,3 +102,9 @@ jobs:
 
       - name: Run em-dash-check
         run: bun run em-dash-check
+
+      # Cheap whole-tree contract tests live here, not only in the non-required `checks` job: a pull
+      # request can merge once `guards` passes, so a ratchet that only `checks` runs can turn `main`
+      # red after the merge (PR 2313 and the directory-density ratchet). Imports only Node builtins.
+      - name: Run directory-density ratchet
+        run: bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts
