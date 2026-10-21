@@ -211,10 +211,12 @@ whether a small follow-up commit (a docs fix, say) is likely to repeat the earli
 - The files changed from that commit to the head come from the REST compare endpoint, which uses
   the REST budget rather than GraphQL points. A failed compare still reports the verdict without
   files.
-- A settled answer is keyed by head SHA and the ignored-check rules and kept until the head moves:
-  earlier commits' verdicts do not change, so polling a long CI run costs one query and one compare
-  in total. An answer that skipped a still-running commit expires after 90s; a manual refresh always
-  asks again.
+- A settled answer is keyed by head SHA and the ignored-check rules and re-read every 10 minutes:
+  an earlier commit's verdict changes only when its checks are re-run, so polling a long CI run
+  costs a handful of queries. An answer that skipped a still-running commit expires after 90s; a
+  manual refresh always asks again.
+- The panel marks the change `docs only` when every file is Markdown-like prose or an image under
+  `docs/`, and never when the compare list reached GitHub's 300-file limit.
 - After a rebase or force push, the earlier commits leave the pull request's commit list and no
   verdict is shown.
 

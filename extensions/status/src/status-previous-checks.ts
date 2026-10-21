@@ -9,13 +9,25 @@ import { stateIcons, stateTones } from './status-presentation';
 type ChangedFile = NonNullable<ProjectStatusPreviousChecks['changedFiles']>[number];
 
 /**
- * Prose files whose edits rarely change a check's outcome. A path under a `docs/` directory counts whatever its
- * extension, so a screenshot added to the docs still reads as documentation.
+ * Prose files whose edits rarely change a check's outcome. `.txt` is deliberately absent: `requirements.txt` and
+ * `CMakeLists.txt` are build inputs.
  */
-const DOCUMENTATION_EXTENSIONS = /\.(?:md|mdx|markdown|rst|txt)$/i;
+const PROSE_EXTENSIONS = /\.(?:md|mdx|markdown|rst)$/i;
+/**
+ * Images count only under a `docs/` directory, where they are screenshots and diagrams. Code or config there (a docs
+ * site's `.ts` or `.json`) can still fail a build, so it does not count.
+ */
+const DOCS_ASSET_PATH = /(?:^|\/)docs\/.*\.(?:png|jpe?g|gif|svg|webp)$/i;
+/**
+ * GitHub's compare endpoint lists at most this many files, so a list this long may be truncated and cannot prove the
+ * unlisted files were documentation too.
+ *
+ * @see https://docs.github.com/en/rest/commits/commits#compare-two-commits
+ */
+const COMPARE_FILE_LIMIT = 300;
 
 export function isDocumentationPath(path: string): boolean {
-    return DOCUMENTATION_EXTENSIONS.test(path) || /(?:^|\/)docs\//.test(path);
+    return PROSE_EXTENSIONS.test(path) || DOCS_ASSET_PATH.test(path);
 }
 
 function commitsBackLabel(count: number): string {
@@ -37,7 +49,10 @@ function lineDelta(files: ReadonlyArray<Pick<ChangedFile, 'additions' | 'deletio
  * row exists to answer at a glance, otherwise the line delta so the size of the change still reads without expanding.
  */
 export function changedFilesDescription(files: readonly ChangedFile[]): string {
-    return files.every((file) => isDocumentationPath(file.path)) ? 'docs only' : lineDelta(files);
+    return files.length < COMPARE_FILE_LIMIT &&
+        files.every((file) => isDocumentationPath(file.path))
+        ? 'docs only'
+        : lineDelta(files);
 }
 
 function fileRow(id: string, file: ChangedFile): StatusNode {

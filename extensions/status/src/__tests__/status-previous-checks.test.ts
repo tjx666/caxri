@@ -20,11 +20,14 @@ const previous: ProjectStatusPreviousChecks = {
 };
 
 describe('isDocumentationPath', () => {
-    it('treats prose files and anything under docs/ as documentation', () => {
+    it('treats prose files and images under docs/ as documentation', () => {
         expect(isDocumentationPath('README.md')).toBe(true);
         expect(isDocumentationPath('packages/a/CHANGELOG.mdx')).toBe(true);
         expect(isDocumentationPath('docs/images/flow.png')).toBe(true);
+        expect(isDocumentationPath('src/assets/logo.png')).toBe(false);
         expect(isDocumentationPath('src/docs-loader.ts')).toBe(false);
+        expect(isDocumentationPath('requirements.txt')).toBe(false);
+        expect(isDocumentationPath('docs/site.config.ts')).toBe(false);
         expect(isDocumentationPath('src/index.ts')).toBe(false);
     });
 });
@@ -38,6 +41,16 @@ describe('changedFilesDescription', () => {
                 { path: 'src/index.ts', additions: 5, deletions: 2 },
             ]),
         ).toBe('+9 −3');
+    });
+
+    it('never claims docs only for a list GitHub may have truncated', () => {
+        const files = Array.from({ length: 300 }, (_, index) => ({
+            path: `docs/page-${index}.md`,
+            additions: 1,
+            deletions: 0,
+        }));
+
+        expect(changedFilesDescription(files)).toBe('+300 −0');
     });
 });
 

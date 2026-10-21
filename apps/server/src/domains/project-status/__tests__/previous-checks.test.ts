@@ -98,6 +98,36 @@ describe('selectPreviousChecks', () => {
         expect(selectPreviousChecks(output, HEAD, []).selection?.state).toBe('failure');
     });
 
+    it('settles a commit as failed while its other checks still run, and as passed when every check was skipped', () => {
+        const output = response([
+            commit('a'.repeat(40), 'feat: first', [
+                run('test', 'FAILURE'),
+                run('e2e', null, 'IN_PROGRESS'),
+            ]),
+            commit('b'.repeat(40), 'feat: second', [
+                run('test', 'SKIPPED'),
+                run('lint', 'NEUTRAL'),
+            ]),
+            commit(HEAD, 'docs: typo', []),
+        ]);
+
+        expect(selectPreviousChecks(output, HEAD, []).selection).toMatchObject({
+            title: 'feat: second',
+            state: 'success',
+            commitsBefore: 1,
+        });
+        const withoutSecond = response([
+            commit('a'.repeat(40), 'feat: first', [
+                run('test', 'FAILURE'),
+                run('e2e', null, 'IN_PROGRESS'),
+            ]),
+            commit(HEAD, 'docs: typo', []),
+        ]);
+        const settledFailure = selectPreviousChecks(withoutSecond, HEAD, []);
+        expect(settledFailure.selection).toMatchObject({ state: 'failure', commitsBefore: 1 });
+        expect(settledFailure.isSettled).toBe(true);
+    });
+
     it('returns nothing when the commit list no longer ends at the reported head', () => {
         const output = response([commit('a'.repeat(40), 'feat: first', [run('test', 'SUCCESS')])]);
 
@@ -144,16 +174,19 @@ describe('PreviousChecksStore', () => {
         );
     });
 
-    it('keeps a settled answer for the same head instead of asking GitHub on every poll', async () => {
+    it('keeps a settled answer for ten minutes instead of asking GitHub on every poll', async () => {
         let now = 0;
         const runner = fakeRunner();
         const { store } = createStore(runner, () => now);
 
         await store.attach('/repo', CONTEXT, pullRequest(), [], false);
-        now = 10 * 60_000;
+        now = 9 * 60_000;
         await store.attach('/repo', CONTEXT, pullRequest(), [], false);
-
         expect(runner).toHaveBeenCalledTimes(2);
+
+        now = 11 * 60_000;
+        await store.attach('/repo', CONTEXT, pullRequest(), [], false);
+        expect(runner).toHaveBeenCalledTimes(4);
     });
 
     it('spends nothing on a green, merged, or hash-less pull request', async () => {

@@ -26,6 +26,11 @@ const CONTEXT_PAGE_SIZE = 100;
  * running: that commit may settle and become the better answer.
  */
 const UNSETTLED_TTL_MS = 90_000;
+/**
+ * A settled verdict changes only when someone re-runs that commit's checks, so it is re-read rarely rather than never:
+ * a long CI run still costs a handful of queries, and a re-run shows up within minutes instead of waiting for a push.
+ */
+const SETTLED_TTL_MS = 10 * 60_000;
 const MAX_RECORDS = 128;
 
 /**
@@ -151,8 +156,8 @@ interface StoredRecord {
  * The previous verdict for a pull request whose head checks are unfinished or failing, for the Status panel.
  *
  * Read only in that state, so a green pull request spends nothing. A settled answer is keyed by the head commit and the
- * ignored-check rules and kept until the head moves: earlier commits' verdicts do not change, so polling a long CI run
- * costs one GraphQL query and one REST compare in total. The files changed since that commit come from the REST compare
+ * ignored-check rules and re-read only every ten minutes (see {@link SETTLED_TTL_MS}), so polling a long CI run costs a
+ * handful of GraphQL queries and REST compares. The files changed since that commit come from the REST compare
  * endpoint, which draws on a budget separate from GraphQL. A failed read is never cached.
  */
 export class PreviousChecksStore {
@@ -214,7 +219,7 @@ export class PreviousChecksStore {
         if (
             cached &&
             !isForced &&
-            (cached.isSettled || this.now() - cached.fetchedAt < UNSETTLED_TTL_MS)
+            this.now() - cached.fetchedAt < (cached.isSettled ? SETTLED_TTL_MS : UNSETTLED_TTL_MS)
         )
             return cached.previous;
         const record = await this.requests.run(key, async () => {
