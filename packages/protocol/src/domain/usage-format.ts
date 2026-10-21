@@ -59,15 +59,6 @@ export function localDateWeekday(date: string): number {
 type UsageLimitWindow = UsageLimit['windows'][number];
 
 /**
- * Compact rate-limit window name for a status readout: `5h`, `7d`, `90m`.
- */
-export function shortLimitWindowName(minutes: number): string {
-    if (minutes % 1_440 === 0) return `${minutes / 1_440}d`;
-    if (minutes % 60 === 0) return `${minutes / 60}h`;
-    return `${minutes}m`;
-}
-
-/**
  * Rate-limit windows that have not reset since the provider reported them, shortest first. A window whose reset time
  * has passed reports usage that no longer applies, so it is dropped rather than shown stale.
  */

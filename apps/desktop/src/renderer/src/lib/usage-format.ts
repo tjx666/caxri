@@ -39,6 +39,19 @@ export function localizedLimitWindowName(minutes: number, t: Translate = transla
 }
 
 /**
+ * A rate-limit window's compact name for the status bar chip (`5h`, `wk`; `5 小时`, `本周`). The weekly window is a word
+ * rather than `7d`, which reads as "7 days until reset" beside a remaining share; Orca's usage chip and the Codex CLI's
+ * status line name it the same way.
+ */
+export function localizedShortLimitWindowName(minutes: number, t: Translate = translate): string {
+    if (minutes === 10_080) return t('core.usageFormat.shortWindow.weekly');
+    if (minutes % 1_440 === 0)
+        return t('core.usageFormat.shortWindow.days', { count: minutes / 1_440 });
+    if (minutes % 60 === 0) return t('core.usageFormat.shortWindow.hours', { count: minutes / 60 });
+    return t('core.usageFormat.shortWindow.minutes', { count: minutes });
+}
+
+/**
  * When a rate-limit window resets, relative to `now` (`resets in 3h 20m`, `resets in 4d 2h`).
  */
 export function localizedLimitReset(at: number, now: number, t: Translate = translate): string {

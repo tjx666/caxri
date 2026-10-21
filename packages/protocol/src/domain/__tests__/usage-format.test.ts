@@ -9,7 +9,6 @@ import {
     localDateWeekday,
     remainingLimitPercent,
     shiftLocalDate,
-    shortLimitWindowName,
 } from '../usage-format.js';
 
 describe('usage formatters', () => {
@@ -64,10 +63,7 @@ describe('rate-limit windows', () => {
         expect(currentLimitWindows(null, NOW)).toEqual([]);
     });
 
-    it('names windows compactly and states the share left, rounded and clamped', () => {
-        expect(shortLimitWindowName(300)).toBe('5h');
-        expect(shortLimitWindowName(10_080)).toBe('7d');
-        expect(shortLimitWindowName(90)).toBe('90m');
+    it('states the share left, rounded and clamped', () => {
         expect(remainingLimitPercent(8)).toBe(92);
         expect(remainingLimitPercent(61.6)).toBe(38);
         expect(remainingLimitPercent(104)).toBe(0);

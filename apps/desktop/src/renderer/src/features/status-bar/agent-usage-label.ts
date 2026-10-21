@@ -5,12 +5,15 @@ import {
     formatUsd,
     limitPaceShortfall,
     remainingLimitPercent,
-    shortLimitWindowName,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
-import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
+import {
+    localizedLimitReset,
+    localizedLimitWindowName,
+    localizedShortLimitWindowName,
+} from '../../lib/usage-format';
 import { LIMIT_WARNING_PERCENT } from '../usage/usage-presentation';
 
 /**
@@ -57,7 +60,7 @@ function agentUsageChipWindows(
 
 /**
  * The chip text: conversation tokens, estimated cost, and every live rate-limit window shortest first, e.g. `1.2M ·
- * $3.40 · 5h 38% left · 7d 88% left` (windows per {@link agentUsageChipWindows}), so the 5-hour and weekly plan limits
+ * $3.40 · 5h 38% left · wk 88% left` (windows per {@link agentUsageChipWindows}), so the 5-hour and weekly plan limits
  * read apart and never as context or token use. Cost follows {@link agentUsageCostLabel}. The limit is the newest
  * account-wide reading the Server has seen, which may come from another conversation, so the hover card states its age
  * and each window's reset.
@@ -77,7 +80,7 @@ export function agentUsageLabel(
             windows
                 .map((window) =>
                     t('statusBar.usage.chipLimitWindow', {
-                        window: shortLimitWindowName(window.windowMinutes),
+                        window: localizedShortLimitWindowName(window.windowMinutes, t),
                         percent: remainingLimitPercent(window.usedPercent),
                     }),
                 )
@@ -100,18 +103,22 @@ export type AgentUsageLimitTone = 'warning';
  * uses). Both follow the displayed figures, so the colour never disagrees with a number beside it: a nearly spent
  * weekly limit warns even while the 5-hour window has room, and a weekly limit at 70% left with 6 of 7 days to go warns
  * before it is nearly spent, when slowing down still helps. The first tenth of a window never warns on pace.
+ *
+ * `isPaceDismissed` is the Chat pace reminder's dismissal for today: once the user has acknowledged the pace warning
+ * the chip stops repeating it in colour, but a nearly spent window still warns because that is a harder stop the
+ * dismissed reminder never described.
  */
 export function agentUsageLimitTone(
     readout: AgentUsageReadout,
     now: number,
     options: AgentUsageChipOptions,
+    isPaceDismissed = false,
 ): AgentUsageLimitTone | undefined {
     const isNearlySpent = agentUsageChipWindows(readout.limit, now, options).some(
         (window) => Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT,
     );
-    return isNearlySpent || limitPaceShortfall(readout.limit, now) !== undefined
-        ? 'warning'
-        : undefined;
+    const isAheadOfPace = !isPaceDismissed && limitPaceShortfall(readout.limit, now) !== undefined;
+    return isNearlySpent || isAheadOfPace ? 'warning' : undefined;
 }
 
 /**
