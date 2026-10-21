@@ -103,7 +103,10 @@ test('returning to a Chat counts the turns that finished while away', async ({},
         ]);
         expect(hintBox!.y).toBeGreaterThanOrEqual(transcriptBox!.y + transcriptBox!.height - 1);
         await page.screenshot({ path: testInfo.outputPath('return-hint.png') });
-        await hint.getByRole('button', { name: 'Jump to first' }).click();
+        // The whole message jumps, not only its trailing words.
+        await hint.getByText('2 turns since you last looked').hover();
+        await page.screenshot({ path: testInfo.outputPath('return-hint-hover.png') });
+        await hint.getByText('2 turns since you last looked').click();
         await expect(hint).toBeHidden();
         // Up at the first missed prompt, Jump to latest takes the same slot.
         await expect(jumpToLatest).toHaveCSS('opacity', '1');
