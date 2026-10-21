@@ -28,7 +28,7 @@ const writeOriginal = async (
         Paths.cache,
         `agent-chat-image-${name.slice(0, 32)}.${agentChatImageExtension(image.mediaType)}`,
     );
-    file.write(image.data, { encoding: 'base64' });
+    await file.write(image.data, { encoding: 'base64' });
     return file.uri;
 };
 
