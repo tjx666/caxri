@@ -7,7 +7,11 @@ import type {
     AgentChatTurn,
 } from './agent-chat-contract.js';
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
-import { translateAgentChatLabel } from './agent-chat-labels.js';
+import {
+    formatNoticeableDuration,
+    formatShortDuration,
+    translateAgentChatLabel,
+} from './agent-chat-labels.js';
 import { agentChatMcpToolTitle } from './agent-chat-mcp.js';
 import type { AgentToolKind, AgentToolPresentation } from './agent-tool-presentation.js';
 import {
@@ -17,8 +21,6 @@ import {
     agentToolLabel,
     agentToolOutcomeLabel,
     describeAgentTool,
-    formatNoticeableDuration,
-    formatShortDuration,
     parseAgentMcpToolName,
 } from './agent-tool-presentation.js';
 

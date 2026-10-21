@@ -8,8 +8,8 @@ import { useTranslation } from '../../../i18n';
 import { useIsAgentChatStopping } from '../hooks/use-agent-chat-stop';
 import { useClockTick } from '../hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../loading';
-import { elapsedTimeFigures } from './agent-chat-elapsed-time';
 import type { AgentChatDeliveryHint } from '../transcript/agent-chat-presentation';
+import { elapsedTimeFigures } from './agent-chat-elapsed-time';
 import { AgentChatTurnMetricList } from './agent-chat-turn-metric-list';
 
 /**
@@ -75,6 +75,30 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
                     value={seconds.value}
                 />
             </AnimatedNumberGroup>
+        </span>
+    );
+}
+
+/**
+ * What Enter does with the draft: `Enter to steer` while it steers, else `Enter to queue · ⌘Enter to steer`. A narrow
+ * strip keeps only the keycaps.
+ */
+function DeliveryHint({ hint }: { hint: AgentChatDeliveryHint }) {
+    const { t } = useTranslation();
+    return (
+        <span className="shrink-0 text-[11px] whitespace-nowrap">
+            <Kbd size="compact">Enter</Kbd>
+            {hint === 'queueOrSteer' && (
+                <>
+                    <span className="@max-[420px]:hidden">
+                        {' '}
+                        {t('agentChat.activity.enterHint')} ·{' '}
+                    </span>
+                    <span className="hidden @max-[420px]:inline"> </span>
+                    <Kbd size="compact">⌘Enter</Kbd>
+                </>
+            )}
+            <span className="@max-[420px]:hidden"> {t('agentChat.activity.steerHint')}</span>
         </span>
     );
 }
@@ -174,30 +198,7 @@ export function AgentChatActivityBar({
                                 <Kbd size="compact">Esc</Kbd> {t('agentChat.activity.stopHint')}
                             </span>
                         )}
-                        {deliveryHint === 'steer' && (
-                            <span className="shrink-0 text-[11px] whitespace-nowrap">
-                                <Kbd size="compact">Enter</Kbd>
-                                <span className="@max-[420px]:hidden">
-                                    {' '}
-                                    {t('agentChat.activity.steerHint')}
-                                </span>
-                            </span>
-                        )}
-                        {deliveryHint === 'queueOrSteer' && (
-                            <span className="shrink-0 text-[11px] whitespace-nowrap">
-                                <Kbd size="compact">Enter</Kbd>
-                                <span className="@max-[420px]:hidden">
-                                    {' '}
-                                    {t('agentChat.activity.enterHint')} ·{' '}
-                                </span>
-                                <span className="hidden @max-[420px]:inline"> </span>
-                                <Kbd size="compact">⌘Enter</Kbd>
-                                <span className="@max-[420px]:hidden">
-                                    {' '}
-                                    {t('agentChat.activity.steerHint')}
-                                </span>
-                            </span>
-                        )}
+                        {deliveryHint && <DeliveryHint hint={deliveryHint} />}
                     </div>
                 </div>
             )}

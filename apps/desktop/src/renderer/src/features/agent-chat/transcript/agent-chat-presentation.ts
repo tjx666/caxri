@@ -1,5 +1,10 @@
-import type { AgentChatSnapshot, ProcessState } from '@caxri/protocol';
-import { agentChatFailureMessage, CAXRI_SKILL_NAME, projectRelativePath } from '@caxri/protocol';
+import type { AgentChatSnapshot, AgentProvider, ProcessState } from '@caxri/protocol';
+import {
+    agentChatFailureMessage,
+    agentProviderCatalog,
+    CAXRI_SKILL_NAME,
+    projectRelativePath,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import { translate } from '../../../i18n';
@@ -224,6 +229,20 @@ export function agentChatSubmitDelivery(
     const isSteerChord = event.metaKey || event.ctrlKey;
     if (state.isTurnRunning && (isSteerChord || state.isSteerDefault)) return 'steer';
     return state.isBusy ? 'queue' : 'send';
+}
+
+/**
+ * Whether Enter steers instead of queueing: a turn runs, its main Agent waits on subagents, and the provider ends that
+ * wait for a steered message (`chatSteerEndsWait`).
+ */
+export function isAgentChatSteerDefault(state: {
+    isTurnRunning: boolean;
+    isWaitingOnAgents: boolean;
+    provider: AgentProvider | undefined;
+}): boolean {
+    const { isTurnRunning, isWaitingOnAgents, provider } = state;
+    if (!isTurnRunning || !isWaitingOnAgents || provider === undefined) return false;
+    return agentProviderCatalog[provider].capabilities.chatSteerEndsWait;
 }
 
 export type AgentChatDeliveryHint = 'queueOrSteer' | 'steer';

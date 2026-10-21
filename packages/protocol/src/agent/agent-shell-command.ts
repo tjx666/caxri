@@ -406,9 +406,10 @@ function testTargets(arguments_: readonly string[]): string[] {
  * The value of the first of `options` in `words`, as `-m "message"` or `--message=message`.
  */
 function optionValue(words: readonly string[], options: readonly string[]): string | undefined {
+    const exact = new Set(options);
     for (let index = 0; index < words.length; index += 1) {
         const word = words[index] ?? '';
-        if (options.includes(word)) return words[index + 1];
+        if (exact.has(word)) return words[index + 1];
         const option = options.find((candidate) => word.startsWith(`${candidate}=`));
         if (option) return word.slice(option.length + 1);
     }

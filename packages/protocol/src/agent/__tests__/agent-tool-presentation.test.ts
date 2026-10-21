@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    agentToolActiveLabel,
-    agentToolOutcomeLabel,
-    describeAgentTool,
     formatNoticeableDuration,
     formatShortDuration,
     isNoticeableDuration,
-    readableShellCommand,
     shortDurationParts,
+} from '../agent-chat-labels';
+import {
+    agentToolActiveLabel,
+    agentToolOutcomeLabel,
+    describeAgentTool,
+    readableShellCommand,
     summarizeAgentToolGroup,
     unwrapShellCommand,
 } from '../agent-tool-presentation';

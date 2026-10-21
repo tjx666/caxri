@@ -21,7 +21,7 @@ import { clip, isRecord, readableToolInputSummary, tail } from './chat-items';
 import { withCacheRewriteEstimate } from './chat-usage';
 import type { CodexComputerUseBindings } from './codex-computer-use';
 import { codexComputerUseCall } from './codex-computer-use';
-import { codexDelivery, isCodexNotice } from './codex-input';
+import { codexDelivery, codexUserImageCount, isCodexNotice, userMessageText } from './codex-input';
 
 /**
  * Pure translation from Codex app-server v2 `ThreadItem`s and server requests into the provider-neutral Agent Chat
@@ -88,35 +88,6 @@ function mcpOutput(item: Json): string | undefined {
         isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
     );
     return parts.length > 0 ? tail(parts.join('\n'), MAX_AGENT_CHAT_OUTPUT_LENGTH) : undefined;
-}
-
-/**
- * User inputs that are references rather than text; the Chat shows their name in brackets.
- */
-const REFERENCE_INPUT_TYPES = new Set<unknown>(['mention', 'skill']);
-
-const IMAGE_INPUT_TYPES = new Set<unknown>(['image', 'localImage']);
-
-/**
- * How many images a user message carried. Codex echoes the full image (a data URL or a local path), which is never
- * copied into the projection; the session pairs a message it sent with the thumbnails the Client made.
- */
-function codexUserImageCount(content: unknown): number {
-    if (!Array.isArray(content)) return 0;
-    return content.filter((input) => isRecord(input) && IMAGE_INPUT_TYPES.has(input.type)).length;
-}
-
-function userMessageText(content: unknown): string {
-    if (!Array.isArray(content)) return '';
-    return content
-        .flatMap((input) => {
-            if (!isRecord(input)) return [];
-            if (input.type === 'text') return [text(input.text)];
-            if (REFERENCE_INPUT_TYPES.has(input.type))
-                return [`[${text(input.name) || text(input.path)}]`];
-            return [];
-        })
-        .join('\n');
 }
 
 /**

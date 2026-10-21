@@ -7,7 +7,7 @@ import type {
     AgentChatQueuedMessage,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { agentProviderCatalog, CAXRI_SKILL_NAME } from '@caxri/protocol';
+import { CAXRI_SKILL_NAME } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
@@ -35,7 +35,6 @@ import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import type { agentChatSendBlock } from '../transcript/agent-chat-presentation';
 import {
     agentChatComposerPlaceholder,
-    agentChatDeliveryHint,
     agentChatSendTooltip,
     agentChatSendTooltipShortcut,
 } from '../transcript/agent-chat-presentation';
@@ -90,10 +89,9 @@ interface AgentChatComposerProperties {
      */
     isShown: boolean;
     /**
-     * Whether the main Agent waits on its subagents (`isAgentChatWaitingOnAgents`); with a provider whose wait a
-     * steered message ends, Enter then steers.
+     * Whether Enter steers instead of queueing (`isAgentChatSteerDefault`).
      */
-    isWaitingOnAgents: boolean;
+    isSteerDefault: boolean;
     /**
      * Opens a background task's tab beside the Chat; absent where the host cannot (see `canOpenBesideChat`).
      */
@@ -144,15 +142,37 @@ interface AgentChatComposerProperties {
 }
 
 /**
+ * The actions menu's Caxri skill switch, which attaches or removes the skill's card.
+ */
+function caxriSkillToggle(
+    images: ReturnType<typeof useAgentChatAttachments>,
+    focusInput: () => void,
+): { isAttached: boolean; onChange: (isAttached: boolean) => void } {
+    const card = images.attachments.find(
+        (attachment) =>
+            isAgentChatSkillAttachment(attachment) && attachment.skill === CAXRI_SKILL_NAME,
+    );
+    return {
+        isAttached: card !== undefined,
+        onChange: (isAttached) => {
+            if (isAttached) images.addSkill(CAXRI_SKILL_NAME);
+            else if (card) images.remove(card.id);
+            focusInput();
+        },
+    };
+}
+
+/**
  * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
- * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
- * input, and Enter in an empty input sends the first of them now. Escape or the Stop button that replaces Send while
- * the input is empty interrupts the turn. Images can be pasted, dropped, or picked from the `+` menu's Files when the
- * provider accepts them; any other dropped or picked file, Files entry, or Editor tab, and an image in a format or size
- * the provider cannot take, is inserted as its path. Text pasted past `agentChat.longPasteThreshold` is saved to a file
- * and the message cites it instead, with a notice whose Paste as Text undoes that; Cmd+Shift+V pastes as text without
- * the conversion. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a turn runs and
- * something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph. A disabled
+ * message for after the turn and Cmd+Enter steers it into the running turn (Enter steers too while the main Agent waits
+ * on subagents and the provider ends that wait for it, `isAgentChatSteerDefault`); queued messages wait as cards above
+ * the input, and Enter in an empty input sends the first of them now. Escape or the Stop button that replaces Send
+ * while the input is empty interrupts the turn. Images can be pasted, dropped, or picked from the `+` menu's Files when
+ * the provider accepts them; any other dropped or picked file, Files entry, or Editor tab, and an image in a format or
+ * size the provider cannot take, is inserted as its path. Text pasted past `agentChat.longPasteThreshold` is saved to a
+ * file and the message cites it instead, with a notice whose Paste as Text undoes that; Cmd+Shift+V pastes as text
+ * without the conversion. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a turn runs
+ * and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph. A disabled
  * Send says why in its tooltip, and an Enter it refuses says the same in the strip for two seconds and through the live
  * region. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word that starts with
  * `@` offers other Sessions whose conversation the message can cite; both lists show only while the input has focus. It
@@ -178,7 +198,7 @@ export function AgentChatComposer({
     isBusy,
     isQueuePaused,
     isShown,
-    isWaitingOnAgents,
+    isSteerDefault,
     onOpenTask,
     onSent,
     pendingQueue,
@@ -192,18 +212,7 @@ export function AgentChatComposer({
     const { t } = useTranslation();
     const focusInput = (): void => inputReference.current?.focus();
     const images = useAgentChatAttachments(terminalId);
-    const caxriSkillCard = images.attachments.find(
-        (attachment) =>
-            isAgentChatSkillAttachment(attachment) && attachment.skill === CAXRI_SKILL_NAME,
-    );
-    const caxriSkill = {
-        isAttached: caxriSkillCard !== undefined,
-        onChange: (isAttached: boolean): void => {
-            if (isAttached) images.addSkill(CAXRI_SKILL_NAME);
-            else if (caxriSkillCard) images.remove(caxriSkillCard.id);
-            focusInput();
-        },
-    };
+    const caxriSkill = caxriSkillToggle(images, focusInput);
     const { clearDraft, draft, restoreQueued, setDraft } = useAgentChatDraft({
         addCards: images.addCards,
         inputReference,
@@ -239,11 +248,6 @@ export function AgentChatComposer({
         terminal,
     });
     const isTurnRunning = activeTurnId !== undefined;
-    const isSteerDefault =
-        isTurnRunning &&
-        isWaitingOnAgents &&
-        terminal?.provider !== undefined &&
-        agentProviderCatalog[terminal.provider].capabilities.chatSteerEndsWait;
     const stash = useAgentChatDraftStash({
         attachments: images.attachments,
         clearAttachments: images.clearSent,
@@ -361,11 +365,8 @@ export function AgentChatComposer({
                     <AgentChatComposerNotices
                         activeTurnId={activeTurnId}
                         activity={activity}
-                        deliveryHint={agentChatDeliveryHint({
-                            hasDraft: draft.trim().length > 0,
-                            isSteerDefault,
-                            isTurnRunning,
-                        })}
+                        isDrafting={draft.trim().length > 0}
+                        isSteerDefault={isSteerDefault}
                         edit={edit.bar}
                         isContinuing={isContinuing}
                         isEditing={edit.isEditing}

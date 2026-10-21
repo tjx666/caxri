@@ -24,6 +24,7 @@ import {
     canSendAgentChatMessage,
     isAgentChatBusy,
     isAgentChatInterruptKey,
+    isAgentChatSteerDefault,
     shouldAgentChatPaneEscapeStop,
     shouldConfirmUnmatchedSend,
     withOccurrenceKeys,
@@ -182,6 +183,18 @@ describe('agentChatSendAction while the main Agent waits on subagents', () => {
                 'Codex',
             ),
         ).toMatchObject({ kind: 'send' });
+    });
+});
+
+describe('isAgentChatSteerDefault', () => {
+    it('steers by default only while a Codex turn waits on its subagents', () => {
+        const waiting = { isTurnRunning: true, isWaitingOnAgents: true } as const;
+        expect(isAgentChatSteerDefault({ ...waiting, provider: 'codex' })).toBe(true);
+        expect(isAgentChatSteerDefault({ ...waiting, provider: 'claude' })).toBe(false);
+        expect(isAgentChatSteerDefault({ ...waiting, provider: undefined })).toBe(false);
+        expect(
+            isAgentChatSteerDefault({ ...waiting, isWaitingOnAgents: false, provider: 'codex' }),
+        ).toBe(false);
     });
 });
 

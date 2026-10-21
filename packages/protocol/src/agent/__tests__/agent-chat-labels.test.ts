@@ -4,7 +4,7 @@ import { interpolate } from '../../configuration/i18n-interpolate';
 import { agentChatApprovalChoices, agentChatRequestTitle } from '../agent-chat-approval';
 import { agentChatChangeKindLabel } from '../agent-chat-diff';
 import type { AgentChatLabelTranslate } from '../agent-chat-labels';
-import { translateAgentChatLabel } from '../agent-chat-labels';
+import { formatShortDuration, translateAgentChatLabel } from '../agent-chat-labels';
 import { agentChatLabelsEn } from '../agent-chat-labels-en';
 import { agentChatLabelsZhCN } from '../agent-chat-labels-zh-cn';
 import {
@@ -27,7 +27,7 @@ import {
     commanderInboxKindLabel,
     commanderInboxReplyState,
 } from '../agent-commander-inbox-presentation';
-import { agentToolLabel, formatShortDuration } from '../agent-tool-presentation';
+import { agentToolLabel } from '../agent-tool-presentation';
 
 const zh: AgentChatLabelTranslate = (key, parameters) =>
     interpolate(agentChatLabelsZhCN[key], parameters);

@@ -4,7 +4,7 @@ import { AgentChatActivityBar } from '../activity/agent-chat-activity-bar';
 import { useIsAgentChatDeliveryHintShown } from '../activity/agent-chat-delivery-hint';
 import { AgentChatContextAlerts } from '../context/agent-chat-context-alerts';
 import { AgentChatPlanPaceAlert } from '../tools/agent-chat-plan-pace-alert';
-import type { AgentChatDeliveryHint } from '../transcript/agent-chat-presentation';
+import { agentChatDeliveryHint } from '../transcript/agent-chat-presentation';
 import type { AgentChatEditBarProperties } from './agent-chat-edit-bar';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 
@@ -15,10 +15,11 @@ import { AgentChatEditBar } from './agent-chat-edit-bar';
 export function AgentChatComposerNotices({
     activeTurnId,
     activity,
-    deliveryHint,
     edit,
     isContinuing,
+    isDrafting,
     isEditing,
+    isSteerDefault,
     notice,
     onCompact,
     onContinueInNewChat,
@@ -27,15 +28,17 @@ export function AgentChatComposerNotices({
 }: {
     activeTurnId: string | undefined;
     activity: AgentChatActivity | undefined;
-    /**
-     * What Enter does with a draft typed during a running turn (`agentChatDeliveryHint`), which the activity row says.
-     * The queue and steer shortcuts show only until the user learned them (`useIsAgentChatDeliveryHintShown`); Enter
-     * steering while the Agent waits on subagents always says so, because it breaks the usual queueing rule.
-     */
-    deliveryHint: AgentChatDeliveryHint | undefined;
     edit: AgentChatEditBarProperties | undefined;
     isContinuing: boolean;
+    /**
+     * Whether the input holds a draft; during a running turn the activity row then says what Enter does with it. The
+     * queue and steer shortcuts show only until the user learned them (`useIsAgentChatDeliveryHintShown`); Enter
+     * steering while the Agent waits on subagents (`isSteerDefault`) always says so, because it breaks the usual
+     * queueing rule.
+     */
+    isDrafting: boolean;
     isEditing: boolean;
+    isSteerDefault: boolean;
     notice: string | undefined;
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
@@ -43,6 +46,11 @@ export function AgentChatComposerNotices({
     usage: AgentChatSnapshot['usage'] | undefined;
 }) {
     const hasStripRoom = !activity && !isEditing;
+    const deliveryHint = agentChatDeliveryHint({
+        hasDraft: isDrafting,
+        isSteerDefault,
+        isTurnRunning: activeTurnId !== undefined,
+    });
     const showsQueueHint = useIsAgentChatDeliveryHintShown(
         activeTurnId,
         deliveryHint === 'queueOrSteer',

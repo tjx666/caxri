@@ -9,6 +9,7 @@ const context = {
     hasConversation: true,
     pendingMessages: [],
     processState: undefined,
+    provider: 'codex' as const,
     providerName: 'Codex',
     t: translate,
 };
