@@ -66,7 +66,7 @@ export function reportedWorktree(evalOutput: string): string | undefined {
     }
 }
 
-async function resolveTarget(cwd: string): Promise<{ root: string; target: BrowserTarget }> {
+export async function resolveTarget(cwd: string): Promise<{ root: string; target: BrowserTarget }> {
     const context = await repoContext(cwd);
     const worktreeId = await worktreeIdentity(context.root, false);
     const record = await readDevelopmentProcess(context, worktreeId);
