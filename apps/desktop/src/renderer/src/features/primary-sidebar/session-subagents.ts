@@ -51,23 +51,34 @@ export interface SubagentWindow {
      */
     hiddenCount: number;
     /**
-     * Whether the show-more/show-fewer row exists: the Session has more subagents than the collapsed window.
+     * Where the show-more/show-fewer row sits among `visible`: before the subagent at this index. Absent when the
+     * Session has no more subagents than the collapsed window, so there is nothing to toggle.
      */
-    hasToggle: boolean;
+    toggleIndex?: number;
     visible: TerminalSubagentSummary[];
 }
 
 /**
  * The subagents a Session renders: the newest {@link DEFAULT_VISIBLE_SUBAGENT_COUNT} until the user expands the list.
+ *
+ * The toggle row stays right after those first few in both states instead of trailing the list. Expanding then opens
+ * the rest below the row the pointer and focus are already on, and folding them again happens in the same place; a
+ * trailing "Show fewer" ended up below every subagent, out of reach of a long list, so it was never used and the list
+ * stayed long.
  */
 export function subagentWindow(
     subagents: readonly TerminalSubagentSummary[],
     isExpanded: boolean,
 ): SubagentWindow {
     const ordered = orderSubagents(subagents);
-    const hasToggle = ordered.length > DEFAULT_VISIBLE_SUBAGENT_COUNT;
+    if (ordered.length <= DEFAULT_VISIBLE_SUBAGENT_COUNT)
+        return { hiddenCount: 0, visible: ordered };
     const visible = isExpanded ? ordered : ordered.slice(0, DEFAULT_VISIBLE_SUBAGENT_COUNT);
-    return { hasToggle, hiddenCount: ordered.length - visible.length, visible };
+    return {
+        hiddenCount: ordered.length - visible.length,
+        toggleIndex: DEFAULT_VISIBLE_SUBAGENT_COUNT,
+        visible,
+    };
 }
 
 /**

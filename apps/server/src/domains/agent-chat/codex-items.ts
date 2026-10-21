@@ -137,6 +137,20 @@ const SUB_AGENT_ACTIVITY_NAMES: Partial<Record<string, string>> = {
 };
 
 /**
+ * The display name of a multi-agent v2 `agentPath`. Codex addresses each subagent by its position in the agent tree
+ * (`/root/reviewer`, or `/root/planner/reviewer` for a grandchild), and only the last segment is the name the model
+ * gave it; the `/root/` prefix is the same on every subagent and only pushed the name out of a narrow sidebar row.
+ */
+export function codexAgentName(agentPath: unknown, limit: number): string | undefined {
+    if (typeof agentPath !== 'string') return undefined;
+    const name = agentPath
+        .split('/')
+        .findLast((segment) => segment.trim())
+        ?.trim();
+    return name ? clip(name, limit) : undefined;
+}
+
+/**
  * A subagent tool call (`spawnAgent`, `sendInput`, `wait`, `closeAgent`, ...). The summary is the prompt it sent, or
  * how many agents it addressed; the output is the final messages the target agents reported, such as a `wait` result.
  */
@@ -322,7 +336,7 @@ export function mapCodexItem(
         case 'subAgentActivity': {
             const name = SUB_AGENT_ACTIVITY_NAMES[text(raw.kind)];
             if (!name) return undefined;
-            const summary = optionalText(raw.agentPath, 1_000);
+            const summary = codexAgentName(raw.agentPath, 1_000);
             return {
                 ...base,
                 type: 'toolCall',

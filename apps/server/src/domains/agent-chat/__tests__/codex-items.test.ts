@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { closeDanglingItem } from '../chat-items';
 import { CodexComputerUseBindings } from '../codex-computer-use';
-import { codexRequestKey, mapCodexItem, mapCodexRequest } from '../codex-items';
+import { codexAgentName, codexRequestKey, mapCodexItem, mapCodexRequest } from '../codex-items';
 
 describe('Codex item mapping', () => {
     it('maps conversation and tool items into bounded Chat items', () => {
@@ -300,7 +300,14 @@ describe('Codex item mapping', () => {
                 't',
                 false,
             ),
-        ).toMatchObject({ type: 'toolCall', name: 'spawnAgent', summary: '/root/reviewer' });
+        ).toMatchObject({ type: 'toolCall', name: 'spawnAgent', summary: 'reviewer' });
+    });
+
+    it('names a subagent by the last segment of its agent path', () => {
+        expect(codexAgentName('/root/watch_pr_retry', 1_000)).toBe('watch_pr_retry');
+        expect(codexAgentName('/root/planner/reviewer/', 1_000)).toBe('reviewer');
+        expect(codexAgentName('/', 1_000)).toBeUndefined();
+        expect(codexAgentName(undefined, 1_000)).toBeUndefined();
     });
 
     it('closes items a turn left open', () => {

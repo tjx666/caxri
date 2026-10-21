@@ -54,75 +54,92 @@ export function SessionSubagentRows({
     const subagents = sessionSubagentSummaries(terminal, showSubagents);
     if (!terminal || subagents.length === 0) return null;
     const terminalId = terminal.id;
-    const { visible, hasToggle, hiddenCount } = subagentWindow(subagents, isExpanded);
+    const { visible, toggleIndex, hiddenCount } = subagentWindow(subagents, isExpanded);
     const moreRowId = primarySidebarSubagentMoreRowId(sessionId);
+    const toggleRow = (
+        <button
+            key={moreRowId}
+            aria-label={t(
+                isExpanded
+                    ? 'primarySidebar.subagents.showFewerAriaLabel'
+                    : 'primarySidebar.subagents.showMoreAriaLabel',
+                { count: hiddenCount },
+            )}
+            aria-level={3}
+            aria-selected={false}
+            className={ROW_CLASS_NAME}
+            data-row-id={moreRowId}
+            // An action row with no children of its own, so no `aria-expanded`; the label names what it does next.
+            data-subagent-toggle={isExpanded ? 'expanded' : 'folded'}
+            role="treeitem"
+            tabIndex={moreRowId === rovingRowId ? 0 : -1}
+            onClick={() => toggle(sessionId)}
+        >
+            {/* The status glyph's slot, so the label lines up with the subagent titles above and below it. */}
+            <span aria-hidden="true" className="size-3.5 shrink-0" />
+            {isExpanded
+                ? t('primarySidebar.subagents.showFewer')
+                : t('primarySidebar.subagents.showMore', { count: hiddenCount })}
+        </button>
+    );
+    const rows = visible.map((subagent) => {
+        const rowId = primarySidebarSubagentRowId(sessionId, subagent.taskId);
+        const glyphStatus = agentChatTaskGlyphStatus(subagent.status);
+        const title = subagent.title || t('agentChat.tasks.subagent');
+        const open = (): void => {
+            // Fire-and-forget: the selection reports its own failures through a toast.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard
+            void openSessionSubagent(sessionId, terminalId, subagent.taskId);
+        };
+        return (
+            <button
+                key={subagent.taskId}
+                aria-label={t('primarySidebar.subagents.rowAriaLabel', {
+                    status: agentChatItemStatusLabel(glyphStatus, t),
+                    title,
+                })}
+                aria-level={3}
+                aria-selected={false}
+                className={ROW_CLASS_NAME}
+                data-row-id={rowId}
+                data-subagent-status={subagent.status}
+                role="treeitem"
+                tabIndex={rowId === rovingRowId ? 0 : -1}
+                onClick={open}
+            >
+                <AgentChatStatusGlyph status={glyphStatus} />
+                <span className="overflow-fade min-w-0 flex-1 whitespace-nowrap [--overflow-fade-size:16px]">
+                    {title}
+                </span>
+                {subagent.agentType && (
+                    <span
+                        aria-hidden="true"
+                        className="max-w-[40%] flex-none truncate text-[11px] opacity-70"
+                    >
+                        {subagent.agentType}
+                    </span>
+                )}
+            </button>
+        );
+    });
+    // The toggle sits where the folded list ends, in both states; `subagentWindow` explains why.
+    if (toggleIndex !== undefined) rows.splice(toggleIndex, 0, toggleRow);
     return (
         <div
-            className="subagent-list"
+            className="subagent-list relative"
             role="group"
             aria-label={t('primarySidebar.subagents.ariaLabel')}
         >
-            {visible.map((subagent) => {
-                const rowId = primarySidebarSubagentRowId(sessionId, subagent.taskId);
-                const glyphStatus = agentChatTaskGlyphStatus(subagent.status);
-                const title = subagent.title || t('agentChat.tasks.subagent');
-                const open = (): void => {
-                    // Fire-and-forget: the selection reports its own failures through a toast.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard
-                    void openSessionSubagent(sessionId, terminalId, subagent.taskId);
-                };
-                return (
-                    <button
-                        key={subagent.taskId}
-                        aria-label={t('primarySidebar.subagents.rowAriaLabel', {
-                            status: agentChatItemStatusLabel(glyphStatus, t),
-                            title,
-                        })}
-                        aria-level={3}
-                        aria-selected={false}
-                        className={ROW_CLASS_NAME}
-                        data-row-id={rowId}
-                        data-subagent-status={subagent.status}
-                        role="treeitem"
-                        tabIndex={rowId === rovingRowId ? 0 : -1}
-                        onClick={open}
-                    >
-                        <AgentChatStatusGlyph status={glyphStatus} />
-                        <span className="overflow-fade min-w-0 flex-1 whitespace-nowrap [--overflow-fade-size:16px]">
-                            {title}
-                        </span>
-                        {subagent.agentType && (
-                            <span
-                                aria-hidden="true"
-                                className="max-w-[40%] flex-none truncate text-[11px] opacity-70"
-                            >
-                                {subagent.agentType}
-                            </span>
-                        )}
-                    </button>
-                );
-            })}
-            {hasToggle && (
-                <button
-                    aria-label={t(
-                        isExpanded
-                            ? 'primarySidebar.subagents.showFewerAriaLabel'
-                            : 'primarySidebar.subagents.showMoreAriaLabel',
-                        { count: hiddenCount },
-                    )}
-                    aria-level={3}
-                    aria-selected={false}
-                    className={ROW_CLASS_NAME}
-                    data-row-id={moreRowId}
-                    role="treeitem"
-                    tabIndex={moreRowId === rovingRowId ? 0 : -1}
-                    onClick={() => toggle(sessionId)}
-                >
-                    {isExpanded
-                        ? t('primarySidebar.subagents.showFewer')
-                        : t('primarySidebar.subagents.showMore', { count: hiddenCount })}
-                </button>
-            )}
+            {/*
+             * Decorative indent guide under the Session's Agent icon (x = row padding + half the 14px icon), tying the
+             * rows to the Session above them the way Claude Desktop's sidebar does. Not a click target: a 1px line is
+             * too thin to hit and invisible to the keyboard, so folding stays on the toggle row.
+             */}
+            <span
+                aria-hidden="true"
+                className="subagent-guide pointer-events-none absolute top-0 bottom-1.5 left-[15px] w-px bg-border"
+            />
+            {rows}
         </div>
     );
 }
