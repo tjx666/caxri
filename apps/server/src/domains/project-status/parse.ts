@@ -33,7 +33,7 @@ const githubCheckSchema = z.object({
     workflowName: z.string().optional(),
 });
 
-type GitHubCheck = z.infer<typeof githubCheckSchema>;
+export type GitHubCheck = z.infer<typeof githubCheckSchema>;
 
 export const githubPullRequestSchema = z.object({
     baseRefName: z.string().optional(),
@@ -111,7 +111,7 @@ const RUNNING_RESULTS = new Set(['IN_PROGRESS']);
  */
 const QUEUED_RESULTS = new Set(['QUEUED', 'WAITING', 'REQUESTED', 'PENDING', 'EXPECTED']);
 
-function checkState(check: GitHubCheck): ProjectStatusState {
+export function checkState(check: GitHubCheck): ProjectStatusState {
     const status = (check.status ?? '').toUpperCase();
     const result = (check.conclusion ?? check.state ?? '').toUpperCase();
     if (RUNNING_RESULTS.has(status) || RUNNING_RESULTS.has(result)) return 'pending';
@@ -122,7 +122,7 @@ function checkState(check: GitHubCheck): ProjectStatusState {
     return 'neutral';
 }
 
-function aggregateChecks(checks: ProjectStatusCheck[]): ProjectStatusState {
+export function aggregateChecks(checks: ProjectStatusCheck[]): ProjectStatusState {
     if (checks.some((check) => check.state === 'failure')) return 'failure';
     if (checks.length === 0 || checks.some((check) => check.state === 'pending')) return 'pending';
     // Nothing is running yet, but the run is not over either. Rolled up as `queued` rather than `pending` so the

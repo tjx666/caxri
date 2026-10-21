@@ -50,6 +50,43 @@ const projectStatusReviewThreadSchema = z.object({
 });
 
 /**
+ * One file changed between two commits, with its line counts.
+ */
+const projectStatusChangedFileSchema = z.object({
+    path: z.string().min(1),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+});
+
+/**
+ * The newest commit before a pull request's head whose checks reached a verdict, shown while the head's own checks are
+ * unfinished or failing so the user can judge whether the commits since then could change the outcome.
+ */
+const projectStatusPreviousChecksSchema = z.object({
+    /**
+     * The commit message's first line. The commit is named by its title, never its hash.
+     */
+    title: z.string(),
+    /**
+     * The commit's rollup after `projectStatus.ignoredChecks`; a commit whose checks were all cancelled or still
+     * running is skipped rather than reported.
+     */
+    state: z.enum(['success', 'failure']),
+    /**
+     * How many commits sit between it and the head; `1` is the head's parent.
+     */
+    commitsBefore: z.number().int().positive(),
+    /**
+     * The commit inside the pull request on GitHub.
+     */
+    url: z.url(),
+    /**
+     * Files changed from this commit to the head; absent when the comparison could not be read.
+     */
+    changedFiles: z.array(projectStatusChangedFileSchema).optional(),
+});
+
+/**
  * One row of the review summary Codex keeps on a pull request (the `<!-- codex-pull-request-review-summary -->`
  * comment), which says whether a review ran and which commit it covered even when it left no comment.
  */
@@ -305,6 +342,10 @@ const projectStatusRepoSchema = z.object({
              * read (the same rule as `unresolvedReviewThreads`).
              */
             codexReviews: z.array(projectStatusCodexReviewSchema).optional(),
+            /**
+             * Present only while the head's checks are unfinished or failing and an earlier commit's checks settled.
+             */
+            previousChecks: projectStatusPreviousChecksSchema.optional(),
         })
         .optional(),
     linearIssues: z.array(projectStatusLinearIssueSchema),
@@ -439,6 +480,7 @@ export type PullRequestMergeState = z.infer<typeof pullRequestMergeStateSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusReviewThread = z.infer<typeof projectStatusReviewThreadSchema>;
 export type ProjectStatusCodexReview = z.infer<typeof projectStatusCodexReviewSchema>;
+export type ProjectStatusPreviousChecks = z.infer<typeof projectStatusPreviousChecksSchema>;
 export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
 export type PullRequestSource = z.infer<typeof pullRequestSourceSchema>;
 export type ProjectStatusOverviewLinearIssue = z.infer<
