@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
 import { useOnVisible } from '@/hooks/use-on-visible';
 
+import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
+import {
+    isAgentChatOnScreen,
+    useAgentChatOnScreenStore,
+} from '../agent-chat/waiting/agent-chat-on-screen';
 import { markSessionRead } from './session-commands';
 
 interface AttentionVisibility {
@@ -13,13 +18,40 @@ interface AttentionVisibility {
 }
 
 /**
- * Read acknowledgement requires both durable unread state and a genuinely visible selection.
+ * Whether the Session's primary Chat holds a question or approval the user has not been shown: the Chat has a pending
+ * request and its pane is not on screen in this window. Selecting the Session alone does not show the request (the Chat
+ * can sit on a background tab), so acknowledging then would clear the attention glyph from the sidebar row and the tab
+ * while the Agent is still blocked on the user.
+ */
+export function isChatRequestUnseen(
+    session: Pick<SessionRecord, 'primaryAgentTerminalId'>,
+    waitingTerminalIds: ReadonlySet<string>,
+    onScreen: Readonly<Record<string, number>>,
+): boolean {
+    const terminalId = session.primaryAgentTerminalId;
+    return (
+        terminalId !== undefined &&
+        waitingTerminalIds.has(terminalId) &&
+        !isAgentChatOnScreen(onScreen, terminalId)
+    );
+}
+
+/**
+ * Read acknowledgement requires durable unread state, a genuinely visible selection, and no Chat request still hidden
+ * from the user (see {@link isChatRequestUnseen}). Once the request is answered, withdrawn, or its pane shown, the
+ * unread generation is acknowledged like any other.
  */
 export function shouldAcknowledgeSessionAttention(
     session: SessionRecord | undefined,
     visibility: AttentionVisibility,
+    hasUnseenChatRequest = false,
 ): session is SessionRecord {
-    return Boolean(session?.hasUnread && visibility.documentVisible && visibility.windowFocused);
+    return Boolean(
+        !hasUnseenChatRequest &&
+        session?.hasUnread &&
+        visibility.documentVisible &&
+        visibility.windowFocused,
+    );
 }
 
 function currentVisibility(): AttentionVisibility {
@@ -35,11 +67,20 @@ function currentVisibility(): AttentionVisibility {
 export function useSessionAttentionAcknowledgement(): void {
     const session = useSelectedSession();
     const isPendingReference = useRef(false);
+    const { data } = useCaxriQuery('agentChat.pendingRequests', {}, { staleTime: Infinity });
+    const onScreen = useAgentChatOnScreenStore((state) => state.counts);
+    const waitingTerminalIds = useMemo(
+        () => new Set(data?.chats.map((chat) => chat.terminalId)),
+        [data],
+    );
+    const hasUnseenChatRequest = session
+        ? isChatRequestUnseen(session, waitingTerminalIds, onScreen)
+        : false;
 
     const acknowledge = useCallback((): void => {
         if (
             isPendingReference.current ||
-            !shouldAcknowledgeSessionAttention(session, currentVisibility())
+            !shouldAcknowledgeSessionAttention(session, currentVisibility(), hasUnseenChatRequest)
         )
             return;
         isPendingReference.current = true;
@@ -57,7 +98,7 @@ export function useSessionAttentionAcknowledgement(): void {
         // event retries; there is nothing left for this handler to await.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void acknowledgeAsync();
-    }, [session]);
+    }, [session, hasUnseenChatRequest]);
 
     useEffect(() => {
         if (!session?.hasUnread) return;

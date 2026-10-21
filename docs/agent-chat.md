@@ -743,6 +743,10 @@ several callbacks can share one item, so the transport id is never the key.
   else gets a JSON-RPC error) so the turn never blocks on a request no one can see.
 - Each pending request raises Attention through a synthesized `attentionRequested` signal and
   clears it with `attentionResolved`, so Activity and the Primary Sidebar behave as for a PTY.
+  Selecting a Session normally acknowledges its unread Attention at once, but not while its primary
+  Chat holds a request and that Chat's pane is not on screen in this window (a Chat on a background
+  tab): the Sidebar row and Session tab keep the Attention glyph until the user shows the pane or the
+  request is answered or withdrawn, then it is acknowledged like any other (`session-attention.ts`).
 
 ## Pane
 
