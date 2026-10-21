@@ -10,9 +10,9 @@ import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
 import { CODEX_RECONNECTING } from './fake-codex-retry.ts';
 
 /**
- * With `reconnect`, a dropped stream's retry notice arrives before the reply streams.
+ * With `willReconnect`, a dropped stream's retry notice arrives before the reply streams.
  */
-export async function runSlow(io: FakeCodexIo, turn: FakeTurn, reconnect: boolean) {
+export async function runSlow(io: FakeCodexIo, turn: FakeTurn, willReconnect: boolean) {
     io.completeItem(turn, {
         type: 'reasoning',
         id: crypto.randomUUID(),
@@ -44,7 +44,7 @@ export async function runSlow(io: FakeCodexIo, turn: FakeTurn, reconnect: boolea
                 modelContextWindow: 200_000,
             },
         });
-    if (reconnect) io.notifyTurn(turn, 'error', { turnId: turn.id, ...CODEX_RECONNECTING });
+    if (willReconnect) io.notifyTurn(turn, 'error', { turnId: turn.id, ...CODEX_RECONNECTING });
     await io.streamMessage(turn, 'word '.repeat(200), 50);
     // An interrupted turn leaves the command dangling, which closing the turn settles.
     if (!turn.interrupted) io.completeItem(turn, { ...command, status: 'completed', exitCode: 0 });
