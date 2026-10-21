@@ -143,6 +143,13 @@ or cancels the delivery, or a concrete blocker requires their input.
    do not switch it to `main`. Switch or update the primary checkout only when its working tree is
    clean and the update is fast-forward; otherwise preserve it and report the exact dirty-state or
    divergence blocker.
+9. In the report that closes the delivery after the merge, add a workflow-improvement section
+   without being asked. List each friction this delivery actually hit that a script, guard, CI
+   route, lint rule, or agent-file change could prevent: the symptom, the evidence, and the owning
+   file to change. For example, a hook merged with a green focused check and then turned `main`'s
+   full suite red because no selector routed its directory to the test that scans it. Say plainly
+   when nothing qualified; do not pad the list. Applying a suggestion follows `AGENTS.md`'s
+   workflow-improvement rule.
 
 ## Fast merge without CI
 

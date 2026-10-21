@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { WatchedJob, WatchState } from '../watch-ci';
 import {
@@ -9,6 +9,7 @@ import {
     isHeartbeatStale,
     newlyFailedJobs,
     nextBackoffMs,
+    withDeadline,
 } from '../watch-ci';
 
 const job = (name: string, status: string, conclusion: string): WatchedJob => ({
@@ -186,5 +187,25 @@ describe('watch-ci', () => {
                 status: 'completed',
             }),
         ).toEqual({ title: 'CI failed · run 123', message: 'CI failure' });
+    });
+});
+
+describe('withDeadline', () => {
+    it('turns a poll that never settles into a retryable failure', async () => {
+        vi.useFakeTimers();
+        try {
+            const hung = withDeadline(new Promise<never>(() => {}), 150_000, 'gh run view 1');
+            const outcome = expect(hung).rejects.toThrow(
+                'gh run view 1 did not settle within 150s',
+            );
+            await vi.advanceTimersByTimeAsync(150_000);
+            await outcome;
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('passes a settled poll through unchanged', async () => {
+        await expect(withDeadline(Promise.resolve('done'), 1_000, 'poll')).resolves.toBe('done');
     });
 });

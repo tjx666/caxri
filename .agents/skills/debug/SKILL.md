@@ -87,8 +87,9 @@ ordinary E2E, CI, or Acceptance to discover or invoke a host provider.
 ## Runtime profile, shutdown, and visual proof
 
 Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Server, SQLite,
-and logs) so they never contend with the installed production app. `CAXRI_USER_DATA_DIR` overrides
-it (`apps/desktop/src/main/desktop-profile.ts`).
+and logs) so they never contend with the installed production app. A bare `bun run dev` honors
+`CAXRI_USER_DATA_DIR` (`apps/desktop/src/main/desktop-profile.ts`); `switch-worktree dev` always sets
+its own and takes `--user-data-dir` instead.
 
 Stop every dev instance you started before reporting a request complete, and verify it actually
 died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
@@ -153,9 +154,12 @@ start `switch-worktree dev`. Without `CAXRI_E2E=1` the fake executables are igno
 task-owned fixture folder to use the existing test-root grant without a native folder picker.
 If that fixture does not cover the flow, export `V8_INSPECTOR_PORT=<port>` (electron-vite passes it to
 Main as `--inspect`) and replace `dialog.showOpenDialog` through `Runtime.evaluate`, as
-`e2e/support/packaged-project-dialog.ts` does. Before stopping, either delete the fixture Project or
-close every fixture Terminal, archive its Sessions, and verify `app.bootstrap` contains no fixture
-Agent Terminals. A later plain `dev` run must not restore a synthetic conversation with a real CLI.
+`e2e/support/packaged-project-dialog.ts` does. Prefer `switch-worktree dev --user-data-dir <absolute
+task temp dir>` for a fixture run, so fixture Projects never reach the worktree profile. Otherwise, before stopping, close every fixture Terminal, archive its Sessions
+(`session.archive`), and verify `app.bootstrap` contains no fixture Agent Terminals. A later plain
+`dev` run must not restore a synthetic conversation with a real CLI. Do not delete the Project
+through `window.caxri.request('project.delete', ...)`: Main answers it with a native confirmation
+dialog, so the CDP evaluation hangs and the dialog takes the user's focus.
 
 A change limited to native menu entries (Renderer menu data that Main draws with `Menu.popup`) has
 no CDP-visible surface. Verify it with a Playwright Electron spec that opens the menu from its real
@@ -201,6 +205,18 @@ it from there, or from `switch-worktree list --json`'s `cdpPort` field for the t
 never hardcode 9223. A bare `bun run dev` outside the wrapper is the only case that still defaults
 to the fixed 9223.
 
+For this worktree's own dev instance, run every agent-browser command through the wrapper, which
+applies all the rules below on each call: it reads the port from the dev process record, strips
+the proxy variables, pins a per-worktree `--session`, and refuses to run unless
+`__caxriWorktree` equals this checkout:
+
+```bash
+bun run .agents/skills/debug/scripts/worktree-browser.ts eval "document.title"
+bun run .agents/skills/debug/scripts/worktree-browser.ts screenshot /tmp/<task>/panel.png
+```
+
+Use the manual form below for a packaged app or another worktree's port.
+
 Connect with `agent-browser`, always stripping proxy environment variables and passing the port
 through `--cdp` (not the `connect` subcommand, which can launch a fresh, disconnected browser
 instead of attaching, see [common-mistakes.md](../../acceptance/common-mistakes.md#reaching-the-owned-electron-endpoint-with-agent-browser-connect)):
@@ -243,6 +259,9 @@ Give `agent-browser screenshot` an absolute output path under `/tmp` or the task
 directory. A relative path resolves against the long-lived agent-browser daemon's working
 directory, not the invoking shell's, so `cd /tmp && agent-browser screenshot panel.png` can still
 drop an untracked image into whichever checkout first started the daemon.
+
+Read an open shared Tooltip through `.tooltip-popup`, not `[role=tooltip]`: Base UI renders the
+popup without that role, so the role query reports no tooltip while one is on screen.
 
 ## Production debugging controls
 

@@ -166,11 +166,15 @@ agreement or when your own session started it.
 
 Run Caxri through the wrapper so every worktree receives a stable, independent `userData` path.
 Unpackaged launches default to an isolated `caxri-dev` profile so they never contend with
-`/Applications/Caxri.app`; `CAXRI_USER_DATA_DIR` overrides it.
+`/Applications/Caxri.app`.
 
 ```bash
-bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev [--user-data-dir <absolute path>]
 ```
+
+`dev` always overwrites `CAXRI_USER_DATA_DIR` with the worktree profile, because an Agent Terminal
+inherits the installed app's profile in that variable. Pass `--user-data-dir` to run a disposable
+fixture profile instead.
 
 Do not link `node_modules` across worktrees. Each checkout runs `ni`; native Electron dependencies
 and build outputs remain local. Vite owns Renderer port selection.

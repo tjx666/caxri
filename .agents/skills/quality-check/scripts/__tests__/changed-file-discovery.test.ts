@@ -88,3 +88,25 @@ describe('removed-path test selection', () => {
         ).resolves.not.toContain(contract);
     });
 });
+
+describe('design-prototype runtime contract selection', () => {
+    it('runs the prototype runtime manifest test for a Renderer ui primitive or shared hook change', async () => {
+        const contract = '.agents/skills/design-prototype/scripts/build-runtime.test.ts';
+
+        await expect(
+            selectedTestCandidates(process.cwd(), [
+                'apps/desktop/src/renderer/src/hooks/use-session-excerpts.ts',
+            ]),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(process.cwd(), [
+                'apps/desktop/src/renderer/src/components/ui/tooltip.tsx',
+            ]),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(process.cwd(), [
+                'apps/desktop/src/renderer/src/features/settings/keybinding-row-item.tsx',
+            ]),
+        ).resolves.not.toContain(contract);
+    });
+});
