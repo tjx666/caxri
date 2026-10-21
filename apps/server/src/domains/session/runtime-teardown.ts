@@ -17,6 +17,7 @@ interface SessionRuntimeTeardownParts {
         revokeAutoAllow(sessionId: string, reason: 'sessionDeleted'): unknown;
         sessionRenames: { forgetSession(sessionId: string): void };
     };
+    settlementWiring: { forgetSession(sessionId: string): void };
     terminalRestores: Pick<TerminalRestoreSupervisor, 'forget'>;
     terminals: Pick<TerminalManager, 'terminateSession'>;
     terminalSuspension: Pick<TerminalSuspensionService, 'forgetSession'>;
@@ -37,6 +38,7 @@ export function createSessionRuntimeForgetter(
         parts.terminalSuspension.forgetSession(sessionId);
         parts.agentRuntime.coordinator.forgetSession(sessionId);
         parts.transcripts.forgetSession(sessionId);
+        parts.settlementWiring.forgetSession(sessionId);
         parts.terminals.terminateSession(sessionId);
         // eslint-disable-next-line no-void -- Session teardown is synchronous; provider exit completes on its own.
         void parts.agentChat.closeSession(sessionId);

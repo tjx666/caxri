@@ -26,6 +26,10 @@ export class PullRequestSettlementWiring {
         this.settlement?.observeActivity(transition);
     }
 
+    forgetSession(sessionId: string): void {
+        this.settlement?.forgetSession(sessionId);
+    }
+
     dispose(): void {
         this.settlement?.dispose();
     }
