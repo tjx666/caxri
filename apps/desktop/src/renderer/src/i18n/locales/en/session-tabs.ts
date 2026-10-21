@@ -9,6 +9,8 @@ export const sessionTabs = {
     'sessionTabs.closeToRight': 'Close Tabs to the Right',
     'sessionTabs.reordered': '{{title}} moved to position {{position}} of {{count}}',
     'sessionTabs.openInNewTab': 'Open in New Tab',
+    'sessionTabs.keepOpen': 'Keep Open',
+    'sessionTabs.previewHint': 'Preview. The next Session you open replaces this tab.',
     'sessionTabs.revealInSidebar': 'Reveal in Sidebar',
     'sessionTabs.tooltip.project': 'Project: {{value}}',
     'sessionTabs.tooltip.agent': 'Agent: {{value}}',
@@ -17,6 +19,7 @@ export const sessionTabs = {
     'sessionTabs.tooltip.shortcut': 'Shortcut: Cmd+{{key}}',
     'sessionTabs.errors.openFailed': 'Unable to open the Session in a new tab',
     'sessionTabs.errors.tearOffFailed': 'Unable to move the Session to a new window',
+    'sessionTabs.errors.keepFailed': 'Unable to keep the tab open',
     'sessionTabs.errors.closeFailed': 'Unable to close the tab',
     'sessionTabs.errors.reorderFailed': 'Unable to reorder the tabs',
 } as const;

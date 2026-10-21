@@ -37,6 +37,7 @@ export function createWindowPresenceHandlers(
     | 'window.closePresence'
     | 'window.openSessions.listTearOffs'
     | 'window.openSessions.moveToWindow'
+    | 'window.openSessions.keep'
     | 'window.openSessions.release'
     | 'window.openSessions.set'
     | 'window.reportPresence'
@@ -77,6 +78,11 @@ export function createWindowPresenceHandlers(
             return null;
         },
         'window.openSessions.listTearOffs': () => database.windowOpenSessions.listTearOffs(),
+        'window.openSessions.keep': ({ windowKey, sessionId }) => {
+            if (!windowKey)
+                throw new CaxriError('VALIDATION', 'An Open Session edit requires a window');
+            return database.windowOpenSessions.keep(windowKey, sessionId);
+        },
         'window.openSessions.set': ({ windowKey, openSessionIds }) => {
             if (!windowKey)
                 throw new CaxriError('VALIDATION', 'An Open Session edit requires a window');

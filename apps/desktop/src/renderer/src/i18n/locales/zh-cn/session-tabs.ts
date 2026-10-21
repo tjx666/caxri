@@ -9,6 +9,8 @@ export const sessionTabs = {
     'sessionTabs.closeToRight': '关闭右侧标签页',
     'sessionTabs.reordered': '{{title}} 已移至第 {{position}} 位，共 {{count}} 个',
     'sessionTabs.openInNewTab': '在新标签页中打开',
+    'sessionTabs.keepOpen': '保持打开',
+    'sessionTabs.previewHint': '预览。下一个打开的会话会替换此标签页。',
     'sessionTabs.revealInSidebar': '在侧边栏中显示',
     'sessionTabs.tooltip.project': '项目：{{value}}',
     'sessionTabs.tooltip.agent': 'Agent：{{value}}',
@@ -17,6 +19,7 @@ export const sessionTabs = {
     'sessionTabs.tooltip.shortcut': '快捷键：Cmd+{{key}}',
     'sessionTabs.errors.openFailed': '无法在新标签页中打开会话',
     'sessionTabs.errors.tearOffFailed': '无法将会话移到新窗口',
+    'sessionTabs.errors.keepFailed': '无法保持标签页打开',
     'sessionTabs.errors.closeFailed': '无法关闭标签页',
     'sessionTabs.errors.reorderFailed': '无法调整标签页顺序',
 } as const;

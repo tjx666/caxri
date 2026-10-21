@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
     activeAfterEdit,
     insertOpenSessionAfter,
+    isKeepingInteraction,
     isSessionTabStripVisible,
     moveOpenSession,
     openTabTargetId,
+    previewAfterEdit,
     sessionIdsToClose,
     sessionTabShortcutKey,
     shiftOpenSession,
@@ -173,5 +175,34 @@ describe('sessionTabShortcutKey', () => {
         expect(sessionTabShortcutKey(11, 12)).toBe('Meta+9');
         expect(sessionTabShortcutKey(8, 9)).toBe('Meta+9');
         expect(sessionTabShortcutKey(8, 12)).toBeUndefined();
+    });
+});
+
+describe('previewAfterEdit', () => {
+    it('keeps the Preview entry while it is listed and drops it once it leaves', () => {
+        expect(previewAfterEdit('p', ['a', 'p'])).toBe('p');
+        expect(previewAfterEdit('p', ['a'])).toBeUndefined();
+    });
+
+    it('never creates a Preview entry', () => {
+        expect(previewAfterEdit(undefined, ['a', 'b'])).toBeUndefined();
+    });
+});
+
+describe('isKeepingInteraction', () => {
+    it('counts typing, pasting, input, and a primary press', () => {
+        expect(isKeepingInteraction({ type: 'keydown', key: 'a' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'keydown', key: 'Enter' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'paste' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'input' })).toBe(true);
+        expect(isKeepingInteraction({ type: 'pointerdown', button: 0 })).toBe(true);
+    });
+
+    it('ignores shortcuts, bare modifiers, secondary buttons, and other events', () => {
+        expect(isKeepingInteraction({ type: 'keydown', key: '1', metaKey: true })).toBe(false);
+        expect(isKeepingInteraction({ type: 'keydown', key: 'c', ctrlKey: true })).toBe(false);
+        expect(isKeepingInteraction({ type: 'keydown', key: 'Shift' })).toBe(false);
+        expect(isKeepingInteraction({ type: 'pointerdown', button: 2 })).toBe(false);
+        expect(isKeepingInteraction({ type: 'pointermove' })).toBe(false);
     });
 });

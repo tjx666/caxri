@@ -9,6 +9,7 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { cn } from '../../lib/utilities';
+import { useIsPreviewSession } from '../../stores/open-sessions';
 import { useSessionById } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { sessionWorktreeProject } from '../primary-sidebar/project-visibility';
@@ -22,7 +23,7 @@ import {
     setLinkedHoveredSession,
     useIsLinkedSessionHovered,
 } from './linked-session-hover';
-import { activateSessionTab, closeSessionTabs } from './session-tab-commands';
+import { activateSessionTab, closeSessionTabs, keepSessionTab } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
 import { sessionTabMenu } from './session-tab-menu';
 import { sessionTabTooltip } from './session-tab-tooltip';
@@ -30,6 +31,39 @@ import { sessionTabShortcutKey } from './session-tabs-state';
 
 function isNavigationKey(key: string): key is WorkTabNavigationKey {
     return ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key);
+}
+
+/**
+ * The title and the muted disambiguation suffix of a tab. The Preview entry is set in italic (and muted while inactive)
+ * so the tab a plain click will replace is recognizable before the click.
+ */
+function SessionTabLabel({
+    isActive,
+    isPreview,
+    suffix,
+    title,
+}: {
+    isActive: boolean;
+    isPreview: boolean;
+    suffix: string | undefined;
+    title: string;
+}) {
+    return (
+        <span
+            className={cn(
+                'tab-label min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap',
+                isPreview && 'italic',
+                isPreview && !isActive && 'text-muted group-hover:text-foreground',
+            )}
+        >
+            {title}
+            {suffix && (
+                <span className="tab-detail ml-1.5 text-[11px] font-normal text-muted">
+                    {suffix}
+                </span>
+            )}
+        </span>
+    );
 }
 
 /**
@@ -73,6 +107,8 @@ export function SessionTab({
             : undefined,
     );
     const label = useSessionLabel(sessionId);
+    // The Preview entry: the one tab a plain sidebar click replaces. Italic, like VS Code's preview editor.
+    const isPreview = useIsPreviewSession(sessionId);
     // The pointer is over this Session's sidebar row; see `linked-session-hover.ts`.
     const isLinkedHover = useIsLinkedSessionHovered(sessionId);
     // Pruned from the snapshot a moment before the strip catches up.
@@ -121,6 +157,7 @@ export function SessionTab({
                 )}
                 data-session-tab-id={sessionId}
                 data-tab-active={isActive || undefined}
+                data-tab-preview={isPreview || undefined}
                 draggable
                 onPointerEnter={() => setLinkedHoveredSession(sessionId)}
                 onPointerLeave={() => clearLinkedHoveredSession(sessionId)}
@@ -136,6 +173,12 @@ export function SessionTab({
                         tabIndex={isActive ? 0 : -1}
                         className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
                         onClick={() => activateSessionTab(sessionId)}
+                        // Double-click keeps a Preview tab, the same gesture as VS Code's preview editor.
+                        onDoubleClick={() => {
+                            // Fire-and-forget: keeping toasts its own failure.
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard
+                            void keepSessionTab(sessionId);
+                        }}
                         onKeyDown={onKeyDown}
                         // Middle-click closes, matching pane tabs and every browser; the mousedown guard stops the
                         // platform's autoscroll cursor from taking the click first.
@@ -151,14 +194,15 @@ export function SessionTab({
                         }}
                     >
                         <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={13} />
-                        <span className="tab-label min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                            {title}
-                            {label.suffix && (
-                                <span className="tab-detail ml-1.5 text-[11px] font-normal text-muted">
-                                    {label.suffix}
-                                </span>
-                            )}
-                        </span>
+                        <SessionTabLabel
+                            isActive={isActive}
+                            isPreview={isPreview}
+                            suffix={label.suffix}
+                            title={title}
+                        />
+                        {isPreview && (
+                            <span className="sr-only">{t('sessionTabs.previewHint')}</span>
+                        )}
                         <SessionStatusIndicator session={session} terminal={terminal} />
                     </button>
                 </Tooltip>

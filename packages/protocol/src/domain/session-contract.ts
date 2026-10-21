@@ -186,6 +186,16 @@ export const sessionMethods = {
      * entry's neighbor in the previous strip. It answers with the strip and active Session it stored. Navigating to a
      * Session goes through `session.select`; this method adds an entry without selecting it, reorders, and closes.
      */
+    /**
+     * Promotes the window's Preview entry to a kept entry (double-click, Cmd+click, or any input in that Session), so a
+     * plain navigation no longer replaces it. Answers with the stored strip; a Session that is not the Preview entry
+     * leaves the strip as it was.
+     */
+    'window.openSessions.keep': {
+        ...serverWrite,
+        params: z.object({ ...windowKeyParameter, sessionId: identifierSchema }),
+        result: windowOpenSessionsSchema,
+    },
     'window.openSessions.set': {
         ...serverWrite,
         params: z.object({

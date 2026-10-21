@@ -54,8 +54,15 @@ A Session kept in one window's tab strip, ordered and persisted per window. It i
 proof of existence: archived, deleted, and hidden Sessions drop out of every strip. The window shows
 exactly one Open Session at a time, and a Session belongs to at most one window: dragging its tab out
 opens a new window, and opening it from another window brings the owner forward. A new tab opens right of
-the active one, and the sidebar marks which Sessions are open here or in another window.
+the active one, and the sidebar marks which Sessions are open here or in another window. Each Open Session
+is kept or the window's one **Preview entry**.
 _Avoid_: Open tab, selected Session
+
+**Preview entry**:
+The one Open Session of a window that a plain sidebar click replaces instead of adding a tab, shown with
+an italic title. Double-clicking its tab, opening it in a new tab, or working in the Session makes it
+kept, and plain navigation never replaces a kept Open Session.
+_Avoid_: Temporary tab, preview Session
 
 **Workbench Root**:
 The currently selected authorized Project whose Files, Editor, Search, and Git surfaces a Session

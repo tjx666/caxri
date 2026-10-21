@@ -686,7 +686,7 @@ focus. A tab whose title collides with another Session's gets a trailing 11px `-
 or `#n`), also shown on its sidebar row. The sidebar marks Sessions that are open: a 2px `--muted` edge bar on a
 row open in this window's strip (only while the strip shows), and an 11px `--muted` window glyph after the
 title of a row another window owns; neither uses `--accent`. Hovering a tab or its row echoes the other with
-the same soft hover fill. A single Open Session hides the outer row and the pane bar becomes the title bar again. Every
+the same soft hover fill. The window's Preview entry (the tab a plain sidebar click replaces) sets its title in italic, and in `--muted` while inactive; keeping it restores the normal style. A single Open Session hides the outer row and the pane bar becomes the title bar again. Every
 color is a semantic token, so a light theme restyles both rows with no extra work.
 
 **Tab strip**: active tab: `--background` fill joining it visually to the pane below,

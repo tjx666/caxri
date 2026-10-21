@@ -19,17 +19,29 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
   (see DESIGN.md "Two tab levels"). Each tab shows the Session's status indicator and title and reads
   that Session's own state by ID. Tabs are 104px to 200px wide and the active tab never drops below
   150px; a crowded strip scrolls instead of shrinking them further.
-- Plain click on a Session row selects it. That **replaces the active entry** when the Session is not
-  already open (like navigating inside a browser tab), or activates it when it already is, so browsing
-  the sidebar never grows the strip. Only an explicit open adds a tab: Cmd+click, **Open in New Tab** in
-  the Session row menu, and the strip's trailing **+** button (a new Session in the active Session's
-  Project, started like Cmd+N, with `placement: 'newTab'`). A new tab is **inserted immediately right of
-  the active tab** (the browser and VS Code rule), not appended, so it lands next to where you were
-  working; the Server applies the same rule to the strip's **+** (`activateSessionInWindow`) and the
-  Renderer to the other two (`insertOpenSessionAfter`). With no active tab it appends. Every other creation path (Cmd+N,
-  the sidebar's New Session, moving a Terminal into a new Session, side-chat conversion) behaves like
-  a plain select: it activates the Session, replacing the active entry, or becoming the only entry
-  of an empty list.
+- Every Open Session is either **kept** or the window's one **Preview entry** (the VS Code preview-editor
+  model). A plain click on a Session row selects it: an already open Session is only activated;
+  otherwise the click **replaces the Preview entry in place**, or, when the window has none, adds the
+  Session right of the active tab as the new Preview entry. A kept entry is never replaced by plain
+  navigation, so browsing the sidebar cannot make a tab you chose disappear, and the strip grows only
+  by kept tabs plus at most one Preview tab. The Preview tab's title is italic (muted while inactive) and
+  announces itself to screen readers.
+- A Preview entry becomes kept on a double-click of its tab, **Keep Open** in the tab menu, Cmd+click on
+  its row or **Open in New Tab**, dragging the tab, or any interaction inside the Session (typing,
+  pasting, or a primary-button press anywhere in its Workbench; shortcuts such as `Cmd+1` do not count).
+  A Session stays kept until its tab is closed.
+- Only an explicit open adds a kept tab: Cmd+click, **Open in New Tab** in the Session row menu, the
+  strip's trailing **+** button (a new Session in the active Session's Project, started like Cmd+N, with
+  `placement: 'newTab'`), and moving a Terminal into a new Session. A new tab is **inserted immediately
+  right of the active tab** (the browser and VS Code rule), not appended, so it lands next to where you
+  were working; the Server applies the same rule to the strip's **+** (`activateSessionInWindow`) and the
+  Renderer to the other two (`insertOpenSessionAfter`). With no active tab it appends. Cmd+N, the
+  sidebar's New Session, and side-chat conversion behave like a plain click on the new Session: it
+  becomes or replaces the Preview entry, and typing in it keeps it. A window with one kept tab therefore
+  grows a second (Preview) tab on the first sidebar click, which is also when the strip appears.
+- The Preview entry is persisted with the strip (`previewSessionId`, written only while one exists), so a
+  restart restores it. Server edits that save a strip keep it while it is still listed and never create
+  one; tearing the Preview tab off keeps it in the new window as a kept tab.
 - The **+** sticks to the right edge of the tab rail, so it stays reachable when tabs overflow. The
   strip's empty area to the right of it remains a window drag region. A Session with no tabs in its
   Workbench shows no pane tab bar under the strip, only the empty state.

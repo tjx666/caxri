@@ -45,6 +45,46 @@ export function insertOpenSessionAfter(
 }
 
 /**
+ * The Preview entry after a strip edit: it stays while it is still listed, and an edit never creates one (a Session the
+ * edit adds is kept). The Server applies the same rule when it stores a strip (`replaceWindowOpenSessions`).
+ */
+export function previewAfterEdit(
+    previewId: string | undefined,
+    nextIds: readonly string[],
+): string | undefined {
+    return previewId !== undefined && nextIds.includes(previewId) ? previewId : undefined;
+}
+
+/**
+ * Whether a DOM event inside the Session counts as the user working in it, which keeps a Preview entry. A bare modifier
+ * and a chord (Cmd/Ctrl + key, the app's own shortcuts such as `Cmd+1`) do not: switching tabs by keyboard must not
+ * keep the tab it lands on. A pointer press counts only for the primary button.
+ */
+export function isKeepingInteraction(event: {
+    type: string;
+    button?: number;
+    key?: string;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+}): boolean {
+    switch (event.type) {
+        case 'keydown':
+            return (
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !['Alt', 'Control', 'Meta', 'Shift'].includes(event.key ?? '')
+            );
+        case 'pointerdown':
+            return (event.button ?? 0) === 0;
+        case 'paste':
+        case 'input':
+            return true;
+        default:
+            return false;
+    }
+}
+
+/**
  * Moves one entry so it lands before the entry currently at `targetIndex` of the strip without it, or at the end when
  * `targetIndex` is `undefined`. That is the index `resolveTabDropIndex` reports for a drop point once the dragged tab's
  * own rectangle is excluded from the measurement.

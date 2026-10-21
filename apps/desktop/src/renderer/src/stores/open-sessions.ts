@@ -68,6 +68,14 @@ export function useSessionOpenPlace(sessionId: string): SessionOpenPlace | undef
     );
 }
 
+/**
+ * Whether `sessionId` is this window's Preview entry (the tab a plain sidebar click replaces), as a boolean so only the
+ * tab whose state flips re-renders.
+ */
+export function useIsPreviewSession(sessionId: string): boolean {
+    return useWorkbenchStore((state) => state.bootstrap?.previewSessionId === sessionId);
+}
+
 export function getOpenSessionIds(): readonly string[] {
     return useWorkbenchStore.getState().bootstrap?.openSessionIds ?? NO_OPEN_SESSIONS;
 }
@@ -82,6 +90,8 @@ export function applyWindowOpenSessions(window: WindowOpenSessions): void {
         if (!current.bootstrap) return current;
         const next = {
             ...current.bootstrap,
+            // No Preview entry means every entry is kept.
+            previewSessionId: window.previewSessionId ?? undefined,
             openSessionIds: window.openSessionIds,
             selectedSessionId: window.activeSessionId ?? current.bootstrap.selectedSessionId,
         };

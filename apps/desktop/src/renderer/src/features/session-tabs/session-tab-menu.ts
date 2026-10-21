@@ -2,8 +2,9 @@ import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { getOpenSessionIds } from '../../stores/open-sessions';
+import { getBootstrap } from '../../stores/selectors';
 import { revealSessionInSidebar } from '../session/session-reveal-request';
-import { closeSessionTabs } from './session-tab-commands';
+import { closeSessionTabs, keepSessionTab } from './session-tab-commands';
 import { sessionIdsToClose } from './session-tabs-state';
 
 /**
@@ -20,7 +21,21 @@ export function sessionTabMenu(sessionId: string): ContextMenuEntries {
         // eslint-disable-next-line no-void -- intentional floating-promise discard
         void closeSessionTabs(sessionId, scope);
     };
+    const isPreview = getBootstrap()?.previewSessionId === sessionId;
     return [
+        ...(isPreview
+            ? [
+                  {
+                      label: translate('sessionTabs.keepOpen'),
+                      onSelect: () => {
+                          // Fire-and-forget: keeping toasts its own failure.
+                          // eslint-disable-next-line no-void -- intentional floating-promise discard
+                          void keepSessionTab(sessionId);
+                      },
+                  },
+                  CONTEXT_MENU_SEPARATOR,
+              ]
+            : []),
         {
             label: translate('sessionTabs.close'),
             disabled: sessionIdsToClose(ids, sessionId, 'one').length === 0,

@@ -76,7 +76,7 @@ test('Open Session tabs open, switch, close, replace, and open next to the activ
         const a = await selectedSessionId(page);
         await expect(tabList(page)).toHaveCount(0);
 
-        // (6a) Creating Sessions never adds a tab, so the strip stays hidden however many Sessions exist.
+        // (6a) Creating Sessions from the sidebar only replaces the Preview entry, so the strip stays hidden however many Sessions exist.
         await createAdditionalShellSession(page);
         const b = await selectedSessionId(page);
         await createAdditionalShellSession(page);
@@ -116,28 +116,43 @@ test('Open Session tabs open, switch, close, replace, and open next to the activ
         expect(afterClose.sessions.find((session) => session.id === b)?.archivedAt).toBeFalsy();
         await expectSelected(page, c);
 
-        // (5) A plain click on a Session outside the strip replaces the active tab instead of adding one.
+        // (5) A plain click on a Session outside the strip replaces only the Preview entry (c, still italic because
+        // nothing was typed in it), never the kept tab b that Cmd+click opened.
         await openInNewTab(page, b);
         await expect.poll(() => stripOrder(page)).toHaveLength(2);
+        await expect(tabFor(page, c)).toHaveAttribute('data-tab-preview', 'true');
+        await expect(tabFor(page, b)).not.toHaveAttribute('data-tab-preview', 'true');
         await sessionCard(page, a).click();
         await expectSelected(page, a);
         await expect.poll(() => stripOrder(page)).toHaveLength(2);
-        expect(await stripOrder(page)).toContain(a);
-        expect(await stripOrder(page)).not.toContain(b);
+        expect(new Set(await stripOrder(page))).toEqual(new Set([a, b]));
+        await expect(tabFor(page, a)).toHaveAttribute('data-tab-preview', 'true');
+        // Double-clicking the Preview tab keeps it, so the next plain click adds a Preview tab instead of replacing it.
+        await tabFor(page, a).getByRole('tab').dblclick();
+        await expect(tabFor(page, a)).not.toHaveAttribute('data-tab-preview', 'true');
+        await sessionCard(page, c).click();
+        await expectSelected(page, c);
+        await expect.poll(() => stripOrder(page)).toHaveLength(3);
+        await expect(tabFor(page, c)).toHaveAttribute('data-tab-preview', 'true');
+        await tabFor(page, c)
+            .getByRole('button', { name: /^Close / })
+            .click();
+        await expect.poll(() => stripOrder(page)).toHaveLength(2);
         const beforeAppend = await stripOrder(page);
 
-        // (6b) A new Session created from the sidebar leaves the strip alone, but the strip's "+" opens a tab right of the active one.
+        // (6b) A new Session created from the sidebar leaves the kept tabs alone (it becomes the Preview entry), but the strip's "+" opens a tab right of the active one.
         const sessionsBefore = (await bootstrap(page)).sessions.length;
         await createAdditionalShellSession(page);
         const created = await selectedSessionId(page);
         expect(new Set([a, b, c])).not.toContain(created);
-        await expect.poll(() => stripOrder(page)).toHaveLength(beforeAppend.length);
+        // No Preview entry is left, so the created Session adds one.
+        await expect.poll(() => stripOrder(page)).toHaveLength(beforeAppend.length + 1);
         const activeBeforeNewTab = await selectedSessionId(page);
         const strip = page.locator('[data-session-tab-strip]');
         await strip.getByRole('button', { name: 'New Session', exact: true }).click();
         // Without a default Agent the `+` hangs the Agent list from itself, not from the sidebar's Project heading.
         await chooseTerminalFromCreateMenu(page, 'Shell');
-        await expect.poll(() => stripOrder(page)).toHaveLength(beforeAppend.length + 1);
+        await expect.poll(() => stripOrder(page)).toHaveLength(beforeAppend.length + 2);
         await expect
             .poll(async () => (await bootstrap(page)).sessions.length)
             .toBe(sessionsBefore + 2);

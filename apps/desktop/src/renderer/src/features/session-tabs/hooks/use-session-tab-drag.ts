@@ -1,10 +1,10 @@
 import type { DragEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { getOpenSessionIds } from '../../stores/open-sessions';
-import { resolveTabDropIndex } from '../workbench/pane-drop-zone';
-import { reorderSessionTab, tearOffSessionTab } from './session-tab-commands';
-import { SESSION_TAB_DRAG_TYPE, shouldTearOffSessionTab } from './session-tabs-state';
+import { getOpenSessionIds } from '../../../stores/open-sessions';
+import { resolveTabDropIndex } from '../../workbench/pane-drop-zone';
+import { reorderSessionTab, tearOffSessionTab } from '../session-tab-commands';
+import { SESSION_TAB_DRAG_TYPE, shouldTearOffSessionTab } from '../session-tabs-state';
 
 function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(SESSION_TAB_DRAG_TYPE);

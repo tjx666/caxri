@@ -12,11 +12,11 @@ import { sessionLabelOf } from '../session/session-label-snapshot';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabNavigationTarget } from '../tabs/work-tab-accessibility';
 import { useActiveTabReveal } from '../workbench/pane-tab-reveal';
+import { useSessionTabDrag } from './hooks/use-session-tab-drag';
 import { SessionTab } from './session-tab';
 import { activateSessionTab, shiftSessionTab } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
 import { SessionTabNewButton } from './session-tab-new-button';
-import { useSessionTabDrag } from './use-session-tab-drag';
 
 /**
  * The Open Session strip: one tab per Session this window has open, above the Workbench. It exists only from two Open

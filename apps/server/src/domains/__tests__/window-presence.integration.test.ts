@@ -110,6 +110,36 @@ describe('per-window Open Sessions', () => {
         }
     });
 
+    it('reports a plain select as the Preview entry and keeps it on request', async () => {
+        const { project, runtime } = await createRuntime();
+        try {
+            const a = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+                windowKey: 'win-a',
+            });
+            const b = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+                windowKey: 'win-a',
+                placement: 'newTab',
+            });
+            const first = await runtime.handlers['app.bootstrap']({ windowKey: 'win-a' });
+            expect(first.openSessionIds).toEqual([a.session.id, b.session.id]);
+            expect(first.previewSessionId).toBe(a.session.id);
+
+            const kept = await runtime.handlers['window.openSessions.keep']({
+                sessionId: a.session.id,
+                windowKey: 'win-a',
+            });
+            expect(kept.previewSessionId).toBeUndefined();
+            const second = await runtime.handlers['app.bootstrap']({ windowKey: 'win-a' });
+            expect(second.previewSessionId).toBeUndefined();
+        } finally {
+            await runtime.close();
+        }
+    });
+
     it('tears a Session off into a new window and redirects selects of it to that window', async () => {
         const { project, runtime } = await createRuntime();
         try {
