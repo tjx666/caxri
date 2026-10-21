@@ -123,4 +123,45 @@ describe('TerminalSuspensionService: Agent Chats', () => {
             ]),
         );
     });
+
+    it('restores a Chat whose Session is reselected while its observation reclaim is in flight', async () => {
+        const { promise: reclaimed, resolve: release } = Promise.withResolvers<void>();
+        const reselected: string[] = [];
+        const chats = {
+            isSuspendable: vi.fn(() => true),
+            readLeaseAt: vi.fn((): number | undefined => undefined),
+            suspendIdle: vi.fn(async (terminalId: string) => {
+                await reclaimed;
+                return terminal(terminalId, 'session-a', {
+                    lastProcessState: 'suspended',
+                    surface: 'chat',
+                });
+            }),
+        };
+        const harness = createHarness({
+            chats,
+            onSuspendedSessionReselected: (sessionId) => reselected.push(sessionId),
+            selected: 'session-b',
+        });
+        harness.terminals.set(
+            'terminal-a',
+            terminal('terminal-a', 'session-a', {
+                kind: 'codex',
+                provider: 'codex',
+                surface: 'chat',
+            }),
+        );
+        harness.service.start();
+        chats.readLeaseAt.mockReturnValue(harness.now());
+        harness.advance(CHAT_OBSERVATION_LEASE_MS);
+        const sweep = harness.service.sweep();
+        // The provider stop is in flight when the user selects the Chat's Session again.
+        await vi.waitFor(() =>
+            expect(chats.suspendIdle).toHaveBeenCalledWith('terminal-a', 'observation'),
+        );
+        harness.select('session-a');
+        release();
+        expect(await sweep).toEqual(['terminal-a']);
+        expect(reselected).toEqual(['session-a']);
+    });
 });
