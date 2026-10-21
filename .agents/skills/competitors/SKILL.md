@@ -76,6 +76,6 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
   reference in the same change, with the research date. Add a new `references/<product>.md` when a
   new competitor is added to the landscape table, and add its repository to `scripts/sync.sh`.
 - When a delivered feature adopts an idea, interaction, value, or format from an external project,
-  add an evidence-backed row to [references/feature-references.md](references/feature-references.md)
+  add an evidence-backed entry to [references/feature-references.md](references/feature-references.md)
   in the same change, following that file's entry rules. Copied code, assets, or text also needs a
   `THIRD_PARTY_NOTICES.md` entry.
