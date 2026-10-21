@@ -210,6 +210,160 @@ describe('ExecutableResolver', () => {
     });
 });
 
+function loginShellOutput(path: string, variables: Record<string, string>): string {
+    const environment = Object.entries(variables)
+        .map(([key, value]) => `${key}=${value}\0`)
+        .join('');
+    return `banner\n__CAXRI_LOGIN_PATH__${path}\n__CAXRI_LOGIN_ENV_START__${environment}__CAXRI_LOGIN_ENV_END__`;
+}
+
+describe('ExecutableResolver Agent environment', () => {
+    it('gives Agents the login-shell variables under the allowlisted launch context', async () => {
+        const run = vi.fn(() =>
+            Promise.resolve({
+                stdout: loginShellOutput('/login/bin', {
+                    SEARCH_API_KEY: 'from-startup-file',
+                    MULTILINE_VALUE: 'first\nsecond=line',
+                    CODEX_HOME: '/startup-file/codex',
+                    PATH: '/login/bin',
+                    PWD: '/probe-cwd',
+                    OLDPWD: '/probe-previous',
+                    SHLVL: '2',
+                    _: '/usr/bin/env',
+                    CAXRI_AGENT_ENDPOINT: 'stale-from-startup-file',
+                }),
+                stderr: '',
+            }),
+        );
+        const resolver = new ExecutableResolver(
+            () => ({
+                HOME: '/home/user',
+                PATH: '/usr/bin:/bin',
+                SHELL: '/bin/zsh',
+                CODEX_HOME: '/isolated/codex',
+                GITHUB_TOKEN: 'must-not-leak',
+            }),
+            run,
+        );
+
+        const agentEnvironment = await resolver.agentEnvironment();
+
+        expect(agentEnvironment).toMatchObject({
+            SEARCH_API_KEY: 'from-startup-file',
+            MULTILINE_VALUE: 'first\nsecond=line',
+            CODEX_HOME: '/isolated/codex',
+            HOME: '/home/user',
+            PATH: '/login/bin',
+        });
+        for (const key of ['PWD', 'OLDPWD', 'SHLVL', '_', 'CAXRI_AGENT_ENDPOINT', 'GITHUB_TOKEN'])
+            expect(agentEnvironment).not.toHaveProperty(key);
+        const serverEnvironment = await resolver.environment();
+        expect(serverEnvironment).not.toHaveProperty('SEARCH_API_KEY');
+        expect(serverEnvironment).toMatchObject({ PATH: '/login/bin' });
+        expect(run).toHaveBeenCalledOnce();
+    });
+
+    it('re-reads a stale snapshot for Agent launches and keeps it when a refresh fails', async () => {
+        let output = loginShellOutput('/login/bin', { SEARCH_API_KEY: 'first' });
+        let isFails = false;
+        const run = vi.fn(() =>
+            isFails
+                ? Promise.reject(new Error('login shell timed out'))
+                : Promise.resolve({ stdout: output, stderr: '' }),
+        );
+        let now = 1_000_000;
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: '/home/user', PATH: '/usr/bin:/bin', SHELL: '/bin/zsh' }),
+            run,
+            () => now,
+        );
+
+        await expect(resolver.agentEnvironment()).resolves.toMatchObject({
+            SEARCH_API_KEY: 'first',
+        });
+        output = loginShellOutput('/login/bin', { SEARCH_API_KEY: 'second' });
+        now += 1_000;
+        await expect(resolver.agentEnvironment()).resolves.toMatchObject({
+            SEARCH_API_KEY: 'first',
+        });
+        expect(run).toHaveBeenCalledOnce();
+
+        now += 60_000;
+        await expect(resolver.agentEnvironment()).resolves.toMatchObject({
+            SEARCH_API_KEY: 'second',
+        });
+        expect(run).toHaveBeenCalledTimes(2);
+
+        isFails = true;
+        now += 60_000;
+        await expect(resolver.agentEnvironment()).resolves.toMatchObject({
+            SEARCH_API_KEY: 'second',
+            PATH: '/login/bin',
+        });
+        expect(run).toHaveBeenCalledTimes(3);
+    });
+
+    it('keeps a heavy shell environment inside the Terminal launch-plan limits', async () => {
+        const many = Object.fromEntries(
+            Array.from({ length: 600 }, (_, index) => [`TOOL_VARIABLE_${index}`, 'value']),
+        );
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: '/home/user', PATH: '/usr/bin:/bin', SHELL: '/bin/zsh' }),
+            () =>
+                Promise.resolve({
+                    stdout: loginShellOutput('/login/bin', {
+                        HUGE_VALUE: 'x'.repeat(64 * 1024 + 1),
+                        [`LONG_${'N'.repeat(256)}`]: 'value',
+                        KEPT_FIRST: 'value',
+                        ...many,
+                    }),
+                    stderr: '',
+                }),
+        );
+
+        const environment = await resolver.agentEnvironment();
+
+        expect(environment).not.toHaveProperty('HUGE_VALUE');
+        expect(environment).not.toHaveProperty(`LONG_${'N'.repeat(256)}`);
+        expect(environment).toHaveProperty('KEPT_FIRST');
+        // Room remains under the 512-entry launch-plan schema for Caxri's own launch variables.
+        expect(Object.keys(environment).length).toBeLessThanOrEqual(400);
+    });
+
+    it('falls back to the PATH marker when the shell prints no environment block', async () => {
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: '/home/user', PATH: '/usr/bin:/bin', SHELL: '/bin/sh' }),
+            () => Promise.resolve({ stdout: '__CAXRI_LOGIN_PATH__/login/bin\n', stderr: '' }),
+        );
+
+        await expect(resolver.agentEnvironment()).resolves.toEqual({
+            HOME: '/home/user',
+            PATH: '/login/bin',
+            SHELL: '/bin/sh',
+        });
+    });
+
+    it('reads variables a real login shell exports from its startup file', async () => {
+        const home = await mkdtemp(join(tmpdir(), 'caxri-login-environment-'));
+        temporaryDirectories.push(home);
+        await writeFile(
+            join(home, '.bash_profile'),
+            "echo 'startup banner'\nexport SEARCH_API_KEY=from-bash-profile\nexport MULTILINE_VALUE=$'first\\nsecond'\n",
+        );
+        const resolver = new ExecutableResolver(() => ({
+            HOME: home,
+            PATH: '/usr/bin:/bin',
+            SHELL: '/bin/bash',
+        }));
+
+        await expect(resolver.agentEnvironment()).resolves.toMatchObject({
+            SEARCH_API_KEY: 'from-bash-profile',
+            MULTILINE_VALUE: 'first\nsecond',
+            HOME: home,
+        });
+    });
+});
+
 describe('runExternalCommand', () => {
     /**
      * Regression for the packaged-app "GitHub CLI is not available on PATH" failure: a GUI launch inherits the

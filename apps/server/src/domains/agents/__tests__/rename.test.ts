@@ -13,7 +13,7 @@ function thrown(function_: () => never): unknown {
 }
 
 vi.mock('../../executables', () => ({
-    serverProcessEnvironment: (variables: NodeJS.ProcessEnv = {}) =>
+    agentProcessEnvironment: (variables: NodeJS.ProcessEnv = {}) =>
         Promise.resolve({ ...variables, PATH: '/login/bin' }),
 }));
 

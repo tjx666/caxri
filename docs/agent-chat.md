@@ -164,9 +164,11 @@ verbatim so its space-aligned columns survive (`agent-chat-feedback.tsx`).
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
 live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
 `grok agent --no-leader stdio`), spawned by Server Core. Its environment
-(`prepareChatLaunch` in `apps/server/src/domains/agent-chat/chat-launch.ts`) is the same
-secret-minimized base environment as other Agent launches (`agentCommandEnvironment`: the Server's
-allowlisted variables, login-shell `PATH`, and the Agent `HOME`), plus one of the two per-launch
+(`prepareChatLaunch` in `apps/server/src/domains/agent-chat/chat-launch.ts`) is the same base
+environment as other Agent launches (`agentCommandEnvironment`: the variables the user's interactive
+login shell exports, overlaid by the Server's allowlisted launch context, login-shell `PATH`, and the
+Agent `HOME`), so an MCP server key exported from a shell startup file reaches the provider exactly as
+it would in the user's terminal; plus one of the two per-launch
 additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-environment.ts`:
 
 - No lifecycle-hook environment: the Chat synthesizes its own lifecycle signals, so hooks would
