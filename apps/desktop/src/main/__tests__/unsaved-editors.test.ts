@@ -4,6 +4,7 @@ import { setMainLanguage } from '../locale';
 import type { UnsavedEditorsDecisionOptions, UnsavedEditorsSummary } from '../unsaved-editors';
 import {
     createUnsavedEditorsBridge,
+    createWorkbenchUnsavedEditors,
     decideUnsavedEditors,
     unsavedEditorsPrompt,
 } from '../unsaved-editors';
@@ -182,5 +183,72 @@ describe('createUnsavedEditorsBridge', () => {
         const assertion = expect(pending).rejects.toThrow('Workbench did not answer inspect');
         await vi.advanceTimersByTimeAsync(10);
         await assertion;
+    });
+});
+
+describe('createWorkbenchUnsavedEditors', () => {
+    function setup(counts: Record<string, number>) {
+        const requests: Array<{ key: string; action: string }> = [];
+        const dialog = { showMessageBox: vi.fn().mockResolvedValue({ response: 0 }) };
+        const windows = Object.keys(counts).map((key) => ({
+            key,
+            window: { isDestroyed: () => false } as never,
+        }));
+        const editors: ReturnType<typeof createWorkbenchUnsavedEditors> =
+            createWorkbenchUnsavedEditors({
+                dialog: dialog as never,
+                logger: () => {},
+                windows: () => windows,
+                sendEvent: (event, key) => {
+                    const { requestId, action } = event.payload;
+                    requests.push({ key, action });
+                    queueMicrotask(() =>
+                        editors.reply({
+                            requestId,
+                            reply:
+                                action === 'inspect'
+                                    ? {
+                                          kind: 'summary',
+                                          count: counts[key] ?? 0,
+                                          names: Array.from(
+                                              { length: counts[key] ?? 0 },
+                                              (_, index) => `${key}-${index}.ts`,
+                                          ),
+                                      }
+                                    : { kind: 'saved' },
+                        }),
+                    );
+                },
+            });
+        return { dialog, editors, requests };
+    }
+
+    it('asks only the named window when one window closes', async () => {
+        const { editors, requests } = setup({ 'main': 1, 'win-1': 2 });
+
+        await expect(editors.decide('close', 'win-1')).resolves.toBe('continue');
+
+        expect(requests.filter(({ action }) => action === 'inspect')).toEqual([
+            { key: 'win-1', action: 'inspect' },
+        ]);
+    });
+
+    it('merges every window into one prompt and saves only the dirty windows', async () => {
+        const { dialog, editors, requests } = setup({ 'main': 0, 'win-1': 2, 'win-2': 1 });
+
+        await expect(editors.decide('quit')).resolves.toBe('continue');
+
+        expect(dialog.showMessageBox).toHaveBeenCalledOnce();
+        expect(requests.filter(({ action }) => action === 'saveAll').map(({ key }) => key)).toEqual(
+            ['win-1', 'win-2'],
+        );
+    });
+
+    it('does not prompt when no window has unsaved buffers', async () => {
+        const { dialog, editors } = setup({ 'main': 0, 'win-1': 0 });
+
+        await expect(editors.decide('quit')).resolves.toBe('continue');
+
+        expect(dialog.showMessageBox).not.toHaveBeenCalled();
     });
 });

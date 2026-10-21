@@ -70,7 +70,7 @@ describe('editor Worker stall diagnostic', () => {
             isRecovering: () => false,
             logger: () => ({ write }) as never,
             readEventLoopStalls,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport,
         });
         return electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;

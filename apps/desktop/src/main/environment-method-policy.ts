@@ -127,6 +127,10 @@ const environmentMethodScopes = {
      */
     'window.fullScreen.get': 'any',
     'window.reportViewing': 'any',
+    /**
+     * Tab tear-off exists only in the local Workbench; an SSH Host window is a single window.
+     */
+    'window.tearOffSession': 'local-only',
 } as const satisfies Record<DesktopMethod, EnvironmentMethodScope>;
 
 export type EnvironmentKind = 'local' | 'ssh';

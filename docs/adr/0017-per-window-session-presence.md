@@ -58,3 +58,22 @@ Host windows keep their own connection, so each injects its own window key, repo
 reseeds on reconnect. Notification suppression reads Main's live native window state (focused, visible,
 not minimized), never the most-recently-focused fallback. Behavior is documented in
 [Open Sessions](../open-sessions.md).
+
+## Amendment: tear-off windows (2026-10-21)
+
+Tear-off windows land the second window this ADR anticipated. The decisions:
+
+- **A Session is an Open Session of at most one window.** Checked at entry level in the Server's two strip
+  write paths. A select or resume of a Session owned elsewhere activates it in the owner and returns
+  `ownerWindowKey`; a strip save drops entries owned elsewhere; reconcile de-duplicates across windows,
+  keeping the first window in key order with `main` first. This matches Termany's one page per window claim
+  and cmux's `moveWorkspaceToWindow`, and avoids two windows driving one Session's Terminals and resize lease.
+- **Main mints window keys** (`win-<uuid>`, matching `windowKeySchema`); `main` stays the primary key. A
+  Renderer never names a window key or bounds, it asks `window.tearOffSession { sessionId, screenPoint? }`.
+- **Transfer is one Server transaction** (`window.openSessions.moveToWindow`, Main-only, refusals
+  `last_tab`, `not_open`, `target_in_use`), and Main shows the new window only after it succeeds, so a failed
+  tear-off never leaves a Session in zero or two windows.
+- **Window lifetime follows strips.** Closing a tear-off releases its strip; closing the primary window or
+  quitting keeps strips so the windows restore at launch.
+
+The file watcher stays single-scope. Behavior is documented in [Open Sessions](../open-sessions.md).

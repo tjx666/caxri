@@ -9,7 +9,10 @@ import type { UpdateService } from '../updates';
 import { runInRequestWindowKey } from '../window-presence-registry';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
-function handler(setViewing: (windowKey: string, sessionId: string | null) => void) {
+function handler(
+    setViewing: (windowKey: string, sessionId: string | null) => void,
+    tearOffSession?: NonNullable<Parameters<typeof createMainMethodHandler>[0]['tearOffSession']>,
+) {
     return createMainMethodHandler({
         getAgentCommander: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
@@ -20,6 +23,7 @@ function handler(setViewing: (windowKey: string, sessionId: string | null) => vo
         getSupervisor: () => ({ request: vi.fn() }) as unknown as DesktopServerConnection,
         getUpdateService: () => ({}) as UpdateService,
         getWindow: () => {},
+        tearOffSession,
         windowPresence: { setViewing },
         workbenchRootAuthority: {} as ReturnType<typeof createWorkbenchRootAuthority>,
     });
@@ -48,5 +52,41 @@ describe('window.reportViewing', () => {
             }),
         ).rejects.toMatchObject({ code: 'FORBIDDEN' });
         expect(setViewing).not.toHaveBeenCalled();
+    });
+});
+
+describe('window.tearOffSession', () => {
+    it('tears off for the window that sent the request and returns the outcome', async () => {
+        const tearOffSession = vi.fn().mockResolvedValue({ opened: true });
+        await expect(
+            runInRequestWindowKey('win-a', () =>
+                handler(
+                    vi.fn(),
+                    tearOffSession,
+                )({
+                    method: 'window.tearOffSession',
+                    params: { sessionId: 'session-1', screenPoint: { x: 5, y: 6 } },
+                }),
+            ),
+        ).resolves.toEqual({ opened: true });
+        expect(tearOffSession).toHaveBeenCalledExactlyOnceWith({
+            sourceKey: 'win-a',
+            sessionId: 'session-1',
+            screenPoint: { x: 5, y: 6 },
+        });
+    });
+
+    it('refuses a sender that is not a Workbench window', async () => {
+        const tearOffSession = vi.fn();
+        await expect(
+            handler(
+                vi.fn(),
+                tearOffSession,
+            )({
+                method: 'window.tearOffSession',
+                params: { sessionId: 'session-1' },
+            }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        expect(tearOffSession).not.toHaveBeenCalled();
     });
 });

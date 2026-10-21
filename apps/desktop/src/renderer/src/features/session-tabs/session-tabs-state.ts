@@ -6,6 +6,23 @@ import { SESSION_TAB_STRIP_MIN_SESSIONS } from '../../stores/open-sessions';
  */
 export const SESSION_TAB_DRAG_TYPE = 'application/x-caxri-session-tab';
 
+/**
+ * Whether ending a strip-tab drag tears the tab off into a new window: the drag ended outside every drop target
+ * (`dropEffect` is `none`; a tab dropped back on its own strip reports `move`), and the window keeps another tab. The
+ * strip is hidden below two Open Sessions, so a lone tab cannot start the drag, but the guard keeps a stale drag from
+ * moving a window's last Session.
+ */
+export function shouldTearOffSessionTab(input: {
+    dropEffect: string;
+    /**
+     * Whether the strip handled a drop for this drag; a handled drop never tears off, whatever `dropEffect` reports.
+     */
+    dropped: boolean;
+    tabCount: number;
+}): boolean {
+    return !input.dropped && input.dropEffect === 'none' && input.tabCount >= 2;
+}
+
 export function isSessionTabStripVisible(openSessionIds: readonly string[]): boolean {
     return openSessionIds.length >= SESSION_TAB_STRIP_MIN_SESSIONS;
 }

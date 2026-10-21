@@ -6,6 +6,7 @@ import { benchmarkLogEvents } from './logging-benchmark.js';
 import { mobileGatewayLogEvents } from './logging-mobile-gateway.js';
 import { sessionContextLogEvents, sessionSearchLogEvents } from './logging-session.js';
 import { sshHostLogEvents } from './logging-ssh-host.js';
+import { windowLogEvents } from './logging-window.js';
 
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
@@ -536,19 +537,7 @@ export const logEventCatalog = {
         subscribeFailed: 'watch_hub.subscribe_failed',
         watcherError: 'watch_hub.watcher_error',
     },
-    window: {
-        closeConfirmation: 'window.close_confirmation',
-        closeDecision: 'window.close_decision',
-        closeFailed: 'window.close_failed',
-        closed: 'window.closed',
-        created: 'window.created',
-        presenceReportFailed: 'window.presence_report_failed',
-        readyToShow: 'window.ready_to_show',
-        renderProcessCrashLoop: 'window.render_process_crash_loop',
-        renderProcessGone: 'window.render_process_gone',
-        responsive: 'window.responsive',
-        unresponsive: 'window.unresponsive',
-    },
+    window: windowLogEvents,
     workbenchRoot: {
         fallback: 'workbench_root.fallback',
         provenancePrimed: 'workbench_root.provenance_primed',

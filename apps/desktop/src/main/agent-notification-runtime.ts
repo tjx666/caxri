@@ -15,7 +15,7 @@ interface DesktopAgentNotificationOptions {
      * The process-wide delivery shared with delivery-failure alerts; see `AgentNotificationDelivery`.
      */
     delivery: AgentNotificationDelivery;
-    focusMainWindow: () => Promise<BrowserWindow>;
+    focusMainWindow: (windowKey?: string) => Promise<BrowserWindow>;
     /**
      * Whether some window is showing the Session to the user right now; see `WindowPresenceRegistry.isSessionShown`.
      */
@@ -41,8 +41,14 @@ export async function activateAgentNotificationSession(
     const session = bootstrap.sessions.find(
         (candidate) => candidate.id === sessionId && candidate.archivedAt === undefined,
     );
-    if (session)
-        await supervisor.request('session.select', { sessionId, windowKey: PRIMARY_WINDOW_KEY });
+    if (session) {
+        const { ownerWindowKey } = await supervisor.request('session.select', {
+            sessionId,
+            windowKey: PRIMARY_WINDOW_KEY,
+        });
+        // A Session owned by a torn-off window is shown there; raise that window instead of the primary one.
+        if (ownerWindowKey) await focusMainWindow(ownerWindowKey);
+    }
 }
 
 /**

@@ -45,7 +45,7 @@ function SessionTabStripBar() {
         startSentinel,
         endSentinel,
     );
-    const { dropIndicatorLeft, onDragLeave, onDragOver, onDragStart, onDrop } =
+    const { dropIndicatorLeft, onDragEnd, onDragLeave, onDragOver, onDragStart, onDrop } =
         useSessionTabDrag(listReference);
     const [announcement, setAnnouncement] = useState('');
     useActiveTabReveal(listReference, activeSessionId, dropIndicatorLeft !== undefined);
@@ -85,6 +85,7 @@ function SessionTabStripBar() {
             )}
             data-session-tab-strip=""
             onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}

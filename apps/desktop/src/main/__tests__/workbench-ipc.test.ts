@@ -52,7 +52,7 @@ describe('workbench IPC sender boundary', () => {
             logger: () => ({ write }) as never,
             onEventsReady,
             onRendererDiagnostic,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: { dispatch, negotiate },
         });
     });
@@ -152,7 +152,7 @@ describe('workbench IPC sender boundary', () => {
                           window: () => {},
                       } as never)
                     : undefined,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: { dispatch: keyed, negotiate },
             windowKey: (sender) => (sender === renderer ? 'main' : undefined),
         });
@@ -171,7 +171,7 @@ describe('workbench IPC sender boundary', () => {
             isQuitting: () => true,
             isRecovering: () => false,
             logger: () => ({ write: vi.fn() }) as never,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: { dispatch, negotiate },
         });
         const request = electronMock.handles.get('caxri:request')!;
@@ -202,7 +202,7 @@ describe('workbench IPC sender boundary', () => {
             isQuitting: () => isQuitting,
             isRecovering: () => false,
             logger: () => ({ write }) as never,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: { dispatch: () => completion.promise, negotiate },
         });
         const request = electronMock.handles.get('caxri:request')!;
@@ -229,7 +229,7 @@ describe('workbench IPC sender boundary', () => {
             isQuitting: () => false,
             isRecovering: () => false,
             logger: () => ({ write }) as never,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: {
                 dispatch: () =>
                     Promise.resolve({
@@ -263,7 +263,7 @@ describe('workbench IPC sender boundary', () => {
             isQuitting: () => false,
             isRecovering: () => false,
             logger: () => ({ write }) as never,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: {
                 dispatch: () =>
                     Promise.resolve({
@@ -294,7 +294,7 @@ describe('workbench IPC sender boundary', () => {
             isQuitting: () => false,
             isRecovering: () => false,
             logger: () => ({ write }) as never,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: {
                 dispatch: () =>
                     Promise.resolve({
@@ -329,7 +329,7 @@ describe('workbench IPC sender boundary', () => {
             isQuitting: () => false,
             isRecovering: () => false,
             logger: () => ({ write }) as never,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: {
                 dispatch: () =>
                     Promise.resolve({
@@ -365,7 +365,7 @@ describe('workbench IPC sender boundary', () => {
                 isQuitting: () => false,
                 isRecovering: () => isRecovering,
                 logger: () => ({ write }) as never,
-                renderer: () => renderer as never,
+                isWorkbenchSender: (sender) => sender === (renderer as never),
                 transport: {
                     dispatch: () =>
                         Promise.resolve({
@@ -404,7 +404,7 @@ describe('workbench IPC sender boundary', () => {
             isQuitting: () => false,
             isRecovering: () => true,
             logger: () => ({ write }) as never,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             transport: {
                 dispatch: () =>
                     Promise.resolve({
@@ -444,7 +444,7 @@ describe('workbench IPC sender boundary', () => {
                 isQuitting: () => false,
                 isRecovering: () => isRecovering,
                 logger: () => ({ write }) as never,
-                renderer: () => renderer as never,
+                isWorkbenchSender: (sender) => sender === (renderer as never),
                 transport: {
                     dispatch: () =>
                         Promise.reject(
@@ -474,4 +474,62 @@ describe('workbench IPC sender boundary', () => {
             });
         },
     );
+});
+
+describe('workbench IPC with several windows', () => {
+    it('trusts every registered window and nothing else, and attributes requests to the sender window', async () => {
+        electronMock.handles.clear();
+        electronMock.listeners.clear();
+        const { WorkbenchWindows } = await import('../workbench-windows/registry');
+        const windows = new WorkbenchWindows();
+        const sender = (name: string) => ({
+            name,
+            send: vi.fn(),
+        });
+        const primary = sender('main');
+        const tearOff = sender('tear-off');
+        const stranger = sender('stranger');
+        for (const [key, value] of [
+            ['main', primary],
+            ['win-1', tearOff],
+        ] as const)
+            windows.add(key, {
+                isDestroyed: () => false,
+                isFocused: () => false,
+                webContents: value,
+            });
+        const seenKeys: Array<string | undefined> = [];
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            isRecovering: () => false,
+            logger: () => ({ write: vi.fn() }) as never,
+            onEventsReady: vi.fn(),
+            onRendererDiagnostic: vi.fn(),
+            isWorkbenchSender: (candidate) => windows.isWorkbenchSender(candidate),
+            windowKey: (candidate) => windows.keyOf(candidate),
+            transport: {
+                dispatch: () => {
+                    seenKeys.push(currentRequestWindowKey());
+                    return Promise.resolve({
+                        protocolVersion: 2,
+                        id: 'r1',
+                        ok: true,
+                        result: null,
+                    } as const);
+                },
+                negotiate: vi.fn() as never,
+            },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+        const envelope = { protocolVersion: 2, id: 'r1', method: 'app.health', params: {} };
+
+        await expect(request({ sender: tearOff }, envelope)).resolves.toMatchObject({ ok: true });
+        await expect(request({ sender: stranger }, envelope)).resolves.toMatchObject({
+            ok: false,
+            error: { code: 'PATH_DENIED' },
+        });
+        windows.remove('win-1');
+        await expect(request({ sender: tearOff }, envelope)).resolves.toMatchObject({ ok: false });
+        expect(seenKeys).toEqual(['win-1']);
+    });
 });

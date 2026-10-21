@@ -11,6 +11,7 @@ export const sessionTabs = {
     'sessionTabs.openInNewTab': 'Open in New Tab',
     'sessionTabs.tooltip': '{{title}} in {{project}}',
     'sessionTabs.errors.openFailed': 'Unable to open the Session in a new tab',
+    'sessionTabs.errors.tearOffFailed': 'Unable to move the Session to a new window',
     'sessionTabs.errors.closeFailed': 'Unable to close the tab',
     'sessionTabs.errors.reorderFailed': 'Unable to reorder the tabs',
 } as const;

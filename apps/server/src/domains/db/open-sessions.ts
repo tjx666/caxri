@@ -1,11 +1,67 @@
-import type { WindowOpenSessions } from '@caxri/protocol';
-import { MAX_OPEN_SESSIONS_PER_WINDOW } from '@caxri/protocol';
+import type { TearOffWindow, WindowOpenSessions } from '@caxri/protocol';
+import { CaxriError, MAX_OPEN_SESSIONS_PER_WINDOW } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
 
 type OpenSessionsDatabase = Pick<CaxriDatabaseConnection, 'appState'>;
 
 const EMPTY_WINDOW: WindowOpenSessions = { openSessionIds: [], activeSessionId: null };
+
+/**
+ * The primary Workbench window's key. Desktop Main mints every other key (`win-<uuid>`) for a torn-off window.
+ */
+const PRIMARY_WINDOW_KEY = 'main';
+
+/**
+ * Why a tear-off move was refused, carried in `CaxriError.details.reason` so Desktop Main can log a closed reason.
+ */
+type MoveRefusalReason = 'last_tab' | 'not_open' | 'target_in_use';
+
+/**
+ * Window keys in the order that settles ownership conflicts: the primary window first, then the rest as stored.
+ */
+function orderedWindowKeys(windows: Record<string, WindowOpenSessions>): string[] {
+    const keys = Object.keys(windows);
+    return keys.includes(PRIMARY_WINDOW_KEY)
+        ? [PRIMARY_WINDOW_KEY, ...keys.filter((key) => key !== PRIMARY_WINDOW_KEY)]
+        : keys;
+}
+
+/**
+ * The window whose strip lists `sessionId`, ignoring `exceptWindowKey`.
+ *
+ * Ownership invariant: a Session is an Open Session of at most one window. It is entry-level (membership in
+ * `openSessionIds`), not just the active Session, because an active-only rule would let the owner switch tabs onto a
+ * Session another window shows and mount it in two Renderers (two views fighting over one PTY size and one draft). Two
+ * writers enforce it: `selectSession` redirects to the owner, and {@link replaceWindowOpenSessions} drops entries
+ * another window owns.
+ */
+function findSessionOwner(
+    database: OpenSessionsDatabase,
+    sessionId: string,
+    exceptWindowKey?: string,
+): string | undefined {
+    const windows = database.appState.get('openSessionsByWindow') ?? {};
+    return orderedWindowKeys(windows).find(
+        (key) => key !== exceptWindowKey && windows[key].openSessionIds.includes(sessionId),
+    );
+}
+
+/**
+ * The entry that becomes active when `activeSessionId` leaves a strip: its next neighbor, else the one before it.
+ */
+function neighborOf(
+    openSessionIds: readonly string[],
+    activeSessionId: string,
+    isKept: (id: string) => boolean,
+): string | null {
+    const index = openSessionIds.indexOf(activeSessionId);
+    const neighbors = [
+        ...openSessionIds.slice(index + 1),
+        ...openSessionIds.slice(0, Math.max(index, 0)).toReversed(),
+    ];
+    return neighbors.find((id) => id !== activeSessionId && isKept(id)) ?? null;
+}
 
 /**
  * The persisted Open Session working set of one window. Open Sessions never decide whether a Session exists: every
@@ -64,6 +120,22 @@ export function activateSessionInWindow(
 }
 
 /**
+ * Selects `sessionId` for a window. A Session open in another window is never selected here: the owner activates it
+ * instead and its key is returned, leaving the requester's strip untouched (see {@link findSessionOwner}). Without a
+ * window key (the CLI) there is no per-window effect.
+ */
+export function selectInWindow(
+    database: OpenSessionsDatabase,
+    windowKey: string | undefined,
+    sessionId: string,
+): { ownerWindowKey?: string } {
+    if (!windowKey) return {};
+    const ownerWindowKey = findSessionOwner(database, sessionId, windowKey);
+    activateSessionInWindow(database, ownerWindowKey ?? windowKey, sessionId, 'navigate');
+    return ownerWindowKey ? { ownerWindowKey } : {};
+}
+
+/**
  * Stores the strip a window sent, keeping only entries that are still valid and dropping duplicates. The active Session
  * is never part of the request: it stays while it is still listed, and otherwise moves to its neighbor in the previous
  * strip (the next entry, else the one before), else the first remaining entry, so closing the active entry never leaves
@@ -76,17 +148,22 @@ function replaceWindowOpenSessions(
     validSessionIds: ReadonlySet<string>,
 ): WindowOpenSessions {
     const previous = readWindowOpenSessions(database, windowKey);
-    // eslint-disable-next-line unicorn/prefer-set-methods -- the requested strip order must be preserved
-    const openSessionIds = [...new Set(requested)].filter((id) => validSessionIds.has(id));
+    const windows = database.appState.get('openSessionsByWindow') ?? {};
+    const ownedElsewhere = new Set(
+        Object.entries(windows).flatMap(([key, window]) =>
+            key === windowKey ? [] : window.openSessionIds,
+        ),
+    );
+
+    const openSessionIds = [...new Set(requested)].filter(
+        (id) => validSessionIds.has(id) && !ownedElsewhere.has(id),
+    );
     let { activeSessionId } = previous;
     if (activeSessionId !== null && !openSessionIds.includes(activeSessionId)) {
-        const index = previous.openSessionIds.indexOf(activeSessionId);
-        const neighbors = [
-            ...previous.openSessionIds.slice(index + 1),
-            ...previous.openSessionIds.slice(0, Math.max(index, 0)).toReversed(),
-        ];
         const openSet = new Set(openSessionIds);
-        activeSessionId = neighbors.find((id) => openSet.has(id)) ?? null;
+        activeSessionId = neighborOf(previous.openSessionIds, activeSessionId, (id) =>
+            openSet.has(id),
+        );
     }
     activeSessionId ??= openSessionIds[0] ?? null;
     return writeWindow(database, windowKey, { openSessionIds, activeSessionId });
@@ -111,24 +188,38 @@ export function reconcileOpenSessions(
     let isActiveRemoved = false;
     let fallback: { id: string | undefined } | undefined;
     const next: Record<string, WindowOpenSessions> = {};
-    for (const [windowKey, window] of Object.entries(windows)) {
-        const kept = window.openSessionIds.filter((id) => validSessionIds.has(id));
+    // A Session listed by two windows (a hand-edited cell) stays with the first window in ownership order.
+    const claimed = new Set<string>();
+    for (const windowKey of orderedWindowKeys(windows)) {
+        const window = windows[windowKey];
+        const kept = [...new Set(window.openSessionIds)].filter(
+            (id) => validSessionIds.has(id) && !claimed.has(id),
+        );
         let { activeSessionId } = window;
-        if (activeSessionId !== null && !validSessionIds.has(activeSessionId)) {
+        if (activeSessionId !== null && !kept.includes(activeSessionId)) {
             isActiveRemoved = true;
-            const index = window.openSessionIds.indexOf(activeSessionId);
-            const neighbors = [
-                ...window.openSessionIds.slice(index + 1),
-                ...window.openSessionIds.slice(0, Math.max(index, 0)).toReversed(),
-            ];
-            activeSessionId = neighbors.find((id) => validSessionIds.has(id)) ?? null;
+            /**
+             * A fallback must never be a Session another window lists: it would steal that window's entry below.
+             */
+            const isOwnedByOtherWindow = (id: string): boolean =>
+                orderedWindowKeys(windows).some(
+                    (key) => key !== windowKey && windows[key].openSessionIds.includes(id),
+                );
+            const keptSet = new Set(kept);
+            activeSessionId = neighborOf(window.openSessionIds, activeSessionId, (id) =>
+                keptSet.has(id),
+            );
             if (activeSessionId === null) {
                 fallback ??= { id: fallbackSessionId() };
-                activeSessionId = fallback.id ?? null;
+                activeSessionId =
+                    fallback.id !== undefined && !isOwnedByOtherWindow(fallback.id)
+                        ? fallback.id
+                        : null;
                 if (activeSessionId !== null && !kept.includes(activeSessionId))
                     kept.push(activeSessionId);
             }
         }
+        for (const id of kept) claimed.add(id);
         if (
             kept.length !== window.openSessionIds.length ||
             activeSessionId !== window.activeSessionId
@@ -138,6 +229,44 @@ export function reconcileOpenSessions(
     }
     if (isChanged) database.appState.set('openSessionsByWindow', next);
     return { activeRemoved: isActiveRemoved };
+}
+
+/**
+ * Moves `sessionId` out of `sourceKey`'s strip into a brand-new strip for `targetKey`, in one `appState` write so a
+ * Session is never in zero or two windows. Refused (with `details.reason`) when the Session is not open in the source,
+ * is the source's last tab (a window never empties by tearing off), or the target already has a strip.
+ */
+function moveSessionToWindow(
+    database: OpenSessionsDatabase,
+    sourceKey: string,
+    targetKey: string,
+    sessionId: string,
+): { source: WindowOpenSessions; target: WindowOpenSessions } {
+    if (targetKey === PRIMARY_WINDOW_KEY || targetKey === sourceKey)
+        throw new CaxriError('VALIDATION', 'A Session can only move to a new window');
+    const source = readWindowOpenSessions(database, sourceKey);
+    const refuse = (reason: MoveRefusalReason, message: string): never => {
+        throw new CaxriError('CONFLICT', message, { reason });
+    };
+    if (!source.openSessionIds.includes(sessionId))
+        refuse('not_open', 'The Session is not open in the source window');
+    if (source.openSessionIds.length < 2)
+        refuse('last_tab', 'A window keeps at least one Open Session');
+    if (readWindowOpenSessions(database, targetKey).openSessionIds.length > 0)
+        refuse('target_in_use', 'The target window already has Open Sessions');
+    const openSessionIds = source.openSessionIds.filter((id) => id !== sessionId);
+    const activeSessionId =
+        source.activeSessionId === sessionId
+            ? neighborOf(source.openSessionIds, sessionId, () => true)
+            : source.activeSessionId;
+    const nextSource = { openSessionIds, activeSessionId };
+    const target = { openSessionIds: [sessionId], activeSessionId: sessionId };
+    database.appState.set('openSessionsByWindow', {
+        ...database.appState.get('openSessionsByWindow'),
+        [sourceKey]: nextSource,
+        [targetKey]: target,
+    });
+    return { source: nextSource, target };
 }
 
 /**
@@ -161,6 +290,46 @@ export class WindowOpenSessionsStore {
      */
     all(): Record<string, WindowOpenSessions> {
         return this.database.appState.get('openSessionsByWindow') ?? {};
+    }
+
+    /**
+     * The window that lists `sessionId` among its Open Sessions, other than `exceptWindowKey`.
+     */
+    owner(sessionId: string, exceptWindowKey?: string): string | undefined {
+        return findSessionOwner(this.database, sessionId, exceptWindowKey);
+    }
+
+    moveToWindow(
+        sourceKey: string,
+        targetKey: string,
+        sessionId: string,
+    ): { source: WindowOpenSessions; target: WindowOpenSessions } {
+        return this.database.transaction(() =>
+            moveSessionToWindow(this.database, sourceKey, targetKey, sessionId),
+        );
+    }
+
+    /**
+     * Forgets a torn-off window's strip. The primary window's record is never released.
+     */
+    release(windowKey: string): void {
+        if (windowKey === PRIMARY_WINDOW_KEY) return;
+        this.database.transaction(() => {
+            const { [windowKey]: released, ...rest } = this.all();
+            if (released as WindowOpenSessions | undefined)
+                this.database.appState.set('openSessionsByWindow', rest);
+        });
+    }
+
+    /**
+     * Every non-primary window that still has Open Sessions, for Main to reopen after a restart.
+     */
+    listTearOffs(): TearOffWindow[] {
+        return Object.entries(this.all())
+            .filter(
+                ([key, window]) => key !== PRIMARY_WINDOW_KEY && window.openSessionIds.length > 0,
+            )
+            .map(([windowKey, window]) => ({ windowKey, ...window }));
     }
 
     set(windowKey: string, requested: readonly string[]): WindowOpenSessions {

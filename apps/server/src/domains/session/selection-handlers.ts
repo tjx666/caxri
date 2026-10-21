@@ -44,28 +44,30 @@ export function createSessionSelectionHandlers(
         'session.select': ({ sessionId, windowKey }) =>
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);
-                database.selectSession(sessionId, windowKey);
-                if (windowKey) noteWindowViewing(windowKey, sessionId);
+                const { ownerWindowKey } = database.selectSession(sessionId, windowKey);
+                const viewingKey = ownerWindowKey ?? windowKey;
+                if (viewingKey) noteWindowViewing(viewingKey, sessionId);
                 terminalSuspension.observeVisibility();
                 restoreInterruptedTerminalsInBackground(sessionId);
                 coordinator.probeSessionPrimaryAgent(sessionId);
                 sendFullStateChange('session.select');
-                return database.getSession(sessionId)!;
+                return { ...database.getSession(sessionId)!, ownerWindowKey };
             }),
         // Under `session.detach`'s Session lock: a resume sent mid-detach relaunches everything it handed over.
         'session.resume': ({ sessionId, windowKey }) =>
             sessionSelections.run(() =>
                 mobileTerminalMutations.runSessions([sessionId], async () => {
                     await workbenchRoots.validateSession(sessionId);
-                    database.selectSession(sessionId, windowKey);
-                    if (windowKey) noteWindowViewing(windowKey, sessionId);
+                    const { ownerWindowKey } = database.selectSession(sessionId, windowKey);
+                    const viewingKey = ownerWindowKey ?? windowKey;
+                    if (viewingKey) noteWindowViewing(viewingKey, sessionId);
                     terminalSuspension.observeVisibility();
                     // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
                     agentChat.resumeSession(sessionId);
                     restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
                     coordinator.probeSessionPrimaryAgent(sessionId);
                     sendFullStateChange('session.resume');
-                    return database.getSession(sessionId)!;
+                    return { ...database.getSession(sessionId)!, ownerWindowKey };
                 }),
             ),
     };

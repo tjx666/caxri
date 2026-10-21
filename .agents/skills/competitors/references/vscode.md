@@ -63,6 +63,12 @@ Findings from the Open Session tab strip research (clone inspected, no commit pi
   editor part.
 - The active part is derived from focus plus a most-recently-used order, not stored as a flag.
 
+Tear-off specifics (read for the Caxri tear-off): the drag is detected on `dragend` when no drop target accepted
+it (`dropEffect` `none`), using the native cursor point and falling back to `e.screenX/Y`; the new window is offset by
+the grab point inside the tab and title bar so it opens under the cursor, clamped to the display's work area, and the
+gesture is refused when released over the active window. Caxri's `planTearOff` follows this and also refuses a
+release over any other Workbench window.
+
 For Caxri this supports a per-window working set persisted by window key, and "current" derived from
 focus with an MRU fallback ([docs/open-sessions.md](../../../../docs/open-sessions.md)).
 

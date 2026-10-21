@@ -301,22 +301,22 @@ export async function createDomainServices(
         terminalRestores,
         terminalSuspension,
     });
+    /**
+     * Announces a full workbench re-read; `reason` is what the Renderer's command convergence matches on.
+     */
+    const sendFullStateChange = (reason: FullStateChangeReason): void => {
+        send({ event: 'state.changed', payload: { kind: 'full', reason } });
+    };
     const presenceEffects = createPresenceEffects({
         coordinator,
         database,
         presence,
         projectStatus,
         restoreInterruptedTerminalsInBackground,
+        sendFullStateChange,
         terminalSuspension,
         watchSessionInBackground,
     });
-    /**
-     * Announces that the whole workbench view has to be re-read. Twelve handlers send the identical envelope, and the
-     * `reason` is the only part that carries information: it is what the Renderer's command convergence matches on.
-     */
-    const sendFullStateChange = (reason: FullStateChangeReason): void => {
-        send({ event: 'state.changed', payload: { kind: 'full', reason } });
-    };
     /**
      * The Session parking slice has no lifecycle of its own; its handlers (project hiding, archive and detach,
      * terminate all) are registered together below.

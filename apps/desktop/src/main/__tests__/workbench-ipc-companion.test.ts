@@ -41,7 +41,7 @@ describe('workbench IPC companion requests', () => {
             logger: () => {},
             onEventsReady: vi.fn(),
             onRendererDiagnostic: vi.fn(),
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             companion: (sender) =>
                 sender === (companionRenderer as never)
                     ? {
@@ -105,7 +105,7 @@ describe('workbench IPC companion requests', () => {
             isQuitting: () => false,
             isRecovering: () => false,
             logger: () => {},
-            renderer: () => {},
+            isWorkbenchSender: () => false,
             companion: (sender) => {
                 if (sender === commanderRenderer)
                     return companion('commander', commanderRenderer, commanderAdmit);
@@ -145,7 +145,7 @@ describe('workbench IPC companion requests', () => {
             onEventsReady: vi.fn(),
             onRendererDiagnostic,
             onStartupFrame,
-            renderer: () => renderer as never,
+            isWorkbenchSender: (sender) => sender === (renderer as never),
             companion: (sender) =>
                 sender === (companionRenderer as never)
                     ? {

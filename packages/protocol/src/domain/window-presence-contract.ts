@@ -108,6 +108,12 @@ export const windowPresenceSeedSchema = z.object({ windows: z.array(seededWindow
 export type WindowPresenceSeed = z.infer<typeof windowPresenceSeedSchema>;
 
 /**
+ * One torn-off window's persisted strip, keyed by the window key Main minted for it.
+ */
+export const tearOffWindowSchema = windowOpenSessionsSchema.extend({ windowKey: windowKeySchema });
+export type TearOffWindow = z.infer<typeof tearOffWindowSchema>;
+
+/**
  * Per-window presence, sent only by Desktop Main (never reachable from a Renderer).
  */
 export const windowPresenceInternalMethods = {
@@ -131,5 +137,39 @@ export const windowPresenceInternalMethods = {
         ...serverWrite,
         params: z.object({ windowKey: windowKeySchema }),
         result: z.null(),
+    },
+    /**
+     * Moves one Open Session out of a window's strip into a new window's strip in a single transaction, so a Session is
+     * never in zero or two windows. Main mints `targetWindowKey` (a Renderer cannot), and the Server rejects the move
+     * when the Session is not open in the source, is its last tab, or the target already has a strip.
+     */
+    'window.openSessions.moveToWindow': {
+        ...serverWrite,
+        params: z.object({
+            sessionId: identifierSchema,
+            windowKey: windowKeySchema,
+            targetWindowKey: windowKeySchema,
+        }),
+        result: z.object({
+            source: windowOpenSessionsSchema,
+            target: windowOpenSessionsSchema,
+        }),
+    },
+    /**
+     * Forgets the strip of a torn-off window the user closed, which frees its Sessions for any window to open. The
+     * primary window's record is never released.
+     */
+    'window.openSessions.release': {
+        ...serverWrite,
+        params: z.object({ windowKey: windowKeySchema }),
+        result: z.null(),
+    },
+    /**
+     * The persisted strips of every window other than the primary, so Main can reopen torn-off windows on launch.
+     */
+    'window.openSessions.listTearOffs': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({}),
+        result: z.array(tearOffWindowSchema),
     },
 } as const;

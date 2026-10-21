@@ -52,7 +52,8 @@ _Avoid_: Conversation, tab, Session View
 **Open Session**:
 A Session kept in one window's tab strip, ordered and persisted per window. It is a working set, not
 proof of existence: archived, deleted, and hidden Sessions drop out of every strip. The window shows
-exactly one Open Session at a time.
+exactly one Open Session at a time, and a Session belongs to at most one window: dragging its tab out
+opens a new window, and opening it from another window brings the owner forward.
 _Avoid_: Open tab, selected Session
 
 **Workbench Root**:

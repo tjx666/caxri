@@ -8,6 +8,7 @@ interface PresenceEffectsOptions {
     presence: WindowPresence;
     projectStatus: { setPolledSessions(sessionIds: ReadonlySet<string>): void };
     restoreInterruptedTerminalsInBackground: (sessionId: string) => void;
+    sendFullStateChange: (reason: 'window.openSessions') => void;
     terminalSuspension: { observeVisibility(): void };
     watchSessionInBackground: (sessionId: string) => void;
 }
@@ -70,6 +71,7 @@ export function createPresenceEffects(options: PresenceEffectsOptions): {
                 restoreInterruptedTerminalsInBackground(sessionId);
             },
             presence,
+            sendFullStateChange: options.sendFullStateChange,
         }),
         noteWindowViewing: (windowKey, sessionId) => presence.noteViewing(windowKey, sessionId),
         restoreWindowSelections,

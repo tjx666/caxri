@@ -1,9 +1,10 @@
 import type { DragEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import { getOpenSessionIds } from '../../stores/open-sessions';
 import { resolveTabDropIndex } from '../workbench/pane-drop-zone';
-import { reorderSessionTab } from './session-tab-commands';
-import { SESSION_TAB_DRAG_TYPE } from './session-tabs-state';
+import { reorderSessionTab, tearOffSessionTab } from './session-tab-commands';
+import { SESSION_TAB_DRAG_TYPE, shouldTearOffSessionTab } from './session-tabs-state';
 
 function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(SESSION_TAB_DRAG_TYPE);
@@ -45,6 +46,7 @@ function dropGeometry(
  */
 export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null>): {
     dropIndicatorLeft: number | undefined;
+    onDragEnd: (event: DragEvent<HTMLDivElement>) => void;
     onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
     onDragOver: (event: DragEvent<HTMLDivElement>) => void;
     onDragStart: (event: DragEvent<HTMLDivElement>) => void;
@@ -55,6 +57,13 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
      * `dataTransfer.getData` is unreadable during `dragover`, so the dragged id is captured at `dragstart`.
      */
     const draggedIdReference = useRef<string | undefined>(undefined);
+    /**
+     * Whether this drag already landed on the strip. `dropEffect` alone is not trusted to say so: Chromium only honors
+     * a `dropEffect` written during `dragover`, so a drag whose drop the strip handled can still end with `none`
+     * (always, for synthetic events), and treating that as "released outside" would tear off the tab the user just
+     * reordered.
+     */
+    const droppedReference = useRef(false);
     useEffect(() => {
         const clear = (): void => {
             setDropIndicatorLeft(undefined);
@@ -69,8 +78,31 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
             const sessionId = sessionTabIdAt(event.target);
             if (!sessionId) return;
             draggedIdReference.current = sessionId;
+            droppedReference.current = false;
             event.dataTransfer.setData(SESSION_TAB_DRAG_TYPE, sessionId);
             event.dataTransfer.effectAllowed = 'move';
+        },
+        onDragEnd: (event) => {
+            const sessionId = sessionTabIdAt(event.target);
+            if (
+                !sessionId ||
+                !shouldTearOffSessionTab({
+                    dropEffect: event.dataTransfer.dropEffect,
+                    dropped: droppedReference.current,
+                    tabCount: getOpenSessionIds().length,
+                })
+            )
+                return;
+            // Chromium reports a `dragend` that left the window with `screenX/Y` of `0,0` on some platforms (a long-standing
+            // quirk VS Code works around the same way in its tab drag handler), so a zero point means "unknown" and Main
+            // uses the cursor position instead of opening the window at the screen corner.
+            const hasPoint = event.screenX !== 0 || event.screenY !== 0;
+            // Fire-and-forget: the command toasts its own failure.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard
+            void tearOffSessionTab(
+                sessionId,
+                hasPoint ? { x: event.screenX, y: event.screenY } : undefined,
+            );
         },
         onDragLeave: (event) => {
             if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
@@ -86,6 +118,7 @@ export function useSessionTabDrag(listReference: RefObject<HTMLDivElement | null
             setDropIndicatorLeft(geometry.edgeX - list.getBoundingClientRect().left);
         },
         onDrop: (event) => {
+            droppedReference.current = true;
             setDropIndicatorLeft(undefined);
             const sessionId = event.dataTransfer.getData(SESSION_TAB_DRAG_TYPE);
             draggedIdReference.current = undefined;

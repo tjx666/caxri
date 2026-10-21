@@ -74,9 +74,14 @@ describe('per-window Open Sessions', () => {
             const a = await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
-                windowKey: 'win-a',
+                windowKey: undefined,
             });
             const b = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+                windowKey: undefined,
+            });
+            const c = await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
                 windowKey: 'win-a',
@@ -84,7 +89,7 @@ describe('per-window Open Sessions', () => {
 
             const stored = await runtime.handlers['window.openSessions.set']({
                 windowKey: 'win-b',
-                openSessionIds: [b.session.id, 'unknown', a.session.id],
+                openSessionIds: [b.session.id, 'unknown', a.session.id, c.session.id],
             });
             expect(stored).toEqual({
                 openSessionIds: [b.session.id, a.session.id],
@@ -99,7 +104,56 @@ describe('per-window Open Sessions', () => {
             expect(state.openSessionIds).toEqual([b.session.id]);
             expect(state.selectedSessionId).toBe(b.session.id);
             const other = await runtime.handlers['app.bootstrap']({ windowKey: 'win-a' });
-            expect(other.openSessionIds).toEqual([b.session.id]);
+            expect(other.openSessionIds).toEqual([c.session.id]);
+        } finally {
+            await runtime.close();
+        }
+    });
+
+    it('tears a Session off into a new window and redirects selects of it to that window', async () => {
+        const { project, runtime } = await createRuntime();
+        try {
+            const a = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+                windowKey: 'main',
+                placement: 'newTab',
+            });
+            const b = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+                windowKey: 'main',
+                placement: 'newTab',
+            });
+
+            const moved = await runtime.handlers['window.openSessions.moveToWindow']({
+                sessionId: b.session.id,
+                windowKey: 'main',
+                targetWindowKey: 'win-tear',
+            });
+            expect(moved.target).toEqual({
+                openSessionIds: [b.session.id],
+                activeSessionId: b.session.id,
+            });
+            expect(runtime.handlers['window.openSessions.listTearOffs']({})).toEqual([
+                { windowKey: 'win-tear', ...moved.target },
+            ]);
+
+            const redirected = await runtime.handlers['session.select']({
+                sessionId: b.session.id,
+                windowKey: 'main',
+            });
+            expect(redirected.ownerWindowKey).toBe('win-tear');
+            const main = await runtime.handlers['app.bootstrap']({ windowKey: 'main' });
+            expect(main.openSessionIds).toEqual([a.session.id]);
+            expect(main.selectedSessionId).toBe(a.session.id);
+
+            await runtime.handlers['window.openSessions.release']({ windowKey: 'win-tear' });
+            const reselected = await runtime.handlers['session.select']({
+                sessionId: b.session.id,
+                windowKey: 'main',
+            });
+            expect(reselected.ownerWindowKey).toBeUndefined();
         } finally {
             await runtime.close();
         }

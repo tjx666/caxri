@@ -8,6 +8,7 @@ import {
     openTabTargetId,
     sessionIdsToClose,
     shiftOpenSession,
+    shouldTearOffSessionTab,
     withoutOpenSessions,
 } from './session-tabs-state';
 
@@ -118,5 +119,31 @@ describe('openTabTargetId', () => {
         expect(openTabTargetId(ids, 0)).toBeUndefined();
         expect(openTabTargetId(ids, 10)).toBeUndefined();
         expect(openTabTargetId([], 9)).toBeUndefined();
+    });
+});
+
+describe('shouldTearOffSessionTab', () => {
+    it('tears off only a drag that ended outside every drop target', () => {
+        expect(shouldTearOffSessionTab({ dropEffect: 'none', dropped: false, tabCount: 3 })).toBe(
+            true,
+        );
+        expect(shouldTearOffSessionTab({ dropEffect: 'move', dropped: false, tabCount: 3 })).toBe(
+            false,
+        );
+        expect(shouldTearOffSessionTab({ dropEffect: 'copy', dropped: false, tabCount: 3 })).toBe(
+            false,
+        );
+    });
+
+    it('never tears off a drag whose drop the strip handled, even when dropEffect reads none', () => {
+        expect(shouldTearOffSessionTab({ dropEffect: 'none', dropped: true, tabCount: 3 })).toBe(
+            false,
+        );
+    });
+
+    it('never moves the last Open Session out of a window', () => {
+        expect(shouldTearOffSessionTab({ dropEffect: 'none', dropped: false, tabCount: 1 })).toBe(
+            false,
+        );
     });
 });

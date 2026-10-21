@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -11,8 +11,8 @@ import {
     readE2EAgentPolicy,
     startEventLoopMonitor,
 } from '@caxri/system';
-import type { WebContents } from 'electron';
-import { app, BrowserWindow, dialog, Menu, powerMonitor } from 'electron';
+import type { BrowserWindow, WebContents } from 'electron';
+import { app, dialog, Menu, powerMonitor, screen } from 'electron';
 
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import type { AgentCommanderWindowController } from './agent-commander-window';
@@ -56,7 +56,6 @@ import { createMenuRefreshController, createMenuStateLoader } from './menu-refre
 import { companionWindowFor, createOnDemandWindows, isZoomingWithApp } from './on-demand-windows';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
-import { loadRendererEntry } from './renderer-entry';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { DesktopServerConnection } from './server-connection';
@@ -68,27 +67,26 @@ import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
 import { createWorkbenchUnsavedEditors } from './unsaved-editors';
 import type { UpdateService } from './updates';
-import {
-    createWindowZoomController,
-    mainWindowChromeOptions,
-    publishFullScreenState,
-    zoomFactorForLevel,
-} from './window-chrome';
-import { confirmWindowClose, createWindowCloseHandler } from './window-close';
+import { createWindowZoomController } from './window-chrome';
 import { bringWindowForward, resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
+import { defaultWindowState, readWindowState } from './window-placement';
 import {
-    defaultWindowState,
-    readWindowState,
-    showWhenPlaced,
-    trackWindowState,
-} from './window-placement';
-import { createConnectionPresence, PRIMARY_WINDOW_KEY } from './window-presence-registry';
+    createConnectionPresence,
+    currentRequestWindowKey,
+    PRIMARY_WINDOW_KEY,
+} from './window-presence-registry';
 import { createWorkbenchCommandAdapter } from './workbench-command-adapter';
 import { createWorkbenchHandOffs, workbenchCommandDispatcher } from './workbench-hand-offs';
 import { installWorkbenchIpc } from './workbench-ipc';
-import { installWorkbenchRendererGuards } from './workbench-renderer-guards';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
+import {
+    createTearOffWindows,
+    createWorkbenchEventDelivery,
+    createWorkbenchWindowFactory,
+    eventAudience,
+    WorkbenchWindows,
+} from './workbench-windows';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -115,8 +113,16 @@ if (!ownsProfileInstance) app.quit();
 // mutate it genuinely need module-lifetime shared state, and this keeps each variable's storage
 // out of `unicorn/no-top-level-assignment-in-function`'s reach without changing any read/write site.
 if (ownsProfileInstance) {
+    /**
+     * The primary Workbench window, which is also registered in `workbenchWindows` under `main`. Tear-off windows exist
+     * only in the registry.
+     */
     let mainWindow: BrowserWindow | undefined;
-    let mainRenderer: WebContents | undefined;
+    const workbenchWindows = new WorkbenchWindows<BrowserWindow>();
+    /**
+     * Tear-off windows that must keep their Open Sessions when they close: the primary window closing takes them down
+     * with it, and a window whose move failed never had a strip. Every other close releases the strip.
+     */
     let supervisor: DesktopServerConnection;
     let mainLogger: ReturnType<typeof createDesktopLogger> | undefined;
     /**
@@ -154,7 +160,6 @@ if (ownsProfileInstance) {
      * exist; until then no window can request an SSH Host.
      */
     let sshHostEnvironments: SshHostEnvironments | undefined;
-    let isForceWindowClose = false;
     let isQuitStarted = false;
     let quitIntent: AppQuitIntent = 'user';
     const grantedRoots = new ProjectRootGrants();
@@ -172,7 +177,7 @@ if (ownsProfileInstance) {
     const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
     const workbenchRootAuthority = createWorkbenchRootAuthority({
         getServer: () => supervisor,
-        getWindow: () => mainWindow,
+        getWindow: () => requestWorkbenchWindow(),
         grants: grantedRoots,
         logger: () => mainLogger,
         nextTestRoot: resolveNextTestRootPath,
@@ -189,12 +194,12 @@ if (ownsProfileInstance) {
             () => [app.getLocale()],
         ),
     });
+    const deliverToWorkbench = createWorkbenchEventDelivery(workbenchWindows, eventAudience);
     const eventRelay = createMainEventRelay({
-        deliver: (message) => {
+        deliver: (message, event, windowKey) => {
             benchmarkWindow?.relay(message);
             const isForWorkbench = agentCommander?.relay(message) ?? true;
-            if (isForWorkbench && mainWindow && !mainWindow.isDestroyed())
-                mainWindow.webContents.send('caxri:event', message);
+            if (isForWorkbench) deliverToWorkbench(message, event, windowKey);
         },
         loadState: () => supervisor.request('app.bootstrap'),
         logger: () => mainLogger,
@@ -205,15 +210,21 @@ if (ownsProfileInstance) {
     const windowZoom = createWindowZoomController({
         loadLevel: async () => (await supervisor.request('settings.get')).value['window.zoomLevel'],
         windows: () => [
-            mainWindow,
+            ...workbenchWindows.list().map(({ window }) => window),
             agentCommander?.openWindow(),
             benchmarkWindow?.openWindow(),
             processExplorer.openWindow(),
             ...(sshHostEnvironments?.list().map((environment) => environment.window) ?? []),
         ],
     });
-    function sendEvent(event: ServerEvent): void {
-        eventRelay.send(event);
+    /**
+     * The window a native dialog for the current request attaches to: the calling Workbench window, else the primary.
+     */
+    function requestWorkbenchWindow(): BrowserWindow | undefined {
+        return workbenchWindows.get(currentRequestWindowKey() ?? '') ?? mainWindow;
+    }
+    function sendEvent(event: ServerEvent, windowKey?: string): void {
+        eventRelay.send(event, windowKey);
         notifications?.observe(event);
         if (event.event === 'settings.changed') windowZoom.refresh();
     }
@@ -233,7 +244,7 @@ if (ownsProfileInstance) {
     gpuRecovery.install();
     const unsavedEditors = createWorkbenchUnsavedEditors({
         dialog,
-        getWindow: () => mainWindow,
+        windows: () => workbenchWindows.list(),
         logger: () => mainLogger,
         sendEvent,
     });
@@ -281,106 +292,53 @@ if (ownsProfileInstance) {
         logger: () => mainLogger,
         requestAppQuit,
     };
-    function createWindow(placement: Promise<WindowPlacement>): BrowserWindow {
-        const zoomFactor = zoomFactorForLevel(windowZoom.level());
-        const window = new BrowserWindow({
-            ...defaultWindowState.bounds,
-            minWidth: 960,
-            minHeight: 640,
-            title: 'Caxri',
-            ...mainWindowChromeOptions(zoomFactor),
-            show: false,
-            webPreferences: {
-                preload: join(currentDirectory, '../preload/index.cjs'),
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: true,
-                /**
-                 * The window stays hidden while it loads in parallel with Server Core startup; an unthrottled page
-                 * reaches its first paint, and so `ready-to-show`, without waiting for visibility. Throttling returns
-                 * once the window is shown.
-                 */
-                backgroundThrottling: false,
-                zoomFactor,
-            },
-        });
-        eventRelay.rendererPending();
-        rendererReadiness.track(window.webContents);
-        window.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
-            if (isMainFrame) eventRelay.rendererPending();
-        });
-        const windowState = trackWindowState(window, {
-            isQuitting: () => isQuitStarted,
-            // Fire and forget: a failed persist is not user-actionable here.
-            save: (state) =>
-                void supervisor.request('app.windowState.update', state).catch(() => {}), // eslint-disable-line no-void -- see above
-        });
-        publishFullScreenState(window, 'workbench', sendEvent);
-        startupProfile.mark('windowCreated');
-        mainLogger?.write('info', logEventCatalog.window.created);
-        window.once('ready-to-show', () => {
-            startupProfile.mark('readyToShow');
-            mainLogger?.write('info', logEventCatalog.window.readyToShow, {
-                durationMs: performance.now() - bootStartedAt,
-            });
-            updateService.startAutomaticCheck({ isE2E: process.env.CAXRI_E2E === '1' });
-        });
-        showWhenPlaced(window, placement, () => {
-            startupProfile.mark('windowShown');
-            window.webContents.setBackgroundThrottling(true);
-            if (e2eWindowMode === 'visible') window.show();
-        });
-        installWorkbenchRendererGuards(window, {
-            isQuitting: () => isQuitStarted,
-            logger: () => mainLogger,
-            shutdown: () => supervisor.shutdown(),
-        });
-        const requestWindowClose = createWindowCloseHandler({
-            close: () => {
-                isForceWindowClose = true;
-                window.close();
-                isForceWindowClose = false;
-            },
-            confirm: (running) => confirmWindowClose(dialog, window, running, mainLogger),
-            countRunning: () => supervisor.request('terminal.runningCount'),
-            decideUnsavedEditors: () => unsavedEditors.decide('close'),
-            detachAll: () => supervisor.request('terminal.detachAll'),
-            logFailure: (message) =>
-                mainLogger?.write('error', logEventCatalog.window.closeFailed, {
-                    fields: { error: message },
-                }),
-            terminateAll: () => supervisor.request('terminal.terminateAll'),
-        });
-        window.on('close', (event) => {
-            if (isForceWindowClose || isQuitStarted) return;
-            windowState.flush();
-            event.preventDefault();
-            // `close` is a synchronous listener; the handler already resolves the window's fate
-            // (confirm/terminate/close) internally, so this is deliberately fire-and-forget here.
-            // eslint-disable-next-line unicorn/prefer-await -- see comment above
-            requestWindowClose().catch(() => {});
-        });
-        window.on('closed', () => {
-            windowState.cancel();
-            /**
-             * Explicit quit can close the window before its already-queued IPC reaches Main. Retain the trusted sender
-             * identity until process exit without reading the destroyed window.
-             */
-            if (mainWindow === window && !isQuitStarted) {
-                mainWindow = undefined;
-                mainRenderer = undefined;
-                // Closing the Workbench detaches every Terminal view, the Commander's included.
-                agentCommander?.close();
-            }
-            mainLogger?.write('info', logEventCatalog.window.closed);
-        });
-        loadRendererEntry(window, {
-            currentDirectory,
-            isPackaged: app.isPackaged,
-            page: 'index.html',
-            rendererUrl: process.env.ELECTRON_RENDERER_URL,
-        });
-        return window;
+    const tearOffWindows = createTearOffWindows<BrowserWindow>({
+        // The factory and the tear-off controller reference each other; the call happens long after both exist.
+        // eslint-disable-next-line no-use-before-define, @typescript-eslint/no-use-before-define
+        createWindow: (input) => createWorkbenchWindow({ role: 'tearOff', ...input }),
+        cursorPoint: () => screen.getCursorScreenPoint(),
+        logger: () => mainLogger,
+        primaryReady: (primary) => rendererReadiness.wait(primary.webContents),
+        register: (windowKey, window, sessionId) => {
+            registerWorkbenchWindow(windowKey, window);
+            localPresence.setViewing(windowKey, sessionId);
+        },
+        serverReady: serverReady.promise,
+        supervisor: () => supervisor,
+        windows: workbenchWindows,
+        workAreas: () => screen.getAllDisplays().map((display) => display.workArea),
+        zoomLevel: () => windowZoom.level(),
+    });
+    const createWorkbenchWindow = createWorkbenchWindowFactory({
+        bootStartedAt,
+        closeTearOffsKeepingStrips: () => tearOffWindows.closeKeepingStrips(),
+        currentDirectory,
+        decideUnsavedEditors: (windowKey) => unsavedEditors.decide('close', windowKey),
+        e2eWindowMode,
+        eventRelay,
+        isQuitting: () => isQuitStarted,
+        logger: () => mainLogger,
+        onClosed: ({ role, windowKey, window }) => {
+            eventRelay.windowClosed(windowKey);
+            // Explicit quit can close a window before its already-queued IPC reaches Main, so its sender stays trusted.
+            workbenchWindows.remove(windowKey, { keepSenderTrust: isQuitStarted });
+            if (role === 'tearOff') return tearOffWindows.onClosed(windowKey, isQuitStarted);
+            if (mainWindow !== window || isQuitStarted) return;
+            mainWindow = undefined;
+            // Closing the Workbench detaches every Terminal view, the Commander's included.
+            agentCommander?.close();
+        },
+        onPrimaryReadyToShow: () =>
+            updateService.startAutomaticCheck({ isE2E: process.env.CAXRI_E2E === '1' }),
+        rendererReadiness,
+        sendEvent,
+        startupProfile,
+        supervisor: () => supervisor,
+        zoomLevel: () => windowZoom.level(),
+    });
+    function registerWorkbenchWindow(windowKey: string, window: BrowserWindow): void {
+        workbenchWindows.add(windowKey, window);
+        localPresence.register(windowKey, window.webContents, window);
     }
     async function readWindowPlacement(): Promise<WindowPlacement> {
         const readState = async (): Promise<PersistedWindowState> => {
@@ -400,14 +358,24 @@ if (ownsProfileInstance) {
      */
     function openMainWindow(placement?: Promise<WindowPlacement>): void {
         if (mainWindow) return;
-        mainWindow = createWindow(placement ?? readWindowPlacement());
-        mainRenderer = mainWindow.webContents;
-        localPresence.register(PRIMARY_WINDOW_KEY, mainRenderer, mainWindow);
+        const window = createWorkbenchWindow({
+            role: 'primary',
+            windowKey: PRIMARY_WINDOW_KEY,
+            placement: placement ?? readWindowPlacement(),
+        });
+        mainWindow = window;
+        registerWorkbenchWindow(PRIMARY_WINDOW_KEY, window);
+        // Startup and a dock reopen share this path, so torn-off windows come back in both.
+        void tearOffWindows.restore(window); // eslint-disable-line no-void -- failures log themselves
     }
 
-    async function focusMainWindow(): Promise<BrowserWindow> {
+    /**
+     * Raises a Workbench window, reopening the primary window when it was closed: the primary window by default, or the
+     * window that owns the Session a hand-off is about.
+     */
+    async function focusMainWindow(windowKey: string = PRIMARY_WINDOW_KEY): Promise<BrowserWindow> {
         openMainWindow();
-        const window = mainWindow!;
+        const window = workbenchWindows.get(windowKey) ?? mainWindow!;
         await rendererReadiness.wait(window.webContents);
         bringWindowForward({ app, window, windowMode: e2eWindowMode });
         return window;
@@ -449,8 +417,9 @@ if (ownsProfileInstance) {
             getUserDataPath: () => desktopProfile.userDataPath,
             getSupervisor: () => supervisor,
             getUpdateService: () => updateService,
-            getWindow: () => mainWindow,
+            getWindow: () => requestWorkbenchWindow(),
             sendEvent,
+            tearOffSession: (input) => tearOffWindows.tearOff(input),
             windowPresence: localPresence,
             workbenchRootAuthority,
         }),
@@ -459,7 +428,7 @@ if (ownsProfileInstance) {
     const handleServerDesktopOperation = createDesktopOperationHandler(
         createDesktopActions({
             focusMainWindow,
-            getMainWindow: () => mainWindow,
+            getMainWindow: () => requestWorkbenchWindow(),
             sendEvent,
         }),
     );
@@ -470,11 +439,19 @@ if (ownsProfileInstance) {
             eventRelay,
             handleMainMethod,
             isWindowAvailable: () => Boolean(mainWindow && !mainWindow.isDestroyed()),
+            raiseOwnerWindow: (ownerWindowKey, method) => {
+                mainLogger?.write('info', logEventCatalog.window.ownerRedirected, {
+                    fields: { method },
+                });
+                // eslint-disable-next-line unicorn/prefer-await -- fire and forget
+                focusMainWindow(ownerWindowKey).catch(() => {});
+            },
             serverReady: serverReady.promise,
         });
-        const completeRendererHandshake = (): void => {
-            eventRelay.rendererReady();
-            if (mainRenderer) rendererReadiness.ready(mainRenderer);
+        const completeRendererHandshake = (sender: WebContents): void => {
+            const windowKey = workbenchWindows.keyOf(sender);
+            if (windowKey) eventRelay.rendererReady(windowKey);
+            rendererReadiness.ready(sender);
             // A failed readiness handshake is only logged, so this is deliberately fire-and-forget.
             // eslint-disable-next-line unicorn/prefer-await -- see comment above
             supervisor.markDesktopReady().catch((error: unknown) =>
@@ -491,12 +468,13 @@ if (ownsProfileInstance) {
             readEventLoopStalls: () => eventLoopMonitor?.summary(),
             onStartupFrame: (frame) => startupProfile.complete(frame),
             sshHost: (sender) => sshHostEnvironments?.route(sender),
-            onEventsReady: () => {
-                startupProfile.mark('rendererReady');
+            onEventsReady: (sender) => {
+                if (workbenchWindows.keyOf(sender) === PRIMARY_WINDOW_KEY)
+                    startupProfile.mark('rendererReady');
                 // eslint-disable-next-line no-void -- replays the synchronous handshake once Server Core is attached
-                void serverReady.promise.then(completeRendererHandshake);
+                void serverReady.promise.then(() => completeRendererHandshake(sender));
             },
-            renderer: () => mainRenderer,
+            isWorkbenchSender: (sender) => workbenchWindows.isWorkbenchSender(sender),
             windowKey: (sender) => localPresence.keyOf(sender),
             companion: (sender) => companionWindowFor(sender, [agentCommander, benchmarkWindow]),
             transport: dispatchCommand,
@@ -511,8 +489,7 @@ if (ownsProfileInstance) {
             openProcessExplorer: () => processExplorer.open(),
             ...agentCommanderMenuOptions(() => agentCommander),
             openBenchmark: () => benchmarkWindow?.open(),
-            workbenchWindow: () =>
-                mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+            workbenchWindow: () => workbenchWindows.focusedOrPrimary(),
             isFollowingAppZoom: (window) =>
                 isZoomingWithApp(window, [agentCommander, benchmarkWindow]),
             dispatchToSshHostWindow: sshHostWindowMenu.dispatch,

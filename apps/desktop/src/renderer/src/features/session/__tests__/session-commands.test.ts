@@ -283,6 +283,16 @@ describe('Session actions', () => {
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toBeUndefined();
     });
 
+    it('does not report a selection when another window owns the Session', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2', ownerWindowKey: 'win-a' });
+        mocks.registerSessionCommandConvergence.mockReturnValueOnce({
+            cancel: vi.fn(),
+            promise: Promise.resolve(),
+        });
+
+        await expect(didSelectSession('session-2')).resolves.toBe(false);
+    });
+
     it('registers and awaits event-driven convergence around a Session selection', async () => {
         const convergence = Promise.withResolvers<void>();
         const cancel = vi.fn();
