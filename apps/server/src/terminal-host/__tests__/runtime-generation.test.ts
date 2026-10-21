@@ -23,6 +23,7 @@ afterEach(cleanupRuntimeFixtures);
 
 interface RuntimeInternals {
     generations: { retired: Set<string>; started: Map<string, number> };
+    colors: Map<string, unknown>;
     identities: Map<string, unknown>;
     projectExecutionExit(event: TerminalExecutionExit): Promise<void>;
 }
@@ -219,5 +220,25 @@ describe('architecture-a3b-terminal-host: Terminal generation retention', () => 
         expect(reply(messages, 'reserve-exited-stale')).toMatchObject(denied);
         expect(reply(messages, 'start-8')).toMatchObject({ ok: true });
         expect(engine.start).toHaveBeenCalledTimes(2);
+    });
+
+    it('still sends terminal.exit without a snapshot and cleans per-terminal state when capture rejects', async () => {
+        const engine = fakeEngine();
+        const { messages, runtime } = createRuntime(engine.owner);
+        await reserve(runtime, 1, 'reserve-1');
+        await start(runtime, 1, 'start-1');
+        await internals(runtime).projectExecutionExit({
+            capture: Promise.reject(new Error('parser barrier rejected')),
+            exitCode: 3,
+            record: terminal,
+        });
+
+        const exit = messages.find(
+            (message) => message.type === 'event' && message.event === 'terminal.exit',
+        );
+        expect(exit).toMatchObject({ exitCode: 3 });
+        expect(exit).not.toHaveProperty('snapshot');
+        expect(internals(runtime).identities.size).toBe(0);
+        expect(internals(runtime).colors.size).toBe(0);
     });
 });
