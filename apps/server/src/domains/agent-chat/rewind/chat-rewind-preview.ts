@@ -6,10 +6,10 @@ import {
     collectAgentChatEditedFiles,
 } from '@caxri/protocol';
 
-import { requireChatTerminal } from './chat-launch';
-import type { ChatRestorePreview } from './chat-provider';
-import type { ChatStateDelivery } from './chat-states';
-import type { AgentChatServiceOptions } from './service-options';
+import { requireChatTerminal } from '../chat-launch';
+import type { ChatRestorePreview } from '../chat-provider';
+import type { ChatStateDelivery } from '../chat-states';
+import type { AgentChatServiceOptions } from '../service-options';
 
 /**
  * Why a preview is refused: the same reasons "Restore code to here" gives.

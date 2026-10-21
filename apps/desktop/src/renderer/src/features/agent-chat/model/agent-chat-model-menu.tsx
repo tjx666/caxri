@@ -10,7 +10,6 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { useCommandShortcut } from '../../../lib/keybindings';
 import { useAgentChatComposerMenu } from '../hooks/use-agent-chat-composer-command';
-import { useAgentChatModelSelection } from '../hooks/use-agent-chat-model-selection';
 import { AgentChatEffortPanel } from './agent-chat-effort-panel';
 import { AgentChatModelList } from './agent-chat-model-list';
 import type { AgentChatModelPickerView } from './agent-chat-model-selection';
@@ -20,6 +19,7 @@ import {
     agentChatPickerOpeningView,
     isAgentChatFastOffered,
 } from './agent-chat-model-selection';
+import { useAgentChatModelSelection } from './use-agent-chat-model-selection';
 
 /**
  * The control holding the current choice: the effort slider's thumb input, or the checked model row. A command-opened

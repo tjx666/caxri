@@ -89,6 +89,10 @@ modules it owns a directory, exposes a thin `index.ts` barrel, and keeps tests i
 `__tests__/` (Renderer feature directories follow the section 3 thresholds instead). Do not invent
 a folder for a one- or two-file cluster.
 
+`packages/protocol/src/domain/` and `packages/protocol/src/agent/` are density-capped in
+`scripts/directory-density-baseline.ts`: put a new protocol module in a topical subdirectory (for
+example `agent/chat/`) instead of adding another flat file, and lower the cap when files move out.
+
 Locked protocol and CLI domains in the `project-architecture` architecture reference stay even
 when they have only two production modules. Do not add or remove one of those domains without
 updating that reference and `scripts/__tests__/workspace-contract.test.ts`. A new Server domain

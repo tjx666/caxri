@@ -1,9 +1,9 @@
 import { CaxriError } from '@caxri/protocol';
 
-import { isRecord, stringField } from './chat-items';
-import type { ChatForkReleaseFailure, ChatForkTarget, ChatRewindTarget } from './chat-provider';
-import type { JsonRpcConnection } from './json-rpc-connection';
-import { JsonRpcRequestError } from './json-rpc-connection';
+import { isRecord, stringField } from '../chat-items';
+import type { ChatForkReleaseFailure, ChatForkTarget, ChatRewindTarget } from '../chat-provider';
+import type { JsonRpcConnection } from '../json-rpc-connection';
+import { JsonRpcRequestError } from '../json-rpc-connection';
 
 const REVERT_REQUEST_TIMEOUT_MS = 30_000;
 

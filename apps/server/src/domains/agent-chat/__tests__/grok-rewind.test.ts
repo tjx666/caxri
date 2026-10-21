@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { grokRewindPoint } from '../grok-rewind';
+import { grokRewindPoint } from '../rewind/grok-rewind';
 
 const listed = {
     rewind_points: [

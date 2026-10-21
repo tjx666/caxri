@@ -56,12 +56,6 @@ import { ClaudePermissions } from './claude-permissions';
 import { ClaudePlanLimits } from './claude-plan-limits';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
-import {
-    forkClaudeSession,
-    previewClaudeRestore,
-    restoreClaudeFiles,
-    rewindClaudeSession,
-} from './claude-rewind';
 import { reportClaudeSessionEnd } from './claude-session-end';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { withClaudeShellHooks } from './claude-shell-hooks';
@@ -79,6 +73,12 @@ import { ClaudeTurns } from './claude-turns';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';
 import { ProviderProcess } from './provider-process';
+import {
+    forkClaudeSession,
+    previewClaudeRestore,
+    restoreClaudeFiles,
+    rewindClaudeSession,
+} from './rewind/claude-rewind';
 import { askClaudeSideQuestion } from './side-question/claude-side-question';
 
 /**

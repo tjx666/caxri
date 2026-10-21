@@ -41,7 +41,6 @@ import {
 } from './grok-items';
 import { grokOpeningSettings } from './grok-permissions';
 import { GrokRequestBroker } from './grok-requests';
-import { forkGrokSession, rewindGrokSession } from './grok-rewind';
 import {
     failGrokStart,
     grokSessionParameters,
@@ -53,6 +52,7 @@ import { GrokUpdates, stopReasonStatus } from './grok-updates';
 import type { JsonRpcServerRequest } from './json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import { queuedPromptUuid } from './queued-prompt-uuid';
+import { forkGrokSession, rewindGrokSession } from './rewind/grok-rewind';
 
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
 /**

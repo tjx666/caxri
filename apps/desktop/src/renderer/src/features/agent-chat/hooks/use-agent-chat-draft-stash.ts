@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { translate } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
-import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
+import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../activity/agent-chat-goal-mode';
 import type {
     AgentChatComposerInput,
     AgentChatComposerKeyEvent,

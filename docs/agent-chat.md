@@ -879,7 +879,7 @@ several callbacks can share one item, so the transport id is never the key.
   bar, clears the highlights, leaves opened turns open, and returns focus to the composer. Times in
   a message's hover row are not searched, since they are invisible until hovered. Find does not read tool output
   inside a collapsed work row, earlier messages not yet loaded by scrolling back, or regular expressions.
-  Logic lives in `agent-chat-find.ts` and `hooks/use-agent-chat-find.ts`.
+  Logic lives in `agent-chat-find.ts` and `use-agent-chat-find.ts`.
 - A web link in a reply or pasted into a user message shows the site's favicon and opens a hover
   card naming the host with an Open action. For HTTPS links, the card previews the page's share
   image, title, and description. Main reads them through the `links.preview` desktop method

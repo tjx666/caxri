@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 
-import { AgentChatGoalBar } from '../agent-chat-goal-bar';
+import { AgentChatGoalBar } from '../activity/agent-chat-goal-bar';
 import { AgentChatTaskStrip } from '../tasks/agent-chat-task-strip';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import { AgentChatQueueList } from './agent-chat-queue-list';

@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { inheritChatPermission } from '../../session/creation';
 import type { CreateForkSession } from '../chat-fork';
-import { forkClaudeSession } from '../claude-rewind';
+import { forkClaudeSession } from '../rewind/claude-rewind';
 import { fixture } from './chat-service-fixture';
 
 type Provider = 'claude' | 'codex' | 'grok';

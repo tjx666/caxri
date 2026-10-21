@@ -10,7 +10,7 @@ import { useTranslation } from '../../../i18n';
 import { motionDurationMs, motionEasing } from '../../../lib/motion';
 import { cn } from '../../../lib/utilities';
 import { useIsSessionTabStripVisible } from '../../../stores/open-sessions';
-import { AGENT_CHAT_PANE_ATTRIBUTE } from '../hooks/use-agent-chat-approval-keys';
+import { AGENT_CHAT_PANE_ATTRIBUTE } from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatWaitingCard } from './agent-chat-waiting-card';
 import { useAgentChatWaiting } from './use-agent-chat-waiting';
 

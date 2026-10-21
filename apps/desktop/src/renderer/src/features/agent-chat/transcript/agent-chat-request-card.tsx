@@ -13,15 +13,15 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { answerAgentChatRequest } from '../agent-chat-commands';
-import {
-    AGENT_CHAT_APPROVAL_ATTRIBUTE,
-    useAgentChatApprovalKeys,
-} from '../hooks/use-agent-chat-approval-keys';
 import { AgentChatMessage } from '../messages/agent-chat-message';
 import {
     AGENT_CHAT_APPROVE_SHORTCUT,
     AGENT_CHAT_DENY_SHORTCUT,
 } from '../permissions/agent-chat-approval-keys';
+import {
+    AGENT_CHAT_APPROVAL_ATTRIBUTE,
+    useAgentChatApprovalKeys,
+} from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatFileChanges } from '../turns/agent-chat-file-changes';
 import { agentChatCommandCwd } from './agent-chat-presentation';
 import { AgentChatQuestionForm } from './questions/agent-chat-question-form';

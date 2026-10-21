@@ -27,7 +27,6 @@ import { AgentChatComposer } from './composer/agent-chat-composer';
 import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
-import { AGENT_CHAT_PANE_ATTRIBUTE } from './hooks/use-agent-chat-approval-keys';
 import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
@@ -58,6 +57,7 @@ import {
 } from './messages/agent-chat-reply-navigation';
 import { AgentChatReplyPlaceholder } from './messages/agent-chat-reply-placeholder';
 import { AgentChatSelectionToolbar } from './messages/agent-chat-selection-toolbar';
+import { AGENT_CHAT_PANE_ATTRIBUTE } from './permissions/use-agent-chat-approval-keys';
 import { AgentChatExpansionState } from './transcript/agent-chat-expansion';
 import { AgentChatHistoryHead } from './transcript/agent-chat-history-head';
 import { AgentChatJumpToLatest } from './transcript/agent-chat-jump-to-latest';

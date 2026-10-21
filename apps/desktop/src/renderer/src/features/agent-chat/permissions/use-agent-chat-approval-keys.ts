@@ -4,10 +4,7 @@ import { useEffect } from 'react';
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
 import { isImeComposing } from '../../../lib/ime';
-import {
-    agentChatApprovalKeyDecision,
-    isAgentChatComposerEmpty,
-} from '../permissions/agent-chat-approval-keys';
+import { agentChatApprovalKeyDecision, isAgentChatComposerEmpty } from './agent-chat-approval-keys';
 
 /**
  * The attribute the Chat pane carries, so an approval card can listen for its keys anywhere in its own pane.

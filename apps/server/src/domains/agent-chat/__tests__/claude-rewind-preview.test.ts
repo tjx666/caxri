@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { previewClaudeRestore } from '../claude-rewind';
+import { previewClaudeRestore } from '../rewind/claude-rewind';
 
 describe('previewClaudeRestore', () => {
     it('asks the SDK for a dry run and returns its files and totals', async () => {
