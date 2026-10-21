@@ -101,6 +101,11 @@ to load-bearing ones; broad file inventories go stale.
 
 ## Mechanics
 
+- Search open and closed issues for the same symptom before creating one, even when the filing is
+  exempt from the independent review below: `gh issue list --repo tjx666/caxri --state all
+--search "<symptom keywords>" --limit 10`, once in Chinese and once with the method or file name.
+  Reuse a match (comment, reopen, or move its Status) instead of filing a duplicate. A user-reported
+  Session switch delay was filed as a new issue while an open issue already tracked it.
 - Before creating, editing, or commenting on an issue, Call the Skill tool with
   "oss-confidentiality" and review the title, body, comment, links, and attached artifacts as public
   content. Describe a removed private value generically instead of repeating it in the issue.
@@ -327,7 +332,7 @@ Every filing decision (one issue or a batch) is reviewed by a second opinion fir
 another harness through `dianjiang`. The gate covers anything the agent concluded on its own: a bug
 it believes it found, a follow-up it wants to leave behind, an enhancement it thought of. It does
 not cover an issue that merely records work the user explicitly directed, where there is no
-judgment to test; file that one directly.
+judgment to test; file that one directly after the duplicate search in [Mechanics](#mechanics).
 
 The reviewer is separate from the agent that found the problem
 because the finder is the worst judge of its own find: it already believes the diagnosis, and a

@@ -46,6 +46,11 @@ export interface RepoLockOptions {
      * Isolates an already-independent resource mutation from the repository-wide lock failure domain.
      */
     namespace?: string;
+    /**
+     * How long to wait for a live owner before failing. Defaults to 10 seconds, which suits metadata-only critical
+     * sections; a lock held across a dependency install needs minutes.
+     */
+    timeoutMs?: number;
 }
 
 const WORKTREE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -264,7 +269,7 @@ export async function withRepoLock<T>(
         `${lockName}-lock-${process.pid}-${randomUUID()}.pending`,
     );
     let cleanupPendingPath: string | undefined;
-    const deadline = Date.now() + 10_000;
+    const deadline = Date.now() + (options.timeoutMs ?? 10_000);
     let isAcquired = false;
     const owner = {
         identity,

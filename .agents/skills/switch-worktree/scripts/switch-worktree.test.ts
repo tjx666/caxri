@@ -37,12 +37,12 @@ import {
     createWorktree,
     developmentWorktree,
     doctorWorktree,
-    installWorktreeDependencies,
     listWorktreeStatus,
     prepareDevelopmentWorktree,
     removeWorktree,
     switchWorktree,
 } from './worktree';
+import { installWorktreeDependencies } from './worktree-install';
 
 interface Fixture {
     remote: string;

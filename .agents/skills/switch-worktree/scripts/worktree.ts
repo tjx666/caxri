@@ -1,19 +1,12 @@
-import type { Buffer } from 'node:buffer';
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { lstat, mkdir } from 'node:fs/promises';
+import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { inspectDesktopLease } from './desktop-lease';
-import {
-    CommandError,
-    getProcessIdentity,
-    isProcessIdentityAlive,
-    runCapture,
-    runInherited,
-} from './process';
+import { CommandError, getProcessIdentity, isProcessIdentityAlive, runCapture } from './process';
 import type { RepoContext, WorktreeRecord } from './repo';
 import {
     ensureProfile,
@@ -34,6 +27,16 @@ import type {
     DevelopmentProcessRecord,
 } from './worktree-development-process';
 import { developmentProcessPath, readDevelopmentProcess } from './worktree-development-process';
+import type { DependencyState } from './worktree-install';
+import {
+    dependencyState,
+    ensureElectronBinary,
+    hasElectronBinaryArtifacts,
+    installManagedWorktree,
+    installWorktreeDependencies,
+    prepareManagedWorktree,
+    withInstallLock,
+} from './worktree-install';
 import type { OrphanProcess } from './worktree-orphans';
 import { describeOrphans, orphansByWorktree, toOrphanProcess } from './worktree-orphans';
 import type { ProcessEntry, SignalFailureReason, StopOperations } from './worktree-processes';
@@ -55,7 +58,7 @@ export interface WorktreeStatus extends WorktreeRecord {
      * recorded one. See `resolveWorktreeCdpPort` in `worktree-cdp-port.ts`.
      */
     cdpPort?: number;
-    dependencies: 'missing' | 'ready' | 'symlink';
+    dependencies: DependencyState;
     desktopLease: 'active' | 'active-other' | 'free' | 'stale' | 'stale-other';
     devProcess: 'active' | 'none' | 'stale';
     dirty: boolean;
@@ -104,173 +107,6 @@ async function didCommandSucceed(
         return true;
     } catch {
         return false;
-    }
-}
-
-async function restoreManifest(path: string, source: Buffer | undefined): Promise<void> {
-    if (!source) {
-        await rm(path, { force: true });
-        return;
-    }
-    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    try {
-        await writeFile(temporary, source);
-        /**
-         * Same-directory rename replaces a symlink entry instead of following it to another file.
-         */
-        await rename(temporary, path);
-    } finally {
-        await rm(temporary, { force: true });
-    }
-}
-
-/**
- * Electron 42+ no longer declares a package lifecycle script, so dependency installation alone does not materialize its
- * binary. Repair only an incomplete install so worktree creation and development startup retain their ready-to-run
- * contracts without repeating a completed download.
- *
- * @see https://github.com/tjx666/caxri/issues/276
- */
-async function hasElectronBinaryArtifacts(path: string): Promise<boolean> {
-    const electronDirectory = join(path, 'node_modules', 'electron');
-    try {
-        const executableRelativePath = (await readFile(join(electronDirectory, 'path.txt'), 'utf8'))
-            .toString()
-            .trim();
-        const packageManifest = JSON.parse(
-            await readFile(join(electronDirectory, 'package.json'), 'utf8'),
-        ) as { version?: unknown };
-        const installedVersion = (
-            await readFile(join(electronDirectory, 'dist', 'version'), 'utf8')
-        )
-            .trim()
-            .replace(/^v/, '');
-        if (
-            !executableRelativePath ||
-            typeof packageManifest.version !== 'string' ||
-            installedVersion !== packageManifest.version
-        ) {
-            return false;
-        }
-        const distributionDirectory = resolve(electronDirectory, 'dist');
-        const executablePath = resolve(distributionDirectory, executableRelativePath);
-        const executableWithinDistribution = relative(distributionDirectory, executablePath);
-        if (
-            !executableWithinDistribution ||
-            executableWithinDistribution === '..' ||
-            executableWithinDistribution.startsWith(`..${sep}`) ||
-            isAbsolute(executableWithinDistribution)
-        ) {
-            return false;
-        }
-        return (await lstat(executablePath)).isFile();
-    } catch (error) {
-        if (errorCode(error) === 'ENOENT' || error instanceof SyntaxError) return false;
-        throw error;
-    }
-}
-
-async function ensureElectronBinary(
-    path: string,
-    shouldPipeStdoutToStderr: boolean,
-): Promise<void> {
-    const electronDirectory = join(path, 'node_modules', 'electron');
-    if (await hasElectronBinaryArtifacts(path)) return;
-
-    const installScript = join(electronDirectory, 'install.js');
-    if (!(await isPathPresent(installScript))) {
-        throw new CommandError(`Electron installer is missing: ${installScript}`);
-    }
-    const exitCode = await runInherited('node', [installScript], {
-        cwd: path,
-        env: process.env,
-        stdoutToStderr: shouldPipeStdoutToStderr,
-    });
-    if (exitCode !== 0) {
-        throw new CommandError(`Electron binary installation failed with exit code ${exitCode}`);
-    }
-    if (!(await hasElectronBinaryArtifacts(path))) {
-        throw new CommandError(
-            `Electron binary installation left incomplete artifacts in ${electronDirectory}`,
-        );
-    }
-}
-
-/**
- * A fresh pnpm virtual store can preserve node-pty's macOS helper without its executable bit. Run the canonical
- * preparation script inside the target checkout so native tests and Server artifact staging work before any task uses
- * that worktree. Generic repository fixtures omit the script and do not need Caxri-specific native preparation.
- */
-async function prepareNodePty(path: string, shouldPipeStdoutToStderr: boolean): Promise<void> {
-    const script = join(path, 'scripts', 'prepare-node-pty.ts');
-    if (!(await isPathPresent(script))) return;
-    const exitCode = await runInherited('bun', ['run', 'scripts/prepare-node-pty.ts'], {
-        cwd: path,
-        env: process.env,
-        stdoutToStderr: shouldPipeStdoutToStderr,
-    });
-    if (exitCode !== 0) {
-        throw new CommandError(`node-pty preparation failed with exit code ${exitCode}`);
-    }
-}
-
-export async function installWorktreeDependencies(
-    path: string,
-    shouldPipeStdoutToStderr = false,
-): Promise<void> {
-    const manifestNames = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'] as const;
-    // Each manifest lives at an independent path, so reading them can run concurrently.
-    const manifestEntries = await Promise.all(
-        manifestNames.map(async (name): Promise<[string, Buffer | undefined]> => {
-            const manifestPath = join(path, name);
-            try {
-                const stats = await lstat(manifestPath);
-                if (stats.isSymbolicLink())
-                    throw new CommandError(
-                        `Refusing dependency install with symbolic link manifest: ${manifestPath}`,
-                    );
-                if (!stats.isFile())
-                    throw new CommandError(
-                        `Refusing dependency install with non-file manifest: ${manifestPath}`,
-                    );
-                return [name, await readFile(manifestPath)];
-            } catch (error) {
-                if (errorCode(error) !== 'ENOENT') throw error;
-                return [name, undefined];
-            }
-        }),
-    );
-    const manifests = new Map<string, Buffer | undefined>(manifestEntries);
-    let exitCode: number;
-    try {
-        exitCode = await runInherited('ni', [], {
-            cwd: path,
-            env: process.env,
-            stdoutToStderr: shouldPipeStdoutToStderr,
-        });
-    } finally {
-        /**
-         * Dependency installs may rewrite lockfile metadata during a no-change install. A managed worktree must
-         * preserve the caller's exact manifests, including existing edits. Each manifest restores to an independent
-         * path, so this can also run concurrently.
-         */
-        await Promise.all(
-            [...manifests].map(([name, source]) => restoreManifest(join(path, name), source)),
-        );
-    }
-    if (exitCode !== 0) throw new CommandError(`ni failed with exit code ${exitCode}`);
-    await prepareNodePty(path, shouldPipeStdoutToStderr);
-    await ensureElectronBinary(path, shouldPipeStdoutToStderr);
-}
-
-async function dependencyState(path: string): Promise<WorktreeStatus['dependencies']> {
-    try {
-        const stats = await lstat(join(path, 'node_modules'));
-        if (stats.isSymbolicLink()) return 'symlink';
-        return stats.isDirectory() ? 'ready' : 'missing';
-    } catch (error) {
-        if (errorCode(error) === 'ENOENT') return 'missing';
-        throw error;
     }
 }
 
@@ -420,31 +256,16 @@ function resolveExistingTarget(
     );
 }
 
-async function setupManagedWorktree(
-    context: RepoContext,
-    path: string,
-    install: (path: string) => Promise<void>,
-): Promise<void> {
-    const identity = await worktreeIdentity(path, true);
-    if (!identity) throw new CommandError(`Could not create an identity for ${path}`);
-    await ensureProfile(context, identity);
-    const existingDependencies = await dependencyState(path);
-    if (existingDependencies === 'symlink') {
-        throw new CommandError(`Refusing shared node_modules symlink in ${path}`);
-    }
-    if (existingDependencies === 'ready' && (await hasElectronBinaryArtifacts(path))) return;
-    await install(path);
-    if ((await dependencyState(path)) !== 'ready')
-        throw new CommandError(`ni did not create ${path}/node_modules`);
-    if (!(await hasElectronBinaryArtifacts(path)))
-        throw new CommandError(`ni left incomplete Electron artifacts in ${path}/node_modules`);
-}
+/**
+ * Outcome of the locked half of `create` or `switch`: an identity to install for, or a worktree that is already usable.
+ */
+type ResolvedWorktree =
+    { kind: 'ready'; status: WorktreeStatus } | { identity: string; kind: 'install'; path: string };
 
 async function repairManagedWorktree(
     context: RepoContext,
     worktree: WorktreeRecord,
-    install: (path: string) => Promise<void>,
-): Promise<WorktreeStatus> {
+): Promise<ResolvedWorktree> {
     const status = await inspectOne(context, worktree, await inspectDesktopLease(context.root));
     if (
         !status.managed ||
@@ -452,9 +273,26 @@ async function repairManagedWorktree(
             status.profile &&
             (await hasElectronBinaryArtifacts(worktree.path)))
     ) {
-        return status;
+        return { kind: 'ready', status };
     }
-    await setupManagedWorktree(context, worktree.path, install);
+    return {
+        identity: await prepareManagedWorktree(context, worktree.path),
+        kind: 'install',
+        path: worktree.path,
+    };
+}
+
+async function finishManagedWorktree(
+    context: RepoContext,
+    resolved: ResolvedWorktree,
+    install: (path: string) => Promise<void>,
+): Promise<WorktreeStatus> {
+    if (resolved.kind === 'ready') return resolved.status;
+    await installManagedWorktree(context, resolved.path, resolved.identity, install);
+    const worktree = (await listWorktrees(context)).find(
+        (candidate) => resolve(candidate.path) === resolve(resolved.path),
+    );
+    if (!worktree) throw new CommandError(`Git did not register worktree ${resolved.path}`);
     return inspectOne(context, worktree, await inspectDesktopLease(context.root));
 }
 
@@ -471,11 +309,11 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
     assertSemanticBranch(options.branch);
     const context = await repoContext(options.cwd);
     const install = options.install ?? installWorktreeDependencies;
-    return withRepoLock(context, async () => {
+    const resolved = await withRepoLock(context, async (): Promise<ResolvedWorktree> => {
         const worktrees = await listWorktrees(context);
         await assertBranchContainsBase(context.root, options.branch, options.base);
         const existing = worktrees.find((worktree) => worktree.branch === options.branch);
-        if (existing) return repairManagedWorktree(context, existing, install);
+        if (existing) return repairManagedWorktree(context, existing);
         if (
             !(await didCommandSucceed(
                 'git',
@@ -504,13 +342,9 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
                 context.root,
             );
         }
-        await setupManagedWorktree(context, path, install);
-        const created = (await listWorktrees(context)).find(
-            (worktree) => resolve(worktree.path) === resolve(path),
-        );
-        if (!created) throw new CommandError(`Git did not register new worktree ${path}`);
-        return inspectOne(context, created, await inspectDesktopLease(context.root));
+        return { identity: await prepareManagedWorktree(context, path), kind: 'install', path };
     });
+    return finishManagedWorktree(context, resolved, install);
 }
 
 export async function switchWorktree(
@@ -519,9 +353,9 @@ export async function switchWorktree(
     install: (path: string) => Promise<void> = installWorktreeDependencies,
 ): Promise<WorktreeStatus> {
     const context = await repoContext(cwd);
-    return withRepoLock(context, async () => {
+    const resolved = await withRepoLock(context, async (): Promise<ResolvedWorktree> => {
         const current = resolveExistingTarget(await listWorktrees(context), cwd, target);
-        if (current) return repairManagedWorktree(context, current, install);
+        if (current) return repairManagedWorktree(context, current);
         if (!(await hasBranch(context.root, target)))
             throw new CommandError(`No worktree or local branch matches: ${target}`, 2);
         const path = worktreeDirectory(context, target);
@@ -529,13 +363,9 @@ export async function switchWorktree(
             throw new CommandError(`Worktree path already exists: ${path}`);
         await mkdir(resolve(path, '..'), { recursive: true });
         await runCapture('git', ['worktree', 'add', path, target], context.root);
-        await setupManagedWorktree(context, path, install);
-        const added = (await listWorktrees(context)).find(
-            (worktree) => resolve(worktree.path) === resolve(path),
-        );
-        if (!added) throw new CommandError(`Git did not register worktree ${path}`);
-        return inspectOne(context, added, await inspectDesktopLease(context.root));
+        return { identity: await prepareManagedWorktree(context, path), kind: 'install', path };
     });
+    return finishManagedWorktree(context, resolved, install);
 }
 
 export async function doctorWorktree(cwd: string, target?: string): Promise<DoctorResult> {
@@ -656,17 +486,23 @@ export async function prepareDevelopmentWorktree(cwd: string): Promise<{
     worktreeId: string;
 }> {
     const context = await repoContext(cwd);
-    const dependencies = await dependencyState(context.root);
-    if (dependencies !== 'ready') {
-        throw new CommandError(
-            dependencies === 'symlink'
-                ? 'Refusing to start with a shared node_modules symlink'
-                : 'node_modules is missing; run ni in this worktree',
-        );
-    }
-    await ensureElectronBinary(context.root, false);
     const identity = await worktreeIdentity(context.root, true);
     if (!identity) throw new CommandError('Could not establish worktree identity');
+    /**
+     * A `create` in another session may still be installing this worktree; wait for it rather than racing its Electron
+     * download.
+     */
+    await withInstallLock(context, identity, async () => {
+        const dependencies = await dependencyState(context.root);
+        if (dependencies !== 'ready') {
+            throw new CommandError(
+                dependencies === 'symlink'
+                    ? 'Refusing to start with a shared node_modules symlink'
+                    : 'node_modules is missing; run ni in this worktree',
+            );
+        }
+        await ensureElectronBinary(context.root, false);
+    });
     return { context, profile: await ensureProfile(context, identity), worktreeId: identity };
 }
 
