@@ -230,7 +230,16 @@ function TerminalRecoveryBar({
             aria-live="polite"
             className={cn(
                 `terminal-recovery terminal-recovery-${exitPresentation.tone}`,
-                'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 border-t border-border pt-0 pr-1 pb-0 pl-2 text-[11px]',
+                'flex min-w-0 items-center justify-between gap-3 border-t border-border pt-0 pr-1 pb-0 pl-2 text-[11px]',
+                /**
+                 * The automatic-restore row is transient: it is gone as soon as the Terminal runs. Reserving its 28px
+                 * made the first fit after a restart (taken while it still shows) one row shorter than the settled
+                 * grid, so the restored Agent drew its first cursor-addressed screen at the wrong size. Overlaying it
+                 * keeps the xterm viewport, and so every fit, the same height before and after the restore.
+                 */
+                exitPresentation.icon === 'pending'
+                    ? 'pointer-events-none absolute inset-x-0 bottom-0 z-[4] h-7'
+                    : 'flex-none basis-7',
                 'bg-[color-mix(in_srgb,var(--surface)_65%,var(--background))]',
                 terminalRecoveryToneClassName[exitPresentation.tone],
             )}
