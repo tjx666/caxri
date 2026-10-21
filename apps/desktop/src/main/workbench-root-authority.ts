@@ -2,7 +2,12 @@ import type { BigIntStats } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
 
-import type { BootstrapState, MainRequest, TerminalFileLinkRefusalReason } from '@caxri/protocol';
+import type {
+    BootstrapState,
+    MainRequest,
+    ServerOperationParameters,
+    TerminalFileLinkRefusalReason,
+} from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
@@ -163,6 +168,29 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     }
 
     /**
+     * A directory link has no editor tab: it selects the Session and reveals the directory in the Files explorer.
+     * `desktop.openProject` carries a directory target (the same Server-side identity check as a file) to the
+     * Workbench, whose `desktop.openRequested` handler treats a directory path below the Session root as a Files
+     * reveal.
+     */
+    async function revealDirectoryInFiles(
+        resolved: {
+            identity: NonNullable<
+                ServerOperationParameters<'desktop.openProject'>['expectedIdentity']
+            >;
+            path: string;
+        },
+        sessionId: string,
+    ) {
+        await options.getServer().request('desktop.openProject', {
+            expectedIdentity: resolved.identity,
+            path: resolved.path,
+            sessionId,
+            launchIfNeeded: false,
+        });
+    }
+
+    /**
      * A Project-contained link opens through Server Core's authorized editable path. Anything else is an "external"
      * file: Main confirms once (or silently when a Trusted Folder already contains it), reads one bounded snapshot, and
      * hands it to the Terminal's own Session as an ephemeral, editable tab whose saves go back through Main's
@@ -198,6 +226,10 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             return 'reason' in target
                 ? { canceled: true as const, reason: target.reason }
                 : { canceled: true as const };
+        if (resolved.kind === 'directory') {
+            await revealDirectoryInFiles(resolved, target.sessionId);
+            return { opened: true as const };
+        }
         await server.request('desktop.openFile', {
             expectedIdentity: resolved.identity,
             path: resolved.path,
@@ -324,6 +356,10 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             return 'reason' in target
                 ? { canceled: true as const, reason: target.reason }
                 : { canceled: true as const };
+        if (resolved.kind === 'directory') {
+            await revealDirectoryInFiles(resolved, target.sessionId);
+            return { opened: true as const };
+        }
         await server.request('desktop.openFile', {
             expectedIdentity: resolved.identity,
             path: resolved.path,

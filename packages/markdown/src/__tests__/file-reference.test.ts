@@ -10,6 +10,10 @@ describe('fileReferenceTarget', () => {
         ['packages/a.ts:10-20', 'packages/a.ts#L10-L20'],
         ['package.json', 'package.json'],
         ['schema.proto:4', 'schema.proto:4'],
+        ['/repo/.local-config', '/repo/.local-config'],
+        ['~/x/.env', '~/x/.env'],
+        ['/repo/Makefile:3', '/repo/Makefile:3'],
+        ['/repo/my.app/sub', '/repo/my.app/sub'],
     ])('reads %j as a file', (value, expected) => {
         expect(fileReferenceTarget(value)).toBe(expected);
     });
@@ -23,6 +27,10 @@ describe('fileReferenceTarget', () => {
         'https://example.com/a.ts',
         'bun run test',
         'apps/desktop',
+        '/model',
+        '/btw',
+        '~/notes',
+        '/',
     ])('does not read %j as a file', (value) => {
         expect(fileReferenceTarget(value)).toBeUndefined();
     });
@@ -55,6 +63,33 @@ describe('proseFileReferences', () => {
             { index: 36, text: 'b.ts:3-5', file: 'b.ts#L3-L5' },
             { index: 48, text: './c.json', file: './c.json' },
         ]);
+    });
+
+    it('links a rooted extensionless path written flush against CJK text', () => {
+        expect(proseFileReferences('/Users/me/code/project/.local-config 拉一下最新配置')).toEqual([
+            {
+                index: 0,
+                text: '/Users/me/code/project/.local-config',
+                file: '/Users/me/code/project/.local-config',
+            },
+        ]);
+    });
+
+    it('links rooted dotfiles, extensionless files, and home paths with locations', () => {
+        expect(proseFileReferences('see ~/x/.env and /repo/Makefile:3')).toEqual([
+            { index: 4, text: '~/x/.env', file: '~/x/.env' },
+            { index: 17, text: '/repo/Makefile:3', file: '/repo/Makefile:3' },
+        ]);
+    });
+
+    it('leaves the sentence-ending period outside an extensionless path', () => {
+        expect(proseFileReferences('It lives in /repo/dir.')).toEqual([
+            { index: 12, text: '/repo/dir', file: '/repo/dir' },
+        ]);
+    });
+
+    it('does not link slash commands or relative extensionless paths', () => {
+        expect(proseFileReferences('Run /model then /btw, edit apps/desktop')).toEqual([]);
     });
 
     it.each([

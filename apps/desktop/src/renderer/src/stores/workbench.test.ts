@@ -517,20 +517,15 @@ describe('workbench Runtime events', () => {
     it('routes a one-shot Desktop open request without persisting it as Runtime state', () => {
         const handlers = eventHandlers();
         const unsubscribe = subscribeWorkbenchEvents(handlers);
-        mocks.emit({
-            event: 'desktop.openRequested',
-            payload: {
-                sessionId: 'session-1',
-                kind: 'file',
-                path: '/project/file.ts',
-                location: { mode: 'line', startLine: 12, endLine: 14 },
-                focusEditor: true,
-            },
-        });
-        expect(handlers.onDesktopOpen).toHaveBeenCalledWith('session-1', '/project/file.ts', {
-            location: { mode: 'line', startLine: 12, endLine: 14 },
+        const payload = {
+            sessionId: 'session-1',
+            kind: 'file' as const,
+            path: '/project/file.ts',
+            location: { mode: 'line' as const, startLine: 12, endLine: 14 },
             focusEditor: true,
-        });
+        };
+        mocks.emit({ event: 'desktop.openRequested', payload });
+        expect(handlers.onDesktopOpen).toHaveBeenCalledWith(payload);
         unsubscribe();
     });
 

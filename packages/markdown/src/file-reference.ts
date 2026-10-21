@@ -49,12 +49,28 @@ const BARE_FILE_EXTENSIONS = new Set([
 ]);
 
 /**
- * A relative or absolute path whose last segment has an extension, optionally followed by a `:line[:column]` or
- * GitHub-style `#Lstart[-Lend]` location. Spaces are excluded: inline code with a space is a command or prose, not a
- * path an Agent cites.
+ * The path part shared by inline code and prose, as two alternatives.
+ *
+ * 1. A rooted (`/` or `~/`) path with at least one directory above its last segment, which may have no extension:
+ *    `/repo/.local-config`, `~/x/.env`, `/repo/Makefile`. It is how an absolute path to a directory or a dotfile reads.
+ *    Rooted-only keeps `apps/desktop` and `user.name` out, and the directory requirement keeps a one-word slash command
+ *    (`/model`, `/btw`) out. The last character must be a word character so a sentence-ending `.` stays outside the
+ *    path (`see /repo/dir.`). It goes first so a dotted directory (`/repo/my.app/sub`) is not cut short by the second
+ *    alternative.
+ * 2. Any other relative or absolute path whose last segment has an extension (`src/a.ts`, `./a.md`, `/a.ts`).
  */
-const FILE_REFERENCE =
-    /^(?<path>(?:~\/|\.{1,2}\/|\/)?(?:[\w.@+-]+\/)*[\w.@+-]*\w\.(?<extension>[A-Za-z][\w-]{0,15}))(?<location>:\d+(?::\d+|-\d+)?|#L\d+(?:-L?\d+)?)?$/u;
+const PATH_SOURCE =
+    String.raw`(?:~\/|\/)(?:[\w.@+-]+\/)+[\w.@+-]*\w` +
+    String.raw`|(?:~\/|\.{1,2}\/|\/)?(?:[\w.@+-]+\/)*[\w.@+-]*\w\.(?<extension>[A-Za-z][\w-]{0,15})`;
+
+/**
+ * A path from {@link PATH_SOURCE}, optionally followed by a `:line[:column]` or GitHub-style `#Lstart[-Lend]` location.
+ * Spaces are excluded: inline code with a space is a command or prose, not a path an Agent cites.
+ */
+const FILE_REFERENCE = new RegExp(
+    String.raw`^(?<path>${PATH_SOURCE})(?<location>:\d+(?::\d+|-\d+)?|#L\d+(?:-L?\d+)?)?$`,
+    'u',
+);
 
 /**
  * A relative path whose first segment reads as a host name (`example.com/a.html`) is a URL without its scheme.
@@ -119,8 +135,10 @@ export function fileLinkTarget(destination: string): string | undefined {
  * A path-shaped run inside prose. `\w` is ASCII-only, so a path written flush against CJK text (`修改了 src/a.ts，`) still
  * starts and ends at the path. {@link fileReferenceTarget} still decides whether a run is a file.
  */
-const PROSE_PATH =
-    /(?:~\/|\.{1,2}\/|\/)?(?:[\w.@+-]+\/)*[\w.@+-]*\w\.[A-Za-z][\w-]{0,15}(?::\d+(?::\d+|-\d+)?|#L\d+(?:-L?\d+)?)?/gu;
+const PROSE_PATH = new RegExp(
+    String.raw`(?:${PATH_SOURCE.replace('(?<extension>', '(')})(?::\d+(?::\d+|-\d+)?|#L\d+(?:-L?\d+)?)?`,
+    'gu',
+);
 
 /**
  * Characters that, next to a run, mean it is a fragment of a longer token: a URL (`https://a.dev/x.ts`), an email, or a
@@ -185,6 +203,8 @@ function quotedPathReferences(text: string): ProseFileReference[] {
         const value = match[2] ?? '';
         // A path without a space is the ordinary scan's.
         if (!value.includes(' ')) continue;
+        // Quoted prose such as "/ and /" must not read as a path, so the extensionless form stays unquoted-only.
+        if (!/\w\.[A-Za-z]/u.test(value.split('/').at(-1) ?? '')) continue;
         // Spaces are what the quotes allow; the rest of the path still has to read as a file. The stand-in keeps every
         // offset, so the spaces go back where they were in the target (whose `:10-20` may have become `#L10-L20`).
         const target = fileReferenceTarget(value.replaceAll(' ', '_'));

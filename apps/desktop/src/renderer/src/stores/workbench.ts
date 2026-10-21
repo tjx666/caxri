@@ -629,10 +629,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
                 return;
             case 'desktop.openRequested':
-                handlers.onDesktopOpen(event.payload.sessionId, event.payload.path, {
-                    ...(event.payload.location && { location: event.payload.location }),
-                    ...(event.payload.focusEditor && { focusEditor: true }),
-                });
+                handlers.onDesktopOpen(event.payload);
                 return;
             case 'settings.openRequested':
                 handlers.onSettingsTarget(event.payload.target);

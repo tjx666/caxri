@@ -6,6 +6,11 @@ export interface DesktopOpenRequest {
      * wants the keyboard in the editor, a shell-issued `caxri open` does not.
      */
     focusEditor?: boolean;
+    /**
+     * `directory` means `path` names a directory to reveal in the Files explorer instead of a file to open. Absent for
+     * a file.
+     */
+    kind?: 'directory';
     location?: EditorNavigationTarget;
     path?: string;
     sessionId: string;
@@ -17,6 +22,11 @@ export interface DesktopOpenQueueActions {
         path: string,
         options?: { focusEditor?: boolean; location?: EditorNavigationTarget },
     ): Promise<unknown>;
+    /**
+     * Shows the Files explorer of `sessionId` with the directory selected and expanded. Runs after the Session is
+     * selected, because the explorer draws the selected Session's tree.
+     */
+    revealDirectory(sessionId: string, path: string): void;
     selectSession(sessionId: string): Promise<boolean>;
 }
 
@@ -34,6 +44,10 @@ export function createDesktopOpenQueue(actions: DesktopOpenQueueActions) {
                 await tail;
                 const selected = await actions.selectSession(request.sessionId);
                 if (!selected || !request.path) return;
+                if (request.kind === 'directory') {
+                    actions.revealDirectory(request.sessionId, request.path);
+                    return;
+                }
                 await actions.openFile(request.sessionId, request.path, {
                     ...(request.location && { location: request.location }),
                     ...(request.focusEditor && { focusEditor: true }),

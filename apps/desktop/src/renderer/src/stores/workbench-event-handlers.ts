@@ -1,4 +1,4 @@
-import type { CommandId, EditorNavigationTarget, SettingsTarget } from '@caxri/protocol';
+import type { CommandId, ServerEvent, SettingsTarget } from '@caxri/protocol';
 
 /**
  * Split out of `workbench.ts` (source-layout / ESLint `max-lines`): this interface's own callers still live there, but
@@ -13,13 +13,12 @@ export interface WorkbenchEventHandlers {
      */
     onCommand(command: CommandId, wasViaAccelerator: boolean): void;
     /**
-     * Applies an authenticated Server open request after Main redeemed its one-use target. `options.focusEditor` is the
-     * opening caller's intent, forwarded unchanged from `desktop.openFile`.
+     * Applies an authenticated Server open request after Main redeemed its one-use target. `focusEditor` is the opening
+     * caller's intent, forwarded unchanged from `desktop.openFile`; a `directory` kind with a `path` asks to reveal
+     * that directory in Files.
      */
     onDesktopOpen(
-        sessionId: string,
-        path?: string,
-        options?: { focusEditor?: boolean; location?: EditorNavigationTarget },
+        request: Extract<ServerEvent, { event: 'desktop.openRequested' }>['payload'],
     ): void;
     /**
      * Opens Settings scrolled to one row; Main sends this instead of the zero-argument `command.execute` bus.

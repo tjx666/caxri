@@ -122,6 +122,11 @@ export const terminalFileLinkInternalMethods = {
             }),
             z.object({
                 status: z.literal('authorized'),
+                /**
+                 * What the target is. Main opens a `file` in the editor and hands a `directory` to the Files explorer.
+                 * Only an exact path can be a directory; suffix-search candidates are always files.
+                 */
+                kind: z.enum(['file', 'directory']),
                 identity: desktopOpenIdentitySchema,
                 path: pathSchema,
                 projectId: identifierSchema,

@@ -55,7 +55,7 @@ and persisted Terminal-cwd candidates first. When an ordinary relative path is i
 directory suffix search may resolve it only inside the current Workbench Project; one complete
 result opens directly, while incomplete or ambiguous results require the Renderer candidate picker.
 An explicit `.../` prefix opts into the same bounded suffix search across every authorized Project.
-Current-user `~/...` links expand only in Server Core, which rejects escape and non-regular targets and
+Current-user `~/...` links expand only in Server Core, which rejects escape and targets that are neither a regular file nor a directory and
 reuses a canonical Project that already contains the file. For a Project-contained target Main selects
 the unique target Session, creates a no-Terminal Session when none exists, or requires a native choice
 when the target Project has multiple reasonable Sessions; that open uses Server Core's one-use Desktop
@@ -69,6 +69,13 @@ file's folder, reads one bounded no-follow snapshot, and the Renderer opens it a
 tab in the Terminal's own Session (saves and desktop actions follow the external document rules in
 `files-and-paths.md`). Trusting a folder persists only that prompt-skip preference; it never creates a
 Project, grants Files, Search, or Git authority over the folder, or makes the tab durable.
+A Project-contained exact target may also be a directory: `terminal.fileLink.resolve` returns `kind: 'file' | 'directory'`
+(suffix-search candidates are always files), and Main sends a directory to `desktop.openProject` with the same expected
+identity instead of `desktop.openFile`. The Workbench treats a `directory` `desktop.openRequested` that carries a path below the
+Session root as "select the Session, show the Files ViewContainer, select and expand the directory" (the Session root
+itself only selects the Session, as `caxri open <project>` always did). Chat prose and user messages link a rooted
+(`/` or `~/`) path with at least one directory segment even without an extension (`/repo/.local-config`, `/repo/Makefile`);
+relative paths and one-segment tokens such as `/model` still need an extension to read as files.
 Home expansion and suffix search never create a permanent single-file exception or a Renderer filesystem
 capability.
 

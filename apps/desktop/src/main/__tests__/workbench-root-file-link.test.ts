@@ -28,6 +28,39 @@ describe('openTerminalFileLink', () => {
         selectedSessionId: sessions.at(0)?.id,
     });
 
+    it('hands an authorized directory to the Files explorer instead of opening an editor tab', async () => {
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'authorized',
+                    kind: 'directory',
+                    identity,
+                    path: '/project/.local-config',
+                    projectId: 'project-1',
+                    sourceSessionId: 'source-session',
+                });
+            if (method === 'app.bootstrap')
+                return Promise.resolve(bootstrap([{ id: 'session-1', displayTitle: 'Session' }]));
+            if (method === 'desktop.openProject') return Promise.resolve({ state: 'requested' });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '/project/.local-config',
+            }),
+        ).resolves.toEqual({ opened: true });
+        expect(request).toHaveBeenCalledWith('desktop.openProject', {
+            expectedIdentity: identity,
+            path: '/project/.local-config',
+            sessionId: 'session-1',
+            launchIfNeeded: false,
+        });
+        expect(request).not.toHaveBeenCalledWith('desktop.openFile', expect.anything());
+    });
+
     it('opens an already authorized Home file in the selected Project Session with its location', async () => {
         const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')

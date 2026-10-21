@@ -77,7 +77,16 @@ async function realpathExisting(path: string): Promise<string> {
     }
 }
 
-async function resolveRegularFile(rootPath: string, candidate: string) {
+/**
+ * Authorizes `candidate` against `rootPath` and reports whether it is a regular file or a directory. A directory is
+ * accepted only when `canBeDirectory` is set: suffix-search candidates are files by construction and must stay so.
+ * Anything else (a socket, a device) is refused.
+ */
+async function resolveAuthorizedTarget(
+    rootPath: string,
+    candidate: string,
+    canBeDirectory: boolean,
+) {
     const rootBefore = await lstatExisting(rootPath);
     if (rootBefore.isSymbolicLink() || !rootBefore.isDirectory())
         throw new CaxriError('PATH_DENIED', 'Selected Project root is not a directory');
@@ -99,9 +108,20 @@ async function resolveRegularFile(rootPath: string, candidate: string) {
         throw new CaxriError('PATH_DENIED', 'Selected Project root changed during authorization');
     if (!isSameOrInside(canonicalRoot, canonicalTarget))
         throw new CaxriError('PATH_DENIED', 'Terminal link target is outside the selected Project');
-    if (!target.isFile())
-        throw new CaxriError('VALIDATION', 'Terminal link target is not a regular file');
+    const kind: 'directory' | 'file' | undefined = target.isFile()
+        ? 'file'
+        : canBeDirectory && target.isDirectory()
+          ? 'directory'
+          : undefined;
+    if (!kind)
+        throw new CaxriError(
+            'VALIDATION',
+            canBeDirectory
+                ? 'Terminal link target is not a regular file or directory'
+                : 'Terminal link target is not a regular file',
+        );
     return {
+        kind,
         identity: {
             device: target.dev.toString(),
             inode: target.ino.toString(),
@@ -153,9 +173,10 @@ async function resolveAuthorizedCandidate(
     const project = projectContainingPath(database, candidatePath);
     if (!project) return;
     try {
-        const authorized = await resolveRegularFile(project.rootPath, candidatePath);
+        const authorized = await resolveAuthorizedTarget(project.rootPath, candidatePath, true);
         return {
             status: 'authorized',
+            kind: authorized.kind,
             identity: authorized.identity,
             path: authorized.path,
             projectId: project.id,
@@ -221,10 +242,10 @@ async function hasReachedCandidateLimit(
 ): Promise<boolean> {
     for (const match of matches) {
         if (!isMatchingSuffix(match.relativePath, suffix)) continue;
-        let authorized: Awaited<ReturnType<typeof resolveRegularFile>>;
+        let authorized: Awaited<ReturnType<typeof resolveAuthorizedTarget>>;
         try {
             // eslint-disable-next-line no-await-in-loop -- each returned path is revalidated before exposure
-            authorized = await resolveRegularFile(project.rootPath, match.path);
+            authorized = await resolveAuthorizedTarget(project.rootPath, match.path, false);
         } catch (error) {
             if (isNotFound(error)) continue;
             throw error;
@@ -367,9 +388,10 @@ async function resolveHomeLink(
     const project = projectContainingPath(database, candidate);
     if (!project)
         return externalResolution(sourceSessionId, candidate, options.trustedFolders ?? []);
-    const authorized = await resolveRegularFile(project.rootPath, candidate);
+    const authorized = await resolveAuthorizedTarget(project.rootPath, candidate, true);
     return {
         status: 'authorized',
+        kind: authorized.kind,
         identity: authorized.identity,
         path: authorized.path,
         projectId: project.id,
@@ -451,6 +473,7 @@ export async function resolveTerminalFileLink(
         const [{ candidate, identity }] = result.candidates;
         return {
             status: 'authorized',
+            kind: 'file',
             identity,
             path: candidate.path,
             projectId: candidate.projectId,

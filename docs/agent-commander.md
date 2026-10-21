@@ -119,7 +119,8 @@ Workbench, scrolled to the missing Agent's Executable setting. URLs and file pat
 SHAs get no underline, hint, or Open Detected Link entry (there is no Git view here to open one in),
 and a reference's hover card keeps its basic content instead of loading details.
 
-Opening a file link hands off to the Workbench through `agentCommander.openFileLink`, resolved by
+Opening a file link hands off to the Workbench through `agentCommander.openFileLink` (a link to a directory
+reveals it in the Workbench's Files explorer instead of opening an editor), resolved by
 the same `terminal.fileLink.resolve` every Terminal uses, unmodified for the Commander. An absolute
 path, a `~/...` path, and an explicit `.../` cross-Project search all match by containment across
 every added Project; a bare relative link instead falls back to a suffix search scoped to the source

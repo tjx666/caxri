@@ -11,7 +11,11 @@ describe('Server Desktop open queue', () => {
             return true;
         });
         const opened = vi.fn(() => Promise.resolve());
-        const queue = createDesktopOpenQueue({ openFile: opened, selectSession: selected });
+        const queue = createDesktopOpenQueue({
+            openFile: opened,
+            revealDirectory: vi.fn(),
+            selectSession: selected,
+        });
 
         const first = queue.enqueue({ path: '/project/first.ts', sessionId: 'session-first' });
         const second = queue.enqueue({ path: '/project/second.ts', sessionId: 'session-second' });
@@ -37,7 +41,11 @@ describe('Server Desktop open queue', () => {
             .fn()
             .mockRejectedValueOnce(new Error('first target failed'))
             .mockResolvedValueOnce(undefined);
-        const queue = createDesktopOpenQueue({ openFile: opened, selectSession: selected });
+        const queue = createDesktopOpenQueue({
+            openFile: opened,
+            revealDirectory: vi.fn(),
+            selectSession: selected,
+        });
 
         await expect(
             queue.enqueue({ path: '/project/first.ts', sessionId: 'session-first' }),
@@ -52,7 +60,11 @@ describe('Server Desktop open queue', () => {
     it('preserves the requested editor location and focus intent through serialized Desktop opens', async () => {
         const selected = vi.fn(() => Promise.resolve(true));
         const opened = vi.fn(() => Promise.resolve());
-        const queue = createDesktopOpenQueue({ openFile: opened, selectSession: selected });
+        const queue = createDesktopOpenQueue({
+            openFile: opened,
+            revealDirectory: vi.fn(),
+            selectSession: selected,
+        });
 
         await queue.enqueue({
             focusEditor: true,
@@ -65,5 +77,25 @@ describe('Server Desktop open queue', () => {
             focusEditor: true,
             location: { mode: 'line', startLine: 12, endLine: 14 },
         });
+    });
+
+    it('reveals a directory target in Files after selecting its Session instead of opening it as a file', async () => {
+        const order: string[] = [];
+        const queue = createDesktopOpenQueue({
+            openFile: vi.fn(() => Promise.resolve()),
+            revealDirectory: (sessionId, path) => order.push(`reveal:${sessionId}:${path}`),
+            selectSession: (sessionId) => {
+                order.push(`select:${sessionId}`);
+                return Promise.resolve(true);
+            },
+        });
+
+        await queue.enqueue({
+            kind: 'directory',
+            path: '/project/.config',
+            sessionId: 'session-a',
+        });
+
+        expect(order).toEqual(['select:session-a', 'reveal:session-a:/project/.config']);
     });
 });
