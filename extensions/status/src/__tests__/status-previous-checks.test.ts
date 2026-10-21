@@ -59,15 +59,15 @@ describe('previousChecksNode', () => {
         const node = previousChecksNode('p', previous);
 
         expect(node.item.label).toBe('fix(router): handle empty input');
-        expect(node.item.description).toBe('passed · 1 commit back');
+        expect(node.item.description).toBe('previous');
         expect(node.item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
         const files = node.children?.[0];
         expect(files?.item.label).toBe('2 files changed since');
         expect(files?.item.description).toBe('docs only');
         expect(files?.children?.map((child) => [child.item.label, child.item.description])).toEqual(
             [
-                ['guide.md', 'docs'],
-                ['README.md', undefined],
+                ['guide.md', '+3 −1'],
+                ['README.md', '+1 −0'],
             ],
         );
     });
@@ -80,7 +80,7 @@ describe('previousChecksNode', () => {
             changedFiles: undefined,
         });
 
-        expect(node.item.description).toBe('failed · 3 commits back');
+        expect(node.item.description).toBe('3 commits back');
         expect(node.children).toEqual([]);
         expect(node.item.collapsibleState).toBe(TreeItemCollapsibleState.None);
     });

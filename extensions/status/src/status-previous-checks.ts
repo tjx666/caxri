@@ -34,6 +34,14 @@ function commitsBackLabel(count: number): string {
     return count === 1 ? '1 commit back' : `${count} commits back`;
 }
 
+/**
+ * The commit row's trailing text says only where the commit sits. Its icon already carries the verdict, the same way
+ * each check row's does, and repeating `passed` there truncated the commit title the row exists to show.
+ */
+function positionLabel(count: number): string {
+    return count === 1 ? 'previous' : commitsBackLabel(count);
+}
+
 function filesLabel(count: number): string {
     return count === 1 ? '1 file' : `${count} files`;
 }
@@ -55,15 +63,18 @@ export function changedFilesDescription(files: readonly ChangedFile[]): string {
         : lineDelta(files);
 }
 
+/**
+ * Each file row spends its trailing slot on the line delta rather than the directory: in a narrow sidebar a long
+ * directory squeezed the file name down to a few characters, while `+12 −3` stays short. The full path is the hover
+ * title.
+ */
 function fileRow(id: string, file: ChangedFile): StatusNode {
-    const slash = file.path.lastIndexOf('/');
-    const name = file.path.slice(slash + 1);
-    const directory = slash > 0 ? file.path.slice(0, slash) : undefined;
+    const name = file.path.slice(file.path.lastIndexOf('/') + 1);
     return item(id, name, {
         icon: 'file',
-        description: directory,
+        description: lineDelta([file]),
         accessibilityLabel: `${file.path}, ${lineDelta([file])}`,
-        tooltip: { title: file.path, rows: [{ label: 'lines', value: lineDelta([file]) }] },
+        tooltip: { title: file.path },
     });
 }
 
@@ -95,7 +106,7 @@ export function previousChecksNode(
         : [];
     return item(`${prefix}:previous-checks`, previous.title, {
         icon: stateIcons[previous.state],
-        description: `${stateLabel} · ${commitsBackLabel(previous.commitsBefore)}`,
+        description: positionLabel(previous.commitsBefore),
         accessibilityLabel: `Previous commit ${previous.title}, checks ${stateLabel}, ${commitsBackLabel(previous.commitsBefore)}`,
         url: previous.url,
         tooltip: {
