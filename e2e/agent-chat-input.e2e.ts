@@ -89,7 +89,7 @@ async function dropImage(target: Locator): Promise<void> {
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}, testInfo) => {
+test('a Codex Chat sends pasted and dropped images, restores their previews on resume, and runs /compact', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-input-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -99,7 +99,9 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         join(skillDirectory, 'SKILL.md'),
         '---\nname: review-pr\ndescription: Review the open pull request\n---\n\nReview it.\n',
     );
-    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const agentMode = await fakeCodexChatAgentMode(directory, userData, {
+        shouldWriteRollouts: true,
+    });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         const { page } = running;
@@ -151,7 +153,7 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         await expect(chat.locator('[data-agent-chat-image-pill]')).toHaveCount(3);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-sent-images.png') });
         // The images sit in the message's bubble under its text, and the larger preview shows the image as sent rather
-        // than its thumbnail scaled up, though Codex keeps no original Caxri can read back.
+        // than its thumbnail scaled up.
         const bubble = chat.locator('[data-agent-chat-user-bubble]').filter({
             hasText: 'what are these',
         });
@@ -160,6 +162,22 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         const preview = page.getByRole('dialog', { name: 'Image 2' });
         await expect(preview.locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/u);
         await page.keyboard.press('Escape');
+
+        // A resumed thread knows only how many images the message had; each preview is read back from the rollout.
+        await message.fill('crash now');
+        await message.press('Enter');
+        const failure = chat.getByRole('alert').filter({ hasText: 'Codex stopped unexpectedly' });
+        await failure.getByRole('button', { name: 'Retry' }).click();
+        await expect(failure).toHaveCount(0);
+        await expect(chat.getByText('Received 3 images.')).toBeVisible();
+        await Promise.all(
+            ['Image 1', 'Image 2', 'Image 3'].map(async (name) => {
+                const restored = bubble.locator(`img[alt="${name}"]`);
+                await expect(restored).toHaveAttribute('src', /^data:image\/jpeg;base64,/u);
+                await expect(restored).toHaveJSProperty('complete', true);
+            }),
+        );
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-restored-images.png') });
 
         // The `/` menu reuses the Agent Commands & Skills discovery, so a Project skill sits beside the commands.
         await message.fill('/');

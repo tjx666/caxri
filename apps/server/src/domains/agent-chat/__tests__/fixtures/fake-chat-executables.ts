@@ -37,6 +37,10 @@ export function fakeCodexChatExecutableSource(options: {
      * App-only E2E flags are not inherited by providers, so native usage writes require an explicitly owned home.
      */
     nativeUsageHome?: string;
+    /**
+     * Also writes each user message to a rollout under the inherited `CODEX_HOME`, where the Server reads it back.
+     */
+    shouldWriteRollouts?: boolean;
 }): string {
     return String.raw`#!${process.execPath}
 if (process.argv.includes('--version')) {
@@ -45,7 +49,7 @@ if (process.argv.includes('--version')) {
 }
 process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
 process.env.FAKE_CODEX_NATIVE_USAGE_HOME = ${JSON.stringify(options.nativeUsageHome ?? '')};
-import(${JSON.stringify(pathToFileURL(FAKE_CODEX_APP_SERVER).href)});
+${options.shouldWriteRollouts ? 'process.env.FAKE_CODEX_SESSIONS_DIR = `${process.env.CODEX_HOME}/sessions`;\n' : ''}import(${JSON.stringify(pathToFileURL(FAKE_CODEX_APP_SERVER).href)});
 `;
 }
 

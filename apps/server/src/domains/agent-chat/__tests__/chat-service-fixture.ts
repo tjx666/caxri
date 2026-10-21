@@ -35,6 +35,11 @@ export async function fixture(
          * Codex does.
          */
         codexAccountType?: 'apiKey' | 'chatgpt';
+        /**
+         * Makes the fake Codex write user messages to a rollout under the agent environment's Codex home, as the real
+         * CLI does, so the Server's rollout readers find it.
+         */
+        codexRollouts?: boolean;
         provider?: keyof typeof FAKE_CLIS;
         turnRequestTimeoutMs?: number;
         endpoint?: AgentChatEndpoint;
@@ -86,6 +91,9 @@ export async function fixture(
                     FAKE_CODEX_STATE_DIR: stateDirectory,
                     ...(options.codexAccountType && {
                         FAKE_CODEX_ACCOUNT_TYPE: options.codexAccountType,
+                    }),
+                    ...(options.codexRollouts && {
+                        FAKE_CODEX_SESSIONS_DIR: join(directory, '.codex', 'sessions'),
                     }),
                     FAKE_GROK_STATE_DIR: grokStateDirectory,
                     CLAUDE_CONFIG_DIR: claudeConfigDirectory,

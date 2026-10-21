@@ -56,7 +56,8 @@
  * every `thread/resume` answer by that many milliseconds, and an `unsubscribe-fails` file makes `thread/unsubscribe`
  * answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table. An ephemeral `thread/fork`
  * opens a side thread that answers one `turn/start` (`fake-codex-side.ts`). `thread/goal/*` keeps a thread goal that
- * starts its own turns while active (`fake-codex-goals.ts`).
+ * starts its own turns while active (`fake-codex-goals.ts`). With `FAKE_CODEX_SESSIONS_DIR`, threads get UUIDv7 ids and
+ * each user message is also appended to a rollout there, as the real CLI writes it.
  */
 import crypto from 'node:crypto';
 import process from 'node:process';
@@ -112,8 +113,10 @@ import {
 } from './fake-codex-tasks.ts';
 import {
     fakeCodexStateDirectory,
+    newThreadId,
     readFakeConfig,
     readSavedThread,
+    recordRolloutUserMessage,
     recordThreadOpen,
     recordTurnStart,
     resumeDelayMs,
@@ -255,6 +258,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     const user = { type: 'userMessage', id: crypto.randomUUID(), clientId, content: input };
     startItem(turn, user);
     completeItem(turn, user);
+    recordRolloutUserMessage(currentThread().id, turn.id, user);
     if (text.includes('crash')) {
         // Codex records a turn's user message as the turn starts, so a thread resumed after the crash still holds it,
         // in a turn that never completed.
@@ -421,7 +425,7 @@ function handle(message: RpcMessage) {
         }
         case 'thread/start': {
             recordThreadOpen(method, parameters);
-            state.thread = { id: crypto.randomUUID(), turns: [] };
+            state.thread = { id: newThreadId(), turns: [] };
             send({ id, result: threadResponse(currentThread()) });
             return;
         }

@@ -4,12 +4,13 @@
  * appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert the configuration
  * Caxri asked for.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
-import type { FakeThread } from './fake-codex-io.ts';
+import type { FakeInput, FakeThread } from './fake-codex-io.ts';
 
 export function fakeCodexStateDirectory() {
     const directory =
@@ -112,4 +113,53 @@ export function resumeSavedThread(
     return thread
         ? { thread }
         : { error: { code: -32600, message: `no rollout found for thread id ${threadId}` } };
+}
+
+/**
+ * Where `FAKE_CODEX_SESSIONS_DIR` asks threads to keep a rollout; unset, the fake writes none.
+ */
+function rolloutSessionsDirectory() {
+    return process.env.FAKE_CODEX_SESSIONS_DIR;
+}
+
+/**
+ * A new thread id: a UUIDv7 when the fake writes rollouts, since Caxri finds a rollout by the time the id encodes.
+ */
+export function newThreadId() {
+    if (!rolloutSessionsDirectory()) return crypto.randomUUID();
+    const time = Date.now().toString(16).padStart(12, '0');
+    const random = crypto.randomUUID().replaceAll('-', '');
+    return `${time.slice(0, 8)}-${time.slice(8)}-7${random.slice(13, 16)}-${random.slice(16, 20)}-${random.slice(20)}`;
+}
+
+const pad = (value: number) => String(value).padStart(2, '0');
+
+/**
+ * Appends a user message to the thread's rollout as codex-cli 0.164.0-alpha.8 records it: an `item_completed` event
+ * carrying the app-server item id, the client id, and each image as the data URL it was sent with.
+ */
+export function recordRolloutUserMessage(
+    threadId: string,
+    turnId: string,
+    user: { id: string; clientId: string | null; content: FakeInput[] },
+) {
+    const sessions = rolloutSessionsDirectory();
+    if (!sessions) return;
+    const created = new Date(Number.parseInt(threadId.replaceAll('-', '').slice(0, 12), 16));
+    const day = path.join(
+        sessions,
+        String(created.getFullYear()),
+        pad(created.getMonth() + 1),
+        pad(created.getDate()),
+    );
+    fs.mkdirSync(day, { recursive: true });
+    const clock = `${created.getFullYear()}-${pad(created.getMonth() + 1)}-${pad(created.getDate())}T${pad(created.getHours())}-${pad(created.getMinutes())}-${pad(created.getSeconds())}`;
+    const content = user.content.map((entry) =>
+        entry.type === 'image' ? { type: 'image', image_url: entry.url } : entry,
+    );
+    const item = { type: 'UserMessage', id: user.id, client_id: user.clientId, content };
+    fs.appendFileSync(
+        path.join(day, `rollout-${clock}-${threadId}.jsonl`),
+        `${JSON.stringify({ type: 'event_msg', payload: { type: 'item_completed', thread_id: threadId, turn_id: turnId, item } })}\n`,
+    );
 }
