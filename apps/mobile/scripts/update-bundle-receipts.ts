@@ -43,13 +43,19 @@ export const parseApkBadging = (output: string): ApkBadging => {
 };
 
 /**
- * Every signer certificate SHA-256 from `apksigner verify --print-certs`, lowercase hex.
+ * Every distinct signer certificate SHA-256 from `apksigner verify --print-certs`, lowercase hex. Build Tools 36 prints
+ * `Signer #1 certificate SHA-256 digest: <hex>`; Build Tools 37 prints one line per verified scheme instead (`V2
+ * Signer: certificate SHA-256 digest: <hex>`), so one key signing several schemes is reported once.
  */
-export const parseApkSignerDigests = (output: string): string[] =>
-    output
-        .matchAll(/^Signer #\d+ certificate SHA-256 digest: ([0-9a-f]{64})$/gmu)
-        .map((match) => match[1])
-        .toArray();
+export const parseApkSignerDigests = (output: string): string[] => [
+    ...new Set(
+        output
+            .matchAll(
+                /^(?:Signer #\d+|V[\d.]+ Signer(?: #\d+)?:) certificate SHA-256 digest: ([0-9a-f]{64})$/gmu,
+            )
+            .map((match) => match[1]),
+    ),
+];
 
 /**
  * The certificate SHA-256 from `keytool -list -v`, normalized to apksigner's lowercase hex.
@@ -79,6 +85,10 @@ export const assertUpdateApkIdentity = (options: {
     )
         throw new Error(
             `APK version ${badging.versionName} (${badging.versionCode}) does not match ${options.expectedVersion} (${options.expectedVersionCode}); rerun prebuild`,
+        );
+    if (options.signerDigests.length === 0)
+        throw new Error(
+            'apksigner reported no signer certificate; its --print-certs format may have changed',
         );
     if (options.signerDigests.length !== 1 || options.signerDigests[0] !== options.releaseDigest)
         throw new Error('The APK is not signed only by the configured release key');

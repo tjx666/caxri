@@ -49,6 +49,17 @@ describe('update bundle receipts', () => {
                 `Signer #1 certificate DN: CN=Android Debug\nSigner #1 certificate SHA-256 digest: ${DEBUG_DIGEST}\nSigner #1 certificate SHA-1 digest: ${'0'.repeat(40)}\n`,
             ),
         ).toEqual([DEBUG_DIGEST]);
+        // Build Tools 37 labels each verified scheme; one key across schemes is still one signer.
+        expect(
+            parseApkSignerDigests(
+                `V2 Signer: certificate DN: CN=Release\nV2 Signer: certificate SHA-256 digest: ${RELEASE_DIGEST}\nV2 Signer: certificate SHA-1 digest: ${'0'.repeat(40)}\nV3 Signer: certificate SHA-256 digest: ${RELEASE_DIGEST}\n`,
+            ),
+        ).toEqual([RELEASE_DIGEST]);
+        expect(
+            parseApkSignerDigests(
+                `V2 Signer #1: certificate SHA-256 digest: ${RELEASE_DIGEST}\nV2 Signer #2: certificate SHA-256 digest: ${DEBUG_DIGEST}\n`,
+            ),
+        ).toEqual([RELEASE_DIGEST, DEBUG_DIGEST]);
         expect(
             parseKeytoolDigest(
                 '\t SHA1: 5E:8F\n\t SHA256: FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C\n',
@@ -68,6 +79,12 @@ describe('update bundle receipts', () => {
         expect(() =>
             assertUpdateApkIdentity({ ...identity, signerDigests: [DEBUG_DIGEST] }),
         ).toThrow(/release key/u);
+        expect(() =>
+            assertUpdateApkIdentity({ ...identity, signerDigests: [RELEASE_DIGEST, DEBUG_DIGEST] }),
+        ).toThrow(/release key/u);
+        expect(() => assertUpdateApkIdentity({ ...identity, signerDigests: [] })).toThrow(
+            /no signer certificate/u,
+        );
         expect(() => assertUpdateApkIdentity({ ...identity, expectedVersionCode: 76 })).toThrow(
             /rerun prebuild/u,
         );
