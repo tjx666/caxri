@@ -96,7 +96,7 @@ ships. The two app directories and DMGs use isolated output roots under `release
 
 Electron Forge's official Vite plugin remains explicitly experimental and provides no API-stability guarantee. `electron-vite` documents Electron `utilityProcess`, externalizes production/native dependencies, and fits the required process model.
 
-Vite 8 requires `electron-vite@6`; while that integration is still beta, it explicitly declares Vite 8 support. Caxri accepts the beta integration behind full build, Electron E2E, native-probe, startup-performance, and packaged-application validation rather than forcing an invalid Vite peer combination.
+Vite 8 requires `electron-vite@6`, the first stable line that declares Vite 8 support. electron-vite leaves `build.minify` off by default; Caxri turns it on for the Renderer only, without mangling (see [docs/bundle-size.md](../../../../docs/bundle-size.md)).
 
 TypeScript 7 is the registry latest but does not ship a JavaScript API. Caxri follows the official side-by-side layout: `@typescript/native` supplies the TypeScript 7 `tsc` binary, while the `typescript` package name aliases `@typescript/typescript6` so typed ESLint rules continue to receive the supported TypeScript 6 API. Re-evaluate the alias after TypeScript 7.1 and native typed-lint support ship.
 

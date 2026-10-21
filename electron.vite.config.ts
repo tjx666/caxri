@@ -158,12 +158,24 @@ export default defineConfig(async ({ command }) => {
             assetsInclude: ['**/*.bcmap', '**/*.pfb', '**/*.wasm'],
             build: {
                 sourcemap: IS_SOURCEMAP_ENABLED,
+                /**
+                 * Minified, but identifiers keep their names (`mangle: false` below): stack traces in Renderer logs and
+                 * React component names stay readable without a map lookup, while whitespace removal and compression
+                 * take the shipped Renderer from ≈ 56 MiB to ≈ 39 MiB (docs/bundle-size.md). Workers (Monaco language
+                 * services, pdf.js) are third-party only and use the fully mangled default.
+                 */
+                minify: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
                 // report the whole process-explorer entry chain as unused. Keep the deprecated name until
                 // knip understands `rolldownOptions`.
                 // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
+                    output: {
+                        minify: { mangle: false },
+                        // Minification would otherwise drop the `@license` and `/*!` notices of bundled packages.
+                        comments: { legal: true },
+                    },
                     input: {
                         'index': resolve('apps/desktop/src/renderer/index.html'),
                         'agent-commander': resolve(

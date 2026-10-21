@@ -3,12 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
     buildSummaryMarkdown,
     findBudgetViolations,
+    findMissingSourceMaps,
     findModuleResolutionFailure,
     formatDeltaPercent,
     formatMeasurement,
     PACKAGED_SERVER_ENTRIES,
     REPORT_COMPONENTS,
     SIZE_BUDGETS,
+    SOURCE_MAP_REQUIRED,
+    sumAsarHeader,
     TIME_BUDGETS,
 } from '../ci-bundle-budget';
 import { isProtectedRetryPath } from '../ci-path-policy';
@@ -126,6 +129,7 @@ describe('ci-bundle-budget', () => {
                     budgetBytes: 290 * 1_024 * 1_024,
                     bytes: 220 * 1_024 * 1_024,
                     label: 'Caxri.app',
+                    sourceMapBytes: 80 * 1_024 * 1_024,
                 },
                 { bytes: 10 * 1_024 * 1_024, label: 'out/renderer › fonts' },
             ],
@@ -133,9 +137,12 @@ describe('ci-bundle-budget', () => {
         });
         expect(markdown).toContain('### Bundle budget: `1234567`');
         expect(markdown).toContain('| build | 6.0 s | 180 s | +20.0% |');
-        expect(markdown).toContain('| Caxri.app | 220.00 MiB | 290.00 MiB | +10.0% |');
-        expect(markdown).toContain('| out/renderer › fonts | 10.00 MiB | \u{2014} | n/a |');
+        expect(markdown).toContain('| Caxri.app | 220.00 MiB | 80.00 MiB | 290.00 MiB | +10.0% |');
+        expect(markdown).toContain(
+            '| out/renderer › fonts | 10.00 MiB | \u{2014} | \u{2014} | n/a |',
+        );
         expect(markdown).toContain('last green `main` build (`abcdef1`');
+        expect(markdown).toContain('exclude Source Maps');
     });
 
     it('reports no baseline instead of fabricating deltas', () => {
@@ -154,5 +161,31 @@ describe('ci-bundle-budget', () => {
             expect(budget.maxSeconds).toBeGreaterThan(0);
             expect(budget.command.length).toBeGreaterThan(0);
         }
+    });
+
+    it('separates Source Map bytes from shipped bytes inside an asar header', () => {
+        const header = {
+            files: {
+                out: {
+                    files: {
+                        'index.js': { size: 100 },
+                        'index.js.map': { size: 300 },
+                        'native': { files: { 'addon.node': { size: 50, unpacked: true } } },
+                        'fonts': { files: { 'symbols.woff2': { size: 20 } } },
+                    },
+                },
+            },
+        };
+        expect(sumAsarHeader(header, 'shipped')).toBe(120);
+        expect(sumAsarHeader(header, 'sourceMaps')).toBe(300);
+        expect(sumAsarHeader(header, 'all')).toBe(420);
+        expect(sumAsarHeader(header, 'shipped', /\.woff2$/u)).toBe(20);
+    });
+
+    it('fails when a debuggable artifact stops carrying Source Maps', () => {
+        const present = Object.fromEntries(SOURCE_MAP_REQUIRED.map((path) => [path, 1]));
+        expect(findMissingSourceMaps(present)).toEqual([]);
+        expect(findMissingSourceMaps({ ...present, 'out/renderer': 0 })).toEqual(['out/renderer']);
+        expect(findMissingSourceMaps({})).toEqual(SOURCE_MAP_REQUIRED);
     });
 });
