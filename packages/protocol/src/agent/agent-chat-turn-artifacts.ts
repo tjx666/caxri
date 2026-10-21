@@ -9,7 +9,7 @@ import type {
 import { agentChatDiffLines, agentChatDiffLinesStat } from './agent-chat-diff.js';
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
-import type { AgentChatTrackerArtifact } from './agent-chat-trackers.js';
+import type { AgentChatTrackerArtifact } from './agent-chat-tracker-artifact.js';
 import { collectAgentChatTrackers } from './agent-chat-trackers.js';
 
 /**

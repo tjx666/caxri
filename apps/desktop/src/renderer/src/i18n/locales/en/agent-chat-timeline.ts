@@ -130,6 +130,8 @@ export const agentChatTimeline = {
     'agentChat.tracker.createdIssue': 'Created issue',
     'agentChat.tracker.updatedIssue': 'Updated issue',
     'agentChat.tracker.cardLabel': '{{action}}: {{title}}, {{reference}}. Open in browser',
+    'agentChat.tracker.cardLabelWithStatus':
+        '{{action}}: {{title}}, {{reference}}, now {{status}}. Open in browser',
     'agentChat.tracker.createdAcceptance': 'Created acceptance report',
     'agentChat.tracker.updatedAcceptance': 'Updated acceptance report',
     'agentChat.tracker.acceptanceTitle': 'Acceptance report',

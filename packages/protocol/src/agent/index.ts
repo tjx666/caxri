@@ -29,6 +29,17 @@ export * from './agent-chat-rewind.js';
 export * from './agent-chat-stream-pacing.js';
 export * from './agent-chat-task-contract.js';
 export * from './agent-chat-tasks.js';
+export type {
+    AgentChatTrackerArtifact,
+    AgentChatTrackerStatus,
+    AgentChatTrackerStatusType,
+} from './agent-chat-tracker-artifact.js';
+export {
+    AGENT_CHAT_TRACKER_STATUS_TYPES,
+    agentChatTrackerExcerpt,
+    trackerExcerptText,
+    trackerReferenceText,
+} from './agent-chat-tracker-artifact.js';
 export * from './agent-chat-trackers.js';
 export * from './agent-chat-turn-artifacts.js';
 export * from './agent-chat-turn-fold.js';

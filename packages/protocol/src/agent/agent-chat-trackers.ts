@@ -1,57 +1,17 @@
 import type { AgentChatItem } from './agent-chat-contract.js';
-import { parseAgentMcpToolName, unwrapShellCommand } from './agent-tool-presentation.js';
-
-/**
- * A pull request, issue, or LobeHub acceptance report the Agent created or updated during a turn, shown as a card under
- * the turn's reply the way the Codex app and LobeHub surface what an Agent filed.
- */
-export interface AgentChatTrackerArtifact {
-    provider: 'github' | 'linear' | 'lobehub';
-    kind: 'pull' | 'issue' | 'acceptance';
-    action: 'created' | 'updated';
-    url: string;
-    /**
-     * `owner/repo#12` for GitHub, the issue identifier (`ENG-123`) for Linear, and the short report id for an
-     * acceptance report. Display through `trackerReferenceText()`, which prefers an acceptance report's round.
-     */
-    reference: string;
-    title?: string;
-    /**
-     * The first line of prose in the body, without Markdown heading or list markers.
-     */
-    excerpt?: string;
-    /**
-     * The acceptance round the report reached, when the ingest output reported one.
-     */
-    round?: number;
-    /**
-     * How many checks the acceptance round ran. Display through `trackerExcerptText()`.
-     */
-    checks?: number;
-}
-
-/**
- * The card's reference line in English, for the phone: an acceptance report's round when the ingest output reported
- * one, else the reference. Desktop localizes the round at render time instead, because its collected timeline is
- * memoized and would keep the language it was first built in.
- */
-export function trackerReferenceText(artifact: AgentChatTrackerArtifact): string {
-    return artifact.round === undefined ? artifact.reference : `Round ${artifact.round}`;
-}
-
-/**
- * The card's excerpt line in English, for the phone: an acceptance report's check count, else the body's first line.
- */
-export function trackerExcerptText(artifact: AgentChatTrackerArtifact): string | undefined {
-    if (artifact.checks === undefined) return artifact.excerpt;
-    return `${artifact.checks} ${artifact.checks === 1 ? 'check' : 'checks'}`;
-}
+import { toolCallTrackerArtifact } from './agent-chat-mcp-trackers.js';
+import type { AgentChatTrackerArtifact } from './agent-chat-tracker-artifact.js';
+import {
+    agentChatTrackerExcerpt,
+    GITHUB_URL,
+    githubUrlArtifact,
+    parseJsonRecord,
+    stringOf,
+} from './agent-chat-tracker-artifact.js';
+import { unwrapShellCommand } from './agent-tool-presentation.js';
 
 type CommandItem = Extract<AgentChatItem, { type: 'command' }>;
-type ToolCallItem = Extract<AgentChatItem, { type: 'toolCall' }>;
 
-const GITHUB_URL = /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(pull|issues)\/(\d+)/gu;
-const LINEAR_URL = /https:\/\/linear\.app\/[\w.-]+\/issue\/([A-Z][\dA-Z]*-\d+)(?:\/[\w%-]*)?/gu;
 const GH_TRACKER_COMMAND = /(?<=^|[\s;&|(])gh\s+(?:pr|issue)\s+(create|edit)\b/gu;
 const LH_INGEST_COMMAND = /(?<=^|[\s;&|(])lh\s+acceptance\s+run\s+ingest\b/gu;
 /**
@@ -91,45 +51,10 @@ const GH_API_VALUE_FLAGS: ReadonlySet<string> = new Set([
     '--template',
 ]);
 
-const MAX_EXCERPT_LENGTH = 200;
-
 /**
  * Unquoted characters that end one command in a chain or pipeline.
  */
 const COMMAND_END: ReadonlySet<string> = new Set(['\n', ';', '|', '&']);
-
-function githubUrlArtifact(
-    url: string,
-): Pick<AgentChatTrackerArtifact, 'kind' | 'reference' | 'url'> | undefined {
-    const match = Array.from(url.matchAll(GITHUB_URL)).at(0);
-    if (!match) return undefined;
-    const [whole, owner, repo, section, number] = match;
-    return {
-        kind: section === 'pull' ? 'pull' : 'issue',
-        reference: `${owner}/${repo}#${number}`,
-        url: whole,
-    };
-}
-
-/**
- * The first line of a body worth reading on one line: headings, rules, and list or quote markers are dropped, so a PR
- * body that opens `## Summary` previews its first sentence instead.
- */
-export function agentChatTrackerExcerpt(body: string | undefined): string | undefined {
-    if (!body) return undefined;
-    for (const raw of body.split('\n')) {
-        const line = raw
-            .trim()
-            .replace(/^(?:[\-*+>]|\d+\.)\s+/u, '')
-            .replaceAll(/[*_`]/gu, '')
-            .trim();
-        if (!line || /^#{1,6}\s/u.test(raw.trim()) || /^[-=*_]{3,}$/u.test(line)) continue;
-        return line.length > MAX_EXCERPT_LENGTH
-            ? `${line.slice(0, MAX_EXCERPT_LENGTH - 1)}…`
-            : line;
-    }
-    return undefined;
-}
 
 /**
  * Splits a shell command into words the way the shell would read flags and their values: quotes group, a backslash
@@ -353,24 +278,6 @@ function commandAcceptanceArtifact(item: CommandItem): AgentChatTrackerArtifact 
     };
 }
 
-type Json = Record<string, unknown>;
-
-const isRecord = (value: unknown): value is Json =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
-
-function parseJsonRecord(text: string | undefined): Json | undefined {
-    if (!text) return undefined;
-    try {
-        const value: unknown = JSON.parse(text.trim());
-        return isRecord(value) ? value : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-const stringOf = (value: unknown): string | undefined =>
-    typeof value === 'string' && value.trim() ? value : undefined;
-
 interface GhApiCall {
     endpoint: string | undefined;
     fields: Map<string, string>;
@@ -467,99 +374,6 @@ function ghApiTrackerArtifact(item: CommandItem): AgentChatTrackerArtifact | und
         ...(title && { title }),
         ...(excerpt && { excerpt }),
     };
-}
-
-/**
- * The record that describes the issue or pull request: the result itself, or one level down when the server wraps it
- * (`{ "issue": { ... } }`).
- */
-function trackerRecord(result: Json | undefined): Json | undefined {
-    if (!result) return undefined;
-    if (stringOf(result.url) ?? stringOf(result.html_url)) return result;
-    return Object.values(result).find(
-        (value): value is Json =>
-            isRecord(value) && Boolean(stringOf(value.url) ?? stringOf(value.html_url)),
-    );
-}
-
-/**
- * Which tracker operation an MCP tool performs, from its tool name: the official GitHub MCP server's
- * `create_pull_request`, `update_pull_request`, `create_issue`, `update_issue`, and `issue_write`, and the Linear MCP
- * server's `create_issue`, `update_issue`, and `save_issue`.
- */
-function mcpOperation(
-    name: string,
-): { provider: AgentChatTrackerArtifact['provider']; tool: string } | undefined {
-    const mcp = parseAgentMcpToolName(name);
-    if (!mcp) return undefined;
-    const server = mcp.server.toLowerCase();
-    const tool = mcp.tool.toLowerCase();
-    if (server.includes('linear') && /^(?:create|update|save)_issue$/u.test(tool))
-        return { provider: 'linear', tool };
-    if (
-        server.includes('github') &&
-        /^(?:(?:create|update)_(?:pull_request|issue)|issue_write)$/u.test(tool)
-    )
-        return { provider: 'github', tool };
-    return undefined;
-}
-
-/**
- * Linear's `save_issue` both creates and updates. An `id` in the arguments targets an existing issue; otherwise a
- * result updated well after it was created is an edit of an older issue.
- */
-function isLinearSaveUpdate(arguments_: Json | undefined, record: Json | undefined): boolean {
-    if (stringOf(arguments_?.id)) return true;
-    const created = Date.parse(stringOf(record?.createdAt) ?? '');
-    const updated = Date.parse(stringOf(record?.updatedAt) ?? '');
-    return Number.isFinite(created) && Number.isFinite(updated) && updated - created > 60_000;
-}
-
-function mcpAction(
-    tool: string,
-    arguments_: Json | undefined,
-    record: Json | undefined,
-): AgentChatTrackerArtifact['action'] {
-    if (tool.startsWith('create_')) return 'created';
-    if (tool.startsWith('update_')) return 'updated';
-    if (tool === 'issue_write') return arguments_?.method === 'update' ? 'updated' : 'created';
-    return isLinearSaveUpdate(arguments_, record) ? 'updated' : 'created';
-}
-
-/**
- * A GitHub or Linear MCP call that created or edited an issue or pull request. The result names the URL, title, and
- * body; arguments fill in what the result left out. Claude Code summarizes arguments by one field rather than as JSON,
- * so they are read only when the summary parses.
- */
-function toolCallTrackerArtifact(item: ToolCallItem): AgentChatTrackerArtifact | undefined {
-    if (item.status !== 'completed') return undefined;
-    const operation = mcpOperation(item.name);
-    if (!operation) return undefined;
-    const arguments_ = parseJsonRecord(item.summary);
-    const record = trackerRecord(parseJsonRecord(item.output));
-    const title = stringOf(record?.title) ?? stringOf(arguments_?.title);
-    const excerpt = agentChatTrackerExcerpt(
-        stringOf(record?.body) ??
-            stringOf(record?.description) ??
-            stringOf(arguments_?.body) ??
-            stringOf(arguments_?.description),
-    );
-    const action = mcpAction(operation.tool, arguments_, record);
-    const details = { action, ...(title && { title }), ...(excerpt && { excerpt }) };
-    if (operation.provider === 'github') {
-        const url =
-            stringOf(record?.html_url) ??
-            Array.from((item.output ?? '').matchAll(GITHUB_URL)).at(-1)?.[0];
-        const target = url && githubUrlArtifact(url);
-        if (!target) return undefined;
-        return { provider: 'github', ...target, ...details };
-    }
-    const linearUrl = Array.from((item.output ?? '').matchAll(LINEAR_URL)).at(-1);
-    const url = stringOf(record?.url) ?? linearUrl?.[0];
-    const identifier =
-        stringOf(record?.identifier) ?? (url && Array.from(url.matchAll(LINEAR_URL)).at(0)?.[1]);
-    if (!url || !identifier) return undefined;
-    return { provider: 'linear', kind: 'issue', url, reference: identifier, ...details };
 }
 
 /**

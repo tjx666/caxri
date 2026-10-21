@@ -242,6 +242,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.tasks.subagent': '子 Agent',
     'chat.tracker.acceptanceTitle': '验收报告',
     'chat.tracker.cardLabel': '{{action}}：{{title}}，{{reference}}。打开',
+    'chat.tracker.cardLabelWithStatus':
+        '{{action}}：{{title}}，{{reference}}，当前状态 {{status}}。打开',
     'chat.tracker.createdAcceptance': '已创建验收报告',
     'chat.tracker.createdIssue': '已创建 Issue',
     'chat.tracker.createdPull': '已创建 Pull Request',

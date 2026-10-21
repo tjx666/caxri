@@ -1,5 +1,17 @@
-import type { AgentChatTrackerArtifact } from '@caxri/protocol';
-import { ArrowUpRight, CircleDot, ClipboardCheck, GitPullRequest, ListChecks } from 'lucide-react';
+import type { AgentChatTrackerArtifact, AgentChatTrackerStatusType } from '@caxri/protocol';
+import type { LucideIcon } from 'lucide-react';
+import {
+    ArrowUpRight,
+    Circle,
+    CircleCheck,
+    CircleDashed,
+    CircleDot,
+    CircleDotDashed,
+    CircleX,
+    ClipboardCheck,
+    GitPullRequest,
+    ListChecks,
+} from 'lucide-react';
 
 import { useLinkContextMenu } from '../../../components/markdown/link-context-menu';
 import { PULL_REQUEST_ICONS } from '../../../components/markdown/pull-request-icons';
@@ -50,6 +62,21 @@ const KIND_ICON = {
     issue: CircleDot,
     acceptance: ListChecks,
 } satisfies Record<AgentChatTrackerArtifact['kind'], unknown>;
+
+/**
+ * A Linear workflow state's glyph and tone, after Linear's own icons: open states stay outlined and muted, work in
+ * progress (and triage, which waits on someone) takes the warning tone, and Done takes the merged tone a landed pull
+ * request uses. A state whose category is unknown keeps the plain issue glyph.
+ */
+const LINEAR_STATUS_ICONS: Record<AgentChatTrackerStatusType, { icon: LucideIcon; tone: string }> =
+    {
+        triage: { icon: CircleDotDashed, tone: 'text-warning' },
+        backlog: { icon: CircleDashed, tone: 'text-muted' },
+        unstarted: { icon: Circle, tone: 'text-muted' },
+        started: { icon: CircleDot, tone: 'text-warning' },
+        completed: { icon: CircleCheck, tone: 'text-merged' },
+        canceled: { icon: CircleX, tone: 'text-muted' },
+    };
 
 function openTrackerUrl(url: string): void {
     // eslint-disable-next-line no-void -- openExternalUrl reports its own failures through the callback
@@ -110,11 +137,33 @@ function TrackerKindIcon({
 }
 
 /**
+ * A Linear issue's state after the turn, ahead of what was done to it: its glyph in the state's tone and the team's own
+ * state name, so a card reads `In Progress · Updated issue` instead of leaving the state to the browser.
+ */
+function TrackerStatus({ status }: { status: NonNullable<AgentChatTrackerArtifact['status']> }) {
+    const { icon: Icon, tone } = status.type
+        ? LINEAR_STATUS_ICONS[status.type]
+        : { icon: CircleDot, tone: 'text-muted' };
+    return (
+        <>
+            <Icon
+                aria-hidden="true"
+                className={cn('size-3.5', tone)}
+                data-tracker-status={status.type ?? 'unknown'}
+            />
+            <span className="max-w-32 truncate text-foreground">{status.name}</span>
+            <span aria-hidden="true">·</span>
+        </>
+    );
+}
+
+/**
  * A pull request, issue, or acceptance report the Agent created or edited this turn, as one clickable card: the
  * tracker's mark in a tile, the title beside its `owner/repo#N`, `ENG-123`, or `Round N` reference, what was done to
  * it, and the body's first line. Opens the page in the browser, which the trailing external arrow says before the
  * click; the edited-files card beside it expands in place and carries no arrow. A GitHub card without a title shows its
- * reference until the reference preview supplies one. A right-click offers Open Link and Copy Link.
+ * reference until the reference preview supplies one, and a Linear card leads its action with the issue's state. A
+ * right-click offers Open Link and Copy Link.
  */
 export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerArtifact }) {
     const Mark = PROVIDER_MARK[artifact.provider];
@@ -133,11 +182,20 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
         (artifact.kind === 'acceptance' ? t('agentChat.tracker.acceptanceTitle') : undefined);
     return (
         <button
-            aria-label={t('agentChat.tracker.cardLabel', {
-                action: label,
-                title: title ?? reference,
-                reference,
-            })}
+            aria-label={
+                artifact.status
+                    ? t('agentChat.tracker.cardLabelWithStatus', {
+                          action: label,
+                          title: title ?? reference,
+                          reference,
+                          status: artifact.status.name,
+                      })
+                    : t('agentChat.tracker.cardLabel', {
+                          action: label,
+                          title: title ?? reference,
+                          reference,
+                      })
+            }
             className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
             data-agent-chat-tracker={artifact.provider}
             type="button"
@@ -163,7 +221,11 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
                 )}
             </span>
             <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
-                <TrackerKindIcon kind={artifact.kind} pullState={preview.pullState} />
+                {artifact.status ? (
+                    <TrackerStatus status={artifact.status} />
+                ) : (
+                    <TrackerKindIcon kind={artifact.kind} pullState={preview.pullState} />
+                )}
                 {label}
                 <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </span>

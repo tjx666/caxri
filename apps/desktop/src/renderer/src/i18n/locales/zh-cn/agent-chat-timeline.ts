@@ -125,6 +125,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.tracker.createdIssue': '已创建 Issue',
     'agentChat.tracker.updatedIssue': '已更新 Issue',
     'agentChat.tracker.cardLabel': '{{action}}：{{title}}，{{reference}}。在浏览器中打开',
+    'agentChat.tracker.cardLabelWithStatus':
+        '{{action}}：{{title}}，{{reference}}，当前状态 {{status}}。在浏览器中打开',
     'agentChat.tracker.createdAcceptance': '已创建验收报告',
     'agentChat.tracker.updatedAcceptance': '已更新验收报告',
     'agentChat.tracker.acceptanceTitle': '验收报告',

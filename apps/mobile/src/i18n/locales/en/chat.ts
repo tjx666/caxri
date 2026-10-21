@@ -249,6 +249,8 @@ export const chat = {
     'chat.tasks.subagent': 'Subagent',
     'chat.tracker.acceptanceTitle': 'Acceptance report',
     'chat.tracker.cardLabel': '{{action}}: {{title}}, {{reference}}. Open',
+    'chat.tracker.cardLabelWithStatus':
+        '{{action}}: {{title}}, {{reference}}, now {{status}}. Open',
     'chat.tracker.createdAcceptance': 'Created acceptance report',
     'chat.tracker.createdIssue': 'Created issue',
     'chat.tracker.createdPull': 'Created pull request',
