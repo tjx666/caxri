@@ -48,3 +48,14 @@ _Researched 2026-10-10._
 - Chat is an overlay on the live PTY rather than a second process: a pane header icon button, `⌘⇧J`, and a Terminal context menu entry toggle it with no restart.
 - The overlay's content is derived from the transcript and approvals are answered by synthesizing `1` or arrow keys into the PTY, which is fragile. Caxri's ADR 0012 rejected this overlay model.
 - Caxri reused the `⌘⇧J` chord for `terminal.switchAgentSurface`.
+
+## Plan limit window labels
+
+_Researched 2026-10-21 at `98e7dbecfedb732abc2358c8aff4a5d7e98f642a`._
+
+- The status bar usage chip names the 5-hour window `5h` and the weekly window `wk`
+  (`src/renderer/src/lib/window-label-formatter.ts`); its comment says `wk` is kept for compatibility with the
+  original status bar. Chinese uses `5小时` and `周`; the tooltip spells the window out as `Weekly` / `每周`.
+- The mobile usage bars use `7d` / `7天` instead, so Orca itself is not consistent across surfaces.
+- Caxri's usage chip follows the desktop chip: `wk` in English, `本周` in Chinese, because `7d` beside a remaining
+  share reads as days until reset.
