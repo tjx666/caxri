@@ -8,6 +8,7 @@ import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { useTerminal } from '../../../stores/selectors';
+import { useAgentChatOpenFile } from '../hooks/use-agent-chat-open-file';
 import {
     askAgentChatSideQuestion,
     convertAgentChatSideChatToSession,
@@ -136,6 +137,7 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
     const { terminalId } = tab;
     const { t } = useTranslation();
     const terminal = useTerminal(terminalId);
+    const openFile = useAgentChatOpenFile(terminalId);
     const exchanges = useAgentChatSideChatStore(
         (state) => state.threads[terminalId] ?? NO_EXCHANGES,
     );
@@ -170,6 +172,7 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
                                 canRetry={!isBusy}
                                 exchange={exchange}
                                 key={exchange.id}
+                                onOpenFile={openFile}
                                 onRetry={() => {
                                     // eslint-disable-next-line no-void -- the outcome is recorded on the exchange
                                     void retryAgentChatSideQuestion(terminalId, exchange.id);
