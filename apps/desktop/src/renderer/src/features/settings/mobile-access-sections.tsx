@@ -21,6 +21,19 @@ import type { MobilePairingState, useMobileAccessController } from './use-mobile
 const QR_LIGHT = '#ffffff';
 const QR_DARK = '#111111';
 
+/**
+ * A pairing link carries every private IPv4 address the Mac advertises, so it often reaches about 300 characters. At
+ * error-correction level Q that is a 77x77-module symbol, which at the former 152px left about 2px per module: phone
+ * cameras pointed at a laptop screen did not recognize it at all. An on-screen code cannot be smudged or torn, so level
+ * M's recovery margin is enough, and it saves two symbol versions. 240px with level M keeps each module above 3px.
+ */
+const QR_LEVEL = 'M';
+const QR_SIZE = 240;
+/**
+ * About four modules of quiet zone at {@link QR_SIZE}, the width the QR specification requires around the symbol.
+ */
+const QR_QUIET_ZONE = 16;
+
 const expirationLabel = (t: Translate, expiresAt: number, now: number): string => {
     const seconds = Math.max(0, Math.ceil((expiresAt - now) / 1_000));
     if (seconds === 0) return t('settings.mobileAccess.pairing.expired');
@@ -179,19 +192,19 @@ const MobilePairingCard = ({
     const { t } = useTranslation();
     return (
         <div className="flex flex-wrap items-center gap-4 rounded-md border border-border bg-elevated p-3">
-            <div className="rounded-md p-2" style={{ background: QR_LIGHT }}>
+            <div className="rounded-md" style={{ background: QR_LIGHT, padding: QR_QUIET_ZONE }}>
                 {isActive ? (
                     <QRCode
                         bgColor={QR_LIGHT}
                         fgColor={QR_DARK}
-                        level="Q"
-                        size={152}
+                        level={QR_LEVEL}
+                        size={QR_SIZE}
                         value={pairing.pairingLink}
                     />
                 ) : (
                     <div
-                        className="flex size-38 items-center justify-center text-[12px]"
-                        style={{ color: QR_DARK }}
+                        className="flex items-center justify-center text-[12px]"
+                        style={{ color: QR_DARK, height: QR_SIZE, width: QR_SIZE }}
                     >
                         {t('settings.mobileAccess.pairing.expired')}
                     </div>
