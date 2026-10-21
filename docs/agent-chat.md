@@ -194,7 +194,9 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   (`ChatState.readLeaseAt`). Any input ends the lease. Once its Session is left (or, when the Session
   was never observed being left, once the read is) for `CHAT_OBSERVATION_LEASE_MS` (2 minutes), the
   idle sweep stops the provider, with `terminal.suspended` reason `observation`, whatever the idle
-  suspension setting says. The usual guards still apply: the selected Session, a phone watching the
+  suspension setting says. Only the newest `MAX_CHAT_OBSERVATION_LEASES` (3) leases wait out that
+  window; a read-started provider triggers an immediate sweep that reclaims the older ones, so browsing
+  many Chats in a row holds a bounded number of providers. The usual guards still apply: the selected Session, a phone watching the
   Chat, a turn, an approval or question, a running task, and a queued message all keep it. The
   projection stays, and reopening the Chat resumes the same Agent Session. The Renderer's Chat
   snapshot cache is separate: evicting a snapshot there never closes a provider.

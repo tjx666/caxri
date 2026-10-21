@@ -6,6 +6,7 @@ import {
     CHAT_OBSERVATION_LEASE_MS,
     decideTerminalSuspensions,
     idleSuspensionDelayMs,
+    MAX_CHAT_OBSERVATION_LEASES,
     UNTOUCHED_SUSPENSION_DELAY_MS,
 } from '../suspension-policy';
 
@@ -404,5 +405,41 @@ describe('decideTerminalSuspensions: Chat observation lease', () => {
 
     it('never applies a lease to a PTY Terminal', () => {
         expect(decide({ ...leased, terminal: terminal() })).toEqual([]);
+    });
+
+    it('reclaims the oldest unexpired read leases beyond the cap, so browsing many Chats keeps a bounded number', () => {
+        const browsed = Array.from({ length: MAX_CHAT_OBSERVATION_LEASES + 2 }, (_, index) => ({
+            leaseAt: NOW - (index + 1) * 1000,
+            record: { ...chat, id: `chat-${index}` },
+        }));
+        const visible = {
+            leaseAt: NOW - 60_000,
+            record: { ...chat, id: 'chat-visible', sessionId: 'session-b' },
+        };
+        const leases = new Map(
+            [...browsed, visible].map((entry) => [entry.record.id, entry.leaseAt]),
+        );
+        const decisions = decideTerminalSuspensions({
+            chatReadLeaseAt: (terminalId) => leases.get(terminalId),
+            deselectedAt: () => {},
+            isChatSuspendable: () => true,
+            isObservedRemotely: () => false,
+            now: NOW,
+            sample: () => {},
+            visibleSessionIds: new Set(['session-b']),
+            session: (sessionId) => session({ id: sessionId }),
+            settings: {
+                'terminal.idleSuspension.afterMinutes': 30,
+                'terminal.idleSuspension.enabled': false,
+                'terminal.suspendUntouchedAgents': true,
+            },
+            startedAt: STARTED_AT,
+            terminals: [...browsed, visible].map(({ record }) => record),
+        });
+        // The two oldest browsed Chats go; the newest three and the visible Session's Chat stay.
+        expect(decisions).toEqual([
+            { reason: 'observation', terminalId: `chat-${MAX_CHAT_OBSERVATION_LEASES}` },
+            { reason: 'observation', terminalId: `chat-${MAX_CHAT_OBSERVATION_LEASES + 1}` },
+        ]);
     });
 });

@@ -88,6 +88,13 @@ export const UNTOUCHED_SUSPENSION_DELAY_MS = 30_000;
  */
 export const CHAT_OBSERVATION_LEASE_MS = 2 * 60 * 1000;
 
+/**
+ * How many background Chats a read alone may keep running at once. The time lease bounds how long one stays; this
+ * bounds how many coexist, so opening a dozen old Chats in a row reclaims the oldest instead of holding a provider for
+ * each until its lease runs out. Chats in a visible Session or in use never count.
+ */
+export const MAX_CHAT_OBSERVATION_LEASES = 3;
+
 const MINUTE_MS = 60 * 1000;
 
 /**
@@ -127,17 +134,28 @@ export function decideTerminalSuspensions(
     input: TerminalSuspensionPolicyInput,
 ): TerminalSuspensionDecision[] {
     const decisions: TerminalSuspensionDecision[] = [];
+    const leased: Array<{ leaseAt: number; terminalId: string }> = [];
     for (const terminal of input.terminals) {
         const reason = decideTerminal(terminal, input);
-        if (reason) decisions.push({ reason, terminalId: terminal.id });
+        if (typeof reason === 'number') leased.push({ leaseAt: reason, terminalId: terminal.id });
+        else if (reason) decisions.push({ reason, terminalId: terminal.id });
     }
+    // Beyond the newest leases, an unexpired observation lease is reclaimed now; see MAX_CHAT_OBSERVATION_LEASES.
+    const reclaimed = leased
+        .toSorted((left, right) => right.leaseAt - left.leaseAt)
+        .slice(MAX_CHAT_OBSERVATION_LEASES);
+    for (const { terminalId } of reclaimed) decisions.push({ reason: 'observation', terminalId });
     return decisions;
 }
 
+/**
+ * The reason to suspend now, `undefined` to leave it, or the read-lease time of a reclaimable background Chat whose
+ * observation lease has not expired yet, which the caller weighs against {@link MAX_CHAT_OBSERVATION_LEASES}.
+ */
 function decideTerminal(
     terminal: TerminalRecord,
     input: TerminalSuspensionPolicyInput,
-): TerminalSuspensionReason | undefined {
+): TerminalSuspensionReason | number | undefined {
     if (!terminal.provider || terminal.lastProcessState !== 'running') return undefined;
     /**
      * A Chat parks by stopping its provider process, which resumes the same Agent Session on every provider, so the
@@ -190,11 +208,11 @@ function decideTerminal(
     )
         return 'untouched';
     const idleDelay = idleSuspensionDelayMs(input.settings);
-    if (idleDelay === undefined) return undefined;
+    if (idleDelay === undefined) return readLeaseAt;
     if (
         sinceDeselected >= idleDelay &&
         input.now - lastActiveAt(sample, input.startedAt) >= idleDelay
     )
         return 'idle';
-    return undefined;
+    return readLeaseAt;
 }

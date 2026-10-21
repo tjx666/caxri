@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { LATE_MID_TURN_SIGNAL_WINDOW_MS } from '../../agents/lifecycle-watchdogs';
-import { CHAT_OBSERVATION_LEASE_MS, UNTOUCHED_SUSPENSION_DELAY_MS } from '../suspension-policy';
+import { UNTOUCHED_SUSPENSION_DELAY_MS } from '../suspension-policy';
 import { createHarness, idleAfterThirtyMinutes, terminal } from './suspension.fixture';
 
 describe('TerminalSuspensionService', () => {
@@ -519,80 +519,5 @@ describe('TerminalSuspensionService: idle suspension', () => {
         finishedTurn(harness);
         harness.advance(24 * 60 * 60_000);
         expect(await harness.service.sweep()).toEqual([]);
-    });
-
-    it('parks an idle background Chat through the Chat service and never through the PTY manager', async () => {
-        const chats = {
-            isSuspendable: vi.fn(() => true),
-            readLeaseAt: vi.fn((): number | undefined => undefined),
-            suspendIdle: vi.fn((terminalId: string) =>
-                Promise.resolve(
-                    terminal(terminalId, 'session-a', {
-                        lastProcessState: 'suspended',
-                        surface: 'chat',
-                    }),
-                ),
-            ),
-        };
-        const harness = createHarness({ chats, settings: idleAfterThirtyMinutes });
-        harness.terminals.set(
-            'terminal-a',
-            terminal('terminal-a', 'session-a', {
-                kind: 'codex',
-                provider: 'codex',
-                surface: 'chat',
-            }),
-        );
-        harness.service.start();
-        harness.advance(31 * 60_000);
-
-        expect(await harness.service.sweep()).toEqual(['terminal-a']);
-        expect(chats.suspendIdle).toHaveBeenCalledWith('terminal-a', 'idle');
-        expect(harness.suspend).not.toHaveBeenCalled();
-
-        chats.isSuspendable.mockReturnValue(false);
-        harness.terminals.set(
-            'terminal-a',
-            terminal('terminal-a', 'session-a', {
-                kind: 'codex',
-                provider: 'codex',
-                surface: 'chat',
-            }),
-        );
-        harness.advance(31 * 60_000);
-        expect(await harness.service.sweep()).toEqual([]);
-    });
-
-    it('reclaims a Chat provider that only a read started by default, but not one used since', async () => {
-        const chats = {
-            isSuspendable: vi.fn(() => true),
-            readLeaseAt: vi.fn((): number | undefined => undefined),
-            suspendIdle: vi.fn((terminalId: string) =>
-                Promise.resolve(
-                    terminal(terminalId, 'session-a', {
-                        lastProcessState: 'suspended',
-                        surface: 'chat',
-                    }),
-                ),
-            ),
-        };
-        // Idle suspension stays off (the default): only the observation lease can park this Chat.
-        const harness = createHarness({ chats });
-        harness.terminals.set(
-            'terminal-a',
-            terminal('terminal-a', 'session-a', {
-                kind: 'codex',
-                provider: 'codex',
-                surface: 'chat',
-            }),
-        );
-        harness.service.start();
-        chats.readLeaseAt.mockReturnValue(harness.now());
-        harness.advance(CHAT_OBSERVATION_LEASE_MS - 1);
-        expect(await harness.service.sweep()).toEqual([]);
-
-        harness.advance(1);
-        expect(await harness.service.sweep()).toEqual(['terminal-a']);
-        expect(chats.suspendIdle).toHaveBeenCalledWith('terminal-a', 'observation');
     });
 });

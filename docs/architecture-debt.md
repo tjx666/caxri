@@ -39,25 +39,25 @@ resolved most of them; the entries below keep the part that still needs a produc
 - **Summary:** Reading a stopped Chat still starts its provider, because model lists, commands, and live state come from the provider rather than from a transcript reader.
 - **Evidence:** `apps/server/src/domains/agent-chat/service.ts` `read()` still starts a bound Chat. The ownership half is fixed: a read-started provider holds an observation lease (`apps/server/src/domains/agent-chat/chat-suspension.ts`) that the idle sweep reclaims two minutes after its Session is left, independent of the idle-suspension setting (`apps/server/src/domains/terminal/suspension-policy.ts`), and every provider start, PTY relaunch, and restore passes the 16-per-Session and 32-global capacity gate in `apps/server/src/domains/db/models/terminals.ts`. Covered by `service-lease.integration.test.ts`, `service-capacity.integration.test.ts`, and `terminal-restart-capacity.integration.test.ts`.
 - **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-21 with the fix
-- **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): a pure read starts no provider. Reclaim is time-bounded, not count-bounded: browsing many Chats inside the lease window can still hold providers up to the capacity limit.
-
-### AD-domain-line-budget-splits: [OPEN · Architecture debt · M]
-
-- **Summary:** The Server composition root still interleaves the Terminal suspension, resource-monitor, selection, and Session-parking lifecycles, so their create, start, and close steps are not discoverable from one owner.
-- **Evidence:** `apps/server/src/domains/create-domain-services.ts`. The line-budget split rationales are gone; Project Status now owns its own dispose in `apps/server/src/domains/status-service-creation.ts`, and the Agent lifecycle fan-out lives in `apps/server/src/domains/agent-lifecycle-fan-out.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-21 with the fix
-- **Remediation target / Acceptance:** [issue caxri#1683](https://github.com/tjx666/caxri/issues/1683): group the remaining slices by lifecycle owner without changing startup or close order.
+- **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): a pure read starts no provider. Reclaim is bounded by time and count: only the newest `MAX_CHAT_OBSERVATION_LEASES` read leases wait out the window, and a read that starts a provider sweeps the older ones at once (`terminal/__tests__/suspension-chat.test.ts`).
 
 ### AD-layout-flat-family-enforcement: [OPEN · Architecture debt · M]
 
 - **Summary:** Desktop Main (116 direct modules) and the Server `agent-chat` domain (96, with flat `chat-`, `claude-`, `codex-`, and `grok-` families) are still flat; they can no longer grow, but nothing has moved into family directories yet.
-- **Evidence:** `scripts/directory-density-baseline.ts` records shrink-only caps for those owners, their prefix families, and the Renderer `features/agent-chat` root; `scripts/__tests__/directory-density-ratchet.test.ts` fails on growth and on an untightened shrink, and `scripts/run-ci-focused-checks.ts` routes affected and draft pull requests touching those directories to it.
+- **Evidence:** `scripts/directory-density-baseline.ts` records shrink-only caps for those owners, their prefix families, the Renderer `features/agent-chat` root, and every nested subdirectory below a guarded owner that reaches `DIRECTORY_DENSITY_NESTED_THRESHOLD` (12) files; `scripts/__tests__/directory-density-ratchet.test.ts` fails on growth and on an untightened shrink, and `scripts/run-ci-focused-checks.ts` routes affected and draft pull requests touching those directories to it.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-21 with the fix
 - **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): pure moves into provider and family directories, tightening the recorded caps as they land.
 
 ---
 
 ## RESOLVED
+
+### AD-domain-line-budget-splits: [RESOLVED · Architecture debt · M]
+
+- **Summary:** The Server composition root interleaved the Terminal suspension, resource-monitor, and Session-parking lifecycles, so their create, start, and close steps were not discoverable from one owner.
+- **Evidence:** `apps/server/src/domains/supervision-services-creation.ts` now owns Terminal suspension and the resource monitor (create, handlers, start, close, in the old order); `apps/server/src/domains/status-service-creation.ts` and `apps/server/src/domains/restore-services-creation.ts` own their slices; the Session parking handlers register together in `apps/server/src/domains/create-domain-services.ts`, which only orders slices and fixes the close order. `apps/server/src/core/__tests__/server-core-shutdown-order.integration.test.ts` still covers the close order.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-21 with the fix
+- **Resolved:** 2026-10-21 via the architecture debt acceptance-gap follow-up to [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264), tracked by [issue caxri#1683](https://github.com/tjx666/caxri/issues/1683).
 
 ### AD-sec-project-root-identity: [RESOLVED · Confirmed defect · M]
 

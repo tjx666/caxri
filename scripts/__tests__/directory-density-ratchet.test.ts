@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     DIRECTORY_DENSITY_FAMILIES,
+    DIRECTORY_DENSITY_NESTED_THRESHOLD,
     DIRECTORY_DENSITY_OWNERS,
     isDirectoryDensityPath,
 } from '../directory-density-baseline';
@@ -22,6 +23,15 @@ function listModules(directory: string, prefix = ''): string[] {
                 !entry.name.endsWith('.d.ts'),
         )
         .map((entry) => entry.name);
+}
+
+function listSubdirectories(directory: string): string[] {
+    return readdirSync(resolve(projectRoot, directory), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
+        .flatMap((entry) => {
+            const child = `${directory}/${entry.name}`;
+            return [child, ...listSubdirectories(child)];
+        });
 }
 
 function expectAtCap(label: string, actual: number, cap: number): void {
@@ -52,6 +62,21 @@ describe('directory density ratchet', () => {
             expectAtCap(`${directory}/${prefix}*`, count, cap);
         },
     );
+
+    it('records every dense subdirectory below a guarded owner as its own owner', () => {
+        const owners = new Set(DIRECTORY_DENSITY_OWNERS.map(({ directory }) => directory));
+        const unguarded = [...owners]
+            .flatMap((directory) => listSubdirectories(directory))
+            .filter(
+                (directory) =>
+                    !owners.has(directory) &&
+                    listModules(directory).length >= DIRECTORY_DENSITY_NESTED_THRESHOLD,
+            );
+        expect(
+            unguarded,
+            `add these to DIRECTORY_DENSITY_OWNERS with their current module count`,
+        ).toEqual([]);
+    });
 
     it('only records families that fit inside a recorded owner', () => {
         const owners = new Set(DIRECTORY_DENSITY_OWNERS.map(({ directory }) => directory));

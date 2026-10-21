@@ -36,6 +36,7 @@ async function compose() {
         delegationState: { service: { interruptTerminal } as unknown as AgentDelegationService },
         dependencies: {},
         logger: { write: vi.fn() } as never,
+        onObservationLeaseReady: vi.fn(),
         send: vi.fn(),
     });
     return { chatInput, interruptTerminal, service };
