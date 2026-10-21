@@ -14,6 +14,7 @@ import { useSessionById } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { sessionWorktreeProject } from '../primary-sidebar/project-visibility';
 import { currentSessionActivityPresentation } from '../primary-sidebar/session-activity';
+import { sessionStatus } from '../primary-sidebar/session-status';
 import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
 import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
@@ -123,6 +124,7 @@ export function SessionTab({
     // Pruned from the snapshot a moment before the strip catches up.
     if (!session) return null;
     const { title } = label;
+    const status = sessionStatus(session, terminal);
     const tooltip = sessionTabTooltip(
         {
             agentLabel: resolveAgentIcon(terminal?.kind ?? 'shell').label,
@@ -212,6 +214,11 @@ export function SessionTab({
                         {isPreview && (
                             <span className="sr-only">{t('sessionTabs.previewHint')}</span>
                         )}
+                        {/* The visual glyph sits beside the tab (it shares the close button's slot), so the tab
+                            itself carries the status for assistive technology. */}
+                        {status.kind !== 'default' && (
+                            <span className="sr-only">{status.ariaLabel}</span>
+                        )}
                     </button>
                 </Tooltip>
                 {/* One fixed 20px slot shared by the status glyph and the close button, so the title never shifts
@@ -220,6 +227,7 @@ export function SessionTab({
                     pane tabs) and so never shows its glyph, which the sidebar row and the tooltip still carry. */}
                 <span className="session-tab-trailing relative size-5 flex-none">
                     <span
+                        aria-hidden="true"
                         className={cn(
                             'absolute inset-0 grid place-items-center transition-opacity duration-100 group-focus-within:opacity-0 group-hover:opacity-0',
                             isActive && 'opacity-0',
