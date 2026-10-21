@@ -1,7 +1,11 @@
 import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentChatReturnAnchorId, turnsFinishedDuringAbsence } from '../agent-chat-return-boundary';
+import {
+    agentChatReturnAnchorId,
+    agentChatReturnHintCount,
+    turnsFinishedDuringAbsence,
+} from '../agent-chat-return-boundary';
 
 const window = { boundary: 1000, capturedAt: 2000 };
 
@@ -47,5 +51,17 @@ describe('agentChatReturnAnchorId', () => {
     it('is undefined when nothing was missed or the prompt is not loaded', () => {
         expect(agentChatReturnAnchorId(items, [turn('t1', 100, 100)], window)).toBeUndefined();
         expect(agentChatReturnAnchorId([], [turn('t2', 1100, 100)], window)).toBeUndefined();
+    });
+});
+
+describe('agentChatReturnHintCount', () => {
+    it('stays quiet for one missed turn, which the Chat already shows at its bottom', () => {
+        expect(agentChatReturnHintCount([turn('only', 1200, 300)], window)).toBeUndefined();
+    });
+
+    it('reports two or more missed turns', () => {
+        expect(
+            agentChatReturnHintCount([turn('first', 1100, 100), turn('second', 1300, 100)], window),
+        ).toBe(2);
     });
 });

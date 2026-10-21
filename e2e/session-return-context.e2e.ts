@@ -2,6 +2,8 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { BootstrapState } from '@caxri/protocol';
+
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -60,22 +62,36 @@ test('returning to a Chat counts the turns that finished while away', async ({},
         const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
         await message.fill('longstream please');
         await message.press('Enter');
+        // A follow-up sent during the turn queues and runs as a second turn; one missed turn is already on screen at the
+        // Chat's bottom and earns no hint.
+        await message.fill('hello after this');
+        await message.press('Enter');
         await createAdditionalShellSession(page);
-        // The turn ends while another Session is selected.
+        const state = await pageRequest<BootstrapState>(page, 'app.bootstrap');
+        const chatTerminal = state.terminals.find(
+            ({ sessionId, provider }) => sessionId === chatId && provider === 'codex',
+        );
+        if (!chatTerminal) throw new Error('Chat Terminal missing');
+        // Both turns end while another Session is selected.
         await expect
             .poll(
                 async () => {
-                    const state = await pageRequest<{
-                        sessions: Array<{ id: string; lastActivityState?: string }>;
-                    }>(page, 'app.bootstrap');
-                    return state.sessions.find(({ id }) => id === chatId)?.lastActivityState;
+                    const snapshot = await pageRequest<{
+                        turns: Array<{ status: string }>;
+                        queue?: unknown[];
+                    }>(page, 'agentChat.read', { terminalId: chatTerminal.id });
+                    return {
+                        completed: snapshot.turns.filter(({ status }) => status === 'completed')
+                            .length,
+                        queued: snapshot.queue?.length ?? 0,
+                    };
                 },
                 { timeout: 60_000 },
             )
-            .toBe('completed');
+            .toEqual({ completed: 2, queued: 0 });
         await sessionCard(page, chatId).click();
         const hint = page.getByRole('status').filter({ hasText: 'since you last looked' });
-        await expect(hint).toContainText('1 turn since you last looked');
+        await expect(hint).toContainText('2 turns since you last looked');
         await page.screenshot({ path: testInfo.outputPath('return-hint.png') });
         await hint.getByRole('button', { name: 'Jump to first' }).click();
         await expect(hint).toBeHidden();

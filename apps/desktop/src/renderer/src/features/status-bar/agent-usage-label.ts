@@ -118,8 +118,9 @@ export function agentUsageLimitTone(
 
 /**
  * The tooltip sentence that says why the chip warns when the cause is pace rather than a nearly spent window, e.g.
- * `Weekly limit: 70% left, resets in 6d 14h. Using it faster than an even pace.` Undefined while every window is on
- * pace.
+ * `Weekly limit: 70% left, resets in 6d 14h. An even pace would leave about 93% by now; ...`. Naming the even-pace
+ * share says how far ahead the user is and that the warning clears as the window's clock catches up. Undefined while
+ * every window is on pace.
  */
 export function agentUsagePaceNote(
     readout: AgentUsageReadout,
@@ -128,8 +129,9 @@ export function agentUsagePaceNote(
 ): string | undefined {
     const shortfall = limitPaceShortfall(readout.limit, now);
     if (!shortfall) return undefined;
-    const { window } = shortfall;
+    const { evenPacePercent, window } = shortfall;
     return t('statusBar.usage.paceNote', {
+        evenPace: evenPacePercent,
         window: localizedLimitWindowName(window.windowMinutes, t),
         percent: remainingLimitPercent(window.usedPercent),
         reset: localizedLimitReset(window.resetsAt, now, t),

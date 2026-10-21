@@ -283,12 +283,13 @@ conversation, as an imported conversation does.
 
 ## Returning to a Session
 
-Selecting a Session whose Chat finished turns while the user was away shows a quiet pill above the
+Selecting a Session whose Chat finished two or more turns while the user was away shows a quiet pill above the
 transcript ("N turns since you last looked") with a jump to the first of them and a close button.
 The Renderer records when the user stopped looking (Session switch, window blur, or hidden window)
 before it marks the Session read, and counts the Agent turns whose end time falls inside that
 absence, not the attention epoch, which also moves for questions inside one turn. The boundary lives
-in memory, so the first look after a restart shows nothing.
+in memory, so the first look after a restart shows nothing. A single missed turn shows nothing either: the Chat
+reopens at its latest reply, which is that turn.
 
 ## Non-goals
 

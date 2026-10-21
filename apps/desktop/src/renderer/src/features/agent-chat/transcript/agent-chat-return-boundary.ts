@@ -45,3 +45,20 @@ export function agentChatReturnAnchorId(
     if (!first) return undefined;
     return items.find((item) => item.type === 'userMessage' && item.turnId === first.id)?.id;
 }
+
+/**
+ * Fewest missed turns worth a hint. A Chat reopens scrolled to its latest reply, so a single missed turn is already on
+ * screen and a hint about it only covers the transcript; from two on, the earlier ones are what the user would miss.
+ */
+const MIN_RETURN_HINT_TURNS = 2;
+
+/**
+ * How many missed turns the return hint reports, or `undefined` when too few were missed to be worth one.
+ */
+export function agentChatReturnHintCount(
+    turns: readonly AgentChatTurn[],
+    window: AgentChatReturnWindow,
+): number | undefined {
+    const count = turnsFinishedDuringAbsence(turns, window).length;
+    return count >= MIN_RETURN_HINT_TURNS ? count : undefined;
+}
