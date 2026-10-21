@@ -10,6 +10,11 @@ const unsavedEditorsReplySchema = z.discriminatedUnion('kind', [
         kind: z.literal('summary'),
         count: z.number().int().nonnegative(),
         names: unsavedEditorNamesSchema,
+        /**
+         * `files.autoSave` is on, so Main saves the buffers under the `saveAll` timeout instead of prompting; the
+         * prompt appears only for what that save could not write.
+         */
+        autoSave: z.boolean(),
     }),
     z.object({ kind: z.literal('saved') }),
     z.object({ kind: z.literal('saveFailed'), reason: z.enum(['writeFailed', 'inactiveRoot']) }),

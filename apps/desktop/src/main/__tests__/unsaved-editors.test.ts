@@ -13,6 +13,7 @@ const twoFiles: UnsavedEditorsSummary = {
     kind: 'summary',
     count: 2,
     names: ['a.ts', 'b.ts'],
+    autoSave: false,
 };
 
 function decision(
@@ -35,7 +36,9 @@ afterEach(() => {
 describe('decideUnsavedEditors', () => {
     it('continues without prompting when nothing is unsaved', async () => {
         const target = decision({
-            inspect: vi.fn().mockResolvedValue({ kind: 'summary', count: 0, names: [] }),
+            inspect: vi
+                .fn()
+                .mockResolvedValue({ kind: 'summary', count: 0, names: [], autoSave: false }),
         });
 
         await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
@@ -90,6 +93,42 @@ describe('decideUnsavedEditors', () => {
         expect(target.saveAll).not.toHaveBeenCalled();
     });
 
+    it('saves under auto save without prompting', async () => {
+        const target = decision({
+            inspect: vi.fn().mockResolvedValue({ ...twoFiles, autoSave: true }),
+        });
+
+        await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
+
+        expect(target.confirm).not.toHaveBeenCalled();
+        expect(target.saveAll).toHaveBeenCalledOnce();
+        expect(target.log).toHaveBeenCalledWith('autoSaved', 2);
+    });
+
+    it('prompts for what auto save could not write', async () => {
+        const target = decision({
+            inspect: vi
+                .fn()
+                .mockResolvedValueOnce({ ...twoFiles, autoSave: true })
+                .mockResolvedValueOnce({
+                    kind: 'summary',
+                    count: 1,
+                    names: ['b.ts'],
+                    autoSave: true,
+                }),
+            saveAll: vi
+                .fn()
+                .mockResolvedValueOnce({ kind: 'saveFailed', reason: 'writeFailed' })
+                .mockResolvedValueOnce({ kind: 'saved' }),
+        });
+
+        await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
+
+        expect(target.log).toHaveBeenCalledWith('saveFailed', 2, 'writeFailed');
+        expect(target.confirm).toHaveBeenCalledWith(expect.objectContaining({ count: 1 }));
+        expect(target.log).toHaveBeenCalledWith('saved', 1);
+    });
+
     it('fails open when the Workbench cannot be asked', async () => {
         const target = decision({ inspect: vi.fn().mockRejectedValue(new Error('no answer')) });
 
@@ -103,7 +142,7 @@ describe('decideUnsavedEditors', () => {
 describe('unsavedEditorsPrompt', () => {
     it('names a single file and offers Save', () => {
         const prompt = unsavedEditorsPrompt(
-            { kind: 'summary', count: 1, names: ['greeting.ts'] },
+            { kind: 'summary', count: 1, names: ['greeting.ts'], autoSave: false },
             'quit',
         );
 
@@ -114,7 +153,7 @@ describe('unsavedEditorsPrompt', () => {
 
     it('counts several files, lists the first names, and offers Save All', () => {
         const prompt = unsavedEditorsPrompt(
-            { kind: 'summary', count: 5, names: ['a.ts', 'b.ts', 'c.ts'] },
+            { kind: 'summary', count: 5, names: ['a.ts', 'b.ts', 'c.ts'], autoSave: false },
             'close',
         );
 
@@ -129,11 +168,11 @@ describe('unsavedEditorsPrompt', () => {
         setMainLanguage('zh-CN', []);
         try {
             const single = unsavedEditorsPrompt(
-                { kind: 'summary', count: 1, names: ['greeting.ts'] },
+                { kind: 'summary', count: 1, names: ['greeting.ts'], autoSave: false },
                 'quit',
             );
             const several = unsavedEditorsPrompt(
-                { kind: 'summary', count: 5, names: ['a.ts', 'b.ts', 'c.ts'] },
+                { kind: 'summary', count: 5, names: ['a.ts', 'b.ts', 'c.ts'], autoSave: false },
                 'close',
             );
 
@@ -172,7 +211,12 @@ describe('createUnsavedEditorsBridge', () => {
     it('reports nothing unsaved when no Workbench window exists', async () => {
         const bridge = createUnsavedEditorsBridge({ send: () => false });
 
-        await expect(bridge.inspect()).resolves.toEqual({ kind: 'summary', count: 0, names: [] });
+        await expect(bridge.inspect()).resolves.toEqual({
+            kind: 'summary',
+            count: 0,
+            names: [],
+            autoSave: false,
+        });
     });
 
     it('rejects a request the Workbench never answers', async () => {
@@ -214,6 +258,7 @@ describe('createWorkbenchUnsavedEditors', () => {
                                               { length: counts[key] ?? 0 },
                                               (_, index) => `${key}-${index}.ts`,
                                           ),
+                                          autoSave: false,
                                       }
                                     : { kind: 'saved' },
                         }),

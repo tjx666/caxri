@@ -23,7 +23,7 @@ import {
 import {
     retrySaveDocument,
     saveRetryUnavailableReason,
-} from '../features/editor/document-commands';
+} from '../features/editor/document-save-retry-commands';
 import {
     confirmTurnOffHardwareAcceleration,
     openHardwareAccelerationSettings,

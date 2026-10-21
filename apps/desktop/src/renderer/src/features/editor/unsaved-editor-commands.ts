@@ -6,12 +6,21 @@ import type { SessionDocuments } from '@desktop-shared/editor-state';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSessionState } from '../../stores/selectors';
-import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
+import {
+    getSessionDocuments,
+    sessionViewScope,
+    useSessionViewStore,
+} from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { didSelectSession } from '../session/session-commands';
 import { selectPaneTab } from '../workbench/pane-actions';
 import { didSaveDocumentAt, openFile } from './document-commands';
 import { isSavableEditorPath } from './document-write-commands';
+import {
+    autoSaveMode,
+    isAutoSaveOnFocusChange,
+    shouldAutoSaveDocument,
+} from './editor-auto-save-commands';
 import { focusEditor } from './editor-reveal';
 
 type UnsavedEditorsRequest = Extract<ServerEvent, { event: 'editor.unsavedRequest' }>['payload'];
@@ -125,6 +134,26 @@ async function saveAllUnsavedEditors(): Promise<'inactiveRoot' | 'saved' | 'writ
     return 'inactiveRoot';
 }
 
+/**
+ * Saves already in flight, keyed by Session and path. One focus change can report twice (the editor widget blurs, then
+ * its tab switches away), and the second report must not write the same buffer again while the first is still running.
+ */
+const pendingAutoSaves = new Set<string>();
+
+/**
+ * Saves a document because the user left its editor. A failure surfaces through the same toast and Retry action as a
+ * manual save, so nothing here needs to report it.
+ */
+export function autoSaveDocument(sessionId: string, path: string): void {
+    if (!shouldAutoSaveDocument(autoSaveMode(), path, getSessionDocuments(sessionId)?.[path]))
+        return;
+    const key = `${sessionId}\u{0}${path}`;
+    if (pendingAutoSaves.has(key)) return;
+    pendingAutoSaves.add(key);
+    // eslint-disable-next-line no-void -- tryCommand inside didSaveDocumentAt reports failures through the toast
+    void didSaveDocumentAt(sessionId, path).finally(() => pendingAutoSaves.delete(key));
+}
+
 async function revealFirstUnsavedEditor(): Promise<void> {
     const first = currentUnsavedEditorDocuments().at(0);
     if (!first) return;
@@ -165,6 +194,7 @@ async function handleUnsavedEditorsRequest(request: UnsavedEditorsRequest): Prom
                     unsaved.map(({ path }) => path),
                     MAX_PROMPT_NAMES,
                 ),
+                autoSave: isAutoSaveOnFocusChange(),
             },
         });
         return;

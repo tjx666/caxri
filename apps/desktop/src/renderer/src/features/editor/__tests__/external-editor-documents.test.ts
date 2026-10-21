@@ -46,6 +46,8 @@ function installSession(tabCount = 0): void {
             ],
             sessionStates: [state],
             terminals: [],
+            // Off, so closing a dirty tab asks Save/Don't Save/Cancel instead of saving on its own.
+            settings: { 'files.autoSave': 'off' },
         } as unknown as BootstrapState,
     });
 }

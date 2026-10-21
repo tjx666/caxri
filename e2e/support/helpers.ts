@@ -31,12 +31,12 @@ import {
     writeClipboardFixture,
 } from './clipboard.ts';
 import { closeE2EApp } from './desktop-lease-lifecycle.ts';
+import { prepareE2EProfile } from './e2e-profile.ts';
 import type { E2EApp } from './electron-app.ts';
 import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
 import { releaseE2EHost } from './host-shutdown.ts';
 import type { E2EAgentMode, LaunchCaxriOptions } from './launch-options.ts';
 import { waitForRuntimeReady } from './runtime-ready.ts';
-import { stageDevelopmentTestExtension } from './test-extension.ts';
 import { resolveE2ELaunchPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -140,7 +140,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         clipboardFixture,
     } = options;
     const closeDecision = quitDecisionOnClose ?? (preserveHostOnClose ? 'keep-running' : 'stop');
-    if (!executablePath) await stageDevelopmentTestExtension(projectRoot, userDataDir);
+    await prepareE2EProfile(projectRoot, userDataDir, executablePath);
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
     markStage('agentEnvironmentMs');
     const clipboardPolicy = resolveE2ELaunchPolicy(process.env, { clipboard, gpuMode, windowMode });

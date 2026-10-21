@@ -216,6 +216,9 @@ export const appSettingsSchema = z.object({
     'terminal.referenceLinks': terminalReferenceLinksSchema,
     'terminal.fontFamily': nullableStringField(spec['terminal.fontFamily']),
     'terminal.fontSize': integerField(spec['terminal.fontSize']),
+    'files.autoSave': z
+        .enum(enumValues(spec['files.autoSave'].options))
+        .default(spec['files.autoSave'].default),
     'editor.fontFamily': nullableStringField(spec['editor.fontFamily']),
     'editor.fontSize': integerField(spec['editor.fontSize']),
     'editor.wordWrap': z

@@ -185,6 +185,7 @@ const settingsProjection: SettingsProjection = {
     'terminal.referenceLinks': exportAsIs,
     'terminal.fontFamily': exportAsIs,
     'terminal.fontSize': exportAsIs,
+    'files.autoSave': exportAsIs,
     'editor.fontFamily': exportAsIs,
     'editor.fontSize': exportAsIs,
     'editor.wordWrap': exportAsIs,

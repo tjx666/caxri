@@ -184,6 +184,12 @@ export const settingsCatalog = {
         'Code and diff editor font; leave empty for the Monaco default',
     'settings.editor.fontFamily.placeholder': 'Monaco default',
 
+    'settings.files.autoSave.title': 'Auto save',
+    'settings.files.autoSave.description':
+        'Save a changed file automatically instead of waiting for Save',
+    'settings.files.autoSave.option.off': 'Off',
+    'settings.files.autoSave.option.onFocusChange': 'When the editor loses focus',
+
     'settings.editor.fontSize.title': 'Font size',
     'settings.editor.fontSize.description': 'Code and diff editor font size',
 
