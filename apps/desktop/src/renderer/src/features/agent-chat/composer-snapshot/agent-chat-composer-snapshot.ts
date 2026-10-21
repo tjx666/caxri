@@ -19,6 +19,7 @@ type AgentChatComposerSnapshot = Pick<
     AgentChatSnapshot,
     | 'activeTurnId'
     | 'effort'
+    | 'fast'
     | 'goal'
     | 'model'
     | 'models'
@@ -27,6 +28,7 @@ type AgentChatComposerSnapshot = Pick<
     | 'queuePauseReason'
     | 'tasks'
     | 'turns'
+    | 'ultracode'
     | 'usage'
 > & { items: AgentChatItem[] };
 
@@ -88,6 +90,7 @@ export function selectAgentChatComposerView(
         snapshot: snapshot && {
             activeTurnId: snapshot.activeTurnId,
             effort: snapshot.effort,
+            fast: snapshot.fast,
             goal: snapshot.goal,
             items: snapshot.items.filter((item) => item.type === 'userMessage'),
             model: snapshot.model,
@@ -97,6 +100,7 @@ export function selectAgentChatComposerView(
             queuePauseReason: snapshot.queuePauseReason,
             tasks: snapshot.tasks,
             turns: snapshot.turns,
+            ultracode: snapshot.ultracode,
             usage: snapshot.usage,
         },
     };
