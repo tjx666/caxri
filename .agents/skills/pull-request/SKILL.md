@@ -87,7 +87,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    runs, watches every workflow, and fails at once when the PR conflicts with its base, which starts
    no CI. A diff that qualifies for [Fast merge without CI](#fast-merge-without-ci) adds
    `--workflow Guards`, so the watcher returns as soon as the required check does instead of
-   waiting on the slower `checks` job. Use `--run <id>` for a single known run. Concurrent sessions, including other
+   waiting on the slower `checks` job. Use `--run <id>` for a single known run. After a merge,
+   `--sha <merge commit>` (full or short) follows every run of that commit, including a
+   `workflow_run` downstream such as the Release macOS run, and prints which run failed. Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
    new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling

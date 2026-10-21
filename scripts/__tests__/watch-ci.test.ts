@@ -209,3 +209,17 @@ describe('withDeadline', () => {
         await expect(withDeadline(Promise.resolve('done'), 1_000, 'poll')).resolves.toBe('done');
     });
 });
+
+describe('formatCiNotification for a skipped run', () => {
+    it('reports an all-skipped downstream run as passed, not failed', () => {
+        const notification = formatCiNotification({
+            conclusion: 'skipped',
+            jobs: [],
+            runId: '5',
+            status: 'completed',
+            workflowName: 'Release macOS',
+        });
+        expect(notification.title).toBe('CI passed · run 5');
+        expect(notification.message).toBe('Release macOS skipped');
+    });
+});

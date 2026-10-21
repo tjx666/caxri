@@ -1,0 +1,190 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { describe, expect, it, vi } from 'vitest';
+import { parse } from 'yaml';
+
+import { parseArguments } from '../watch-ci';
+import type { CommitRun } from '../watch-ci-sha';
+import {
+    DOWNSTREAM_GRACE_MS,
+    followCommit,
+    isSuccessfulConclusion,
+    nextFollowStep,
+    parseWorkflowRunChains,
+} from '../watch-ci-sha';
+
+const chains = new Map([['CI', ['Release macOS']]]);
+const run = (overrides: Partial<CommitRun>): CommitRun => ({
+    conclusion: '',
+    id: '1',
+    name: 'CI',
+    status: 'in_progress',
+    ...overrides,
+});
+
+describe('--sha argument parsing', () => {
+    it('accepts full and abbreviated SHAs', () => {
+        expect(parseArguments(['--sha', 'abc1234'])).toEqual({ quiet: false, sha: 'abc1234' });
+        expect(parseArguments(['--sha', 'A'.repeat(40), '--quiet']).sha).toBe('A'.repeat(40));
+    });
+
+    it('rejects a missing operand and a non-hexadecimal value', () => {
+        expect(() => parseArguments(['--sha'])).toThrow(/requires a value/);
+        expect(() => parseArguments(['--sha', 'main'])).toThrow(/hexadecimal/);
+        expect(() => parseArguments(['--sha', 'abc12'])).toThrow(/hexadecimal/);
+    });
+
+    it('rejects combining --sha with another selector', () => {
+        for (const other of [
+            ['--pr', '3'],
+            ['--run', '9'],
+            ['--branch', 'x'],
+            ['--workflow', 'CI'],
+        ]) {
+            expect(() => parseArguments(['--sha', 'abc1234', ...other])).toThrow(
+                /cannot be combined/,
+            );
+        }
+    });
+});
+
+describe('parseWorkflowRunChains', () => {
+    it('maps upstream names to downstream workflow names', () => {
+        const documents = [
+            { name: 'Release macOS', on: { workflow_run: { workflows: ['CI', 'Other'] } } },
+            { name: 'CI', on: { push: {} } },
+            { name: 'Nightly', on: { workflow_run: { workflows: ['CI'] } } },
+            { on: { workflow_run: { workflows: ['CI'] } } },
+            'not a workflow',
+        ];
+        expect(parseWorkflowRunChains(documents)).toEqual(
+            new Map([
+                ['CI', ['Release macOS', 'Nightly']],
+                ['Other', ['Release macOS']],
+            ]),
+        );
+    });
+
+    it('finds the release workflow chain in the repository workflow files', () => {
+        const release: unknown = parse(
+            readFileSync(join(import.meta.dirname, '../../.github/workflows/release.yml'), 'utf8'),
+        );
+        expect(parseWorkflowRunChains([release]).get('CI')).toContain('Release macOS');
+    });
+});
+
+describe('isSuccessfulConclusion', () => {
+    it('counts success and all-skipped runs only', () => {
+        expect(isSuccessfulConclusion('success')).toBe(true);
+        expect(isSuccessfulConclusion('skipped')).toBe(true);
+        for (const bad of ['failure', 'cancelled', 'timed_out', '']) {
+            expect(isSuccessfulConclusion(bad)).toBe(false);
+        }
+    });
+});
+
+describe('nextFollowStep', () => {
+    const base = { chains, nowMs: 1_000_000, waitedMs: 0 };
+
+    it('waits for the first run, then times out after ten minutes', () => {
+        expect(nextFollowStep({ ...base, runs: [] })).toEqual({ kind: 'wait', waitingFor: [] });
+        expect(nextFollowStep({ ...base, runs: [], waitedMs: 600_000 })).toEqual({
+            kind: 'timeout',
+        });
+    });
+
+    it('waits while any run is still active', () => {
+        expect(nextFollowStep({ ...base, runs: [run({})] })).toEqual({
+            kind: 'wait',
+            waitingFor: ['CI'],
+        });
+    });
+
+    it('waits for the downstream inside the grace window after a successful upstream', () => {
+        const ci = run({
+            completedAtMs: base.nowMs - 1_000,
+            conclusion: 'success',
+            status: 'completed',
+        });
+        expect(nextFollowStep({ ...base, runs: [ci] })).toEqual({
+            kind: 'wait',
+            waitingFor: ['Release macOS'],
+        });
+    });
+
+    it('stops waiting for an absent downstream once the grace window has passed', () => {
+        const ci = run({
+            completedAtMs: base.nowMs - DOWNSTREAM_GRACE_MS,
+            conclusion: 'success',
+            status: 'completed',
+        });
+        expect(nextFollowStep({ ...base, runs: [ci] })).toEqual({ kind: 'done' });
+    });
+
+    it('does not wait for the downstream of a failed upstream', () => {
+        const ci = run({ completedAtMs: base.nowMs, conclusion: 'failure', status: 'completed' });
+        expect(nextFollowStep({ ...base, runs: [ci] })).toEqual({ kind: 'done' });
+    });
+
+    it('waits for the downstream run itself, then finishes when it completes', () => {
+        const ci = run({ completedAtMs: base.nowMs, conclusion: 'success', status: 'completed' });
+        const release = run({ id: '2', name: 'Release macOS', status: 'queued' });
+        expect(nextFollowStep({ ...base, runs: [ci, release] })).toEqual({
+            kind: 'wait',
+            waitingFor: ['Release macOS'],
+        });
+        expect(
+            nextFollowStep({
+                ...base,
+                runs: [ci, { ...release, conclusion: 'skipped', status: 'completed' }],
+            }),
+        ).toEqual({ kind: 'done' });
+    });
+});
+
+describe('followCommit', () => {
+    const wait = async () => {};
+    const completed = (id: string, name: string, conclusion: string) => ({
+        conclusion,
+        id,
+        name,
+        status: 'completed',
+    });
+
+    it('watches a downstream run that appears after the upstream completes and reports failures', async () => {
+        const listRuns = vi
+            .fn()
+            .mockResolvedValueOnce([completed('1', 'CI', 'success')])
+            .mockResolvedValue([
+                completed('1', 'CI', 'success'),
+                completed('2', 'Release macOS', 'failure'),
+            ]);
+        const isRunGood = vi.fn((id: string) => Promise.resolve(id === '1'));
+        const failed = await followCommit('sha', isRunGood, { chains, listRuns, wait });
+        expect(isRunGood.mock.calls.map(([id]) => id)).toEqual(['1', '2']);
+        expect(failed.map((entry) => entry.name)).toEqual(['Release macOS']);
+    });
+
+    it('returns no failures when every run succeeded', async () => {
+        const listRuns = vi.fn().mockResolvedValue([completed('1', 'Guards', 'success')]);
+        expect(
+            await followCommit('sha', () => Promise.resolve(true), { chains, listRuns, wait }),
+        ).toEqual([]);
+    });
+
+    it('retries a dropped listing and gives up after repeated failures', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const listRuns = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('EOF'))
+            .mockResolvedValue([completed('1', 'Guards', 'success')]);
+        expect(
+            await followCommit('sha', () => Promise.resolve(true), { chains, listRuns, wait }),
+        ).toEqual([]);
+        const broken = vi.fn().mockRejectedValue(new Error('offline'));
+        await expect(
+            followCommit('sha', () => Promise.resolve(true), { chains, listRuns: broken, wait }),
+        ).rejects.toThrow('offline');
+    });
+});
