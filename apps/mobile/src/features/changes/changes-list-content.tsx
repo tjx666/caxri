@@ -204,7 +204,7 @@ export const ChangesListContent = ({
                     <Text style={[styles.stale, { color: theme.muted }]}>
                         {t('changes.truncated', { count: snapshot.files.length })}
                     </Text>
-                ) : null
+                ) : undefined
             }
         />
     );

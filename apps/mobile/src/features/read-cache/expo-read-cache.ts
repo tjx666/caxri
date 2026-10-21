@@ -30,7 +30,9 @@ const expoReadCacheFiles: ReadCacheFiles = {
     },
     write: (name, text) => {
         directory.create({ idempotent: true, intermediates: true });
-        new File(directory, name).write(text);
+        // `write` resolves asynchronously since Expo SDK 58. `ReadCacheFiles.write` is synchronous so a `clear` can never
+        // land before a write it already superseded.
+        new File(directory, name).writeSync(text);
     },
 };
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { TextInputInstance } from 'react-native';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
@@ -39,7 +40,7 @@ const SessionComposerInput = ({
     updateDraft: (value: string) => void;
 }) => {
     const { t } = useTranslation();
-    const inputReference = useRef<TextInput>(null);
+    const inputReference = useRef<TextInputInstance>(null);
     useEffect(() => {
         if (!focusComposer || !isVisible || !inputReference.current) return;
         inputReference.current.focus();

@@ -9,25 +9,38 @@ Caxri ships a packaged macOS app whose size is protected by a CI gate. This docu
 optimized baseline, the rules that keep it small, and how to analyze and re-budget when a change
 legitimately needs more bytes.
 
-## Baseline (2026-09, arm64 dir target)
+## Baseline (2026-10, arm64 dir target)
 
-| Artifact                  | Size       | Dominant contents                                                         |
-| ------------------------- | ---------- | ------------------------------------------------------------------------- |
-| `Caxri.app` (total)       | ~497.5 MiB | Electron framework (44 when measured) + embedded Server                   |
-| `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions       |
-| `app.asar`                | ~116.8 MiB | Desktop Main, Preload, and Renderer bundles plus their source maps        |
-| `out/renderer`            | ~113.2 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), Mermaid, fonts, vscode-icons, maps |
-| `out/main`                | ~5.02 MiB  | Electron Desktop Main only (measured 2026-10)                             |
-| `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                                 |
-| `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact                     |
+The size gate counts **shipped bytes**: every file except Source Maps (`*.map`), including the files
+inside `app.asar`. The maps still ship (see below), and the table reports them in their own column.
 
-Roughly half of the JavaScript above is Source Maps. Ordinary builds and the canonical
-`Caxri-<version>-arm64.dmg` include them because Caxri is built and debugged by coding agents, whose
-only view of a past failure may be the artifact that produced it. A minified packaged build cannot say
-which line threw, so the maps avoid a rebuild-and-reproduce cycle. A second
-`Caxri-<version>-arm64-nosourcemap.dmg` is rebuilt with maps disabled for users who explicitly prefer
-the smaller artifact. The size gate measures the default include flavor; a drop caused by missing
-maps remains a regression there.
+| Artifact                  | Shipped    | Source Maps | Dominant shipped contents                                             |
+| ------------------------- | ---------- | ----------- | --------------------------------------------------------------------- |
+| `Caxri.app` (total)       | ~415.2 MiB | ~101 MiB    | Electron framework + embedded Server                                  |
+| `Resources/server`        | ~128.7 MiB | ~13.5 MiB   | Pinned runtime (~121 MiB), native dependencies, bundles, extensions   |
+| `app.asar`                | ~41.0 MiB  | ~87.9 MiB   | Desktop Main, Preload, and Renderer bundles                           |
+| `out/renderer`            | ~39.0 MiB  | ~86.9 MiB   | Monaco and its language workers, Mermaid, pdf.js, vscode-icons, fonts |
+| `out/main`                | ~1.77 MiB  | ~3.4 MiB    | Electron Desktop Main only                                            |
+| `out/preload`             | ~18 KiB    | ~45 KiB     | Sandboxed preload bundles                                             |
+| `apps/server/dist/server` | ~128.7 MiB | ~13.5 MiB   | Byte-identical source of the embedded Server artifact                 |
+
+Ordinary builds and the canonical `Caxri-<version>-arm64.dmg` include Source Maps because Caxri is
+built and debugged by coding agents, whose only view of a past failure may be the artifact that
+produced it. A packaged build without maps cannot say which line threw, so the maps avoid a
+rebuild-and-reproduce cycle. A second `Caxri-<version>-arm64-nosourcemap.dmg` is rebuilt with maps
+disabled for users who explicitly prefer the smaller artifact.
+
+The gate excludes maps because the app never loads them: when they counted, they were more than half
+of every Desktop figure, so growth in debugging metadata consumed the headroom meant for real code
+and assets. Losing the maps is still a regression, so the gate also fails when `out/main`,
+`out/renderer`, or `app.asar` stops carrying any.
+
+The Renderer is minified without mangling (`electron.vite.config.ts`): whitespace removal and
+compression took the shipped Renderer from ~56.2 MiB to ~39.0 MiB, while function and React
+component names stay readable in Renderer stack traces and DevTools without a map lookup. Full
+mangling would save only another ~5.6 MiB. Monaco and pdf.js workers are third-party code and use
+the fully mangled default. Legal comments (`@license`, `/*!`) are kept. The terminal fonts ship as
+WOFF2 (lossless; glyph sets identical to the upstream TTF), ~2 MiB smaller than TTF.
 
 Mermaid is ~23 MiB of the renderer with its source maps, added when the file preview shipped. It is
 loaded through a dynamic `import('mermaid')`, so a document without a diagram never executes any of
@@ -35,8 +48,7 @@ it, but the chunks still occupy disk. Mermaid emits one lazy chunk per diagram t
 under 500 KiB) plus two large layout backends: ELK (~6.5 MiB) and Cytoscape (~2.5 MiB), each loaded
 only for the diagram kinds that need it. Aliasing those two to stubs would recover most of the
 growth by silently breaking `architecture` diagrams and ELK layouts in a user's README, which is not
-a trade this project wants to make invisibly; the renderer, asar, and app budgets were raised
-together instead.
+a trade this project wants to make invisibly, so the size is accepted inside the budgets instead.
 
 The PDF preview adds ~11 MiB with source maps (`out/renderer` measured 118.9 MiB before and
 130.1 MiB after, 2026-10): pdf.js (~0.8 MiB), its viewer components (~0.3 MiB), its worker
@@ -47,7 +59,7 @@ drawn with local system fonts, and the ICC decoder is never requested in this co
 packaged Renderer is a `file://` page that cannot `fetch` application files, so each data file is
 an inline module in its own lazy chunk (`features/preview/pdf-binary-data.ts`). None of it is in
 the initial Renderer bundle (which grew by ~4 KB of routing code), and a PDF loads only the CMap or
-decoder it actually uses. The renderer and asar budgets were raised to 140 MiB and 145 MiB.
+decoder it actually uses.
 
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
 emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar
@@ -55,20 +67,17 @@ can encounter any file or folder name in a user's project at runtime, so there i
 subset to tree-shake, and shipping the complete set is what makes icons match VS Code's
 vscode-icons extension.
 
-Desktop Main first grew from ~3.0 MiB to 4.06 MiB across many features, which raised its budget from
-4 MiB to 5 MiB. Later cumulative growth reached 5.02 MiB (5,267,964 B, 2026-10), so the ceiling is
-now 6 MiB, about 19% above the measured baseline. A comparison against the previous main build
-confirmed that Source Map flavoring does not duplicate bundles: one flavor is built at a time.
-About 67% of `out/main` is source maps, and their `sourcesContent` alone is ~2.47 MiB; the JavaScript
-(~1.68 MiB) is not minified. The largest bundled sources are `zod`, the `ws` transport, and
-`jsonc-parser`, plus the `@caxri/protocol` build output. Minifying Main was considered and deferred:
-packaged Main stack traces would then need source-map support (`process.setSourceMapsEnabled` or
-`--enable-source-maps`) to stay readable. Dropping `sourcesContent` would contradict the
-debuggable-without-rebuild goal above.
+Desktop Main ships ~1.77 MiB of unminified JavaScript; the largest bundled sources are `zod`, the
+`ws` transport, and `jsonc-parser`, plus the `@caxri/protocol` build output. Minifying Main was
+considered and deferred: packaged Main stack traces would then need source-map support
+(`process.setSourceMapsEnabled` or `--enable-source-maps`) to stay readable, for well under 1 MiB of
+savings. Dropping `sourcesContent` from any map would contradict the debuggable-without-rebuild goal
+above.
 
 The Server runtime also carries the bundled ripgrep executable (~4.3 MiB) so project search uses a
-known binary without relying on the host environment. The 150 MiB ceiling keeps roughly nine percent
-headroom over the measured 137.6 MiB while the job-summary delta still exposes incremental growth.
+known binary without relying on the host environment. The 140 MiB ceiling keeps roughly nine percent
+headroom over the measured 128.7 MiB shipped bytes while the job-summary delta still exposes
+incremental growth.
 
 Pre-optimization the app was ~367 MiB on disk: 220 Electron locales (47 MiB), whole-package
 `node_modules` copies in the asar (drizzle-orm 14 MiB, zod 5.7 MiB, xterm 5 MiB, archiver's
@@ -111,7 +120,9 @@ full-validation path (global configuration such as `package.json`, tsconfig, Vit
 `patches/`, or a protected CI script). Ordinary ready source pull requests run the `affected` scope and skip this gate, so a
 regression can first fail after the merge on `main`. The gate runs a
 timed build, a timed `electron-builder --mac dir` packaging pass, the packaged module-resolution
-artifact integrity and entry-point probe, and asserts every artifact stays under its byte budget. Budgets are absolute ceilings with
+artifact integrity and entry-point probe, asserts every artifact's shipped bytes (Source Maps
+excluded, measured per file inside `app.asar` from its header) stay under its byte budget, and
+fails when a debuggable artifact no longer carries any Source Map. Budgets are absolute ceilings with
 headroom over this baseline: when the gate fails, first try to optimize the regression away;
 only consciously raise the budget in `scripts/ci-bundle-budget.ts` and update this document in
 the same PR.
@@ -120,8 +131,8 @@ the same PR.
 
 Every gate run appends a Markdown report to the GitHub Actions job summary: phase timings and a
 component-level size breakdown (Electron runtime, asar, standalone Server runtime/native/bundles,
-each Desktop `out/` surface, and the Renderer Monaco workers and fonts), each with its
-budget and a percentage delta. Repeated local runs on one machine can compare against its
+each Desktop `out/` surface, and the Renderer Monaco workers and fonts), each with its shipped
+size, its Source Map size, its budget, and a percentage delta of the shipped size. Repeated local runs on one machine can compare against its
 `~/.cache/caxri/bundle-baseline.json`. Disposable hosted runners do not inherit that user cache, so
 their delta normally reports `n/a`; the absolute byte and time budgets remain the portable gate.
 When releases begin, switch the comparison source to the latest published release artifact.

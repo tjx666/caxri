@@ -18,7 +18,6 @@ when dependency resolution is intentionally refreshed, rather than updating ever
 Keep these compatibility exceptions:
 
 - `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
-- `electron-vite`: exact accepted beta until the stable Vite 8 integration is adopted.
 - `electron`: exact prerelease while Caxri tracks the Electron 45 prerelease line (now beta),
   adopted for Chromium 155. A caret is unsafe on a prerelease: `^45.0.0-beta.1` would resolve
   forward to any later 45 prerelease, so an unrelated install could silently change the Chromium
@@ -75,7 +74,7 @@ workspace that compiles with TypeScript 6, for the Expo reason above.
 | React                | <https://react.dev/versions>                                                                                    | Latest stable React 19 line; no experimental channel.                                                                                                                                                                                                                                                                                     |
 | React Compiler       | <https://react.dev/learn/react-compiler/installation>                                                           | Stable compiler using the official Vite 8 integration: `@rolldown/plugin-babel` runs `reactCompilerPreset()` for Renderer inputs, and `eslint-plugin-react-hooks` uses `recommended-latest` for compiler-aware diagnostics.                                                                                                               |
 | Vite                 | <https://vite.dev/releases> and <https://vite.dev/guide/>                                                       | Vite 8 is current. Node 22.12+ satisfies its engine range; the React plugin and Electron integration are selected from releases that explicitly declare Vite 8 support.                                                                                                                                                                   |
-| electron-vite        | <https://electron-vite.org/guide/>                                                                              | The 6.0 beta is the first published line declaring Vite 8 support. Its beta risk is accepted and covered by build, Electron E2E, native probes, and package validation; see [electron-toolchain.md](electron-toolchain.md).                                                                                                               |
+| electron-vite        | <https://electron-vite.org/guide/>                                                                              | 6.0 is the first stable line declaring Vite 8 support, used through an ordinary caret range; see [electron-toolchain.md](electron-toolchain.md).                                                                                                                                                                                          |
 | electron-builder     | <https://www.electron.build/docs/>                                                                              | Packages the Desktop app and embeds the prebuilt Server artifact under `Contents/Resources/server`; there is no production dependency graph to flatten into ASAR.                                                                                                                                                                         |
 | shadcn/ui            | <https://ui.shadcn.com/docs/changelog/2026-07-base-ui-default>                                                  | Base UI is the recommended default for new projects. Caxri pins `base-nova` in `components.json`, uses `@base-ui/react` primitives, and keeps locally owned component source.                                                                                                                                                             |
 | Lucide               | <https://lucide.dev/guide/packages/lucide-react>                                                                | Single React icon family; icons remain tree-shakeable components.                                                                                                                                                                                                                                                                         |
@@ -116,7 +115,9 @@ workspace that compiles with TypeScript 6, for the Expo reason above.
   dictionaries without a second i18n stack. Its component kit would bring a parallel design system
   (antd and Emotion) that `DESIGN.md` does not use.
 - Guardrail: the wrapper renders `ConfigProvider` with `globalFocusRing: false` instead of the
-  library's `I18nProvider`, which forces a global focus ring (see `docs/i18n.md`). Re-evaluate this
+  library's `I18nProvider`, which forces a global focus ring (see `docs/i18n.md`), and with
+  `enableCustomFonts={false}`, because version 6 otherwise injects CDN web-font and KaTeX
+  stylesheets that the bundled Renderer neither needs nor can load offline. Re-evaluate this
   exception if a Renderer surface needs a `@lobehub/ui` component, if an upgrade changes that focus
   behavior, or if bundle analysis attributes material Renderer growth to the package.
 

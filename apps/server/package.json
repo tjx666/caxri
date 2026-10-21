@@ -13,7 +13,7 @@
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
     "dependencies": {
-        "@anthropic-ai/claude-agent-sdk": "^0.3.296",
+        "@anthropic-ai/claude-agent-sdk": "^0.3.304",
         "@caxri/agent-skills": "workspace:*",
         "@caxri/mobile-transport": "workspace:*",
         "@caxri/protocol": "workspace:*",
@@ -21,9 +21,9 @@
         "@caxri/utils": "workspace:*",
         "@parcel/watcher": "^2.6.0",
         "@vscode/ripgrep-universal": "^1.18.0",
-        "@xterm/addon-serialize": "0.15.0-beta.301",
-        "@xterm/addon-unicode11": "0.10.0-beta.301",
-        "@xterm/headless": "6.1.0-beta.303",
+        "@xterm/addon-serialize": "0.15.0-beta.310",
+        "@xterm/addon-unicode11": "0.10.0-beta.310",
+        "@xterm/headless": "6.1.0-beta.313",
         "archiver": "^8.0.0",
         "better-sqlite3": "^13.0.3",
         "caxri": "workspace:*",

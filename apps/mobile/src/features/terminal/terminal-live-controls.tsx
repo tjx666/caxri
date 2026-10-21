@@ -1,4 +1,4 @@
-import type { TextInput as TextInputHandle } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { ArrowDown, Keyboard, RotateCw, X } from 'lucide-react-native';
@@ -24,7 +24,7 @@ export const TerminalKeyboardInput = ({
     inputReference,
     terminal,
 }: {
-    inputReference: React.RefObject<TextInputHandle | null>;
+    inputReference: React.RefObject<TextInputInstance | null>;
     terminal: LiveTerminal;
 }) => {
     const { t } = useTranslation();

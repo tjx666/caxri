@@ -25,6 +25,6 @@
         "node": ">=24.0.0"
     },
     "dependencies": {
-        "markdown-it": "^15.0.2"
+        "markdown-it": "^15.0.3"
     }
 }

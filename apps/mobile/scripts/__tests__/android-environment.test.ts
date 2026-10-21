@@ -176,6 +176,26 @@ describe('resolveAndroidEnvironment', () => {
         ).toThrow('Android build requires SDK Platform 36');
     });
 
+    it('accepts the minor-qualified platform directory that API 37 ships under', () => {
+        const existing = new Set([
+            '/jdk/bin/java',
+            '/sdk/platform-tools/adb',
+            '/sdk/platforms/android-37.0/android.jar',
+            '/sdk/ndk/27.1.12297006/source.properties',
+        ]);
+        expect(
+            resolveAndroidEnvironment({
+                environment: { ANDROID_SDK_ROOT: '/sdk', JAVA_HOME: '/jdk' },
+                isPathPresent: (path) => existing.has(path),
+                isCompatibleJavaHome: isJava17,
+                requiredBuildToolsVersions: [],
+                requiredCmakeVersions: [],
+                requiredNdkVersion: '27.1.12297006',
+                requiredPlatformVersions: ['37'],
+            }).sdkRoot,
+        ).toBe('/sdk');
+    });
+
     it('fails before Gradle can download a missing CMake toolchain', () => {
         const existing = new Set([
             '/jdk/bin/java',

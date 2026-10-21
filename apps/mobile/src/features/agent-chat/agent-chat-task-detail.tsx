@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useRef } from 'react';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import {
     ActivityIndicator,
     Platform,
@@ -120,7 +120,7 @@ export const AgentChatTaskStopButton = ({
  * exit line arriving as a task ends) used to read as the reader scrolling away and the box stopped short of them.
  */
 const TaskOutput = ({ text, theme }: { text: string; theme: MobileTheme }) => {
-    const scroll = useRef<ScrollView>(null);
+    const scroll = useRef<ScrollViewInstance>(null);
     const isAtBottom = useRef(true);
     const onReaderScrolled = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
         isAtBottom.current = isScrolledToBottom(nativeEvent);

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import type { HostInstance } from 'react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
@@ -203,7 +204,7 @@ export const SessionDetailHeader = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const menuAnchor = useRef<View>(null);
+    const menuAnchor = useRef<HostInstance>(null);
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
     const [markReadError, setMarkReadError] = useState<string | null>(null);

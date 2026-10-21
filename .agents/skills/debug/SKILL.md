@@ -343,10 +343,12 @@ unminified (`apps/server/vite.config.ts`), so a session shows readable code eith
 Ordinary builds and the canonical macOS DMG ship Source Maps for Desktop Main, Preload, Renderer,
 and the embedded Server, so DevTools Sources and a Node inspector session show real files and a stack
 trace names a real line. The public Release also carries an explicit `nosourcemap` DMG. Do not use
-that flavor for packaged debugging: reproduce with the canonical artifact instead. The maps roughly
-double the JavaScript payload (`out/renderer` ≈ 91 MiB against ≈ 41 MiB without them);
-`scripts/ci-bundle-budget.ts` carries budgets for the default build, and `docs/bundle-size.md`
-explains the trade.
+that flavor for packaged debugging: reproduce with the canonical artifact instead. The Renderer is
+minified without mangling, so a raw Renderer stack keeps real function names but points at a long
+line and column of the bundle; DevTools applies the map automatically, and a logged position resolves
+through the `.map` beside the chunk. The maps are about twice the shipped JavaScript
+(`out/renderer` ≈ 87 MiB of maps against ≈ 39 MiB shipped); `scripts/ci-bundle-budget.ts` budgets
+the shipped bytes and fails if the maps disappear, and `docs/bundle-size.md` explains the trade.
 
 ### Builds made for measurement: `CAXRI_REACT_PROFILING`, `CAXRI_REACT_SCAN`
 

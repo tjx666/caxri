@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import type { HostInstance } from 'react-native';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -118,7 +119,7 @@ export const SessionHomeHeader = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const menuAnchor = useRef<View>(null);
+    const menuAnchor = useRef<HostInstance>(null);
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
     const projectChoices: ProjectChoice[] = [

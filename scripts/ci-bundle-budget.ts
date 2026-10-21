@@ -7,11 +7,12 @@
  * headroom must either be optimized away or consciously re-budgeted in the same PR that introduces them.
  */
 
+import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 
@@ -34,47 +35,38 @@ interface TimeBudget {
 }
 
 /**
- * Byte ceilings for the default debuggable build. Baseline (2026-09, with Source Maps included in the canonical build):
- * standalone Server ≈ 137.6 MiB, out/main ≈ 3.0 MiB (5.02 MiB by 2026-10, see below), out/preload ≈ 48 KiB,
- * out/renderer ≈ 113.2 MiB, app.asar ≈ 116.8 MiB, Caxri.app ≈ 497.5 MiB. The Server deliberately includes its pinned
- * Node runtime and bundled ripgrep binary so Desktop and platform deployments consume one identical, self-contained
- * artifact.
+ * Byte ceilings for the shipped bytes of the default debuggable build: every file except Source Maps (see
+ * `ByteSelection`). Baseline (2026-10, measured with maps excluded): standalone Server ≈ 128.7 MiB, out/main ≈ 1.77
+ * MiB, out/preload ≈ 18 KiB, out/renderer ≈ 39.0 MiB, app.asar ≈ 41.0 MiB, Caxri.app ≈ 415.2 MiB. The Server
+ * deliberately includes its pinned Node runtime and bundled ripgrep binary so Desktop and platform deployments consume
+ * one identical, self-contained artifact.
  *
- * Source Maps are roughly half of the JavaScript in these numbers and are a deliberate cost in the default flavor: a
- * canonical packaged build has to be debuggable without a rebuild (docs/bundle-size.md, `.agents/skills/debug`). A drop
- * in these figures is therefore as suspicious as a rise: it usually means maps stopped being emitted or packaged.
+ * Source Maps still ship in this flavor (≈ 88 MiB inside app.asar) so a canonical packaged build is debuggable without
+ * a rebuild (docs/bundle-size.md, `.agents/skills/debug`). They are excluded here because the app never loads them:
+ * when they counted, they were over half of every Desktop figure, and growth in debugging metadata ate the headroom
+ * meant for real code. `SOURCE_MAP_REQUIRED` keeps the drop-is-suspicious check: an artifact that stops carrying maps
+ * fails.
  *
- * The Renderer, asar, and app ceilings were raised together for Mermaid (≈ 23 MiB of the Renderer with its maps), which
- * the file preview loads on demand. Mermaid ships one lazy chunk per diagram type plus two large layout backends (ELK ≈
- * 6.5 MiB and Cytoscape ≈ 2.5 MiB) that only load for the diagram kinds that need them. Stubbing those out would save
- * bytes by silently breaking `architecture` diagrams and ELK layouts, so the size is accepted instead.
- *
- * The Renderer and asar ceilings were raised again for the PDF preview (≈ 11 MiB with maps, measured 118.9 → 130.1 MiB
- * for out/renderer): pdf.js, its worker, and the CMaps, symbol fonts, and image decoders it needs, each in its own lazy
- * chunk so only an opened PDF loads any of it and only the CMap or decoder that PDF asks for.
- *
- * The out/main ceiling was raised from 4 MiB to 5 MiB once Desktop Main reached 4.06 MiB. Later cumulative growth
- * reached 5.02 MiB (5,267,964 B, 2026-10), so 6 MiB restores about 19% headroom. Comparison against the previous main
- * build confirmed that Source Map flavoring does not duplicate bundles: one flavor is built at a time. About 67% of
- * out/main is source maps whose `sourcesContent` alone is ≈ 2.47 MiB; the JavaScript (≈ 1.68 MiB) is unminified.
- * Minifying Main was considered and deferred because packaged Main stack traces would need source-map support to stay
- * readable.
+ * The Renderer is minified without mangling (electron.vite.config.ts), which took it from ≈ 56.2 to ≈ 39.0 MiB; its
+ * dominant costs are now Monaco and its language workers, Mermaid with ELK and Cytoscape, the PDF preview, and the full
+ * vscode-icons SVG set, all of which are product decisions recorded in docs/bundle-size.md. Each ceiling keeps roughly
+ * 10 to 20 percent headroom over the baseline.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
-    { path: 'apps/server/dist/server', maxBytes: 150 * MiB },
-    { path: 'out/main', maxBytes: 6 * MiB },
-    { path: 'out/preload', maxBytes: 256 * 1_024 },
-    { path: 'out/renderer', maxBytes: 140 * MiB },
+    { path: 'apps/server/dist/server', maxBytes: 140 * MiB },
+    { path: 'out/main', maxBytes: 2.5 * MiB },
+    { path: 'out/preload', maxBytes: 64 * 1_024 },
+    { path: 'out/renderer', maxBytes: 46 * MiB },
     {
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar',
-        maxBytes: 145 * MiB,
+        maxBytes: 48 * MiB,
     },
     {
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server',
-        maxBytes: 150 * MiB,
+        maxBytes: 140 * MiB,
     },
-    { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 540 * MiB },
+    { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 460 * MiB },
 ];
 
 /**
@@ -171,6 +163,22 @@ interface BundleBaseline {
 
 const BASELINE_PATH = join(homedir(), '.cache', 'caxri', 'bundle-baseline.json');
 
+/**
+ * Artifacts whose default flavor must still carry Source Maps. The byte budgets exclude maps, so this check is what
+ * catches maps that silently stopped being emitted or packaged.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export const SOURCE_MAP_REQUIRED = [
+    'out/main',
+    'out/renderer',
+    'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar',
+];
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export function findMissingSourceMaps(sourceMapBytes: Record<string, number>): string[] {
+    return SOURCE_MAP_REQUIRED.filter((path) => !(sourceMapBytes[path] > 0));
+}
+
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export function findBudgetViolations(measurements: Measurement[]): Measurement[] {
     return measurements.filter((measurement) => measurement.actual > measurement.budget);
@@ -184,23 +192,94 @@ export function formatMeasurement(measurement: Measurement): string {
     return `${measurement.label}: ${format(measurement.actual)} (budget ${format(measurement.budget)}) ${status}`;
 }
 
+const SOURCE_MAP = /\.map$/u;
+
+/**
+ * Which files a measurement counts. Budgets count `shipped` bytes: every file except Source Maps. The maps stay in the
+ * default flavor for packaged debuggability (docs/bundle-size.md), but they are debugging metadata the app never loads,
+ * so they must not crowd real code and assets out of a budget. `sourceMaps` counts only the maps so the summary still
+ * reports them and the gate can fail when they disappear.
+ */
+type ByteSelection = 'all' | 'shipped' | 'sourceMaps';
+
+function isSelected(selection: ByteSelection, name: string, match?: RegExp): boolean {
+    if (match && !match.test(name)) return false;
+    if (selection === 'shipped') return !SOURCE_MAP.test(name);
+    if (selection === 'sourceMaps') return SOURCE_MAP.test(name);
+    return true;
+}
+
+interface AsarEntry {
+    files?: Record<string, AsarEntry>;
+    size?: number;
+    unpacked?: boolean;
+}
+
+/**
+ * Sums the packed file sizes recorded in an asar header. The archive layout is a Chromium Pickle wrapping the header
+ * length, then a Pickle wrapping the JSON header string, then the concatenated file contents; unpacked files live in
+ * `app.asar.unpacked` and are not part of the archive bytes. https://github.com/electron/asar#format
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
+export function sumAsarHeader(header: AsarEntry, selection: ByteSelection, match?: RegExp): number {
+    let total = 0;
+    const entries = Object.entries(header.files ?? {});
+    for (const [name, entry] of entries) {
+        if (entry.files) total += sumAsarHeader(entry, selection, match);
+        else if (
+            !entry.unpacked &&
+            entry.size !== undefined &&
+            isSelected(selection, name, match)
+        ) {
+            total += entry.size;
+        }
+    }
+    return total;
+}
+
+async function readAsarHeader(archivePath: string): Promise<AsarEntry> {
+    const handle = await open(archivePath, 'r');
+    try {
+        const prefix = Buffer.alloc(16);
+        await handle.read(prefix, 0, 16, 0);
+        const headerLength = prefix.readUInt32LE(12);
+        const header = Buffer.alloc(headerLength);
+        await handle.read(header, 0, headerLength, 16);
+        return JSON.parse(header.toString('utf8')) as AsarEntry;
+    } finally {
+        await handle.close();
+    }
+}
+
 /**
  * Logical byte size of a file or directory tree, optionally restricted to files whose basename matches. Uses file sizes
  * rather than disk blocks so the gate is deterministic across filesystems and block sizes. Recursion is manual because
  * macOS framework bundles contain `Versions/Current` directory symlinks that `readdir` with `recursive: true` would
  * traverse, double-counting the Electron framework; dirent type checks never follow symlinks, so each real file is
- * counted exactly once.
+ * counted exactly once. An `.asar` archive is measured by its contents, so excluding Source Maps reaches inside it.
  */
-async function measureBytes(targetPath: string, match?: RegExp): Promise<number> {
+async function measureBytes(
+    targetPath: string,
+    selection: ByteSelection,
+    match?: RegExp,
+): Promise<number> {
     const target = await stat(targetPath);
-    if (!target.isDirectory()) return target.size;
+    if (!target.isDirectory()) {
+        if (targetPath.endsWith('.asar')) {
+            return selection === 'all'
+                ? target.size
+                : sumAsarHeader(await readAsarHeader(targetPath), selection, match);
+        }
+        return isSelected(selection, basename(targetPath), match) ? target.size : 0;
+    }
     const entries = await readdir(targetPath, { withFileTypes: true });
     const sizes = await Promise.all(
         entries.map(async (entry) => {
             const entryPath = join(targetPath, entry.name);
-            if (entry.isDirectory()) return measureBytes(entryPath, match);
+            if (entry.isDirectory()) return measureBytes(entryPath, selection, match);
             if (!entry.isFile()) return 0;
-            if (match && !match.test(entry.name)) return 0;
+            if (entry.name.endsWith('.asar')) return measureBytes(entryPath, selection, match);
+            if (!isSelected(selection, entry.name, match)) return 0;
             const fileStat = await stat(entryPath);
             return fileStat.size;
         }),
@@ -223,7 +302,12 @@ export function formatDeltaPercent(current: number, baseline: number | undefined
 interface SummaryInput {
     baseline?: BundleBaseline;
     commit: string;
-    components: Array<{ budgetBytes?: number; bytes: number; label: string }>;
+    components: Array<{
+        budgetBytes?: number;
+        bytes: number;
+        label: string;
+        sourceMapBytes?: number;
+    }>;
     times: Array<{ budgetSeconds: number; label: string; seconds: number }>;
 }
 
@@ -245,14 +329,17 @@ export function buildSummaryMarkdown(input: SummaryInput): string {
                 `${formatDeltaPercent(time.seconds, input.baseline?.seconds[time.label])} |`,
         ),
         '',
-        '| Component | Size | Budget | Δ vs main |',
-        '| --- | ---: | ---: | ---: |',
+        '| Component | Size | Source Maps | Budget | Δ vs main |',
+        '| --- | ---: | ---: | ---: | ---: |',
         ...input.components.map(
             (component) =>
                 `| ${component.label} | ${formatMiB(component.bytes)} | ` +
+                `${component.sourceMapBytes === undefined ? '—' : formatMiB(component.sourceMapBytes)} | ` +
                 `${component.budgetBytes === undefined ? '—' : formatMiB(component.budgetBytes)} | ` +
                 `${formatDeltaPercent(component.bytes, input.baseline?.sizes[component.label])} |`,
         ),
+        '',
+        'Size and Budget exclude Source Maps, which are reported separately.',
         '',
         input.baseline
             ? `Δ compares against the last green \`main\` build (\`${input.baseline.commit.slice(0, 7)}\`, recorded ${input.baseline.recordedAt}).`
@@ -357,7 +444,7 @@ async function main(): Promise<void> {
     const sizeMeasurements = await Promise.all(
         SIZE_BUDGETS.map(async (sizeBudget) => ({
             label: sizeBudget.path,
-            actual: await measureBytes(resolve(sizeBudget.path)),
+            actual: await measureBytes(resolve(sizeBudget.path), 'shipped'),
             budget: sizeBudget.maxBytes,
             unit: 'bytes' as const,
         })),
@@ -378,8 +465,13 @@ async function main(): Promise<void> {
     const components = await Promise.all(
         REPORT_COMPONENTS.map(async (component) => ({
             budgetBytes: COMPONENT_BUDGETS.get(component.label),
-            bytes: await measureBytes(resolve(component.path), component.match),
+            bytes: await measureBytes(resolve(component.path), 'shipped', component.match),
             label: component.label,
+            sourceMapBytes: await measureBytes(
+                resolve(component.path),
+                'sourceMaps',
+                component.match,
+            ),
         })),
     );
     const times = measurements
@@ -411,6 +503,21 @@ async function main(): Promise<void> {
         process.exit(1);
     }
     console.log('Packaged Server artifact integrity and module resolution ok.');
+
+    const sourceMapEntries = await Promise.all(
+        SOURCE_MAP_REQUIRED.map(
+            async (path) => [path, await measureBytes(resolve(path), 'sourceMaps')] as const,
+        ),
+    );
+    const missingSourceMaps = findMissingSourceMaps(Object.fromEntries(sourceMapEntries));
+    if (missingSourceMaps.length > 0) {
+        console.error('\nSource Maps are missing from the default debuggable build:');
+        for (const path of missingSourceMaps) console.error(`  - ${path}`);
+        console.error(
+            '\nThe size budgets exclude maps, so a lost map would otherwise pass unnoticed.',
+        );
+        process.exit(1);
+    }
 
     const violations = findBudgetViolations(measurements);
     if (violations.length > 0) {

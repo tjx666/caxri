@@ -14,20 +14,20 @@ allowBuilds:
 
 catalog:
   '@ronradtke/react-native-markdown-display': ^9.0.3
-  '@tanstack/react-query': ^5.104.1
+  '@tanstack/react-query': ^5.104.5
   '@types/semver': ^7.8.0
   '@types/ws': ^8.18.2
   '@yutengjing/eslint-config-typescript': ^4.0.0
   '@yutengjing/prettier-config': ^2.0.0
   eslint-plugin-import-x: ^4.17.1
-  expo-file-system: ~57.0.7
-  expo-image-manipulator: ~57.0.21
-  expo-image-picker: ~57.0.20
-  expo-intent-launcher: ~57.0.1
-  lucide-react-native: ^1.55.0
-  markdownlint: ^0.41.1
+  expo-file-system: ~58.0.10
+  expo-image-manipulator: ~58.0.15
+  expo-image-picker: ~58.0.10
+  expo-intent-launcher: ~58.0.3
+  lucide-react-native: ^1.59.0
+  markdownlint: ^0.42.0
   markdownlint-cli2: ^0.23.3
-  oxlint: ^1.87.0
+  oxlint: ^1.89.0
   oxlint-tsgolint: ^7.0.2004
   prettier-plugin-tailwindcss: ^0.8.1
   prism-react-renderer: ^2.4.1
@@ -36,7 +36,7 @@ catalog:
   semver: ^7.8.5
   sonda: ^0.14.0
   ws: ^8.22.0
-  zod: ^4.6.6
+  zod: ^4.6.7
 
 # CI's pnpm applies its default one-day release-age floor. Declaring it here keeps a contributor's user-level
 # `minimumReleaseAge` override from resolving a lockfile that CI's frozen install then rejects.
@@ -51,29 +51,11 @@ minimumReleaseAgeExclude:
   - '@yutengjing/eslint-config-typescript@4.0.0'
   - '@yutengjing/eslint-plugin@4.0.0'
   - '@yutengjing/vscode-icons@0.2.0'
-  # The Expo SDK 57 train: its packages publish together and must resolve as one set.
-  - '@expo/cli@57.0.29'
-  - '@expo/ui@57.0.23'
-  - babel-preset-expo@57.0.15
-  - expo-modules-core@57.0.22
-  - expo-modules-jsi@57.1.2
-  - expo-router@57.0.26
-  - expo@57.0.28
-  - '@expo/fingerprint@0.20.14'
-  - '@expo/inline-modules@0.1.8'
-  - '@expo/local-build-cache-provider@57.0.9'
-  - '@expo/prebuild-config@57.0.18'
-  - expo-crypto@57.0.4
-  - expo-dev-client@57.0.20
-  - expo-dev-launcher@57.0.21
-  - expo-dev-menu@57.0.20
-  - expo-modules-autolinking@57.0.15
-  - expo-splash-screen@57.0.10
   # The DOMPurify security floor below must take a fix the day it ships.
   - dompurify@3.4.17
   # Electron prereleases publish continuously, so the release-age floor would permanently block whichever
   # one we pin. Caxri tracks the 45 prerelease line on purpose (Chromium 155) and pins it exactly.
-  - electron@45.0.0-beta.1
+  - electron@45.0.0-beta.6
 
 overrides:
   # Security floor for DOMPurify, not a compatibility pin. It is both monaco-editor's transitive dependency and, since
@@ -105,9 +87,9 @@ overrides:
   # tokens, without taking 1.12.0's unrelated parse changes on the REACT_EDITOR command path.
   # https://github.com/advisories/GHSA-pqg4-j6r4-53mv
   'react-devtools-core>shell-quote': 1.11.0
-  # react-scan declares react-doctor through the floating `latest` tag. Keep the already-reviewed 0.9.17 toolchain
+  # react-scan declares react-doctor through the floating `latest` tag. Keep the already-reviewed 0.9.18 toolchain
   # until a dedicated react-doctor upgrade can validate its binary and plugin changes.
-  'react-scan>react-doctor': 0.9.17
+  'react-scan>react-doctor': 0.9.18
   # Electron Builder's download path accepts http-cache-semantics 4.x. GitHub still marks <=4.2.0 as vulnerable,
   # while upstream disputes the max-stale report; 4.3.0 exits the advisory range and includes later cache fixes.
   # https://github.com/advisories/GHSA-ch52-4w7c-c8xp
@@ -146,12 +128,15 @@ patchedDependencies:
   node-forge@1.4.0: patches/node-forge@1.4.0.patch
   # Keep the embedded Terminal WebView offline before page configuration or content loading.
   # https://developer.android.com/reference/android/webkit/WebSettings#setBlockNetworkLoads(boolean)
-  react-native-webview@13.16.1: patches/react-native-webview.patch
+  # Also restores the `WebView<P = {}>` declaration default: 14.0.1 declares `P = undefined`, so
+  # `WebViewProps & P` collapses to `never` and every `<WebView>` element fails to typecheck. 16.0.0 restores `{}`;
+  # drop this hunk when Expo's SDK pin moves past 14.
+  react-native-webview@14.0.1: patches/react-native-webview.patch
   # Preserve timer pause accounting across an open reminder menu's Infinity duration, and let the
   # host refuse the Toaster's focus restoration while a dialog opened from a toast action owns focus.
   # https://github.com/emilkowalski/sonner/pull/533
   sonner@2.0.8: patches/sonner.patch
   # Clip stale alternate-buffer cells and preserve the full-row cursor during screen recovery.
   # https://github.com/xtermjs/xterm.js/issues/6165
-  '@xterm/addon-serialize@0.15.0-beta.301': patches/xterm-addon-serialize.patch
+  '@xterm/addon-serialize@0.15.0-beta.310': patches/xterm-addon-serialize.patch
   node-pty@1.1.0: patches/node-pty@1.1.0.patch

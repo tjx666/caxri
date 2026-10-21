@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import type { TextInputInstance } from 'react-native';
 import { TextInput } from 'react-native';
 
 import { useTranslation } from '../../i18n';
@@ -22,7 +23,7 @@ export const AgentChatComposerInput = ({
 }: {
     draft: string;
     focusComposer: boolean | undefined;
-    inputReference: RefObject<TextInput | null>;
+    inputReference: RefObject<TextInputInstance | null>;
     isEditable: boolean;
     isRunning: boolean;
     onComposerFocused: (() => void) | undefined;

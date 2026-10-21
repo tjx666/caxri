@@ -218,9 +218,14 @@ export const resolveAndroidEnvironment = ({
     );
     if (missingBuildTools.length > 0)
         throw new Error(`Android build requires SDK Build Tools ${missingBuildTools.join(', ')}`);
-    const missingPlatforms = requiredPlatformVersions.filter(
-        (version) =>
-            !isPathPresent(join(sdkRoot, 'platforms', `android-${version}`, 'android.jar')),
+    /**
+     * From API 37 the SDK ships a platform only under its minor-qualified name (`platforms;android-37.0`), which the
+     * Android Gradle Plugin resolves for `compileSdk = 37`. Older levels keep the bare `android-36` directory.
+     */
+    const missingPlatforms = requiredPlatformVersions.filter((version) =>
+        [`android-${version}`, `android-${version}.0`].every(
+            (directory) => !isPathPresent(join(sdkRoot, 'platforms', directory, 'android.jar')),
+        ),
     );
     if (missingPlatforms.length > 0)
         throw new Error(`Android build requires SDK Platform ${missingPlatforms.join(', ')}`);

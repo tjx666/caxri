@@ -377,7 +377,7 @@ export const FilesPanel = ({
                 ListFooterComponent={
                     listing.data?.truncated ? (
                         <PanelStatus message={t('panels.listTruncated')} theme={theme} />
-                    ) : null
+                    ) : undefined
                 }
                 onRefresh={() => {
                     // eslint-disable-next-line no-void -- The query renders its own error state.

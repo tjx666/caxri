@@ -1,4 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+/* oxlint-disable typescript/no-deprecated -- Gesture Handler 3 deprecates the `Gesture` builder but still ships it. The
+   hook API renames the end callbacks and changes composition, so the viewer moves only with on-device pinch and swipe
+   verification. */
 import { useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';

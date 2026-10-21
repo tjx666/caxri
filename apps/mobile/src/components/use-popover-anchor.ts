@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import { useCallback, useState } from 'react';
-import type { View } from 'react-native';
+import type { HostInstance } from 'react-native';
 import { useWindowDimensions } from 'react-native';
 
 /**
@@ -14,7 +14,7 @@ export type PopoverPlacement = { right: number } & ({ bottom: number } | { top: 
  * in its own modal window, outside the anchor's layout.
  */
 export const usePopoverAnchor = (
-    anchor: RefObject<View | null>,
+    anchor: RefObject<HostInstance | null>,
     { side = 'below' }: { side?: 'above' | 'below' } = {},
 ) => {
     const { height, width } = useWindowDimensions();

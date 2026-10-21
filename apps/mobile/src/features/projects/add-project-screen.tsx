@@ -216,7 +216,7 @@ export const AddProjectScreen = () => {
                         <Text style={[styles.emptyText, { color: theme.muted }]}>
                             {t('projects.truncated', { count: entries.length })}
                         </Text>
-                    ) : null
+                    ) : undefined
                 }
                 renderItem={renderEntry}
                 style={styles.list}

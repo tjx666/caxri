@@ -9,6 +9,18 @@ import type { MobileUpdateInstallPorts } from './mobile-update-state';
  */
 const FLAG_GRANT_READ_URI_PERMISSION = 1;
 
+/**
+ * The deprecated `md5` getter read as null for an unreadable file. Keep that, so the caller reports an incomplete
+ * download instead of a raw digest error.
+ */
+const readMd5 = async (file: File): Promise<string | null> => {
+    try {
+        return await file.digest('MD5');
+    } catch {
+        return null;
+    }
+};
+
 export const downloadMobileUpdate: MobileUpdateInstallPorts['download'] = async (
     prepared: MobileUpdatePrepareResult,
     onProgress,
@@ -21,7 +33,7 @@ export const downloadMobileUpdate: MobileUpdateInstallPorts['download'] = async 
     return {
         contentUri: file.contentUri,
         discard: () => file.delete(),
-        md5: file.md5,
+        md5: await readMd5(file),
         sizeBytes: file.size,
     };
 };
