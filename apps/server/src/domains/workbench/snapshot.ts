@@ -26,7 +26,10 @@ export function createWorkbenchSnapshots(dependencies: {
         sessions: SessionRecord[],
         selection: Pick<
             BootstrapState,
-            'openSessionIds' | 'selectedProjectId' | 'selectedSessionId'
+            | 'openSessionIds'
+            | 'otherWindowOpenSessionIds'
+            | 'selectedProjectId'
+            | 'selectedSessionId'
         >,
     ): BootstrapState {
         const settings = configuration.getSettings();
@@ -79,6 +82,11 @@ export function createWorkbenchSnapshots(dependencies: {
                 : undefined;
             return workbenchState(database.listVisibleProjects(), sessions, {
                 openSessionIds: window.openSessionIds.filter((id) => openable.has(id)),
+                otherWindowOpenSessionIds: windowKey
+                    ? database.windowOpenSessions
+                          .ownedElsewhere(windowKey)
+                          .filter((id) => openable.has(id))
+                    : [],
                 selectedProjectId:
                     selectedProjectId ?? database.getAppState('lastSelectedProjectId') ?? undefined,
                 selectedSessionId,

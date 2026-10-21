@@ -5,13 +5,21 @@ import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protoc
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
+import { useSessionOpenPlace } from '../../stores/open-sessions';
 import { CommanderSessionMarker } from '../agent-commander/commander-session-marker';
 import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionTitleForDisplay } from '../session/session-title';
+import {
+    clearLinkedHoveredSession,
+    setLinkedHoveredSession,
+    useIsLinkedSessionHovered,
+} from '../session-tabs/linked-session-hover';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { SessionActivityCard } from './session-activity-card';
+import { SessionOpenEdge } from './session-open-edge';
+import { SessionOpenLabel } from './session-open-label';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { canSuggestSessionTitle } from './session-rename-draft';
 import { SessionRenameInput } from './session-rename-input';
@@ -136,6 +144,9 @@ export function ActiveSessionRow({
     // The shared label rule (collision suffix included); `title` above stays the plain stored title for rename and the
     // tree row's accessible name.
     const label = useSessionLabel(session.id);
+    // Both read per row as primitives, so a strip edit or a hover re-renders only the rows it concerns.
+    const openPlace = useSessionOpenPlace(session.id);
+    const isLinkedHover = useIsLinkedSessionHovered(session.id);
     const project = {
         displayTitle: projectDisplayTitle,
         icon: projectIcon,
@@ -167,6 +178,7 @@ export function ActiveSessionRow({
             session={session}
             rowId={rowId}
             selected={selected}
+            linkedHover={isLinkedHover}
             renaming={renaming}
             roving={roving}
             sessionOrder={sessionOrder}
@@ -221,6 +233,7 @@ export function ActiveSessionRow({
                             {label.suffix}
                         </span>
                     )}
+                    <SessionOpenLabel place={openPlace} />
                     {/*
                      * `aria-hidden` because the row's accessible name is composed elsewhere and would otherwise read
                      * the Project twice; the hover card names it for anyone who needs the full sentence. Allowed to
@@ -279,7 +292,12 @@ export function ActiveSessionRow({
      * focus never reaches describe nothing.
      */
     const row = (
-        <div className="session-row group/session-row relative [--session-hover-actions:2.875rem]">
+        <div
+            className="session-row group/session-row relative [--session-hover-actions:2.875rem]"
+            onPointerEnter={() => setLinkedHoveredSession(session.id)}
+            onPointerLeave={() => clearLinkedHoveredSession(session.id)}
+        >
+            <SessionOpenEdge place={openPlace} />
             {sessionOrder.dropTarget?.anchorSessionId === session.id && (
                 <div
                     aria-hidden="true"

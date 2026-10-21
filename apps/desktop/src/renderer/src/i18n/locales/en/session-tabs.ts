@@ -9,6 +9,7 @@ export const sessionTabs = {
     'sessionTabs.closeToRight': 'Close Tabs to the Right',
     'sessionTabs.reordered': '{{title}} moved to position {{position}} of {{count}}',
     'sessionTabs.openInNewTab': 'Open in New Tab',
+    'sessionTabs.revealInSidebar': 'Reveal in Sidebar',
     'sessionTabs.tooltip.project': 'Project: {{value}}',
     'sessionTabs.tooltip.agent': 'Agent: {{value}}',
     'sessionTabs.tooltip.worktree': 'Worktree: {{value}}',

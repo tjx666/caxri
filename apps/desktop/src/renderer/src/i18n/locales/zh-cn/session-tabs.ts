@@ -9,6 +9,7 @@ export const sessionTabs = {
     'sessionTabs.closeToRight': '关闭右侧标签页',
     'sessionTabs.reordered': '{{title}} 已移至第 {{position}} 位，共 {{count}} 个',
     'sessionTabs.openInNewTab': '在新标签页中打开',
+    'sessionTabs.revealInSidebar': '在侧边栏中显示',
     'sessionTabs.tooltip.project': '项目：{{value}}',
     'sessionTabs.tooltip.agent': 'Agent：{{value}}',
     'sessionTabs.tooltip.worktree': '工作树：{{value}}',

@@ -62,5 +62,24 @@ export function useProjectSessionWindows({
         }));
     }, []);
 
-    return { revealMore, windows };
+    /**
+     * Widens one Project's window just far enough to include `sessionId`, for "Reveal in Sidebar" on a Session that
+     * sits below the window's `Show N more` row. Never narrows a window the user already opened further.
+     */
+    const revealThrough = useCallback(
+        (projectId: string, sessionId: string): void => {
+            const ids = sidebarSessions
+                .filter((session) => session.projectId === projectId)
+                .map((session) => session.id);
+            const index = ids.indexOf(sessionId);
+            if (index === -1) return;
+            setRevealedCounts((current) => ({
+                ...current,
+                [projectId]: Math.max(current[projectId] ?? 0, index + 1),
+            }));
+        },
+        [sidebarSessions],
+    );
+
+    return { revealMore, revealThrough, windows };
 }

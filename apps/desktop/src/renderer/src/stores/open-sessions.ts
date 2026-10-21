@@ -32,6 +32,42 @@ export function useIsSessionTabStripVisible(): boolean {
     );
 }
 
+/**
+ * Where a Session is open, for the sidebar's marker: `here` in this window's strip, `elsewhere` in another window's,
+ * and `undefined` when it is in no strip. `here` is withheld while the strip is hidden (fewer than
+ * {@link SESSION_TAB_STRIP_MIN_SESSIONS} entries), because a marker for "the Session you are in" with no strip to point
+ * at would only be noise. The Server keeps the two sets disjoint (a Session is open in at most one window).
+ */
+export type SessionOpenPlace = 'here' | 'elsewhere';
+
+export function sessionOpenPlace(
+    openSessionIds: readonly string[] | undefined,
+    otherWindowOpenSessionIds: readonly string[] | undefined,
+    sessionId: string,
+): SessionOpenPlace | undefined {
+    if (
+        openSessionIds &&
+        openSessionIds.length >= SESSION_TAB_STRIP_MIN_SESSIONS &&
+        openSessionIds.includes(sessionId)
+    )
+        return 'here';
+    return otherWindowOpenSessionIds?.includes(sessionId) ? 'elsewhere' : undefined;
+}
+
+/**
+ * One Session's {@link SessionOpenPlace}, selected as a primitive so a row re-renders only when its own marker flips,
+ * not on every strip edit or Session switch.
+ */
+export function useSessionOpenPlace(sessionId: string): SessionOpenPlace | undefined {
+    return useWorkbenchStore((state) =>
+        sessionOpenPlace(
+            state.bootstrap?.openSessionIds,
+            state.bootstrap?.otherWindowOpenSessionIds,
+            sessionId,
+        ),
+    );
+}
+
 export function getOpenSessionIds(): readonly string[] {
     return useWorkbenchStore.getState().bootstrap?.openSessionIds ?? NO_OPEN_SESSIONS;
 }

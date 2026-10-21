@@ -88,6 +88,8 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.pinned.revealAriaLabelOne': '再显示 {{count}} 个置顶会话',
     'primarySidebar.pinned.revealAriaLabelOther': '再显示 {{count}} 个置顶会话',
     'primarySidebar.pinned.pinnedAnnouncement': '已置顶 {{title}}',
+    'primarySidebar.session.openHere': '已在标签页中打开',
+    'primarySidebar.session.openElsewhere': '已在其他窗口中打开',
 
     // Session row
     'primarySidebar.sessionRow.pinAriaLabel': '置顶 {{title}}',

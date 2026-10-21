@@ -26,7 +26,8 @@ export interface CreateSessionOptions {
      */
     windowKey?: string;
     /**
-     * `newTab` appends the Session to the window's Open Sessions; otherwise creation behaves like a plain select.
+     * `newTab` inserts the Session right of the window's active Open Session; otherwise creation behaves like a plain
+     * select.
      */
     placement?: SessionPlacement;
     /**

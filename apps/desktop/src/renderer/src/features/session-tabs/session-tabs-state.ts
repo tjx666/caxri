@@ -28,11 +28,20 @@ export function isSessionTabStripVisible(openSessionIds: readonly string[]): boo
 }
 
 /**
- * Adds a Session at the end of the strip. An entry that is already open keeps its place, the way a browser focuses an
- * existing tab instead of duplicating it.
+ * Adds a Session immediately right of `anchorId` (the active entry), the way a browser opens a link in a new tab, so a
+ * new tab lands next to where the user was working instead of at the far end of a long strip. Appends when there is no
+ * anchor or the anchor is not in the strip. An entry that is already open keeps its place, the way a browser focuses an
+ * existing tab instead of duplicating it. The Server applies the same rule to the strip's `+`
+ * (`activateSessionInWindow`), so the optimistic result here and the Server's answer agree.
  */
-export function appendOpenSession(ids: readonly string[], sessionId: string): string[] {
-    return ids.includes(sessionId) ? [...ids] : [...ids, sessionId];
+export function insertOpenSessionAfter(
+    ids: readonly string[],
+    sessionId: string,
+    anchorId: string | undefined,
+): string[] {
+    if (ids.includes(sessionId)) return [...ids];
+    const anchorIndex = anchorId === undefined ? -1 : ids.indexOf(anchorId);
+    return ids.toSpliced(anchorIndex === -1 ? ids.length : anchorIndex + 1, 0, sessionId);
 }
 
 /**

@@ -91,8 +91,9 @@ function writeWindow(
  *
  * - `navigate` (a plain select) activates the entry when it is already open, and otherwise replaces the active entry the
  *   way a browser navigates inside the current tab, so selecting through the sidebar never grows the strip.
- * - `newTab` (only the strip's explicit `+`) appends. Session creation and moving a Terminal into a new Session use
- *   `navigate` too: only explicit opens add tabs.
+ * - `newTab` (an explicit open: the strip's `+`) inserts right of the active entry, the way a browser opens a link in a
+ *   new tab, so the new entry lands next to where the user was working. With no active entry it appends. Session
+ *   creation and moving a Terminal into a new Session use `navigate` too: only explicit opens add tabs.
  *
  * A full strip drops its oldest non-active entry instead of refusing the Session the user just asked for.
  */
@@ -111,7 +112,11 @@ export function activateSessionInWindow(
     const next =
         placement === 'navigate' && activeIndex !== -1
             ? openSessionIds.with(activeIndex, sessionId)
-            : [...openSessionIds, sessionId];
+            : openSessionIds.toSpliced(
+                  activeIndex === -1 ? openSessionIds.length : activeIndex + 1,
+                  0,
+                  sessionId,
+              );
     while (next.length > MAX_OPEN_SESSIONS_PER_WINDOW) {
         const evictable = next.findIndex((id) => id !== sessionId);
         next.splice(evictable, 1);
@@ -283,6 +288,16 @@ export class WindowOpenSessionsStore {
 
     get(windowKey: string): WindowOpenSessions {
         return readWindowOpenSessions(this.database, windowKey);
+    }
+
+    /**
+     * Every Session open in a window other than `windowKey`, for the sidebar's "open in another window" marker.
+     */
+    ownedElsewhere(windowKey: string): string[] {
+        const windows = this.all();
+        return orderedWindowKeys(windows)
+            .filter((key) => key !== windowKey)
+            .flatMap((key) => windows[key].openSessionIds);
     }
 
     /**

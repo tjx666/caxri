@@ -8,7 +8,7 @@ import { didSelectSession } from '../session/session-commands';
 import type { SessionTabCloseScope } from './session-tabs-state';
 import {
     activeAfterEdit,
-    appendOpenSession,
+    insertOpenSessionAfter,
     moveOpenSession,
     openTabTargetId,
     sessionIdsToClose,
@@ -81,14 +81,14 @@ export function activateSessionTab(sessionId: string): void {
 }
 
 /**
- * Cmd+click and "Open in New Tab": adds the Session to the strip without leaving the current one's place, then shows
- * it. A Session that is already open is only activated, and one that another window owns brings that window forward.
+ * Cmd+click and "Open in New Tab": adds the Session to the strip right of the active tab, then shows it. A Session that
+ * is already open is only activated, and one that another window owns brings that window forward.
  */
 export async function openSessionInNewTab(sessionId: string): Promise<void> {
     if (!getOpenSessionIds().includes(sessionId)) {
         const wasStored = await editOpenSessions(
             translate('sessionTabs.errors.openFailed'),
-            (ids) => appendOpenSession(ids, sessionId),
+            (ids, activeId) => insertOpenSessionAfter(ids, sessionId, activeId),
         );
         // A failed append already told the user why. A stored strip that still lacks the Session means another window
         // owns it, and selecting it brings that window forward.

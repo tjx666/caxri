@@ -23,7 +23,10 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
   already open (like navigating inside a browser tab), or activates it when it already is, so browsing
   the sidebar never grows the strip. Only an explicit open adds a tab: Cmd+click, **Open in New Tab** in
   the Session row menu, and the strip's trailing **+** button (a new Session in the active Session's
-  Project, started like Cmd+N, with `placement: 'newTab'`). Every other creation path (Cmd+N,
+  Project, started like Cmd+N, with `placement: 'newTab'`). A new tab is **inserted immediately right of
+  the active tab** (the browser and VS Code rule), not appended, so it lands next to where you were
+  working; the Server applies the same rule to the strip's **+** (`activateSessionInWindow`) and the
+  Renderer to the other two (`insertOpenSessionAfter`). With no active tab it appends. Every other creation path (Cmd+N,
   the sidebar's New Session, moving a Terminal into a new Session, side-chat conversion) behaves like
   a plain select: it activates the Session, replacing the active entry, or becoming the only entry
   of an empty list.
@@ -124,6 +127,24 @@ context, never a global selection. Keep-alive stays the most recent five Session
 Dropping a tab onto another window to merge it is not supported; a tear-off is one-way into a new window. The
 file watcher is single-scope and follows the primary visible Session, so a Session shown only in a torn-off
 window is watched while that window is the primary visible one. Per-window bounds are not persisted.
+
+## Linking the strip and the sidebar
+
+The strip keeps its own order (the user's, never the sidebar's activity order), so three cues connect the
+two surfaces instead of mirroring one in the other:
+
+- **Open markers.** A sidebar row for a Session open in this window shows a 2px neutral edge bar (never
+  the accent), only while the strip is visible. A Session another window owns shows a small window glyph
+  after its title; clicking it brings that window forward. The Server supplies the second set as
+  `bootstrap.otherWindowOpenSessionIds` (disjoint from `openSessionIds`), and a strip edit that changes
+  membership re-reads the other windows' Workbench. Each row selects its own marker as a primitive
+  (`useSessionOpenPlace`), so a strip edit re-renders only the rows that flipped.
+- **Reveal.** Every activation (sidebar click, tab click, Cmd+N, MRU, history, notification) expands the
+  Session's Project and scrolls its row into view (`useSelectedSessionReveal`). The tab context menu's
+  **Reveal in Sidebar** does the same on demand for any tab: it opens a hidden Primary Side Bar, leaves the
+  Activity view, widens a Project's `Show N more` window or the Pinned group down to the row, then scrolls.
+- **Hover link.** Hovering a tab softly highlights its sidebar row, and hovering a row highlights its tab
+  (`linked-session-hover.ts`). Both sides select a boolean for their own Session from one small store.
 
 ## Tab and row labels
 

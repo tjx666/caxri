@@ -17,6 +17,11 @@ import { SessionStatusIndicator } from '../primary-sidebar/session-status-indica
 import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
+import {
+    clearLinkedHoveredSession,
+    setLinkedHoveredSession,
+    useIsLinkedSessionHovered,
+} from './linked-session-hover';
 import { activateSessionTab, closeSessionTabs } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
 import { sessionTabMenu } from './session-tab-menu';
@@ -68,6 +73,8 @@ export function SessionTab({
             : undefined,
     );
     const label = useSessionLabel(sessionId);
+    // The pointer is over this Session's sidebar row; see `linked-session-hover.ts`.
+    const isLinkedHover = useIsLinkedSessionHovered(sessionId);
     // Pruned from the snapshot a moment before the strip catches up.
     if (!session) return null;
     const { title } = label;
@@ -107,12 +114,16 @@ export function SessionTab({
                     // The short divider after this tab. It hides beside the active tab, beside a hovered tab, and at
                     // the end of the row, so a pill never sits flush against a line.
                     "after:pointer-events-none after:absolute after:top-1.5 after:-right-[2.5px] after:h-4 after:w-px after:bg-border after:content-[''] hover:after:opacity-0 has-[+.session-tab-new]:after:hidden has-[+.session-tab:hover]:after:opacity-0 has-[+[data-tab-active]]:after:opacity-0",
+                    // Soft echo of a hover on the Session's sidebar row, the same fill as this tab's own hover.
+                    isLinkedHover && !isActive && 'bg-elevated/60 text-foreground',
                     isActive &&
                         'active min-w-37.5 bg-elevated text-foreground shadow-sm after:opacity-0 hover:bg-elevated',
                 )}
                 data-session-tab-id={sessionId}
                 data-tab-active={isActive || undefined}
                 draggable
+                onPointerEnter={() => setLinkedHoveredSession(sessionId)}
+                onPointerLeave={() => clearLinkedHoveredSession(sessionId)}
             >
                 <Tooltip content={tooltip} hoverOnly triggerId={sessionTabDomId(sessionId)}>
                     <button

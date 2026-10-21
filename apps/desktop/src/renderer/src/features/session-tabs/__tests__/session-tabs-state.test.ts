@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     activeAfterEdit,
-    appendOpenSession,
+    insertOpenSessionAfter,
     isSessionTabStripVisible,
     moveOpenSession,
     openTabTargetId,
@@ -11,7 +11,7 @@ import {
     shiftOpenSession,
     shouldTearOffSessionTab,
     withoutOpenSessions,
-} from './session-tabs-state';
+} from '../session-tabs-state';
 
 describe('strip visibility', () => {
     it('hides below two Open Sessions and shows from two on', () => {
@@ -21,10 +21,24 @@ describe('strip visibility', () => {
     });
 });
 
-describe('appendOpenSession', () => {
-    it('appends a new entry and leaves an open one where it is', () => {
-        expect(appendOpenSession(['a', 'b'], 'c')).toEqual(['a', 'b', 'c']);
-        expect(appendOpenSession(['a', 'b'], 'a')).toEqual(['a', 'b']);
+describe('insertOpenSessionAfter', () => {
+    it('inserts right of the anchor, not at the end', () => {
+        expect(insertOpenSessionAfter(['a', 'b', 'c'], 'x', 'a')).toEqual(['a', 'x', 'b', 'c']);
+        expect(insertOpenSessionAfter(['a', 'b', 'c'], 'x', 'b')).toEqual(['a', 'b', 'x', 'c']);
+    });
+
+    it('appends after the last entry, and when there is no usable anchor', () => {
+        expect(insertOpenSessionAfter(['a', 'b'], 'x', 'b')).toEqual(['a', 'b', 'x']);
+        expect(insertOpenSessionAfter(['a', 'b'], 'x', undefined)).toEqual(['a', 'b', 'x']);
+        expect(insertOpenSessionAfter(['a', 'b'], 'x', 'gone')).toEqual(['a', 'b', 'x']);
+        expect(insertOpenSessionAfter([], 'x', undefined)).toEqual(['x']);
+    });
+
+    it('leaves an entry that is already open where it is and does not mutate its input', () => {
+        const ids = ['a', 'b', 'c'] as const;
+        expect(insertOpenSessionAfter(ids, 'c', 'a')).toEqual(['a', 'b', 'c']);
+        insertOpenSessionAfter(ids, 'x', 'a');
+        expect(ids).toEqual(['a', 'b', 'c']);
     });
 });
 

@@ -60,7 +60,7 @@ async function expectSelected(page: Page, sessionId: string): Promise<void> {
     await expect(sessionCard(page, sessionId)).toHaveAttribute('aria-selected', 'true');
 }
 
-test('Open Session tabs open, switch, close, replace, and append without touching Session existence', async () => {
+test('Open Session tabs open, switch, close, replace, and open next to the active tab without touching Session existence', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-tabs-e2e-'));
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
@@ -126,12 +126,13 @@ test('Open Session tabs open, switch, close, replace, and append without touchin
         expect(await stripOrder(page)).not.toContain(b);
         const beforeAppend = await stripOrder(page);
 
-        // (6b) A new Session created from the sidebar leaves the strip alone, but the strip's "+" appends a tab.
+        // (6b) A new Session created from the sidebar leaves the strip alone, but the strip's "+" opens a tab right of the active one.
         const sessionsBefore = (await bootstrap(page)).sessions.length;
         await createAdditionalShellSession(page);
         const created = await selectedSessionId(page);
         expect(new Set([a, b, c])).not.toContain(created);
         await expect.poll(() => stripOrder(page)).toHaveLength(beforeAppend.length);
+        const activeBeforeNewTab = await selectedSessionId(page);
         const strip = page.locator('[data-session-tab-strip]');
         await strip.getByRole('button', { name: 'New Session', exact: true }).click();
         // Without a default Agent the `+` hangs the Agent list from itself, not from the sidebar's Project heading.
@@ -140,7 +141,10 @@ test('Open Session tabs open, switch, close, replace, and append without touchin
         await expect
             .poll(async () => (await bootstrap(page)).sessions.length)
             .toBe(sessionsBefore + 2);
-        const appended = (await stripOrder(page)).at(-1)!;
+        // The new tab opens immediately right of the tab that was active, not at the end of the strip.
+        const orderAfter = await stripOrder(page);
+        const appended = orderAfter[orderAfter.indexOf(activeBeforeNewTab) + 1];
+        expect(appended).toBe(await selectedSessionId(page));
         await expectSelected(page, appended);
         await expect(tabFor(page, appended).getByRole('tab')).toHaveAttribute(
             'aria-selected',

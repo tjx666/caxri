@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Translate } from '../../i18n';
-import { sessionTabTooltip } from './session-tab-tooltip';
+import type { Translate } from '../../../i18n';
+import { sessionTabTooltip } from '../session-tab-tooltip';
 
 const t: Translate = (key, parameters) => `${key}:${Object.values(parameters ?? {}).join(',')}`;
 

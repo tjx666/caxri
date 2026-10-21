@@ -144,8 +144,8 @@ export const sessionMethods = {
              */
             ...windowKeyParameter,
             /**
-             * `newTab` appends the new Session to the window's Open Sessions; omitted, creation replaces the active
-             * entry like a plain select.
+             * `newTab` inserts the new Session right of the window's active Open Session; omitted, creation replaces
+             * the active entry like a plain select.
              */
             placement: sessionPlacementSchema.optional(),
         }),

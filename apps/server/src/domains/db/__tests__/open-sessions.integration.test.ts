@@ -34,6 +34,19 @@ describe('Open Sessions per window', () => {
         expect(strip(database)).toEqual({ openSessionIds: [a.id, b.id], activeSessionId: b.id });
     });
 
+    it('inserts a newTab Session right of the active entry instead of at the end', () => {
+        const { create, database } = fixture();
+        const a = create();
+        const b = create();
+        const c = create();
+        database.selectSession(a.id, 'main');
+        const d = create();
+        expect(strip(database)).toEqual({
+            openSessionIds: [a.id, d.id, b.id, c.id],
+            activeSessionId: d.id,
+        });
+    });
+
     it('creates a Session like a plain select: the only entry first, then replacing the active one', () => {
         const { database, project } = fixture();
         const createPlain = () =>
@@ -65,6 +78,18 @@ describe('Open Sessions per window', () => {
             openSessionIds: [elsewhere.id, b.id],
             activeSessionId: elsewhere.id,
         });
+    });
+
+    it("lists the Sessions other windows own, never the requesting window's own", () => {
+        const { create, database, project } = fixture();
+        const a = create();
+        const b = create();
+        const elsewhere = database.createSession(project.id, 'shell', undefined, {
+            selection: 'preserve',
+        }).session;
+        database.selectSession(elsewhere.id, 'other');
+        expect(database.windowOpenSessions.ownedElsewhere('main')).toEqual([elsewhere.id]);
+        expect(database.windowOpenSessions.ownedElsewhere('other')).toEqual([a.id, b.id]);
     });
 
     it('keeps windows independent', () => {
