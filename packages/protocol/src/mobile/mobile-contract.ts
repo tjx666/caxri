@@ -63,7 +63,6 @@ export * from './mobile-update-contract.js';
 const noParameters = z.strictObject({}).default({});
 export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
-export const MOBILE_SHORT_REPLY_MAX_BYTES = 1_024;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
 export const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
 export const mobileProjectIdsSchema = z
@@ -579,6 +578,5 @@ export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileArchivedSessionsResult = z.infer<typeof mobileArchivedSessionsResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
-export type MobileProjectSummary = z.infer<typeof mobileProjectSummarySchema>;
 export type MobileProjectBrowseResult = z.infer<typeof mobileProjectBrowseResultSchema>;
 export type MobileProjectAddResult = z.infer<typeof mobileProjectAddResultSchema>;

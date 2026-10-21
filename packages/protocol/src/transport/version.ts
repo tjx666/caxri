@@ -39,7 +39,6 @@ export const protocolWelcomeSchema = z.object({
     connection: protocolConnectionIdentitySchema.optional(),
 });
 
-export type ProtocolHello = z.infer<typeof protocolHelloSchema>;
 export type ProtocolWelcome = z.infer<typeof protocolWelcomeSchema>;
 
 /**

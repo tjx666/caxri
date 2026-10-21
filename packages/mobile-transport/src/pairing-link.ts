@@ -56,12 +56,3 @@ export const parseMobilePairingLink = (source: string): MobilePairingLink => {
         expiresAt: Number(url.searchParams.get('expires')),
     });
 };
-
-export const isSupportedMobilePairingLink = (source: string): boolean => {
-    try {
-        parseMobilePairingLink(source);
-        return true;
-    } catch {
-        return false;
-    }
-};

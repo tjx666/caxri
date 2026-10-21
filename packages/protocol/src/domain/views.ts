@@ -519,7 +519,6 @@ export const sourceControlActionResultSchema = z.object({
 });
 
 export type ViewContainerId = z.infer<typeof viewContainerIdSchema>;
-export type ViewId = z.infer<typeof viewIdSchema>;
 export type ViewContainerLocation = z.infer<typeof viewContainerLocationSchema>;
 export type ExtensionCapability = z.infer<typeof extensionCapabilitySchema>;
 export type ExtensionBuiltinIconId = z.infer<typeof extensionBuiltinIconIdSchema>;
