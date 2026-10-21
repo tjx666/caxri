@@ -9,12 +9,12 @@ import {
     createWorktree,
     developmentWorktree,
     doctorWorktree,
-    installWorktreeDependencies,
     listWorktreeStatus,
     removeWorktree,
     stopWorktree,
     switchWorktree,
 } from './worktree';
+import { installWorktreeDependencies } from './worktree-install';
 import { listOrphanedProcesses } from './worktree-orphans';
 import { pruneOrphanProfiles } from './worktree-profile-prune';
 

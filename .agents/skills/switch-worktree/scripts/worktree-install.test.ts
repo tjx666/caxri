@@ -6,7 +6,9 @@ import process from 'node:process';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runCapture } from './process';
-import { createWorktree, installWorktreeDependencies } from './worktree';
+import { repoContext, withRepoLock } from './repo';
+import { createWorktree } from './worktree';
+import { installWorktreeDependencies } from './worktree-install';
 
 const temporaryDirectories: string[] = [];
 
@@ -166,5 +168,42 @@ describe('worktree dependency installation', () => {
                 'utf8',
             ),
         ).toBe('binary');
+    });
+    /**
+     * `ni` runs for tens of seconds while every other switch-worktree operation waits at most 10 seconds for the
+     * repository lock: a sibling session releasing its desktop lease after an E2E run failed while a create installed.
+     */
+    it('installs dependencies without holding the repository lock', async () => {
+        const fixture = await createRepoFixture();
+        const installing = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        let installCount = 0;
+        const slowInstall = async (path: string): Promise<void> => {
+            installCount += 1;
+            installing.resolve();
+            await release.promise;
+            await mkdir(join(path, 'node_modules'));
+            await createCompleteElectronArtifacts(path);
+        };
+        const creating = createWorktree({
+            branch: 'chore/slow-install',
+            cwd: fixture.root,
+            install: slowInstall,
+        });
+        await installing.promise;
+        await expect(
+            withRepoLock(await repoContext(fixture.root), () => Promise.resolve('acquired')),
+        ).resolves.toBe('acquired');
+
+        const resolvingSameBranch = createWorktree({
+            branch: 'chore/slow-install',
+            cwd: fixture.root,
+            install: slowInstall,
+        });
+        release.resolve();
+        const [created, resolved] = await Promise.all([creating, resolvingSameBranch]);
+        expect(created.dependencies).toBe('ready');
+        expect(resolved.path).toBe(created.path);
+        expect(installCount).toBe(1);
     });
 });
