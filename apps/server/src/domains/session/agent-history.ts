@@ -129,6 +129,9 @@ export class SessionAgentHistoryService {
                 'NOT_FOUND',
                 'The folder this conversation ran in no longer exists',
             );
+        // Another reopen of the same conversation may have created its Terminal while the folder check awaited.
+        const raced = boundTerminals(database.listTerminals(sessionId)).get(key);
+        if (raced) return { terminalId: raced.id };
         const created = database.createTerminal(sessionId, provider, row.cwd);
         database.rebindAgentSession(created.id, provider, agentSessionId);
         database.updateTerminalState(created.id, 'detached');

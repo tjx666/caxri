@@ -127,6 +127,19 @@ describe('SessionAgentHistoryService', () => {
         expect(f.onTerminalCreated).toHaveBeenCalledOnce();
     });
 
+    it('creates one Terminal when the same conversation is reopened twice at once', async () => {
+        const f = await fixture();
+        f.database.closeTerminal(f.terminal.id);
+
+        const [first, second] = await Promise.all([
+            f.service.reopen(f.session.id, 'codex', FIRST),
+            f.service.reopen(f.session.id, 'codex', FIRST),
+        ]);
+
+        expect(second).toEqual(first);
+        expect(f.onTerminalCreated).toHaveBeenCalledOnce();
+    });
+
     it('returns the open Terminal for a conversation the Session still holds', async () => {
         const f = await fixture();
 
