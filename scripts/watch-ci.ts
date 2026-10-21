@@ -44,6 +44,13 @@ const POLL_INTERVAL_MS = 20_000;
  * race is left unlocked on purpose.
  */
 const HEARTBEAT_STALE_MS = POLL_INTERVAL_MS * 3;
+/**
+ * Outer bound on one poll. `fetchRun` gives each `gh` call a 60s `execFile` timeout, but that callback waits for the
+ * child's stdio to close, so a `gh` whose descendant keeps the pipe open never settles: a watcher once stopped
+ * heartbeating after its first poll and printed nothing for 30 minutes while the run completed. Both attempts in
+ * `fetchRun` fit inside this deadline.
+ */
+const POLL_DEADLINE_MS = 150_000;
 const INITIAL_BACKOFF_MS = POLL_INTERVAL_MS;
 const MAX_BACKOFF_MS = 300_000;
 
@@ -96,6 +103,24 @@ export function isHeartbeatStale(heartbeatAt: string | undefined, nowMs: number)
     const beatMs = Date.parse(heartbeatAt);
     if (Number.isNaN(beatMs)) return true;
     return nowMs - beatMs > HEARTBEAT_STALE_MS;
+}
+
+/**
+ * Rejects when `work` has not settled within `ms`, so a hung child process becomes an ordinary retryable poll failure.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export async function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+            reject(new Error(`${label} did not settle within ${Math.round(ms / 1_000)}s`));
+        }, ms);
+    });
+    try {
+        return await Promise.race([work, deadline]);
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
@@ -455,7 +480,8 @@ export function buildWatchState(
 }
 
 async function pollOnce(runId: string, previous: WatchState | undefined): Promise<WatchState> {
-    const state = buildWatchState(runId, await fetchRun(runId), previous, {
+    const run = await withDeadline(fetchRun(runId), POLL_DEADLINE_MS, `gh run view ${runId}`);
+    const state = buildWatchState(runId, run, previous, {
         heartbeatAt: new Date().toISOString(),
         pollerPid: process.pid,
     });

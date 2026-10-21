@@ -19,6 +19,7 @@ export function rendererContractTestCandidates(files: string[]): string[] {
     return [
         'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
         'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
+        ...prototypeRuntimeContractTestCandidates(files),
     ];
 }
 
@@ -29,6 +30,24 @@ export function rendererContractTestCandidates(files: string[]): string[] {
 export function serverDomainContractTestCandidates(files: string[]): string[] {
     return files.some((file) => file.replaceAll('\\', '/').startsWith('apps/server/src/domains/'))
         ? ['apps/server/src/domains/__tests__/structure.test.ts']
+        : [];
+}
+
+const PROTOTYPE_RUNTIME_SOURCES = [
+    'apps/desktop/src/renderer/src/components/ui/',
+    'apps/desktop/src/renderer/src/hooks/',
+];
+
+/**
+ * The design-prototype runtime test lists the Renderer `components/ui` and `hooks` directories and requires each module
+ * in `assets/entry.mjs`. A hook added under `hooks/` once merged with a green focused check and then turned `main`'s
+ * full suite red, because nothing imports the test's subject from the new file.
+ */
+function prototypeRuntimeContractTestCandidates(files: readonly string[]): string[] {
+    return files.some((file) =>
+        PROTOTYPE_RUNTIME_SOURCES.some((prefix) => file.replaceAll('\\', '/').startsWith(prefix)),
+    )
+        ? ['.agents/skills/design-prototype/scripts/build-runtime.test.ts']
         : [];
 }
 

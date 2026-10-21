@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runCapture } from './process';
 import { isPathPresent } from './repo';
@@ -51,6 +51,7 @@ async function fakeInstall(path: string): Promise<void> {
 }
 
 afterEach(async () => {
+    vi.unstubAllEnvs();
     const directoriesToRemove = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -131,5 +132,50 @@ describe('per-worktree CDP port', () => {
             await writeFile(releasePath, 'release\n', 'utf8');
         }
         await expect(launch).resolves.toBe(0);
+    });
+});
+
+describe('dev launch profile', () => {
+    const program =
+        "require('node:fs').writeFileSync(process.argv[1], process.env.CAXRI_USER_DATA_DIR); setTimeout(() => {}, 100)";
+
+    it('ignores an inherited CAXRI_USER_DATA_DIR, which Agent Terminals point at the installed app', async () => {
+        const fixture = await createFixture();
+        const created = await createWorktree({
+            branch: 'test/dev-inherited-profile',
+            cwd: fixture.root,
+            install: fakeInstall,
+        });
+        const output = join(fixture.temporary, 'inherited-profile.txt');
+        vi.stubEnv('CAXRI_USER_DATA_DIR', join(fixture.temporary, 'installed-app-profile'));
+
+        await developmentWorktree(created.path, {
+            args: ['-e', program, output],
+            command: process.execPath,
+        });
+
+        expect(await readFile(output, 'utf8')).toBe(created.profile);
+    });
+
+    it('launches against an explicit --user-data-dir and reports that directory', async () => {
+        const fixture = await createFixture();
+        const created = await createWorktree({
+            branch: 'test/dev-explicit-profile',
+            cwd: fixture.root,
+            install: fakeInstall,
+        });
+        const output = join(fixture.temporary, 'explicit-profile.txt');
+        const explicit = join(fixture.temporary, 'fixture-profile');
+        const reported: string[] = [];
+
+        await developmentWorktree(created.path, {
+            args: ['-e', program, output],
+            command: process.execPath,
+            onLaunch: (info) => reported.push(info.profile),
+            userDataDirectory: explicit,
+        });
+
+        expect(await readFile(output, 'utf8')).toBe(explicit);
+        expect(reported).toEqual([explicit]);
     });
 });

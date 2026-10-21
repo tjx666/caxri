@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { isAbsolute } from 'node:path';
 import process from 'node:process';
 
 import { acquireDesktopLease, releaseDesktopLease } from './desktop-lease';
@@ -24,7 +25,7 @@ Commands:
   switch <branch|path>                 Resolve or create a checkout for a local branch
   list                                 Inspect every associated checkout
   doctor [branch|path]                 Diagnose one checkout (default: current)
-  dev                                  Start Caxri with this checkout's isolated profile
+  dev [--user-data-dir <path>]         Start Caxri with this checkout's isolated profile
   stop                                 Stop only the processes this checkout started
   orphans                              Report unsupervised dev processes in every checkout
   remove <branch|path> [--preserve-profile]
@@ -35,6 +36,7 @@ Commands:
 Options:
   --apply                              Apply prune-profiles deletion (default: preview)
   --preserve-profile                   Keep a removed worktree's isolated profile
+  --user-data-dir <path>               Run dev against this absolute throwaway profile instead
   --json                               Emit stable JSON for command results
   --help                               Show this message`;
 
@@ -47,11 +49,12 @@ interface ParsedArguments {
     operands: string[];
     preserveProfile: boolean;
     trailing: string[];
+    userDataDirectory?: string;
 }
 
 /**
- * Apply one parsed token to `result`, returning the index of the last token consumed. `--base` and `--label` consume
- * the following token as their value, advancing the index by one.
+ * Apply one parsed token to `result`, returning the index of the last token consumed. `--base`, `--label`, and
+ * `--user-data-dir` consume the following token as their value, advancing the index by one.
  */
 function applyToken(
     value: string,
@@ -78,14 +81,17 @@ function applyToken(
             return index;
         }
         case '--base':
-        case '--label': {
+        case '--label':
+        case '--user-data-dir': {
             const nextIndex = index + 1;
             const option = regular[nextIndex];
             if (!option || option.startsWith('--')) {
                 throw new CommandError(`${value} requires a value`, 2);
             }
             if (value === '--base') result.base = option;
-            else result.label = option;
+            else if (value === '--label') result.label = option;
+            else if (isAbsolute(option)) result.userDataDirectory = option;
+            else throw new CommandError('--user-data-dir requires an absolute path', 2);
             return nextIndex;
         }
         case '--help':
@@ -265,6 +271,7 @@ export async function runCli(argv: string[]): Promise<void> {
                     );
                 },
                 stdoutToStderr: arguments_.json,
+                userDataDirectory: arguments_.userDataDirectory,
             });
             if (exitCode !== 0)
                 throw new CommandError(`Development launcher exited with ${exitCode}`, exitCode);

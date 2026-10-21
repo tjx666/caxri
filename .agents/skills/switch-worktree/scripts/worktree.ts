@@ -29,7 +29,10 @@ import {
 } from './repo';
 import { assertBranchContainsBase, hasBranch } from './worktree-branch';
 import { explicitCdpPort, resolveWorktreeCdpPort } from './worktree-cdp-port';
-import type { DevelopmentProcessRecord } from './worktree-development-process';
+import type {
+    DevelopmentLaunchOptions,
+    DevelopmentProcessRecord,
+} from './worktree-development-process';
 import { developmentProcessPath, readDevelopmentProcess } from './worktree-development-process';
 import type { OrphanProcess } from './worktree-orphans';
 import { describeOrphans, orphansByWorktree, toOrphanProcess } from './worktree-orphans';
@@ -89,23 +92,6 @@ export interface StopResult {
     path: string;
     stopped: Array<{ command: string; pid: number }>;
     survivors: Array<{ closedReason?: SignalFailureReason; command: string; pid: number }>;
-}
-
-interface DevelopmentLaunchInfo {
-    cdpPort: number;
-    profile: string;
-    worktreeId: string;
-}
-
-export interface DevelopmentLaunchOptions {
-    args?: string[];
-    command?: string;
-    /**
-     * Invoked once the CDP port and profile are resolved and durably recorded, before the (long running) child process
-     * exits: the CLI's only chance to report the port used this run. See issue caxri#1016.
-     */
-    onLaunch?: (info: DevelopmentLaunchInfo) => void;
-    stdoutToStderr?: boolean;
 }
 
 async function didCommandSucceed(
@@ -708,7 +694,7 @@ export async function developmentWorktree(
             env: {
                 ...process.env,
                 CAXRI_DEV_CDP_PORT: String(cdpPort),
-                CAXRI_USER_DATA_DIR: profile,
+                CAXRI_USER_DATA_DIR: options.userDataDirectory ?? profile,
                 // Read by Preload (see `apps/desktop/src/preload/index.ts`) and exposed to Renderer as
                 // `globalThis.__caxriWorktree`, so a CDP connection can verify it reached this worktree's
                 // window instead of a sibling's. See issue caxri#1016.
@@ -733,7 +719,7 @@ export async function developmentWorktree(
             worktreePath: context.root,
         };
         await writeJsonAtomic(recordPath, record);
-        options.onLaunch?.({ cdpPort, profile, worktreeId });
+        options.onLaunch?.({ cdpPort, profile: options.userDataDirectory ?? profile, worktreeId });
     });
     const relay = (signal: NodeJS.Signals): void => {
         if (child.exitCode === null) child.kill(signal);

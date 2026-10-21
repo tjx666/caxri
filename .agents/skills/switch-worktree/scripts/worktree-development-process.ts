@@ -61,3 +61,26 @@ export async function readDevelopmentProcess(
         );
     }
 }
+
+interface DevelopmentLaunchInfo {
+    cdpPort: number;
+    profile: string;
+    worktreeId: string;
+}
+
+export interface DevelopmentLaunchOptions {
+    args?: string[];
+    command?: string;
+    /**
+     * Invoked once the CDP port and profile are resolved and durably recorded, before the (long running) child process
+     * exits: the CLI's only chance to report the port used this run. See issue caxri#1016.
+     */
+    onLaunch?: (info: DevelopmentLaunchInfo) => void;
+    stdoutToStderr?: boolean;
+    /**
+     * Replaces the worktree profile for this launch only (`dev --user-data-dir`), so fixture state stays out of it. It
+     * is an explicit option rather than an inherited `CAXRI_USER_DATA_DIR`: every Agent Terminal Caxri launches exports
+     * that variable pointing at the installed app's profile, which a dev launch must never open.
+     */
+    userDataDirectory?: string;
+}
