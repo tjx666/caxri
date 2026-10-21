@@ -67,7 +67,11 @@ only some of its tests need the exclusive pool.
    `e2e/support/helpers.ts`. Visible native work must also follow the lease's
    [human-focus boundary](../switch-worktree/SKILL.md#serialize-desktop-work): prepare the exact
    action before choosing visible mode and launching, then stop the owned launch before diagnosing
-   an unexpected result.
+   an unexpected result. A hidden window reaches window presence as visible only through
+   `isUnshownWindowVisible` in `apps/desktop/src/main/window-presence-registry.ts`, and the Server
+   starts the Files watcher and Project Status polling only for a visible Session. A change to
+   presence or visibility gating must run `e2e/startup.performance.e2e.ts`, which waits for Files
+   and Git readiness; unit tests and other specs stay green while the watcher never starts.
 5. Ordinary launches use blocked Agent discovery. Agent specs explicitly choose a shared fake mode;
    policy tests named `real` may still use a synthetic executable and do not authorize host provider
    discovery. Only the manual Codex-only real smoke below invokes the installed Codex CLI.

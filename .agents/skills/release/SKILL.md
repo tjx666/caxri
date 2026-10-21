@@ -49,6 +49,9 @@ beyond the packaged application itself.
   branch for a release. The repository-owned command validates
   and updates every coupled manifest, bundled extension engine range, and TypeScript version
   source. It intentionally stops before commit, push, tag, or publication.
+- Merge the next `release:` PR only after the earlier Release run has published. If that run
+  failed, land the fix first: a version prepared from the same tree fails the same way and burns
+  its version number too. Cancel an earlier run only once a newer release supersedes it.
 - `.github/workflows/release.yml` is the only remote release path. An exact
   `release: v<package-version>` commit landing on `main` must satisfy the release preparation in
   `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`. Its lightweight CI

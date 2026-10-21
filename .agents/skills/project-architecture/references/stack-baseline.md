@@ -15,6 +15,15 @@ Default ordinary dependency declarations to caret (`^`) ranges, including shared
 The lockfile keeps local and CI installations reproducible; a caret permits compatible updates
 when dependency resolution is intentionally refreshed, rather than updating every frozen install.
 
+An upgrade that moves the Android build (Expo SDK, React Native, the Android Gradle Plugin, or the
+Build Tools the React Native catalog pins) changes packaging that PR CI never builds; only the
+Release run does. Before merging it, run `bun run --cwd apps/mobile build:update-bundle` with a
+throwaway keystore exported through the four variables named in
+`apps/mobile/plugins/android-release-signing-environment.json`. Create the keystore with the Android
+toolchain's `keytool` (for example Android Studio's bundled JBR); macOS `/usr/bin/keytool` is a stub
+without a Java runtime. Expo 58 moved Build Tools to 37, whose `apksigner` output no longer matched
+the update bundle's signer check, and two Release runs failed after the upgrade had merged.
+
 Keep these compatibility exceptions:
 
 - `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
