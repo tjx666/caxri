@@ -270,6 +270,17 @@ transcript. A Terminal Agent has no live request to read, so it only gets the tr
 reply. Rows clamp the quote to two lines and the card to three. The text is user content shown
 locally: the Server never persists or logs it, and the Renderer keeps it only in the query cache.
 
+## Past conversations
+
+The Session hover card lists every Agent conversation the Session hosted (newest binding first, up
+to 12), once at least one of them is no longer open. The record is the `agent_session_usage`
+ledger, since `terminals.agent_session_id` holds only the current binding and `/clear`, a provider
+switch, or closing the Terminal overwrites it. Titles come from Session search's index
+(`session.agentHistory`); a conversation since resumed in another Session is left out. Clicking an
+open one selects its Terminal; clicking a closed one (`session.reopenConversation`) adds a parked
+Agent Terminal bound to it in the ledger's recorded folder, and revealing that Terminal resumes the
+conversation, as an imported conversation does.
+
 ## Returning to a Session
 
 Selecting a Session whose Chat finished turns while the user was away shows a quiet pill above the

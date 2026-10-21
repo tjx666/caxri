@@ -7,6 +7,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { AgentEnvironment } from '../contract';
 import type { IndexSearchRequest, IndexSearchResponse, IndexStatus } from './engine';
 import type {
+    ConversationIdentity,
     InspectedConversation,
     SessionSearchWorkerData,
     SessionSearchWorkerReply,
@@ -271,6 +272,20 @@ export class SessionSearchIndex {
         }));
         if (reply.type !== 'inspect') throw new SessionSearchIndexUnavailableError();
         return reply.conversation;
+    }
+
+    /**
+     * Indexed titles of conversations Caxri already knows, aligned with `conversations`. Answers from the index alone,
+     * so it is cheap enough for a hover card, and may lag a rename the next index pass has not seen.
+     */
+    async describe(
+        conversations: ConversationIdentity[],
+        signal?: AbortSignal,
+    ): Promise<Array<string | undefined>> {
+        if (conversations.length === 0) return [];
+        const reply = await this.request((id) => ({ id, type: 'describe', conversations }), signal);
+        if (reply.type !== 'describe') throw new SessionSearchIndexUnavailableError();
+        return reply.titles;
     }
 
     async close(): Promise<void> {

@@ -15,6 +15,11 @@ import {
     sessionRestorePlacementSchema,
     sessionStateSchema,
 } from './session.js';
+import {
+    sessionAgentHistoryResultSchema,
+    sessionReopenConversationParametersSchema,
+    sessionReopenConversationResultSchema,
+} from './session-agent-history.js';
 import { sessionCompactionResultSchema } from './session-compaction.js';
 import {
     sessionConversationReferenceParametersSchema,
@@ -90,6 +95,24 @@ export const sessionMethods = {
         ...serverWrite,
         params: sessionImportConversationParametersSchema,
         result: sessionImportConversationResultSchema,
+    },
+    /**
+     * Every Agent conversation the Session's Terminals have been bound to, from the usage ledger, so the Session hover
+     * card can bring back one whose Terminal was closed or reused. Owner-only: titles quote conversation content.
+     */
+    'session.agentHistory': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({ sessionId: identifierSchema }),
+        result: sessionAgentHistoryResultSchema,
+    },
+    /**
+     * Brings back a conversation from `session.agentHistory` as a parked Agent Terminal in the same Session; revealing
+     * it resumes the conversation. A conversation one of the Session's Terminals still holds returns that Terminal.
+     */
+    'session.reopenConversation': {
+        ...serverWrite,
+        params: sessionReopenConversationParametersSchema,
+        result: sessionReopenConversationResultSchema,
     },
     /**
      * Condenses another Session's Agent conversation into a Caxri-owned Markdown file and returns its path, so a

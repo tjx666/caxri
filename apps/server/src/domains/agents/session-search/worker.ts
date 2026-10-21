@@ -64,6 +64,26 @@ async function main(): Promise<void> {
             });
             return;
         }
+        if (message.type === 'describe') {
+            // A Session's hover card may be the first reader after launch; the titles it misses now arrive with the
+            // background pass, in time for the next hover.
+            engine.refreshIfStale();
+            try {
+                post({
+                    type: 'describe',
+                    id: message.id,
+                    titles: message.conversations.map(
+                        ({ provider, agentSessionId }) =>
+                            store
+                                .conversationTranscripts(provider, agentSessionId)
+                                .find((transcript) => !transcript.isContinuation)?.title,
+                    ),
+                });
+            } catch {
+                post({ type: 'error', id: message.id, reason: 'failed' });
+            }
+            return;
+        }
         // eslint-disable-next-line no-void -- `inspect` posts its own reply, success or failure
         void inspect(message.id, message.provider, message.agentSessionId);
     });

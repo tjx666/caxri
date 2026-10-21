@@ -50,6 +50,7 @@ import {
 import type { SessionContextService } from './session';
 import {
     defaultSessionReferenceDirectory,
+    SessionAgentHistoryService,
     SessionConversationReferenceService,
     SessionSearchService,
 } from './session';
@@ -146,6 +147,8 @@ type ServiceHandlerMethods =
     | 'session.refreshDeliveryOnFocus'
     | 'session.search'
     | 'session.importConversation'
+    | 'session.agentHistory'
+    | 'session.reopenConversation'
     | 'session.conversationReference'
     | 'settings.get'
     | 'settings.inspect'
@@ -180,7 +183,7 @@ export function createServiceHandlers(services: {
     agentHooks: AgentHookManager;
     agentRuntime: {
         awaitSettingsReconcile: () => Promise<void>;
-        sessionSearchIndex: Pick<SessionSearchIndex, 'inspect' | 'search'>;
+        sessionSearchIndex: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'search'>;
     };
     commander: Omit<
         AgentCommanderServiceOptions,
@@ -242,6 +245,12 @@ export function createServiceHandlers(services: {
         resolveProjectRoot: resolveOwnerProjectRoot,
         onSessionImported: () =>
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } }),
+    });
+    const sessionAgentHistory = new SessionAgentHistoryService({
+        database,
+        index: agentRuntime.sessionSearchIndex,
+        onTerminalCreated: () =>
+            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.create' } }),
     });
     const sessionConversationReferences = new SessionConversationReferenceService(
         defaultSessionReferenceDirectory(),
@@ -381,6 +390,10 @@ export function createServiceHandlers(services: {
         'session.search': (parameters, signal) => sessionSearch.search(parameters, signal),
         'session.importConversation': ({ provider, agentSessionId }) =>
             sessionSearch.importConversation(provider, agentSessionId),
+        'session.agentHistory': ({ sessionId }, signal) =>
+            sessionAgentHistory.list(sessionId, signal),
+        'session.reopenConversation': ({ sessionId, provider, agentSessionId }) =>
+            sessionAgentHistory.reopen(sessionId, provider, agentSessionId),
         'session.conversationReference': ({ sessionId }, signal) =>
             sessionConversationReferences.prepare(sessionId, signal),
         'files.search': (parameters, signal) => files.search(parameters, signal),
