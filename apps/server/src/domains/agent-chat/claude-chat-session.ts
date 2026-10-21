@@ -512,7 +512,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         return rewindClaudeSession(query, await this.options.readTranscript(), target);
     }
 
-    async fork(target: ChatForkTarget): Promise<ChatFork> {
+    async fork(target: ChatForkTarget | undefined): Promise<ChatFork> {
         this.requireOpen();
         const transcript = await this.options.readTranscript();
         return forkClaudeSession(this.sessionId, this.options, transcript, target);

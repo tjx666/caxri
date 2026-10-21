@@ -1,4 +1,5 @@
 import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { isChatTerminal } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -28,6 +29,23 @@ export function detachTurnTerminalId(
     return (
         live.find((terminal) => terminal.id === session.primaryAgentTerminalId)?.id ?? live[0]?.id
     );
+}
+
+/**
+ * Why "Fork Session" cannot copy a Session's Primary Agent conversation, or `undefined` when it can. The fork goes
+ * through the Chat's provider (`agentChat.fork`), so a PTY Agent offers it only once it is open as Chat, and only after
+ * the provider created a conversation to copy. A running turn is left to Server Core, which refuses it with the
+ * reason.
+ */
+export type SessionForkBlocker = 'noAgent' | 'notChat' | 'noConversation';
+
+export function sessionForkBlocker(
+    terminal: Pick<TerminalRecord, 'agentSessionId' | 'provider' | 'surface'> | undefined,
+): SessionForkBlocker | undefined {
+    if (!terminal?.provider) return 'noAgent';
+    if (!isChatTerminal(terminal)) return 'notChat';
+    if (!terminal.agentSessionId) return 'noConversation';
+    return undefined;
 }
 
 /**

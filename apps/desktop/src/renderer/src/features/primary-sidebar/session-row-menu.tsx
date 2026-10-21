@@ -9,6 +9,7 @@ import type {
 import { isPinnedSession } from '@caxri/protocol';
 
 import { ContextMenuTrigger } from '../../components/context-menu-trigger';
+import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
@@ -17,9 +18,11 @@ import { fetchCaxriQuery } from '../../queries/client';
 import { isLocalOnlyAvailable } from '../../stores/environment';
 import { getOpenSessionIds } from '../../stores/open-sessions';
 import { getBootstrap } from '../../stores/selectors';
+import { forkAgentChat } from '../agent-chat/agent-chat-commands';
 import { takeBackFromCommander } from '../agent-commander/commander-handover-commands';
 import { openCommanderHandover } from '../agent-commander/commander-handover-store';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
+import type { SessionForkBlocker } from '../session/session-agent-commands';
 import {
     copyAgentSessionId,
     copyAgentTranscriptPath,
@@ -27,6 +30,7 @@ import {
     hasDetachedAgentTerminal,
     hasLiveAgentTerminal,
     resumeSession,
+    sessionForkBlocker,
 } from '../session/session-agent-commands';
 import { archiveSession } from '../session/session-archive-commands';
 import {
@@ -47,6 +51,12 @@ import {
 import { getActivePaneTab } from '../workbench/pane-actions';
 import { resolveSessionCreator } from './session-creator';
 import { canSuggestSessionTitle } from './session-rename-draft';
+
+const FORK_BLOCKER_REASONS = {
+    noAgent: 'primarySidebar.sessionMenu.noAgentReason',
+    notChat: 'primarySidebar.sessionMenu.forkNeedsChatReason',
+    noConversation: 'primarySidebar.sessionMenu.noConversationReason',
+} as const satisfies Record<SessionForkBlocker, TranslationKey>;
 
 /**
  * Whether `terminalId` is the active pane's tab in the selected Session, the Terminal every Terminal shortcut acts on.
@@ -228,10 +238,12 @@ async function sessionRowMenu({
         isAgentConversationResumable(primaryTerminal),
         isCommanderManaged(session.id),
     ]);
+    const forkBlocker = sessionForkBlocker(primaryTerminal);
     /**
-     * Five groups: the Session itself (Rename, Rename with AI, Pin, Archive, and Hand Over to or Take Back from the
-     * Agent Commander), its Agent, opening it elsewhere, copying its Agent's identity, and Delete.
-     * `serializeContextMenu` drops a separator left without neighbors.
+     * Six groups: the Session itself (Rename, Rename with AI, Pin, and Hand Over to or Take Back from the Agent
+     * Commander), Fork, its Agent, opening it elsewhere, a Copy submenu for its Agent's identity, and the two ways to
+     * remove it (Archive, Delete) together at the end, the order Codex's sidebar menu uses. `serializeContextMenu`
+     * drops a separator left without neighbors.
      */
     return [
         /**
@@ -272,14 +284,6 @@ async function sessionRowMenu({
             onSelect: () => setSessionPinned(session.id, !pinned),
         },
         /**
-         * In the Activity queue Delete marks the row read instead, so the hint moves to that entry.
-         */
-        {
-            label: translate('primarySidebar.sessionMenu.archive'),
-            shortcut: onMarkRead ? undefined : 'delete',
-            onSelect: () => archiveSession(session.id),
-        },
-        /**
          * Hand Over opens the picker with this Session selected, so the user can add a note or more Sessions first.
          */
         isManaged
@@ -291,6 +295,17 @@ async function sessionRowMenu({
                   label: translate('primarySidebar.sessionMenu.handOverToCommander'),
                   onSelect: () => openCommanderHandover([session.id]),
               },
+        CONTEXT_MENU_SEPARATOR,
+        /**
+         * Copies the Primary Agent's whole Chat conversation into a new Session, as Codex's sidebar Fork does; Fork
+         * from Here on a message is the way to cut it earlier.
+         */
+        {
+            label: translate('primarySidebar.sessionMenu.forkSession'),
+            disabled: forkBlocker !== undefined,
+            disabledReason: forkBlocker && translate(FORK_BLOCKER_REASONS[forkBlocker]),
+            onSelect: () => primaryTerminal && forkAgentChat(primaryTerminal.id),
+        },
         CONTEXT_MENU_SEPARATOR,
         /**
          * The Agent group. The surface switch and Restart Agent act on the Primary Agent, the same Terminal the copy
@@ -349,21 +364,44 @@ async function sessionRowMenu({
             onSelect: () => openSessionPullRequest(pullRequest),
         },
         CONTEXT_MENU_SEPARATOR,
+        /**
+         * Every Copy entry reads the Agent's conversation, so without one the whole submenu is disabled with the reason
+         * instead of opening onto three disabled rows.
+         */
         {
-            label: translate('primarySidebar.sessionMenu.copyConversationId'),
+            type: 'submenu',
+            label: translate('primarySidebar.sessionMenu.copy'),
             disabled: !agentSessionId,
             disabledReason: missingConversationReason,
-            onSelect: () => agentSessionId && copyAgentSessionId(agentSessionId),
+            entries: [
+                {
+                    label: translate('primarySidebar.sessionMenu.copyConversationId'),
+                    onSelect: () => agentSessionId && copyAgentSessionId(agentSessionId),
+                },
+                {
+                    label: translate('primarySidebar.sessionMenu.copyTranscriptPath'),
+                    onSelect: () =>
+                        primaryTerminal &&
+                        agentSessionId &&
+                        copyAgentTranscriptPath(primaryTerminal.id),
+                },
+                agentResumeCommandMenuEntry(
+                    primaryTerminal,
+                    isResumable,
+                    missingConversationReason,
+                    translate('primarySidebar.sessionMenu.copyResumeCommand'),
+                ),
+            ],
         },
-        {
-            label: translate('primarySidebar.sessionMenu.copyTranscriptPath'),
-            disabled: !agentSessionId,
-            disabledReason: missingConversationReason,
-            onSelect: () =>
-                primaryTerminal && agentSessionId && copyAgentTranscriptPath(primaryTerminal.id),
-        },
-        agentResumeCommandMenuEntry(primaryTerminal, isResumable, missingConversationReason),
         CONTEXT_MENU_SEPARATOR,
+        /**
+         * In the Activity queue Delete marks the row read instead, so the hint moves to that entry.
+         */
+        {
+            label: translate('primarySidebar.sessionMenu.archive'),
+            shortcut: onMarkRead ? undefined : 'delete',
+            onSelect: () => archiveSession(session.id),
+        },
         {
             label: translate('primarySidebar.sessionMenu.deleteSession'),
             shortcut: readCommandShortcut('session.delete'),

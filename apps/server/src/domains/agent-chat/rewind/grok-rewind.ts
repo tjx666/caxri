@@ -139,14 +139,15 @@ export async function rewindGrokSession(
 
 /**
  * `_x.ai/session/fork` copies the session's files up to before one prompt into a new session (the same index a rewind
- * takes) without opening it; the new Chat opens it with `session/load`.
+ * takes) without opening it; the new Chat opens it with `session/load`. Without a target the request omits
+ * `targetPromptIndex`, which copies the whole session (verified on Grok Build 1.0.62).
  */
 export async function forkGrokSession(
     connection: JsonRpcConnection,
     source: { sessionId: string; cwd: string },
-    target: ChatForkTarget,
+    target: ChatForkTarget | undefined,
 ): Promise<string> {
-    const point = await grokPromptIndex(connection, source.sessionId, target, 'fork');
+    const point = target && (await grokPromptIndex(connection, source.sessionId, target, 'fork'));
     let forked: unknown;
     try {
         forked = await connection.request(
@@ -155,7 +156,7 @@ export async function forkGrokSession(
                 sourceSessionId: source.sessionId,
                 sourceCwd: source.cwd,
                 newCwd: source.cwd,
-                targetPromptIndex: point,
+                ...(point !== undefined && { targetPromptIndex: point }),
             },
             REWIND_REQUEST_TIMEOUT_MS,
         );

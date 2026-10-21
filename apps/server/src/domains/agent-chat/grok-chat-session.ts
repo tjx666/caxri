@@ -501,7 +501,7 @@ class GrokChatSession implements AgentChatProviderSession {
         return rewindGrokSession(this.requireConnection(), this.sessionId, target);
     }
 
-    async fork(target: ChatForkTarget): Promise<ChatFork> {
+    async fork(target: ChatForkTarget | undefined): Promise<ChatFork> {
         const source = { sessionId: this.sessionId, cwd: this.options.cwd };
         const connection = this.requireConnection();
         return {

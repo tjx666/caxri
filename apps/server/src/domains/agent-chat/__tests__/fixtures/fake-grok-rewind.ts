@@ -99,8 +99,9 @@ export function rewindExecute(
 }
 
 /**
- * Writes a new session holding the prompts before `targetPromptIndex` of the stored source session, without opening it,
- * and logs the call to `forks.jsonl`. `sessionPath` maps a session id to its stored file.
+ * Writes a new session holding the prompts before `targetPromptIndex` of the stored source session (every frame when it
+ * is absent, as Grok Build 1.0.62 copies the whole session), without opening it, and logs the call to `forks.jsonl`.
+ * `sessionPath` maps a session id to its stored file.
  */
 export function forkSession(
     parameters: Json,
@@ -112,11 +113,17 @@ export function forkSession(
     const sourceSessionId = String(parameters.sourceSessionId);
     if (!fs.existsSync(sessionPath(sourceSessionId)))
         return { error: { code: -32603, message: 'Path not found.' } };
-    const targetPromptIndex = Number(parameters.targetPromptIndex);
+    const targetPromptIndex =
+        parameters.targetPromptIndex === undefined
+            ? undefined
+            : Number(parameters.targetPromptIndex);
     const source = JSON.parse(
         fs.readFileSync(sessionPath(sourceSessionId), 'utf8'),
     ) as RewindSession;
-    const frameIndex = promptFrameIndexes(source.frames).at(targetPromptIndex);
+    const frameIndex =
+        targetPromptIndex === undefined
+            ? source.frames.length
+            : promptFrameIndexes(source.frames).at(targetPromptIndex);
     if (frameIndex === undefined)
         return { error: { code: -32602, message: `No prompt ${targetPromptIndex}` } };
     const newSessionId = crypto.randomUUID();

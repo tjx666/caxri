@@ -54,6 +54,7 @@ import {
     copyAgentTranscriptPath,
     detachSession,
     detachTurnTerminalId,
+    sessionForkBlocker,
 } from '../session-agent-commands';
 
 describe('Agent identifier copy', () => {
@@ -201,5 +202,26 @@ describe('detachSession', () => {
                 sessionId: 'session-1',
             }),
         );
+    });
+});
+
+describe('sessionForkBlocker', () => {
+    it('offers Fork Session for a Chat Agent with a conversation', () => {
+        expect(
+            sessionForkBlocker({ provider: 'codex', surface: 'chat', agentSessionId: 'thread-1' }),
+        ).toBeUndefined();
+    });
+
+    it('says why a Session without a Chat conversation cannot fork', () => {
+        expect(sessionForkBlocker(undefined)).toBe('noAgent');
+        expect(sessionForkBlocker({ provider: undefined, agentSessionId: undefined })).toBe(
+            'noAgent',
+        );
+        expect(sessionForkBlocker({ provider: 'claude', agentSessionId: 'session-1' })).toBe(
+            'notChat',
+        );
+        expect(
+            sessionForkBlocker({ provider: 'grok', surface: 'chat', agentSessionId: undefined }),
+        ).toBe('noConversation');
     });
 });

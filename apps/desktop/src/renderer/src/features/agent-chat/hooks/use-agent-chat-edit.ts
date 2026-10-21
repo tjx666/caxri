@@ -92,7 +92,7 @@ export function useAgentChatEditActions(
                         );
                         return availability.canFork ? null : availability.reason;
                     },
-                    run: (itemId, text) => forkAgentChat(terminalId, itemId, text),
+                    run: (itemId, text) => forkAgentChat(terminalId, { itemId, text }),
                 },
             }),
             ...(supportsRewindFiles && {

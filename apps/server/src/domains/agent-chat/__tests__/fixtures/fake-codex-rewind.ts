@@ -43,15 +43,19 @@ export function revertThread(
 }
 
 /**
- * Writes a new thread holding the turns before `beforeTurnId`, and logs the call to `thread-forks.jsonl`. Unlike a
- * revert, a running turn does not block a fork of earlier turns. `threadPath` maps a thread id to its stored file.
+ * Writes a new thread holding the turns before `beforeTurnId` (every turn when it is absent, as the real `thread/fork`
+ * copies the whole thread), and logs the call to `thread-forks.jsonl`. Unlike a revert, a running turn does not block a
+ * fork of earlier turns. `threadPath` maps a thread id to its stored file.
  */
 export function forkThread(
     thread: FakeThread,
     beforeTurnId: unknown,
     { stateDirectory, threadPath }: { stateDirectory: string; threadPath: (id: string) => string },
 ): Json {
-    const index = thread.turns.findIndex((turn) => turn.id === beforeTurnId);
+    const index =
+        beforeTurnId === undefined
+            ? thread.turns.length
+            : thread.turns.findIndex((turn) => turn.id === beforeTurnId);
     if (index === -1) return { error: { code: -32600, message: 'no such turn to fork before' } };
     const forked: FakeThread = {
         ...thread,

@@ -297,7 +297,7 @@ test('a row clicked, then pinned from its context menu, does not come back weari
                 new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
             ),
         );
-        await chooseContextMenuItem(running.app, 'Pin Session');
+        await chooseContextMenuItem(running.app, 'Pin');
 
         const pinned = page.locator(`.pinned-session-group [data-session-id="${sessionId}"]`);
         await expect(pinned).toBeFocused();

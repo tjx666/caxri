@@ -173,17 +173,18 @@ export async function isAgentConversationResumable(
  * "Copy Resume Command" for an Agent tab and a Session row (its Primary Agent): a shell command that continues the
  * bound Agent Session in the provider's own TUI outside Caxri. Disabled until the Agent has a conversation to continue
  * (`isResumable`, from `isAgentConversationResumable`); `disabledReason` lets a menu reuse the wording of its other
- * conversation entries.
+ * conversation entries, and `label` lets a Copy submenu drop the verb its parent already says.
  */
 export function agentResumeCommandMenuEntry(
     terminal: Pick<TerminalRecord, 'agentSessionId' | 'cwd' | 'provider'> | undefined,
     isResumable: boolean,
     disabledReason = translate('terminal.conversation.notStarted'),
+    label = translate('terminal.resumeCommand.copy'),
 ): ContextMenuEntry {
     const provider = terminal?.provider;
     const agentSessionId = terminal?.agentSessionId;
     return {
-        label: translate('terminal.resumeCommand.copy'),
+        label,
         disabled: !provider || !agentSessionId || !isResumable,
         disabledReason,
         onSelect: () =>

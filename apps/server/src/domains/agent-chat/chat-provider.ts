@@ -381,10 +381,11 @@ export interface AgentChatProviderSession {
     rewind(target: ChatRewindTarget): Promise<ChatResumePoint | undefined>;
     /**
      * "Fork from here": copies the provider's own record up to just before `target` into a new Agent Session (see
-     * {@link ChatFork}). Leaves this conversation unchanged. The service has already checked that no turn runs, and
-     * forks the first message of a whole conversation without asking the provider.
+     * {@link ChatFork}); without a target ("Fork Session") it copies the whole record. Leaves this conversation
+     * unchanged. The service has already checked that no turn runs, and forks the first message of a whole conversation
+     * without asking the provider.
      */
-    fork(target: ChatForkTarget): Promise<ChatFork>;
+    fork(target: ChatForkTarget | undefined): Promise<ChatFork>;
     /**
      * "Restore code to here": restores the files changed since `target` from the provider's file checkpoints and keeps
      * the conversation. The service has already checked that no turn runs and that the provider offers file restore

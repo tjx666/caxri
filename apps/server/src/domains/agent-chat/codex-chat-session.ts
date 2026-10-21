@@ -519,7 +519,7 @@ class CodexChatSession implements AgentChatProviderSession {
         return revertCodexThread(this.requireConnection(), this.threadId, target);
     }
 
-    async fork(target: ChatForkTarget): Promise<ChatFork> {
+    async fork(target: ChatForkTarget | undefined): Promise<ChatFork> {
         return {
             agentSessionId: await forkCodexThread(
                 this.requireConnection(),
