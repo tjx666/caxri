@@ -290,6 +290,8 @@ describe('Codex Chat background work with a fake app-server', () => {
     it('shows compaction in progress and the compacted notice only once it completes', async () => {
         const { service, terminal, signals, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');
+        await service.send(terminal.id, { text: 'hello' });
+        await until((snapshot) => !snapshot.activeTurnId && snapshot.usage?.totalTokens === 1200);
         await service.runCommand(terminal.id, 'compact');
         const compacting = await until((snapshot) => snapshot.operation === 'compacting');
         expect(compacting.items.some((item) => item.type === 'notice')).toBe(false);
@@ -301,7 +303,11 @@ describe('Codex Chat background work with a fake app-server', () => {
         const compacted = await until(
             (snapshot) => snapshot.operation === undefined && !snapshot.activeTurnId,
         );
-        expect(compacted.items).toEqual([expect.objectContaining({ kind: 'compacted' })]);
+        // Codex reports no sizes with the item; the usage before and after it bracket the compaction.
+        expect(compacted.items.find((item) => item.type === 'notice')).toMatchObject({
+            kind: 'compacted',
+            compaction: { beforeTokens: 1200, afterTokens: 300, trigger: 'manual' },
+        });
         const phases = signals.map((signal) => signal.phase);
         expect(phases).toContain('compactionStarted');
         expect(phases.indexOf('compactionStarted')).toBeLessThan(

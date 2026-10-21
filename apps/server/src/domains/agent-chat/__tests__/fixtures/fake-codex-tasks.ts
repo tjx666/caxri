@@ -305,6 +305,15 @@ export function didHandleTaskRequest(
                 io.startItem(turn, compaction);
                 // Compaction takes a moment, so the Chat can show it in progress.
                 setTimeout(() => {
+                    // Codex restates the usage from its estimate of the compacted history before completing the item.
+                    io.notifyTurn(turn, 'thread/tokenUsage/updated', {
+                        turnId: turn.id,
+                        tokenUsage: {
+                            total: { totalTokens: 1500 },
+                            last: { totalTokens: 300, inputTokens: 0, outputTokens: 0 },
+                            modelContextWindow: 200000,
+                        },
+                    });
                     io.completeItem(turn, compaction);
                     io.finishTurn(turn);
                 }, 150);

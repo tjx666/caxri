@@ -1,15 +1,26 @@
-import type { AgentChatModel, AgentChatModelChange, AgentChatSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatItem,
+    AgentChatModel,
+    AgentChatModelChange,
+    AgentChatPatchOperation,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
 import { findAgentChatModel } from '@caxri/protocol';
 
 import { ChatTurnUsage, codexTurnResponse } from '../usage';
 import { boundedChatModels, clip, isRecord, stringField } from './chat-items';
 import type { AgentChatDefaultsSave, AgentChatSessionHost } from './chat-provider';
 import { withCacheRewriteEstimate } from './chat-usage';
+import { TURN_REQUEST_TIMEOUT_MS } from './codex-delivery-check';
 import { mapCodexUsage } from './codex-items';
 import type { CodexPermissions } from './codex-permissions';
 import type { JsonRpcConnection } from './json-rpc-connection';
 
 const MODEL_LIST_TIMEOUT_MS = 10_000;
+
+type AgentChatNoticeCompaction = NonNullable<
+    Extract<AgentChatItem, { type: 'notice' }>['compaction']
+>;
 
 /**
  * The service tier ids that mean Fast mode. `model/list` names the tier `priority` (its wire value); Codex also accepts
@@ -282,6 +293,15 @@ export class CodexUsage {
      */
     private cacheTtlMinutes: number | undefined = CODEX_CACHE_TTL_MINUTES;
     private readonly turnUsage = new ChatTurnUsage();
+    /**
+     * Whether the next compaction is the user's `/compact` rather than Codex's own near the context limit.
+     */
+    private isManualCompactionNext = false;
+    /**
+     * The running compaction, from its `contextCompaction` start to its completion.
+     */
+    private compaction:
+        { beforeTokens: number | undefined; trigger: 'auto' | 'manual' } | undefined;
 
     constructor(private readonly host: Pick<AgentChatSessionHost, 'apply' | 'read'>) {}
 
@@ -295,6 +315,54 @@ export class CodexUsage {
         this.host.apply([
             { op: 'state', state: { usage: withCacheRewriteEstimate(restated, model) } },
         ]);
+    }
+
+    /**
+     * Runs the user's `/compact`. Codex runs compaction as its own turn, so the usual turn and `contextCompaction`
+     * events report it.
+     */
+    async compact(connection: JsonRpcConnection, threadId: string | undefined): Promise<void> {
+        this.isManualCompactionNext = true;
+        try {
+            await connection.request('thread/compact/start', { threadId }, TURN_REQUEST_TIMEOUT_MS);
+        } catch (error) {
+            this.isManualCompactionNext = false;
+            throw error;
+        }
+    }
+
+    /**
+     * The patch for a `contextCompaction` item (`item` is its mapped notice, absent while it runs). Codex reports no
+     * sizes with it, but restates the usage from its estimate of the compacted history (`recompute_token_usage` in
+     * `codex-rs/core/src/compact.rs`) just before the item completes, so the usage when it started and the usage at
+     * completion bracket the compaction, as Claude Code's `compact_metadata` reports them.
+     */
+    compactionOperations(
+        item: AgentChatItem | undefined,
+        isStarted: boolean,
+    ): AgentChatPatchOperation[] {
+        const tokens = this.host.read().usage?.totalTokens;
+        if (isStarted) {
+            const trigger = this.isManualCompactionNext ? 'manual' : 'auto';
+            this.compaction = { beforeTokens: tokens, trigger };
+            this.isManualCompactionNext = false;
+            return [{ op: 'state', state: { operation: 'compacting' } }];
+        }
+        const started = this.compaction;
+        this.compaction = undefined;
+        const compaction: AgentChatNoticeCompaction | undefined = started && {
+            trigger: started.trigger,
+            ...(started.beforeTokens !== undefined &&
+                tokens !== undefined && {
+                    beforeTokens: started.beforeTokens,
+                    afterTokens: tokens,
+                }),
+        };
+        const notice = compaction && item?.type === 'notice' ? { ...item, compaction } : item;
+        return [
+            ...(notice ? [{ op: 'upsertItem' as const, item: notice }] : []),
+            { op: 'state', state: { operation: null } },
+        ];
     }
 
     async loadSignIn(connection: JsonRpcConnection): Promise<void> {

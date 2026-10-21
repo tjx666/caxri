@@ -36,7 +36,7 @@ import type {
 import { chatTextDigest } from './chat-turn-answer';
 import type { CodexThreadSettings } from './codex-chat-types';
 import { CodexComputerUseBindings } from './codex-computer-use';
-import { CodexDeliveryCheck, TURN_REQUEST_TIMEOUT_MS } from './codex-delivery-check';
+import { CodexDeliveryCheck } from './codex-delivery-check';
 import { CodexGoals } from './codex-goals';
 import {
     CODEX_COMMANDS,
@@ -273,13 +273,10 @@ class CodexChatSession implements AgentChatProviderSession {
             this.tasks.agentName(id),
         );
         const item = mapped && this.thumbnails.apply(mapped, raw);
-        const operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
         const type = isRecord(raw) ? raw.type : undefined;
+        let operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
         if (type === 'contextCompaction')
-            operations.push({
-                op: 'state',
-                state: { operation: isStarted ? 'compacting' : null },
-            });
+            operations = this.usage.compactionOperations(item, isStarted);
         if (operations.length > 0) this.options.apply(operations);
         if (!isRecord(raw)) return;
         if (type === 'userMessage') this.deliveries.rememberEcho(raw.clientId);
@@ -499,13 +496,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 'CONFLICT',
                 'Wait for the current turn to finish before compacting',
             );
-        const connection = this.requireConnection();
-        // Codex runs compaction as its own turn, so the usual turn and `contextCompaction` events report it.
-        await connection.request(
-            'thread/compact/start',
-            { threadId: this.threadId },
-            TURN_REQUEST_TIMEOUT_MS,
-        );
+        await this.usage.compact(this.requireConnection(), this.threadId);
     }
 
     configure(change: AgentChatModelChange): Promise<void> {
