@@ -152,14 +152,23 @@ export function codexAgentName(agentPath: unknown, limit: number): string | unde
 }
 
 /**
- * A subagent tool call (`spawnAgent`, `sendInput`, `wait`, `closeAgent`, ...). The summary is the prompt it sent, or
- * how many agents it addressed; the output is the final messages the target agents reported, such as a `wait` result.
+ * A subagent tool call (`spawnAgent`, `sendInput`, `wait`, `closeAgent`, ...). The summary is the prompt it sent, else
+ * the names of the agents it addressed (a `wait` says whom it waits for), else how many; the output is the final
+ * messages the target agents reported, such as a `wait` result.
  */
-function mapCollabAgentToolCall(raw: Json, base: { id: string; turnId?: string }): AgentChatItem {
-    const receivers = Array.isArray(raw.receiverThreadIds) ? raw.receiverThreadIds.length : 0;
+function mapCollabAgentToolCall(
+    raw: Json,
+    base: { id: string; turnId?: string },
+    agentName?: (threadId: string) => string | undefined,
+): AgentChatItem {
+    const receivers = Array.isArray(raw.receiverThreadIds) ? raw.receiverThreadIds : [];
+    const names = receivers.map((id) => (typeof id === 'string' ? agentName?.(id) : undefined));
     const summary =
         optionalText(raw.prompt, 1_000) ??
-        (receivers > 0 ? `${receivers} agent${receivers === 1 ? '' : 's'}` : undefined);
+        (names.length > 0 && names.every(Boolean) ? clip(names.join(', '), 1_000) : undefined) ??
+        (receivers.length > 0
+            ? `${receivers.length} agent${receivers.length === 1 ? '' : 's'}`
+            : undefined);
     const states = isRecord(raw.agentsStates) ? Object.values(raw.agentsStates) : [];
     const messages = states.flatMap((state) =>
         isRecord(state) && typeof state.message === 'string' && state.message
@@ -188,6 +197,7 @@ export function mapCodexItem(
     turnId: string | undefined,
     isStreaming: boolean,
     computerUse?: CodexComputerUseBindings,
+    agentName?: (threadId: string) => string | undefined,
 ): AgentChatItem | undefined {
     if (!isRecord(raw) || typeof raw.id !== 'string' || !raw.id) return undefined;
     const base = { id: clip(raw.id, 200), ...(turnId && { turnId: clip(turnId, 200) }) };
@@ -332,7 +342,7 @@ export function mapCodexItem(
             return isStreaming ? undefined : { ...base, type: 'notice', kind: 'compacted' };
         }
         case 'collabAgentToolCall': {
-            return mapCollabAgentToolCall(raw, base);
+            return mapCollabAgentToolCall(raw, base, agentName);
         }
         case 'subAgentActivity': {
             const name = SUB_AGENT_ACTIVITY_NAMES[text(raw.kind)];

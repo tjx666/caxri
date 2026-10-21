@@ -452,7 +452,12 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
 - **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
   `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
   spawned child, so notifications from an unknown thread are held briefly (8 threads, 500 each) until
-  a spawn item names it. Stopping interrupts the child's turn; history comes from `thread/read`. A
+  a spawn item names it. Codex's `wait` and `closeAgent` items name their receivers only by thread id,
+  so the Server writes the subagents' Background work titles (a spawn's first prompt line, a v2 path
+  name) as their summary, rebuilt from the spawn items on resume: a row reads `Waited for Review the
+diff`, and a work summary whose waits name one subagent reads `waited for Review the diff`, as the
+  Codex TUI's `Waiting for <agent>` does. Stopping interrupts the child's turn; history comes from
+  `thread/read`. A
   `commandExecution` with a `processId` still running when its turn ends becomes a shell task;
   Caxri initializes with `experimentalApi: true` so `thread/backgroundTerminals/terminate` can stop
   it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`. A resumed

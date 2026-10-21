@@ -26,6 +26,34 @@ describe('historyOperations', () => {
         expect(snapshot.truncated).toBe(true);
     });
 
+    it('names the subagent a resumed wait waited for, even in a later turn', () => {
+        const spawn = {
+            type: 'collabAgentToolCall',
+            id: 's',
+            tool: 'spawnAgent',
+            status: 'completed',
+            receiverThreadIds: ['child'],
+            prompt: 'Review the diff\nand report back.',
+        };
+        const wait = { ...spawn, id: 'w', tool: 'wait', prompt: null };
+        const operations = historyOperations(
+            {
+                turns: [
+                    { id: 'turn-1', status: 'completed', items: [spawn] },
+                    { id: 'turn-2', status: 'completed', items: [wait] },
+                ],
+            },
+            undefined,
+        );
+        const snapshot = operations.reduce(
+            applyAgentChatOperation,
+            emptyAgentChatSnapshot('terminal-1'),
+        );
+        expect(snapshot.items.find((item) => item.id === 'w')).toMatchObject({
+            summary: 'Review the diff',
+        });
+    });
+
     it('resumes a short history untruncated', () => {
         const operations = historyOperations(
             {

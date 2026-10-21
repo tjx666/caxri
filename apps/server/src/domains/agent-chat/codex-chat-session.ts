@@ -269,7 +269,9 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     private onItem(raw: unknown, turnId: string | undefined, isStarted: boolean): void {
-        const mapped = mapCodexItem(raw, turnId, isStarted, this.computerUse);
+        const mapped = mapCodexItem(raw, turnId, isStarted, this.computerUse, (id) =>
+            this.tasks.agentName(id),
+        );
         const item = mapped && this.thumbnails.apply(mapped, raw);
         const operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
         const type = isRecord(raw) ? raw.type : undefined;

@@ -341,11 +341,39 @@ describe('Codex subagent tools', () => {
         });
     });
 
-    it('summarizes a wait and the completion it returned as one wait', () => {
+    it('summarizes a wait and the completion it returned as one wait on that subagent', () => {
         expect(
             summarizeAgentToolGroup([
                 { name: 'wait' },
                 { name: 'agentCompleted', summary: '/root/pr_watch_waiter' },
+            ]),
+        ).toBe('Waited for Pr watch waiter');
+    });
+
+    it('says whom a wait waited for when the Server names its subagent', () => {
+        const wait = describeAgentTool({ name: 'wait', summary: 'Review the diff' });
+        expect(wait).toEqual({
+            kind: 'wait',
+            label: 'Waited for',
+            subject: 'Review the diff',
+            isCodeSubject: false,
+        });
+        expect(agentToolActiveLabel(wait)).toBe('Waiting for');
+        expect(summarizeAgentToolGroup([{ name: 'wait', summary: 'Review the diff' }])).toBe(
+            'Waited for Review the diff',
+        );
+        expect(
+            summarizeAgentToolGroup([
+                { name: 'exec_command', summary: 'git status' },
+                { name: 'wait', summary: 'Review the diff' },
+                { name: 'wait', summary: 'Review the diff' },
+            ]),
+        ).toBe('Ran 1 command, waited for Review the diff');
+        // Waits on different subagents keep the plain phrase.
+        expect(
+            summarizeAgentToolGroup([
+                { name: 'wait', summary: 'Review the diff' },
+                { name: 'wait', summary: 'Lint' },
             ]),
         ).toBe('Waited for agents');
     });

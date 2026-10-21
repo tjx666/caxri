@@ -207,3 +207,13 @@ export function boundedChatModels(models: readonly AgentChatModel[]): AgentChatM
     }
     return bounded;
 }
+
+/**
+ * The subagent's first prompt line, which is what the user reads as its task.
+ */
+export function promptTitle(prompt: unknown): string | undefined {
+    const line = stringField(prompt)
+        ?.split('\n')
+        .find((candidate) => candidate.trim());
+    return line ? clip(line.trim(), 1_000) : undefined;
+}

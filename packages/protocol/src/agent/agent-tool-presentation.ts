@@ -125,8 +125,9 @@ const PROSE_KINDS = new Set<AgentToolKind>([
 ]);
 
 /**
- * Tools whose summary is a subagent rather than a command or a prompt. `wait` is absent on purpose: Codex's only
- * summary for it is a receiver count (`1 agent`), which `Waited for agents` already says.
+ * Tools whose summary is a subagent rather than a command or a prompt. Codex's own summary for a v1 `wait` or
+ * `closeAgent` is a receiver count (`1 agent`), which the label already says; the Server replaces it with the
+ * subagents' names when it knows them ({@link AGENT_COUNT}).
  */
 const AGENT_SUBJECT_TOOLS = new Set([
     'agentcompleted',
@@ -134,6 +135,11 @@ const AGENT_SUBJECT_TOOLS = new Set([
     'interruptagent',
     'sendmessage',
 ]);
+
+/**
+ * A v1 collab call's receiver count (`1 agent`, `2 agents`), which names nobody.
+ */
+const AGENT_COUNT = /^\d+ agents?$/u;
 
 const basename = (path: string): string => {
     const trimmed = path.replace(/[\\/]+$/u, '');
@@ -239,8 +245,13 @@ export const describeAgentTool = (
         return { kind: 'other', label: tool.name, subject: rawSubject, isCodeSubject: true };
     const toolName = tool.name.toLowerCase();
     if (known.kind === 'wait' || AGENT_SUBJECT_TOOLS.has(toolName)) {
-        // A receiver count (`1 agent`) says nothing the label does not; only a subagent name says who it was.
-        const name = agentDisplayName(rawSubject);
+        // A receiver count (`1 agent`) says nothing the label does not; only a subagent name says who it was. The
+        // Server names a v1 receiver by its Background work title (`Review the diff`), which is shown as written.
+        const name =
+            agentDisplayName(rawSubject) ??
+            (rawSubject && !AGENT_COUNT.test(rawSubject) ? rawSubject : undefined);
+        if (name && known.label === 'Waited for agents')
+            return { kind: 'wait', label: 'Waited for', subject: name, isCodeSubject: false };
         return { ...known, ...(name && { subject: name }), isCodeSubject: false };
     }
     // A v2 `started` activity names the subagent; a v1 `spawnAgent` call's summary is its prompt, shown as is.
@@ -336,6 +347,7 @@ const TOOL_LABEL_KEYS: Readonly<Record<string, AgentChatLabelKey>> = {
     'Closed agent': 'agentChat.tool.label.closedAgent',
     'Stopped agent': 'agentChat.tool.label.stoppedAgent',
     'Waited for agents': 'agentChat.tool.label.waitedForAgents',
+    'Waited for': 'agentChat.tool.label.waitedFor',
     'Agent finished': 'agentChat.tool.label.agentFinished',
     'Updated plan': 'agentChat.tool.label.updatedPlan',
     'Proposed plan': 'agentChat.tool.label.proposedPlan',
@@ -377,9 +389,11 @@ export const agentToolActiveLabel = (
     presentation: Pick<AgentToolPresentation, 'kind' | 'label'>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string =>
-    isAgentToolActionKind(presentation.kind)
-        ? t(`agentChat.tool.active.${presentation.kind}`)
-        : agentToolLabel(presentation.label, t);
+    presentation.label === 'Waited for'
+        ? t('agentChat.tool.active.waitNamed')
+        : isAgentToolActionKind(presentation.kind)
+          ? t(`agentChat.tool.active.${presentation.kind}`)
+          : agentToolLabel(presentation.label, t);
 
 /**
  * How a settled tool call ended, as far as its row title is concerned.
@@ -434,6 +448,20 @@ export const agentToolKindCounts = (tools: ReadonlyArray<Pick<ToolCall, 'name' |
 };
 
 /**
+ * The one subagent a group's waits name (`Reviewer`), so its phrase says whom the Agent waited for; `undefined` when
+ * they name none or several. A v2 `wait_agent` names nobody, but the completion that answered it does.
+ */
+const waitedAgentName = (tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>) => {
+    const names = new Set(
+        tools.flatMap((tool) => {
+            const { kind, subject } = describeAgentTool(tool);
+            return kind === 'wait' && subject ? [subject] : [];
+        }),
+    );
+    return names.size === 1 ? [...names][0] : undefined;
+};
+
+/**
  * The phrases of {@link summarizeAgentToolGroup}, one per kind in the order the Agent first used it, each after the
  * first carrying its leading separator (`Ran 3 commands`, `, read 2 files`), so a surface can mark a kind joining the
  * summary while the kinds already there keep their place.
@@ -443,9 +471,10 @@ export const agentToolGroupPhrases = (
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): Array<{ kind: AgentToolKind; text: string }> =>
     agentToolKindCounts(tools).map(({ kind, count }, index) => {
-        const phrase = t(`agentChat.tool.group.${kind}${count === 1 ? 'One' : 'Other'}`, {
-            count,
-        });
+        const name = kind === 'wait' ? waitedAgentName(tools) : undefined;
+        const phrase = name
+            ? t('agentChat.tool.group.waitNamed', { name })
+            : t(`agentChat.tool.group.${kind}${count === 1 ? 'One' : 'Other'}`, { count });
         return {
             kind,
             text:

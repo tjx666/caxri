@@ -77,6 +77,19 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
         await shell.getByRole('button', { name: 'Stop' }).click();
         await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-shell-stopped.png') });
+
+        // A wait names the subagent it waited for by its Background work title, as the Codex TUI does.
+        await message.fill('use a subagent');
+        await message.press('Enter');
+        await expect(chat.getByText('The helper finished.')).toBeVisible();
+        await chat
+            .getByRole('button', { name: /^Worked(?: for |$)/u })
+            .last()
+            .click();
+        await expect(
+            chat.getByRole('button', { name: 'Waited for Inspect the fixtures' }),
+        ).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-subagent-wait.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

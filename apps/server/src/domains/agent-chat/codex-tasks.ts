@@ -1,13 +1,13 @@
 import type { AgentChatTask, AgentChatTaskPatchOperation } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
+import { clip, closeDanglingItem, isRecord, promptTitle, stringField } from './chat-items';
 import type { AgentChatSessionHost, ChatTaskHistory } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { CodexBackgroundTerminals } from './codex-background-terminals';
 import { CodexComputerUseBindings } from './codex-computer-use';
 import { codexAgentName, mapCodexItem } from './codex-items';
-import { historyItems } from './codex-turns';
+import { codexAgentNames, historyItems } from './codex-turns';
 import { JsonRpcRequestError } from './json-rpc-connection';
 
 /**
@@ -37,6 +37,10 @@ const MAX_PENDING_NOTIFICATIONS = 500;
  * Collab items whose receivers are remembered, so a tab opened from a timeline row finds its thread.
  */
 const MAX_TRACKED_COLLAB_ITEMS = 500;
+/**
+ * A subagent's title until its spawn call or thread names it.
+ */
+const PLACEHOLDER_TITLE = 'Subagent';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 interface ChildThread {
@@ -95,16 +99,6 @@ function turnTaskStatus(value: unknown): AgentChatTask['status'] {
     }
 }
 
-/**
- * The subagent's first prompt line, which is what the user reads as its task.
- */
-function promptTitle(prompt: unknown): string | undefined {
-    const line = stringField(prompt)
-        ?.split('\n')
-        .find((candidate) => candidate.trim());
-    return line ? clip(line.trim(), 1_000) : undefined;
-}
-
 function parentThreadId(thread: Json): string | undefined {
     const direct = stringField(thread.parentThreadId);
     if (direct) return direct;
@@ -154,7 +148,7 @@ export class CodexTasks {
         this.list.upsert(threadId, {
             ...(!existing && {
                 kind: 'agent' as const,
-                title: 'Subagent',
+                title: PLACEHOLDER_TITLE,
                 status: 'running' as const,
                 isBackground: true,
                 canStop: false,
@@ -335,6 +329,15 @@ export class CodexTasks {
             }
         }
         if (pending.length < MAX_PENDING_NOTIFICATIONS) pending.push({ method, parameters });
+    }
+
+    /**
+     * A subagent's Background work title, which a collab call addressing it (a `wait`) shows as whom it addresses;
+     * `undefined` while the subagent has no name yet.
+     */
+    agentName(threadId: string): string | undefined {
+        const title = this.children.has(threadId) ? this.list.get(threadId)?.title : undefined;
+        return title === PLACEHOLDER_TITLE ? undefined : title;
     }
 
     /**
@@ -521,10 +524,13 @@ export class CodexTasks {
         const thread = isRecord(result) && isRecord(result.thread) ? result.thread : undefined;
         if (thread?.id !== threadId) return undefined;
         const turns = Array.isArray(thread.turns) ? thread.turns : [];
+        const names = codexAgentNames(turns);
         const items = turns.flatMap((turn) => {
             if (!isRecord(turn)) return [];
             const turnId = stringField(turn.id);
-            return turnId ? historyItems(turn.items, turnId, turn.status === 'inProgress') : [];
+            return turnId
+                ? historyItems(turn.items, turnId, turn.status === 'inProgress', undefined, names)
+                : [];
         });
         // Every item is replayed: the task projection keeps the newest ones and archives the rest for paging.
         const operations: AgentChatTaskPatchOperation[] = items.map((item) => ({
