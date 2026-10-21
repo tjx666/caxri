@@ -59,7 +59,6 @@ export const AgentChatPlanPaceNotice = ({
     const text = t('chat.model.paceWarning', {
         limit: row.label,
         left: row.left,
-        even: shortfall.evenPacePercent,
     });
     return (
         <View

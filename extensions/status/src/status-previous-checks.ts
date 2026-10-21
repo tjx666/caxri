@@ -80,8 +80,9 @@ function fileRow(id: string, file: ChangedFile): StatusNode {
 
 /**
  * The previous verdict under a pull request whose head checks are unfinished or failing: the newest earlier commit
- * whose checks settled, named by its title rather than a hash, then what changed from it to the head. Together they
- * answer whether the head's pending result is likely to repeat that verdict.
+ * whose checks settled, named by its title rather than a hash and labeled `Previous commit:` so the row never reads as
+ * one of the head's checks, then what changed from it to the head. Together they answer whether the head's pending
+ * result is likely to repeat that verdict.
  */
 export function previousChecksNode(
     prefix: string,
@@ -104,7 +105,7 @@ export function previousChecksNode(
               }),
           ]
         : [];
-    return item(`${prefix}:previous-checks`, previous.title, {
+    return item(`${prefix}:previous-checks`, `Previous commit: ${previous.title}`, {
         icon: stateIcons[previous.state],
         description: positionLabel(previous.commitsBefore),
         accessibilityLabel: `Previous commit ${previous.title}, checks ${stateLabel}, ${commitsBackLabel(previous.commitsBefore)}`,

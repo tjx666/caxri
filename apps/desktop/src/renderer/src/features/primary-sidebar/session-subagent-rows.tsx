@@ -1,14 +1,21 @@
 import type { TerminalRecord } from '@caxri/protocol';
-import { agentChatItemStatusLabel, agentChatTaskGlyphStatus } from '@caxri/protocol';
+import { activeTab, agentChatItemStatusLabel, agentChatTaskGlyphStatus } from '@caxri/protocol';
 
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
+import { useWorkbenchStore } from '../../stores/workbench';
 import { AgentChatStatusGlyph } from '../agent-chat/tools/agent-chat-status-glyph';
 import {
     primarySidebarSubagentMoreRowId,
     primarySidebarSubagentRowId,
 } from './primary-sidebar-tree';
 import { openSessionSubagent } from './session-subagent-commands';
-import { sessionSubagentSummaries, subagentWindow } from './session-subagents';
+import {
+    activeSubagentTaskId,
+    sessionSubagentSummaries,
+    subagentWindow,
+} from './session-subagents';
 import { useSubagentExpansionStore } from './subagent-expansion-store';
 
 interface SessionSubagentRowsProperties {
@@ -51,6 +58,13 @@ export function SessionSubagentRows({
         state.expandedSessionIds.has(sessionId),
     );
     const toggle = useSubagentExpansionStore((state) => state.toggle);
+    // A primitive, so a work-tab switch re-renders only the rows whose selected state changed.
+    const activeTaskId = useWorkbenchStore((state) => {
+        const layout = state.bootstrap?.sessionStates.find(
+            (item) => item.sessionId === sessionId,
+        )?.paneLayout;
+        return activeSubagentTaskId(layout && activeTab(layout)?.resource, terminal?.id);
+    });
     const subagents = sessionSubagentSummaries(terminal, showSubagents);
     if (!terminal || subagents.length === 0) return null;
     const terminalId = terminal.id;
@@ -91,35 +105,40 @@ export function SessionSubagentRows({
             // eslint-disable-next-line no-void -- intentional floating-promise discard
             void openSessionSubagent(sessionId, terminalId, subagent.taskId);
         };
+        const isSelected = subagent.taskId === activeTaskId;
         return (
-            <button
-                key={subagent.taskId}
-                aria-label={t('primarySidebar.subagents.rowAriaLabel', {
-                    status: agentChatItemStatusLabel(glyphStatus, t),
-                    title,
-                })}
-                aria-level={3}
-                aria-selected={false}
-                className={ROW_CLASS_NAME}
-                data-row-id={rowId}
-                data-subagent-status={subagent.status}
-                role="treeitem"
-                tabIndex={rowId === rovingRowId ? 0 : -1}
-                onClick={open}
-            >
-                <AgentChatStatusGlyph status={glyphStatus} />
-                <span className="overflow-fade min-w-0 flex-1 whitespace-nowrap [--overflow-fade-size:16px]">
-                    {title}
-                </span>
-                {subagent.agentType && (
-                    <span
-                        aria-hidden="true"
-                        className="max-w-[40%] flex-none truncate text-[11px] opacity-70"
-                    >
-                        {subagent.agentType}
+            <Tooltip key={subagent.taskId} content={title} hoverOnly>
+                <button
+                    aria-label={t('primarySidebar.subagents.rowAriaLabel', {
+                        status: agentChatItemStatusLabel(glyphStatus, t),
+                        title,
+                    })}
+                    aria-level={3}
+                    aria-selected={isSelected}
+                    className={cn(
+                        ROW_CLASS_NAME,
+                        isSelected && 'active bg-elevated text-foreground',
+                    )}
+                    data-row-id={rowId}
+                    data-subagent-status={subagent.status}
+                    role="treeitem"
+                    tabIndex={rowId === rovingRowId ? 0 : -1}
+                    onClick={open}
+                >
+                    <AgentChatStatusGlyph status={glyphStatus} />
+                    <span className="overflow-fade min-w-0 flex-1 whitespace-nowrap [--overflow-fade-size:16px]">
+                        {title}
                     </span>
-                )}
-            </button>
+                    {subagent.agentType && (
+                        <span
+                            aria-hidden="true"
+                            className="max-w-[40%] flex-none truncate text-[11px]"
+                        >
+                            {subagent.agentType}
+                        </span>
+                    )}
+                </button>
+            </Tooltip>
         );
     });
     // The toggle sits where the folded list ends, in both states; `subagentWindow` explains why.

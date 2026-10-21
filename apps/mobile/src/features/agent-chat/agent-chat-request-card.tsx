@@ -11,6 +11,7 @@ import {
 } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import type { agentChatRequestBlockedReason } from './agent-chat-model';
 import { agentChatApprovalFiles, agentChatApprovalRows } from './agent-chat-model';
@@ -246,7 +247,7 @@ const styles = StyleSheet.create({
     meta: { fontSize: 13, lineHeight: 18 },
     code: {
         borderRadius: 8,
-        fontFamily: 'monospace',
+        fontFamily: MONOSPACE_FONT,
         fontSize: 13,
         lineHeight: 18,
         overflow: 'hidden',

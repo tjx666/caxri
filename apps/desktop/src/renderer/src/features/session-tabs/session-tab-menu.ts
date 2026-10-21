@@ -5,8 +5,13 @@ import { readCommandShortcut } from '../../lib/keybindings';
 import { getOpenSessionIds } from '../../stores/open-sessions';
 import { getBootstrap } from '../../stores/selectors';
 import { revealSessionInSidebar } from '../session/session-reveal-request';
-import { closeSessionTabs, keepSessionTab, moveSessionToNewWindow } from './session-tab-commands';
-import { canMoveSessionToNewWindow, sessionIdsToClose } from './session-tabs-state';
+import { closeSessionTabs, moveSessionToNewWindow, shiftSessionTab } from './session-tab-commands';
+import { keepSessionTab } from './session-tab-keep-commands';
+import {
+    canMoveSessionToNewWindow,
+    canShiftOpenSession,
+    sessionIdsToClose,
+} from './session-tabs-state';
 
 /**
  * The right-click menu of an Open Session tab. No entry touches the Session itself, which stays in the sidebar: the
@@ -57,6 +62,18 @@ export function sessionTabMenu(sessionId: string): ContextMenuEntries {
             disabled: sessionIdsToClose(ids, sessionId, 'right').length === 0,
             onSelect: close('right'),
         },
+        CONTEXT_MENU_SEPARATOR,
+        ...([-1, 1] as const).map((direction) => ({
+            label: translate(direction === -1 ? 'sessionTabs.moveLeft' : 'sessionTabs.moveRight'),
+            // The tab's own Alt+Arrow handler is fixed (see `SessionTab`), so the hint is too.
+            shortcut: direction === -1 ? 'Alt+ArrowLeft' : 'Alt+ArrowRight',
+            disabled: !canShiftOpenSession(ids, sessionId, direction),
+            onSelect: () => {
+                // Fire-and-forget: the shift toasts its own failure.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard
+                void shiftSessionTab(sessionId, direction);
+            },
+        })),
         CONTEXT_MENU_SEPARATOR,
         {
             label: translate('sessionTabs.moveToNewWindow'),

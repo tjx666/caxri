@@ -9,6 +9,7 @@ export const changes: TranslatedNamespace<typeof source> = {
     'changes.diffLoadFailed': '无法加载此差异。',
     'changes.diffLoading': '正在加载差异…',
     'changes.diffOutdated': '此差异已过时。请刷新更改后重新打开文件。',
+    'changes.diffRefresh': '刷新',
     'changes.diffReconnect': '重新连接以查看此差异。',
     'changes.diffRetry': '重试加载差异',
     'changes.diffUnavailable': '此文件过大或不是文本。请在电脑上查看。',

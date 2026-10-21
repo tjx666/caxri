@@ -141,20 +141,22 @@ export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest):
 
 /**
  * Check states a pull request row counts in its trailing text, in display order. Only states that ask for attention are
- * counted: a passed, neutral, or cancelled check needs no look, so it never spends the row's width.
+ * counted: a passed or neutral check needs no look, so it never spends the row's width. A cancelled check is counted
+ * because it makes the pull request red and offers `Fix`, so the row has to say why.
  */
 const attentionCheckCounts: ReadonlyArray<{
     state: PullRequestCheck['state'];
     label: string;
 }> = [
     { state: 'failure', label: 'failing' },
+    { state: 'cancelled', label: 'cancelled' },
     { state: 'pending', label: 'running' },
     { state: 'queued', label: 'queued' },
 ];
 
 /**
  * The pull request row's trailing text, such as `1 failing · 3 running`, or undefined when no check is failing,
- * running, or queued. Hidden checks are not in `checks`, so they are never counted here.
+ * cancelled, running, or queued. Hidden checks are not in `checks`, so they are never counted here.
  */
 export function pullRequestCheckSummary(checks: readonly PullRequestCheck[]): string | undefined {
     const parts = attentionCheckCounts.flatMap(({ state, label }) => {

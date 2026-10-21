@@ -55,6 +55,16 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         retry: false,
         staleTime: 10_000,
     });
+    const { refetch } = query;
+    /**
+     * Opening the sheet re-reads at once: a pull request marked ready (or merged) on GitHub while the sheet was closed
+     * must not wait out the idle poll. Returning to the app needs no call: the query is disabled in the background, and
+     * re-enabling it refetches once the 10 second stale window has passed.
+     */
+    const refresh = useCallback(() => {
+        // eslint-disable-next-line no-void -- The read renders into the query.
+        if (isObservable) void refetch();
+    }, [isObservable, refetch]);
     const [merge, setMerge] = useState<
         | { state: 'idle' }
         | { state: 'merging' }
@@ -78,6 +88,7 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
                     number: pullRequest.number,
                 });
             } catch (error) {
+                // A transport failure leaves the outcome unknown; the message says so and the re-read below settles it.
                 setMerge({ state: 'failed', message: pullRequestMergeErrorMessage(error, t) });
             }
             // A failed merge can mean the pull request changed under the sheet; either way show what is true now.
@@ -85,7 +96,15 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         },
         [queryClient, queryKey, request, sessionId, t],
     );
-    const resetMerge = useCallback(() => setMerge({ state: 'idle' }), []);
+    /**
+     * Closing the sheet drops a failed attempt, so reopening it after fixing the blocker does not repeat the old error.
+     * A merge still in flight keeps its state (its outcome must survive the sheet), and a merged one keeps the overlay
+     * below until Project Status catches up.
+     */
+    const dismissMergeFailure = useCallback(
+        () => setMerge((current) => (current.state === 'failed' ? { state: 'idle' } : current)),
+        [],
+    );
     const read = query.data?.pullRequest;
     /**
      * GitHub accepted the merge, but Project Status can still answer from before it for a moment. Show the pull request
@@ -99,7 +118,8 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         isObservable,
         merge,
         pullRequest,
-        resetMerge,
+        dismissMergeFailure,
+        refresh,
         startMerge,
     };
 };

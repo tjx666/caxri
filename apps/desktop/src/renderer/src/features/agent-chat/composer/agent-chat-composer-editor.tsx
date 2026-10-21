@@ -186,8 +186,9 @@ export function AgentChatComposerEditor({
             onFocus: () => setInputFocused(true),
             onKeyDown: (event) => {
                 sessionMenu.notePressedKey(event);
-                // "Edit from here" owns the input; stashing it would strand the edit bar without its text.
-                if (!isEditing && stash.didHandleKey(event)) return;
+                // "Edit from here" owns the input; stashing it would strand the edit bar without its text, so the
+                // hook refuses the key with a notice while editing.
+                if (stash.didHandleKey(event, isEditing)) return;
                 if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen)) return;
                 if (menu.didHandleKey(event, menuActions)) return;
                 if (sessionMenu.didHandleKey(event)) return;

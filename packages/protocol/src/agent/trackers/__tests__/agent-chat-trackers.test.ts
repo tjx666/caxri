@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatItem } from '../agent-chat-contract';
+import type { AgentChatItem } from '../../agent-chat-contract';
 import {
     agentChatTrackerExcerpt,
-    agentChatTrackerShellWords,
-    collectAgentChatTrackers,
     trackerExcerptText,
     trackerReferenceText,
-} from '../agent-chat-trackers';
+} from '../agent-chat-tracker-artifact';
+import { agentChatTrackerShellWords, collectAgentChatTrackers } from '../agent-chat-trackers';
 
 const command = (
     id: string,
@@ -212,6 +211,83 @@ describe('collectAgentChatTrackers', () => {
                 reference: 'ENG-13',
                 title: 'Edited',
             },
+        ]);
+    });
+
+    it("keeps a Linear issue's workflow state from the result, else the requested state", () => {
+        const flattened = tool(
+            'm1',
+            'mcp__linear__save_issue',
+            JSON.stringify({ id: 'ENG-21', state: 'Done' }),
+            JSON.stringify({
+                id: 'ENG-21',
+                title: 'Flattened',
+                url: 'https://linear.app/acme/issue/ENG-21/flattened',
+                status: 'In Review',
+                statusType: 'started',
+            }),
+        );
+        const nested = tool(
+            'm2',
+            'mcp__linear__update_issue',
+            JSON.stringify({ id: 'ENG-22' }),
+            JSON.stringify({
+                issue: {
+                    identifier: 'ENG-22',
+                    url: 'https://linear.app/acme/issue/ENG-22/nested',
+                    state: { name: 'Shipped', type: 'completed' },
+                },
+            }),
+        );
+        const requested = tool(
+            'm3',
+            'linear/save_issue',
+            JSON.stringify({ id: 'ENG-23', state: 'Canceled' }),
+            'Saved https://linear.app/acme/issue/ENG-23/requested',
+        );
+        const unknownType = tool(
+            'm4',
+            'mcp__linear__save_issue',
+            JSON.stringify({ id: 'ENG-24' }),
+            JSON.stringify({
+                url: 'https://linear.app/acme/issue/ENG-24/odd',
+                status: 'Parked',
+                statusType: 'paused',
+            }),
+        );
+        expect(
+            collectAgentChatTrackers([flattened, nested, requested, unknownType]).map(
+                ({ reference, status }) => ({ reference, status }),
+            ),
+        ).toEqual([
+            { reference: 'ENG-21', status: { name: 'In Review', type: 'started' } },
+            { reference: 'ENG-22', status: { name: 'Shipped', type: 'completed' } },
+            { reference: 'ENG-23', status: { name: 'Canceled' } },
+            { reference: 'ENG-24', status: { name: 'Parked' } },
+        ]);
+    });
+
+    it('shows the latest Linear state when a turn moves the same issue twice', () => {
+        const output = (status: string, statusType: string) =>
+            JSON.stringify({
+                url: 'https://linear.app/acme/issue/ENG-30/moved',
+                status,
+                statusType,
+            });
+        const started = tool(
+            'm1',
+            'mcp__linear__save_issue',
+            '{}',
+            output('In Progress', 'started'),
+        );
+        const done = tool(
+            'm2',
+            'mcp__linear__save_issue',
+            JSON.stringify({ id: 'ENG-30' }),
+            output('Done', 'completed'),
+        );
+        expect(collectAgentChatTrackers([started, done])).toMatchObject([
+            { action: 'created', status: { name: 'Done', type: 'completed' } },
         ]);
     });
 

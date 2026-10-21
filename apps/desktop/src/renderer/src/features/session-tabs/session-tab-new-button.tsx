@@ -6,12 +6,12 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import { SessionTabCreateMenu } from '../session/create-session-menu';
 
 /**
- * The same `Button` as the pane row's `+` (28px square, radius 8, `--selection` hover), so the two read as one control
- * at two levels. Its keyboard focus is the tabs' inset 1px outline rather than `Button`'s accent glow: the strip must
- * not spend a second accent, and one focus language keeps tabbing through the strip consistent.
+ * The same `Button` as the pane row's `+` (28px square, radius 8, `--state-hover-ink` open wash), so the two read as
+ * one control at two levels. Its keyboard focus is the tabs' inset 1px outline rather than `Button`'s accent glow: the
+ * strip must not spend a second accent, and one focus language keeps tabbing through the strip consistent.
  */
 const BUTTON_CLASS =
-    'text-muted hover:text-foreground focus-visible:border-transparent focus-visible:shadow-none focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground data-[popup-open]:bg-[var(--selection)] data-[popup-open]:text-foreground';
+    'text-muted hover:text-foreground focus-visible:border-transparent focus-visible:shadow-none focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground data-[popup-open]:bg-state-hover-ink data-[popup-open]:text-foreground';
 
 /**
  * The strip's trailing `+`: a new Session in the active Session's Project, started the way `Cmd+N` starts one (the

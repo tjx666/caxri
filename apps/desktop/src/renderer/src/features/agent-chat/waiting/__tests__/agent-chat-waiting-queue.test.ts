@@ -6,7 +6,7 @@ import {
     agentChatWaitingRequestCount,
     nextAgentChatWaitingArrivals,
     nextAgentChatWaitingView,
-} from './agent-chat-waiting-queue';
+} from '../agent-chat-waiting-queue';
 
 function approval(id: string): AgentChatRequest {
     return { id, kind: 'command', command: 'make', decisions: ['accept', 'decline'] };

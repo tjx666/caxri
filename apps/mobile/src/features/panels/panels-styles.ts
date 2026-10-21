@@ -1,5 +1,7 @@
 import { StyleSheet } from 'react-native';
 
+import { MONOSPACE_FONT } from '../../theme/monospace';
+
 export const panelsStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
     viewTitle: { fontSize: 13, fontWeight: '600', padding: 12 },
@@ -53,5 +55,5 @@ export const panelsStyles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     preview: { flex: 1 },
-    previewText: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18, padding: 16 },
+    previewText: { fontFamily: MONOSPACE_FONT, fontSize: 12, lineHeight: 18, padding: 16 },
 });

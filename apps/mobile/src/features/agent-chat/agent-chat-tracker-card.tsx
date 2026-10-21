@@ -3,12 +3,17 @@ import type { ComponentType } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import type { AgentChatTrackerArtifact } from '@caxri/protocol';
+import type { AgentChatTrackerArtifact, AgentChatTrackerStatusType } from '@caxri/protocol';
 import { trackerExcerptText, trackerReferenceText } from '@caxri/protocol';
 import type { LucideProps } from 'lucide-react-native';
 import {
     ArrowUpRight,
+    Circle,
+    CircleCheck,
+    CircleDashed,
     CircleDot,
+    CircleDotDashed,
+    CircleX,
     ClipboardCheck,
     GitPullRequest,
     ListChecks,
@@ -17,6 +22,7 @@ import {
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 
 interface MarkProperties {
@@ -63,6 +69,22 @@ const KIND_ICON: Record<AgentChatTrackerArtifact['kind'], ComponentType<LucidePr
     acceptance: ListChecks,
 };
 
+/**
+ * A Linear workflow state's glyph and theme tone, as Desktop draws it: open states outlined and muted, work in progress
+ * and triage in the warning tone, Done in the merged tone.
+ */
+const LINEAR_STATUS_ICONS: Record<
+    AgentChatTrackerStatusType,
+    { icon: ComponentType<LucideProps>; tone: 'merged' | 'muted' | 'warning' }
+> = {
+    triage: { icon: CircleDotDashed, tone: 'warning' },
+    backlog: { icon: CircleDashed, tone: 'muted' },
+    unstarted: { icon: Circle, tone: 'muted' },
+    started: { icon: CircleDot, tone: 'warning' },
+    completed: { icon: CircleCheck, tone: 'merged' },
+    canceled: { icon: CircleX, tone: 'muted' },
+};
+
 const ACTION_LABEL = {
     created: {
         pull: 'chat.tracker.createdPull',
@@ -81,8 +103,8 @@ const ACTION_LABEL = {
 
 /**
  * A pull request, issue, or acceptance report the Agent created or edited this turn, as Desktop's tracker card: the
- * tracker's mark in a tile, the title beside its reference, the body's first line, and what was done to it with an
- * external arrow, since a tap opens the page in the in-app browser.
+ * tracker's mark in a tile, the title beside its reference, the body's first line, and what was done to it (led by a
+ * Linear issue's state) with an external arrow, since a tap opens the page in the in-app browser.
  */
 export const AgentChatTrackerCard = ({
     artifact,
@@ -94,6 +116,10 @@ export const AgentChatTrackerCard = ({
     const { t } = useTranslation();
     const Mark = PROVIDER_MARK[artifact.provider];
     const KindIcon = KIND_ICON[artifact.kind];
+    const statusIcon = artifact.status?.type
+        ? LINEAR_STATUS_ICONS[artifact.status.type]
+        : { icon: CircleDot, tone: 'muted' as const };
+    const StatusIcon = statusIcon.icon;
     const label = t(ACTION_LABEL[artifact.action][artifact.kind]);
     // An acceptance round ingested without a readable title names the report rather than promoting `Round N`.
     const title =
@@ -103,11 +129,20 @@ export const AgentChatTrackerCard = ({
     const excerpt = trackerExcerptText(artifact);
     return (
         <Pressable
-            accessibilityLabel={t('chat.tracker.cardLabel', {
-                action: label,
-                reference,
-                title: title ?? reference,
-            })}
+            accessibilityLabel={
+                artifact.status
+                    ? t('chat.tracker.cardLabelWithStatus', {
+                          action: label,
+                          reference,
+                          status: artifact.status.name,
+                          title: title ?? reference,
+                      })
+                    : t('chat.tracker.cardLabel', {
+                          action: label,
+                          reference,
+                          title: title ?? reference,
+                      })
+            }
             accessibilityRole="link"
             onPress={() => openLink(artifact.url)}
             style={({ pressed }) => [
@@ -137,7 +172,20 @@ export const AgentChatTrackerCard = ({
                     </Text>
                 ) : null}
                 <View style={styles.action}>
-                    <KindIcon color={theme.muted} size={13} />
+                    {artifact.status ? (
+                        <>
+                            <StatusIcon color={theme[statusIcon.tone]} size={13} />
+                            <Text
+                                numberOfLines={1}
+                                style={[styles.excerpt, styles.status, { color: theme.text }]}
+                            >
+                                {artifact.status.name}
+                            </Text>
+                            <Text style={[styles.excerpt, { color: theme.muted }]}>·</Text>
+                        </>
+                    ) : (
+                        <KindIcon color={theme.muted} size={13} />
+                    )}
                     <Text style={[styles.excerpt, { color: theme.muted }]}>{label}</Text>
                     <ArrowUpRight color={theme.muted} size={13} />
                 </View>
@@ -167,8 +215,9 @@ const styles = StyleSheet.create({
     text: { flex: 1, gap: 2, minWidth: 0 },
     titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8, minWidth: 0 },
     title: { flexShrink: 1, fontSize: 14, lineHeight: 20 },
-    reference: { flexShrink: 0, fontFamily: 'monospace', fontSize: 11 },
+    reference: { flexShrink: 0, fontFamily: MONOSPACE_FONT, fontSize: 11 },
     excerpt: { fontSize: 12, lineHeight: 17 },
     action: { alignItems: 'center', flexDirection: 'row', gap: 4 },
+    status: { flexShrink: 1 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

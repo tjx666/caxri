@@ -1,4 +1,5 @@
-import type { TerminalRecord, TerminalSubagentSummary } from '@caxri/protocol';
+import type { PaneResource, TerminalRecord, TerminalSubagentSummary } from '@caxri/protocol';
+import { parseAgentTaskTab } from '@caxri/protocol';
 
 /**
  * Pure rules for the subagent rows nested under a Chat Session in the PrimarySidebar (see `docs/agent-chat.md`). Kept
@@ -94,4 +95,17 @@ export function rovingSubagentRowId(
         rovingRowId === `subagent-more:${sessionId}`
         ? rovingRowId
         : undefined;
+}
+
+/**
+ * The task id of the subagent whose task tab is the active pane tab, when that tab belongs to `terminalId`'s Chat. The
+ * sidebar marks that subagent row as selected, the way the Session row is for the open Session.
+ */
+export function activeSubagentTaskId(
+    resource: PaneResource | undefined,
+    terminalId: string | undefined,
+): string | undefined {
+    if (terminalId === undefined || resource?.kind !== 'file') return undefined;
+    const task = parseAgentTaskTab(resource.path);
+    return task?.terminalId === terminalId ? task.taskId : undefined;
 }

@@ -2,8 +2,13 @@ import type { MobilePullRequest } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
-import { MobileGatewayRequestError } from '../../connection/mobile-gateway-errors';
 import {
+    MobileConnectionClosedError,
+    MobileGatewayRequestError,
+    MobileGatewayTimeoutError,
+} from '../../connection/mobile-gateway-errors';
+import {
+    isPullRequestMergeTransportError,
     pullRequestChecksSummary,
     pullRequestConfirmation,
     pullRequestMergeAction,
@@ -11,6 +16,7 @@ import {
     pullRequestMergeMethodNote,
     pullRequestReadiness,
     pullRequestTone,
+    shouldShowPullRequestConfirmation,
 } from '../pull-request-model';
 
 const pr = (overrides: Partial<MobilePullRequest> = {}): MobilePullRequest => ({
@@ -94,6 +100,12 @@ describe('mobile pull request merge model', () => {
             'Some checks did not pass',
         );
         expect(pullRequestChecksSummary(pr({ checkCount: 0 }), translate)).toBeUndefined();
+        expect(
+            pullRequestChecksSummary({ ...failing, lifecycle: 'merged' }, translate),
+        ).toBeUndefined();
+        expect(
+            pullRequestChecksSummary({ ...failing, lifecycle: 'closed' }, translate),
+        ).toBeUndefined();
     });
 
     it("explains a refused merge, keeping GitHub's own reason", () => {
@@ -127,5 +139,31 @@ describe('mobile pull request merge model', () => {
         expect(pullRequestMergeMethodNote(pr(), translate)).toBe(
             'Squash and merge when the repository allows it, otherwise a merge commit, then rebase.',
         );
+    });
+
+    it('does not claim GitHub refused a merge whose answer never arrived', () => {
+        const lost = 'Lost connection before GitHub answered. Checking the pull request…';
+        for (const error of [new MobileGatewayTimeoutError(), new MobileConnectionClosedError()]) {
+            expect(isPullRequestMergeTransportError(error)).toBe(true);
+            expect(pullRequestMergeErrorMessage(error, translate)).toBe(lost);
+        }
+        expect(isPullRequestMergeTransportError(new MobileGatewayRequestError('GIT', 'x'))).toBe(
+            false,
+        );
+        expect(isPullRequestMergeTransportError(new Error('boom'))).toBe(false);
+    });
+
+    it('shows the confirmation only while the action is still confirmable', () => {
+        expect(shouldShowPullRequestConfirmation(true, { kind: 'merge' })).toBe(true);
+        expect(
+            shouldShowPullRequestConfirmation(true, {
+                kind: 'confirm',
+                blocker: 'behind',
+                isOverride: false,
+            }),
+        ).toBe(true);
+        expect(shouldShowPullRequestConfirmation(false, { kind: 'merge' })).toBe(false);
+        for (const kind of ['refused', 'draft', 'waiting', 'none'] as const)
+            expect(shouldShowPullRequestConfirmation(true, { kind })).toBe(false);
     });
 });

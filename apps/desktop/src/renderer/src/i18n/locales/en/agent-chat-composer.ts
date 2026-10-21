@@ -88,8 +88,8 @@ export const agentChatComposer = {
     'agentChat.history.keyHintFill': 'to fill',
     'agentChat.stash.stashed':
         'Draft stashed until you quit. Ctrl+S in an empty input restores it.',
-    'agentChat.stash.occupied':
-        'A draft is already stashed. Clear the input and press Ctrl+S to restore it first.',
+    'agentChat.stash.swapped': 'Swapped with your stashed draft. Ctrl+S swaps back.',
+    'agentChat.stash.editing': 'Finish or cancel the edit first',
     'agentChat.stash.restored': 'Restored your stashed draft.',
     'agentChat.stash.placeholder': 'Draft stashed · Ctrl+S to restore',
     'agentChat.slash.label': 'Commands and skills',
@@ -104,6 +104,7 @@ export const agentChatComposer = {
     'agentChat.slash.sessions': 'Sessions',
     'agentChat.slash.keyHintCite': 'to cite',
     'agentChat.slash.keyHintComplete': 'to complete',
+    'agentChat.slash.keyHintInsert': 'to insert',
     'agentChat.slash.keyHintRun': 'to run',
     'agentChat.slash.preparingSession': 'Preparing “{{title}}”…',
     'agentChat.slash.showInvocation': 'Show {{invocation}}',

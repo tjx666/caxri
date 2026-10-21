@@ -8,6 +8,7 @@ import {
     clearScopeRevealPath,
     clearStaleScopeFocusPath,
     collapseScope,
+    didRevealDirectoryInScope,
     didRevealPathInScope,
     followEditorFileInScope,
     pruneResourceExplorerScopes,
@@ -142,6 +143,35 @@ describe('Resource Explorer scope store', () => {
         expect(useResourceExplorerScopeStore.getState().selectionByScope[scopeA]).toBe(
             '/project/src/index.ts',
         );
+    });
+
+    it('reveals a directory by selecting it and expanding it along with its ancestors', () => {
+        expect(didRevealDirectoryInScope(scopeA, '/project', '/project/a/.config')).toBe(true);
+
+        const state = useResourceExplorerScopeStore.getState();
+        expect(state.selectionByScope[scopeA]).toBe('/project/a/.config');
+        expect(state.revealByScope[scopeA]?.path).toBe('/project/a/.config');
+        expect(state.expandedByScope[scopeA]).toEqual(
+            expect.arrayContaining(['/project/a', '/project/a/.config']),
+        );
+    });
+
+    it('has no row to reveal for the Project root or a path outside it', () => {
+        expect(didRevealDirectoryInScope(scopeA, '/project', '/project')).toBe(false);
+        expect(didRevealDirectoryInScope(scopeA, '/project', '/elsewhere/dir')).toBe(false);
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toBeUndefined();
+    });
+
+    it('keeps a reveal that was pending when the Files view first mounted', () => {
+        didRevealDirectoryInScope(scopeA, '/project', '/project/.config');
+
+        followEditorFileInScope(scopeA, '/project', undefined, { isInitial: true });
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]?.path).toBe(
+            '/project/.config',
+        );
+
+        followEditorFileInScope(scopeA, '/project', undefined);
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toBeUndefined();
     });
 
     it('leaves unrelated scope entries referentially stable when one scope changes', () => {

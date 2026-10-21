@@ -48,7 +48,7 @@ describe('agent usage chip label', () => {
             ALL_WINDOWS,
         );
         // 61.6% used leaves 38% of the 5-hour window; 12% used leaves 88% of the week.
-        expect(label).toBe('1.2M · $3.40 · 5h 38% · 7d 88% left');
+        expect(label).toBe('1.2M · $3.40 · 5h 38% left · 7d 88% left');
     });
 
     it('drops a window that already reset and leaves out cost when no model is priced', () => {
@@ -87,7 +87,9 @@ describe('agent usage chip label', () => {
             },
         });
         expect(agentUsageLabel(both, NOW, DEFAULT_WINDOWS)).toBe('1.2M · $3.40 · 7d 80% left');
-        expect(agentUsageLabel(both, NOW, ALL_WINDOWS)).toBe('1.2M · $3.40 · 5h 79% · 7d 80% left');
+        expect(agentUsageLabel(both, NOW, ALL_WINDOWS)).toBe(
+            '1.2M · $3.40 · 5h 79% left · 7d 80% left',
+        );
     });
 });
 
@@ -112,13 +114,17 @@ describe('agent usage limit tone', () => {
         expect(agentUsageLimitTone(withWindows(10, 99, NOW - 1), NOW, ALL_WINDOWS)).toBeUndefined();
     });
 
-    it('warns while the weekly window runs ahead of an even pace', () => {
+    it('warns while the weekly window is projected to run out before it resets', () => {
         const DAY = 86_400_000;
-        // 30% used with 6 of 7 days left: an even pace leaves about 86%, this leaves 70%.
+        // 30% used in 1 of 7 days projects 210%.
         expect(agentUsageLimitTone(withWindows(10, 30, NOW + 6 * DAY), NOW, DEFAULT_WINDOWS)).toBe(
             'warning',
         );
-        // 10% used with 6 of 7 days left is on pace.
+        // 14% used after 12 hours is too early to project.
+        expect(
+            agentUsageLimitTone(withWindows(10, 14, NOW + 6.5 * DAY), NOW, DEFAULT_WINDOWS),
+        ).toBeUndefined();
+        // 10% used with 6 of 7 days left projects 70%.
         expect(
             agentUsageLimitTone(withWindows(10, 10, NOW + 6 * DAY), NOW, DEFAULT_WINDOWS),
         ).toBeUndefined();
@@ -126,8 +132,8 @@ describe('agent usage limit tone', () => {
 
     it('explains a pace warning in plain words and stays silent otherwise', () => {
         const DAY = 86_400_000;
-        expect(agentUsagePaceNote(withWindows(10, 30, NOW + 6.5 * DAY), NOW)).toBe(
-            'Weekly limit: 70% left, resets in 6d 12h. An even pace would leave about 93% by now; the warning clears as usage slows or time passes.',
+        expect(agentUsagePaceNote(withWindows(10, 30, NOW + 6 * DAY), NOW)).toBe(
+            'Weekly limit: 70% left, resets in 6d 0h. At this rate it runs out before it resets; the warning clears as usage slows or time passes.',
         );
         expect(agentUsagePaceNote(withWindows(10, 10, NOW + 6 * DAY), NOW)).toBeUndefined();
     });

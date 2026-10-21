@@ -29,7 +29,6 @@ export * from './agent-chat-rewind.js';
 export * from './agent-chat-stream-pacing.js';
 export * from './agent-chat-task-contract.js';
 export * from './agent-chat-tasks.js';
-export * from './agent-chat-trackers.js';
 export * from './agent-chat-turn-artifacts.js';
 export * from './agent-chat-turn-fold.js';
 export * from './agent-chat-usage.js';
@@ -60,3 +59,15 @@ export * from './agents.js';
 export * from './delegation-access-contract.js';
 export * from './provider-autonomy.js';
 export * from './provider-messaging-contract.js';
+export type {
+    AgentChatTrackerArtifact,
+    AgentChatTrackerStatus,
+    AgentChatTrackerStatusType,
+} from './trackers/agent-chat-tracker-artifact.js';
+export {
+    AGENT_CHAT_TRACKER_STATUS_TYPES,
+    agentChatTrackerExcerpt,
+    trackerExcerptText,
+    trackerReferenceText,
+} from './trackers/agent-chat-tracker-artifact.js';
+export * from './trackers/agent-chat-trackers.js';

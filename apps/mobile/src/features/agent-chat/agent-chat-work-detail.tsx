@@ -15,6 +15,7 @@ import {
 
 import { HighlightedCode } from '../../components/highlighted-code';
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from '../conversation/conversation-markdown';
 import { ConversationDetailSheet } from '../conversation/conversation-tool-detail';
@@ -254,7 +255,7 @@ const styles = StyleSheet.create({
     body: { gap: 10, paddingBottom: 16, paddingTop: 14 },
     code: { borderRadius: 8, flexGrow: 0, maxHeight: 320 },
     codeText: {
-        fontFamily: 'monospace',
+        fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 18,
         paddingHorizontal: 10,
@@ -263,6 +264,6 @@ const styles = StyleSheet.create({
     note: { fontSize: 13, lineHeight: 18 },
     backgroundTask: { gap: 4, paddingTop: 6 },
     sectionTitle: { fontSize: 14, fontWeight: '700' },
-    summary: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
+    summary: { fontFamily: MONOSPACE_FONT, fontSize: 12, lineHeight: 18 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

@@ -1,5 +1,6 @@
 import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '@caxri/mobile-transport';
 
+import { MobileConnectionClosedError } from './mobile-gateway-errors';
 import { MobileSocketReaderBudget } from './socket-reader-budget';
 
 /**
@@ -11,7 +12,7 @@ export interface SocketReader {
     next(timeoutMs?: number): Promise<unknown>;
 }
 
-export const connectionClosedError = (): Error => new Error('The Caxri connection closed.');
+export const connectionClosedError = (): Error => new MobileConnectionClosedError();
 
 export const createSocketReader = (socket: WebSocket): SocketReader => {
     const queued: Array<{ release(): void; value: unknown }> = [];

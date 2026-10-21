@@ -8,10 +8,11 @@ import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { useTerminal } from '../../../stores/selectors';
+import { useAgentChatOpenFile } from '../hooks/use-agent-chat-open-file';
 import {
     askAgentChatSideQuestion,
     convertAgentChatSideChatToSession,
-    discardAgentChatSideChatIfClosed,
+    discardAgentChatSideChatIfChatGone,
     isAgentChatSideChatBusy,
     retryAgentChatSideQuestion,
     useAgentChatSideChatStore,
@@ -43,12 +44,20 @@ function SideChatHeader({
             <h2 className="m-0 min-w-0 flex-1 truncate text-[13px] leading-5 font-semibold text-foreground">
                 {t('agentChat.sideChat.title')}
             </h2>
-            <Tooltip content={t('agentChat.sideChat.convertTooltip')}>
+            <Tooltip
+                content={t(
+                    canConvert
+                        ? 'agentChat.sideChat.convertTooltip'
+                        : 'agentChat.sideChat.askFirst',
+                )}
+            >
+                {/* aria-disabled, not disabled: a natively disabled button never opens its tooltip. */}
                 <Button
-                    disabled={!canConvert}
+                    aria-disabled={!canConvert || undefined}
                     size="sm"
                     variant="secondary"
                     onClick={() => {
+                        if (!canConvert) return;
                         // eslint-disable-next-line no-void -- convertAgentChatSideChatToSession reports its own failures through tryCommand
                         void convertAgentChatSideChatToSession(terminalId);
                     }}
@@ -71,6 +80,11 @@ function SideChatComposer({ isBusy, terminalId }: { isBusy: boolean; terminalId:
     const input = useRef<HTMLTextAreaElement>(null);
     useEffect(() => input.current?.focus(), []);
     const canSend = draft.trim().length > 0 && !isBusy;
+    const sendTooltipKey = isBusy
+        ? 'agentChat.sideChat.waitForAnswer'
+        : canSend
+          ? 'agentChat.sideChat.send'
+          : 'agentChat.sideChat.askFirst';
     const send = (): void => {
         if (!canSend) return;
         // eslint-disable-next-line no-void -- the answer or its failure is recorded on the thread
@@ -98,33 +112,37 @@ function SideChatComposer({ isBusy, terminalId }: { isBusy: boolean; terminalId:
                     send();
                 }}
             />
-            <Button
-                aria-label={t('agentChat.sideChat.send')}
-                className="absolute right-6 bottom-5 size-6"
-                disabled={!canSend}
-                size="icon"
-                variant="default"
-                onClick={send}
-            >
-                <ArrowUp aria-hidden="true" className="size-3.5" />
-            </Button>
+            <Tooltip content={t(sendTooltipKey)}>
+                {/* aria-disabled, not disabled: a natively disabled button never opens its tooltip. */}
+                <Button
+                    aria-disabled={!canSend || undefined}
+                    aria-label={t('agentChat.sideChat.send')}
+                    className="absolute right-6 bottom-5 size-6"
+                    size="icon"
+                    variant="default"
+                    onClick={send}
+                >
+                    <ArrowUp aria-hidden="true" className="size-3.5" />
+                </Button>
+            </Tooltip>
         </div>
     );
 }
 
 /**
  * A Chat's side chat: quick questions answered from its context without joining its conversation, opened beside the
- * Chat as a tab. Everything lives in Renderer memory; closing the tab discards the thread.
+ * Chat as a tab. Everything lives in Renderer memory; closing the tab keeps the thread until its Chat is gone.
  */
 export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
     const { terminalId } = tab;
     const { t } = useTranslation();
     const terminal = useTerminal(terminalId);
+    const openFile = useAgentChatOpenFile(terminalId);
     const exchanges = useAgentChatSideChatStore(
         (state) => state.threads[terminalId] ?? NO_EXCHANGES,
     );
     const list = useRef<HTMLDivElement>(null);
-    useEffect(() => () => discardAgentChatSideChatIfClosed(terminalId), [terminalId]);
+    useEffect(() => () => discardAgentChatSideChatIfChatGone(terminalId), [terminalId]);
     useEffect(() => {
         list.current?.scrollTo({ top: list.current.scrollHeight });
     }, [exchanges]);
@@ -154,6 +172,7 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
                                 canRetry={!isBusy}
                                 exchange={exchange}
                                 key={exchange.id}
+                                onOpenFile={openFile}
                                 onRetry={() => {
                                     // eslint-disable-next-line no-void -- the outcome is recorded on the exchange
                                     void retryAgentChatSideQuestion(terminalId, exchange.id);

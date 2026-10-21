@@ -12,6 +12,7 @@ import {
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffRow } from '../changes/changes-diff-row';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
@@ -154,8 +155,8 @@ const styles = StyleSheet.create({
         minHeight: 48,
         paddingHorizontal: 10,
     },
-    letter: { fontFamily: 'monospace', fontSize: 12, fontWeight: '700' },
-    path: { flex: 1, fontFamily: 'monospace', fontSize: 12, minWidth: 0 },
+    letter: { fontFamily: MONOSPACE_FONT, fontSize: 12, fontWeight: '700' },
+    path: { flex: 1, fontFamily: MONOSPACE_FONT, fontSize: 12, minWidth: 0 },
     meta: { fontSize: 12, fontVariant: ['tabular-nums'] },
     diff: { borderTopWidth: 1, paddingVertical: 4 },
     empty: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 8 },

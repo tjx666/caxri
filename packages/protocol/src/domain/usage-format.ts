@@ -94,32 +94,42 @@ export function remainingLimitPercent(usedPercent: number): number {
 }
 
 /**
- * How far below an even pace a window's remaining share must fall before {@link limitPaceShortfall} reports it, in
- * percentage points. Early in a week a single long task already runs ahead of `1/7` a day; the margin keeps the
- * reminder for a day that really overspent.
+ * The share of a window that must have elapsed before {@link limitPaceShortfall} projects anything, as a fraction.
+ * Extrapolating from the first hours of a 7-day window mistakes one long task (14% used after 12 hours) for a trend, so
+ * the reminder waits until a tenth of the window, about 17 hours of a week, has passed.
  */
-export const LIMIT_PACE_MARGIN_PERCENT = 5;
+export const LIMIT_PACE_MIN_ELAPSED = 0.1;
 
 /**
- * A multi-day plan window (Claude Code's and Codex's weekly limit) whose remaining share is below what an even pace
- * would leave: with 40% left and 5 of 7 days to go, an even pace leaves about 71%, so the rest of the week cannot be
- * used at the rate the week has been. Shorter windows reset within the working day and never need pacing. Reports the
- * most behind window, or `undefined` while every window is on pace or no window states its reset time.
+ * A multi-day plan window (Claude Code's and Codex's weekly limit) that, at the rate it has been used so far, reaches
+ * 100% before it resets: `usedPercent / elapsedFraction > 100`. A window with 60% used and 5 of 7 days left has spent
+ * 60% in 2 days and projects 210%, so it runs out; one with 14% used after 12 hours is merely in a busy first stretch.
+ * Windows are ignored until {@link LIMIT_PACE_MIN_ELAPSED} of them has elapsed. `evenPacePercent` is the share an even
+ * pace would still have left now. Shorter windows reset within the working day and never need pacing. Reports the
+ * window projected to overshoot most, or `undefined` while every window is on course or no window states its reset
+ * time.
  */
 export function limitPaceShortfall(
     limit: UsageLimit | null | undefined,
     now: number,
 ): { window: UsageLimitWindow & { resetsAt: number }; evenPacePercent: number } | undefined {
     let worst: ReturnType<typeof limitPaceShortfall>;
-    let worstGap = LIMIT_PACE_MARGIN_PERCENT;
+    let worstProjection = 100;
     for (const window of currentLimitWindows(limit, now)) {
         if (window.windowMinutes < 1_440 || window.resetsAt === undefined) continue;
-        const remainingTime = (window.resetsAt - now) / (window.windowMinutes * 60_000);
-        const evenPacePercent = Math.round(Math.min(1, Math.max(0, remainingTime)) * 100);
-        const gap = evenPacePercent - remainingLimitPercent(window.usedPercent);
-        if (gap < worstGap) continue;
-        worstGap = gap;
-        worst = { window: { ...window, resetsAt: window.resetsAt }, evenPacePercent };
+        const remainingTime = Math.min(
+            1,
+            Math.max(0, (window.resetsAt - now) / (window.windowMinutes * 60_000)),
+        );
+        const elapsed = 1 - remainingTime;
+        if (elapsed < LIMIT_PACE_MIN_ELAPSED) continue;
+        const projectedPercent = window.usedPercent / elapsed;
+        if (projectedPercent <= worstProjection) continue;
+        worstProjection = projectedPercent;
+        worst = {
+            window: { ...window, resetsAt: window.resetsAt },
+            evenPacePercent: Math.round(remainingTime * 100),
+        };
     }
     return worst;
 }

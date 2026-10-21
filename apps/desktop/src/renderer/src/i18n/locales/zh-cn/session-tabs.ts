@@ -1,8 +1,9 @@
 export const sessionTabs = {
     'sessionTabs.listLabel': '已打开的会话',
     'sessionTabs.new': '新建会话',
-    'sessionTabs.close': '关闭打开的会话',
+    'sessionTabs.close': '关闭标签页',
     'sessionTabs.closeNamed': '关闭 {{title}}',
+    'sessionTabs.closeHint': '会话仍保留在侧边栏中。',
     'sessionTabs.moveLeft': '标签页左移',
     'sessionTabs.moveRight': '标签页右移',
     'sessionTabs.closeOthers': '关闭其他标签页',
@@ -18,6 +19,7 @@ export const sessionTabs = {
     'sessionTabs.tooltip.worktree': '工作树：{{value}}',
     'sessionTabs.tooltip.status': '状态：{{value}}',
     'sessionTabs.tooltip.shortcut': '快捷键：Cmd+{{key}}',
+    'sessionTabs.tooltip.preview': '打开其他会话会替换此标签页。双击可保持打开。',
     'sessionTabs.errors.openFailed': '无法在新标签页中打开会话',
     'sessionTabs.errors.tearOffFailed': '无法将会话移到新窗口',
     'sessionTabs.errors.keepFailed': '无法保持标签页打开',

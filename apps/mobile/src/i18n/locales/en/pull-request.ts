@@ -58,6 +58,8 @@ export const pullRequest = {
     'pullRequest.merged.merge': 'Merged #{{number}} with a merge commit.',
     'pullRequest.merged.rebase': 'Rebased and merged #{{number}}.',
     'pullRequest.mergeFailed': 'GitHub did not merge this pull request. {{reason}}',
+    'pullRequest.mergeLostConnection':
+        'Lost connection before GitHub answered. Checking the pull request…',
     'pullRequest.mergeConflict': 'This pull request now has conflicts.',
     'pullRequest.mergeStale': 'This pull request changed. Review it again before merging.',
     'pullRequest.mergeForbidden': 'This device is not allowed to merge pull requests.',

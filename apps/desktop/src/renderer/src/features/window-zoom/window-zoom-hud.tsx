@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
-import { windowZoomIndicator } from './window-zoom-commands';
+import { windowZoomIndicator, windowZoomPercent } from './window-zoom-commands';
 import { WindowZoomControls } from './window-zoom-controls';
 
 /**
@@ -57,33 +57,43 @@ export function WindowZoomHud() {
         scheduleHide();
     };
     return (
-        <div
-            aria-label={t('windowZoom.hud.label')}
-            className={cn(
-                'fixed right-3 bottom-9 z-[90] flex items-center gap-0.5 rounded-md bg-elevated py-1 pr-1 pl-3 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]',
-                'transition-[opacity,translate] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-reduce:transition-none',
-                isShown
-                    ? 'translate-y-0 opacity-100'
-                    : 'pointer-events-none translate-y-1 opacity-0',
-            )}
-            data-window-zoom-hud={isShown ? 'shown' : 'hidden'}
-            inert={!isShown}
-            role="toolbar"
-            onBlur={(event: FocusEvent<HTMLDivElement>) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) release('isFocused');
-            }}
-            onFocus={(event: FocusEvent<HTMLDivElement>) => {
-                if (!event.target.matches(':focus-visible')) return;
-                holds.current.isFocused = true;
-                clearTimeout(hideTimer.current);
-            }}
-            onPointerEnter={() => {
-                holds.current.isHovered = true;
-                clearTimeout(hideTimer.current);
-            }}
-            onPointerLeave={() => release('isHovered')}
-        >
-            <WindowZoomControls level={level} />
-        </div>
+        <>
+            {/*
+             * The announcement lives outside the HUD's `inert` subtree: an inert node is removed from the accessibility
+             * tree, so a live region inside it never speaks. It is filled only while the HUD is shown, so a change
+             * made while hidden stays silent until the next zoom step.
+             */}
+            <div aria-live="polite" className="sr-only" role="status">
+                {isShown ? t('windowZoom.hud.percent', { percent: windowZoomPercent(level) }) : ''}
+            </div>
+            <div
+                aria-label={t('windowZoom.hud.label')}
+                className={cn(
+                    'fixed right-3 bottom-9 z-[90] flex items-center gap-0.5 rounded-md bg-elevated py-1 pr-1 pl-3 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]',
+                    'transition-[opacity,translate] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-reduce:transition-none',
+                    isShown
+                        ? 'translate-y-0 opacity-100'
+                        : 'pointer-events-none translate-y-1 opacity-0',
+                )}
+                data-window-zoom-hud={isShown ? 'shown' : 'hidden'}
+                inert={!isShown}
+                role="toolbar"
+                onBlur={(event: FocusEvent<HTMLDivElement>) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) release('isFocused');
+                }}
+                onFocus={(event: FocusEvent<HTMLDivElement>) => {
+                    if (!event.target.matches(':focus-visible')) return;
+                    holds.current.isFocused = true;
+                    clearTimeout(hideTimer.current);
+                }}
+                onPointerEnter={() => {
+                    holds.current.isHovered = true;
+                    clearTimeout(hideTimer.current);
+                }}
+                onPointerLeave={() => release('isHovered')}
+            >
+                <WindowZoomControls isLive={false} level={level} />
+            </div>
+        </>
     );
 }

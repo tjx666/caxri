@@ -36,3 +36,15 @@ describe('sessionTabTooltip', () => {
         );
     });
 });
+
+describe('sessionTabTooltip preview line', () => {
+    it('ends with the preview hint for a Preview tab only', () => {
+        const input = { agentLabel: 'Codex', title: 'Untitled' };
+        expect(
+            sessionTabTooltip({ ...input, isPreview: true }, t)
+                .split('\n')
+                .at(-1),
+        ).toBe('sessionTabs.tooltip.preview:');
+        expect(sessionTabTooltip(input, t)).not.toContain('preview');
+    });
+});

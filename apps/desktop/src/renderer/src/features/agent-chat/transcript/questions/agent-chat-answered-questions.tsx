@@ -10,6 +10,24 @@ import { AgentChatNotice } from '../../messages/agent-chat-message';
 import { agentChatChevronMotion } from '../agent-chat-disclosure';
 import { agentChatItemExpansionKey } from '../agent-chat-expansion';
 
+/**
+ * Keys each answer by its question, numbering a repeat (`question#1`): an Agent can ask the same question twice in one
+ * request, and the answers never reorder, so the occurrence count is stable.
+ */
+function withOccurrenceKeys<T extends { question: string }>(
+    answers: readonly T[],
+): Array<T & { key: string }> {
+    const seen = new Map<string, number>();
+    return answers.map((answer) => {
+        const occurrence = seen.get(answer.question) ?? 0;
+        seen.set(answer.question, occurrence + 1);
+        return {
+            ...answer,
+            key: occurrence === 0 ? answer.question : `${answer.question}#${occurrence}`,
+        };
+    });
+}
+
 const ROW_CLASS_NAME =
     'flex min-w-0 items-center gap-2 px-1 py-0.5 text-[12px] leading-5 text-muted';
 
@@ -77,12 +95,12 @@ export function AgentChatAnsweredQuestions({
             </button>
             {isExpanded && (
                 <dl className="m-0 mt-1 space-y-2 px-1 text-[12px] leading-5" id={detailId}>
-                    {answers.map(({ answer, question }) => (
-                        <div key={question}>
+                    {withOccurrenceKeys(answers).map(({ answer, key, question }) => (
+                        <div key={key}>
                             <dt className="wrap-anywhere text-muted select-text">{question}</dt>
                             <dd
                                 className={cn(
-                                    'm-0 wrap-anywhere text-muted opacity-70 select-text',
+                                    'm-0 wrap-anywhere text-foreground select-text',
                                     !answer && 'italic',
                                 )}
                             >

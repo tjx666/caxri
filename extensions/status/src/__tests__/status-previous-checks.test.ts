@@ -58,7 +58,7 @@ describe('previousChecksNode', () => {
     it('names the commit by its title and nests the files changed since', () => {
         const node = previousChecksNode('p', previous);
 
-        expect(node.item.label).toBe('fix(router): handle empty input');
+        expect(node.item.label).toBe('Previous commit: fix(router): handle empty input');
         expect(node.item.description).toBe('previous');
         expect(node.item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
         const files = node.children?.[0];

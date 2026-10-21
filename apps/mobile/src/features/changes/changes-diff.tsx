@@ -16,14 +16,115 @@ export interface ChangesDiffState {
     unavailable: boolean;
 }
 
+/**
+ * An outdated diff: Refresh re-reads it, unless the phone is offline and can only wait to reconnect.
+ */
+const ChangesDiffStale = ({
+    isDisconnected,
+    onRefresh,
+    theme,
+}: {
+    isDisconnected: boolean;
+    onRefresh: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.state} testID="changes-diff-stale">
+            <Text style={[styles.stateBody, { color: theme.muted }]}>
+                {t(isDisconnected ? 'changes.diffReconnect' : 'changes.diffOutdated')}
+            </Text>
+            {isDisconnected ? null : (
+                <Pressable
+                    accessibilityLabel={t('changes.refresh')}
+                    accessibilityRole="button"
+                    onPress={onRefresh}
+                    style={styles.commit}
+                    testID="changes-diff-refresh"
+                >
+                    <Text style={[styles.commitText, { color: theme.primary }]}>
+                        {t('changes.diffRefresh')}
+                    </Text>
+                </Pressable>
+            )}
+        </View>
+    );
+};
+
+/**
+ * The diff, or the loading, outdated, failed, or too-large state that stands in for it.
+ */
+const ChangesDiffBody = ({
+    onRefresh,
+    onRetry,
+    state,
+    theme,
+}: {
+    onRefresh: () => void;
+    onRetry: () => void;
+    state: ChangesDiffState;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    if (state.isLoading)
+        return (
+            <View style={styles.state} testID="changes-diff-loading">
+                <ActivityIndicator color={theme.primary} />
+                <Text style={[styles.stateBody, { color: theme.muted }]}>
+                    {t('changes.diffLoading')}
+                </Text>
+            </View>
+        );
+    if (state.stale)
+        return (
+            <ChangesDiffStale
+                isDisconnected={state.isDisconnected}
+                onRefresh={onRefresh}
+                theme={theme}
+            />
+        );
+    if (state.error)
+        return (
+            <View style={styles.state} testID="changes-diff-error">
+                <Text accessibilityRole="alert" style={[styles.stateBody, { color: theme.danger }]}>
+                    {t('changes.diffLoadFailed')}
+                </Text>
+                <Pressable
+                    accessibilityLabel={t('changes.diffRetry')}
+                    accessibilityRole="button"
+                    onPress={onRetry}
+                    style={styles.commit}
+                >
+                    <Text style={[styles.commitText, { color: theme.primary }]}>
+                        {t('common.retry')}
+                    </Text>
+                </Pressable>
+            </View>
+        );
+    if (state.unavailable)
+        return (
+            <View style={styles.state} testID="changes-too-large">
+                <Text style={[styles.stateBody, { color: theme.muted }]}>
+                    {t('changes.diffUnavailable')}
+                </Text>
+            </View>
+        );
+    return <ChangesDiffLines patch={state.patch ?? ''} theme={theme} />;
+};
+
 export const ChangesDiff = ({
     onBack,
+    onRefresh,
     onRetry,
     path,
     state,
     theme,
 }: {
     onBack: () => void;
+    /**
+     * Re-reads the changed files and this file's diff, so an outdated diff becomes current without leaving the file.
+     */
+    onRefresh: () => void;
     onRetry: () => void;
     path: string;
     state: ChangesDiffState;
@@ -42,51 +143,15 @@ export const ChangesDiff = ({
                 >
                     <ChevronLeft color={theme.text} size={22} />
                 </Pressable>
-                <Text numberOfLines={1} style={[styles.detailPath, { color: theme.text }]}>
+                <Text
+                    ellipsizeMode="head"
+                    numberOfLines={1}
+                    style={[styles.detailPath, { color: theme.text }]}
+                >
                     {path}
                 </Text>
             </View>
-            {state.isLoading ? (
-                <View style={styles.state} testID="changes-diff-loading">
-                    <ActivityIndicator color={theme.primary} />
-                    <Text style={[styles.stateBody, { color: theme.muted }]}>
-                        {t('changes.diffLoading')}
-                    </Text>
-                </View>
-            ) : state.stale ? (
-                <View style={styles.state} testID="changes-diff-stale">
-                    <Text style={[styles.stateBody, { color: theme.muted }]}>
-                        {t(state.isDisconnected ? 'changes.diffReconnect' : 'changes.diffOutdated')}
-                    </Text>
-                </View>
-            ) : state.error ? (
-                <View style={styles.state} testID="changes-diff-error">
-                    <Text
-                        accessibilityRole="alert"
-                        style={[styles.stateBody, { color: theme.danger }]}
-                    >
-                        {t('changes.diffLoadFailed')}
-                    </Text>
-                    <Pressable
-                        accessibilityLabel={t('changes.diffRetry')}
-                        accessibilityRole="button"
-                        onPress={onRetry}
-                        style={styles.commit}
-                    >
-                        <Text style={[styles.commitText, { color: theme.primary }]}>
-                            {t('common.retry')}
-                        </Text>
-                    </Pressable>
-                </View>
-            ) : state.unavailable ? (
-                <View style={styles.state} testID="changes-too-large">
-                    <Text style={[styles.stateBody, { color: theme.muted }]}>
-                        {t('changes.diffUnavailable')}
-                    </Text>
-                </View>
-            ) : (
-                <ChangesDiffLines patch={state.patch ?? ''} theme={theme} />
-            )}
+            <ChangesDiffBody onRefresh={onRefresh} onRetry={onRetry} state={state} theme={theme} />
         </View>
     );
 };

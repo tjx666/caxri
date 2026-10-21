@@ -326,7 +326,7 @@ recognized but could not read is `unknown`: `--muted` and not clickable, because
 destination and must not look like it does. When the bar's content does not fit, whole chips drop
 one at a time, lowest first: child-process count, memory, Agent output speed, Agent conversation
 usage, Linear issue, acceptance, pull request. A chip in its warning state (the usage chip once a
-limit is nearly spent or running ahead of an even pace, which its tooltip explains) drops only after
+limit is nearly spent or, at the current rate, on track to run out before it resets, which its tooltip explains) drops only after
 every calm chip, because hiding a warning defeats it. A chip's label is never truncated. The decision is by
 measured width, not fixed window breakpoints, because which chips are present (an Agent's two chips,
 a Commander chip, a debugging disclosure) changes how much room the rest needs; a hidden chip is
@@ -357,8 +357,8 @@ provider without one show no dot.
 The hover card breaks it down by last response, turn, and conversation (the turn row folds into the
 conversation row while both cover the same responses), lists provider incidents as at most one line
 plus `+N more`, charts the recent responses, and states the method (see `docs/agent-throughput.md`).
-Beside it, the conversation's running usage (`1.2M · $3.40 · 5h 62%`: tokens, estimated cost, and
-the shortest rate-limit window that has not reset) appears once the transcript records a billed
+Beside it, the conversation's running usage (`1.2M · $3.40 · 5h 62% left`: tokens, estimated cost, and
+the share left of each shown rate-limit window, every window saying `left` so none reads as used) appears once the transcript records a billed
 request. Cost is left out while no model has a price, since `$0.00` would read as free. The hover
 card breaks tokens down by kind and lists every limit window with its reset; clicking opens Usage
 (see `docs/usage.md`). Blame lives here and nowhere else. The editor header once
@@ -688,9 +688,9 @@ focus. A tab whose title collides with another Session's gets a trailing 11px `-
 or `#n`), also shown on its sidebar row. The sidebar marks Sessions that are open: a 2px `--muted` edge bar on a
 row open in this window's strip (only while the strip shows), and an 11px `--muted` window glyph after the
 title of a row another window owns; neither uses `--accent`. Hovering a tab or its row echoes the other with
-the same soft hover fill. The window's Preview entry (the tab a plain sidebar click replaces) sets its title in italic, and in `--muted` while inactive; keeping it restores the normal style. Each Session pill ends in one fixed 20px slot shared by the status glyph and the close button, so the title never
+the same soft hover fill. The window's Preview entry (the tab a plain sidebar click replaces, unless its Session is running or needs attention, which keeps it instead) sets its title in italic, and in `--muted` while inactive; keeping it restores the normal style. Each Session pill ends in one fixed 20px slot shared by the status glyph and the close button, so the title never
 shifts: the glyph fades out as the close button fades in under the pointer or keyboard focus, and the active pill always
-shows the close button. On an inactive pill the running and detached glyphs take 70% and 60% `--foreground` rather than
+shows the close button; while the active Session runs or needs attention, its glyph moves before the title instead of disappearing. On an inactive pill the running and detached glyphs take 70% and 60% `--foreground` rather than
 the sidebar's `--muted`, and an attention glyph sits on a faint `--warning` disc. "Move to New Window" (tab menu,
 sidebar row menu, Command Palette) is the non-drag tear-off. A single Open Session hides the outer row and the pane bar becomes the title bar again. Every
 color is a semantic token, so a light theme restyles both rows with no extra work.
@@ -1491,11 +1491,12 @@ one card top-center below the title bar, `min(640px, 92vw)` wide on `--elevated`
 shadow, entering on `--motion-overlay-enter` with the enter curve and leaving on
 `--motion-overlay-exit`. It is not a toast: it never expires, because the Agent stays blocked until
 someone answers. It shows one request at a time (oldest first) and a muted "N more pending" line,
-and folds into an "N pending" pill that unfolds again only when a new request arrives, so folding
+and folds into an "N waiting for you" pill that unfolds again only when a new request arrives, so folding
 means "not now" rather than "mute". It sits under dialogs (`z-40`) and never takes focus, so it
 cannot steal keystrokes from the composer the user is typing in; its keys work once focus is in it.
-A click on a question's option only selects it, because a stray click on a card that just dropped in
-must not send an answer.
+A click on a question's option only selects it, and an approval's buttons ignore the pointer for
+about 450ms after its card drops in, because a stray click on a card that just dropped in must not
+send an answer. Esc folds the popup on both card types; Skip stays an explicit button.
 
 **Software update**: a release Caxri finds on its own raises a notification and nothing more. A
 modal belongs to a user who asked; Caxri is opened while someone is already doing something else,

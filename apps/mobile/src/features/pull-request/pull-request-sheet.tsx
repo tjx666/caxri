@@ -12,6 +12,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { PullRequestGlyph } from './pull-request-glyph';
 import type { PullRequestMergeAction } from './pull-request-model';
 import {
+    isConfirmablePullRequestAction,
     pullRequestChecksSummary,
     pullRequestConfirmation,
     pullRequestMergeAction,
@@ -19,6 +20,7 @@ import {
     pullRequestReadiness,
     pullRequestTone,
     pullRequestToneColor,
+    shouldShowPullRequestConfirmation,
 } from './pull-request-model';
 import type { useSessionPullRequest } from './use-session-pull-request';
 
@@ -49,6 +51,10 @@ export const PullRequestSheet = ({
     const { t } = useTranslation();
     const [isConfirming, setConfirming] = useState(false);
     const action = pullRequestMergeAction(pullRequest);
+    const showConfirmation = shouldShowPullRequestConfirmation(isConfirming, action);
+    // A refresh that leaves nothing to confirm (merged, draft, conflicting) ends the confirmation for good, so a later
+    // ready state does not reopen a page the user never asked for.
+    if (isConfirming && !showConfirmation) setConfirming(false);
     const tone = pullRequestToneColor(pullRequestTone(pullRequest), theme);
     const checks = pullRequestChecksSummary(pullRequest, t);
     const isMerging = state.merge.state === 'merging';
@@ -80,7 +86,7 @@ export const PullRequestSheet = ({
                     >
                         {pullRequest.title}
                     </Text>
-                    {isConfirming && (action.kind === 'confirm' || action.kind === 'merge') ? (
+                    {showConfirmation && isConfirmablePullRequestAction(action) ? (
                         <MergeConfirmation
                             action={action}
                             onBack={() => setConfirming(false)}
@@ -138,7 +144,7 @@ export const PullRequestSheet = ({
                             {state.merge.message}
                         </Text>
                     ) : null}
-                    {isConfirming || action.kind === 'draft' ? null : (
+                    {showConfirmation || action.kind === 'draft' ? null : (
                         <SheetAction
                             icon={ExternalLink}
                             label={t('pullRequest.openOnGitHub')}
@@ -150,7 +156,7 @@ export const PullRequestSheet = ({
                             theme={theme}
                         />
                     )}
-                    {isConfirming ? null : (
+                    {showConfirmation ? null : (
                         <SheetCancel
                             label="Done"
                             onPress={dismiss}

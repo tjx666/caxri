@@ -55,7 +55,11 @@ export function createDesktopActions({
                 payload: {
                     sessionId: target.sessionId,
                     kind: target.kind,
-                    ...(target.kind === 'file' && { path: target.path }),
+                    /**
+                     * A directory carries its path so the Renderer can reveal it in Files; the Renderer treats the
+                     * Session's own root (a plain `caxri open <project>`) as "select the Session" only.
+                     */
+                    path: target.path,
                     ...(target.location && { location: target.location }),
                     ...(target.focusEditor && { focusEditor: target.focusEditor }),
                 },

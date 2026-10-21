@@ -1,3 +1,4 @@
+import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -58,6 +59,27 @@ describe('Agent Chat suggestion list copy', () => {
         );
         for (const list of ['commands', 'history', 'sessions'] as const)
             expect(keycaps(agentChatSuggestionFooter(list, false))).toBe('Esc to dismiss');
+    });
+
+    it('says Enter inserts for a skill or a command that takes arguments, and runs a bare command', () => {
+        const action = (
+            kind: 'command' | 'skill',
+            invocation: string,
+            argumentHint?: string,
+        ): AgentAction => ({
+            invocation,
+            kind,
+            requiresArguments: false,
+            source: 'builtIn',
+            ...(argumentHint && { argumentHint }),
+        });
+        const enter = (highlighted: AgentAction) =>
+            agentChatSuggestionFooter('commands', true, highlighted).find(
+                ({ keys }) => keys === 'Enter',
+            )?.action;
+        expect(enter(action('command', '/clear'))).toBe('to run');
+        expect(enter(action('command', '/model', '<name>'))).toBe('to insert');
+        expect(enter(action('skill', '$review'))).toBe('to insert');
     });
 
     it('names the Session whose reference is being prepared', () => {

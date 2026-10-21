@@ -1,11 +1,12 @@
 import { memo, useCallback, useMemo } from 'react';
-import { Platform, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import type { MarkdownParser, RenderRules } from '@ronradtke/react-native-markdown-display';
 import Markdown, { createMarkdownIt } from '@ronradtke/react-native-markdown-display';
 
 import { HighlightedCode } from '../../components/highlighted-code';
 import { openLink } from '../../lib/open-link';
+import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { fenceLanguage } from '../panels/file-language';
 
@@ -93,7 +94,7 @@ export const ConversationMarkdown = memo(
         text: string;
         theme: MobileTheme;
     }) => {
-        const monospace = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
+        const monospace = MONOSPACE_FONT;
         const markdownStyle = useMemo(
             () => ({
                 body: { color: theme.text, fontSize: 15, lineHeight: 23 },

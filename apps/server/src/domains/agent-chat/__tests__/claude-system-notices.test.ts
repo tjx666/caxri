@@ -133,3 +133,60 @@ describe('Claude API retries', () => {
         ]);
     });
 });
+
+describe('Claude retry notice resolution', () => {
+    function retryHarness() {
+        const host = harness();
+        host.apply([{ op: 'state', state: { activeTurnId: 'turn-1' } }]);
+        return host;
+    }
+    const retryOf = (host: ReturnType<typeof harness>) =>
+        host.read().items.find((item) => item.type === 'notice' && item.kind === 'retrying');
+
+    it('settles the retry once the turn streams a reply, and reopens it on a later retry', () => {
+        const host = retryHarness();
+        onClaudeApiRetry(host, { attempt: 2, max_retries: 5, error_status: null });
+        expect(retryOf(host)).toMatchObject({ retry: { attempt: 2 } });
+        expect(retryOf(host)).not.toHaveProperty('retry.resolved');
+
+        host.apply([
+            {
+                op: 'upsertItem',
+                item: {
+                    id: 'a1',
+                    turnId: 'turn-1',
+                    type: 'agentMessage',
+                    text: 'Hi',
+                    streaming: true,
+                },
+            },
+        ]);
+        expect(retryOf(host)).toMatchObject({ retry: { attempt: 2, resolved: true } });
+
+        onClaudeApiRetry(host, { attempt: 3, max_retries: 5, error_status: null });
+        expect(retryOf(host)).toMatchObject({ retry: { attempt: 3 } });
+        expect(retryOf(host)).not.toHaveProperty('retry.resolved');
+    });
+
+    it('does not settle on the user message, or on progress from another turn', () => {
+        const host = retryHarness();
+        onClaudeApiRetry(host, { attempt: 1, error_status: null });
+        host.apply([
+            {
+                op: 'upsertItem',
+                item: { id: 'u', turnId: 'turn-1', type: 'userMessage', text: 'x' },
+            },
+            {
+                op: 'upsertItem',
+                item: {
+                    id: 'a0',
+                    turnId: 'turn-0',
+                    type: 'agentMessage',
+                    text: 'old',
+                    streaming: false,
+                },
+            },
+        ]);
+        expect(retryOf(host)).not.toHaveProperty('retry.resolved');
+    });
+});

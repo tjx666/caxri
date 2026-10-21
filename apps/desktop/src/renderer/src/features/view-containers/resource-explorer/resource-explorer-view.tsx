@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useTranslation } from '../../../i18n';
 import { useActivePaneTab } from '../../workbench/pane-actions';
@@ -47,8 +47,12 @@ function ResourceExplorerEditorFollower({
     scopeId: string;
 }) {
     const activeFilePath = paneTabFilePath(useActivePaneTab());
+    const isInitialRun = useRef(true);
     useEffect(() => {
-        followEditorFileInScope(scopeId, projectRoot, activeFilePath);
+        followEditorFileInScope(scopeId, projectRoot, activeFilePath, {
+            isInitial: isInitialRun.current,
+        });
+        isInitialRun.current = false;
     }, [activeFilePath, projectRoot, scopeId]);
     // Hiding the container unmounts the follower, and a reveal requested for a tree nobody sees must not fire later.
     useEffect(() => () => clearScopeRevealPath(scopeId), [scopeId]);

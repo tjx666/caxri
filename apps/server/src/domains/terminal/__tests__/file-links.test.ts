@@ -498,7 +498,6 @@ describe('resolveTerminalFileLink', () => {
             lstat(projectRoot, { bigint: true }),
             lstat(target, { bigint: true }),
         ]);
-
         await expect(
             resolveTerminalFileLink(
                 database,
@@ -507,6 +506,7 @@ describe('resolveTerminalFileLink', () => {
             ),
         ).resolves.toEqual({
             status: 'authorized',
+            kind: 'file',
             identity: {
                 device: targetIdentity.dev.toString(),
                 inode: targetIdentity.ino.toString(),

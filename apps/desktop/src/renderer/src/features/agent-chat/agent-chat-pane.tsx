@@ -2,7 +2,6 @@ import type { ComponentProps } from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { agentChatActivity } from '@caxri/protocol';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useTranslation } from '../../i18n';
@@ -25,6 +24,7 @@ import type { AgentChatHost } from './agent-chat-host';
 import { agentChatHostCapabilities } from './agent-chat-host';
 import { AgentChatComposer } from './composer/agent-chat-composer';
 import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
+import { useAgentChatComposerSnapshot } from './composer-snapshot/use-agent-chat-composer-snapshot';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
@@ -66,7 +66,6 @@ import {
     agentChatEmptyHint,
     agentChatEmptyMessage,
     agentChatRecoveryNotice,
-    agentChatSendBlock,
     isAgentChatBusy,
     isAgentChatConversationLoading,
 } from './transcript/agent-chat-presentation';
@@ -240,6 +239,12 @@ export function AgentChatPane({
         isLatestInView,
     });
     const processState = terminal?.lastProcessState;
+    const composerView = useAgentChatComposerSnapshot(terminalId, {
+        hasConversation: Boolean(terminal?.agentSessionId),
+        isSessionVisible,
+        processState,
+        providerName,
+    });
     const openAsTerminal = openAsTerminalAction(terminal);
     const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName, t);
     const recoveryNotice = agentChatRecoveryNotice(
@@ -402,17 +407,12 @@ export function AgentChatPane({
                 onSelect={linkPicker.selectLink}
             />
             <AgentChatComposer
-                activeTurnId={snapshot?.activeTurnId}
-                activity={agentChatActivity(
-                    snapshot,
-                    providerName,
-                    { hasConversation: Boolean(terminal?.agentSessionId) },
-                    t,
-                )}
+                activeTurnId={composerView.activeTurnId}
+                activity={composerView.activity}
                 canOpenContext={canOpenContext}
                 canSaveProjectDefault={canSaveProjectDefault}
-                sendBlock={agentChatSendBlock(snapshot, processState)}
-                commands={snapshot?.commands}
+                sendBlock={composerView.sendBlock}
+                commands={composerView.commands}
                 dropHandlersReference={composerDrop}
                 edit={{
                     handleReference: composerEdit,
@@ -422,15 +422,15 @@ export function AgentChatPane({
                     onEditingChange: setEditingId,
                 }}
                 inputReference={inputReference}
-                isBusy={isAgentChatBusy(snapshot)}
-                isQueuePaused={snapshot?.queuePaused ?? false}
+                isBusy={composerView.isBusy}
+                isQueuePaused={composerView.isQueuePaused}
                 isShown={isShown}
                 providerName={providerName}
                 onOpenTask={taskLinks.openTask}
                 onSent={jumpToLatest}
-                pendingQueue={pending.queue}
-                queue={snapshot?.queue}
-                snapshot={snapshot}
+                pendingQueue={composerView.pendingQueue}
+                queue={composerView.queue}
+                snapshot={composerView.snapshot}
                 supportsImages={supportsImages}
                 terminalId={terminalId}
             />

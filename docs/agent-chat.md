@@ -745,6 +745,10 @@ several callbacks can share one item, so the transport id is never the key.
   else gets a JSON-RPC error) so the turn never blocks on a request no one can see.
 - Each pending request raises Attention through a synthesized `attentionRequested` signal and
   clears it with `attentionResolved`, so Activity and the Primary Sidebar behave as for a PTY.
+  Selecting a Session normally acknowledges its unread Attention at once, but not while its primary
+  Chat holds a request and that Chat's pane is not on screen in this window (a Chat on a background
+  tab): the Sidebar row and Session tab keep the Attention glyph until the user shows the pane or the
+  request is answered or withdrawn, then it is acknowledged like any other (`session-attention.ts`).
 
 ## Pane
 
@@ -761,19 +765,20 @@ several callbacks can share one item, so the transport id is never the key.
   device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
   quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
   Chats, dropping the Chats whose images changed least recently first, deleted once the message
-  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer opens a list of the prompts this Chat sent, as LobeHub's chat input does: newest at the bottom nearest the input, a prompt sent again listed once at its newest place, at most 50 rows, and the highlighted prompt previewed in the input's placeholder. ArrowUp walks older without wrapping, ArrowDown past the newest closes the list, Enter or Tab (or a click) fills the input without sending, and Escape or any typed key closes it. The list is read from the user messages in the Chat's projection when it opens, so it needs no storage of its own and reaches only as far back as the projection keeps (see `truncated`). ArrowUp is left alone while the input holds text, an image is attached, a message is being edited, or another composer menu is open. A filled prompt is an ordinary draft and persists like one. Ctrl+S stashes the draft (text, caret, attachments, and Goal mode) and empties the input, as Claude Code's prompt stash does, so a quick question can go first; the placeholder says a stash is waiting, Ctrl+S in an empty input restores it, and it also returns by itself after the next send unless the user has started typing again, and both restores say so in the composer notice. A whitespace-only input counts as empty for a restore. Ctrl+S with a draft while a stash waits is refused with a notice and leaves the draft in place, so an earlier stash is never overwritten. The stash lives in memory per Chat until Caxri quits, and the stashed notice says so. Ctrl+C with nothing selected empties the input and its attachments, as Claude Code's prompt does (over a selection it stays Copy); the text leaves as an ordinary edit, so Cmd+Z brings it back, while the attachments stay removed as they do when their placeholder is deleted by hand. A pasted `http(s)` URL renders in the input the way the sent message renders it: the same linkify rule finds it, it takes the accent color behind its site icon, and a pull request link's glyph and text take its state from the same cached reference preview. Its action row shows how much of the
+  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer opens a list of the prompts this Chat sent, as LobeHub's chat input does: newest at the bottom nearest the input, a prompt sent again listed once at its newest place, at most 50 rows, and the highlighted prompt previewed in the input's placeholder. ArrowUp walks older without wrapping, ArrowDown past the newest closes the list, Enter or Tab (or a click) fills the input without sending, and Escape or any typed key closes it. The list is read from the user messages in the Chat's projection when it opens, so it needs no storage of its own and reaches only as far back as the projection keeps (see `truncated`). ArrowUp is left alone while the input holds text, an image is attached, a message is being edited, or another composer menu is open. A filled prompt is an ordinary draft and persists like one. Ctrl+S stashes the draft (text, caret, attachments, and Goal mode) and empties the input, as Claude Code's prompt stash does, so a quick question can go first; the placeholder says a stash is waiting, Ctrl+S in an empty input restores it, and it also returns by itself after the next send unless the user has started typing again, and both restores say so in the composer notice. A whitespace-only input counts as empty for a restore. Ctrl+S with a draft while a stash waits swaps the two (the draft becomes the stash and the stashed draft comes back, caret and attachments included) and the composer notice says so, so neither is lost and the key never dead-ends. While an earlier message is being edited Ctrl+S is refused with the notice "Finish or cancel the edit first". The stash lives in memory per Chat until Caxri quits, and the stashed notice says so. Ctrl+C with nothing selected empties the input and its attachments, as Claude Code's prompt does (over a selection it stays Copy); the text leaves as an ordinary edit, so Cmd+Z brings it back, while the attachments stay removed as they do when their placeholder is deleted by hand. A pasted `http(s)` URL renders in the input the way the sent message renders it: the same linkify rule finds it, it takes the accent color behind its site icon, and a pull request link's glyph and text take its state from the same cached reference preview. Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
   the window in its popover (opened by hover, or by Enter or Space on the focused ring), and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
   A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
-  has spent so far, as LobeHub's composer tray does: steps (model responses), tokens (the Usage page's `total`), and
-  the cost estimated from the bundled price list, each behind an icon with a pointer tooltip. A figure still at zero
+  has spent so far, as LobeHub's composer tray does: steps, tokens (the Usage page's `total`), and
+  the cost estimated from the bundled price list (shown with a `$`), each behind an icon with a pointer tooltip. A figure still at zero
   is hidden, a single step too, and a strip narrower than 360px keeps only tokens. Server Core sums each Claude
   response once by message id (subagent responses included) and each Codex request of the parent thread from
-  `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. The strip
-  carries no stop hint: the composer's Stop button and Esc already stop the turn. Only the label is the polite live
+  `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. A compact `Esc to stop` hint follows the metrics
+  while the turn runs and drops first on a strip narrower than 480px; the `Enter to queue · ⌘Enter to steer` hint keeps only
+  its keycaps below 420px. Only the label is the polite live
   region, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
   keeps its own text.
@@ -806,7 +811,11 @@ several callbacks can share one item, so the transport id is never the key.
   server error, other) with the attempt against the provider's limit (`Connection lost, retrying
 (2/10)`), and the provider's detail muted beneath. Claude Code's `api_retry` gives the cause through
   `error_status` (null for no response) and `error`; Codex gives it through `codexErrorInfo`, its
-  `Reconnecting... N/M` message gives the attempt, and `additionalDetails` the detail. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
+  `Reconnecting... N/M` message gives the attempt, and `additionalDetails` the detail. Once the same turn makes progress (a later reply, thought, or tool
+  item from either provider), the shared reducer marks the notice `retry.resolved` and the row settles
+  into a muted check reading `Recovered after 2 retries` with the stale detail dropped; a newer retry
+  replaces the notice and turns it amber again. Retry rows are plain text, not a live `status`, because
+  the timeline remounts history. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
   swapping its glyph for a spinner; a row seen running animates its tool's glyph until it settles
   (`agentChat.animatedToolIcons`), and the composer status line's indicator follows
   `agentChat.workingIndicator` (Buddy acting out the turn's current tool from the snapshot's
@@ -948,7 +957,7 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, a
   `gh api` POST to `repos/o/r/pulls|issues` or PATCH to `repos/o/r/pulls|issues/N` (how an Agent
   rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. Collection lives in
-  `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and `agent-chat-trackers.ts`, Undo in the
+  `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and its `trackers/` subdirectory, Undo in the
   Desktop `agent-chat-undo.ts`. The phone shows the same cards without Undo and Review; see
   [Mobile](#mobile).
 - Review on that card opens the turn as one diff in a `Turn changes` tab beside the Chat, in the
@@ -1323,7 +1332,8 @@ Grok Build does not, and the PTY surface is untouched.
   (`caxri-agent-side-chat://<terminalId>`, one per Chat), with its own composer and multi-turn
   follow-ups.
 - **No persistence.** The thread lives only in Renderer memory (`agent-chat-side-chat-commands.ts`).
-  Closing the tab discards it; there is no sidebar row.
+  Closing the tab keeps the thread, so reopening the side chat for the Chat shows it again; it is forgotten
+  once the Chat is gone. There is no sidebar row.
 - **Convert to Session.** The header action creates a new Session in the same Project with a Chat of
   the same provider and sends the answered Q&A as its first message; the thread is discarded once the
   new Chat accepted it.

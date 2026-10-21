@@ -1,7 +1,9 @@
 import type { TerminalRecord, TerminalSubagentSummary } from '@caxri/protocol';
+import { agentTaskTabPath } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    activeSubagentTaskId,
     DEFAULT_VISIBLE_SUBAGENT_COUNT,
     orderSubagents,
     rovingSubagentRowId,
@@ -100,5 +102,21 @@ describe('rovingSubagentRowId', () => {
         expect(rovingSubagentRowId('subagent:s2:t1', 's1')).toBeUndefined();
         expect(rovingSubagentRowId('s1', 's1')).toBeUndefined();
         expect(rovingSubagentRowId(undefined, 's1')).toBeUndefined();
+    });
+});
+
+describe('activeSubagentTaskId', () => {
+    it('returns the task of the active task tab of the same Chat', () => {
+        const resource = { kind: 'file', path: agentTaskTabPath('t1', 'task-9') } as const;
+        expect(activeSubagentTaskId(resource, 't1')).toBe('task-9');
+    });
+
+    it('ignores another Chat, other resources, and a missing Terminal', () => {
+        const resource = { kind: 'file', path: agentTaskTabPath('t2', 'task-9') } as const;
+        expect(activeSubagentTaskId(resource, 't1')).toBeUndefined();
+        expect(activeSubagentTaskId({ kind: 'file', path: '/a.ts' }, 't1')).toBeUndefined();
+        expect(activeSubagentTaskId({ kind: 'terminal', terminalId: 't1' }, 't1')).toBeUndefined();
+        expect(activeSubagentTaskId(resource, undefined)).toBeUndefined();
+        expect(activeSubagentTaskId(undefined, 't1')).toBeUndefined();
     });
 });

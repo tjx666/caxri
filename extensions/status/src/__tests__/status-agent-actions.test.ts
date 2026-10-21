@@ -79,7 +79,7 @@ describe('Status extension review fix prompt', () => {
         expect(action).toMatchObject({
             command: { command: 'caxri.sendToAgent', title: 'Send Comments to Agent' },
             label: 'Fix',
-            tone: 'success',
+            tone: 'danger',
             tooltip: "Send 1 unresolved comment to this Session's Agent to review",
             feedback: { failure: "Couldn't send the comments" },
         });

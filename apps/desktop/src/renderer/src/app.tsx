@@ -48,6 +48,7 @@ import { StatusBar } from './features/status-bar/status-bar';
 import { ToastOutlet } from './features/toasts/toast-outlet';
 import { UpdateDialog } from './features/updates/update-dialog';
 import { useFileMutationReconciliation } from './features/view-containers/resource-explorer/file-operation-reconciliation';
+import { revealDirectoryInFiles } from './features/view-containers/resource-explorer/reveal-in-files';
 import { startViewEventBridge } from './features/view-containers/view-event-bridge';
 import { useWindowZoomFactor } from './features/window-zoom/use-window-zoom-factor';
 import { WindowZoomHud } from './features/window-zoom/window-zoom-hud';
@@ -97,6 +98,7 @@ function useRuntimeAttachment(): void {
                     ...(options?.focusEditor && { focus: true }),
                 });
             },
+            revealDirectory: revealDirectoryInFiles,
             selectSession: didSelectSession,
         });
         // Fire-and-forget: initializeWorkbench() catches its own Server request failures.
@@ -124,7 +126,7 @@ function useRuntimeAttachment(): void {
                 }
                 /* oxlint-enable typescript/no-unnecessary-condition */
             },
-            onDesktopOpen: (sessionId, path, options) => {
+            onDesktopOpen: ({ focusEditor, kind, location, path, sessionId }) => {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
                 // established pattern for one-shot Server-triggered opens.
@@ -132,8 +134,9 @@ function useRuntimeAttachment(): void {
                 void desktopOpenQueue.enqueue({
                     sessionId,
                     ...(path && { path }),
-                    ...(options?.location && { location: options.location }),
-                    ...(options?.focusEditor && { focusEditor: true }),
+                    ...(kind === 'directory' && { kind }),
+                    ...(location && { location }),
+                    ...(focusEditor && { focusEditor: true }),
                 });
             },
         });

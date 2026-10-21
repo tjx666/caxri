@@ -197,15 +197,37 @@ export function didRevealPathInScope(scopeId: string, projectRoot: string, path:
 }
 
 /**
+ * Reveals a directory the user asked for by name (a clicked path link): like {@link didRevealPathInScope}, and the
+ * directory itself is expanded too, so its contents are visible rather than only its row. Returns `false` for the
+ * Project root or a path outside it, which have no row to reveal.
+ */
+export function didRevealDirectoryInScope(
+    scopeId: string,
+    projectRoot: string,
+    path: string,
+): boolean {
+    if (!didRevealPathInScope(scopeId, projectRoot, path)) return false;
+    setScopePathExpanded(scopeId, path, true);
+    return true;
+}
+
+/**
  * Follows the Editor: reveals the file the active work tab shows, or drops the pending reveal when that tab shows no
  * Project file (a Terminal, a diff, an external file), so a stale request cannot scroll the tree after the user moved
  * on.
+ *
+ * `isInitial` marks the follower's first run, when the Files view has just become visible. A reveal already pending at
+ * that moment was requested for this very view opening (a clicked directory link raises Files and reveals in one step),
+ * so the Editor must not replace or drop it.
  */
 export function followEditorFileInScope(
     scopeId: string,
     projectRoot: string,
     activeFilePath: string | undefined,
+    { isInitial = false }: { isInitial?: boolean } = {},
 ): void {
+    if (isInitial && useResourceExplorerScopeStore.getState().revealByScope[scopeId] !== undefined)
+        return;
     if (activeFilePath === undefined || !didRevealPathInScope(scopeId, projectRoot, activeFilePath))
         clearScopeRevealPath(scopeId);
 }

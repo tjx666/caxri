@@ -2,6 +2,10 @@ import type { MobilePullRequest, PullRequestMergeBlocker } from '@caxri/protocol
 
 import type { Translate, TranslationKey } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import {
+    MobileConnectionClosedError,
+    MobileGatewayTimeoutError,
+} from '../connection/mobile-gateway-errors';
 
 /**
  * What the sheet's primary button does, mirroring the Desktop Status panel's merge button so both surfaces agree:
@@ -114,10 +118,6 @@ export function pullRequestReadiness(pullRequest: MobilePullRequest, t: Translat
 }
 
 /**
- * The checks line: `3 of 9 checks failed: lint, e2e, docs, and 1 more`, `9 checks passed`, `Checks running`, or nothing
- * when the pull request has no checks. Names come from the rollup after ignored checks were filtered out.
- */
-/**
  * The sentence saying what the merge will do, as Desktop's Status merge button says it: the method Server Core reported
  * for this repository and the branch it merges into, plus why when it is not squash (the first choice). Without a
  * reported method it states the selection order instead.
@@ -136,12 +136,18 @@ export function pullRequestMergeMethodNote(
     return `${sentence} ${t(mergeMethod === 'merge' ? 'pullRequest.method.noSquash' : 'pullRequest.method.noSquashOrMerge')}`;
 }
 
+/**
+ * The checks line: `3 of 9 checks failed: lint, e2e, docs, and 1 more`, `9 checks passed`, `Checks running`, or nothing
+ * when the pull request has no checks. Names come from the rollup after ignored checks were filtered out. A merged or
+ * closed pull request shows none: its checks no longer gate anything, and `Merged` above `2 of 4 checks failed` reads
+ * as a contradiction.
+ */
 export function pullRequestChecksSummary(
     pullRequest: MobilePullRequest,
     t: Translate,
 ): string | undefined {
-    const { checkCount, failedCheckCount, failedChecks } = pullRequest;
-    if (checkCount === 0) return undefined;
+    const { checkCount, failedCheckCount, failedChecks, lifecycle } = pullRequest;
+    if (checkCount === 0 || lifecycle === 'merged' || lifecycle === 'closed') return undefined;
     if (failedCheckCount > 0) {
         const rest = failedCheckCount - failedChecks.length;
         const names =
@@ -198,11 +204,43 @@ export function pullRequestConfirmation(
 }
 
 /**
+ * Whether the merge request died in transport (timeout or a closed socket) rather than being answered. The answer is
+ * unknown: GitHub may well have merged the pull request, so the phone must re-read it instead of claiming a failure.
+ */
+export function isPullRequestMergeTransportError(error: unknown): boolean {
+    return (
+        error instanceof MobileGatewayTimeoutError || error instanceof MobileConnectionClosedError
+    );
+}
+
+/**
+ * Whether the sheet shows the merge confirmation page: only while the pull request still has an action that asks first.
+ * A refresh can turn a ready pull request into a merged, draft, or conflicting one under the open confirmation; the
+ * page then gives way to the status and the `Open on GitHub` and `Done` actions instead of hiding them.
+ */
+export function shouldShowPullRequestConfirmation(
+    isConfirming: boolean,
+    action: PullRequestMergeAction,
+): boolean {
+    return isConfirming && isConfirmablePullRequestAction(action);
+}
+
+/**
+ * Whether the action is one the sheet confirms before merging (`merge` and `confirm`), narrowing it for the page.
+ */
+export function isConfirmablePullRequestAction(
+    action: PullRequestMergeAction,
+): action is Extract<PullRequestMergeAction, { kind: 'confirm' | 'merge' }> {
+    return action.kind === 'confirm' || action.kind === 'merge';
+}
+
+/**
  * A failed merge in words the user can act on. GitHub's own reason (a protection rule, a moved head) is shown as Server
  * Core relayed it, after a sentence saying the merge did not happen.
  */
 export function pullRequestMergeErrorMessage(error: unknown, t: Translate): string {
     const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+    if (isPullRequestMergeTransportError(error)) return t('pullRequest.mergeLostConnection');
     switch (code) {
         case 'CONFLICT':
             return t('pullRequest.mergeConflict');

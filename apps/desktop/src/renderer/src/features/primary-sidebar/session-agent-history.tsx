@@ -25,7 +25,7 @@ function SessionAgentHistoryRow({
         <li>
             <button
                 type="button"
-                className="session-agent-history-entry flex w-full cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-1 text-left text-[11px] text-foreground hover:bg-elevated focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                className="session-agent-history-entry flex w-full cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-1 text-left text-[11px] text-foreground hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
                 aria-label={t(
                     isOpen
                         ? 'primarySidebar.card.history.showAriaLabel'

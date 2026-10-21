@@ -144,7 +144,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.card.history.title': '历史对话',
     'primarySidebar.card.history.open': '已打开',
     'primarySidebar.card.history.untitled': '{{agent}} 对话',
-    'primarySidebar.card.history.reopenAriaLabel': '重新打开对话 {{title}}，上次绑定于 {{time}}',
+    'primarySidebar.card.history.reopenAriaLabel': '重新打开对话 {{title}}，上次使用于 {{time}}',
     'primarySidebar.card.history.showAriaLabel': '切换到已打开的对话 {{title}}',
     'primarySidebar.card.history.reopenFailed': '无法重新打开对话',
     'primarySidebar.changes.ariaLabelOne': '工作区有 {{count}} 处未提交的更改。',

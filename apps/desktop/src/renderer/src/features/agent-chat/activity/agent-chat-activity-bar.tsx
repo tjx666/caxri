@@ -5,7 +5,6 @@ import { Info, MessageCircleQuestionMark } from 'lucide-react';
 import { Kbd } from '../../../components/ui/kbd';
 import { Spinner } from '../../../components/ui/spinner';
 import { useTranslation } from '../../../i18n';
-import { cn } from '../../../lib/utilities';
 import { useIsAgentChatStopping } from '../hooks/use-agent-chat-stop';
 import { useClockTick } from '../hooks/use-clock-tick';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../loading';
@@ -58,9 +57,9 @@ function activityRowState(activity: AgentChatActivity | undefined, isStopRequest
  * waiting on the user shows no row of its own, since its request card right above already says so, and holds still once
  * a draft brings the row back, since nothing is in progress until the user answers. The polite live region stays
  * mounted so transitions between starting, working, and waiting are announced, while the ticking time never is. A
- * working turn also shows what it has spent so far (steps, tokens, estimated cost) on the right, where a stop hint used
- * to sit: the composer's Stop button and Esc already stop the turn, so the hint only repeated them. While a turn runs
- * and the user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the difference
+ * working turn also shows what it has spent so far (steps, tokens, estimated cost) on the right, followed by an `Esc to
+ * stop` hint that is the first thing a narrow strip drops. While a turn runs and the user has typed something, the row
+ * also says what Enter and Cmd+Enter will do with it (keycaps only when the strip is narrow), because the difference
  * between queueing and steering is otherwise invisible until the message lands. A `notice` (why Enter did not send, or
  * that a second Enter sends an unmatched `/` draft as text) takes the live region while it lasts and shows as its own
  * row, so a refused Enter is never silent.
@@ -124,20 +123,33 @@ export function AgentChatActivityBar({
                     {activity.kind === 'working' && activity.startedAt !== undefined && (
                         <ElapsedTime startedAt={activity.startedAt} />
                     )}
-                    {activity.kind === 'working' && (
-                        <AgentChatTurnMetricList className="ml-auto" usage={activity.usage} />
-                    )}
-                    {showsDeliveryHint && (
-                        <span
-                            className={cn(
-                                'shrink-0 text-[11px] whitespace-nowrap',
-                                activity.kind !== 'working' || !activity.usage ? 'ml-auto' : 'ml-1',
-                            )}
-                        >
-                            <Kbd size="compact">Enter</Kbd> {t('agentChat.activity.enterHint')} ·{' '}
-                            <Kbd size="compact">⌘Enter</Kbd> {t('agentChat.activity.steerHint')}
-                        </span>
-                    )}
+                    <div className="ml-auto flex shrink-0 items-center gap-2.5">
+                        {activity.kind === 'working' && (
+                            <AgentChatTurnMetricList usage={activity.usage} />
+                        )}
+                        {activity.kind === 'working' && !isStopping && (
+                            // Drops before the metrics and the delivery hint do: the Stop button beside the composer
+                            // carries the same action.
+                            <span className="shrink-0 text-[11px] whitespace-nowrap @max-[480px]:hidden">
+                                <Kbd size="compact">Esc</Kbd> {t('agentChat.activity.stopHint')}
+                            </span>
+                        )}
+                        {showsDeliveryHint && (
+                            <span className="shrink-0 text-[11px] whitespace-nowrap">
+                                <Kbd size="compact">Enter</Kbd>
+                                <span className="@max-[420px]:hidden">
+                                    {' '}
+                                    {t('agentChat.activity.enterHint')} ·{' '}
+                                </span>
+                                <span className="hidden @max-[420px]:inline"> </span>
+                                <Kbd size="compact">⌘Enter</Kbd>
+                                <span className="@max-[420px]:hidden">
+                                    {' '}
+                                    {t('agentChat.activity.steerHint')}
+                                </span>
+                            </span>
+                        )}
+                    </div>
                 </div>
             )}
             {notice && (

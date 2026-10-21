@@ -518,3 +518,29 @@ export function withOccurrenceKeys<T>(
 export function agentChatSkillLabel(name: string, t: Translate = translate): string {
     return name === CAXRI_SKILL_NAME ? t('agentChat.skill.caxri') : name;
 }
+
+/**
+ * How long a freshly shown approval card ignores pointer activation. The waiting popup swaps to the next request the
+ * moment the previous one is answered, so the second click of a double click lands on a different Chat's buttons.
+ */
+export const AGENT_CHAT_APPROVAL_ARM_DELAY_MS = 450;
+
+/**
+ * Whether a click on an approval button should be ignored because the card only just appeared. A click synthesized by
+ * the keyboard (`detail === 0`: Enter or Space on a focused button) passes, since the user deliberately tabbed there.
+ */
+export function isApprovalClickGuarded({
+    armDelayMs,
+    detail,
+    elapsedMs,
+}: {
+    armDelayMs: number;
+    /**
+     * `MouseEvent.detail`: the click count, 0 for a keyboard-synthesized click.
+     */
+    detail: number;
+    elapsedMs: number;
+}): boolean {
+    if (detail === 0 || armDelayMs <= 0) return false;
+    return elapsedMs < armDelayMs;
+}

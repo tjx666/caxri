@@ -1,23 +1,21 @@
-import { agentSideChatTabPath } from '@caxri/protocol';
 import { omit } from 'es-toolkit';
 
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { createStore } from '../../../lib/store';
-import { getBootstrap, getSessionState } from '../../../stores/selectors';
+import { getBootstrap } from '../../../stores/selectors';
 import { describeFailureNotice, tryCommand } from '../../../stores/toasts';
 import { refreshWorkbench } from '../../../stores/workbench';
 import { didSelectSession } from '../../session/session-commands';
-import { findPaneTabId } from '../../workbench/pane-actions';
 import { didSendAgentChatMessage } from '../agent-chat-commands';
 import type { SideChatExchange } from './agent-chat-side-thread';
 import { agentChatSideHistory, agentChatSideSeedPrompt } from './agent-chat-side-thread';
 
 interface AgentChatSideChatState {
     /**
-     * The side chat of each Chat Terminal. Renderer memory only: a side chat is never saved, and discarding it (closing
-     * its tab) forgets it for good. A store rather than component state so a tab that remounts (a Session switch, a
-     * pane move) keeps its answers and an answer that arrives while the tab is hidden still lands.
+     * The side chat of each Chat Terminal. Renderer memory only: a side chat is never saved, and it is forgotten once
+     * its Chat is gone (closing its tab keeps it). A store rather than component state so a tab that remounts (a
+     * Session switch, a pane move) keeps its answers and an answer that arrives while the tab is hidden still lands.
      */
     threads: Readonly<Partial<Record<string, readonly SideChatExchange[]>>>;
 }
@@ -81,6 +79,20 @@ export function isAgentChatSideChatBusy(exchanges: readonly SideChatExchange[]):
 }
 
 /**
+ * The threads whose Chat is still in the workbench. A Chat deleted while its side chat tab was closed never unmounts a
+ * tab that could discard it, so each new question sweeps those away; with no workbench loaded nothing is known gone.
+ */
+function threadsOfLiveChats(
+    threads: AgentChatSideChatState['threads'],
+): AgentChatSideChatState['threads'] {
+    const terminals = getBootstrap()?.terminals;
+    if (!terminals) return threads;
+    const live = new Set(terminals.map(({ id }) => id));
+    const gone = Object.keys(threads).filter((id) => !live.has(id));
+    return gone.length === 0 ? threads : omit(threads, gone);
+}
+
+/**
  * Adds `question` to the Chat's side chat and asks it. Resolves once the answer or the failure is recorded.
  */
 export async function askAgentChatSideQuestion(
@@ -97,7 +109,10 @@ export async function askAgentChatSideQuestion(
         status: 'pending',
     };
     useAgentChatSideChatStore.setState(({ threads }) => ({
-        threads: { ...threads, [terminalId]: [...(threads[terminalId] ?? []), exchange] },
+        threads: {
+            ...threadsOfLiveChats(threads),
+            [terminalId]: [...(threads[terminalId] ?? []), exchange],
+        },
     }));
     await answerExchange(terminalId, exchange);
 }
@@ -126,19 +141,14 @@ export function discardAgentChatSideChat(terminalId: string): void {
 }
 
 /**
- * Discards the side chat once its tab is really closed, called as the tab unmounts. An unmount alone proves nothing: a
- * Session switch unmounts every tab of the Session left behind, and a pane move remounts the tab. The tab is closed
- * when its Chat is gone, or when its Session is on screen and its layout no longer lists the tab.
+ * Discards the side chat once its Chat is gone, called as the tab unmounts (the next question sweeps up a Chat deleted
+ * while its tab was closed). Closing the tab alone keeps the thread: reopening the side chat for the same Chat
+ * (`Cmd+;`, `/btw`) shows it again. An unmount also proves little about the tab (a Session switch unmounts every tab of
+ * the Session left behind, and a pane move remounts it), so only the Chat's absence from the workbench counts.
  */
-export function discardAgentChatSideChatIfClosed(terminalId: string): void {
-    const bootstrap = getBootstrap();
-    const terminal = bootstrap?.terminals.find(({ id }) => id === terminalId);
-    const isTabOpen = findPaneTabId({ kind: 'file', path: agentSideChatTabPath(terminalId) });
-    const isSessionShown =
-        terminal !== undefined &&
-        getSessionState() !== undefined &&
-        bootstrap?.selectedSessionId === terminal.sessionId;
-    if (!terminal || (isSessionShown && !isTabOpen)) discardAgentChatSideChat(terminalId);
+export function discardAgentChatSideChatIfChatGone(terminalId: string): void {
+    const terminal = getBootstrap()?.terminals.find(({ id }) => id === terminalId);
+    if (!terminal) discardAgentChatSideChat(terminalId);
 }
 
 /**

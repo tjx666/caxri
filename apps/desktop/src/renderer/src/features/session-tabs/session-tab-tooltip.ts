@@ -7,6 +7,10 @@ import type { Translate } from '../../i18n';
 export function sessionTabTooltip(
     input: {
         agentLabel: string;
+        /**
+         * The tab is the window's Preview entry, which the next plain selection replaces.
+         */
+        isPreview?: boolean;
         projectTitle?: string;
         /**
          * Short status sentence, for example `Working` or `Unread, finished`.
@@ -30,6 +34,7 @@ export function sessionTabTooltip(
             t('sessionTabs.tooltip.worktree', { value: input.workingLocation }),
         input.statusLabel && t('sessionTabs.tooltip.status', { value: input.statusLabel }),
         input.shortcutDigit && t('sessionTabs.tooltip.shortcut', { key: input.shortcutDigit }),
+        input.isPreview && t('sessionTabs.tooltip.preview'),
     ];
     return lines.filter(Boolean).join('\n');
 }
