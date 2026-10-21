@@ -1,6 +1,6 @@
 import type { AgentChatActivity, AgentChatSnapshot } from '@caxri/protocol';
 
-import { AgentChatActivityBar } from '../agent-chat-activity-bar';
+import { AgentChatActivityBar } from '../activity/agent-chat-activity-bar';
 import { AgentChatContextAlerts } from '../context/agent-chat-context-alerts';
 import { AgentChatPlanPaceAlert } from '../tools/agent-chat-plan-pace-alert';
 import type { AgentChatEditBarProperties } from './agent-chat-edit-bar';

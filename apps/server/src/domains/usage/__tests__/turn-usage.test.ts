@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ChatTurnResponse } from '../chat-turn-usage';
-import { ChatTurnUsage, claudeTurnResponse, codexTurnResponse } from '../chat-turn-usage';
+import type { ChatTurnResponse } from '../turn-usage';
+import { ChatTurnUsage, claudeTurnResponse, codexTurnResponse } from '../turn-usage';
 
 function spend(usage: ChatTurnUsage, turnId: string | undefined, response?: ChatTurnResponse) {
     const operation = usage.add(turnId, response);

@@ -1,9 +1,13 @@
-import type { AgentChatPatchOperation, AgentChatTurnUsage } from '@caxri/protocol';
+import type {
+    AgentChatPatchOperation,
+    AgentChatSnapshot,
+    AgentChatTurnUsage,
+} from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
-import type { UsageTokens } from '../usage';
-import { contextFloorK, estimateResponseUsd } from '../usage';
-import type { AgentChatSessionHost } from './chat-provider';
+import type { UsageTokens } from './accumulator';
+import { estimateResponseUsd } from './pricing';
+import { contextFloorK } from './record';
 
 /**
  * Responses of one turn whose usage is remembered so a repeated report adds only its growth; far above what one turn
@@ -155,7 +159,10 @@ export class ChatTurnUsage {
      * Adds one response to the host's active turn and applies what changed.
      */
     record(
-        host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
+        host: {
+            read: () => Pick<AgentChatSnapshot, 'activeTurnId'>;
+            apply: (operations: AgentChatPatchOperation[]) => void;
+        },
         response: ChatTurnResponse | undefined,
     ): void {
         const operation = this.add(host.read().activeTurnId, response);

@@ -4,10 +4,10 @@ import type { AgentChatTurnUsage } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import { CircleDollarSign, Coins, Footprints } from 'lucide-react';
 
-import { Tooltip } from '../../components/ui/tooltip';
-import type { Translate } from '../../i18n';
-import { useTranslation } from '../../i18n';
-import { cn } from '../../lib/utilities';
+import { Tooltip } from '../../../components/ui/tooltip';
+import type { Translate } from '../../../i18n';
+import { useTranslation } from '../../../i18n';
+import { cn } from '../../../lib/utilities';
 import type { AgentChatTurnMetric, AgentChatTurnMetricKind } from './agent-chat-turn-metrics';
 import { agentChatTurnMetrics } from './agent-chat-turn-metrics';
 

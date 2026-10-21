@@ -2,14 +2,14 @@ import type { AgentChatActivity } from '@caxri/protocol';
 import { formatNoticeableDuration } from '@caxri/protocol';
 import { Info, MessageCircleQuestionMark } from 'lucide-react';
 
-import { Kbd } from '../../components/ui/kbd';
-import { Spinner } from '../../components/ui/spinner';
-import { useTranslation } from '../../i18n';
-import { cn } from '../../lib/utilities';
+import { Kbd } from '../../../components/ui/kbd';
+import { Spinner } from '../../../components/ui/spinner';
+import { useTranslation } from '../../../i18n';
+import { cn } from '../../../lib/utilities';
+import { useIsAgentChatStopping } from '../hooks/use-agent-chat-stop';
+import { useClockTick } from '../hooks/use-clock-tick';
+import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../loading';
 import { AgentChatTurnMetricList } from './agent-chat-turn-metric-list';
-import { useIsAgentChatStopping } from './hooks/use-agent-chat-stop';
-import { useClockTick } from './hooks/use-clock-tick';
-import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from './loading';
 
 /**
  * What leads the working row: Buddy acting out the turn's current work, the live glyph of the tool it runs, or the

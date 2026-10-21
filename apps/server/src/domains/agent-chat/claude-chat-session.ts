@@ -17,6 +17,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import { ChatTurnUsage, claudeTurnResponse } from '../usage';
 import { clip, isRecord, slashCommandPrompt, stringField } from './chat-items';
 import type {
     AgentChatDriver,
@@ -32,7 +33,6 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { ChatTurnUsage, claudeTurnResponse } from './chat-turn-usage';
 import { claudeResponseUsage } from './claude-context';
 import { ClaudeContextTracker } from './claude-context-report';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
