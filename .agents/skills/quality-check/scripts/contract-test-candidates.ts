@@ -8,9 +8,24 @@
  */
 
 /**
+ * Every runtime-scanning contract test that the changed and removed paths could break.
+ */
+export function contractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [
+        ...rendererContractTestCandidates(files),
+        ...serverDomainContractTestCandidates(files),
+        ...pathReferenceContractTestCandidates(files, removedFiles),
+        ...dependencyManifestContractTestCandidates(files),
+    ];
+}
+
+/**
  * Renderer contracts scan source files at runtime, so import-based test discovery cannot find them.
  */
-export function rendererContractTestCandidates(files: string[]): string[] {
+function rendererContractTestCandidates(files: readonly string[]): string[] {
     if (
         files.every((file) => !file.replaceAll('\\', '/').startsWith('apps/desktop/src/renderer/'))
     ) {
@@ -27,7 +42,7 @@ export function rendererContractTestCandidates(files: string[]): string[] {
  * The Runtime domain structure test scans the source tree instead of importing it, so the import graph never selects
  * it; a cross-domain import it rejects once passed every local gate and failed only CI's full suite.
  */
-export function serverDomainContractTestCandidates(files: string[]): string[] {
+function serverDomainContractTestCandidates(files: readonly string[]): string[] {
     return files.some((file) => file.replaceAll('\\', '/').startsWith('apps/server/src/domains/'))
         ? ['apps/server/src/domains/__tests__/structure.test.ts']
         : [];
@@ -58,11 +73,27 @@ const PATH_REFERENCE_CONFIGS = new Set(['components.json', 'doctor.config.jsonc'
  * see. Removing or renaming a source file can leave either config stale without touching it, so any removed path, or an
  * edit to either config, selects the path contract CI's full suite would otherwise be the first to run.
  */
-export function pathReferenceContractTestCandidates(
+function pathReferenceContractTestCandidates(
     files: readonly string[],
     removedFiles: readonly string[],
 ): string[] {
     return removedFiles.length > 0 || files.some((file) => PATH_REFERENCE_CONFIGS.has(file))
         ? ['scripts/__tests__/doctor-config-paths.test.ts']
+        : [];
+}
+
+const DEPENDENCY_MANIFESTS = new Set(['package.json', 'pnpm-workspace.yaml']);
+
+/**
+ * The dependency and toolchain contracts read the root manifests at runtime. `patchedDependencies` keys carry exact
+ * versions, so a dependency upgrade that edited only `pnpm-workspace.yaml` once passed every focused gate and failed
+ * first in CI's full suite.
+ */
+function dependencyManifestContractTestCandidates(files: readonly string[]): string[] {
+    return files.some((file) => DEPENDENCY_MANIFESTS.has(file))
+        ? [
+              'scripts/__tests__/toolchain-contract.test.ts',
+              'scripts/__tests__/workspace-dependency-contract.test.ts',
+          ]
         : [];
 }

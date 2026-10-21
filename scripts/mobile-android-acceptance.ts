@@ -40,6 +40,8 @@ import {
     shouldCaptureAdapterScreenshot,
     shouldCollectAndroidVideo,
 } from './mobile-android-cases';
+import { createAndroidAcceptanceDesktopLease } from './mobile-android-desktop-lease';
+import { readAndroidScenarioArtifacts } from './mobile-android-scenario-artifacts';
 
 const root = resolve(import.meta.dirname, '..');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
@@ -63,6 +65,12 @@ const caseIds = parseMobileAndroidCaseIds(
 const OVERALL_TIMEOUT_MS = 90 * 60_000;
 const CLEANUP_RESERVE_MS = 2 * 60_000;
 const BUILD_TIMEOUT_MS = 12 * 60_000;
+/**
+ * The Gradle release build gets its own budget. After a React Native or Android Gradle Plugin upgrade the first build
+ * compiles every native module from scratch: one cold build was killed in R8 at 12 minutes, while the warm rebuild took
+ * under 4.
+ */
+const ANDROID_RELEASE_BUILD_TIMEOUT_MS = 30 * 60_000;
 const E2E_TIMEOUT_MS = 8 * 60_000;
 const DEVICE_TIMEOUT_MS = 30_000;
 const SOURCE_TIMEOUT_MS = 10_000;
@@ -278,37 +286,6 @@ function executePlaywrightScenario(
     );
 }
 
-async function readScenarioArtifacts(caseId: MobileAndroidAcceptanceCaseId): Promise<string[]> {
-    const path = join(reportDirectory, 'assets', `${caseId}-artifact-manifest.json`);
-    try {
-        const manifest = JSON.parse(await readFile(path, 'utf8')) as {
-            artifacts: string[];
-            schemaVersion: number;
-        };
-        if (
-            manifest.schemaVersion !== 1 ||
-            !Array.isArray(manifest.artifacts) ||
-            manifest.artifacts.some(
-                (artifact) =>
-                    !artifact.startsWith(`assets/${caseId}-`) || !artifact.endsWith('.png'),
-            )
-        ) {
-            throw new Error('Android scenario artifact manifest is invalid');
-        }
-        return manifest.artifacts;
-    } catch (error: unknown) {
-        if (
-            typeof error === 'object' &&
-            error !== null &&
-            'code' in error &&
-            error.code === 'ENOENT'
-        ) {
-            return [];
-        }
-        throw error;
-    }
-}
-
 async function executeCase(
     caseId: MobileAndroidAcceptanceCaseId,
     sourceCommit: string,
@@ -387,7 +364,7 @@ async function executeCase(
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
         await executeBuiltInScenario(caseId, launchId, remoteVideoPath, sourceCommit);
-        const scenarioArtifacts = await readScenarioArtifacts(caseId);
+        const scenarioArtifacts = await readAndroidScenarioArtifacts(reportDirectory, caseId);
         for (const artifactPath of scenarioArtifacts) {
             // Sequential hashing preserves frozen artifact order and bounds device evidence memory.
             // eslint-disable-next-line no-await-in-loop
@@ -597,6 +574,7 @@ await withRepoLock(
         let setupFailure: unknown;
         let apkSha256: string | undefined;
         let cleanupFixtureIme: (() => Promise<void>) | undefined;
+        const desktopLease = createAndroidAcceptanceDesktopLease(root);
         try {
             run('bun', ['run', 'build'], BUILD_TIMEOUT_MS);
             run(
@@ -617,13 +595,14 @@ await withRepoLock(
                     '--variant',
                     'release',
                 ],
-                BUILD_TIMEOUT_MS,
+                ANDROID_RELEASE_BUILD_TIMEOUT_MS,
                 acceptanceBuildEnvironment,
             );
             adbRun(['install', '-r', releaseApk]);
             apkSha256 = createHash('sha256')
                 .update(await readFile(releaseApk))
                 .digest('hex');
+            await desktopLease.claim();
             const deviceCommands = {
                 readDevice: adbRead,
                 runDevice: (arguments_: string[]) => adbRun(arguments_),
@@ -642,6 +621,7 @@ await withRepoLock(
             setupFailure = error;
         }
         if (setupFailure) {
+            await desktopLease.release();
             let receiptFailure: unknown;
             for (const caseId of caseIds) {
                 try {
@@ -669,6 +649,12 @@ await withRepoLock(
             }
         } catch (error) {
             caseFailure = error;
+        }
+        try {
+            await desktopLease.release();
+        } catch (error) {
+            // The fixture IME must still be restored on the device when the lease release fails.
+            caseFailure ??= error;
         }
         let imeCleanupFailure: unknown;
         try {

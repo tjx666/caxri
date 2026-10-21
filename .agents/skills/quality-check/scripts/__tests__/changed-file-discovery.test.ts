@@ -89,6 +89,24 @@ describe('removed-path test selection', () => {
     });
 });
 
+describe('dependency manifest contract selection', () => {
+    it('runs the manifest-reading contracts when a root dependency manifest changes', async () => {
+        const contract = 'scripts/__tests__/workspace-dependency-contract.test.ts';
+
+        await expect(
+            selectedTestCandidates(process.cwd(), ['pnpm-workspace.yaml']),
+        ).resolves.toEqual(
+            expect.arrayContaining([contract, 'scripts/__tests__/toolchain-contract.test.ts']),
+        );
+        await expect(selectedTestCandidates(process.cwd(), ['package.json'])).resolves.toContain(
+            contract,
+        );
+        await expect(
+            selectedTestCandidates(process.cwd(), ['apps/mobile/package.json']),
+        ).resolves.not.toContain(contract);
+    });
+});
+
 describe('design-prototype runtime contract selection', () => {
     it('runs the prototype runtime manifest test for a Renderer ui primitive or shared hook change', async () => {
         const contract = '.agents/skills/design-prototype/scripts/build-runtime.test.ts';

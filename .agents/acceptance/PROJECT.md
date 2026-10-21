@@ -160,7 +160,9 @@ comma-separated batch. The plan item must use `surface: "mobile"`, `stateIsolati
 `assets/<case-id>-result.json`, plus the framebuffer media that the device receipt lists, in
 `cases[].evidence`. The runner owns one bounded `screenrecord` process and captures the final PNG
 directly from the device framebuffer before cleanup. Every child command is bounded by a stage
-timeout and the overall run deadline. A clean retry atomically replaces its prior result receipts,
+timeout and the overall run deadline. After the release build, the runner claims the desktop lease
+itself (waiting up to 20 minutes for a sibling owner) and every case in the batch inherits it, so do
+not wrap the command in `switch-worktree desktop`: that would hold the lease through the build. A clean retry atomically replaces its prior result receipts,
 and finalization binds them to the report commit and final lifecycle launch. Do not use this command
 on a physical device; its data reset is intentionally emulator-only.
 

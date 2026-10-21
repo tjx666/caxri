@@ -33,12 +33,12 @@ export const resolveAndroidToolchain = (): AndroidToolchain => {
     const requiredNdkVersion = parseReactNativeNdkVersion(reactNativeVersionCatalog);
     const requiredPlatformVersion = parseReactNativeCompileSdkVersion(reactNativeVersionCatalog);
     /**
-     * Expo's Android library modules use AGP 8.12's 35.0.0 default, while the React Native app module explicitly uses
-     * 36.0.0. Both must be installed. See
-     * https://developer.android.com/build/releases/past-releases/agp-8-12-0-release-notes
+     * Expo's Android library modules declare no Build Tools version and use AGP 9.2's 36.0.0 default, while the React
+     * Native app module pins the version from its catalog. Both must be installed. See
+     * https://developer.android.com/build/releases/agp-9-2-0-release-notes
      */
     const requiredBuildToolsVersions = [
-        '35.0.0',
+        '36.0.0',
         parseReactNativeBuildToolsVersion(reactNativeVersionCatalog),
     ];
     /**
@@ -50,10 +50,10 @@ export const resolveAndroidToolchain = (): AndroidToolchain => {
     const requiredCmakeVersions = ['3.22.1'];
 
     /**
-     * AGP 8.12 requires and defaults to JDK 17. Newer Android Studio previews can bundle a newer JBR whose
-     * native-access warning is treated as a Prefab failure, so compatibility is checked before Gradle starts.
+     * AGP 9.2 requires and defaults to JDK 17. Newer Android Studio previews can bundle a newer JBR whose native-access
+     * warning is treated as a Prefab failure, so compatibility is checked before Gradle starts.
      *
-     * @see https://developer.android.com/build/releases/past-releases/agp-8-12-0-release-notes#compatibility
+     * @see https://developer.android.com/build/releases/agp-9-2-0-release-notes#compatibility
      */
     const isJdk17 = (javaHome: string): boolean => {
         const result = spawnSync(join(javaHome, 'bin', 'java'), ['-version'], {

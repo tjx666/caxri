@@ -15,11 +15,7 @@ import { CommandError } from '../../switch-worktree/scripts/process';
 import { runChangedFileGuardrails } from './changed-file-guardrails';
 import type { DirtyLayer } from './changed-file-layers';
 import { dirtyLayerReportForFiles, TYPE_AWARE_EXTENSIONS } from './changed-file-layers';
-import {
-    pathReferenceContractTestCandidates,
-    rendererContractTestCandidates,
-    serverDomainContractTestCandidates,
-} from './contract-test-candidates';
+import { contractTestCandidates } from './contract-test-candidates';
 import { shouldRunKnip, shouldTypecheck } from './default-gates';
 import {
     directImportTestCandidates,
@@ -515,9 +511,7 @@ export async function selectedTestCandidates(
             ...files.flatMap(testCandidatesForFile),
             ...(await directImportTestCandidates(root, files)),
             ...(await skillContractTestCandidates(root, files)),
-            ...rendererContractTestCandidates(files),
-            ...serverDomainContractTestCandidates(files),
-            ...pathReferenceContractTestCandidates(files, removedFiles),
+            ...contractTestCandidates(files, removedFiles),
         ]),
     ];
     return existingFiles(root, candidates);
