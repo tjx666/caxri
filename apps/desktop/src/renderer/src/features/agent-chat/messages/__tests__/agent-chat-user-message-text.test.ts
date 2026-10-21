@@ -29,6 +29,42 @@ describe('agentChatUserMessageSegments', () => {
         ]);
     });
 
+    it('draws whole-word absolute paths as pills, a trailing slash marking a folder', () => {
+        expect(
+            agentChatUserMessageSegments(
+                "/btw is /repo/.local-config/ or '/repo/my notes.md' like /repo/a.ts:12 here",
+                { withFiles: true },
+            ),
+        ).toEqual([
+            { kind: 'text', text: '/btw is ' },
+            {
+                kind: 'path',
+                text: '/repo/.local-config/',
+                path: '/repo/.local-config',
+                isDirectory: true,
+            },
+            { kind: 'text', text: ' or ' },
+            {
+                kind: 'path',
+                text: "'/repo/my notes.md'",
+                path: '/repo/my notes.md',
+                isDirectory: false,
+            },
+            { kind: 'text', text: ' like ' },
+            { kind: 'file', text: '/repo/a.ts:12', file: '/repo/a.ts:12' },
+            { kind: 'text', text: ' here' },
+        ]);
+        expect(agentChatUserMessageSegments('see /repo/src/app.ts', { withFiles: false })).toEqual([
+            { kind: 'text', text: 'see ' },
+            {
+                kind: 'path',
+                text: '/repo/src/app.ts',
+                path: '/repo/src/app.ts',
+                isDirectory: false,
+            },
+        ]);
+    });
+
     it("marks the placeholders of the message's own images", () => {
         expect(
             agentChatUserMessageSegments('compare [Image #1] with [Image #3]', {

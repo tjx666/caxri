@@ -34,7 +34,7 @@ describe('agentChatDropPathPills', () => {
         const folder = transfer();
         startFilePathDrag(folder, '/repo/.githooks', true, true);
         expect(agentChatDropPathPills(drop(folder))).toEqual([
-            { kind: 'directory', path: '/repo/.githooks', token: '/repo/.githooks' },
+            { kind: 'directory', path: '/repo/.githooks', token: '/repo/.githooks/' },
         ]);
         const file = transfer();
         startFilePathDrag(file, '/repo/my notes.md', false);

@@ -17,7 +17,7 @@ import {
  * (`agent-chat-path-pills.ts`). The drop carries the same types the Files tree's `startFilePathDrag` writes.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Files folder dropped into Agent Chat shows as a pill and keeps its absolute path', async ({}, testInfo) => {
+test('a Files folder dropped into Agent Chat shows as a pill, keeps its absolute path, and stays a pill once sent', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-path-pill-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -46,12 +46,20 @@ test('a Files folder dropped into Agent Chat shows as a pill and keeps its absol
                 );
         }, hooks);
 
-        await expectComposerValue(message, `look at ${hooks} `);
+        // A folder's path ends in `/`, which is how the sent message still knows to draw a folder.
+        await expectComposerValue(message, `look at ${hooks}/ `);
         const pill = chat.locator('.cm-path-pill');
         await expect(pill).toHaveText('.githooks');
         await expect(pill).toHaveAttribute('title', hooks);
         await expect(pill.locator('img')).toHaveAttribute('src', /folder/u);
         await chat.screenshot({ path: testInfo.outputPath('chat-path-pill.png') });
+
+        await message.press('Enter');
+        const sent = chat.locator(`[data-agent-chat-path-pill="${hooks}"]`);
+        await expect(sent).toHaveText('.githooks');
+        await expect(sent.locator('img')).toHaveAttribute('src', /folder/u);
+        await expect(chat.getByText(`You said: look at ${hooks}/`)).toBeVisible();
+        await chat.screenshot({ path: testInfo.outputPath('chat-path-pill-sent.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

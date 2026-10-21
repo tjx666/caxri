@@ -9,8 +9,9 @@ import {
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
 
 /**
- * A Files entry, Editor tab, or Project dropped into the composer: the composer writes `token` (the absolute path,
- * shell-quoted only when it needs to be) into the draft and draws it as a pill with the entry's icon and name.
+ * A Files entry, Editor tab, or Project dropped into the composer: the composer writes `token` (the absolute path, with
+ * a trailing `/` for a folder, shell-quoted only when it needs to be) into the draft and draws it as a pill with the
+ * entry's icon and name.
  */
 export interface AgentChatPathPill {
     kind: 'directory' | 'file';
@@ -37,7 +38,12 @@ export function agentChatDropPathPills(event: DragEvent): AgentChatPathPill[] {
             }));
     return references.map((reference) => ({
         ...reference,
-        token: terminalInputPath(reference.path),
+        // A folder ends in `/`, so the sent message still draws it as a folder (`agentChatUserMessageSegments`).
+        token: terminalInputPath(
+            reference.kind === 'directory' && !reference.path.endsWith('/')
+                ? `${reference.path}/`
+                : reference.path,
+        ),
     }));
 }
 

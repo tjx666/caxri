@@ -10,7 +10,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { linkSummary } from '../../../lib/link-summary';
 import { cn } from '../../../lib/utilities';
-import { AgentChatImagePill } from '../attachments/agent-chat-image-pill';
+import { AgentChatImagePill, AgentChatPathPill } from '../attachments/agent-chat-image-pill';
 import { AgentChatMessageImages } from '../attachments/agent-chat-message-images';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
 import { AgentChatInvocationChip } from '../composer/agent-chat-invocation-chip';
@@ -239,6 +239,15 @@ function UserMessageText({
                     key={position}
                     number={segment.number}
                     thumbnail={images?.[segment.index]?.thumbnail}
+                />
+            );
+        if (segment.kind === 'path')
+            return (
+                <AgentChatPathPill
+                    isDirectory={segment.isDirectory}
+                    key={position}
+                    onOpen={onOpenFile}
+                    path={segment.path}
                 />
             );
         if (segment.kind === 'file')

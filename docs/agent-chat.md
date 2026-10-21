@@ -1258,8 +1258,10 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
   Editor tab, or a Project dragged from inside Caxri is inserted at the caret as its absolute path
   (shell-quoted only when needed), drawn as an atomic pill with its file-type icon and name; the
-  message carries the path itself (`agent-chat-path-pills.ts`). A Terminal drop still writes the
-  path relative to where the Terminal stands.
+  message carries the path itself (`agent-chat-path-pills.ts`), a folder's with a trailing `/`.
+  The sent bubble draws each whole-word absolute path as the same pill (a trailing `/` picks the
+  folder icon) and opens it like a file link; a path with a `:line` suffix stays a file link. A
+  Terminal drop still writes the path relative to where the Terminal stands.
 - **Caxri skill.** Caxri skill in `+` attaches a skill card to the tray (an icon tile, `Caxri
 skill`, and `Skill`), so a request such as "open a Session for this" needs no prompt about the
   CLI. The row is a checkbox: choosing it again removes the card, and one message carries the card
