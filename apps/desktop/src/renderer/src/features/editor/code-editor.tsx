@@ -33,6 +33,10 @@ export interface CodeEditorProperties {
     theme: ThemeTokens;
     readOnly?: boolean;
     onChange: (content: string | undefined) => void;
+    /**
+     * Called when the editor widget loses focus, including when the whole window does.
+     */
+    onBlur?: () => void;
 }
 
 type MonacoCodeEditor = Parameters<OnMount>[0];
@@ -79,11 +83,18 @@ export function CodeEditor({
     theme,
     readOnly,
     onChange,
+    onBlur,
 }: CodeEditorProperties) {
     const editorReference = useRef<Parameters<OnMount>[0] | null>(null);
     const registrationReference = useRef<(() => void) | undefined>(undefined);
     const cursorSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
     const scrollSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
+    const blurSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
+    /**
+     * The latest callback, read when Monaco reports the blur, so the subscription made once in `onMount` never calls a
+     * stale closure for a previous document.
+     */
+    const onBlurReference = useRef(onBlur);
     const programmaticChangeReference = useRef(false);
     const statusKeyReference = useRef(statusKey);
     const language = resolveEditorLanguage(path);
@@ -108,6 +119,9 @@ export function CodeEditor({
     useEffect(() => {
         foldOnOpenThresholdReference.current = foldOnOpenLineThreshold;
     }, [foldOnOpenLineThreshold]);
+    useEffect(() => {
+        onBlurReference.current = onBlur;
+    }, [onBlur]);
     useEffect(() => applyEditorTheme(theme), [theme]);
     /**
      * Scroll position and cursor outlive the widget that showed them. The two halves run in different effect phases on
@@ -179,6 +193,7 @@ export function CodeEditor({
         () => () => {
             cursorSubscriptionReference.current?.dispose();
             scrollSubscriptionReference.current?.dispose();
+            blurSubscriptionReference.current?.dispose();
         },
         [],
     );
@@ -202,6 +217,10 @@ export function CodeEditor({
                 scrollSubscriptionReference.current?.dispose();
                 scrollSubscriptionReference.current = editor.onDidScrollChange(() =>
                     publishScrollPosition(editor),
+                );
+                blurSubscriptionReference.current?.dispose();
+                blurSubscriptionReference.current = editor.onDidBlurEditorWidget(() =>
+                    onBlurReference.current?.(),
                 );
                 restoreEditorViewState(editor, editorInstanceId);
                 registrationReference.current?.();

@@ -47,6 +47,8 @@ function installDirtyDocument(path: string): void {
             ],
             sessionStates: [sessionState],
             terminals: [],
+            // Off, so closing a dirty tab asks Save/Don't Save/Cancel instead of saving on its own.
+            settings: { 'files.autoSave': 'off' },
         } as unknown as BootstrapState,
     });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });

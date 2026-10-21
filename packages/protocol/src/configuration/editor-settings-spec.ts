@@ -6,6 +6,24 @@ import type { SettingSpec } from './settings-spec.js';
  */
 export const editorSettingsSpec = [
     {
+        kind: 'enum',
+        key: 'files.autoSave',
+        title: 'Auto save',
+        description: 'Save a changed file automatically instead of waiting for Save',
+        category: 'editor',
+        keywords: ['save', 'auto save', 'autosave', 'focus', 'blur', 'dirty', 'unsaved'],
+        options: [
+            { value: 'off', label: 'Off' },
+            { value: 'onFocusChange', label: 'When the editor loses focus' },
+        ],
+        /*
+         * Agents edit the same files in parallel, so a buffer left dirty after the user moves on drifts from disk and
+         * later conflicts with the Agent's write. Saving on focus change keeps the file on disk current without saving
+         * on every keystroke the way `afterDelay` would. The key and values follow VS Code's `files.autoSave`.
+         */
+        default: 'onFocusChange',
+    },
+    {
         kind: 'string',
         key: 'editor.fontFamily',
         title: 'Font family',

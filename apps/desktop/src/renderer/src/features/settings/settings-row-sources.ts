@@ -290,6 +290,7 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('terminal.wordSeparators'),
     specRow('terminal.referenceLinks', { binding: { type: 'terminal-reference-links' } }),
     specRow('terminal.defaultWorkingDirectory'),
+    specRow('files.autoSave'),
     specRow('editor.fontFamily'),
     specRow('editor.fontSize'),
     specRow('editor.wordWrap'),

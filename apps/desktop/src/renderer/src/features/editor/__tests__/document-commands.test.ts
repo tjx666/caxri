@@ -1,4 +1,4 @@
-import type { BootstrapState, SessionState } from '@caxri/protocol';
+import type { SessionState } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -15,11 +15,8 @@ vi.mock('../editor-reveal', () => ({
 
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { findPaneTabId } from '../../workbench/pane-actions';
 import {
     changeDocument,
-    closeDocumentTabFamily,
-    closeDocumentTabs,
     openEditorTab,
     openFile,
     openFileForSession,
@@ -27,151 +24,14 @@ import {
     saveActiveEditor,
 } from '../document-commands';
 import { closeOpenEditorsUnderPath } from '../document-trash';
-
-type PaneLayoutTabSpec = { path: string; preview?: boolean } | { terminalId: string };
-
-/**
- * A single-pane layout with one tab per entry, in the given order; these tests only care that a document action
- * rewrites the pane's tabs, not about the tree's shape. A bare string is a document path, and a `terminalId` entry
- * places a Terminal in the same rail so mixed-pane close rules can be exercised.
- */
-function paneLayout(
-    tabs: ReadonlyArray<string | PaneLayoutTabSpec>,
-    activeIndex = 0,
-): SessionState['paneLayout'] {
-    const specs = tabs.map((tab) => (typeof tab === 'string' ? { path: tab } : tab));
-    return {
-        root: {
-            type: 'pane',
-            id: 'pane-1',
-            tabs: specs.map((spec, index) => ({
-                id: `tab-${index}`,
-                ...('terminalId' in spec
-                    ? { resource: { kind: 'terminal' as const, terminalId: spec.terminalId } }
-                    : {
-                          resource: { kind: 'file' as const, path: spec.path },
-                          ...(spec.preview && { preview: true }),
-                      }),
-            })),
-            ...(specs.length > 0 && { activeTabId: `tab-${activeIndex}` }),
-        },
-        activePaneId: 'pane-1',
-    };
-}
-
-function paneTabs(state: SessionState): Array<{ id: string; path: string }> {
-    const pane = state.paneLayout.root;
-    if (pane.type !== 'pane') throw new Error('Expected a single-pane layout');
-    return pane.tabs.map((tab) => ({
-        id: tab.id,
-        path: tab.resource.kind === 'file' ? tab.resource.path : tab.resource.terminalId,
-    }));
-}
-
-function paneTabPaths(state: SessionState): string[] {
-    return paneTabs(state).map((tab) => tab.path);
-}
-
-function activePaneTabPath(state: SessionState): string | undefined {
-    const pane = state.paneLayout.root;
-    if (pane.type !== 'pane') throw new Error('Expected a single-pane layout');
-    return paneTabs(state).find((tab) => tab.id === pane.activeTabId)?.path;
-}
-
-/**
- * Closes the given path's own tab in the currently selected Session, mirroring the single-tab close UI action (the
- * tab's own close button, Cmd+W).
- */
-async function closeEditor(path: string): Promise<void> {
-    const tabId = findPaneTabId({ kind: 'file', path });
-    if (tabId) await closeDocumentTabs([tabId]);
-}
-
-/**
- * Closes every tab in the given path's own pane, mirroring the Close All context-menu action.
- */
-async function closeAllEditors(path: string): Promise<void> {
-    const tabId = findPaneTabId({ kind: 'file', path });
-    if (tabId) await closeDocumentTabFamily(tabId, 'all');
-}
-
-const sessionState = (sessionId: string, path: string): SessionState => ({
-    sessionId,
-    revision: 0,
-    workbenchProjectId: 'project-1',
-    desiredSecondarySidebarViewContainerId: 'caxri.files',
-    paneLayout: paneLayout([path]),
-});
-
-function installSessions(
-    originPath: string,
-    selectedSessionId = 'session-2',
-    secondSessionPath = '/other/session.ts',
-): void {
-    useWorkbenchStore.setState({
-        bootstrap: {
-            selectedSessionId,
-            sessions: [
-                {
-                    id: 'session-1',
-                    projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
-                },
-                {
-                    id: 'session-2',
-                    projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
-                },
-            ],
-            sessionStates: [
-                sessionState('session-1', originPath),
-                sessionState('session-2', secondSessionPath),
-            ],
-            terminals: [],
-        } as unknown as BootstrapState,
-    });
-    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
-    useSessionViewStore.getState().cacheDocument('session-1', {
-        path: originPath,
-        content: 'unsaved',
-        dirty: true,
-        mtimeMs: 1,
-        size: 7,
-    });
-    useSessionViewStore.getState().cacheDocument('session-2', {
-        path: secondSessionPath,
-        content: 'other unsaved',
-        dirty: true,
-        mtimeMs: 1,
-        size: 13,
-    });
-}
-
-function installEmptySession(): void {
-    useWorkbenchStore.setState({
-        bootstrap: {
-            selectedSessionId: 'session-1',
-            sessions: [
-                {
-                    id: 'session-1',
-                    projectId: 'project-1',
-                    workbenchProjectId: 'project-1',
-                },
-            ],
-            sessionStates: [
-                {
-                    sessionId: 'session-1',
-                    revision: 0,
-                    workbenchProjectId: 'project-1',
-                    desiredSecondarySidebarViewContainerId: 'caxri.files',
-                    paneLayout: paneLayout([]),
-                },
-            ],
-            terminals: [],
-        } as unknown as BootstrapState,
-    });
-    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
-}
+import {
+    activePaneTabPath,
+    closeEditor,
+    installEmptySession,
+    installSessions,
+    paneLayout,
+    paneTabPaths,
+} from './document-commands.fixture';
 
 it('does not edit or send a save request for a read-only dependency document', async () => {
     const path = '/project/node_modules/example/index.d.ts';
@@ -209,27 +69,6 @@ it('keeps edits in the pane Session when another Session is selected', () => {
         dirty: true,
     });
 });
-
-/**
- * An empty Session whose single pane is then filled with the given tabs, for the cases that need a specific rail rather
- * than the one-document-per-Session shape `installSessions` builds.
- */
-function installPaneLayout(tabs: ReadonlyArray<string | PaneLayoutTabSpec>, activeIndex = 0): void {
-    installEmptySession();
-    useWorkbenchStore.setState((state) => ({
-        bootstrap: state.bootstrap
-            ? {
-                  ...state.bootstrap,
-                  sessionStates: [
-                      {
-                          ...state.bootstrap.sessionStates[0],
-                          paneLayout: paneLayout(tabs, activeIndex),
-                      },
-                  ],
-              }
-            : undefined,
-    }));
-}
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
     const { promise, resolve } = Promise.withResolvers<T>();
@@ -492,6 +331,23 @@ describe('session-scoped file mutation completion', () => {
         expect(mocks.queueEditorNavigation).not.toHaveBeenCalled();
     });
 
+    it('reopening a file with unsaved edits keeps the buffer instead of the copy on disk', async () => {
+        installSessions('/project/target.ts', 'session-1', '/project/other.ts');
+        mocks.request.mockResolvedValueOnce({
+            content: 'disk',
+            mtimeMs: 2,
+            path: '/project/target.ts',
+            size: 4,
+        });
+
+        await openFile('/project/target.ts');
+
+        expect(getSessionDocuments('session-1')?.['/project/target.ts']).toMatchObject({
+            content: 'unsaved',
+            dirty: true,
+        });
+    });
+
     it('keeps newer dirty content when a save completes after the file moved', async () => {
         installSessions('/project/source.ts', 'session-1');
         const write = deferred<{ content: string; mtimeMs: number; path: string; size: number }>();
@@ -545,160 +401,6 @@ describe('session-scoped file mutation completion', () => {
         await saving;
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([worktreeState]);
-    });
-});
-
-describe('closing a dirty editor tab', () => {
-    it('aborts the close and keeps the tab open when the user cancels the discard confirmation', async () => {
-        installSessions('/project/dirty.ts', 'session-1');
-        mocks.request.mockImplementation((method) =>
-            method === 'editor.confirmDiscard'
-                ? Promise.resolve({ choice: 'cancel' })
-                : Promise.resolve(null),
-        );
-
-        await closeEditor('/project/dirty.ts');
-
-        expect(mocks.request).toHaveBeenCalledWith('editor.confirmDiscard', { name: 'dirty.ts' });
-        expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
-        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
-        expect(paneTabPaths(state)).toEqual(['/project/dirty.ts']);
-        expect(activePaneTabPath(state)).toBe('/project/dirty.ts');
-        expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
-            '/project/dirty.ts': { dirty: true },
-        });
-    });
-
-    it("closes a dirty tab without writing when the user chooses Don't Save", async () => {
-        installSessions('/project/dirty.ts', 'session-1');
-        mocks.request.mockImplementation((method) =>
-            method === 'editor.confirmDiscard'
-                ? Promise.resolve({ choice: 'discard' })
-                : Promise.resolve(null),
-        );
-
-        await closeEditor('/project/dirty.ts');
-
-        expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
-        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
-        expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
-    });
-
-    it('saves a dirty tab before closing it when the user chooses Save', async () => {
-        installSessions('/project/dirty.ts', 'session-1');
-        mocks.request.mockImplementation((method) => {
-            if (method === 'editor.confirmDiscard') return Promise.resolve({ choice: 'save' });
-            if (method === 'files.write')
-                return Promise.resolve({
-                    content: 'unsaved',
-                    mtimeMs: 2,
-                    path: '/project/dirty.ts',
-                    size: 7,
-                });
-            return Promise.resolve(null);
-        });
-
-        await closeEditor('/project/dirty.ts');
-
-        expect(mocks.request).toHaveBeenCalledWith(
-            'files.write',
-            expect.objectContaining({ sessionId: 'session-1', path: '/project/dirty.ts' }),
-        );
-        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
-        expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
-    });
-
-    it('aborts a bulk close entirely when any dirty tab in it is canceled', async () => {
-        installEmptySession();
-        useWorkbenchStore.setState((state) => ({
-            bootstrap: state.bootstrap
-                ? {
-                      ...state.bootstrap,
-                      sessionStates: [
-                          {
-                              ...state.bootstrap.sessionStates[0],
-                              paneLayout: paneLayout(['/project/a.ts', '/project/b.ts']),
-                          },
-                      ],
-                  }
-                : undefined,
-        }));
-        useSessionViewStore.getState().cacheDocument('session-1', {
-            path: '/project/a.ts',
-            content: 'a',
-            dirty: true,
-            mtimeMs: 1,
-            size: 1,
-        });
-        useSessionViewStore.getState().cacheDocument('session-1', {
-            path: '/project/b.ts',
-            content: 'b',
-            dirty: true,
-            mtimeMs: 1,
-            size: 1,
-        });
-        let confirmCalls = 0;
-        mocks.request.mockImplementation((method) => {
-            if (method === 'editor.confirmDiscard') {
-                confirmCalls += 1;
-                return Promise.resolve({ choice: confirmCalls === 1 ? 'discard' : 'cancel' });
-            }
-            return Promise.resolve(null);
-        });
-
-        await closeAllEditors('/project/a.ts');
-
-        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([
-            '/project/a.ts',
-            '/project/b.ts',
-        ]);
-        expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
-            '/project/a.ts': { dirty: true },
-            '/project/b.ts': { dirty: true },
-        });
-    });
-});
-
-describe('closing a mixed pane of Terminal and document tabs', () => {
-    it.each(['all', 'others', 'right'] as const)(
-        'preserves the Terminal PTY when an editor closes %s',
-        async (mode) => {
-            installPaneLayout(['/project/a.ts', { terminalId: 'terminal-1' }]);
-
-            await closeDocumentTabFamily('tab-0', mode);
-
-            expect(mocks.request).not.toHaveBeenCalledWith('terminal.close', {
-                terminalId: 'terminal-1',
-            });
-            expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual(
-                mode === 'all' ? ['terminal-1'] : ['/project/a.ts', 'terminal-1'],
-            );
-
-            /*
-             * The other direction is deliberately asymmetric: a Terminal's own bulk close spans the whole rail, so
-             * "Close All" from it clears the surviving editor too, and the PTY is still released rather than orphaned.
-             */
-            await closeDocumentTabFamily('tab-1', 'all');
-            expect(mocks.request).toHaveBeenCalledWith('terminal.close', {
-                terminalId: 'terminal-1',
-            });
-            expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual(
-                [],
-            );
-        },
-    );
-
-    it('clears the documents beside a Terminal without touching its PTY', async () => {
-        installPaneLayout(['/project/a.ts', { terminalId: 'terminal-1' }, '/project/b.ts'], 1);
-
-        await closeDocumentTabFamily('tab-1', 'editors');
-
-        expect(mocks.request).not.toHaveBeenCalledWith('terminal.close', {
-            terminalId: 'terminal-1',
-        });
-        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([
-            'terminal-1',
-        ]);
     });
 });
 

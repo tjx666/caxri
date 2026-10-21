@@ -44,6 +44,7 @@ import {
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
 import { editorStatusKey } from './editor-status';
 import { FileEditorBreadcrumbs } from './file-editor-breadcrumbs';
+import { autoSaveDocument } from './unsaved-editor-commands';
 import { virtualTabDescriptors } from './virtual-tab-descriptors';
 
 const GitDiffEditor = lazy(async () => {
@@ -182,6 +183,15 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
         enabled: Boolean(sessionId && !document && !isExternal),
         load,
     });
+    const autoSave = useCallback(() => {
+        if (sessionId) autoSaveDocument(sessionId, path);
+    }, [path, sessionId]);
+    /**
+     * Leaving a document without blurring the editor also counts as a focus change: a tab switched by keyboard swaps
+     * the model under a focused widget, and a Session switch unmounts the pane. Closing a dirty tab already resolved
+     * Save or Don't Save before this runs and evicted a discarded buffer, so this never overrides that choice.
+     */
+    useEffect(() => autoSave, [autoSave]);
 
     if (!session || !scope || !theme) return null;
     if (!document) {
@@ -221,6 +231,7 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                     onChange={(content) =>
                         changeDocument(session.id, session.workbenchProjectId, path, content ?? '')
                     }
+                    onBlur={autoSave}
                 />
             </div>
         </div>

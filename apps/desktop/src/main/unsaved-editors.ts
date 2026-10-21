@@ -22,7 +22,14 @@ export type UnsavedEditorsPurpose = 'close' | 'quit';
  * Closed outcome of one quit or close consultation, logged as `app.unsaved_editors_decided`.
  */
 type UnsavedEditorsOutcome =
-    'cancelled' | 'discarded' | 'none' | 'promptFailed' | 'readFailed' | 'saveFailed' | 'saved';
+    | 'autoSaved'
+    | 'cancelled'
+    | 'discarded'
+    | 'none'
+    | 'promptFailed'
+    | 'readFailed'
+    | 'saveFailed'
+    | 'saved';
 
 /**
  * Asking is a local IPC round trip against an idle store; a Renderer that cannot answer within this window is hung or
@@ -81,7 +88,7 @@ export function createUnsavedEditorsBridge(options: UnsavedEditorsBridgeOptions)
     return {
         async inspect(): Promise<UnsavedEditorsSummary> {
             const reply = await ask('inspect', options.inspectTimeoutMs ?? INSPECT_TIMEOUT_MS);
-            if (!reply) return { kind: 'summary', count: 0, names: [] };
+            if (!reply) return { kind: 'summary', count: 0, names: [], autoSave: false };
             if (reply.kind !== 'summary')
                 throw new CaxriError('INTERNAL', 'Workbench answered inspect with a save result');
             return reply;
@@ -181,22 +188,58 @@ export interface UnsavedEditorsDecisionOptions {
     saveAll: () => Promise<UnsavedEditorsSaveResult>;
 }
 
+async function inspectOrFailOpen(
+    options: UnsavedEditorsDecisionOptions,
+): Promise<UnsavedEditorsSummary | undefined> {
+    try {
+        return await options.inspect();
+    } catch (error) {
+        options.log('readFailed', 0, errorMessage(error, 'Unknown unsaved editor read failure'));
+        return undefined;
+    }
+}
+
+/**
+ * Saves without asking because `files.autoSave` is on, as VS Code does on quit. The save runs here under the `saveAll`
+ * timeout rather than inside `inspect`, whose short timeout fails open and would let a slow write race the quit.
+ */
+async function didAutoSave(
+    options: UnsavedEditorsDecisionOptions,
+    count: number,
+): Promise<boolean> {
+    try {
+        const result = await options.saveAll();
+        if (result.kind === 'saved') {
+            options.log('autoSaved', count);
+            return true;
+        }
+        options.log('saveFailed', count, result.reason);
+    } catch (error) {
+        options.log(
+            'saveFailed',
+            count,
+            errorMessage(error, 'Unknown unsaved editor save failure'),
+        );
+    }
+    return false;
+}
+
 /**
  * Decides whether unsaved Editor buffers let a quit or window close continue. Reading the summary or showing the prompt
  * fails open: an unresponsive Renderer must not trap the user inside the app. Saving fails closed: once the user chose
  * Save, a failed write keeps the app open so the buffers survive, and the Renderer's own save toast names the reason.
+ * Under auto save the buffers are saved first, and the prompt only asks about what that save left unsaved.
  */
 export async function decideUnsavedEditors(
     options: UnsavedEditorsDecisionOptions,
 ): Promise<'cancel' | 'continue'> {
-    let summary: UnsavedEditorsSummary;
-    try {
-        summary = await options.inspect();
-    } catch (error) {
-        options.log('readFailed', 0, errorMessage(error, 'Unknown unsaved editor read failure'));
-        return 'continue';
+    let summary = await inspectOrFailOpen(options);
+    if (!summary || summary.count === 0) return 'continue';
+    if (summary.autoSave) {
+        if (await didAutoSave(options, summary.count)) return 'continue';
+        summary = await inspectOrFailOpen(options);
+        if (!summary || summary.count === 0) return 'continue';
     }
-    if (summary.count === 0) return 'continue';
 
     let choice: UnsavedEditorsChoice;
     try {
@@ -304,10 +347,15 @@ export function createWorkbenchUnsavedEditors(options: WorkbenchUnsavedEditorsOp
                         throw settled[0].reason;
                     dirty.clear();
                     for (const { key, summary } of answers) if (summary.count > 0) dirty.add(key);
+                    const dirtyAnswers = answers.filter(({ summary }) => summary.count > 0);
                     return {
                         kind: 'summary',
                         count: answers.reduce((total, { summary }) => total + summary.count, 0),
                         names: answers.flatMap(({ summary }) => summary.names),
+                        // Settings are shared, so the windows agree; requiring all keeps a prompt if one disagrees.
+                        autoSave:
+                            dirtyAnswers.length > 0 &&
+                            dirtyAnswers.every(({ summary }) => summary.autoSave),
                     };
                 },
                 log: (outcome, count, error) =>

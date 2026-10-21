@@ -173,6 +173,11 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.editor.fontFamily.description': '代码和差异编辑器的字体；留空则使用 Monaco 默认字体',
     'settings.editor.fontFamily.placeholder': 'Monaco 默认字体',
 
+    'settings.files.autoSave.title': '自动保存',
+    'settings.files.autoSave.description': '自动保存修改过的文件，无需手动保存',
+    'settings.files.autoSave.option.off': '关闭',
+    'settings.files.autoSave.option.onFocusChange': '编辑器失去焦点时',
+
     'settings.editor.fontSize.title': '字号',
     'settings.editor.fontSize.description': '代码和差异编辑器的字号',
 

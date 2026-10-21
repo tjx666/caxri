@@ -22,7 +22,7 @@ vi.mock('../features/editor/discarded-buffers', () => ({
     discardedChangesUnavailableReason: vi.fn(),
     restoreDiscardedChanges: vi.fn(),
 }));
-vi.mock('../features/editor/document-commands', () => ({
+vi.mock('../features/editor/document-save-retry-commands', () => ({
     retrySaveDocument: mocks.retrySaveDocument,
     saveRetryUnavailableReason: mocks.saveRetryUnavailableReason,
 }));

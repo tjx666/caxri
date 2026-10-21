@@ -15,11 +15,9 @@ import {
     isVirtualEditorTabPath,
     openResource,
     paneTabIdsToClose,
-    parseExternalEditorTab,
     pinPaneTab,
     remapPaneLayoutPaths,
 } from '@caxri/protocol';
-import { pathBasename } from '@caxri/utils';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { translate } from '../../i18n';
@@ -37,7 +35,6 @@ import {
     sessionViewScope,
     useSessionViewStore,
 } from '../../stores/session-view';
-import type { ToastActionParameters } from '../../stores/toast-actions';
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState } from '../../stores/workbench';
 import { previewOnlyTabPath } from '../preview/preview-registry';
@@ -49,6 +46,7 @@ import {
     survivingCachedDocumentPaths,
 } from './document-layout-paths';
 import { isSavableEditorPath, writeEditorDocument } from './document-write-commands';
+import { resolveDirtyEditorClose } from './editor-auto-save-commands';
 import {
     beginFileOpenIntent,
     isCurrentFileOpenIntent,
@@ -262,6 +260,7 @@ export async function openFileForSession(
     }
     const intent = beginFileOpenIntent();
     const operation = trackDocumentOperation(session.id, path);
+    const wasDirty = isDocumentDirty(session.id, path);
     markEditorOpenStarted();
     try {
         const opened = await tryCommand(translate('editor.document.openFileFailed'), async () => {
@@ -293,15 +292,22 @@ export async function openFileForSession(
                 return didOpen && currentPath;
             }
             markEditorDocumentReady();
-            useSessionViewStore.getState().cacheDocument(
-                session.id,
-                {
-                    ...document,
-                    path: currentPath,
-                    dirty: false,
-                },
-                operation.workbenchProjectId,
-            );
+            /**
+             * Reopening a file the user is still editing shows their buffer, not the read. Checked on both sides of the
+             * read: a save in flight (auto save on the click that reopens the file) clears dirty before the read
+             * lands.
+             */
+            if (
+                !wasDirty &&
+                !isDocumentDirty(session.id, currentPath, operation.workbenchProjectId)
+            )
+                useSessionViewStore
+                    .getState()
+                    .cacheDocument(
+                        session.id,
+                        { ...document, path: currentPath, dirty: false },
+                        operation.workbenchProjectId,
+                    );
             const didOpen = didOpenEditorTabForSession(session.id, currentPath, options);
             if (didOpen && options.focus)
                 focusEditor(
@@ -413,43 +419,6 @@ export async function didSaveDocumentAt(sessionId: string, path: string): Promis
     return isSaved;
 }
 
-type SaveRetryTarget = ToastActionParameters['editor.retrySave'];
-
-/**
- * Which editor a failed save would be retried in, or undefined once there is no longer one.
- *
- * The buffer itself is deliberately not part of a retry's identity: it is re-read at retry time so a retry cannot
- * overwrite edits made after the failure; so all that has to survive the notification is the tab. A preview tab is
- * refused outright: recovering through a reusable slot would save a replacement document.
- */
-function retrySaveTarget(target: SaveRetryTarget): FileTabTarget | undefined {
-    const state = sessionStateOf(target.sessionId);
-    const tab = state && target.tabId ? findTab(state.paneLayout, target.tabId)?.tab : undefined;
-    return state?.workbenchProjectId === target.workbenchProjectId &&
-        tab?.resource.kind === 'file' &&
-        tab.preview !== true
-        ? { path: tab.resource.path }
-        : undefined;
-}
-
-interface FileTabTarget {
-    path: string;
-}
-
-export function saveRetryUnavailableReason(target: SaveRetryTarget): string | undefined {
-    return retrySaveTarget(target) ? undefined : translate('editor.document.saveRetryUnavailable');
-}
-
-/**
- * Saves the document a failed save belonged to, from whatever its buffer holds now.
- */
-export function retrySaveDocument(target: SaveRetryTarget): void {
-    const resolved = retrySaveTarget(target);
-    if (!resolved) return;
-    // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
-    void didSaveDocumentAt(target.sessionId, resolved.path);
-}
-
 export async function saveActiveEditor(): Promise<void> {
     const session = getSelectedSession();
     const active = getActivePaneTab();
@@ -461,8 +430,9 @@ export async function saveActiveEditor(): Promise<void> {
 
 /**
  * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to save…" sheet at a
- * time (macOS only ever shows one modal sheet). Choosing Cancel on any of them aborts the whole close: a bulk Close
- * Others/Close All must never end up half applied, silently dropping some dirty buffers while leaving others open.
+ * time (macOS only ever shows one modal sheet), unless auto save resolves it as Save without asking. Choosing Cancel on
+ * any of them aborts the whole close: a bulk Close Others/Close All must never end up half applied, silently dropping
+ * some dirty buffers while leaving others open.
  *
  * A document open in several panes is only confirmed once, and only when the close would remove its last occurrence:
  * closing one of two views of the same buffer discards nothing.
@@ -489,9 +459,7 @@ async function didConfirmDirtyEditorCloses(
         // Intentionally sequential: macOS only ever shows one modal "Do you want to save…" sheet, so
         // each confirmation must resolve before the next one is requested.
         // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
-        const { choice } = await caxri.request('editor.confirmDiscard', {
-            name: parseExternalEditorTab(path)?.name ?? pathBasename(path),
-        });
+        const choice = await resolveDirtyEditorClose(path);
         if (choice === 'cancel') return false;
         // Intentionally sequential: a bulk close must never end up half applied, so each save
         // completes before the next tab is confirmed.
