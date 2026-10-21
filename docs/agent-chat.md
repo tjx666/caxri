@@ -801,7 +801,9 @@ several callbacks can share one item, so the transport id is never the key.
   response once by message id (subagent responses included) and each Codex request of the parent thread from
   `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. A compact `Esc to stop` hint follows the metrics
   while the turn runs and drops first on a strip narrower than 480px; the `Enter to queue · ⌘Enter to steer` hint keeps only
-  its keycaps below 420px. Only the label is the polite live
+  its keycaps below 420px. That hint retires once learned: it shows in the first three running turns with a draft and
+  never again after the user sends during a turn (`useIsAgentChatDeliveryHintShown`, device-local); Send's tooltip
+  keeps both shortcuts. Only the label is the polite live
   region, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
   keeps its own text.

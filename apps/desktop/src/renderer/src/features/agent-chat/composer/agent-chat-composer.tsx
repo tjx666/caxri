@@ -347,7 +347,7 @@ export function AgentChatComposer({
                     <AgentChatComposerNotices
                         activeTurnId={activeTurnId}
                         activity={activity}
-                        delivery={isTurnRunning && draft.trim().length > 0}
+                        isDrafting={draft.trim().length > 0}
                         edit={edit.bar}
                         isContinuing={isContinuing}
                         isEditing={edit.isEditing}

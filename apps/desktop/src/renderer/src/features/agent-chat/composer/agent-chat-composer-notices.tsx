@@ -1,6 +1,7 @@
 import type { AgentChatActivity, AgentChatSnapshot } from '@caxri/protocol';
 
 import { AgentChatActivityBar } from '../activity/agent-chat-activity-bar';
+import { useIsAgentChatDeliveryHintShown } from '../activity/agent-chat-delivery-hint';
 import { AgentChatContextAlerts } from '../context/agent-chat-context-alerts';
 import { AgentChatPlanPaceAlert } from '../tools/agent-chat-plan-pace-alert';
 import type { AgentChatEditBarProperties } from './agent-chat-edit-bar';
@@ -13,9 +14,9 @@ import { AgentChatEditBar } from './agent-chat-edit-bar';
 export function AgentChatComposerNotices({
     activeTurnId,
     activity,
-    delivery,
     edit,
     isContinuing,
+    isDrafting,
     isEditing,
     notice,
     onCompact,
@@ -25,12 +26,13 @@ export function AgentChatComposerNotices({
 }: {
     activeTurnId: string | undefined;
     activity: AgentChatActivity | undefined;
-    /**
-     * Whether a draft typed during a running turn is being steered into it, which the activity row hints at.
-     */
-    delivery: boolean;
     edit: AgentChatEditBarProperties | undefined;
     isContinuing: boolean;
+    /**
+     * Whether the input holds a draft; during a running turn the activity row then shows the queue and steer shortcuts
+     * until the user learned them (`useIsAgentChatDeliveryHintShown`).
+     */
+    isDrafting: boolean;
     isEditing: boolean;
     notice: string | undefined;
     onCompact: (() => void) | undefined;
@@ -39,12 +41,13 @@ export function AgentChatComposerNotices({
     usage: AgentChatSnapshot['usage'] | undefined;
 }) {
     const hasStripRoom = !activity && !isEditing;
+    const showsDeliveryHint = useIsAgentChatDeliveryHintShown(activeTurnId, isDrafting);
     return (
         <>
             <AgentChatActivityBar
                 activity={activity}
                 notice={notice}
-                showsDeliveryHint={delivery}
+                showsDeliveryHint={showsDeliveryHint}
                 terminalId={terminalId}
                 turnId={activeTurnId}
             />
