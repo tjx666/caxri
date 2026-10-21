@@ -52,7 +52,7 @@ phone refusal, or VPN fault; recheck the live pairing service before assigning a
 
 ## Current release round
 
-For the encrypted pairing and bounded short-reply criterion, initialize the structured report first
+For the encrypted pairing and main phone journey (`MOB-E2E-01`), initialize the structured report first
 with `surface: "mobile"`, `stateIsolation.mode: "isolated"`, and
 `mobileDevice: { "appId": "com.caxri.mobile", "deviceId": "emulator-5554", "platform": "android" }`,
 then run:
@@ -60,7 +60,7 @@ then run:
 ```bash
 CAXRI_MOBILE_ACCEPTANCE_SERIAL="$SERIAL" \
 CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR="$ROUND_DIR" \
-CAXRI_MOBILE_ACCEPTANCE_CASE_ID="android-short-reply" \
+CAXRI_MOBILE_ACCEPTANCE_CASE_ID="MOB-E2E-01" \
   bun run test:e2e:mobile:android
 ```
 

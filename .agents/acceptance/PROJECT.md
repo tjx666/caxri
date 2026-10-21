@@ -147,15 +147,17 @@ project, installs the release APK, clears only
 ```bash
 CAXRI_MOBILE_ACCEPTANCE_SERIAL=emulator-5554 \
 CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR="$REPORT_DIR" \
-CAXRI_MOBILE_ACCEPTANCE_CASE_ID="android-short-reply" \
+CAXRI_MOBILE_ACCEPTANCE_CASE_ID="MOB-E2E-01" \
   bun run test:e2e:mobile:android
 ```
 
-The plan item must use `surface: "mobile"`, `stateIsolation.mode: "isolated"`, and a matching
-`mobileDevice` object. Include
-`assets/android-short-reply-state-isolation.json` and
-`assets/android-short-reply-mobile-device.json` and
-`assets/android-short-reply-result.json`, plus the generated `-android.png` and `-android.mp4`, in
+Case ids come from `scripts/mobile-android-cases.ts` and `scripts/mobile-android-chat-cases.ts`;
+the runner rejects any other id, and the plan item id must equal it. `MOB-E2E-01` is the main phone
+journey (pairing, Session list, Chat send, stop); `CAXRI_MOBILE_ACCEPTANCE_CASE_IDS` takes a
+comma-separated batch. The plan item must use `surface: "mobile"`, `stateIsolation.mode:
+"isolated"`, and a matching `mobileDevice` object. Include
+`assets/<case-id>-state-isolation.json`, `assets/<case-id>-mobile-device.json`, and
+`assets/<case-id>-result.json`, plus the framebuffer media that the device receipt lists, in
 `cases[].evidence`. The runner owns one bounded `screenrecord` process and captures the final PNG
 directly from the device framebuffer before cleanup. Every child command is bounded by a stage
 timeout and the overall run deadline. A clean retry atomically replaces its prior result receipts,
