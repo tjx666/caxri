@@ -67,6 +67,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    Renderer or Server change reaches: when the change is user-visible, add one
    `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line naming the specs that cover it (see
    `docs/ci-performance.md`). Set it before pushing, since the policy reads the body at push time.
+   A diff that rewrites user-visible text or removes or renames a control also breaks specs that
+   assert the old text or accessible name, and nothing selects them: search `e2e/` for each old
+   string, then list and run every match. Rewording the return hint to "since you left" left
+   `session-return-context.e2e.ts` asserting "since you last looked" on `main`.
    Run `bun run scripts/surface-matrix.ts` against the pushed diff (`--base origin/main` is the
    default) and paste its Markdown output into the PR body. It reports which product surfaces the
    diff touches (Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,
