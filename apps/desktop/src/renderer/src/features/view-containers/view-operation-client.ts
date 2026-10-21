@@ -157,7 +157,7 @@ export async function viewOperation<Result>(
  * client: a captured Session would give the controlled-view context value a new identity on every switch and re-render
  * every consumer under it.
  */
-function currentViewEventContext(): ExtensionViewEventContext {
+export function currentViewEventContext(): ExtensionViewEventContext {
     const session = getSelectedSession();
     return session?.id && session.workbenchProjectId
         ? {

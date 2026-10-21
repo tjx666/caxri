@@ -153,6 +153,13 @@ any other resolved value; Server Core validates it again at the process boundary
 toast. A failure is a thrown error, never a message. The Status extension's merge commands return
 the merge method Server Core chose (`Squash-merged #123`, `Merged #123`, `Rebase-merged #123`).
 
+Like a view operation, `viewContainers.executeCommand` carries the view context of the Session it was
+issued in. A command can wait behind another repository mutation while the user switches Session, so
+Core rejects it with `CANCELLED` instead of running it against the newly selected Session (a "merge
+the current branch's pull request" command would otherwise merge the wrong pull request). `host.stop`
+drains running Extension commands and `source.action` mutations before it accepts, and rejects new
+ones with `UNAVAILABLE` while it drains, even when it then refuses to stop because PTYs are live.
+
 Session SQLite persists the free, bounded
 `desiredSecondarySidebarViewContainerId`. Device-local layout persists
 `desiredPanelViewContainerId`. The Renderer derives a currently available resolved ID from the

@@ -181,6 +181,11 @@ export const extensionViewMethods = {
         params: z.object({
             commandId: extensionCommandIdSchema,
             arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).default([]),
+            /**
+             * The Session the command was issued in. Rejected with CANCELLED once no longer the active scope: a command
+             * waiting behind another repository mutation must not start against a Session the user switched to.
+             */
+            context: extensionViewEventContextSchema,
         }),
         result: extensionCommandResultSchema,
     },

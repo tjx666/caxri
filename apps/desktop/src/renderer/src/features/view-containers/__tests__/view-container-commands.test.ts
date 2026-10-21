@@ -23,6 +23,16 @@ import {
     isCachedViewCatalogCommandAllowedInEditable,
 } from '../view-container-commands';
 
+/**
+ * The Session `beforeEach` selects, which every extension command carries so Server Core can refuse to start it after a
+ * switch.
+ */
+const selectedSessionContext = {
+    kind: 'session',
+    sessionId: 'session-1',
+    workbenchProjectId: 'project-1',
+} as const;
+
 function catalog(): ViewCatalogSnapshot {
     return {
         revision: 1,
@@ -110,6 +120,7 @@ describe('didExecuteViewCatalogCommand', () => {
             expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
                 commandId: 'publisher.fixture.refresh',
                 arguments: ['manual'],
+                context: selectedSessionContext,
             }),
         );
         expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(true);
@@ -120,6 +131,7 @@ describe('didExecuteViewCatalogCommand', () => {
         expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
             commandId: 'publisher.fixture.refresh',
             arguments: ['manual'],
+            context: selectedSessionContext,
         });
     });
 
@@ -171,6 +183,7 @@ describe('didExecuteViewCatalogCommand', () => {
         expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
             commandId: 'publisher.fixture.refresh',
             arguments: ['editable'],
+            context: selectedSessionContext,
         });
     });
 
@@ -235,6 +248,7 @@ describe('didExecuteViewCatalogCommand', () => {
                 {
                     commandId: 'publisher.fixture.refresh',
                     arguments: ['shortcut'],
+                    context: selectedSessionContext,
                 },
             ],
         ]);
@@ -259,6 +273,7 @@ describe('didExecuteViewCatalogCommand', () => {
         expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
             commandId: 'publisher.fixture.refresh',
             arguments: [],
+            context: selectedSessionContext,
         });
     });
 
@@ -311,6 +326,7 @@ describe('dispatchExtensionViewAction', () => {
         expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
             commandId: 'publisher.fixture.refresh',
             arguments: [],
+            context: selectedSessionContext,
         });
         request.resolve({ executed: true });
         await expect(dispatch).resolves.toBe('executed');

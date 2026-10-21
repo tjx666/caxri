@@ -14,7 +14,10 @@ import { useSessionViewStore } from '../../stores/session-view';
 import type { ToastAction } from '../../stores/toast-actions';
 import { describeFailure, isCancelledRequest, pushToast, tryCommand } from '../../stores/toasts';
 import { dispatchCoreViewCommand } from './core-view-commands';
-import { invalidateControlledViewSnapshotQueries } from './view-operation-client';
+import {
+    currentViewEventContext,
+    invalidateControlledViewSnapshotQueries,
+} from './view-operation-client';
 
 function findViewCatalogCommand(
     catalog: ViewCatalogSnapshot | undefined,
@@ -58,10 +61,14 @@ export async function dispatchExtensionViewAction(
     arguments_: readonly unknown[] = [],
     feedback?: TreeItemActionFeedback,
 ): Promise<'executed' | 'failed'> {
+    // Captured at the click, so a command still queued behind another repository mutation is cancelled rather than
+    // started against a Session the user switched to meanwhile.
+    const context = currentViewEventContext();
     const execute = () =>
         caxri.request('viewContainers.executeCommand', {
             commandId,
             arguments: [...arguments_],
+            context,
         });
     if (!feedback) {
         const result = await tryCommand(
