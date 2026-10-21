@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     activeAfterEdit,
     canMoveSessionToNewWindow,
+    canShiftOpenSession,
     insertOpenSessionAfter,
     isKeepingInteraction,
     isSessionTabStripVisible,
@@ -12,6 +13,7 @@ import {
     sessionIdsToClose,
     sessionTabShortcutKey,
     shiftOpenSession,
+    shouldKeepPreviewBeforeSelection,
     shouldTearOffSessionTab,
     withoutOpenSessions,
 } from '../session-tabs-state';
@@ -214,5 +216,45 @@ describe('canMoveSessionToNewWindow', () => {
         expect(canMoveSessionToNewWindow(['a'], 'a')).toBe(false);
         expect(canMoveSessionToNewWindow(['a', 'b'], 'c')).toBe(false);
         expect(canMoveSessionToNewWindow([], 'a')).toBe(false);
+    });
+});
+
+describe('shouldKeepPreviewBeforeSelection', () => {
+    const base = {
+        nextSessionId: 'b',
+        openSessionIds: ['a'],
+        previewSessionId: 'a',
+        statusKind: 'running',
+    } as const;
+
+    it('keeps a running or attention Preview that the selection would replace', () => {
+        expect(shouldKeepPreviewBeforeSelection(base)).toBe(true);
+        expect(shouldKeepPreviewBeforeSelection({ ...base, statusKind: 'attention' })).toBe(true);
+    });
+
+    it('lets an idle or detached Preview be replaced', () => {
+        expect(shouldKeepPreviewBeforeSelection({ ...base, statusKind: 'default' })).toBe(false);
+        expect(shouldKeepPreviewBeforeSelection({ ...base, statusKind: 'detached' })).toBe(false);
+    });
+
+    it('does nothing without a Preview, for the Preview itself, or for an already open target', () => {
+        expect(shouldKeepPreviewBeforeSelection({ ...base, previewSessionId: undefined })).toBe(
+            false,
+        );
+        expect(shouldKeepPreviewBeforeSelection({ ...base, nextSessionId: 'a' })).toBe(false);
+        expect(shouldKeepPreviewBeforeSelection({ ...base, openSessionIds: ['a', 'b'] })).toBe(
+            false,
+        );
+    });
+});
+
+describe('canShiftOpenSession', () => {
+    it('is false at the ends and for unknown Sessions', () => {
+        const ids = ['a', 'b', 'c'];
+        expect(canShiftOpenSession(ids, 'a', -1)).toBe(false);
+        expect(canShiftOpenSession(ids, 'a', 1)).toBe(true);
+        expect(canShiftOpenSession(ids, 'c', 1)).toBe(false);
+        expect(canShiftOpenSession(ids, 'b', -1)).toBe(true);
+        expect(canShiftOpenSession(ids, 'x', 1)).toBe(false);
     });
 });

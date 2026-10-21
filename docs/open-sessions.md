@@ -17,7 +17,7 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
 - The Session level is neutral: an inset 28px pill on the 36px title bar, with a raised fill on the active
   tab and no accent. The accent stays with the focused pane's active tab in the 36px pane row below
   (see DESIGN.md "Two tab levels"). Each tab shows the Session's status indicator and title and reads
-  that Session's own state by ID. Tabs are 104px to 200px wide and the active tab never drops below
+  that Session's own state by ID. The glyph shares the close button's slot, except on the active tab, which keeps the close button there and draws a running or attention glyph before the title instead. Tabs are 104px to 200px wide and the active tab never drops below
   150px; a crowded strip scrolls instead of shrinking them further.
 - Every Open Session is either **kept** or the window's one **Preview entry** (the VS Code preview-editor
   model). A plain click on a Session row selects it: an already open Session is only activated;
@@ -26,6 +26,12 @@ decision behind the model is [ADR 0017](adr/0017-per-window-session-presence.md)
   navigation, so browsing the sidebar cannot make a tab you chose disappear, and the strip grows only
   by kept tabs plus at most one Preview tab. The Preview tab's title is italic (muted while inactive) and
   announces itself to screen readers.
+  The exception is a Preview whose Session is still running or has unread attention (a finished result,
+  an approval, or a question): selecting another Session first **keeps** that tab and opens the new
+  Session as the new Preview entry, so work in progress never disappears from the strip unseen
+  (`shouldKeepPreviewBeforeSelection`; the Renderer promotes the tab through `window.openSessions.keep`
+  just before `session.select`). The Preview tab's tooltip says that opening another Session replaces it
+  and that a double-click keeps it open.
 - A Preview entry becomes kept on a double-click of its tab, **Keep Open** in the tab menu, Cmd+click on
   its row or **Open in New Tab**, dragging the tab, or any interaction inside the Session (typing,
   pasting, or a primary-button press anywhere in its Workbench; shortcuts such as `Cmd+1` do not count).

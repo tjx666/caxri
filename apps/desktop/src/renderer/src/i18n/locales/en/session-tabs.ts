@@ -1,8 +1,9 @@
 export const sessionTabs = {
     'sessionTabs.listLabel': 'Open Sessions',
     'sessionTabs.new': 'New Session',
-    'sessionTabs.close': 'Close Open Session',
+    'sessionTabs.close': 'Close Tab',
     'sessionTabs.closeNamed': 'Close {{title}}',
+    'sessionTabs.closeHint': 'The Session stays in the sidebar.',
     'sessionTabs.moveLeft': 'Move Tab Left',
     'sessionTabs.moveRight': 'Move Tab Right',
     'sessionTabs.closeOthers': 'Close Other Tabs',
@@ -18,6 +19,8 @@ export const sessionTabs = {
     'sessionTabs.tooltip.worktree': 'Worktree: {{value}}',
     'sessionTabs.tooltip.status': 'Status: {{value}}',
     'sessionTabs.tooltip.shortcut': 'Shortcut: Cmd+{{key}}',
+    'sessionTabs.tooltip.preview':
+        'Opening another Session replaces this tab. Double-click to keep it open.',
     'sessionTabs.errors.openFailed': 'Unable to open the Session in a new tab',
     'sessionTabs.errors.tearOffFailed': 'Unable to move the Session to a new window',
     'sessionTabs.errors.keepFailed': 'Unable to keep the tab open',

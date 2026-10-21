@@ -141,7 +141,7 @@ export const primarySidebar = {
     'primarySidebar.card.history.open': 'Open',
     'primarySidebar.card.history.untitled': '{{agent}} conversation',
     'primarySidebar.card.history.reopenAriaLabel':
-        'Reopen conversation {{title}}, last bound {{time}}',
+        'Reopen conversation {{title}}, last used {{time}}',
     'primarySidebar.card.history.showAriaLabel': 'Show open conversation {{title}}',
     'primarySidebar.card.history.reopenFailed': 'Could not reopen the conversation',
     'primarySidebar.changes.ariaLabelOne': 'Working tree has {{count}} uncommitted change.',

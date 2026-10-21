@@ -24,8 +24,9 @@ import {
     setLinkedHoveredSession,
     useIsLinkedSessionHovered,
 } from './linked-session-hover';
-import { activateSessionTab, closeSessionTabs, keepSessionTab } from './session-tab-commands';
+import { activateSessionTab, closeSessionTabs } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
+import { keepSessionTab } from './session-tab-keep-commands';
 import { sessionTabMenu } from './session-tab-menu';
 import { sessionTabTooltip } from './session-tab-tooltip';
 import { sessionTabShortcutKey } from './session-tabs-state';
@@ -131,6 +132,7 @@ export function SessionTab({
             projectTitle,
             shortcutDigit: sessionTabShortcutKey(index, count)?.replace('Meta+', ''),
             statusLabel: currentSessionActivityPresentation(session, terminal).label,
+            isPreview,
             suffix: label.suffix,
             title,
             workingLocation,
@@ -138,6 +140,12 @@ export function SessionTab({
         t,
     );
     const closeLabel = t('sessionTabs.closeNamed', { title });
+    // The close button's tooltip says what closing does, because the Session stays in the sidebar.
+    const closeTooltip = `${closeLabel}\n${t('sessionTabs.closeHint')}`;
+    // The active tab keeps the close button in the trailing slot, so a running or attention glyph moves in front of
+    // the title instead of disappearing.
+    const showLeadingStatus =
+        isActive && (status.kind === 'running' || status.kind === 'attention');
     const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
         if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
             event.preventDefault();
@@ -205,6 +213,15 @@ export function SessionTab({
                         }}
                     >
                         <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={13} />
+                        {showLeadingStatus && (
+                            <span aria-hidden="true" className="grid flex-none place-items-center">
+                                <SessionStatusIndicator
+                                    session={session}
+                                    terminal={terminal}
+                                    className={SESSION_TAB_STATUS_CLASS}
+                                />
+                            </span>
+                        )}
                         <SessionTabLabel
                             isActive={isActive}
                             isPreview={isPreview}
@@ -224,7 +241,7 @@ export function SessionTab({
                 {/* One fixed 20px slot shared by the status glyph and the close button, so the title never shifts
                     when one hands over to the other. The glyph fades out as the close button fades in under the
                     pointer or keyboard focus; the active tab always shows the close button (VS Code's rule, as on
-                    pane tabs) and so never shows its glyph, which the sidebar row and the tooltip still carry. */}
+                    pane tabs); while it is running or needs attention its glyph is drawn before the title instead. */}
                 <span className="session-tab-trailing relative size-5 flex-none">
                     <span
                         aria-hidden="true"
@@ -239,13 +256,13 @@ export function SessionTab({
                             className={SESSION_TAB_STATUS_CLASS}
                         />
                     </span>
-                    <Tooltip content={closeLabel}>
+                    <Tooltip content={closeTooltip}>
                         <button
                             type="button"
                             aria-label={closeLabel}
                             tabIndex={-1}
                             className={cn(
-                                'tab-close absolute inset-0 grid cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-[var(--selection)] hover:text-foreground',
+                                'tab-close absolute inset-0 grid cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-state-hover-ink hover:text-foreground',
                                 'pointer-events-none text-muted opacity-0 transition-opacity duration-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
                                 isActive && 'pointer-events-auto text-inherit opacity-100',
                             )}

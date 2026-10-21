@@ -5,6 +5,7 @@ import { getBootstrap } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { didSelectSession } from '../session/session-commands';
+import { keepSessionTab } from './session-tab-keep-commands';
 import type { SessionTabCloseScope } from './session-tabs-state';
 import {
     activeAfterEdit,
@@ -81,26 +82,6 @@ export function activateSessionTab(sessionId: string): void {
     // Fire-and-forget: didSelectSession reports its own failures through a toast.
     // eslint-disable-next-line no-void -- intentional floating-promise discard
     void didSelectSession(sessionId);
-}
-
-/**
- * Promotes the Preview entry to a kept entry: a double-click, "Keep Open", Cmd+click, a reorder, or working in the
- * Session. Does nothing for any other Session, so callers need not check first. Applied optimistically (the tab leaves
- * its italic style under the pointer) and then replaced with the Server's answer.
- */
-export async function keepSessionTab(sessionId: string): Promise<void> {
-    const bootstrap = getBootstrap();
-    if (bootstrap?.previewSessionId !== sessionId) return;
-    applyWindowOpenSessions({
-        openSessionIds: getOpenSessionIds().slice(),
-        activeSessionId: bootstrap.selectedSessionId ?? null,
-        previewSessionId: null,
-    });
-    const stored = await tryCommand(translate('sessionTabs.errors.keepFailed'), () =>
-        caxri.request('window.openSessions.keep', { sessionId }),
-    );
-    if (stored) applyWindowOpenSessions(stored);
-    else await refreshWorkbench();
 }
 
 /**

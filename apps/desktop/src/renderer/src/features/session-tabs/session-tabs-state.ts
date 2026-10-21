@@ -1,4 +1,5 @@
 import { SESSION_TAB_STRIP_MIN_SESSIONS } from '../../stores/open-sessions';
+import type { SessionStatus } from '../primary-sidebar/session-status';
 
 /**
  * Drag payload type of a strip tab. Distinct from a pane tab's and a sidebar row's, so a Session tab dropped on a pane
@@ -192,4 +193,39 @@ export function openTabTargetId(ids: readonly string[], position: number): strin
 export function sessionTabShortcutKey(index: number, count: number): string | undefined {
     if (index < 8) return `Meta+${index + 1}`;
     return index === count - 1 ? 'Meta+9' : undefined;
+}
+
+/**
+ * Whether selecting `nextSessionId` must first keep the current Preview entry. A plain selection replaces the Preview
+ * entry in place, which would make a Session that is still running or holds unread attention (including a pending
+ * approval or question) vanish from the strip unseen. In that case the Preview is promoted to a kept tab and the Server
+ * then opens the new Session as a fresh Preview. Nothing is replaced when the target is already open, so nothing needs
+ * keeping then.
+ */
+export function shouldKeepPreviewBeforeSelection(input: {
+    nextSessionId: string;
+    openSessionIds: readonly string[];
+    previewSessionId: string | undefined;
+    /**
+     * The Preview Session's status, from the same projection its tab and sidebar row render.
+     */
+    statusKind: SessionStatus['kind'];
+}): boolean {
+    const { nextSessionId, openSessionIds, previewSessionId, statusKind } = input;
+    if (previewSessionId === undefined || previewSessionId === nextSessionId) return false;
+    if (openSessionIds.includes(nextSessionId)) return false;
+    return statusKind === 'running' || statusKind === 'attention';
+}
+
+/**
+ * Whether {@link shiftOpenSession} would move the entry: false for an unknown Session and at either end of the strip.
+ * The tab menu disables Move Tab Left and Right on this answer.
+ */
+export function canShiftOpenSession(
+    ids: readonly string[],
+    sessionId: string,
+    direction: -1 | 1,
+): boolean {
+    const index = ids.indexOf(sessionId);
+    return index !== -1 && index + direction >= 0 && index + direction < ids.length;
 }
