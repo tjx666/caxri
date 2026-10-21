@@ -47,7 +47,7 @@ import {
 } from './settings-client';
 import type { ConfigAction, ConfigSourceError } from './settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
-import { rowFocusRequest, scrolledSettingsViews } from './settings-focus-requests';
+import { rowFocusRequest, settingsSectionForRequest } from './settings-focus-requests';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
 import type { ThemeImportResult } from './theme-import-error';
@@ -73,6 +73,14 @@ export function useSettingsPageController() {
     const request = useDialogStore((state) => state.settingsRequest);
     const [tab, setTab] = useState<ConfigKind>('settings');
     const [view, setView] = useState<'ui' | 'source'>('ui');
+    /**
+     * The category the Settings navigation last asked for. It is a request rather than a scroll call because the
+     * navigation stays mounted over Keybindings, Theme, and Source, where the Settings list it scrolls does not exist
+     * yet; `SettingsPage` consumes it once its rows have mounted and then clears it, so a later remount (back from
+     * Source, Theme, or Keybindings) does not scroll to it again.
+     */
+    const [anchorRequest, setAnchorRequest] = useState<{ id: number; anchor: string }>();
+    const lastAnchorRequestId = useRef(0);
     const [sourceErrors, setSourceErrors] = useState<
         Partial<Record<ConfigKind, ConfigSourceError>>
     >({});
@@ -386,37 +394,9 @@ export function useSettingsPageController() {
             if (isCancelled || handledRequestId.current === request.id) return;
             handledRequestId.current = request.id;
             if (view === 'source') commitSource(tab);
-            if (request.view === 'source') {
-                setTab('settings');
-                setView('source');
-                return;
-            }
-            if (request.view === 'trusted-domains') {
-                setTab('settings');
-                setView('ui');
-                return;
-            }
-            if (request.view === 'agent-actions' || request.view === 'agent-executable') {
-                setTab('settings');
-                setView('ui');
-                return;
-            }
-            if (scrolledSettingsViews.has(request.view)) {
-                setTab('settings');
-                setView('ui');
-                return;
-            }
-            if (request.view === 'keybindings') {
-                setTab('keybindings');
-                setView('ui');
-                return;
-            }
-            /**
-             * An untargeted open is the Settings tab. Leaving the tab wherever the last open left it would hand `Cmd+,`
-             * to Theme or Keybindings, where the search field this request focuses does not exist.
-             */
-            setTab('settings');
-            setView('ui');
+            const section = settingsSectionForRequest(request.view);
+            setTab(section.tab);
+            setView(section.view);
         });
         return () => {
             isCancelled = true;
@@ -428,6 +408,18 @@ export function useSettingsPageController() {
         if (view === 'source') commitSource(tab);
         setTab(next);
     };
+
+    const navigateToAnchor = (anchor: string): void => {
+        if (view === 'source') commitSource(tab);
+        setTab('settings');
+        setView('ui');
+        lastAnchorRequestId.current += 1;
+        setAnchorRequest({ id: lastAnchorRequestId.current, anchor });
+    };
+
+    const completeAnchorRequest = useCallback((id: number): void => {
+        setAnchorRequest((current) => (current?.id === id ? undefined : current));
+    }, []);
 
     const showUi = (): void => {
         commitSource(tab);
@@ -609,7 +601,10 @@ export function useSettingsPageController() {
                 ? { id: request.id, provider: request.provider }
                 : undefined,
         argvConfig,
+        anchorRequest,
         changeTab,
+        navigateToAnchor,
+        completeAnchorRequest,
         commitSource,
         gitExclusionsFocusRequestId: request.view === 'git-exclusions' ? request.id : undefined,
         rowFocusRequest: rowFocusRequest(request),

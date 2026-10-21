@@ -8,16 +8,15 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
-    openSettingsTab,
     pageRequest,
     pressNewTerminal,
-    revealSettingsSection,
     selectedSessionId,
     sessionCard,
     typeTerminal,
     VISIBLE_SESSION,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 function osc52(payload: string, selection = 'c'): string {
     return String.raw`printf '\033]52;${selection};${payload}\007'`;

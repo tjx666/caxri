@@ -10,13 +10,8 @@ import { createE2EAgentEnvironment } from '@caxri/system';
 import { delegationFixtureSource } from '../scripts/agent-delegation-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import {
-    createShellSession,
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-    revealSettingsSection,
-} from './support/helpers.ts';
+import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');

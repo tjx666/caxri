@@ -60,19 +60,21 @@ function NoSessionSurface() {
     const [mountedRequestId] = useState(requestId);
     if (requestId <= Math.max(mountedRequestId, dismissedId)) return <Welcome />;
     return (
-        <div className="relative h-full min-h-0">
-            <Tooltip content={t('workbench.closeSettings')}>
-                <Button
-                    aria-label={t('workbench.closeSettings')}
-                    className="absolute top-3 right-3 z-10"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => useDialogStore.getState().dismissSessionlessSettings()}
-                >
-                    <X size={14} />
-                </Button>
-            </Tooltip>
-            <SettingsWorkbenchPage />
+        <div className="h-full min-h-0">
+            <SettingsWorkbenchPage
+                headerAction={
+                    <Tooltip content={t('workbench.closeSettings')}>
+                        <Button
+                            aria-label={t('workbench.closeSettings')}
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => useDialogStore.getState().dismissSessionlessSettings()}
+                        >
+                            <X size={14} />
+                        </Button>
+                    </Tooltip>
+                }
+            />
         </div>
     );
 }

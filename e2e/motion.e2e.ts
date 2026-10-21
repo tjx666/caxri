@@ -10,12 +10,12 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
-    openSettingsTab,
     pressNewTerminal,
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
 import { pollUntil } from './support/polling.ts';
+import { openSettingsTab } from './support/settings.ts';
 
 /**
  * Mirrors `lib/motion.ts`'s `motionDurationMs` parsing so a `--motion-*` token and a computed CSS duration (which the

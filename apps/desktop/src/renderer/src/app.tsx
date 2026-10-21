@@ -29,6 +29,11 @@ import { ProjectSearchDialog } from './features/project-search/project-search-di
 import { RendererPerformanceProfiler } from './features/renderer-performance/renderer-performance-profiler';
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
 import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar';
+import {
+    getSecondarySidebarYieldScope,
+    useIsSecondarySidebarShown,
+    useSecondarySidebarYieldSync,
+} from './features/secondary-sidebar/secondary-sidebar-visibility';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
 import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
@@ -154,9 +159,7 @@ export function App() {
     const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
-    const isSecondarySidebarVisible = useChromeLayoutStore(
-        (state) => state.secondarySidebarVisible,
-    );
+    const isSecondarySidebarVisible = useIsSecondarySidebarShown();
 
     useEffect(() => subscribeEnvironment(), []);
     useEffect(() => subscribeFileWatchLimitAlerts(), []);
@@ -178,7 +181,8 @@ export function App() {
     useDeliveryFocusRefresh();
     useExternalDocumentSync();
     useGitDecorationSync();
-    useChromeViewportClamp();
+    useChromeViewportClamp(getSecondarySidebarYieldScope);
+    useSecondarySidebarYieldSync();
     useWorkbenchAppearance();
     useTranslucentSidebar();
     useWindowZoomFactor();

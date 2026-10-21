@@ -1,4 +1,5 @@
 import type { BootstrapState, ViewCatalogSnapshot } from '@caxri/protocol';
+import { createPaneLayout } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -102,7 +103,7 @@ beforeEach(() => {
                     sessionId: 'session-1',
                     workbenchProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
-                    paneLayout: {},
+                    paneLayout: createPaneLayout(undefined, () => 'pane-1'),
                 },
             ],
         } as unknown as BootstrapState,
@@ -149,7 +150,7 @@ describe('didExecuteViewCatalogCommand', () => {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
             desiredSecondarySidebarViewContainerId: 'publisher.fixture',
-            paneLayout: {},
+            paneLayout: createPaneLayout(undefined, () => 'pane-1'),
         });
     });
 
@@ -240,7 +241,7 @@ describe('didExecuteViewCatalogCommand', () => {
                     sessionId: 'session-1',
                     workbenchProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'publisher.fixture',
-                    paneLayout: {},
+                    paneLayout: createPaneLayout(undefined, () => 'pane-1'),
                 },
             ],
             [

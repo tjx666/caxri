@@ -7,13 +7,8 @@ import process from 'node:process';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import {
-    createProjectSession,
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-    revealSettingsSection,
-} from './support/helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');

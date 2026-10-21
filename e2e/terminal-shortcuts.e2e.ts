@@ -16,7 +16,6 @@ import {
     createProjectSession,
     createShellSession,
     launchCaxri,
-    openSettingsTab,
     pageReply,
     pageRequest,
     pressNewTerminal,
@@ -24,6 +23,7 @@ import {
     typeTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 async function terminalIds(page: Page): Promise<string[]> {
     const state = await pageRequest<{ terminals: Array<{ id: string }> }>(page, 'app.bootstrap');
@@ -396,7 +396,7 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
             ),
         });
         const keybindingsTab = await openSettingsTab(running.page);
-        await keybindingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await openSettingsSection(keybindingsTab, 'Keybindings');
         await keybindingsTab.getByLabel('Search keyboard shortcuts').fill('send sequence');
         await expect(keybindingsTab.locator('[data-shortcut="cmd+enter"]')).toBeVisible();
         await expect(keybindingsTab.locator('[data-shortcut="cmd+shift+enter"]')).toBeVisible();

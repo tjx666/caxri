@@ -8,12 +8,8 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxriWithClipboard } from './support/helpers.ts';
-import {
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-    revealSettingsSection,
-} from './support/helpers.ts';
+import { launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 /**
  * The Monaco container for a config kind, located by `data-config-source` rather than by accessible name.
@@ -77,7 +73,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 return tokenColors.length;
             })
             .toBeGreaterThan(1);
-        await settingsTab.getByRole('button', { name: 'UI' }).click();
+        await settingsTab.getByRole('button', { name: 'UI', exact: true }).click();
         await expect(settingsTab.getByLabel('Search settings')).toBeVisible();
         const defaultAgent = settingsTab.getByRole('combobox', {
             name: 'Default Agent',
@@ -243,7 +239,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             settingsTabBox!.y + settingsTabBox!.height + 1,
         );
 
-        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Theme');
         const preview = settingsTab.getByLabel('Theme preview');
         await expect(preview).toBeVisible();
         const backgroundInput = settingsTab
@@ -300,7 +296,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await replaceMonacoText(running, running.page, sourceEditor, legalSource);
         await expect(settingsTab.getByRole('alert')).toHaveCount(0);
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
-        await settingsTab.getByRole('button', { name: 'UI' }).click();
+        await settingsTab.getByRole('button', { name: 'UI', exact: true }).click();
         await revealSettingsSection(settingsTab, 'Terminal');
         await expect(
             settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }),
@@ -328,7 +324,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // Leaving the source view no longer requires fixing the error first (there is no Apply gate
         // to block on): it discards the uncommitted invalid edit and the structured UI reverts to
         // the last-known-good value instead of showing something broken.
-        await settingsTab.getByRole('button', { name: 'UI' }).click();
+        await settingsTab.getByRole('button', { name: 'UI', exact: true }).click();
         await revealSettingsSection(settingsTab, 'Terminal');
         await expect(
             settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }),
@@ -362,7 +358,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await sourceEditor.locator('.monaco-editor').click();
         await running.page.keyboard.press('Meta+ArrowDown');
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
-        await settingsTab.getByRole('button', { name: 'UI' }).click();
+        await settingsTab.getByRole('button', { name: 'UI', exact: true }).click();
 
         // Re-enter source mode and fix it while still in the view, then confirm the fix survives a
         // tab switch away and back (the "preserves drafts across tabs" half of this test).
@@ -370,11 +366,13 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         sourceEditor = configSource(settingsTab, 'settings');
         await replaceMonacoText(running, running.page, sourceEditor, legalSource);
         await expect(settingsTab.getByRole('alert')).toHaveCount(0);
-        await settingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Keybindings');
         await expect(configSource(settingsTab, 'keybindings')).toBeVisible();
-        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Theme');
         await expect(settingsTab.getByLabel('theme.json source')).toBeVisible();
-        await settingsTab.getByRole('tab', { name: 'Settings', exact: true }).click();
+        // A Settings category in the navigation always lands on the UI view, so return to Source explicitly.
+        await openSettingsSection(settingsTab, 'Settings');
+        await settingsTab.getByRole('button', { name: 'Source' }).click();
         const restoredSettingsSource = configSource(settingsTab, 'settings');
         await restoredSettingsSource
             .locator('.monaco-editor')
@@ -390,7 +388,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // switch back to the UI view instead. `openSettingsTab` still works afterward: re-pressing
         // `Cmd+,` while the tab is already open and active is a harmless no-op refocus, which this
         // also exercises.
-        await settingsTab.getByRole('button', { name: 'UI' }).click();
+        await settingsTab.getByRole('button', { name: 'UI', exact: true }).click();
         await openSettingsTab(running.page);
         await revealSettingsSection(settingsTab, 'Terminal');
         await expect(
@@ -414,12 +412,9 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             .getByPlaceholder('Search projects, sessions, and commands…')
             .fill('Open Settings JSON');
         await palette.getByRole('option').filter({ hasText: 'Open Settings (JSON)' }).click();
-        await expect(
-            settingsTab.getByRole('tab', { name: 'Settings', exact: true }),
-        ).toHaveAttribute('aria-selected', 'true');
         await expect(configSource(settingsTab, 'settings')).toBeVisible();
 
-        await settingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await openSettingsSection(settingsTab, 'Keybindings');
         const keybindingsEditor = configSource(settingsTab, 'keybindings');
         await replaceMonacoText(running, running.page, keybindingsEditor, '[ invalid');
         await expect(settingsTab.getByRole('alert')).toContainText('keybindings.jsonc');
@@ -433,9 +428,6 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             .getByPlaceholder('Search projects, sessions, and commands…')
             .fill('Open Settings JSON');
         await reopenPalette.getByRole('option').filter({ hasText: 'Open Settings (JSON)' }).click();
-        await expect(
-            settingsTab.getByRole('tab', { name: 'Settings', exact: true }),
-        ).toHaveAttribute('aria-selected', 'true');
         await expect(configSource(settingsTab, 'settings')).toBeVisible();
 
         // The invalid keybindings edit was discarded, not persisted: the on-disk file still holds

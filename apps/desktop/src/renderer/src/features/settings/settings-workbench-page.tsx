@@ -1,34 +1,36 @@
+import type { ReactNode } from 'react';
+import { useState } from 'react';
+
 import { Braces, SlidersHorizontal } from 'lucide-react';
 
-import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
-import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { useIsLocalOnlyAvailable } from '../../stores/environment';
-import type { ConfigKind } from './config-edit';
-import { CONFIG_KINDS } from './config-edit';
 import { ConfigSourceView } from './config-source-view';
 import { KeybindingsForm } from './keybindings-form';
+import { SettingsNavigation } from './settings-navigation';
+import type { SettingsNavigationState } from './settings-page';
 import { SettingsPage } from './settings-page';
+import { useSettingsRegistry } from './settings-registry';
 import { ThemeForm } from './theme-form';
 import type { SettingsPageController } from './use-settings-page-controller';
 import { useSettingsPageController } from './use-settings-page-controller';
 
-const TAB_LABELS: Record<ConfigKind, TranslationKey> = {
-    keybindings: 'settings.page.tab.keybindings',
-    settings: 'settings.page.tab.settings',
-    theme: 'settings.page.tab.theme',
-};
-
 /**
  * Same header copy and classes as the former `DialogHeader`/`DialogTitle`/`DialogDescription` trio, reproduced as plain
- * markup: a Workbench tab has no popup chrome to draw them from and no close button to reserve `pr-12` for.
+ * markup: a Workbench tab has no popup chrome to draw them from. A surface that needs its own close control passes it
+ * as `headerAction`, which sits in the header after the view toggle instead of floating over it.
  */
-function SettingsWorkbenchView(controller: SettingsPageController) {
+function SettingsWorkbenchView({
+    headerAction,
+    ...controller
+}: SettingsPageController & { headerAction?: ReactNode }) {
     const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
     const { t } = useTranslation();
     const canImportTheme = useIsLocalOnlyAvailable();
+    const { categories } = useSettingsRegistry();
+    const [navigationState, setNavigationState] = useState<SettingsNavigationState>();
 
     const sourceView = state.theme.value && (
         <ConfigSourceView
@@ -43,49 +45,89 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
         />
     );
 
+    let content: ReactNode;
+    if (view === 'source') content = sourceView;
+    else if (tab === 'settings')
+        content = state.settings.value && (
+            <SettingsPage
+                key={
+                    controller.notificationsFocusRequestId ??
+                    controller.agentActionsFocusRequest?.id ??
+                    controller.agentExecutableFocusRequest?.id ??
+                    'settings'
+                }
+                agentActionsFocusRequest={controller.agentActionsFocusRequest}
+                agentExecutableFocusRequest={controller.agentExecutableFocusRequest}
+                anchorRequest={controller.anchorRequest}
+                onAnchorRequestHandled={controller.completeAnchorRequest}
+                notificationsFocusRequestId={controller.notificationsFocusRequestId}
+                agentHookHealth={controller.agentHookHealth}
+                agentSkillHealth={controller.agentSkillHealth}
+                argvConfig={controller.argvConfig}
+                gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
+                rowFocusRequest={controller.rowFocusRequest}
+                searchFocusRequestId={controller.searchFocusRequestId}
+                settings={state.settings.value}
+                trustedDomainsFocusRequestId={controller.trustedDomainsFocusRequestId}
+                onArgvConfigChange={controller.updateArgvConfig}
+                onFieldChange={controller.updateSettingsField}
+                onNavigationStateChange={setNavigationState}
+            />
+        );
+    else if (tab === 'keybindings')
+        content = (
+            <KeybindingsForm
+                focusRequestId={controller.keybindingsFocusRequestId}
+                keybindings={state.keybindings.value}
+                onAdd={controller.addBinding}
+                onChange={controller.updateBinding}
+                onRemove={controller.removeBinding}
+            />
+        );
+    else
+        content = state.theme.value && (
+            <ThemeForm
+                importResult={controller.themeImportResult}
+                theme={state.theme.value}
+                warnings={state.theme.warnings}
+                onColorChange={controller.updateThemeColor}
+                onDismissImportResult={controller.dismissThemeImportResult}
+                onImport={
+                    canImportTheme
+                        ? () => {
+                              // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
+                              void controller.importTheme();
+                          }
+                        : undefined
+                }
+                onSelectBuiltin={controller.selectBuiltinTheme}
+            />
+        );
+
     return (
         // `data-settings-page`: the former `role="dialog"` gave E2E a stable scope to query within; a Workbench tab
         // has no such role, so this attribute is the replacement scoping hook (`openSettingsTab` in
-        // `e2e/support/helpers.ts`).
+        // `e2e/support/settings.ts`).
         //
         // The page keeps a minimum width and scrolls sideways below it. Squeezed into a narrow split group, the 168px
-        // table of contents left the rows a sliver and zh-CN labels wrapped one character per line.
+        // navigation left the content a sliver and zh-CN labels wrapped one character per line.
         <div className="h-full overflow-x-auto overflow-y-hidden">
             <div
                 data-settings-page
-                className="grid h-full min-w-[30rem] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden"
+                className="grid h-full min-w-[30rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
             >
-                <div className="bg-surface pt-3 pr-4 pb-2 pl-4">
-                    {/* The workbench tab and the section strip below both say "Settings"; a third visible copy only
-                     * repeated them, so the heading stays for assistive tech alone. */}
+                {/*
+                 * One `bg-surface` header band over the `bg-background` content: a background step, not a hairline
+                 * (see `renderer-design-contract.test.ts`). The Workbench tab already says "Settings", so the heading
+                 * stays for assistive tech alone.
+                 */}
+                <div className="flex items-center gap-3 bg-surface py-2 pr-2 pl-4">
                     <h1 className="sr-only">{t('settings.page.heading')}</h1>
-                    <p className="m-0 text-[11px] leading-[1.45] text-muted">
+                    <p className="m-0 min-w-0 flex-1 text-[11px] leading-[1.45] text-muted">
                         {t('settings.page.intro')}
                     </p>
-                </div>
-                {/*
-                 * The title and tab strip form one `bg-surface` header band over the `bg-background` content: a
-                 * background step, not a hairline (see `renderer-design-contract.test.ts`). The shared tab fill used to
-                 * stop at the last tab and read as a stray block. `pl-1` plus each tab's `px-3` lines the first label up
-                 * with the `pl-4` title.
-                 */}
-                <div className="flex items-center bg-surface pl-1">
-                    <ChromeTabs
-                        ariaLabel={t('settings.page.sections')}
-                        className="flex flex-1 self-stretch"
-                        idPrefix="settings"
-                        items={CONFIG_KINDS.map((value) => ({
-                            value,
-                            label: t(TAB_LABELS[value]),
-                            content: t(TAB_LABELS[value]),
-                        }))}
-                        tabClassName="min-h-9 px-3"
-                        value={tab}
-                        onValueChange={controller.changeTab}
-                    />
                     <ToggleGroup
                         aria-label={t('settings.page.viewToggle')}
-                        className="mr-2"
                         value={[view]}
                         onValueChange={(next: Array<'ui' | 'source'>) => {
                             // Base UI reports re-activating the selected segment as an empty
@@ -116,94 +158,20 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                             </ToggleGroupItem>
                         </Tooltip>
                     </ToggleGroup>
+                    {headerAction}
                 </div>
-
-                <ChromeTabPanel
-                    active={tab === 'settings'}
-                    className="grid min-h-0 overflow-hidden"
-                    idPrefix="settings"
-                    value="settings"
-                >
-                    {tab === 'settings' &&
-                        state.settings.value &&
-                        (view === 'source' ? (
-                            sourceView
-                        ) : (
-                            <SettingsPage
-                                key={
-                                    controller.notificationsFocusRequestId ??
-                                    controller.agentActionsFocusRequest?.id ??
-                                    controller.agentExecutableFocusRequest?.id ??
-                                    'settings'
-                                }
-                                agentActionsFocusRequest={controller.agentActionsFocusRequest}
-                                agentExecutableFocusRequest={controller.agentExecutableFocusRequest}
-                                notificationsFocusRequestId={controller.notificationsFocusRequestId}
-                                agentHookHealth={controller.agentHookHealth}
-                                agentSkillHealth={controller.agentSkillHealth}
-                                argvConfig={controller.argvConfig}
-                                gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
-                                rowFocusRequest={controller.rowFocusRequest}
-                                searchFocusRequestId={controller.searchFocusRequestId}
-                                settings={state.settings.value}
-                                trustedDomainsFocusRequestId={
-                                    controller.trustedDomainsFocusRequestId
-                                }
-                                onArgvConfigChange={controller.updateArgvConfig}
-                                onFieldChange={controller.updateSettingsField}
-                            />
-                        ))}
-                </ChromeTabPanel>
-
-                <ChromeTabPanel
-                    active={tab === 'keybindings'}
-                    className="grid min-h-0 overflow-hidden"
-                    idPrefix="settings"
-                    value="keybindings"
-                >
-                    {tab === 'keybindings' &&
-                        (view === 'source' ? (
-                            sourceView
-                        ) : (
-                            <KeybindingsForm
-                                focusRequestId={controller.keybindingsFocusRequestId}
-                                keybindings={state.keybindings.value}
-                                onAdd={controller.addBinding}
-                                onChange={controller.updateBinding}
-                                onRemove={controller.removeBinding}
-                            />
-                        ))}
-                </ChromeTabPanel>
-
-                <ChromeTabPanel
-                    active={tab === 'theme'}
-                    className="grid min-h-0 overflow-hidden"
-                    idPrefix="settings"
-                    value="theme"
-                >
-                    {tab === 'theme' &&
-                        state.theme.value &&
-                        (view === 'source' ? (
-                            sourceView
-                        ) : (
-                            <ThemeForm
-                                importResult={controller.themeImportResult}
-                                theme={state.theme.value}
-                                warnings={state.theme.warnings}
-                                onColorChange={controller.updateThemeColor}
-                                onDismissImportResult={controller.dismissThemeImportResult}
-                                onImport={
-                                    canImportTheme
-                                        ? () => {
-                                              // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
-                                              void controller.importTheme();
-                                          }
-                                        : undefined
-                                }
-                                onSelectBuiltin={controller.selectBuiltinTheme}
-                            />
-                        ))}
-                </ChromeTabPanel>
+                <div className="grid min-h-0 grid-cols-[168px_minmax(0,1fr)] overflow-hidden">
+                    <SettingsNavigation
+                        activeAnchor={navigationState?.activeAnchor}
+                        categories={categories}
+                        counts={navigationState?.counts}
+                        searching={navigationState?.searching}
+                        section={tab}
+                        onNavigate={controller.navigateToAnchor}
+                        onSectionChange={controller.changeTab}
+                    />
+                    <div className="grid min-h-0 overflow-hidden">{content}</div>
+                </div>
             </div>
         </div>
     );
@@ -223,7 +191,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
  * command ever reaches `runCommand`), so it would have blocked `Cmd+W` itself while this tab was active: an open
  * Settings tab could never be closed from the keyboard again.
  */
-export function SettingsWorkbenchPage() {
+export function SettingsWorkbenchPage({ headerAction }: { headerAction?: ReactNode } = {}) {
     const controller = useSettingsPageController();
-    return <SettingsWorkbenchView {...controller} />;
+    return <SettingsWorkbenchView {...controller} headerAction={headerAction} />;
 }

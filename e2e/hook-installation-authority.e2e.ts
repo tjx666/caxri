@@ -7,12 +7,8 @@ import type { AgentHookHealthMap } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import {
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-    revealSettingsSection,
-} from './support/helpers.ts';
+import { launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conflict'] as const) {
     // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.

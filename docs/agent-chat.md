@@ -467,7 +467,13 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   answers `CONFLICT`, and `readTaskHistory` knows no task.
 - **Pane.** A subagent or background row opens its task in a Workbench tab
   (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in a
-  split beside the Chat, reusing that side pane for later tasks. A subagent tab is a read-only
+  split beside the Chat, reusing that side pane for later tasks. The split keeps the Chat readable
+  instead of halving the host: the Chat grows to at most 800px, the side pane takes the rest but no
+  less than 360px, and a host too narrow for a 420px Chat plus that minimum opens the tab as an
+  ordinary tab. While such a pane sits right of its own Chat, the Secondary Sidebar yields its width;
+  `Cmd+]` reveals it for that Session and Root, and it returns when the side pane closes
+  (`features/agent-chat/tasks/beside-chat-layout.ts`). Turn reviews, the side chat, and the Context
+  breakdown share this side pane. A subagent tab is a read-only
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
   in a Background work list above the composer, where each opens or stops on its own, and an `N

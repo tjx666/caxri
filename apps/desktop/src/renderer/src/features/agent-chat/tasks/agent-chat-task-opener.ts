@@ -1,11 +1,19 @@
+import type { PaneLayout } from '@caxri/protocol';
 import {
     agentContextTabPath,
     agentSideChatTabPath,
     agentTaskTabPath,
     agentTurnReviewTabPath,
+    findResourceTabs,
 } from '@caxri/protocol';
 
+import { handOffChromeFocus } from '../../../stores/chrome-focus-handoff';
+import { PANEL_DIVIDER_WIDTH, useChromeLayoutStore } from '../../../stores/chrome-layout';
 import { openEditorTab } from '../../editor/document-commands';
+import {
+    getSecondarySidebarYieldScope,
+    isSecondarySidebarShown,
+} from '../../secondary-sidebar/secondary-sidebar-visibility';
 import { focusTerminalById } from '../../terminal/terminal-pane-handlers';
 import {
     findPaneTabId,
@@ -47,10 +55,32 @@ export function openAgentChatSideChat(terminalId: string): void {
     openBesideAgentChat(terminalId, agentSideChatTabPath(terminalId));
 }
 
+/**
+ * Whether the split about to open will make the SecondarySidebar yield: it is on screen and no beside-Chat arrangement
+ * holds it open yet. An arrangement that already exists while it is shown means the user revealed it there.
+ */
+function willSecondarySidebarYield(): boolean {
+    return isSecondarySidebarShown() && getSecondarySidebarYieldScope() === undefined;
+}
+
+/**
+ * The width the Chat's split will have once committed: the Chat pane as laid out now, plus the SecondarySidebar and its
+ * divider when they are about to yield to a Chat that fills the Workbench. In a layout the user already split, that
+ * width spreads across every pane by their ratios, so it is left out rather than guessed.
+ */
+function measureBesideChatSplitHost(layout: PaneLayout, chatPaneId: string): number {
+    const slot = document.querySelector(`[data-pane-slot="${CSS.escape(chatPaneId)}"]`);
+    const width = slot?.getBoundingClientRect().width ?? 0;
+    if (layout.root.id !== chatPaneId || !willSecondarySidebarYield()) return width;
+    return width + useChromeLayoutStore.getState().secondarySidebarWidth + PANEL_DIVIDER_WIDTH;
+}
+
 function openBesideAgentChat(terminalId: string, tabPath: string): void {
     const layout = getPaneLayout();
     if (!layout) return;
-    const placement = planAgentChatTaskTabPlacement(layout, terminalId, tabPath);
+    const chatPaneId = findResourceTabs(layout, { kind: 'terminal', terminalId }).at(0)?.pane.id;
+    const hostWidth = chatPaneId ? measureBesideChatSplitHost(layout, chatPaneId) : 0;
+    const placement = planAgentChatTaskTabPlacement(layout, terminalId, tabPath, hostWidth);
     switch (placement.kind) {
         case 'select': {
             selectPaneTab(placement.tabId);
@@ -61,11 +91,17 @@ function openBesideAgentChat(terminalId: string, tabPath: string): void {
             return;
         }
         case 'split': {
+            // Before the commit, while the SecondarySidebar that may own focus is still mounted.
+            if (willSecondarySidebarYield()) handOffChromeFocus('secondarySidebar', false);
             // Opened in the Chat's pane first and then split off it, exactly what dragging the tab to the pane's right
             // edge does, so the side pane needs no placement rules of its own.
             openEditorTab(tabPath, { paneId: placement.chatPaneId });
             const tabId = findPaneTabId({ kind: 'file', path: tabPath });
-            if (tabId) splitPaneTab(tabId, placement.chatPaneId, 'right');
+            if (tabId) splitPaneTab(tabId, placement.chatPaneId, 'right', placement.ratio);
+            return;
+        }
+        case 'tab': {
+            openEditorTab(tabPath, { paneId: placement.paneId });
             return;
         }
         case 'active': {

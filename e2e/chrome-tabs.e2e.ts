@@ -8,9 +8,6 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
-    openSettingsTab,
-    pageRequest,
-    revealSettingsSection,
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
@@ -100,7 +97,7 @@ async function settleMediaChange(page: Page): Promise<void> {
     );
 }
 
-test('SecondarySidebar and Settings share accessible moving chrome tabs', async () => {
+test('SecondarySidebar and Panel share accessible moving chrome tabs', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-chrome-tabs-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -251,67 +248,17 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await expect(infoTab).toHaveAttribute('aria-selected', 'true');
         await expectPanelAssociation(running.page, logsTab, false);
         await expectIndicatorAligned(bottomTabs, infoTab);
-        await expect(gitTab).toHaveAttribute('aria-selected', 'true');
-        await infoTab.press('Meta+j');
-        await expect(bottomTabs).toHaveCount(0);
-
-        // Named `settingsPanel`, not `settingsTab`: the latter name is already the "Settings" entry
-        // inside `settingsTabs` below (the Settings/Keybindings/Theme sub-tabs), a different thing
-        // from the outer Workbench tab this opens.
-        const settingsPanel = await openSettingsTab(running.page);
-        const settingsTabs = settingsPanel.getByRole('tablist', { name: 'Settings sections' });
-        const settingsTab = settingsTabs.getByRole('tab', { name: 'Settings', exact: true });
-        const keybindingsTab = settingsTabs.getByRole('tab', {
-            name: 'Keybindings',
-            exact: true,
-        });
-        const themeTab = settingsTabs.getByRole('tab', { name: 'Theme', exact: true });
-        await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
-        await expectPanelAssociation(running.page, settingsTab, true);
-        await expectPanelAssociation(running.page, keybindingsTab, false);
-        await expectPanelAssociation(running.page, themeTab, false);
-        await expectIndicatorAligned(settingsTabs, settingsTab);
-        const cleanWidth = await stableWidth(
-            settingsTabs.locator('[data-slot="chrome-tab-indicator"]'),
-        );
-        /**
-         * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it changes, with no
-         * draft/Apply step and no per-tab dirty badge for the chrome tab to grow around; `[data-dirty="true"]` no
-         * longer exists anywhere in the DOM. The regression this sub-case protects is the new contract instead: editing
-         * a field must persist without an explicit Apply affordance, and the moving indicator must keep tracking the
-         * (visually unchanged) tab through that write rather than drifting or losing alignment.
-         */
-        await revealSettingsSection(settingsPanel, 'Terminal');
-        await settingsPanel.getByRole('spinbutton', { name: 'Terminal Font size' }).fill('14');
-        await expect
-            .poll(async () => {
-                const settings = await pageRequest<{ value: { 'terminal.fontSize': number } }>(
-                    running.page,
-                    'settings.get',
-                );
-                return settings.value['terminal.fontSize'];
-            })
-            .toBe(14);
-        await expectIndicatorAligned(settingsTabs, settingsTab);
-        // Sub-pixel tolerance rather than exact float equality: the point is that the tab did not
-        // grow by a dirty badge, not that layout reproduces bit-for-bit across a re-render.
-        expect(
-            await stableWidth(settingsTabs.locator('[data-slot="chrome-tab-indicator"]')),
-        ).toBeCloseTo(cleanWidth, 0);
-
-        await settingsTab.focus();
-        await settingsTab.press('ArrowRight');
-        await expect(keybindingsTab).toBeFocused();
-        await expect(keybindingsTab).toHaveAttribute('aria-selected', 'true');
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
         await settleMediaChange(running.page);
-        await themeTab.click();
-        await expect(themeTab).toHaveAttribute('aria-selected', 'true');
-        await expect(settingsTabs.locator('[data-slot="chrome-tab-indicator"]')).toHaveCSS(
+        await logsTab.click();
+        await expect(bottomTabs.locator('[data-slot="chrome-tab-indicator"]')).toHaveCSS(
             'transition-duration',
             '0s',
         );
-        await expectIndicatorAligned(settingsTabs, themeTab);
+        await expectIndicatorAligned(bottomTabs, logsTab);
+        await expect(gitTab).toHaveAttribute('aria-selected', 'true');
+        await logsTab.press('Meta+j');
+        await expect(bottomTabs).toHaveCount(0);
     } finally {
         try {
             await running.app.close();

@@ -11,12 +11,12 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
-    openSettingsTab,
     pageRequest,
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
 import { runningWork } from './support/running-work.ts';
+import { openSettingsTab } from './support/settings.ts';
 
 const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
 

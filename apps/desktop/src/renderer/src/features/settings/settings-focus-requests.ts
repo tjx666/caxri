@@ -1,16 +1,5 @@
 import type { SettingsView } from '../../stores/dialogs';
-
-/**
- * Requests that land on the ordinary settings list and are then answered by a `scrollToIndex` effect in
- * `settings-page.tsx`, rather than by switching to a dedicated tab or view.
- */
-export const scrolledSettingsViews: ReadonlySet<SettingsView> = new Set([
-    'hardware-acceleration',
-    'remote-debugging',
-    'notifications',
-    'git-exclusions',
-    'agent-suspension',
-]);
+import type { ConfigKind } from './config-edit';
 
 /**
  * Views reached by scrolling one row into view, so one request carries the row id rather than one prop per row. Both
@@ -30,4 +19,18 @@ export function rowFocusRequest(request: {
 }): { id: number; rowId: string } | undefined {
     const rowId = FOCUSED_ROW_IDS[request.view];
     return rowId ? { id: request.id, rowId } : undefined;
+}
+
+/**
+ * The section and view an open request lands on. Only Source and Keybindings name their own section; every other
+ * request, including an untargeted open, lands on the Settings list: leaving the section wherever the last open left it
+ * would hand `Cmd+,` to Theme or Keybindings, where the search field an untargeted open focuses does not exist.
+ */
+export function settingsSectionForRequest(view: SettingsView): {
+    tab: ConfigKind;
+    view: 'ui' | 'source';
+} {
+    if (view === 'source') return { tab: 'settings', view: 'source' };
+    if (view === 'keybindings') return { tab: 'keybindings', view: 'ui' };
+    return { tab: 'settings', view: 'ui' };
 }

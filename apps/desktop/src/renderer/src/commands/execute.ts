@@ -40,6 +40,10 @@ import { focusPrimarySidebar } from '../features/primary-sidebar/primary-sidebar
 import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
 import { openSeededProjectSearch } from '../features/project-search/project-search-seed';
 import { toggleScreencastMode } from '../features/screencast/screencast';
+import {
+    revealSecondarySidebar,
+    toggleSecondarySidebar,
+} from '../features/secondary-sidebar/secondary-sidebar-visibility';
 import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
     detachSelectedSession,
@@ -173,8 +177,7 @@ function activePaneTarget(): { paneId: string; tabId: string } | undefined {
 function activateSecondarySidebarViewContainer(
     id: Parameters<CommandContext['secondarySidebar']['activateViewContainer']>[0],
 ): void {
-    if (!useChromeLayoutStore.getState().secondarySidebarVisible)
-        useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
+    revealSecondarySidebar();
     useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(id);
 }
 
@@ -374,7 +377,7 @@ const commandContext: CommandContext = {
     },
     secondarySidebar: {
         activateViewContainer: activateSecondarySidebarViewContainer,
-        toggle: () => useChromeLayoutStore.getState().toggleSecondarySidebar(),
+        toggle: toggleSecondarySidebar,
     },
     panel: {
         activateViewContainer: (id) =>

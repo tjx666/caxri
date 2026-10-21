@@ -6,12 +6,8 @@ import type { ThemeTokens } from '@caxri/protocol';
 import { draculaTheme } from '@caxri/protocol';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import {
-    createProjectSession,
-    launchCaxri,
-    openSettingsTab,
-    pageRequest,
-} from './support/helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 test('VS Code theme import updates editor syntax and reports missing syntax rules', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-import-e2e-'));
@@ -73,7 +69,7 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
         ).toBeVisible();
 
         let settings = await openSettingsTab(running.page);
-        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         await expect(settings.getByText('Semantic token colors were not imported.')).toBeVisible();
         await expect
@@ -114,7 +110,7 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
         );
 
         settings = await openSettingsTab(running.page);
-        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         await expect(settings.getByText('Syntax colors were not imported.')).toBeVisible();
         await expect
@@ -154,7 +150,7 @@ test('theme import warnings can be dismissed and do not return after restart', a
         }, themePath);
         await createProjectSession(running.page);
         const settings = await openSettingsTab(running.page);
-        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         const warning = settings
             .getByRole('alert')
@@ -169,15 +165,15 @@ test('theme import warnings can be dismissed and do not return after restart', a
         expect(saved).not.toHaveProperty('warnings');
         await warning.getByRole('button', { name: 'Dismiss warning' }).click();
         await expect(warning).toHaveCount(0);
-        await settings.getByRole('tab', { name: 'Settings', exact: true }).click();
-        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settings, 'Settings');
+        await openSettingsSection(settings, 'Theme');
         await expect(settings.getByText('Semantic token colors were not imported.')).toHaveCount(0);
 
         await running.app.close();
         isFirstClosed = true;
         restarted = await launchCaxri({ userDataDir: userData, testRootPath: root });
         const reopened = await openSettingsTab(restarted.page);
-        await reopened.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(reopened, 'Theme');
         await expect(reopened.getByText('Semantic token colors were not imported.')).toHaveCount(0);
         expect(
             (await pageRequest<{ value: ThemeTokens }>(restarted.page, 'theme.get')).value,
@@ -215,7 +211,7 @@ test('theme import contrast failure names the color roles and measured ratio', a
         await createProjectSession(running.page);
         const before = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
         const settings = await openSettingsTab(running.page);
-        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await openSettingsSection(settings, 'Theme');
         await settings.getByRole('button', { name: 'Import Theme' }).click();
 
         // Reported inline in the tab rather than as a toast: the failure is specific to the edit the

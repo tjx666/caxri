@@ -5,12 +5,8 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import {
-    clickGitGroupAction,
-    createProjectSession,
-    launchCaxri,
-    openSettingsTab,
-} from './support/helpers.ts';
+import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
+import { openSettingsTab } from './support/settings.ts';
 
 test('Git diff exclusions hide changes, reveal on demand, and refresh from Settings', async () => {
     const testInfo = test.info();

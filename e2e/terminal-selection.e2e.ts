@@ -9,12 +9,12 @@ import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
-    openSettingsTab,
     pageRequest,
     pressNewTerminal,
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
 interface CharacterBounds {
     height: number;
@@ -325,7 +325,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
             });
 
         const keybindingsTab = await openSettingsTab(running.page);
-        await keybindingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await openSettingsSection(keybindingsTab, 'Keybindings');
         const keybindingsSearch = keybindingsTab.getByLabel('Search keyboard shortcuts');
         await keybindingsSearch.fill('terminal.copy');
         await expect(keybindingsTab.locator('[data-shortcut="cmd+shift+c"]')).toBeVisible();

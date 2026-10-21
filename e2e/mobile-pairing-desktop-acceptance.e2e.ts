@@ -6,8 +6,8 @@ import { execFileAsync } from '@caxri/system';
 
 import { markCaseLifecycleReady } from '../.agents/skills/acceptance/scripts/case-lifecycle.ts';
 import { expect, test } from './support/fixtures.ts';
-import { openSettingsTab, revealSettingsSection } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
+import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
 
 /**
  * Automatic failure artifacts can freeze the short-lived QR credential outside the report-bound privacy scan. This spec

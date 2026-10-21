@@ -11,12 +11,12 @@ import {
     clickTerminalLink,
     createShellSession,
     launchCaxri,
-    openSettingsTab,
     pageRequest,
     selectedSessionId,
     sessionCard,
     typeTerminal,
 } from './support/helpers.ts';
+import { openSettingsTab } from './support/settings.ts';
 import { expectDisabledTerminalCopy } from './support/terminal-links.ts';
 
 type LinkProbeName = 'caxriExternalLinkProbe' | 'caxriKeyboardLinkProbe' | 'caxriReferenceProbe';
