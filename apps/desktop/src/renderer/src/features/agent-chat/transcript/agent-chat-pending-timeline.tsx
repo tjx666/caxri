@@ -4,9 +4,9 @@ import { useTranslation } from '../../../i18n';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
 import type { useAgentChatPending } from '../hooks/use-agent-chat-pending';
 import { AgentChatUserMessageBubble } from '../messages/agent-chat-user-message';
-import { AgentChatAskingQuestions } from './agent-chat-answered-questions';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
+import { AgentChatAskingQuestions } from './questions/agent-chat-answered-questions';
 
 /**
  * A message on its way, laid out like the user message it becomes but faded, with a Sending caption and none of its

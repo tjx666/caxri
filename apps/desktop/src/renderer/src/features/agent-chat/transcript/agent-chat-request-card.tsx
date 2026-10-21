@@ -24,7 +24,7 @@ import {
 } from '../permissions/agent-chat-approval-keys';
 import { AgentChatFileChanges } from '../turns/agent-chat-file-changes';
 import { agentChatCommandCwd } from './agent-chat-presentation';
-import { AgentChatQuestionForm } from './agent-chat-question-form';
+import { AgentChatQuestionForm } from './questions/agent-chat-question-form';
 
 /**
  * The files an approval would change, read from the timeline item it gates: the provider announces the file change

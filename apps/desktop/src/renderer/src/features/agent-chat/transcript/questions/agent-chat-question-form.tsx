@@ -10,13 +10,12 @@ import {
 } from '@caxri/protocol';
 import { ArrowRight, Check } from 'lucide-react';
 
-import { ChromeTabPanel, ChromeTabs } from '../../../components/chrome-tabs';
-import { Button } from '../../../components/ui/button';
-import { Input, InputGroup } from '../../../components/ui/input';
-import { Kbd } from '../../../components/ui/kbd';
-import { useTranslation } from '../../../i18n';
-import { cn } from '../../../lib/utilities';
-import { useAgentChatQuestionPicks } from '../hooks/use-agent-chat-question-picks';
+import { ChromeTabPanel, ChromeTabs } from '../../../../components/chrome-tabs';
+import { Button } from '../../../../components/ui/button';
+import { Input, InputGroup } from '../../../../components/ui/input';
+import { Kbd } from '../../../../components/ui/kbd';
+import { useTranslation } from '../../../../i18n';
+import { cn } from '../../../../lib/utilities';
 import type { QuestionFormPrimaryAction, QuestionPanelKeyAction } from './agent-chat-question-flow';
 import {
     agentChatQuestionResponse,
@@ -24,6 +23,7 @@ import {
     questionFormPrimaryAction,
     questionPanelKeyAction,
 } from './agent-chat-question-flow';
+import { useAgentChatQuestionPicks } from './use-agent-chat-question-picks';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 type QuestionOption = QuestionRequest['questions'][number]['options'][number];

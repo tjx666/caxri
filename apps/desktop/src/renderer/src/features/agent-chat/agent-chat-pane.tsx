@@ -23,7 +23,6 @@ import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatEmptyState } from './agent-chat-empty-state';
 import type { AgentChatHost } from './agent-chat-host';
 import { agentChatHostCapabilities } from './agent-chat-host';
-import { markAgentChatOnScreen } from './agent-chat-on-screen';
 import { AgentChatComposer } from './composer/agent-chat-composer';
 import type { AgentChatComposerInput } from './composer/agent-chat-composer-view';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
@@ -84,6 +83,7 @@ import {
 } from './transcript/agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './transcript/agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
+import { markAgentChatOnScreen } from './waiting/agent-chat-on-screen';
 
 /**
  * The rows a sent message rises to the top with: each user message starts a turn, including one still being sent

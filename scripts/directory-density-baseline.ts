@@ -35,7 +35,7 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 11, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
     { cap: 20, directory: 'apps/desktop/src/main/ssh' },
     { cap: 54, directory: 'apps/desktop/src/renderer/src/features/agent-chat/hooks' },
-    { cap: 24, directory: 'apps/desktop/src/renderer/src/features/agent-chat/transcript' },
+    { cap: 21, directory: 'apps/desktop/src/renderer/src/features/agent-chat/transcript' },
     { cap: 22, directory: 'apps/desktop/src/renderer/src/features/agent-chat/loading/glyphs' },
     { cap: 19, directory: 'apps/desktop/src/renderer/src/features/agent-chat/composer' },
     { cap: 17, directory: 'apps/desktop/src/renderer/src/features/agent-chat/context' },
