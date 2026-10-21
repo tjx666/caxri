@@ -6,6 +6,7 @@ import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { CommanderSessionMarker } from '../agent-commander/commander-session-marker';
+import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionTitleForDisplay } from '../session/session-title';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
@@ -132,6 +133,9 @@ export function ActiveSessionRow({
 }: ActiveSessionRowProperties) {
     const { t } = useTranslation();
     const title = sessionTitleForDisplay(session.displayTitle, t);
+    // The shared label rule (collision suffix included); `title` above stays the plain stored title for rename and the
+    // tree row's accessible name.
+    const label = useSessionLabel(session.id);
     const project = {
         displayTitle: projectDisplayTitle,
         icon: projectIcon,
@@ -155,7 +159,7 @@ export function ActiveSessionRow({
      */
     const [menuOpen, setMenuOpen] = useState(false);
     const { viewportReference, textReference, setHovered, setFocused } = useSessionTitleScroll(
-        title,
+        label.title,
         renaming || menuOpen,
     );
     const sessionCard = (
@@ -205,9 +209,18 @@ export function ActiveSessionRow({
                         onPointerLeave={() => setHovered(false)}
                     >
                         <span ref={textReference} className="block w-max max-w-full">
-                            {title}
+                            {label.title}
                         </span>
                     </strong>
+                    {/* Muted disambiguation, shown only when another Session carries the same title. */}
+                    {label.suffix && (
+                        <span
+                            aria-hidden="true"
+                            className="session-label-detail min-w-0 flex-none overflow-hidden text-[11px] whitespace-nowrap text-muted"
+                        >
+                            {label.suffix}
+                        </span>
+                    )}
                     {/*
                      * `aria-hidden` because the row's accessible name is composed elsewhere and would otherwise read
                      * the Project twice; the hover card names it for anyone who needs the full sentence. Allowed to

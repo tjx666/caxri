@@ -8,7 +8,7 @@ import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useIsSessionTabStripVisible, useOpenSessionIds } from '../../stores/open-sessions';
 import { useIsFullScreen } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { sessionTitleForDisplay } from '../session/session-title';
+import { sessionLabelOf } from '../session/session-label-snapshot';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabNavigationTarget } from '../tabs/work-tab-accessibility';
 import { useActiveTabReveal } from '../workbench/pane-tab-reveal';
@@ -62,13 +62,11 @@ function SessionTabStripBar() {
         // eslint-disable-next-line no-void -- intentional floating-promise discard
         void shiftSessionTab(sessionId, direction).then(() => {
             const position = openSessionIds.indexOf(sessionId) + direction;
-            const session = useWorkbenchStore
-                .getState()
-                .bootstrap?.sessions.find((item) => item.id === sessionId);
-            if (!session || position < 0 || position >= openSessionIds.length) return;
+            const label = sessionLabelOf(useWorkbenchStore.getState().bootstrap, sessionId);
+            if (!label || position < 0 || position >= openSessionIds.length) return;
             setAnnouncement(
                 t('sessionTabs.reordered', {
-                    title: sessionTitleForDisplay(session.displayTitle, t),
+                    title: label.suffix ? `${label.title} (${label.suffix})` : label.title,
                     position: position + 1,
                     count: openSessionIds.length,
                 }),

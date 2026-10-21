@@ -5,18 +5,22 @@ import { X } from 'lucide-react';
 import { ContextMenuTrigger } from '../../components/context-menu-trigger';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { cn } from '../../lib/utilities';
 import { useSessionById } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { sessionWorktreeProject } from '../primary-sidebar/project-visibility';
+import { currentSessionActivityPresentation } from '../primary-sidebar/session-activity';
 import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
+import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
-import { sessionTitleForDisplay } from '../session/session-title';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { activateSessionTab, closeSessionTabs } from './session-tab-commands';
 import { sessionTabDomId } from './session-tab-dom-id';
 import { sessionTabMenu } from './session-tab-menu';
+import { sessionTabTooltip } from './session-tab-tooltip';
 import { sessionTabShortcutKey } from './session-tabs-state';
 
 function isNavigationKey(key: string): key is WorkTabNavigationKey {
@@ -58,12 +62,27 @@ export function SessionTab({
     const terminal = useWorkbenchStore((state) =>
         session ? sessionAgentTerminal(session, state.bootstrap?.terminals ?? []) : undefined,
     );
+    const workingLocation = useWorkbenchStore((state) =>
+        session
+            ? sessionWorktreeProject(session, state.bootstrap?.projects ?? [])?.displayTitle
+            : undefined,
+    );
+    const label = useSessionLabel(sessionId);
     // Pruned from the snapshot a moment before the strip catches up.
     if (!session) return null;
-    const title = sessionTitleForDisplay(session.displayTitle, t);
-    const tooltip = projectTitle
-        ? t('sessionTabs.tooltip', { title, project: projectTitle })
-        : title;
+    const { title } = label;
+    const tooltip = sessionTabTooltip(
+        {
+            agentLabel: resolveAgentIcon(terminal?.kind ?? 'shell').label,
+            projectTitle,
+            shortcutDigit: sessionTabShortcutKey(index, count)?.replace('Meta+', ''),
+            statusLabel: currentSessionActivityPresentation(session, terminal).label,
+            suffix: label.suffix,
+            title,
+            workingLocation,
+        },
+        t,
+    );
     const closeLabel = t('sessionTabs.closeNamed', { title });
     const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
         if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
@@ -123,6 +142,11 @@ export function SessionTab({
                         <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={13} />
                         <span className="tab-label min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                             {title}
+                            {label.suffix && (
+                                <span className="tab-detail ml-1.5 text-[11px] font-normal text-muted">
+                                    {label.suffix}
+                                </span>
+                            )}
                         </span>
                         <SessionStatusIndicator session={session} terminal={terminal} />
                     </button>

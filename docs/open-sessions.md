@@ -124,3 +124,22 @@ context, never a global selection. Keep-alive stays the most recent five Session
 Dropping a tab onto another window to merge it is not supported; a tear-off is one-way into a new window. The
 file watcher is single-scope and follows the primary visible Session, so a Session shown only in a torn-off
 window is watched while that window is the primary visible one. Per-window bounds are not persisted.
+
+## Tab and row labels
+
+The strip and the PrimarySidebar name a Session through one pure rule
+(`features/session/session-labels.ts`), so they never disagree. The title chain is the stored title
+(the user's rename or the Agent's), then a snippet of the first prompt (24 characters), then
+`Project · worktree`, then the translated "Untitled". The prompt snippet is an optional input that no
+surface supplies yet.
+
+A muted suffix follows the title only when another non-archived Session carries the same
+(case-insensitive) title, and it escalates only as far as needed: the Project name when the colliding
+Sessions belong to different Projects; else the Agent kind and linked worktree when those differ; else a
+per-Project ordinal such as `#2`. The ordinal is the rank by creation time among every Session of that
+Project with that title, archived or not, so closing, archiving, or reordering a sibling never
+renumbers the rest. The suffix is computed over the whole snapshot rather than the strip alone, which
+keeps a tab and its sidebar row identical.
+
+A tab's tooltip lists the full label, Project, Agent, worktree, status, and the `Cmd+N` chord that
+selects it. The record carries no branch name, so the worktree stands in for it.

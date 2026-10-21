@@ -682,7 +682,8 @@ inner row is the focused pane's tab bar, an ordinary `--surface` bar, and keeps 
 top border on the focused pane's active tab even while the strip shows, so the screen's one durable
 accent says where input goes. The strip's trailing `+` is the pane row's `+` (28px `Button`, ghost)
 at the other level, and both levels use the same inset 1px `--foreground` outline for keyboard
-focus. A single Open Session hides the outer row and the pane bar becomes the title bar again. Every
+focus. A tab whose title collides with another Session's gets a trailing 11px `--muted` detail (Project, Agent,
+or `#n`), also shown on its sidebar row. A single Open Session hides the outer row and the pane bar becomes the title bar again. Every
 color is a semantic token, so a light theme restyles both rows with no extra work.
 
 **Tab strip**: active tab: `--background` fill joining it visually to the pane below,
