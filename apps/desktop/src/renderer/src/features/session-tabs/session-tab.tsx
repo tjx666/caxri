@@ -157,14 +157,14 @@ export function SessionTab({
                     // the accent belongs to the focused pane's active tab (DESIGN.md "Two tab levels"). Widths:
                     // 104px floor so five or six fit a 1280px window, 200px cap, and the active tab keeps 150px so
                     // its title stays readable however crowded the strip gets.
-                    'session-tab group relative flex h-7 max-w-50 min-w-26 flex-1 basis-0 items-center rounded-md pr-1 text-[11px] font-medium text-tab-inactive-foreground [-webkit-app-region:no-drag] hover:bg-elevated/60 hover:text-foreground',
+                    'session-tab group relative flex h-7 max-w-50 min-w-26 flex-1 basis-0 items-center rounded-md pr-1 text-[11px] font-medium text-tab-inactive-foreground [-webkit-app-region:no-drag] hover:bg-elevated/35 hover:text-foreground',
                     // The short divider after this tab. It hides beside the active tab, beside a hovered tab, and at
                     // the end of the row, so a pill never sits flush against a line.
                     "after:pointer-events-none after:absolute after:top-1.5 after:-right-[2.5px] after:h-4 after:w-px after:bg-border after:content-[''] hover:after:opacity-0 has-[+.session-tab-new]:after:hidden has-[+.session-tab:hover]:after:opacity-0 has-[+[data-tab-active]]:after:opacity-0",
                     // Soft echo of a hover on the Session's sidebar row, the same fill as this tab's own hover.
-                    isLinkedHover && !isActive && 'bg-elevated/60 text-foreground',
+                    isLinkedHover && !isActive && 'bg-elevated/35 text-foreground',
                     isActive &&
-                        'active min-w-37.5 bg-elevated text-foreground shadow-sm after:opacity-0 hover:bg-elevated',
+                        'active min-w-37.5 bg-elevated text-foreground shadow-sm ring-1 ring-foreground/12 ring-inset after:opacity-0 hover:bg-elevated',
                 )}
                 data-session-tab-id={sessionId}
                 data-tab-active={isActive || undefined}

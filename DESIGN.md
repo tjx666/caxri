@@ -673,8 +673,10 @@ of its own, because a row that is already focusable does not need a button insid
 1px `--border` hairline between them (an inset shadow, so the rows keep their height). The outer
 row is the Session level and is the window's title bar (`--title-bar-*` fill, drag region,
 traffic-light inset). Its tabs are inset 28px pills with 6px radius, 11px medium labels, and a 4px
-gap: inactive pills are transparent with `--tab-inactive-foreground` text, hover adds a 60%
-`--elevated` fill, and the active pill is `--elevated` with `--foreground` text and a small shadow.
+gap: inactive pills are transparent with `--tab-inactive-foreground` text, hover adds a 35%
+`--elevated` fill, and the active pill is `--elevated` with `--foreground` text, a small shadow,
+and an inset 1px ring of 12% `--foreground`. A stronger hover fill read as the active pill over the
+title-bar fill in both dark and light themes.
 Short 16px `--border` dividers separate idle neighbours and hide beside the active pill, beside a
 hovered pill, and at the row's end. Widths run 104px to 200px, and the active pill never drops
 below 150px. The Session level never uses `--accent`: selecting a Session is not keyboard focus. The
