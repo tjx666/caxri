@@ -186,6 +186,9 @@ export function SettingsPage(properties: SettingsPageProperties) {
     ]);
 
     useEffect(() => {
+        // The scroll-spied anchor comes from this page's virtualizer, and the navigation that shows it must outlive the
+        // page over Keybindings, Theme, and Source, so the state cannot be lifted into the parent with the list.
+        // react-doctor-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent
         onNavigationStateChange?.({ activeAnchor, counts, searching: isSearching });
     }, [activeAnchor, counts, isSearching, onNavigationStateChange]);
     useEffect(() => () => onNavigationStateChange?.(undefined), [onNavigationStateChange]);
