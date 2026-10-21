@@ -47,6 +47,18 @@ export function agentChatReturnAnchorId(
 }
 
 /**
+ * Whether the first missed prompt sits wholly above the scroll view, given both elements' client rects. What the user
+ * missed is the Agent's reply, which starts where the prompt ends, so the prompt's bottom edge decides: a long prompt
+ * whose top has scrolled away while its end and the reply below it are on screen is already in view.
+ */
+export function isAgentChatReturnAnchorAbove(
+    anchor: Pick<DOMRect, 'bottom'>,
+    view: Pick<DOMRect, 'top'>,
+): boolean {
+    return anchor.bottom <= view.top;
+}
+
+/**
  * Whether the return hint shows now. It only helps while the start of what the user missed is out of view above: one
  * missed turn longer than the view still needs a way back to its prompt, while two short ones may sit fully on screen.
  * It shares the bottom slot with Jump to latest, which shows only once the latest entry leaves the view, so the two
