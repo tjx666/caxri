@@ -67,14 +67,23 @@ function currentVisibility(): AttentionVisibility {
 export function useSessionAttentionAcknowledgement(): void {
     const session = useSelectedSession();
     const isPendingReference = useRef(false);
-    const { data } = useCaxriQuery('agentChat.pendingRequests', {}, { staleTime: Infinity });
+    const { data, isPending: arePendingRequestsLoading } = useCaxriQuery(
+        'agentChat.pendingRequests',
+        {},
+        { staleTime: Infinity },
+    );
     const onScreen = useAgentChatOnScreenStore((state) => state.counts);
     const waitingTerminalIds = useMemo(
         () => new Set(data?.chats.map((chat) => chat.terminalId)),
         [data],
     );
+    /**
+     * Until the pending requests first load, an off-screen request cannot be ruled out, so a launch or a fresh mount
+     * holds acknowledgement rather than clearing Attention while the Agent is still blocked. A failed read settles the
+     * query and lets acknowledgement proceed as before.
+     */
     const hasUnseenChatRequest = session
-        ? isChatRequestUnseen(session, waitingTerminalIds, onScreen)
+        ? arePendingRequestsLoading || isChatRequestUnseen(session, waitingTerminalIds, onScreen)
         : false;
 
     const acknowledge = useCallback((): void => {

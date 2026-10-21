@@ -136,6 +136,17 @@ describe('discardAgentChatSideChatIfChatGone', () => {
         discardAgentChatSideChatIfChatGone(terminalId);
         expect(thread()).toBeUndefined();
     });
+
+    it('forgets the side chat of a Chat deleted while its tab was closed on the next question', async () => {
+        await askAgentChatSideQuestion(terminalId, 'q');
+        mocks.bootstrap = {
+            ...bootstrap(),
+            terminals: [{ id: 'chat-2', kind: 'claude', sessionId: 'session-1' }],
+        };
+        await askAgentChatSideQuestion('chat-2', 'other');
+        expect(thread()).toBeUndefined();
+        expect(useAgentChatSideChatStore.getState().threads['chat-2']).toHaveLength(1);
+    });
 });
 
 describe('convertAgentChatSideChatToSession', () => {

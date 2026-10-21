@@ -42,6 +42,48 @@ describe('Agent Chat reducer', () => {
         expect(() => agentChatSnapshotSchema.parse(snapshot)).not.toThrow();
     });
 
+    it('settles a retry notice only on progress after it, not on a tool that started before the outage', () => {
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'upsertItem',
+            item: {
+                id: 'tool',
+                turnId: 'turn-1',
+                type: 'command',
+                command: 'sleep 60',
+                status: 'running',
+                output: '',
+            },
+        });
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'upsertItem',
+            item: {
+                id: 'turn-1:retry',
+                turnId: 'turn-1',
+                type: 'notice',
+                kind: 'retrying',
+                retry: { cause: 'connection', attempt: 1 },
+            },
+        });
+        const retry = () => snapshot.items.find((item) => item.id === 'turn-1:retry');
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'appendText',
+            itemId: 'tool',
+            delta: 'still running',
+        });
+        expect(retry()).not.toHaveProperty('retry.resolved');
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'upsertItem',
+            item: {
+                id: 'reply',
+                turnId: 'turn-1',
+                type: 'agentMessage',
+                text: 'Back',
+                streaming: true,
+            },
+        });
+        expect(retry()).toMatchObject({ retry: { resolved: true } });
+    });
+
     it('keeps the time an item began across later upserts that omit it', () => {
         let snapshot = applyAgentChatOperation(empty(), {
             op: 'upsertItem',

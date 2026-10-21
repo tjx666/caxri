@@ -102,7 +102,15 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         },
         [queryClient, queryKey, request, sessionId, t],
     );
-    const resetMerge = useCallback(() => setMerge({ state: 'idle' }), []);
+    /**
+     * Closing the sheet drops a failed attempt, so reopening it after fixing the blocker does not repeat the old error.
+     * A merge still in flight keeps its state (its outcome must survive the sheet), and a merged one keeps the overlay
+     * below until Project Status catches up.
+     */
+    const dismissMergeFailure = useCallback(
+        () => setMerge((current) => (current.state === 'failed' ? { state: 'idle' } : current)),
+        [],
+    );
     const read = query.data?.pullRequest;
     /**
      * GitHub accepted the merge, but Project Status can still answer from before it for a moment. Show the pull request
@@ -116,7 +124,7 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         isObservable,
         merge,
         pullRequest,
-        resetMerge,
+        dismissMergeFailure,
         startMerge,
     };
 };

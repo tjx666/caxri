@@ -79,6 +79,20 @@ export function isAgentChatSideChatBusy(exchanges: readonly SideChatExchange[]):
 }
 
 /**
+ * The threads whose Chat is still in the workbench. A Chat deleted while its side chat tab was closed never unmounts a
+ * tab that could discard it, so each new question sweeps those away; with no workbench loaded nothing is known gone.
+ */
+function threadsOfLiveChats(
+    threads: AgentChatSideChatState['threads'],
+): AgentChatSideChatState['threads'] {
+    const terminals = getBootstrap()?.terminals;
+    if (!terminals) return threads;
+    const live = new Set(terminals.map(({ id }) => id));
+    const gone = Object.keys(threads).filter((id) => !live.has(id));
+    return gone.length === 0 ? threads : omit(threads, gone);
+}
+
+/**
  * Adds `question` to the Chat's side chat and asks it. Resolves once the answer or the failure is recorded.
  */
 export async function askAgentChatSideQuestion(
@@ -95,7 +109,10 @@ export async function askAgentChatSideQuestion(
         status: 'pending',
     };
     useAgentChatSideChatStore.setState(({ threads }) => ({
-        threads: { ...threads, [terminalId]: [...(threads[terminalId] ?? []), exchange] },
+        threads: {
+            ...threadsOfLiveChats(threads),
+            [terminalId]: [...(threads[terminalId] ?? []), exchange],
+        },
     }));
     await answerExchange(terminalId, exchange);
 }
@@ -124,10 +141,10 @@ export function discardAgentChatSideChat(terminalId: string): void {
 }
 
 /**
- * Discards the side chat once its Chat is gone, called as the tab unmounts. Closing the tab alone keeps the thread:
- * reopening the side chat for the same Chat (`Cmd+;`, `/btw`) shows it again. An unmount also proves little about the
- * tab (a Session switch unmounts every tab of the Session left behind, and a pane move remounts it), so only the Chat's
- * absence from the workbench counts.
+ * Discards the side chat once its Chat is gone, called as the tab unmounts (the next question sweeps up a Chat deleted
+ * while its tab was closed). Closing the tab alone keeps the thread: reopening the side chat for the same Chat
+ * (`Cmd+;`, `/btw`) shows it again. An unmount also proves little about the tab (a Session switch unmounts every tab of
+ * the Session left behind, and a pane move remounts it), so only the Chat's absence from the workbench counts.
  */
 export function discardAgentChatSideChatIfChatGone(terminalId: string): void {
     const terminal = getBootstrap()?.terminals.find(({ id }) => id === terminalId);

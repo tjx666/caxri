@@ -178,8 +178,12 @@ function resolveRetries(items: AgentChatItem[], progress: AgentChatItem): AgentC
     if (!progress.turnId || progress.type === 'userMessage' || progress.type === 'notice') {
         return items;
     }
+    // Only an item after the notice is progress since the retry: an older tool that started before the outage can still
+    // stream output or settle while the provider is retrying.
+    const progressIndex = items.findIndex((item) => item.id === progress.id);
     for (const [index, item] of items.entries()) {
         if (
+            index < progressIndex &&
             item.type === 'notice' &&
             item.kind === 'retrying' &&
             item.retry &&

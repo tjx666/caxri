@@ -60,7 +60,10 @@ export const PullRequestChip = ({
                 <PullRequestSheet
                     deviceRole={deviceRole}
                     isConnected={isConnected}
-                    onClose={() => setOpen(false)}
+                    onClose={() => {
+                        setOpen(false);
+                        state.dismissMergeFailure();
+                    }}
                     pullRequest={pullRequest}
                     state={state}
                     theme={theme}
