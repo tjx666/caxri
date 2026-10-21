@@ -33,6 +33,7 @@ function AnimatedHeight({ children }: { children: ReactNode }) {
         return () => observer.disconnect();
     }, []);
     return (
+        // react-doctor-disable-next-line react-doctor/no-layout-property-animation -- the popover follows its section's height when the user switches sections; a scale would distort the text.
         <m.div
             animate={{ height }}
             className="relative overflow-hidden"

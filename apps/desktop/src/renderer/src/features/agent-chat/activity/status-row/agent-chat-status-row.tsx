@@ -2,47 +2,31 @@ import type { ReactNode } from 'react';
 import { useId, useRef, useState } from 'react';
 
 import type { AgentChatTurnUsage } from '@caxri/protocol';
-import { ChevronRight, CircleX, ListTodo } from 'lucide-react';
+import { CircleX, ListTodo } from 'lucide-react';
 import { AnimatePresence, useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
 import { Popover, PopoverContent, PopoverTrigger } from '../../../../components/ui/popover';
-import { Spinner } from '../../../../components/ui/spinner';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
-import { AgentChatTaskStopButton } from '../../tasks/agent-chat-task-entry';
 import { AgentChatTaskGlyph } from '../../tasks/agent-chat-task-glyph';
-import { agentChatTaskTitle } from '../../tasks/agent-chat-tasks';
 import { AgentChatTurnMetricList } from '../agent-chat-turn-metric-list';
-import { AgentChatActivityLead } from './agent-chat-activity-lead';
 import { markAgentChatFailuresSeen } from './agent-chat-seen-failures';
 import { AgentChatStatusDetails } from './agent-chat-status-details';
+import { AgentChatStatusRowLead, FailureDot } from './agent-chat-status-row-lead';
 import { STATUS_ROW_SPRING, STATUS_ROW_SWAP } from './agent-chat-status-row-motion';
 import type {
     AgentChatStatusRowSection,
     AgentChatStatusRowView,
 } from './agent-chat-status-row-view';
-import { agentChatFailuresText } from './agent-chat-status-row-view';
+import {
+    agentChatFailuresText,
+    agentChatPlanBadgeLabel,
+    agentChatTaskBadgeLabel,
+} from './agent-chat-status-row-view';
 
 const BADGE_CLASS_NAME =
     'relative inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 text-[11px] text-muted tabular-nums transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent';
-
-const LEAD_TRIGGER_CLASS_NAME =
-    'flex min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left text-muted hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated';
-
-/**
- * A red dot on a task glyph: a background task failed and the user has not looked at the task list since.
- */
-function FailureDot({ children, isShown }: { children: ReactNode; isShown: boolean }) {
-    return (
-        <span className="relative inline-flex shrink-0">
-            {children}
-            {isShown && (
-                <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-danger ring-1 ring-surface" />
-            )}
-        </span>
-    );
-}
 
 /**
  * One of the row's two badges (plan, background work), pinned to the right edge so ticking figures never move the click
@@ -99,6 +83,37 @@ function StatusBadge({
                 <span className="relative inline-flex items-center gap-1">{children}</span>
             </PopoverTrigger>
         </m.span>
+    );
+}
+
+/**
+ * The background work badge's glyph and figure: the running tasks' glyph and count (with the failure dot), or a red
+ * cross and the unseen failures once nothing runs.
+ */
+function TaskBadgeContent({
+    badge,
+    isShowsFailureDot,
+    running,
+}: {
+    badge: NonNullable<AgentChatStatusRowView['taskBadge']>;
+    isShowsFailureDot: boolean;
+    running: AgentChatStatusRowView['running'];
+}) {
+    if (badge.running === 0) {
+        return (
+            <>
+                <CircleX aria-hidden="true" className="size-3.5 text-danger" />
+                {badge.unseenFailures}
+            </>
+        );
+    }
+    return (
+        <>
+            <FailureDot isShown={isShowsFailureDot}>
+                <AgentChatTaskGlyph kind={running[0]?.kind ?? 'agent'} />
+            </FailureDot>
+            {badge.running}
+        </>
     );
 }
 
@@ -171,104 +186,6 @@ export function AgentChatStatusRow({
     const failureText = agentChatFailuresText(failureCount, t);
     const { lead, planBadge, taskBadge } = view;
 
-    let leadContent: ReactNode;
-    switch (lead.kind) {
-        case 'activity': {
-            leadContent = (
-                <AgentChatActivityLead
-                    activity={lead.activity}
-                    isStopping={isStopping}
-                    turnId={turnId}
-                />
-            );
-            break;
-        }
-        case 'task': {
-            const title = agentChatTaskTitle(lead.task, t);
-            leadContent = (
-                <>
-                    <PopoverTrigger
-                        aria-label={t('agentChat.status.showDetails', {
-                            status: t('agentChat.status.taskRunning', { title }),
-                        })}
-                        className={cn(LEAD_TRIGGER_CLASS_NAME, 'flex-1')}
-                        onClick={show('tasks')}
-                    >
-                        <FailureDot isShown={isShowsFailureDot}>
-                            <AgentChatTaskGlyph kind={lead.task.kind} />
-                        </FailureDot>
-                        <span
-                            className={cn(
-                                'min-w-0 truncate text-foreground',
-                                lead.task.kind === 'shell' && 'font-mono text-[11px]',
-                            )}
-                        >
-                            {title}
-                        </span>
-                        <Spinner className="ml-auto size-3.5 shrink-0" role="presentation" />
-                    </PopoverTrigger>
-                    <AgentChatTaskStopButton task={lead.task} terminalId={terminalId} />
-                </>
-            );
-            break;
-        }
-        case 'tasks': {
-            const text = t('agentChat.status.tasksRunning', { count: lead.count });
-            leadContent = (
-                <PopoverTrigger
-                    aria-label={t('agentChat.status.showDetails', { status: text })}
-                    className={LEAD_TRIGGER_CLASS_NAME}
-                    onClick={show('tasks')}
-                >
-                    <FailureDot isShown={isShowsFailureDot}>
-                        <AgentChatTaskGlyph kind={view.running[0]?.kind ?? 'agent'} />
-                    </FailureDot>
-                    <span className="truncate text-foreground">{text}</span>
-                    <Spinner className="size-3.5 shrink-0" role="presentation" />
-                    <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />
-                </PopoverTrigger>
-            );
-            break;
-        }
-        case 'failures': {
-            leadContent = (
-                <PopoverTrigger
-                    aria-label={t('agentChat.status.showDetails', { status: failureText })}
-                    className={LEAD_TRIGGER_CLASS_NAME}
-                    onClick={show('tasks')}
-                >
-                    <CircleX aria-hidden="true" className="size-3.5 shrink-0 text-danger" />
-                    <span className="truncate text-danger">{failureText}</span>
-                    <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />
-                </PopoverTrigger>
-            );
-            break;
-        }
-        case 'plan': {
-            const { completed, total, current } = lead.progress;
-            const text = t('agentChat.status.planStopped', { completed, total });
-            leadContent = (
-                <PopoverTrigger
-                    aria-label={t('agentChat.status.showDetails', {
-                        status: current ? `${text}: ${current}` : text,
-                    })}
-                    className={LEAD_TRIGGER_CLASS_NAME}
-                    onClick={show('plan')}
-                >
-                    <ListTodo aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span className="shrink-0 tabular-nums">{text}</span>
-                    {current && <span className="min-w-0 truncate">{current}</span>}
-                    <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />
-                </PopoverTrigger>
-            );
-            break;
-        }
-    }
-
-    const taskSummary = taskBadge && [
-        taskBadge.running > 0 && t('agentChat.tasks.runningCount', { count: taskBadge.running }),
-        taskBadge.unseenFailures > 0 && failureText,
-    ];
     return (
         <Popover open={isOpen} onOpenChange={changeOpen}>
             <div
@@ -279,7 +196,16 @@ export function AgentChatStatusRow({
                 data-agent-chat-status-row={lead.kind}
                 ref={rowReference}
             >
-                {leadContent}
+                <AgentChatStatusRowLead
+                    failureText={failureText}
+                    isShowsFailureDot={isShowsFailureDot}
+                    isStopping={isStopping}
+                    lead={lead}
+                    running={view.running}
+                    terminalId={terminalId}
+                    turnId={turnId}
+                    onShow={show}
+                />
                 <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-1.5">
                     {lead.kind === 'activity' && (
                         <span aria-hidden="true" className="inline-flex">
@@ -292,16 +218,7 @@ export function AgentChatStatusRow({
                                 <StatusBadge
                                     isActive={isOpen && section === 'plan'}
                                     key="plan"
-                                    label={t(
-                                        planBadge.current
-                                            ? 'agentChat.plan.progressWithCurrent'
-                                            : 'agentChat.plan.progress',
-                                        {
-                                            completed: planBadge.completed,
-                                            total: planBadge.total,
-                                            current: planBadge.current ?? '',
-                                        },
-                                    )}
+                                    label={agentChatPlanBadgeLabel(planBadge, t)}
                                     pillId={pillId}
                                     onClick={show('plan')}
                                 >
@@ -313,27 +230,15 @@ export function AgentChatStatusRow({
                                 <StatusBadge
                                     isActive={isViewingTasks}
                                     key="tasks"
-                                    label={t('agentChat.status.tasksBadge', {
-                                        summary: taskSummary?.filter(Boolean).join(', ') ?? '',
-                                    })}
+                                    label={agentChatTaskBadgeLabel(taskBadge, t)}
                                     pillId={pillId}
                                     onClick={show('tasks')}
                                 >
-                                    {taskBadge.running > 0 ? (
-                                        <FailureDot isShown={isShowsFailureDot}>
-                                            <AgentChatTaskGlyph
-                                                kind={view.running[0]?.kind ?? 'agent'}
-                                            />
-                                        </FailureDot>
-                                    ) : (
-                                        <CircleX
-                                            aria-hidden="true"
-                                            className="size-3.5 text-danger"
-                                        />
-                                    )}
-                                    {taskBadge.running > 0
-                                        ? taskBadge.running
-                                        : taskBadge.unseenFailures}
+                                    <TaskBadgeContent
+                                        badge={taskBadge}
+                                        isShowsFailureDot={isShowsFailureDot}
+                                        running={view.running}
+                                    />
                                 </StatusBadge>
                             )}
                         </AnimatePresence>

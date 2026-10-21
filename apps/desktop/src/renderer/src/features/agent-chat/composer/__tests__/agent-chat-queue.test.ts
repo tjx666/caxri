@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentChatEnterQueuedId,
     agentChatNextQueuedId,
     agentChatQueueCardLabels,
     agentChatQueuedTextAfterEdit,
@@ -61,6 +62,16 @@ describe('agentChatQueueEntries', () => {
             canEdit: false,
             canSendNow: false,
         });
+    });
+});
+
+describe('agentChatEnterQueuedId', () => {
+    it('marks the next queued message only while a turn runs and the input is empty', () => {
+        const running = { hasContent: false, isTurnRunning: true };
+        expect(agentChatEnterQueuedId('m1', running)).toBe('m1');
+        expect(agentChatEnterQueuedId('m1', { ...running, hasContent: true })).toBeUndefined();
+        expect(agentChatEnterQueuedId('m1', { ...running, isTurnRunning: false })).toBeUndefined();
+        expect(agentChatEnterQueuedId(undefined, running)).toBeUndefined();
     });
 });
 

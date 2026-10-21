@@ -1,7 +1,13 @@
 import type { AgentChatActivity, AgentChatPlan, AgentChatTask } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentChatLatestTurnStart, agentChatStatusRowView } from './agent-chat-status-row-view';
+import { translate } from '../../../../i18n';
+import {
+    agentChatLatestTurnStart,
+    agentChatPlanBadgeLabel,
+    agentChatStatusRowView,
+    agentChatTaskBadgeLabel,
+} from './agent-chat-status-row-view';
 
 const WORKING: AgentChatActivity = { kind: 'working', text: 'Working…', startedAt: 100 };
 
@@ -160,5 +166,33 @@ describe('agentChatLatestTurnStart', () => {
             }),
         ).toBe(5);
         expect(agentChatLatestTurnStart(undefined)).toBeUndefined();
+    });
+});
+
+describe('status row badge labels', () => {
+    it('names the plan step in progress when there is one', () => {
+        expect(
+            agentChatPlanBadgeLabel({ completed: 1, total: 3, current: 'Build' }, translate),
+        ).toBe(
+            translate('agentChat.plan.progressWithCurrent', {
+                completed: 1,
+                total: 3,
+                current: 'Build',
+            }),
+        );
+        expect(
+            agentChatPlanBadgeLabel({ completed: 3, total: 3, current: undefined }, translate),
+        ).toBe(translate('agentChat.plan.progress', { completed: 3, total: 3 }));
+    });
+
+    it('sums up running and unseen failed background work', () => {
+        const running = translate('agentChat.tasks.runningCount', { count: 2 });
+        const failed = translate('agentChat.status.tasksFailedOne');
+        expect(agentChatTaskBadgeLabel({ running: 2, unseenFailures: 1 }, translate)).toBe(
+            translate('agentChat.status.tasksBadge', { summary: `${running}, ${failed}` }),
+        );
+        expect(agentChatTaskBadgeLabel({ running: 2, unseenFailures: 0 }, translate)).toBe(
+            translate('agentChat.status.tasksBadge', { summary: running }),
+        );
     });
 });

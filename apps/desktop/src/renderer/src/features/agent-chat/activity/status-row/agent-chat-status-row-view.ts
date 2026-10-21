@@ -151,6 +151,33 @@ export function agentChatFailuresText(count: number, t: Translate): string {
 }
 
 /**
+ * The plan badge's accessible name: how far the plan got, and the step in progress when there is one.
+ */
+export function agentChatPlanBadgeLabel(
+    plan: NonNullable<AgentChatStatusRowView['planBadge']>,
+    t: Translate,
+): string {
+    const { completed, current, total } = plan;
+    return current
+        ? t('agentChat.plan.progressWithCurrent', { completed, current, total })
+        : t('agentChat.plan.progress', { completed, total });
+}
+
+/**
+ * The background work badge's accessible name: how many tasks run and, when some failed unseen, how many.
+ */
+export function agentChatTaskBadgeLabel(
+    badge: NonNullable<AgentChatStatusRowView['taskBadge']>,
+    t: Translate,
+): string {
+    const parts = [
+        badge.running > 0 && t('agentChat.tasks.runningCount', { count: badge.running }),
+        badge.unseenFailures > 0 && agentChatFailuresText(badge.unseenFailures, t),
+    ];
+    return t('agentChat.status.tasksBadge', { summary: parts.filter(Boolean).join(', ') });
+}
+
+/**
  * What the row's polite live region says: the turn's own text while the Chat is busy, otherwise what leads the row. A
  * failure the user has not seen joins either, so a background task failing mid-turn is announced rather than only drawn
  * as a dot. The ticking elapsed time and usage figures never are.

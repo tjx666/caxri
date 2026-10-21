@@ -39,13 +39,14 @@ import { AgentChatComposerNotices } from './agent-chat-composer-notices';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
-import { agentChatNextQueuedId } from './agent-chat-queue';
+import { agentChatEnterQueuedId, agentChatNextQueuedId } from './agent-chat-queue';
 import type { agentChatSendBlock } from './send/agent-chat-send-tooltip';
 import {
     agentChatSendTooltip,
     agentChatSendTooltipKeys,
     agentChatSendTooltipShortcut,
 } from './send/agent-chat-send-tooltip';
+import { agentChatSubmitterDelivery } from './send/agent-chat-submitter-delivery';
 
 /**
  * How many recent Sessions the composer's Add menu offers to cite, as the Codex app lists a handful of recent chats.
@@ -355,7 +356,10 @@ export function AgentChatComposer({
             <div className="relative">
                 <AgentChatComposerStrip
                     activeTurnId={activeTurnId}
-                    enterQueuedId={isTurnRunning && !hasContent ? nextQueuedId : undefined}
+                    enterQueuedId={agentChatEnterQueuedId(nextQueuedId, {
+                        hasContent,
+                        isTurnRunning,
+                    })}
                     isQueuePaused={isQueuePaused}
                     isTurnRunning={isTurnRunning}
                     pendingQueue={pendingQueue}
@@ -395,12 +399,8 @@ export function AgentChatComposer({
                         event.preventDefault();
                         // The Send button disables itself while the message is in flight, which would drop its focus.
                         focusInput();
-                        // A Send button held with Cmd turned into Steer and says so through its `delivery` value.
-                        const { submitter } = event.nativeEvent;
-                        const isSteer =
-                            submitter instanceof HTMLButtonElement && submitter.value === 'steer';
                         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                        void submit(isSteer ? 'steer' : undefined);
+                        void submit(agentChatSubmitterDelivery(event.nativeEvent.submitter));
                     }}
                 >
                     <AgentChatSuggestionMenu

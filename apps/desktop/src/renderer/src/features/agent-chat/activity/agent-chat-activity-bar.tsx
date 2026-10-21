@@ -75,6 +75,7 @@ export function AgentChatActivityBar({
                 </span>
                 <AnimatePresence initial={false}>
                     {view && (
+                        // react-doctor-disable-next-line react-doctor/no-layout-property-animation -- the row unfolds and folds so the transcript above eases out of its way; a transform would leave the space jumping.
                         <m.div
                             animate={{ height: 'auto', opacity: 1 }}
                             className="overflow-hidden border-0 border-b border-solid border-border"
