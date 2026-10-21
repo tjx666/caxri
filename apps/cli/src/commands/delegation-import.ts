@@ -1,7 +1,3 @@
-import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import { open } from 'node:fs/promises';
-
 import { agentDelegationSettingsSchema, CaxriError } from '@caxri/protocol';
 import type { ParseError } from 'jsonc-parser/lib/esm/main.js';
 /**
@@ -10,6 +6,7 @@ import type { ParseError } from 'jsonc-parser/lib/esm/main.js';
 import { parse } from 'jsonc-parser/lib/esm/main.js';
 import { z } from 'zod';
 
+import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
 
 const selection = {
@@ -87,50 +84,32 @@ async function importParameters(tokens: readonly string[]) {
     }
     if (!path)
         throw new CaxriError('VALIDATION', 'Configuration import requires an explicit --from file');
-    const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const source = await readBoundedTextFile(path, 1_048_576, 'Configuration import');
     try {
-        const info = await file.stat();
-        const limit = 1_048_576;
-        if (!info.isFile() || info.size > limit)
-            throw new CaxriError(
-                'VALIDATION',
-                'Import requires a regular JSONC file of at most 1 MiB',
-            );
-        const buffer = Buffer.alloc(limit + 1);
-        const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-        if (bytesRead > limit)
-            throw new CaxriError('VALIDATION', 'Configuration import exceeds 1 MiB');
-        try {
-            const errors: ParseError[] = [];
-            const input: unknown = parse(buffer.subarray(0, bytesRead).toString('utf8'), errors, {
-                allowTrailingComma: true,
-            });
-            if (errors.length > 0) throw new Error('Invalid JSONC');
-            return { settings: convertDelegationConfig(input), dryRun: mode !== '--apply' };
-        } catch (error) {
-            // Never include configuration values or private instructions in CLI diagnostics.
-            const fields =
-                error instanceof z.ZodError
-                    ? error.issues.map((issue) => {
-                          const field =
-                              issue.path.length > 0 ? issue.path.join('.') : 'configuration';
-                          // Unknown keys are arbitrary source text; report their location without echoing them.
-                          const reason =
-                              issue.code === 'unrecognized_keys'
-                                  ? 'Unknown fields are not supported'
-                                  : issue.message;
-                          return `${field}: ${reason}`;
-                      })
-                    : [];
-            throw new CaxriError(
-                'VALIDATION',
-                fields.length > 0
-                    ? `Invalid delegation configuration: ${fields.join('; ')}`
-                    : 'Invalid delegation JSONC configuration',
-            );
-        }
-    } finally {
-        await file.close();
+        const errors: ParseError[] = [];
+        const input: unknown = parse(source, errors, { allowTrailingComma: true });
+        if (errors.length > 0) throw new Error('Invalid JSONC');
+        return { settings: convertDelegationConfig(input), dryRun: mode !== '--apply' };
+    } catch (error) {
+        // Never include configuration values or private instructions in CLI diagnostics.
+        const fields =
+            error instanceof z.ZodError
+                ? error.issues.map((issue) => {
+                      const field = issue.path.length > 0 ? issue.path.join('.') : 'configuration';
+                      // Unknown keys are arbitrary source text; report their location without echoing them.
+                      const reason =
+                          issue.code === 'unrecognized_keys'
+                              ? 'Unknown fields are not supported'
+                              : issue.message;
+                      return `${field}: ${reason}`;
+                  })
+                : [];
+        throw new CaxriError(
+            'VALIDATION',
+            fields.length > 0
+                ? `Invalid delegation configuration: ${fields.join('; ')}`
+                : 'Invalid delegation JSONC configuration',
+        );
     }
 }
 

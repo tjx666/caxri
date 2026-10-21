@@ -1,6 +1,6 @@
-import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import process from 'node:process';
+
+import { atomicWriteFile } from '@caxri/system';
 
 /**
  * Single-quotes a value for POSIX `sh`, so a path with spaces or quotes reaches `exec` as one argument.
@@ -29,15 +29,11 @@ export async function writeCliLauncher({
     executable: string;
     userDataPath: string;
 }): Promise<string> {
-    const directory = join(userDataPath, 'bin');
-    await mkdir(directory, { recursive: true });
-    const path = join(directory, 'caxri');
-    const temporaryPath = `${path}.${process.pid}.tmp`;
-    await writeFile(
-        temporaryPath,
+    const path = join(userDataPath, 'bin', 'caxri');
+    await atomicWriteFile(
+        path,
         `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec ${shellQuote(executable)} ${shellQuote(cliPath)} "$@"\n`,
-        { mode: 0o755 },
+        { durability: 'file', exactMode: true, mode: 0o755 },
     );
-    await rename(temporaryPath, path);
     return path;
 }

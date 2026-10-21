@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
-import { constants } from 'node:fs';
-import { lstat, mkdir, open, realpath, rename, rm, stat } from 'node:fs/promises';
-import { basename, dirname } from 'node:path';
+import { lstat, realpath, stat } from 'node:fs/promises';
+import { basename } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
+import { atomicWriteFile } from '@caxri/system';
 
 /**
  * Permission bits for a user-owned config file that does not exist yet. Provider configs such as Claude Code's
@@ -85,26 +84,5 @@ function isMissing(error: unknown): boolean {
 }
 
 async function replaceFile(path: string, source: string, options: ReplaceOptions): Promise<void> {
-    const directory = dirname(path);
-    await mkdir(directory, { recursive: true });
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-        const file = await open(temporary, 'wx', options.mode);
-        try {
-            if (options.exactMode) await file.chmod(options.mode);
-            await file.writeFile(source, 'utf8');
-            await file.sync();
-        } finally {
-            await file.close();
-        }
-        await rename(temporary, path);
-        const directoryHandle = await open(directory, constants.O_RDONLY);
-        try {
-            await directoryHandle.sync();
-        } finally {
-            await directoryHandle.close();
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
+    await atomicWriteFile(path, source, { ...options, durability: 'durable' });
 }

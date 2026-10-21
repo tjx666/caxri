@@ -1,12 +1,12 @@
 import { Buffer } from 'node:buffer';
-import { randomBytes } from 'node:crypto';
 import type { FileHandle } from 'node:fs/promises';
-import { mkdir, open, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { open, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 import type { SshHostEntry } from '@caxri/protocol';
 import { sshDestinationSchema, sshHostEntrySchema } from '@caxri/protocol';
+import { atomicWriteFile } from '@caxri/system';
 
 import { parseSshDestination } from './destination';
 
@@ -289,17 +289,9 @@ export class RecentSshDestinations {
             0,
             MAX_RECENT_DESTINATIONS,
         );
-        await mkdir(dirname(this.path), { recursive: true });
-        const temporary = `${this.path}.${randomBytes(6).toString('hex')}.tmp`;
-        try {
-            await writeFile(temporary, `${JSON.stringify({ destinations: next })}\n`, {
-                mode: 0o600,
-            });
-            await rename(temporary, this.path);
-        } catch (error) {
-            await rm(temporary, { force: true });
-            throw error;
-        }
+        await atomicWriteFile(this.path, `${JSON.stringify({ destinations: next })}\n`, {
+            durability: 'durable',
+        });
         return next;
     }
 }
