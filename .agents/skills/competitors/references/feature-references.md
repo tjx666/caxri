@@ -156,6 +156,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Readable Chat beside a side pane**: `fitsBesidePortal`: a 420px floor for the conversation beside a Portal, and the working sidebar steps aside while the Portal is open. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`; `docs/agent-chat.md`.
 - **Chat turn spend in the composer strip**: `OpStatusTray`: steps, tokens, and price-list cost of the running turn behind icons, split by hairlines; zero hidden, steps above one; four decimals below a cent; only tokens when narrow; no stop hint. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metric-list.tsx`; `docs/agent-chat.md`.
 
+## NumberFlow (MIT)
+
+- **Rolling live figures in the Chat composer**: Digit roll with edge fades for a changing number, used as the `@number-flow/react` dependency for the running turn's elapsed time, steps, tokens, cost, and the context percentage. Evidence: `apps/desktop/src/renderer/src/components/animated-number.tsx`; `DESIGN.md` (Motion).
+
 ## Termany
 
 - **One Session per window**: A Session belongs to one window (`PageClaims`, one page per window); opening it elsewhere focuses the owner (also: cmux, LobeHub `TopicPopupGuard`). Evidence: `docs/open-sessions.md`; `apps/server/src/domains/db/open-sessions.ts`.

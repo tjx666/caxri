@@ -1,6 +1,25 @@
 const LINE_COUNT_SUFFIXES = ['k', 'm', 'b'] as const;
 
 /**
+ * A compact count split into the scaled figure and its suffix (`12_345` is `{ value: 12.3, suffix: 'k' }`), for a
+ * surface that animates the figure and draws the suffix beside it. {@link formatCompactCount} joins the two, so both
+ * forms round the same way.
+ */
+export function compactCountParts(
+    count: number,
+    suffixes: readonly [string, string, string],
+): { value: number; suffix: string } {
+    if (count < 1000) return { value: count, suffix: '' };
+    let scaled = count;
+    for (const [index, suffix] of suffixes.entries()) {
+        scaled /= 1000;
+        const rounded = scaled < 100 ? Math.round(scaled * 10) / 10 : Math.round(scaled);
+        if (index === suffixes.length - 1 || rounded < 1000) return { value: rounded, suffix };
+    }
+    return { value: count, suffix: '' };
+}
+
+/**
  * Exact below a thousand, then one decimal while the scaled figure is under 100 and whole units above it, rolling over
  * to the next suffix instead of printing `1000k`. Shared by every compact count so diff stats and token totals round
  * the same way.
@@ -9,14 +28,8 @@ export function formatCompactCount(
     count: number,
     suffixes: readonly [string, string, string],
 ): string {
-    if (count < 1000) return String(count);
-    let scaled = count;
-    for (const [index, suffix] of suffixes.entries()) {
-        scaled /= 1000;
-        const rounded = scaled < 100 ? Math.round(scaled * 10) / 10 : Math.round(scaled);
-        if (index === suffixes.length - 1 || rounded < 1000) return `${rounded}${suffix}`;
-    }
-    return String(count);
+    const { value, suffix } = compactCountParts(count, suffixes);
+    return `${value}${suffix}`;
 }
 
 /**

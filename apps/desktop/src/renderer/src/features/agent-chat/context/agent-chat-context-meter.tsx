@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 
 import { formatTokens } from '@caxri/protocol';
 
+import { AnimatedNumber } from '../../../components/animated-number';
 import { Button } from '../../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { useTranslation } from '../../../i18n';
@@ -128,14 +129,14 @@ function ContextCard({
 
 /**
  * How much of the context window the conversation uses, as a filling ring with the percentage beside it, the way the
- * Codex app shows it. Both measure against the window the provider compacts at, so the ring turns `--danger` exactly
- * when the composer suggests compacting. Its card gives the token counts, what fills the window when the provider
- * reports it, a Details button opening the Chat's Context tab when the provider can describe its context, and a Compact
- * button when the provider has a compact command. Hovering opens the card as a preview; it is a popover rather than a
- * preview card because it holds that button: a preview card opened by focus closes as soon as focus leaves the ring, so
- * Tab could never reach Compact. Enter, Space, or a click on the ring (a Tab stop) opens the same card with focus
- * inside it, and Escape hands focus back. The ring is a `meter`, so a screen reader hears the share as a value with the
- * counts as its text.
+ * Codex app shows it; the percentage's digits roll as a response moves it. Both measure against the window the provider
+ * compacts at, so the ring turns `--danger` exactly when the composer suggests compacting. Its card gives the token
+ * counts, what fills the window when the provider reports it, a Details button opening the Chat's Context tab when the
+ * provider can describe its context, and a Compact button when the provider has a compact command. Hovering opens the
+ * card as a preview; it is a popover rather than a preview card because it holds that button: a preview card opened by
+ * focus closes as soon as focus leaves the ring, so Tab could never reach Compact. Enter, Space, or a click on the ring
+ * (a Tab stop) opens the same card with focus inside it, and Escape hands focus back. The ring is a `meter`, so a
+ * screen reader hears the share as a value with the counts as its text.
  */
 export function AgentChatContextMeter({
     onCompact,
@@ -206,7 +207,7 @@ export function AgentChatContextMeter({
                         />
                     )}
                 </svg>
-                {percent}%
+                <AnimatedNumber suffix="%" value={percent} />
             </PopoverTrigger>
             <PopoverContent align="end" className="w-60 overflow-visible p-2.5" side="top">
                 <ContextCard

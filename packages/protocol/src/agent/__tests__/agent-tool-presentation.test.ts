@@ -6,7 +6,9 @@ import {
     describeAgentTool,
     formatNoticeableDuration,
     formatShortDuration,
+    isNoticeableDuration,
     readableShellCommand,
+    shortDurationParts,
     summarizeAgentToolGroup,
     unwrapShellCommand,
 } from '../agent-tool-presentation';
@@ -233,6 +235,20 @@ describe('formatNoticeableDuration', () => {
         expect(formatNoticeableDuration(999)).toBeNull();
         expect(formatNoticeableDuration(1000)).toBe('1s');
         expect(formatNoticeableDuration(65_000)).toBe('1m 5s');
+    });
+
+    it('agrees with isNoticeableDuration on the threshold', () => {
+        expect(isNoticeableDuration(undefined)).toBe(false);
+        expect(isNoticeableDuration(999)).toBe(false);
+        expect(isNoticeableDuration(1000)).toBe(true);
+    });
+});
+
+describe('shortDurationParts', () => {
+    it('rounds to whole seconds the way formatShortDuration does', () => {
+        expect(shortDurationParts(400)).toEqual({ minutes: 0, seconds: 0 });
+        expect(shortDurationParts(59_600)).toEqual({ minutes: 1, seconds: 0 });
+        expect(shortDurationParts(534_000)).toEqual({ minutes: 8, seconds: 54 });
     });
 });
 

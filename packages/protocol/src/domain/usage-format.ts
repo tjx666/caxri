@@ -2,7 +2,7 @@
  * Compact usage figures shared by every surface that shows Agent usage (the Usage page, and any future status line or
  * CLI readout), so the same number never renders two ways.
  */
-import { formatCompactCount } from './line-count-format.js';
+import { compactCountParts, formatCompactCount } from './line-count-format.js';
 import type { UsageLimit } from './usage-contract.js';
 
 /**
@@ -23,11 +23,20 @@ function groupThousands(value: number): string {
     return String(value).replaceAll(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+const TOKEN_SUFFIXES = ['k', 'M', 'B'] as const;
+
 /**
  * Token count with a `k`/`M`/`B` suffix and at most one decimal (`1.2M`, `340k`).
  */
 export function formatTokens(value: number): string {
-    return formatCompactCount(Math.round(value), ['k', 'M', 'B']);
+    return formatCompactCount(Math.round(value), TOKEN_SUFFIXES);
+}
+
+/**
+ * {@link formatTokens} split into the scaled figure and its suffix, for a surface that animates the figure.
+ */
+export function tokenCountParts(value: number): { value: number; suffix: string } {
+    return compactCountParts(Math.round(value), TOKEN_SUFFIXES);
 }
 
 /**

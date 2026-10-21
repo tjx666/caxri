@@ -168,6 +168,11 @@
     --motion-activity-shimmer: 2200ms;
     --motion-activity-dwell: 4000ms;
     --motion-skeleton-pulse: 2000ms;
+    /*
+     * A live figure's digits rolling to a new value (`AnimatedNumber`). Short of the one-second tick of a running
+     * turn's elapsed time, so each roll settles before the next starts.
+     */
+    --motion-number-roll: 600ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     /*

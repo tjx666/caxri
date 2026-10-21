@@ -87,8 +87,15 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         await message.fill('slow reconnect please');
         await message.press('Enter');
         const strip = chat.locator('[data-agent-chat-composer-strip]');
-        await expect(strip.locator('[data-agent-chat-turn-metric="steps"]')).toHaveText('2');
-        await expect(strip.locator('[data-agent-chat-turn-metric="tokens"]')).toHaveText('2.5k');
+        // The figures roll through NumberFlow, whose shadow root holds every digit, so read the figure the row shows.
+        await expect(strip.locator('[data-agent-chat-turn-metric="steps"]')).toHaveAttribute(
+            'data-value',
+            '2',
+        );
+        await expect(strip.locator('[data-agent-chat-turn-metric="tokens"]')).toHaveAttribute(
+            'data-value',
+            '2.5k',
+        );
         // Fake Codex's model has no list price, so no cost is guessed.
         await expect(strip.locator('[data-agent-chat-turn-metric="cost"]')).toHaveCount(0);
         // A dropped stream reads as a warning row naming the cause and the attempt, with Codex's detail beneath.

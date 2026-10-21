@@ -795,7 +795,9 @@ several callbacks can share one item, so the transport id is never the key.
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
   has spent so far, as LobeHub's composer tray does: steps, tokens (the Usage page's `total`), and
   the cost estimated from the bundled price list (shown with a `$`), each behind an icon with a pointer tooltip. A figure still at zero
-  is hidden, a single step too, and a strip narrower than 360px keeps only tokens. Server Core sums each Claude
+  is hidden, a single step too, and a strip narrower than 360px keeps only tokens. The elapsed time, these figures, and
+  the context ring's percentage roll their changed digits to each new value (`AnimatedNumber`, see `DESIGN.md`
+  "Motion"); the live time keeps `0s` on a whole minute so its seconds never fade out for one tick. Server Core sums each Claude
   response once by message id (subagent responses included) and each Codex request of the parent thread from
   `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. A compact `Esc to stop` hint follows the metrics
   while the turn runs and drops first on a strip narrower than 480px; the `Enter to queue · ⌘Enter to steer` hint keeps only
