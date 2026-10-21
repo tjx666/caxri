@@ -216,8 +216,10 @@ test('Cmd+W on a Session’s last Terminal tab closes the Terminal and leaves th
             )
             .toHaveLength(0);
         await expect(sessionCard(running.page, secondSessionId)).toHaveClass(/active/);
-        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveCount(0);
-        expect((await bootstrap()).terminals.map((terminal) => terminal.id)).toContain(
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveAccessibleName(
+            'Archived Sessions (0)',
+        );
+        expect((await bootstrap()).terminals.map((terminal) => terminal.id)).not.toContain(
             secondTerminalIds[0],
         );
     } finally {

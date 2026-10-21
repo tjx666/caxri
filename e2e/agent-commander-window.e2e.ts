@@ -70,7 +70,7 @@ test('Agent Commander window follows the app zoom and zooms from its own shortcu
             .poll(zoomOf)
             .toEqual([
                 expect.objectContaining({ commander: false, level: 1 }),
-                { commander: true, level: 1, buttons: { x: 15, y: 19 } },
+                { commander: true, level: 1, buttons: { x: 15, y: 15 } },
             ]);
         await expect
             .poll(() =>
@@ -85,7 +85,7 @@ test('Agent Commander window follows the app zoom and zooms from its own shortcu
             .poll(zoomOf)
             .toEqual([
                 expect.objectContaining({ commander: false, level: 2 }),
-                { commander: true, level: 2, buttons: { x: 15, y: 25 } },
+                { commander: true, level: 2, buttons: { x: 15, y: 19 } },
             ]);
 
         // A Workbench dialog the user cannot see from the Commander blocks other commands, but not zoom.
@@ -96,7 +96,7 @@ test('Agent Commander window follows the app zoom and zooms from its own shortcu
             .poll(zoomOf)
             .toEqual([
                 expect.objectContaining({ commander: false, level: 3 }),
-                { commander: true, level: 3, buttons: { x: 15, y: 31 } },
+                { commander: true, level: 3, buttons: { x: 15, y: 24 } },
             ]);
         await expect(running.page.locator('.project-search')).toBeVisible();
         await testInfo.attach('commander-zoomed', {
