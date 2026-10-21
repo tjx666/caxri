@@ -441,9 +441,6 @@ function ArchivedSessionsDialogBody() {
         <>
             <DialogHeader>
                 <DialogTitle>{t('session.archived.title')}</DialogTitle>
-                <Button variant="secondary" onClick={openSessionSearchFromArchive}>
-                    {t('session.search.title')}
-                </Button>
                 <DialogDescription>{t('session.archived.description')}</DialogDescription>
             </DialogHeader>
             <ArchivedFilterBar
@@ -504,9 +501,15 @@ function ArchivedSessionsDialogBody() {
                               total: view.totalCount,
                           })}
                 </span>
-                <Button variant="secondary" onClick={() => setArchivedSessionsOpen(false)}>
-                    {t('common.done')}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={openSessionSearchFromArchive}>
+                        <Search aria-hidden="true" size={12} />
+                        {t('session.search.title')}
+                    </Button>
+                    <Button variant="secondary" onClick={() => setArchivedSessionsOpen(false)}>
+                        {t('common.done')}
+                    </Button>
+                </div>
             </div>
         </>
     );

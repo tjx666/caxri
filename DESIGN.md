@@ -533,7 +533,9 @@ tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySide
 with a global count: the footer row holds nothing else, so the whole row is one compact ghost
 button: archive glyph and a short `Archived` label on the left, the count on the right. A
 glyph-only chip left most of the row dead to clicks. Search, filters, Project-grouped results, restore, and delete live in a
-full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
+full-width management dialog. Its footer carries the jump to Session search as a small ghost
+`Search Sessions` button beside `Done`, the Keyboard Shortcuts `Edit Keybindings` pattern, so the
+header stays a title plus description. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
 plus a text-only `Show N more` row that reveals ten more per activation and disappears once the list
 is complete, so a busy Project never buries the Projects below it. The row has no disclosure chevron:
