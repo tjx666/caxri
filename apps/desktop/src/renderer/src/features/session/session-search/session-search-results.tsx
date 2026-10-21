@@ -11,6 +11,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useRelativeTimes } from '../../../hooks/use-relative-time';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
+import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { cn } from '../../../lib/utilities';
 import { sessionTitleForDisplay } from '../session-title';
@@ -42,6 +43,15 @@ function entryTitle(entry: SessionSearchEntry, t: Translate): string {
 }
 
 /**
+ * Who wrote the quoted message: the user, or the Agent by name, so a quote of the user's own request reads apart from
+ * the Agent's answer.
+ */
+function snippetSpeaker(entry: SessionSearchEntry, t: Translate): string {
+    if (entry.match.snippet?.role === 'user') return t('session.search.speaker.user');
+    return resolveAgentIcon(entry.provider).label;
+}
+
+/**
  * The second line: where the query matched. A message match quotes the message with the matched terms highlighted; a
  * folder or ID match names what matched, since the title above already shows a title match.
  */
@@ -51,6 +61,9 @@ function MatchLine({ entry }: { entry: SessionSearchEntry }) {
     if (snippet)
         return (
             <span className="session-search-snippet line-clamp-2 text-[12px] break-words text-muted">
+                <span className="font-medium text-foreground">
+                    {t('session.search.speakerPrefix', { speaker: snippetSpeaker(entry, t) })}
+                </span>
                 {snippetSegments(snippet).map((segment, index) =>
                     segment.isMatch ? (
                         <mark key={index} className="rounded-sm bg-warning px-0.5 text-background">
@@ -102,12 +115,17 @@ function CopyIdButton({ id }: { id: string }) {
 export function SessionSearchResults({
     entries,
     id,
+    query,
     rowId,
     selectedIndex,
     onSelect,
 }: {
     entries: readonly SessionSearchEntry[];
     id: string;
+    /**
+     * The query the entries answer, handed to find in the Chat a row opens.
+     */
+    query: string;
     rowId: (index: number) => string;
     selectedIndex: number;
     onSelect: (index: number) => void;
@@ -140,7 +158,7 @@ export function SessionSearchResults({
                         onClick={() => {
                             onSelect(index);
                             // eslint-disable-next-line no-void -- the command reports its own failure through a toast
-                            void runSessionSearchAction(entry);
+                            void runSessionSearchAction(entry, query);
                         }}
                         onMouseMove={() => {
                             if (!isSelected) onSelect(index);

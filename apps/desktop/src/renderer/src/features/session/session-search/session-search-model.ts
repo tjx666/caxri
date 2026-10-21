@@ -5,7 +5,11 @@ import type {
     SessionSearchSnippet,
     SessionSearchStatusFilter,
 } from '@caxri/protocol';
-import { agentProviderIds, sessionSearchStatusFilters } from '@caxri/protocol';
+import {
+    agentProviderIds,
+    normalizeSessionSearchText,
+    sessionSearchStatusFilters,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 
@@ -44,6 +48,30 @@ export function snippetSegments(snippet: SessionSearchSnippet): SnippetSegment[]
     if (cursor < snippet.text.length)
         segments.push({ text: snippet.text.slice(cursor), isMatch: false });
     return segments;
+}
+
+/**
+ * What find in the opened Chat searches for, so a message match lands on that message: the whole query when the quoted
+ * message holds it as one phrase (a pasted sentence), otherwise the longest matched term the quote shows. Undefined
+ * when the row did not match on message text. Find searches rendered text, so Markdown markers are dropped the way the
+ * index drops them.
+ */
+export function sessionSearchFindQuery(
+    entry: SessionSearchEntry,
+    query: string,
+): string | undefined {
+    const { snippet } = entry.match;
+    if (!snippet || !entry.agentSessionId) return undefined;
+    const phrase = normalizeSessionSearchText(query).replaceAll(/\s+/gu, ' ').trim();
+    const text = snippet.text.replaceAll(/\s+/gu, ' ').toLowerCase();
+    if (phrase && text.includes(phrase.toLowerCase())) return phrase;
+    return snippetSegments(snippet)
+        .filter((segment) => segment.isMatch)
+        .map((segment) => segment.text)
+        .reduce<string | undefined>(
+            (longest, text) => (longest && longest.length >= text.length ? longest : text),
+            undefined,
+        );
 }
 
 /**

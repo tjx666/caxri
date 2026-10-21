@@ -138,6 +138,7 @@ export class SessionSearchService {
                     query,
                     ...(providers && { providers }),
                     restrict,
+                    heldKeys: holdings.byKey.keys().toArray(),
                     limit: INDEX_RESULT_LIMIT,
                 },
                 signal,

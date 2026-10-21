@@ -55,3 +55,17 @@ Claude Code, Codex, and other CLIs leave on disk. Caxri's resulting design is
 - Claude encodes the folder lossily in its directory name; read `cwd` from records instead.
 - Single transcripts reach hundreds of megabytes: parse as a stream with a per-line ceiling.
 - Resume needs the original folder; when it is gone, say so instead of starting elsewhere.
+
+## Search experience (researched 2026-10-21)
+
+- **Landing on the match**: Wake opens at the matched message and keeps it highlighted
+  (`crates/wake-core/src/workbench.rs`); agentsview scrolls to it and offers an in-session find bar
+  with a match rail; agent-sessions also pages older history in until the match is reached.
+- **Query relaxation**: Orca tries an exact phrase, then all terms, then typo repair, then any term,
+  and reports which strategy matched (`src/main/ai-vault-search/session-search-retrieval.ts`). Grok
+  Build relaxes all terms to any term.
+- **Operators and scope**: cmux (`agent:`, `repo:`, `before:`, ideas only), agent-sessions (`repo:`,
+  `path:`, boolean operators), agentsview (a leading quote passes a raw FTS5 expression). Claude
+  Code, Codex, Orca, and Paseo default resume pickers to the current folder with a show-all toggle.
+- **Presentation**: Orca labels a quoted snippet with its role; agentsview and Codex offer a
+  relevance or recency sort; Grok Build groups by repository with the current one first.

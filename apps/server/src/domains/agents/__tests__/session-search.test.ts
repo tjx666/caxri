@@ -152,6 +152,61 @@ describe('Session search index', () => {
         expect(engine.search({ query: 'welcome tour', limit: 10 }).hits).toEqual([]);
     });
 
+    it('finds an SDK-started conversation by content only while a Caxri Session holds it', async () => {
+        await seed();
+        const HOSTED = '9c4f5d6e-7081-4c92-8da3-c5e6f708192a';
+        // Agent Chat starts through the SDK; Caxri's `/rename` later appends a `claude -p` record to the same file.
+        await writeTranscript(
+            HOSTED,
+            [
+                user(HOSTED, 'Draft a note to the vendor', { entrypoint: 'sdk-ts' }),
+                assistant(HOSTED, 'Even a probe with only 21 tokens waits 30 to 190 seconds.'),
+                user(HOSTED, '/rename vendor note', { entrypoint: 'sdk-cli' }),
+            ],
+            NOW,
+        );
+        await engine.indexer.refresh();
+        const search = (heldKeys?: string[]) =>
+            engine
+                .search({ query: 'probe with only', limit: 10, ...(heldKeys && { heldKeys }) })
+                .hits.map((hit) => hit.agentSessionId);
+
+        expect(search()).toEqual([]);
+        expect(search([`claude:${HOSTED}`])).toEqual([HOSTED]);
+        // Every term must still come from one message, wherever it is held.
+        expect(
+            engine.search({ query: 'probe vendor', limit: 10, heldKeys: [`claude:${HOSTED}`] })
+                .hits,
+        ).toEqual([]);
+        expect(engine.search({ query: '', limit: 10 }).hits).toHaveLength(2);
+    });
+
+    it('matches text copied from a rendered message against its Markdown source', async () => {
+        const ALERTS = 'ad5e6f70-8192-4da3-9eb4-d6f708192a3b';
+        await writeTranscript(
+            ALERTS,
+            [
+                user(ALERTS, 'Which alerts are noise?'),
+                assistant(
+                    ALERTS,
+                    'The **embedding** alert (`text-embedding-small`) is a server issue.',
+                ),
+            ],
+            NOW - DAY,
+        );
+        await engine.indexer.refresh();
+
+        const [hit] = engine.search({
+            query: 'embedding alert (text-embedding-small) is',
+            limit: 10,
+        }).hits;
+        expect(hit).toMatchObject({ agentSessionId: ALERTS, field: 'content' });
+        expect(hit.snippet?.text).not.toContain('`');
+        expect(
+            engine.search({ query: '`text-embedding-small`', limit: 10 }).hits[0]?.agentSessionId,
+        ).toBe(ALERTS);
+    });
+
     it('reads a conversation fresh for import', async () => {
         await seed();
 
@@ -165,6 +220,10 @@ describe('Session search index', () => {
 });
 
 describe('Session search query', () => {
+    it('drops inline Markdown markers from a query', () => {
+        expect(parseSessionQuery('`run()` **now**').terms).toEqual(['run()', 'now']);
+    });
+
     it('lowercases and dedupes terms, and keeps short ones for a substring scan', () => {
         expect(parseSessionQuery('Invoice  invoice ab')).toEqual({
             terms: ['invoice', 'ab'],

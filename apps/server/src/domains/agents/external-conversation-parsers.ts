@@ -35,6 +35,12 @@ export interface ConversationCandidate {
 export interface ParsedConversation {
     cwd: string;
     title?: string;
+    /**
+     * Started by an application through the Claude Agent SDK, such as Caxri's own Agent Chat, rather than typed into a
+     * terminal. Such a conversation is the user's only when a Caxri Session holds it: Session search shows it then, and
+     * the outside-conversation list never does, since another application's SDK runs are usually scripted.
+     */
+    isHosted?: boolean;
 }
 const TITLE_MAX_CHARACTERS = 120;
 /**
@@ -289,16 +295,19 @@ async function parseClaudeConversation(
     const prompt = new FirstPromptCollector();
     let firstCwd: string | undefined;
     let resumableCwd: string | undefined;
-    let hasEntrypoint = false;
+    let firstEntrypoint: string | undefined;
     let hasStoppedEarly = false;
     try {
         const headEnd = Math.min(opened.size, HEAD_BUDGET_BYTES);
         for await (const record of readJsonRecords(opened.handle, 0, headEnd)) {
             scanClaudeTitle(record, titles);
-            const entrypoint = stringField(record, 'entrypoint');
-            // SDK and `--print` runs are scripted one-shots, not conversations a user would hand over.
-            if (entrypoint?.startsWith('sdk')) return;
-            hasEntrypoint ||= entrypoint !== undefined;
+            /**
+             * The first entry point names how the conversation started. A `--print` run (`sdk-cli`) is a scripted
+             * one-shot. A later `sdk-cli` record does not reclassify a conversation: Caxri runs `/rename` through
+             * `claude -p --resume`, which appends one to an Agent Chat transcript.
+             */
+            firstEntrypoint ??= stringField(record, 'entrypoint');
+            if (firstEntrypoint === 'sdk-cli') return;
             if (record.type === 'user' && record.isSidechain === true && !prompt.prompt) return;
             const cwd = stringField(record, 'cwd');
             if (cwd && isAbsolute(cwd)) {
@@ -307,7 +316,7 @@ async function parseClaudeConversation(
                     resumableCwd = cwd;
             }
             prompt.accept(record);
-            if (resumableCwd && hasEntrypoint && prompt.isComplete) {
+            if (resumableCwd && firstEntrypoint !== undefined && prompt.isComplete) {
                 hasStoppedEarly = true;
                 break;
             }
@@ -324,11 +333,14 @@ async function parseClaudeConversation(
     } finally {
         await opened.handle.close();
     }
-    return finishConversation(
+    const conversation = finishConversation(
         resumableCwd ?? firstCwd,
         titles.customTitle ?? titles.aiTitle ?? titles.summary,
         prompt.prompt,
     );
+    return conversation && firstEntrypoint?.startsWith('sdk')
+        ? { ...conversation, isHosted: true }
+        : conversation;
 }
 
 // Codex

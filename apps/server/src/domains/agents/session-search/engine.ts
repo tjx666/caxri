@@ -25,6 +25,12 @@ export interface IndexSearchRequest {
      * filter by where a conversation lives before the result limit applies.
      */
     restrict?: { mode: 'exclude' | 'include'; keys: string[] };
+    /**
+     * `<provider>:<conversation id>` keys of the conversations Caxri Sessions hold. A hosted conversation (one an
+     * application started through the Agent SDK) appears only when listed here, so Caxri's own Agent Chat conversations
+     * are searchable while another application's SDK runs stay out.
+     */
+    heldKeys?: string[];
     limit: number;
 }
 
@@ -64,6 +70,7 @@ interface Conversation {
     cwd?: string;
     updatedAt: number;
     hasMain: boolean;
+    isHosted: boolean;
 }
 
 interface ContentHit {
@@ -115,10 +122,12 @@ function groupConversations(rows: readonly StoredTranscript[]) {
                 ...(row.cwd !== undefined && { cwd: row.cwd }),
                 updatedAt: row.mtimeMs,
                 hasMain: !row.isContinuation,
+                isHosted: row.state === 'hosted',
             });
             continue;
         }
         existing.updatedAt = Math.max(existing.updatedAt, row.mtimeMs);
+        existing.isHosted ||= row.state === 'hosted';
         if (!row.isContinuation && !existing.hasMain) {
             existing.hasMain = true;
             if (row.title !== undefined) existing.title = row.title;
@@ -268,8 +277,10 @@ export class SessionSearchEngine {
             this.store.conversations(request.providers),
         );
         const restricted = request.restrict && new Set(request.restrict.keys);
+        const held = new Set(request.heldKeys);
         const isAllowed = (key: string) =>
-            !restricted || restricted.has(key) === (request.restrict?.mode === 'include');
+            (!conversations.get(key)?.isHosted || held.has(key)) &&
+            (!restricted || restricted.has(key) === (request.restrict?.mode === 'include'));
         const parsed = parseSessionQuery(request.query);
         const status = this.status();
         if (parsed.terms.length === 0) {

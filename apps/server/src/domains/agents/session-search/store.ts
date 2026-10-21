@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
  * Bumped whenever the schema or what is extracted from a transcript changes. The index is derived data, so a mismatch
  * drops the file and rebuilds it from the providers' transcripts instead of migrating.
  */
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE transcripts (
@@ -52,11 +52,18 @@ END;
 `;
 
 /**
- * `conversation` is a top-level conversation a user started; `excluded` is everything else a provider writes beside one
- * (subagent threads, scripted `-p` / `exec` runs, Caxri's own delegated children, a conversation with no prompt yet).
- * Excluded transcripts keep a row so an unchanged file is not inspected again.
+ * `conversation` is a top-level conversation a user started in a terminal; `hosted` is one an application started
+ * through the Agent SDK (Caxri's Agent Chat among them), searchable only while a Caxri Session holds it; `excluded` is
+ * everything else a provider writes beside one (subagent threads, scripted `-p` / `exec` runs, Caxri's own delegated
+ * children, a conversation with no prompt yet). Excluded transcripts keep a row so an unchanged file is not inspected
+ * again.
  */
-type IndexedTranscriptState = 'conversation' | 'excluded';
+type IndexedTranscriptState = 'conversation' | 'excluded' | 'hosted';
+
+/**
+ * The states whose messages are indexed and searched.
+ */
+const SEARCHABLE_STATES = `('conversation', 'hosted')`;
 
 export interface StoredTranscript {
     id: number;
@@ -220,7 +227,7 @@ export class SessionSearchStore {
     }
 
     /**
-     * Top-level conversations, optionally restricted to some providers.
+     * Top-level conversations, terminal-started and hosted, optionally restricted to some providers.
      */
     conversations(providers?: readonly AgentProvider[]): StoredTranscript[] {
         const filter = providers?.length
@@ -228,7 +235,7 @@ export class SessionSearchStore {
             : '';
         return (
             this.database
-                .prepare(`SELECT * FROM transcripts WHERE state = 'conversation'${filter}`)
+                .prepare(`SELECT * FROM transcripts WHERE state IN ${SEARCHABLE_STATES}${filter}`)
                 .all(...(providers ?? [])) as TranscriptRow[]
         ).map(fromRow);
     }
@@ -334,7 +341,7 @@ export class SessionSearchStore {
                     FROM messages_fts f
                     JOIN messages m ON m.id = f.rowid
                     JOIN transcripts t ON t.id = m.transcript
-                    WHERE messages_fts MATCH ? AND t.state = 'conversation'${providerFilter}${substringFilter}
+                    WHERE messages_fts MATCH ? AND t.state IN ${SEARCHABLE_STATES}${providerFilter}${substringFilter}
                     GROUP BY m.transcript`,
                 )
                 .all(ftsQuery, ...(providers ?? []), ...patterns) as ContentMatchRow[];
@@ -343,7 +350,7 @@ export class SessionSearchStore {
                 `SELECT m.transcript AS transcript, COUNT(*) AS hits, MAX(m.id) AS bestMessageId
                 FROM messages m
                 JOIN transcripts t ON t.id = m.transcript
-                WHERE t.state = 'conversation'${providerFilter}${substringFilter}
+                WHERE t.state IN ${SEARCHABLE_STATES}${providerFilter}${substringFilter}
                 GROUP BY m.transcript`,
             )
             .all(...(providers ?? []), ...patterns) as ContentMatchRow[];

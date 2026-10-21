@@ -101,11 +101,12 @@ const IO_CONCURRENCY = 8;
  * read. Unreadable or malformed files are skipped silently.
  *
  * Skipped as not resumable or not the user's own: Claude sidechain transcripts (top-level `isSidechain` records and the
- * `<id>/subagents/` subtree, which listing never descends into) and SDK / print-mode runs (`entrypoint` `sdk-*`); Codex
- * subagent threads and `codex exec` runs; Grok headless and subagent conversations; any conversation opened by Caxri's
- * delegated-task pointer; and conversations with neither a provider title nor a visible user prompt. Injected prompts
- * (AGENTS.md and environment blocks, `<command-name>` echoes, caveats, system reminders) never count as the user's
- * prompt; this reuses the shared visible-message boundary in `title-generation.ts`.
+ * `<id>/subagents/` subtree, which listing never descends into) and conversations started through the SDK or print mode
+ * (first `entrypoint` `sdk-*`); Codex subagent threads and `codex exec` runs; Grok headless and subagent conversations;
+ * any conversation opened by Caxri's delegated-task pointer; and conversations with neither a provider title nor a
+ * visible user prompt. Injected prompts (AGENTS.md and environment blocks, `<command-name>` echoes, caveats, system
+ * reminders) never count as the user's prompt; this reuses the shared visible-message boundary in
+ * `title-generation.ts`.
  *
  * The result reaches a local UI only. Nothing here logs titles, prompts, paths, or transcript content.
  */
@@ -179,7 +180,9 @@ export async function listExternalConversations(
         );
         const accepted = batch.flatMap((candidate, position) => {
             const conversation = parsed[position];
-            return conversation ? [toConversation(candidate, conversation)] : [];
+            return conversation && !conversation.isHosted
+                ? [toConversation(candidate, conversation)]
+                : [];
         });
         results.push(...accepted.slice(0, limit - results.length));
     }

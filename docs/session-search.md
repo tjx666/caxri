@@ -20,10 +20,16 @@ more characters lands on that conversation first. An empty query lists recent co
 Message text means the visible user and assistant messages, extracted through the same boundary
 title generation and the conversation reader use: tool calls and output, reasoning, sidechains,
 injected instructions, and Terminal screen contents never match. Grok's stream chunks are joined
-into one message first. Scripted runs (Claude `sdk-cli` entry points, Codex subagent threads) are
-not conversations the user had and never appear.
+into one message first. Inline Markdown markers (code spans, `**`, `__`, `~~`) are dropped from
+both the indexed text and the query, so a sentence copied from a rendered Agent Chat message still
+matches. Scripted runs (a Claude conversation whose first entry point is `sdk-cli`, Codex subagent
+threads) are not conversations the user had and never appear. A Claude conversation an application
+started through the Agent SDK (any other `sdk-*` entry point, which is how Agent Chat runs Claude)
+is indexed but appears only while a Caxri Session holds it, so Agent Chat conversations are
+searchable by content while another application's SDK runs stay out.
 
-A message match quotes the message with the matched terms highlighted. A row also shows the Agent,
+A message match quotes the message with the matched terms highlighted, prefixed by who wrote it
+(the user or the Agent). A row also shows the Agent,
 where the conversation lives (open, archived, or not in Caxri), its folder, how many messages
 matched, and when it last changed.
 
@@ -39,6 +45,12 @@ Adding an external conversation reuses the deepest Project whose root contains t
 a Project for it. The new Session's Agent Terminal is bound to the conversation, so opening it
 resumes the conversation. A conversation whose folder no longer exists cannot be added. A
 conversation already held by a Session answers with that Session instead of a second copy.
+
+Opening a message match also opens find in the conversation's Agent Chat with the query: the whole
+query when the quoted message holds it as one phrase, otherwise its longest matched term. The first
+match is highlighted and scrolled into view, and Enter steps through the rest. When the match lies
+in older history than the Chat has loaded, find offers Search earlier messages. A conversation shown
+as a PTY Terminal opens as before.
 
 `Tab` and `Shift+Tab` cycle the **All / In Caxri / Archived / Not in Caxri** filter; the Agent
 chips narrow to one provider. The hovered or selected row also offers Copy ID.
@@ -69,6 +81,7 @@ never a query, title, path, or message text.
 ## Reference implementations
 
 The design draws on CLI session browsers and Agent workbenches surveyed in the competitors skill's
-[session history search notes](../.agents/skills/competitors/references/session-history-search.md);
-the attribution table is in
+[session history search notes](../.agents/skills/competitors/references/session-history-search.md).
+Opening a message match on the matched message follows Wake and agentsview, and the speaker prefix
+on a quote follows Orca's role label. The attribution table is in
 [feature references](../.agents/skills/competitors/references/feature-references.md).
