@@ -279,6 +279,7 @@ export function AgentChatRequestCard({
                     providerName={providerName}
                     request={request}
                     respond={respond}
+                    terminalId={terminalId}
                     title={title}
                 />
             ) : (

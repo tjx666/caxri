@@ -1,11 +1,10 @@
 import type { KeyboardEvent, MouseEvent, RefObject } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef } from 'react';
 
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import {
     agentChatNextUnansweredQuestion,
     agentChatQuestionAnswers,
-    agentChatQuestionDefaults,
     agentChatQuestionOption,
 } from '@caxri/protocol';
 import { ArrowRight, Check } from 'lucide-react';
@@ -23,7 +22,7 @@ import {
     questionFormPrimaryAction,
     questionPanelKeyAction,
 } from './agent-chat-question-flow';
-import { useAgentChatQuestionPicks } from './use-agent-chat-question-picks';
+import { agentChatQuestionTicks, useAgentChatQuestionDraft } from './use-agent-chat-question-draft';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 type QuestionOption = QuestionRequest['questions'][number]['options'][number];
@@ -331,6 +330,7 @@ export function AgentChatQuestionForm({
     providerName,
     request,
     respond,
+    terminalId,
     title,
 }: {
     isAnswering: boolean;
@@ -347,21 +347,31 @@ export function AgentChatQuestionForm({
     providerName: string;
     request: QuestionRequest;
     respond: (response: AgentChatResponse) => void;
+    /**
+     * The Chat the request belongs to, which keys the draft its cards share (see `useAgentChatQuestionDraft`).
+     */
+    terminalId: string;
     title: string;
 }) {
     const idPrefix = useId();
-    const [index, setIndex] = useState(0);
+    const { draft, update, discard } = useAgentChatQuestionDraft(terminalId, request);
+    const { index, picked, selected, typed } = draft;
     /**
      * Questions the user has opened. An unanswered question in this set was left blank on purpose; one outside it was
      * never seen, so the primary button offers Next to it instead of Submit.
      */
-    const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set([0]));
+    const seen: ReadonlySet<number> = new Set(draft.seen);
     const openQuestion = (nextIndex: number): void => {
-        setIndex(nextIndex);
-        setSeen((current) => (current.has(nextIndex) ? current : new Set([...current, nextIndex])));
+        update((current) => ({
+            ...current,
+            index: nextIndex,
+            seen: current.seen.includes(nextIndex) ? current.seen : [...current.seen, nextIndex],
+        }));
     };
-    const [selected, setSelected] = useState(() => agentChatQuestionDefaults(request));
-    const [typed, setTyped] = useState<Partial<Record<string, string>>>({});
+    const answer = (response: AgentChatResponse): void => {
+        discard();
+        respond(response);
+    };
     const optionReferences = useRef<Array<HTMLButtonElement | null>>([]);
     const inputReference = useRef<HTMLInputElement>(null);
     const panelReference = useRef<HTMLDivElement>(null);
@@ -371,11 +381,12 @@ export function AgentChatQuestionForm({
      */
     const shouldFocusQuestion = useRef(false);
     const question = request.questions.at(index);
-    const {
-        picked,
-        ticked,
-        toggle: toggleOption,
-    } = useAgentChatQuestionPicks(request, question?.id, isAnswering);
+    const { ticked, toggle: toggleOption } = agentChatQuestionTicks(
+        draft,
+        update,
+        question?.id,
+        isAnswering,
+    );
     const options = question?.options ?? [];
     const allowsTyping = question !== undefined && (question.allowsOther || options.length === 0);
     const isMulti = question?.multiSelect === true;
@@ -414,11 +425,10 @@ export function AgentChatQuestionForm({
             nextTyped,
         ).answers;
         const nextIndex = agentChatNextUnansweredQuestion(request, nextAnswers, index, seen);
-        if (nextIndex === undefined) return respond(agentChatQuestionResponse(nextAnswers));
+        if (nextIndex === undefined) return answer(agentChatQuestionResponse(nextAnswers));
         shouldFocusQuestion.current =
             panelReference.current?.contains(document.activeElement) ?? false;
-        setSelected(nextSelected);
-        setTyped(nextTyped);
+        update((current) => ({ ...current, selected: nextSelected, typed: nextTyped }));
         openQuestion(nextIndex);
     };
     const withoutTyped = (): Partial<Record<string, string>> => {
@@ -431,8 +441,12 @@ export function AgentChatQuestionForm({
     };
     const selectOption = (label: string): void => {
         if (!question) return;
-        setSelected((current) => ({ ...current, [question.id]: label }));
-        setTyped(withoutTyped());
+        const typedRest = withoutTyped();
+        update((current) => ({
+            ...current,
+            selected: { ...current.selected, [question.id]: label },
+            typed: typedRest,
+        }));
     };
     /**
      * A row's click. `detail` is 0 for a click the keyboard synthesized (Enter or Space on the focused row), which
@@ -520,7 +534,10 @@ export function AgentChatQuestionForm({
                     question={question.question}
                     value={typed[question.id] ?? ''}
                     onChange={(value) =>
-                        setTyped((current) => ({ ...current, [question.id]: value }))
+                        update((current) => ({
+                            ...current,
+                            typed: { ...current.typed, [question.id]: value },
+                        }))
                     }
                 />
             )}
@@ -534,7 +551,7 @@ export function AgentChatQuestionForm({
                 event.preventDefault();
                 event.stopPropagation();
                 if (onEscape) onEscape();
-                else if (!isAnswering) respond({ kind: 'decision', decision: 'cancel' });
+                else if (!isAnswering) answer({ kind: 'decision', decision: 'cancel' });
             }}
             onSubmit={(event) => {
                 // Enter in the free-text row answers this question, the way Enter on an option row does.
@@ -569,8 +586,8 @@ export function AgentChatQuestionForm({
                     shouldFocusQuestion.current = true;
                     openQuestion(nextIndex);
                 }}
-                onSkip={() => respond({ kind: 'decision', decision: 'cancel' })}
-                onSubmit={() => respond(agentChatQuestionResponse(answers))}
+                onSkip={() => answer({ kind: 'decision', decision: 'cancel' })}
+                onSubmit={() => answer(agentChatQuestionResponse(answers))}
             />
         </form>
     );
