@@ -6,25 +6,19 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
-import { createStore } from '../../../lib/store';
 import { localizedLimitReset, localizedLimitWindowName } from '../../../lib/usage-format';
+import {
+    dismissPlanPace,
+    isPlanPaceDismissed,
+    usePlanPaceDismissals,
+} from '../../usage/plan-pace-dismissals';
 import { useClockTick } from '../hooks/use-clock-tick';
-
-/**
- * The local day the pace reminder was dismissed on, per provider. Memory only, like the cache notice's dismissals: the
- * reminder is about today's spending, so it returns the next day or after a restart.
- */
-const usePlanPaceDismissals = createStore<{
-    dismissedOn: Readonly<Partial<Record<string, string>>>;
-}>('agentChatPlanPaceDismissals', () => ({ dismissedOn: {} }));
-
-const localDay = (now: number): string => new Date(now).toDateString();
 
 /**
  * A composer strip row warning that the plan's weekly limit is running ahead of an even pace (`limitPaceShortfall`):
  * `Weekly limit ahead of pace: 40% left, resets in 4d 2h`. It reads the same `terminal.agentUsage` poll as the status
  * bar's usage chip, so it adds no request, and like the context notices it gives way to the activity and edit rows.
- * Dismissing it hides it for the rest of the day for that provider.
+ * Dismissing it hides it for the rest of the local day for that provider, across restarts (`plan-pace-dismissals`).
  */
 export function AgentChatPlanPaceAlert({
     isShown,
@@ -44,11 +38,10 @@ export function AgentChatPlanPaceAlert({
         { label: 'terminal.agentUsage', intervalMs: 2_000, staleTime: 1_000, retry: false },
     );
     const provider = readout?.provider;
-    const dismissedOn = usePlanPaceDismissals((state) =>
-        provider ? state.dismissedOn[provider] : undefined,
-    );
+    const dismissedOn = usePlanPaceDismissals((state) => state.dismissedOn);
     const shortfall = limitPaceShortfall(readout?.limit, now);
-    if (!isShown || !provider || !shortfall || dismissedOn === localDay(now)) return null;
+    if (!isShown || !provider || !shortfall || isPlanPaceDismissed(dismissedOn, provider, now))
+        return null;
     const { window, evenPacePercent } = shortfall;
     const windowName = localizedLimitWindowName(window.windowMinutes, t);
     return (
@@ -81,11 +74,7 @@ export function AgentChatPlanPaceAlert({
                     className="-mr-1.5 ml-auto size-6 shrink-0 rounded-md text-muted enabled:hover:text-foreground"
                     size="icon"
                     variant="ghost"
-                    onClick={() =>
-                        usePlanPaceDismissals.setState(({ dismissedOn: current }) => ({
-                            dismissedOn: { ...current, [provider]: localDay(now) },
-                        }))
-                    }
+                    onClick={() => dismissPlanPace(provider, now)}
                 >
                     <X aria-hidden className="size-3.5" />
                 </Button>

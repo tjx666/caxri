@@ -9,6 +9,9 @@
  * eval "$(bun run .agents/skills/debug/scripts/fake-agent-development-environment.ts /tmp/<task> --provider claude)"
  * bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev --user-data-dir /tmp/<task>/profile
  * ```
+ *
+ * Fake Claude reads its control files from `<task>/control`, so a file created there switches on the same scenario an
+ * E2E spec does: `touch /tmp/<task>/control/plan-behind-pace` makes `/usage` report a week ahead of pace.
  */
 import { mkdir } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
@@ -70,9 +73,11 @@ async function main(): Promise<void> {
     const userData = join(directory, 'user-data');
     const projectRoot = join(directory, 'project');
     await mkdir(projectRoot, { recursive: true });
+    const controlDirectory = join(directory, 'control');
+    await mkdir(controlDirectory, { recursive: true });
     const mode =
         provider === 'claude'
-            ? await fakeClaudeChatAgentMode(userData)
+            ? await fakeClaudeChatAgentMode(userData, controlDirectory)
             : provider === 'codex'
               ? await fakeCodexChatAgentMode(directory, userData)
               : await fakeGrokChatAgentMode(directory, userData);

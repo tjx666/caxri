@@ -89,6 +89,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Session creator ("Created by")**: A created workspace remembers its parent (worktree lineage). Evidence: `docs/agent-delegation.md`.
 - **Background wait status**: A quiet monitoring sub-mode of running instead of a separate idle or done state. Evidence: `docs/activity-view.md`.
 - **Chat image numbers**: `#N` badge on each attached thumbnail, matching the image's place in the message. Evidence: `docs/agent-chat.md`.
+- **Usage chip weekly window name**: Compact `wk` (Chinese `本周`) instead of `7d`, which reads as days until reset. Evidence: `apps/desktop/src/renderer/src/lib/usage-format.ts`.
 
 ## Wake (MIT)
 

@@ -158,7 +158,7 @@ test('the Codex Agent status page shows Codex API uptime, speed by model and mod
             )
             .toBe(THREAD_ID);
         const usageChip = running.page.locator('.statusbar-agent-usage');
-        await expect(usageChip).toContainText('7d 92% left');
+        await expect(usageChip).toContainText('wk 92% left');
 
         const chip = running.page.locator('.statusbar-agent-throughput');
         // 1,500 tokens over 11 s.

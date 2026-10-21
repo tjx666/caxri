@@ -46,20 +46,28 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         // chip leaves the 5-hour window out by default, and a week ahead of pace marks it as a warning that is dropped
         // last when the status bar runs out of room.
         const usageChip = page.getByRole('button', { name: /^Open Usage/u });
-        await expect(usageChip).toContainText('7d 39% left');
+        await expect(usageChip).toContainText('wk 39% left');
         await expect(usageChip).not.toContainText('5h');
         await expect(usageChip).toHaveAttribute('data-status-urgent', '');
         await expect(usageChip).toHaveClass(/text-warning/u);
 
         const pace = chat.locator('[data-agent-chat-plan-pace-alert]');
-        await expect(pace).toContainText('Weekly limit ahead of pace: 39% left, resets in 5d');
+        await expect(pace).toContainText(
+            'Weekly limit on track to run out: 39% left, resets in 5d',
+        );
         await page.screenshot({ path: testInfo.outputPath('claude-plan-pace-alert.png') });
-        await pace.getByText(/^Weekly limit ahead of pace/u).hover();
-        await expect(page.locator('.tooltip-popup')).toContainText('would leave about 73% now');
+        await pace.getByText(/^Weekly limit on track to run out/u).hover();
+        await expect(page.locator('.tooltip-popup')).toContainText(
+            'would still have about 73% left now',
+        );
 
         await pace.getByRole('button', { name: 'Hide for today' }).click();
         await expect(pace).toHaveCount(0);
         await expect(message).toBeVisible();
+        // The dismissal also acknowledges the chip's pace warning for today; 39% left is far from nearly spent.
+        await expect(usageChip).not.toHaveClass(/text-warning/u);
+        await expect(usageChip).not.toHaveAttribute('data-status-urgent', '');
+        await expect(usageChip).toContainText('wk 39% left');
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

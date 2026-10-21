@@ -48,7 +48,7 @@ describe('agent usage chip label', () => {
             ALL_WINDOWS,
         );
         // 61.6% used leaves 38% of the 5-hour window; 12% used leaves 88% of the week.
-        expect(label).toBe('1.2M · $3.40 · 5h 38% left · 7d 88% left');
+        expect(label).toBe('1.2M · $3.40 · 5h 38% left · wk 88% left');
     });
 
     it('drops a window that already reset and leaves out cost when no model is priced', () => {
@@ -86,9 +86,9 @@ describe('agent usage chip label', () => {
                 ],
             },
         });
-        expect(agentUsageLabel(both, NOW, DEFAULT_WINDOWS)).toBe('1.2M · $3.40 · 7d 80% left');
+        expect(agentUsageLabel(both, NOW, DEFAULT_WINDOWS)).toBe('1.2M · $3.40 · wk 80% left');
         expect(agentUsageLabel(both, NOW, ALL_WINDOWS)).toBe(
-            '1.2M · $3.40 · 5h 79% left · 7d 80% left',
+            '1.2M · $3.40 · 5h 79% left · wk 80% left',
         );
     });
 });
@@ -128,6 +128,16 @@ describe('agent usage limit tone', () => {
         expect(
             agentUsageLimitTone(withWindows(10, 10, NOW + 6 * DAY), NOW, DEFAULT_WINDOWS),
         ).toBeUndefined();
+    });
+
+    it('drops the pace warning once dismissed today but still warns on a nearly spent window', () => {
+        const DAY = 86_400_000;
+        expect(
+            agentUsageLimitTone(withWindows(10, 30, NOW + 6 * DAY), NOW, DEFAULT_WINDOWS, true),
+        ).toBeUndefined();
+        expect(agentUsageLimitTone(withWindows(10, 95), NOW, DEFAULT_WINDOWS, true)).toBe(
+            'warning',
+        );
     });
 
     it('explains a pace warning in plain words and stays silent otherwise', () => {

@@ -108,7 +108,7 @@ tokens but not time.
 
 ## Live conversation readout
 
-An Agent Terminal's status bar shows its bound conversation's running usage (`1.2M · $3.40 · 7d 28% left`) and opens this
+An Agent Terminal's status bar shows its bound conversation's running usage (`1.2M · $3.40 · wk 28% left`) and opens this
 page on click. The Renderer polls `terminal.agentUsage` every two seconds; Server Core (`LiveAgentUsage`,
 `apps/server/src/domains/usage/live-usage.ts`) keeps one `IncrementalUsageScan` per Terminal, so each poll parses only
 records appended since the last one, and prices the result with the same rules as the report. The conversation's files
@@ -125,9 +125,10 @@ tabs show the provider's count and no cost.
 
 ## Plan limits
 
-The status bar lists the live plan windows shortest first, as what is left (`7d 28% left`), and turns `--warning`
-once any window it shows has used 90%. The 5-hour window resets several times a day, so the chip leaves it out unless
-`statusBar.usage.showFiveHourLimit` is on (`5h 62% · 7d 28% left`). Its hover card lists every window with its reset
+The status bar lists the live plan windows shortest first, as what is left (`wk 28% left`; Chinese `本周剩余 28%`), and turns
+`--warning` once any window it shows has used 90% or the weekly window is ahead of pace. The weekly window is named
+`wk` rather than `7d`, which read as seven days until reset. The 5-hour window resets several times a day, so the chip leaves it out unless
+`statusBar.usage.showFiveHourLimit` is on (`5h 62% · wk 28% left`). Its hover card lists every window with its reset
 either way. The figures are account-wide:
 the newest reading Server Core has from any conversation.
 
@@ -145,10 +146,12 @@ The phone reads the same figures through `mobile.agentChat.readUsage` (every pai
 sheet under Plan limits.
 
 **Pace reminder.** When a multi-day window (the weekly limit) has less left than an even pace would leave, both
-composers show a warning row above the input: `Weekly limit ahead of pace: 40% left, resets in 4d 2h`. An even pace
+composers show a warning row above the input: `Weekly limit on track to run out: 40% left, resets in 4d 2h`. An even pace
 leaves `remaining time / window length` of the limit, so 5 of 7 days to go should leave about 71%. The row appears
 only when what is left is at least `LIMIT_PACE_MARGIN_PERCENT` (5) points below that, so one long task early in the
-week does not trigger it. Hiding it lasts for the rest of the local day. The rule is `limitPaceShortfall` in
+week does not trigger it. Hiding it lasts for the rest of the local
+day, across restarts (`features/usage/plan-pace-dismissals.ts`, stored in `localStorage`), and also drops the status
+bar chip's pace warning for that day; a window at 90% used still turns the chip `--warning`. The rule is `limitPaceShortfall` in
 `packages/protocol/src/domain/usage-format.ts`, shared by Desktop and the phone.
 
 ## Reuse for live readouts

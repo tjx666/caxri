@@ -55,7 +55,7 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.models': '模型',
     'statusBar.usage.limit': '{{window}}限额',
     'statusBar.usage.limitLeft': '剩余 {{percent}}%',
-    'statusBar.usage.chipLimitWindow': '{{window}} 剩余 {{percent}}%',
+    'statusBar.usage.chipLimitWindow': '{{window}}剩余 {{percent}}%',
     'statusBar.usage.paceNote':
         '{{window}}限额：剩余 {{percent}}%，{{reset}}。按当前用量速度，额度会在重置前用完，放慢用量或随时间推移会恢复。',
     'statusBar.usage.limitsAsOf': '限额更新于',
