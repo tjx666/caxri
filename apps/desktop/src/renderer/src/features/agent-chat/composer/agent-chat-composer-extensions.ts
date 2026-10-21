@@ -424,6 +424,12 @@ const composerTheme = EditorView.theme({
         userSelect: 'none',
     },
     '.cm-path-pill img': { width: '14px', height: '14px' },
+    /**
+     * A list line's hanging indent is `text-indent`, which inherits: an inline-flex widget makes its label a
+     * block-level flex item that re-applies the negative indent and slides it over the widget's own icon (`1. ` before
+     * a path pill).
+     */
+    '.cm-path-pill, .cm-image-pill, .cm-link-icon': { textIndent: '0' },
     '.cm-web-link': { color: 'var(--accent)' },
     '.cm-link-icon': {
         display: 'inline-flex',
