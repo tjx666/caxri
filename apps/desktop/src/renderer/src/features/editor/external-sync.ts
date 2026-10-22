@@ -2,19 +2,16 @@ import { useEffect } from 'react';
 
 import type { FileDocument } from '@caxri/protocol';
 import { isVirtualEditorTabPath, listPaneTabs, parseExternalEditorTab } from '@caxri/protocol';
-import { pathBasename } from '@caxri/utils';
 import type { EditorDocument } from '@desktop-shared/editor-state';
 import { replaceWithExternalDocument } from '@desktop-shared/editor-state';
 import { uniq } from 'es-toolkit';
 
-import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getSelectedSession, getSessionState, selectSelectedSession } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
-import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../view-containers/resource-explorer/file-operation-state';
-import { stashDiscardedBuffers } from './discarded-buffers';
+import { announceDiscardedBuffers } from './discarded-buffers';
 import { readDocuments } from './document-commands';
 import { readExternalDocument, watchExternalDocuments } from './external-document-client';
 import { ExternalSyncDeferral } from './external-sync-deferral';
@@ -47,16 +44,6 @@ function readCachedDocument<T>(cached: Record<string, T>, path: string): T | und
 }
 
 /**
- * The notice for unsaved buffers a newer disk state just replaced. It names the loss rather than the reload: the reload
- * is routine, and what the user needs to learn is that their typing is gone and can still be taken back.
- */
-function discardedChangesMessage(names: readonly string[]): string {
-    return names.length === 1
-        ? translate('editor.externalSync.discardedOne', { name: names[0] })
-        : translate('editor.externalSync.discardedOther', { count: names.length });
-}
-
-/**
  * Caxri's explicit product policy: a newer disk state replaces the open buffer without prompting, even when that buffer
  * is dirty (ADR 0013). Routine Agent writes to clean buffers stay silent; only discarded unsaved work is announced, and
  * its text is kept so "Restore My Changes" can put it back as an unsaved buffer over the new disk version.
@@ -78,30 +65,10 @@ function applyExternalDocuments(
         const previous = readCachedDocument(cached, document.path);
         return previous?.dirty ? [previous] : [];
     });
-    const name = (document: EditorDocument) =>
-        parseExternalEditorTab(document.path)?.name ?? pathBasename(document.path);
-    stashDiscardedBuffers(sessionId, workbenchProjectId, discardedDirtyDocuments);
     useSessionViewStore
         .getState()
         .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument), workbenchProjectId);
-    if (discardedDirtyDocuments.length === 0) return;
-    /**
-     * A 4-second auto-dismiss would let this notice vanish while the user is away from the window, silently taking the
-     * only way back to the discarded buffer with it. This event already cost the user unsaved work, so it stays until
-     * explicitly dismissed, and it is a warning: the editor still works, but on terms the user did not choose.
-     */
-    pushToast('warning', discardedChangesMessage(discardedDirtyDocuments.map(name)), {
-        persist: true,
-        dismissOnSuccess: true,
-        action: {
-            id: 'editor.restoreDiscardedChanges',
-            params: {
-                sessionId,
-                workbenchProjectId,
-                paths: discardedDirtyDocuments.map((document) => document.path),
-            },
-        },
-    });
+    announceDiscardedBuffers(sessionId, workbenchProjectId, discardedDirtyDocuments);
 }
 
 async function syncFilesChanged(sessionId: string, changedPaths: readonly string[]): Promise<void> {

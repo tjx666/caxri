@@ -21,6 +21,7 @@ function decision(
 ): UnsavedEditorsDecisionOptions {
     return {
         confirm: vi.fn().mockResolvedValue('save'),
+        discardAll: vi.fn().mockResolvedValue(undefined),
         inspect: vi.fn().mockResolvedValue(twoFiles),
         log: vi.fn(),
         reveal: vi.fn(),
@@ -81,7 +82,17 @@ describe('decideUnsavedEditors', () => {
         await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
 
         expect(target.saveAll).not.toHaveBeenCalled();
+        expect(target.discardAll).toHaveBeenCalledOnce();
         expect(target.log).toHaveBeenCalledWith('discarded', 2);
+    });
+
+    it("still continues on Don't Save when the backups could not be dropped", async () => {
+        const target = decision({
+            confirm: vi.fn().mockResolvedValue('discard'),
+            discardAll: vi.fn().mockRejectedValue(new Error('timed out')),
+        });
+
+        await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
     });
 
     it('cancels and reveals the first unsaved buffer on Cancel', async () => {

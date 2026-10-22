@@ -16,6 +16,7 @@ vi.mock('../editor-reveal', () => ({
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
+    cacheDocument,
     changeDocument,
     openEditorTab,
     openFile,
@@ -238,6 +239,28 @@ describe('session-scoped file mutation completion', () => {
         expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([
             '/project/renamed.ts',
         ]);
+    });
+
+    it('keeps a buffer that became unsaved while its read was in flight', async () => {
+        installEmptySession();
+        const read = deferred<{ content: string; mtimeMs: number; path: string; size: number }>();
+        mocks.request.mockReturnValueOnce(read.promise);
+
+        const loading = cacheDocument('session-1', '/project/source.ts');
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            content: 'restored edit',
+            dirty: true,
+            mtimeMs: 1,
+            path: '/project/source.ts',
+            size: 4,
+        });
+        read.resolve({ content: 'disk', mtimeMs: 1, path: '/project/source.ts', size: 4 });
+
+        await expect(loading).resolves.toBeUndefined();
+        expect(getSessionDocuments('session-1')?.['/project/source.ts']).toMatchObject({
+            content: 'restored edit',
+            dirty: true,
+        });
     });
 
     it('discards a file read that completes after the file moved to Trash', async () => {

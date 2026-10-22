@@ -1,7 +1,7 @@
 import type { AgentChatImageInput, EnvironmentState } from '@caxri/protocol';
 import { agentChatImageInputSchema } from '@caxri/protocol';
 
-import { useEnvironmentStore } from '../../../stores/environment';
+import { environmentStorageScope, useEnvironmentStore } from '../../../stores/environment';
 
 /**
  * Unsent composer images per Chat, kept across a restart the way the text draft is. They cannot share the text's
@@ -251,7 +251,7 @@ export function agentChatComposerScope(
     environment: EnvironmentState | undefined,
 ): string {
     if (window === 'commander') return 'commander';
-    return environment?.kind === 'ssh' ? `ssh:${environment.hostIdentity}` : 'local';
+    return environment ? environmentStorageScope(environment) : 'local';
 }
 
 const composerWindow: { kind: AgentChatComposerWindow } = { kind: 'workbench' };

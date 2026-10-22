@@ -37,9 +37,7 @@ function cacheDiskVersion(overrides: { dirty?: boolean } = {}): void {
 beforeEach(() => {
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     useWorkbenchRoot('project-1');
-    stashDiscardedBuffers('session-1', 'project-1', [
-        { path, content: 'my edit', dirty: true, mtimeMs: 1, size: 7 },
-    ]);
+    stashDiscardedBuffers('session-1', 'project-1', [{ path, content: 'my edit' }]);
 });
 
 afterEach(() => {
