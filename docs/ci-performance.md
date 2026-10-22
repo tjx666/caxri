@@ -369,6 +369,12 @@ cold Android Gradle build that only started after the Linux natives finished. Th
   concurrent macOS jobs; every extra shard repeats about 80 seconds of setup.
 - The `full` scope restores a main-seeded ESLint cache keyed on the lockfile, `eslint.config.ts`, and
   `scripts/eslint-rules/**`. ESLint has no type-aware rules, so the content-hashed cache stays sound.
+- `@yutengjing/no-declare-implicit-any-var` is replaced by the local `caxri/no-declare-implicit-any-var`.
+  Upstream probed four Vue packages through `local-pkg` once per linted file, which was 46% of ESLint
+  time; dropping the probe cut a `packages` plus `apps/server` lint from 88 s to 35 s locally.
+- The first split run measured both `unit` shards at about 6.5 minutes, while `checks` without
+  Vitest still took 18 minutes: a cold 702 s ESLint, then oxlint (71 s), typecheck (3.5 minutes), and
+  the bundle budget gate (83 s).
 - Vitest's `fsModuleCache` is not persisted: a warm cache measured no faster than a cold one
   locally, because import time is module evaluation rather than transformation.
 - The Release workflow builds the Android update bundle in its own `android-bundle` job, in parallel

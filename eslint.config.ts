@@ -235,6 +235,11 @@ export default defineConfig(
         },
         rules: {
             'caxri/architecture-boundaries': 'error',
+            /**
+             * The local port drops the upstream rule's per-file Vue package probe, which cost about 46% of ESLint time.
+             */
+            '@yutengjing/no-declare-implicit-any-var': 'off',
+            'caxri/no-declare-implicit-any-var': 'error',
         },
     },
     {
