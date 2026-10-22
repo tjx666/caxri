@@ -76,7 +76,9 @@ jobs:
         github.event_name == 'push' &&
         github.ref == 'refs/heads/main'
       )
-    runs-on: macos-15
+    # The policy only reads Git history and the Actions API, so it does not hold one of the account's scarce
+    # concurrent macOS runners while the checks and unit jobs queue behind it.
+    runs-on: ubuntu-latest
     env:
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
@@ -97,8 +99,8 @@ jobs:
       - name: Verify hosted runner boundary before checkout
         run: |
           test "$RUNNER_ENVIRONMENT" = github-hosted
-          test "$RUNNER_OS" = macOS
-          test "$RUNNER_ARCH" = ARM64
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
       - id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -174,6 +176,16 @@ jobs:
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
+      # ESLint has no type-aware rules (oxlint owns those), so its content-hashed cache stays valid across runs as long as
+      # the dependency tree, config, and local rules match. Main-scoped entries seed the next main push.
+      - name: Restore ESLint cache
+        if: needs.retry-policy.outputs.checks_scope == 'full'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/eslint
+          key: eslint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.ts', 'scripts/eslint-rules/**') }}-${{ github.sha }}
+          restore-keys: |
+            eslint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.ts', 'scripts/eslint-rules/**') }}-
       - name: Run gitleaks
         # Scoped to the commits this push or pull request actually introduced. The full-history scan runs instead,
         # inside "Run full platform checks", whenever this job handles the 'full' scope.
@@ -198,9 +210,66 @@ jobs:
         env:
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
           CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest
+  # Vitest dominates both the `full` and `affected` scopes, so it runs in shards beside the lint and type gates instead
+  # of after them. The CI gate requires every shard whenever `checks` runs one of those scopes.
+  unit:
+    name: unit (${{ matrix.shard }})
+    needs: retry-policy
+    if: >-
+      (
+        needs.retry-policy.outputs.checks_scope == 'full' ||
+        needs.retry-policy.outputs.checks_scope == 'affected'
+      ) &&
+      (
+        github.event_name != 'workflow_dispatch' ||
+        inputs.validation_target != 'hosted-full' ||
+        needs.retry-policy.outputs.checks_scope != 'full' ||
+        needs.retry-policy.outputs.e2e_profile != 'optimized'
+      )
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1/2, 2/2]
+    runs-on: macos-15
+    env:
+      CAXRI_EXPECTED_HEAD: ${{ github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify read-only event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+          allow-external-pull-request: 'true'
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+          install-playwright-shell: 'true'
+          install-media-tools: 'true'
+      - name: Run sharded unit and integration tests
+        env:
           CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
-        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation
+          CAXRI_VITEST_SHARD: ${{ matrix.shard }}
+          CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
+          CI_CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
+        run: bun run scripts/run-ci-unit-tests.ts
   hosted-smoke:
     name: Hosted macOS smoke
     needs: retry-policy
@@ -597,7 +666,7 @@ jobs:
   ci:
     name: CI gate
     if: ${{ !cancelled() }}
-    needs: [retry-policy, checks, hosted-smoke, e2e]
+    needs: [retry-policy, checks, unit, hosted-smoke, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required execution path
@@ -609,6 +678,7 @@ jobs:
           FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
           SMOKE_RESULT: ${{ needs.hosted-smoke.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
           VALIDATION_TARGET: ${{ inputs.validation_target || 'automated' }}
         run: |
           test "$RETRY_POLICY_RESULT" = success
@@ -623,6 +693,13 @@ jobs:
             fi
           else
             test "$CHECKS_RESULT" = success
+          fi
+
+          # The sharded unit job runs exactly when checks runs the full or affected scope.
+          if { test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = affected; } && test "$CHECKS_RESULT" != skipped; then
+            test "$UNIT_RESULT" = success
+          else
+            test "$UNIT_RESULT" = skipped
           fi
 
           case "$VALIDATION_TARGET" in

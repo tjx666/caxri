@@ -12,7 +12,7 @@ const protectedPathPatterns = [
     /^(?:mise\.toml|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-checks-worktree-setup|ci-child-environment|ci-concurrent-validation|ci-concurrent-validation-report|ci-execution-plan|ci-green-reuse|ci-metrics|ci-path-policy|ci-platform-checks|ci-platform-gates|ci-retry-policy|prepare-public-e2e-receipts|report-e2e-manifest|run-ci-focused-checks|run-ci-parity)\.ts$/,
+    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-checks-worktree-setup|ci-child-environment|ci-concurrent-validation|ci-concurrent-validation-report|ci-execution-plan|ci-green-reuse|ci-metrics|ci-path-policy|ci-platform-checks|ci-platform-gates|ci-retry-policy|prepare-public-e2e-receipts|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|run-ci-unit-tests)\.ts$/,
     /^scripts\/performance-baseline[^/]*\.(?:json|ts)$/,
     // Every `run-e2e-*` runner and everything under `scripts/fixtures/` participates in E2E job
     // steps (census fixture included), so protect them by prefix instead of enumerating each file

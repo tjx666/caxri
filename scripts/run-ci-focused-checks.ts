@@ -20,19 +20,6 @@ type FocusedChecksScope = Extract<
     | 'focused-source'
 >;
 
-const RELATED_SOURCE_EXTENSIONS = /\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$/u;
-
-/**
- * `vitest related` follows the whole import graph, so a change deep in a shared package still reaches every suite that
- * transitively imports it: the direct-import heuristic `check --test` uses would miss those.
- */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
-export function affectedTestArguments(paths: readonly string[]): string[] | undefined {
-    const sources = paths.filter((path) => RELATED_SOURCE_EXTENSIONS.test(path));
-    if (sources.length === 0) return undefined;
-    return ['vitest', 'related', '--run', '--passWithNoTests', '--silent=passed-only', ...sources];
-}
-
 /**
  * The `affected` scope also runs the repository-wide knip gate (about 3 s locally) so an unused export fails before
  * merge instead of surfacing on the `main` push's `full` checks.
@@ -189,15 +176,7 @@ async function main(): Promise<void> {
         process.exitCode = diffResult;
         return;
     }
-    const affectedArguments =
-        scope === 'affected' ? affectedTestArguments(currentFiles) : undefined;
-    if (affectedArguments) {
-        const affectedResult = await run('bunx', affectedArguments);
-        if (affectedResult !== 0) {
-            process.exitCode = affectedResult;
-            return;
-        }
-    }
+    // The `affected` scope's `vitest related` run lives in scripts/run-ci-unit-tests.ts, sharded beside this job.
     if (regressionPaths.length === 0) {
         process.exitCode = diffResult;
         return;

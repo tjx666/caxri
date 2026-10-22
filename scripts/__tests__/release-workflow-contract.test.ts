@@ -23,10 +23,10 @@ interface WorkflowStep {
     run?: string;
 }
 
-function stepScript(name: string): string {
+function stepScript(name: string, job = 'release'): string {
     const parsed: unknown = parse(workflow);
     const steps: unknown = Reflect.get(
-        Reflect.get(Reflect.get(parsed as object, 'jobs'), 'release'),
+        Reflect.get(Reflect.get(parsed as object, 'jobs'), job),
         'steps',
     );
     const step = (steps as WorkflowStep[]).find((entry) => entry.name === name);
@@ -102,12 +102,46 @@ describe('Release workflow contract', () => {
     });
 
     it('stages the release-signed Android bundle before packaging and proves it shipped', () => {
-        const bundle = stepScript('Build Android update bundle');
-        expect(releaseJobSource.indexOf('name: Build Android update bundle')).toBeLessThan(
-            releaseJobSource.indexOf('name: Package unsigned Apple Silicon DMGs'),
-        );
+        const parsed = parse(workflow) as {
+            jobs: Record<
+                string,
+                {
+                    'if'?: string;
+                    'needs'?: string | string[];
+                    'permissions'?: Record<string, string>;
+                    'runs-on'?: string;
+                    'steps'?: Array<{
+                        name?: string;
+                        uses?: string;
+                        with?: Record<string, string>;
+                    }>;
+                }
+            >;
+        };
+        const android = parsed.jobs['android-bundle'];
+        // The Android build runs beside linux-natives and hands its bundle to the publishing job.
+        expect(android.if).toBe(parsed.jobs.release.if);
+        expect(android['runs-on']).toBe('macos-15');
+        expect(android.permissions).toEqual({ contents: 'read' });
+        expect(android.steps?.some((step) => step.with?.['gradle-cache'] === 'true')).toBe(true);
+        const bundle = stepScript('Build Android update bundle', 'android-bundle');
         expect(bundle).toContain('trap \'rm -f "$keystore"\' EXIT');
         expect(bundle).toContain('bun run --cwd apps/mobile build:update-bundle');
+        const upload = android.steps?.find((step) => step.with?.name === 'android-update-bundle');
+        expect(upload?.with?.path).toBe('out/mobile-update');
+
+        expect(parsed.jobs.release.needs).toEqual(['linux-natives', 'android-bundle']);
+        expect(JSON.stringify(parsed.jobs.release)).not.toContain('build:update-bundle');
+        const download = parsed.jobs.release.steps?.find(
+            (step) => step.name === 'Download Android update bundle',
+        );
+        expect(download?.with).toEqual({
+            name: 'android-update-bundle',
+            path: 'out/mobile-update',
+        });
+        expect(releaseJobSource.indexOf('name: Download Android update bundle')).toBeLessThan(
+            releaseJobSource.indexOf('name: Package unsigned Apple Silicon DMGs'),
+        );
         expect(stepScript('Package unsigned Apple Silicon DMGs')).toContain(
             'cmp out/mobile-update/caxri-mobile.apk',
         );
@@ -120,7 +154,7 @@ describe('Release workflow contract', () => {
                     string,
                     {
                         'if'?: string;
-                        'needs'?: string;
+                        'needs'?: string | string[];
                         'permissions'?: Record<string, string>;
                         'runs-on'?: string;
                         'steps'?: Array<{ env?: Record<string, string>; name?: string }>;
@@ -142,7 +176,7 @@ describe('Release workflow contract', () => {
         expect(parsed.jobs.release?.if).toContain(
             "startsWith(github.event.workflow_run.display_title, 'release: v')",
         );
-        expect(parsed.jobs.release?.needs).toBe('linux-natives');
+        expect(parsed.jobs.release?.needs).toContain('linux-natives');
         const packaging = parsed.jobs.release?.steps?.find(
             (step) => step.name === 'Package unsigned Apple Silicon DMGs',
         );
@@ -202,7 +236,7 @@ describe('Release workflow contract', () => {
         expect(workflow).toContain("setup-toolchain: 'true'");
         expect(workflow).toContain("install-dependencies: 'true'");
         expect(workflow).toContain("install-electron: 'true'");
-        expect(releaseJobSource).toContain("install-android-toolchain: 'true'");
+        expect(workflow).toContain("install-android-toolchain: 'true'");
         expect(workflow).not.toContain('rebuild-native:');
         expect(workflow).not.toContain('npm ci');
         expect(releaseJobSource.indexOf('name: Validate release commit')).toBeLessThan(

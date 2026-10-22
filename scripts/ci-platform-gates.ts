@@ -30,6 +30,10 @@ export interface PlatformCheckCommand {
 
 export interface PlatformCheckOptions {
     includeNodePtyPreparation?: boolean;
+    /**
+     * Defaults to true. Hosted CI passes false because its sharded `unit` job owns the Vitest gate.
+     */
+    includeVitest?: boolean;
 }
 
 interface DirectGateSpec {
@@ -183,7 +187,11 @@ export function platformCheckCommands(
     environment: NodeJS.ProcessEnv,
     options: PlatformCheckOptions = {},
 ): PlatformCheckCommand[] {
-    const checks = PLATFORM_NEUTRAL_CI_GATES.map((gate) => ({
+    const gates =
+        options.includeVitest === false
+            ? PLATFORM_NEUTRAL_CI_GATES.filter(({ id }) => id !== 'vitest')
+            : PLATFORM_NEUTRAL_CI_GATES;
+    const checks = gates.map((gate) => ({
         arguments: gate.arguments(environment),
         command: gate.command,
         id: gate.id,

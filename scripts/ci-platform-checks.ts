@@ -8,13 +8,15 @@ import { runChildProcess } from './exec';
 async function main(): Promise<void> {
     const arguments_ = process.argv.slice(2);
     const unknownArgument = arguments_.find(
-        (argument) => argument !== '--skip-node-pty-preparation',
+        (argument) => argument !== '--skip-node-pty-preparation' && argument !== '--skip-vitest',
     );
     if (unknownArgument) throw new Error(`Unknown ci-platform-checks argument: ${unknownArgument}`);
     const isIncludeNodePtyPreparation = !arguments_.includes('--skip-node-pty-preparation');
 
     const checks = platformCheckCommands(process.env, {
         includeNodePtyPreparation: isIncludeNodePtyPreparation,
+        // Hosted CI runs Vitest in the sharded `unit` job beside these gates.
+        includeVitest: !arguments_.includes('--skip-vitest'),
     });
     for (const check of checks) {
         // eslint-disable-next-line no-await-in-loop -- matches the fail-fast ordering of the former workflow steps

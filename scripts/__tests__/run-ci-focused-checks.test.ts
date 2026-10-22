@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    affectedTestArguments,
     focusedCheckArguments,
     focusedDiffArguments,
     focusedRegressionPaths,
@@ -148,7 +147,7 @@ describe('focused CI checks', () => {
         ).toEqual(['.agents/skills']);
     });
 
-    it('lints and typechecks affected changes, then runs every suite reachable through imports', () => {
+    it('lints, typechecks, and runs knip for affected changes', () => {
         expect(focusedCheckArguments(['apps/server/src/index.ts'], 'affected')).toEqual([
             'run',
             '--silent',
@@ -161,21 +160,5 @@ describe('focused CI checks', () => {
         for (const scope of ['focused-source', 'focused-docs', 'focused-e2e'] as const) {
             expect(focusedCheckArguments(['a.ts'], scope)).not.toContain('--knip');
         }
-        expect(
-            affectedTestArguments([
-                'apps/server/src/index.ts',
-                'docs/testing.md',
-                'e2e/files.e2e.ts',
-            ]),
-        ).toEqual([
-            'vitest',
-            'related',
-            '--run',
-            '--passWithNoTests',
-            '--silent=passed-only',
-            'apps/server/src/index.ts',
-            'e2e/files.e2e.ts',
-        ]);
-        expect(affectedTestArguments(['docs/testing.md'])).toBeUndefined();
     });
 });
