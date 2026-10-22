@@ -199,7 +199,10 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await message.fill('hello fourth');
         await message.press('Enter');
         await expect(queue.getByText('hello fourth')).toBeVisible();
-        await expect(message).toHaveAttribute('aria-placeholder', 'Type a follow-up');
+        await expect(message).toHaveAttribute(
+            'aria-placeholder',
+            'Enter to steer the first queued message',
+        );
         await expect(
             queue
                 .getByRole('listitem')
