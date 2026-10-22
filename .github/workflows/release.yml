@@ -148,6 +148,7 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
           install-android-toolchain: 'true'
+          gradle-cache: 'true'
       - name: Build Android rehearsal update bundle
         run: |
           keystore="$RUNNER_TEMP/caxri-android-rehearsal.jks"
@@ -249,6 +250,7 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-android-toolchain: 'true'
+          gradle-cache: 'true'
       - name: Build the release-signed Android bundle
         id: signed_apk
         env:
@@ -275,6 +277,74 @@ jobs:
           bun run "$RUNNER_TEMP/caxri-android-backfill/.agents/skills/release/scripts/android-release-backfill.ts" publish
           "$ANDROID_RELEASE_TAG" "$ANDROID_RELEASE_SHA" "$ANDROID_RELEASE_ID" "$ANDROID_VERIFIED_APK_SHA256"
 
+  # The Android build is the longest release stage (about 19 minutes cold), so it runs beside linux-natives instead of
+  # inside the packaging job. The packaging job downloads its staged bundle and still proves both Desktop flavors carry
+  # those exact bytes before publication.
+  android-bundle:
+    name: Android update bundle
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.actor.login == 'tjx666' &&
+      github.event.workflow_run.triggering_actor.login == 'tjx666' &&
+      startsWith(github.event.workflow_run.display_title, 'release: v')
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Verify hosted release boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: release
+          event-name: ${{ github.event.workflow_run.event }}
+          actor: ${{ github.event.workflow_run.actor.login }}
+          triggering-actor: ${{ github.event.workflow_run.triggering_actor.login }}
+          event-repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          event-ref: refs/heads/${{ github.event.workflow_run.head_branch }}
+          pull-request-author: ${{ github.event.workflow_run.actor.login }}
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-android-toolchain: 'true'
+          gradle-cache: 'true'
+
+      # Desktop serves this APK to paired Android phones (docs/mobile/update.md). The script
+      # refuses to stage anything but the release-signed APK of this version. The shared setup action
+      # installs the Android toolchain explicitly so a missing piece fails the release instead of
+      # shipping a Desktop without its phone build.
+      - name: Build Android update bundle
+        env:
+          CAXRI_ANDROID_KEYSTORE_BASE64: ${{ secrets.CAXRI_ANDROID_KEYSTORE_BASE64 }}
+          CAXRI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEYSTORE_PASSWORD }}
+          CAXRI_ANDROID_KEY_ALIAS: ${{ secrets.CAXRI_ANDROID_KEY_ALIAS }}
+          CAXRI_ANDROID_KEY_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEY_PASSWORD }}
+        run: |
+          keystore="${RUNNER_TEMP}/caxri-android-release.jks"
+          trap 'rm -f "$keystore"' EXIT
+          test -n "$CAXRI_ANDROID_KEYSTORE_BASE64"
+          printf '%s' "$CAXRI_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          CAXRI_ANDROID_KEYSTORE_PATH="$keystore" bun run --cwd apps/mobile build:update-bundle
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: android-update-bundle
+          path: out/mobile-update
+          if-no-files-found: error
+          retention-days: 1
+
   release:
     # PR CI owns the product quality gates. The exact release commit's lightweight CI run rechecks
     # this trusted main-push boundary without repeating platform checks or the macOS E2E suite.
@@ -288,7 +358,7 @@ jobs:
       github.event.workflow_run.actor.login == 'tjx666' &&
       github.event.workflow_run.triggering_actor.login == 'tjx666' &&
       startsWith(github.event.workflow_run.display_title, 'release: v')
-    needs: linux-natives
+    needs: [linux-natives, android-bundle]
     runs-on: macos-15
     timeout-minutes: 60
     permissions:
@@ -352,29 +422,19 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: 'true'
-          install-android-toolchain: 'true'
 
       # actions/checkout's default `clean: true` already runs `git clean -ffdx`, which removes the
       # gitignored release.noindex. Keep the explicit cleanup so neither flavor can reuse an older artifact.
       - name: Clean previous packaging output
         run: rm -rf release.noindex
 
-      # Desktop serves this APK to paired Android phones (docs/mobile/update.md). The script
-      # refuses to stage anything but the release-signed APK of this version. The shared setup action
-      # installs the Android toolchain explicitly so a missing piece fails the release instead of
-      # shipping a Desktop without its phone build.
-      - name: Build Android update bundle
-        env:
-          CAXRI_ANDROID_KEYSTORE_BASE64: ${{ secrets.CAXRI_ANDROID_KEYSTORE_BASE64 }}
-          CAXRI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEYSTORE_PASSWORD }}
-          CAXRI_ANDROID_KEY_ALIAS: ${{ secrets.CAXRI_ANDROID_KEY_ALIAS }}
-          CAXRI_ANDROID_KEY_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEY_PASSWORD }}
-        run: |
-          keystore="${RUNNER_TEMP}/caxri-android-release.jks"
-          trap 'rm -f "$keystore"' EXIT
-          test -n "$CAXRI_ANDROID_KEYSTORE_BASE64"
-          printf '%s' "$CAXRI_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
-          CAXRI_ANDROID_KEYSTORE_PATH="$keystore" bun run --cwd apps/mobile build:update-bundle
+      # electron-builder copies out/mobile-update into both flavors' Resources/mobile; the packaging step below
+      # compares the staged bytes against each app bundle.
+      - name: Download Android update bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-update-bundle
+          path: out/mobile-update
 
       - name: Download Linux natives
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

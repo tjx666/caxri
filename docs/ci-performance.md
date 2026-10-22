@@ -309,12 +309,16 @@ changing workflow wiring.
 
 ## Hosted checks and explicit E2E
 
-A ready source PR runs on a disposable `macos-15` ARM64 runner. `scripts/ci-execution-plan.ts`
+A ready source PR runs on disposable `macos-15` ARM64 runners. `scripts/ci-execution-plan.ts`
 routes it to the `affected` scope:
 
-- **Checks**: changed-file lint and repository typecheck through `bun run check`, then
-  `vitest related --run` over the changed sources. `related` walks the whole import graph, so a
-  change in a shared package reaches every suite that transitively imports it.
+- **Checks**: changed-file lint, repository typecheck, and knip through `bun run check`.
+- **Unit**: `vitest related --run` over the changed sources, split into two `--shard` jobs that run
+  beside `checks` instead of after it (`scripts/run-ci-unit-tests.ts`). `related` walks the whole
+  import graph, so a change in a shared package reaches every suite that transitively imports it.
+  The `full` scope shards the complete suite the same way, and `checks` runs
+  `scripts/ci-platform-checks.ts --skip-vitest`. The CI gate requires every shard whenever
+  `checks` runs either scope.
 - **E2E selection**: the union of specs declared in the PR body with one
   `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line, ordinary specs the PR changed, and specs that directly
   import a changed source file. The selection is recorded for an explicit validation dispatch; a PR never starts
@@ -344,12 +348,32 @@ diagnostic route, and every dispatch or retry requires fresh, explicit maintaine
 Hosted E2E must collect a separate calibration before it can enforce the historical
 machine-specific Renderer performance baseline.
 
-The Release workflow's manual dispatch is a no-publish rehearsal. It keeps the Linux x64/ARM64
-native matrix, then uses `macos-15` ARM64 to install the exact Node, pnpm, Bun, JDK 17, Android
+The Release workflow's manual dispatch is a no-publish rehearsal. Because it runs on `main`, it
+also seeds the Gradle cache the next release restores. It keeps the Linux x64/ARM64 native matrix,
+then uses `macos-15` ARM64 to install the exact Node, pnpm, Bun, JDK 17, Android
 Platform 36, Build Tools 35/36, NDK, and CMake versions. It signs the Android rehearsal APK with an
 ephemeral one-run key, packages both unsigned DMG flavors, and runs the two targeted packaged-app
 smoke specs against the canonical Source Map flavor. It has read-only repository permission, reads
 no secrets, uploads no DMG, and never creates a GitHub Release.
+
+### Wall-clock layout
+
+Measured before the split on hosted `macos-15` (2026-10-22): an `affected` PR spent about 4.4 minutes in
+`bun run check` and then 11 minutes in `vitest related`; a `main` push spent 27 minutes serially in
+ESLint (642 s), Vitest (585 s), and the remaining gates; a release spent 31.5 minutes, 19 of them in a
+cold Android Gradle build that only started after the Linux natives finished. The current layout:
+
+- `retry-policy` runs on `ubuntu-latest`. It only reads Git history and the Actions API, and the
+  account's concurrent macOS runners are the scarce resource that queues `checks` and `unit`.
+- Vitest runs in two `unit` shards beside `checks`. Two shards, not more, keep one PR at three
+  concurrent macOS jobs; every extra shard repeats about 80 seconds of setup.
+- The `full` scope restores a main-seeded ESLint cache keyed on the lockfile, `eslint.config.ts`, and
+  `scripts/eslint-rules/**`. ESLint has no type-aware rules, so the content-hashed cache stays sound.
+- Vitest's `fsModuleCache` is not persisted: a warm cache measured no faster than a cold one
+  locally, because import time is module evaluation rather than transformation.
+- The Release workflow builds the Android update bundle in its own `android-bundle` job, in parallel
+  with `linux-natives`, and restores a Gradle home cache with the build cache enabled. The
+  publishing job downloads the bundle and still compares it byte for byte with both Desktop flavors.
 
 ## Explicit full-E2E dispatch contract
 
