@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { indexedDatabaseDeviceStoreBackend } from '../../lib/indexed-database-device-store';
 import { environmentStorageScope, useEnvironmentStore } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
-import { useSessionViewStore } from '../../stores/session-view';
+import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { announceDiscardedBuffers } from './discarded-buffers';
 
 /**
@@ -171,7 +171,7 @@ export function createEditorBackups(options: EditorBackupsOptions) {
     const restorable = new Map<string, EditorBackup>();
 
     function restoreOne(name: string, backup: EditorBackup, documents: SessionDocuments): void {
-        const [viewScope] = JSON.parse(name) as [string, string];
+        const viewScope = sessionViewScope(backup.sessionId, backup.workbenchProjectId);
         const document = documentAt(documents, viewScope, backup.path);
         // An unsaved document already holds newer typing from this launch; its own backup replaces this one.
         if (!document || document.dirty) return;
@@ -188,9 +188,13 @@ export function createEditorBackups(options: EditorBackupsOptions) {
                 );
             return;
         }
-        store.remove(name);
+        /**
+         * A conflicting backup stays until the restored buffer replaces it or eviction drops it: the notice's copy
+         * lives only in memory, so a restart before "Restore My Changes" must not lose the text.
+         */
         if (outcome === 'conflict')
             announceDiscardedBuffers(backup.sessionId, backup.workbenchProjectId, [backup]);
+        else store.remove(name);
     }
 
     function restoreLoaded(documents: SessionDocuments): void {
@@ -214,12 +218,15 @@ export function createEditorBackups(options: EditorBackupsOptions) {
     async function start(): Promise<() => void> {
         try {
             const listed = await backend.list();
-            for (const { name } of listed) {
-                // eslint-disable-next-line no-await-in-loop -- a handful of small reads, once per launch
-                const entry = await store.load(scope, name, editorBackupSchema);
+            const loaded = await Promise.all(
+                listed.map(async ({ name }) => ({
+                    entry: await store.load(scope, name, editorBackupSchema),
+                    name,
+                })),
+            );
+            for (const { entry, name } of loaded)
                 if (entry) restorable.set(name, entry.value);
                 else store.remove(name);
-            }
         } catch {
             // An unreadable database restores nothing; backing up this launch's buffers still works.
         }

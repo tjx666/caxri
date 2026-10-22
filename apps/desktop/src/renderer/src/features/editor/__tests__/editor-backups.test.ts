@@ -175,7 +175,8 @@ describe('editor backups across a restart', () => {
                 paths: [path],
             }),
         ).toBeUndefined();
-        expect(entries.size).toBe(0);
+        // Kept until the restored buffer replaces it, so a restart before restoring loses nothing.
+        expect(entries.size).toBe(1);
         stop();
     });
 

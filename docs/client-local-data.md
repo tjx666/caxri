@@ -67,15 +67,16 @@ tab, or the active tab loading at startup):
   back as unsaved over it, exactly as the user left it.
 - **File changed while Caxri was closed**: disk wins, as it does for a live buffer
   ([ADR 0013](adr/0013-editable-external-documents.md)), and the warning notice offers
-  "Restore My Changes" with the backup's text.
+  "Restore My Changes" with the backup's text. The backup stays until the restored buffer replaces
+  it or eviction drops it, so quitting before choosing still loses nothing.
 - **Same text on disk** (the save landed but its backup removal did not), or a now read-only file:
   the backup is dropped silently.
 
 A backup whose document is never opened again stays until eviction. Backups never leave the device
 that typed them, never enter Server Core, and never appear in logs or diagnostics. Each environment
 has its own database, so an SSH Host window never restores a local buffer and two hosts never see
-each other's text. Each environment has one Workbench window today; tear-off windows of one
-environment would share its database.
+each other's text. Workbench windows of one environment, tear-off windows included, share its
+database, so a backup is restored by whichever window next reads its document.
 
 ### SSH Host disconnect
 
