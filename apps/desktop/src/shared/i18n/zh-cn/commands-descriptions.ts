@@ -62,6 +62,7 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
         '把键盘焦点移入等待弹窗中的问题或审批，必要时先展开',
     'commands.description.terminal.close': '关闭当前终端',
     'commands.description.workbench.closeActiveTab': '关闭当前终端或文件标签页',
+    'commands.description.workbench.closeOtherTabs': '关闭当前窗格中的其他终端或文件标签页',
     'commands.description.workbench.nextTab': '激活下一个终端或文件标签页',
     'commands.description.workbench.previousTab': '激活上一个终端或文件标签页',
     'commands.description.editor.save': '保存当前文件',

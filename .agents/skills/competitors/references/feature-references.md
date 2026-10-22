@@ -31,7 +31,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Log viewer filter**: Output panel filter syntax. Evidence: `apps/desktop/src/renderer/src/features/panel/views/logs/log-filter.ts`.
 - **Settings page**: Searchable virtual list, all-words search, modified marker. Evidence: `apps/desktop/src/renderer/src/features/settings/settings-page.tsx`; `settings-search.ts`.
 - **Keyboard Shortcuts cheatsheet**: `Cmd+K Cmd+R` "Keyboard Shortcuts Reference" chord. Evidence: `packages/protocol/src/domain/default-keybindings.ts`.
-- **Keybindings**: Chord syntax and capture; `Cmd+O`, `Cmd+K V`, `Cmd+0`; `sendSequence` newline rule. Evidence: `packages/protocol/src/configuration/shortcuts.ts`; `packages/protocol/src/domain/default-keybindings.ts`; `docs/keybindings.md`.
+- **Keybindings**: Chord syntax and capture; `Cmd+O`, `Cmd+K V`, `Cmd+K Cmd+W` (closes other tabs here, not all), `Cmd+0`; `sendSequence` newline rule. Evidence: `packages/protocol/src/configuration/shortcuts.ts`; `packages/protocol/src/domain/default-keybindings.ts`; `docs/keybindings.md`.
 - **View container badges**: Badge priority and placement. Evidence: `DESIGN.md` (badges); `packages/protocol/src/domain/view-badges.ts`.
 - **Status bar**: Corner bell; leading SSH remote indicator. Evidence: `apps/desktop/src/renderer/src/features/status-bar/status-bar.tsx`; `ssh-host-status.tsx`.
 - **Side Bar section headers, scroll shadow, tree ARIA**: Caption style, `.shadow.top`, `aria-setsize`. Evidence: `docs/secondary-sidebar-trees.md`.

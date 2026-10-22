@@ -116,6 +116,11 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+alt+arrowup', command: 'workbench.focusPaneUp' },
     { key: 'cmd+alt+arrowdown', command: 'workbench.focusPaneDown' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
+    /**
+     * VS Code spends `Cmd+K Cmd+W` on Close All Editors; here it closes the active pane's other tabs (the tab menu's
+     * Close Others), since `Cmd+W` already closes the active one.
+     */
+    { key: 'cmd+k cmd+w', command: 'workbench.closeOtherTabs' },
     { key: 'cmd+s', command: 'editor.save' },
     /**
      * `Cmd+Alt+K` mirrors the "copy selection reference" chord used with VS Code agent extensions. It must fire while
@@ -403,5 +408,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'remove',
         previous: { key: 'cmd+shift+w', command: 'session.closeTab' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+k cmd+w', command: 'workbench.closeOtherTabs' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

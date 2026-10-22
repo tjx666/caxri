@@ -76,6 +76,7 @@ export const commands = {
     'commands.agentChat.focusWaitingRequest': 'Focus Waiting Request',
     'commands.terminal.close': 'Close Terminal',
     'commands.workbench.closeActiveTab': 'Close Active Tab',
+    'commands.workbench.closeOtherTabs': 'Close Other Tabs',
     'commands.workbench.nextTab': 'Show Next Tab',
     'commands.workbench.previousTab': 'Show Previous Tab',
     'commands.editor.save': 'Save File',

@@ -73,6 +73,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.agentChat.focusWaitingRequest': '聚焦等待中的请求',
     'commands.terminal.close': '关闭终端',
     'commands.workbench.closeActiveTab': '关闭当前标签页',
+    'commands.workbench.closeOtherTabs': '关闭其他标签页',
     'commands.workbench.nextTab': '显示下一个标签页',
     'commands.workbench.previousTab': '显示上一个标签页',
     'commands.editor.save': '保存文件',

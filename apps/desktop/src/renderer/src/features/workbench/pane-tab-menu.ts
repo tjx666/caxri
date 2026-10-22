@@ -1,4 +1,4 @@
-import type { PaneLayout, PaneSplitSide, PaneTabCloseMode } from '@caxri/protocol';
+import type { CommandId, PaneLayout, PaneSplitSide, PaneTabCloseMode } from '@caxri/protocol';
 import {
     findTab,
     MAX_PANE_LAYOUT_PANES,
@@ -10,8 +10,17 @@ import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
+import { readCommandShortcut } from '../../lib/keybindings';
 import { closeDocumentTabFamily } from '../editor/document-commands';
 import { splitPaneTab } from './pane-actions';
+
+/**
+ * The close modes a keyboard command also performs, so their entries can show its shortcut as VS Code's tab menu does.
+ */
+const closeCommands: Partial<Record<PaneTabCloseMode, CommandId>> = {
+    one: 'workbench.closeActiveTab',
+    others: 'workbench.closeOtherTabs',
+};
 
 const closeLabelKeys: Record<PaneTabCloseMode, TranslationKey> = {
     one: 'workbench.tabMenu.close.one',
@@ -78,6 +87,7 @@ export function paneTabMenu({
     return [
         ...(isTerminalTab ? terminalCloseModes : documentCloseModes).map((mode) => ({
             label: translate(closeLabelKeys[mode]),
+            shortcut: closeCommands[mode] && readCommandShortcut(closeCommands[mode]),
             disabled: (paneLayout ? paneTabIdsToClose(paneLayout, tabId, mode) : []).length === 0,
             onSelect: () => closeDocumentTabFamily(tabId, mode),
         })),
