@@ -46,7 +46,12 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts desktop --labe
 Each variant gets its own temporary profile. Launch zero of a profile is reported separately as the
 first launch; the rest are warm restarts, each with a freshly spawned Server Core. Variants are
 interleaved per round so machine drift lands on both sides. `--env label:KEY=VALUE` runs one build
-under two environments.
+under two environments. Every milestone reports its warm median and p95 (nearest rank).
+
+`--seed projects,sessions,archived,terminals` fills each profile after its first launch with that
+many synthetic Projects (roots under the profile), Sessions (the first `archived` of them
+archived), and stopped Shell Terminals, so warm restarts measure a realistic bootstrap instead of an
+empty one. No real Project, path, or Terminal content enters the seed.
 
 ## Startup design
 
@@ -76,6 +81,20 @@ window-first change with the compile cache and unthrottled hidden window:
 | `readyToShowMs`    |    565 |   273 |
 | `windowShownMs`    |      - |   478 |
 | `firstFrameMs`     |    607 |   507 |
+
+October 2026, 11 warm launches each, empty profile versus `--seed 175,245,201,253` (a long-used
+profile's row counts):
+
+| Milestone          | Empty p50 | Empty p95 | Seeded p50 | Seeded p95 |
+| ------------------ | --------: | --------: | ---------: | ---------: |
+| `serverAttachedMs` |       401 |       415 |        410 |        436 |
+| `windowShownMs`    |       418 |       432 |        443 |        469 |
+| `loaderRemovedMs`  |       436 |       452 |        559 |        584 |
+| `firstFrameMs`     |       440 |       456 |        590 |        616 |
+
+A realistic bootstrap adds about 150 ms between attachment and the first frame; attachment itself
+barely moves. [Client-local data](client-local-data.md) records why that does not justify painting
+a saved bootstrap before attachment.
 
 Server Core attachment is now the critical path: the window waits for its placement, and the
 Workbench for Server Core data. Attachment got slower because the Renderer now loads in parallel
