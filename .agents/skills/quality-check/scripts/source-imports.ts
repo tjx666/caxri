@@ -384,3 +384,34 @@ export async function relatedE2ESpecs(root: string, sourceFiles: string[]): Prom
         .map(({ spec }) => spec)
         .toSorted((a, b) => a.localeCompare(b));
 }
+
+/**
+ * Workflow and composite-action contracts read `.github/**` as text at runtime, so import discovery never selects them:
+ * splitting `checks` once passed the focused check and failed CI because `ci-fallback.test.ts` asserted the old
+ * `ci.yml` steps. A changed workflow selects every Vitest file that names its path, and a changed composite action
+ * every file that names its directory.
+ */
+export async function githubConfigReaderTestCandidates(
+    root: string,
+    changedFiles: readonly string[],
+): Promise<string[]> {
+    const needles = changedFiles
+        .map((file) => file.replaceAll('\\', '/'))
+        .filter((file) => file.startsWith('.github/'))
+        .map((file) =>
+            /^\.github\/actions\/[^/]+\/action\.ya?ml$/u.test(file) ? posix.dirname(file) : file,
+        );
+    if (needles.length === 0) return [];
+    const tests = (
+        await Promise.all(
+            VITEST_SOURCE_ROOTS.map((directory) => walkVitestTestFiles(root, directory)),
+        )
+    ).flat();
+    const contents = await Promise.all(
+        tests.map(async (test) => ({ test, contents: await readFile(join(root, test), 'utf8') })),
+    );
+    return contents
+        .filter(({ contents }) => needles.some((needle) => contents.includes(needle)))
+        .map(({ test }) => test)
+        .toSorted((a, b) => a.localeCompare(b));
+}

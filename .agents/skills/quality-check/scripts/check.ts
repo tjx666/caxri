@@ -20,6 +20,7 @@ import { contractTestCandidates } from './contract-test-candidates';
 import { shouldRunKnip, shouldTypecheck } from './default-gates';
 import {
     directImportTestCandidates,
+    githubConfigReaderTestCandidates,
     relatedE2ESpecs,
     TEST_EXTENSIONS,
     walkVitestTestFiles,
@@ -378,6 +379,7 @@ export async function selectedTestCandidates(
             ...files.flatMap(testCandidatesForFile),
             ...(await directImportTestCandidates(root, files)),
             ...(await skillContractTestCandidates(root, files)),
+            ...(await githubConfigReaderTestCandidates(root, files)),
             ...contractTestCandidates(files, removedFiles),
         ]),
     ];

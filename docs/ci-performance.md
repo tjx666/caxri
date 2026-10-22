@@ -313,11 +313,12 @@ A ready source PR runs on disposable `macos-15` ARM64 runners. `scripts/ci-execu
 routes it to the `affected` scope:
 
 - **Checks**: changed-file lint, repository typecheck, and knip through `bun run check`.
-- **Unit**: `vitest related --run` over the changed sources, split into two `--shard` jobs that run
+- **Unit**: `vitest related --run` over the changed sources, split into three `--shard` jobs that run
   beside `checks` instead of after it (`scripts/run-ci-unit-tests.ts`). `related` walks the whole
   import graph, so a change in a shared package reaches every suite that transitively imports it.
   The `full` scope shards the complete suite the same way, moves ESLint to a Linux `lint` job, and
-  `checks` runs `scripts/ci-platform-checks.ts --skip-vitest --skip-eslint`. The CI gate requires
+  `checks` runs `scripts/ci-platform-checks.ts --skip-vitest --skip-eslint --skip-bundle-budget`
+  on Linux, with the bundle budget in its own macOS job. The CI gate requires
   every shard whenever `checks` runs either scope, and `lint` whenever it runs `full`.
 - **E2E selection**: the union of specs declared in the PR body with one
   `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line, ordinary specs the PR changed, and specs that directly
@@ -365,8 +366,12 @@ cold Android Gradle build that only started after the Linux natives finished. Th
 
 - `retry-policy` runs on `ubuntu-latest`. It only reads Git history and the Actions API, and the
   account's concurrent macOS runners are the scarce resource that queues `checks` and `unit`.
-- Vitest runs in two `unit` shards beside `checks`. Two shards, not more, keep one PR at three
-  concurrent macOS jobs; every extra shard repeats about 80 seconds of setup.
+- Vitest runs in three `unit` shards beside `checks`. The full scope runs `checks` on
+  `ubuntu-latest`, where setup and oxlint measured 18 s and 31 s against 50 s and 85 s on macOS.
+  The bundle budget packages a macOS `dir` build, so it runs alone in a short `bundle-budget` job on
+  `macos-15`. Every extra shard repeats about 80 seconds of setup. With two shards the
+  main push measured `checks` 8.8 minutes and the slower shard 8 minutes; focused scopes keep
+  `checks` on macOS because their changed-file tests may load native modules.
 - Full-scope ESLint runs in a `lint` job on `ubuntu-latest` with `--concurrency auto`, beside
   `checks`. It installs without lifecycle scripts, so no native module is involved, and it does not
   count against the macOS concurrency limit. Locally a full lint took 93 s serially and 41 s with

@@ -8,10 +8,15 @@ describe('full platform checks', () => {
         expect(
             platformCheckCommands(
                 {},
-                { includeNodePtyPreparation: false, skipGates: ['vitest', 'eslint'] },
+                {
+                    includeNodePtyPreparation: false,
+                    skipGates: ['vitest', 'eslint', 'bundle-budget'],
+                },
             ).map(({ id }) => id),
         ).toEqual(
-            EXPECTED_PLATFORM_NEUTRAL_GATE_IDS.filter((id) => id !== 'vitest' && id !== 'eslint'),
+            EXPECTED_PLATFORM_NEUTRAL_GATE_IDS.filter(
+                (id) => id !== 'vitest' && id !== 'eslint' && id !== 'bundle-budget',
+            ),
         );
         expect(
             platformCheckCommands({}, { includeNodePtyPreparation: false }).map(({ id }) => id),
