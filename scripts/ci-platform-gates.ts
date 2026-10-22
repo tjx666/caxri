@@ -1,4 +1,4 @@
-type PlatformNeutralCIGateId =
+export type PlatformNeutralCIGateId =
     | 'bundle-budget'
     | 'docs-check'
     | 'em-dash-check'
@@ -31,9 +31,10 @@ export interface PlatformCheckCommand {
 export interface PlatformCheckOptions {
     includeNodePtyPreparation?: boolean;
     /**
-     * Defaults to true. Hosted CI passes false because its sharded `unit` job owns the Vitest gate.
+     * Gates another job owns. Hosted CI skips `vitest` (the sharded `unit` job) and `eslint` (the Linux `lint` job);
+     * local fallbacks and the hosted full-E2E route keep every gate.
      */
-    includeVitest?: boolean;
+    skipGates?: readonly PlatformNeutralCIGateId[];
 }
 
 interface DirectGateSpec {
@@ -187,11 +188,8 @@ export function platformCheckCommands(
     environment: NodeJS.ProcessEnv,
     options: PlatformCheckOptions = {},
 ): PlatformCheckCommand[] {
-    const gates =
-        options.includeVitest === false
-            ? PLATFORM_NEUTRAL_CI_GATES.filter(({ id }) => id !== 'vitest')
-            : PLATFORM_NEUTRAL_CI_GATES;
-    const checks = gates.map((gate) => ({
+    const skipped = new Set(options.skipGates);
+    const checks = PLATFORM_NEUTRAL_CI_GATES.filter(({ id }) => !skipped.has(id)).map((gate) => ({
         arguments: gate.arguments(environment),
         command: gate.command,
         id: gate.id,

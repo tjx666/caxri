@@ -4,13 +4,15 @@ import { platformCheckCommands } from '../ci-platform-checks';
 import { EXPECTED_PLATFORM_NEUTRAL_GATE_IDS } from './ci-platform-gates.fixture';
 
 describe('full platform checks', () => {
-    it('leaves Vitest to the sharded unit job while every other gate keeps its order', () => {
+    it('leaves Vitest and ESLint to their own jobs while every other gate keeps its order', () => {
         expect(
             platformCheckCommands(
                 {},
-                { includeNodePtyPreparation: false, includeVitest: false },
+                { includeNodePtyPreparation: false, skipGates: ['vitest', 'eslint'] },
             ).map(({ id }) => id),
-        ).toEqual(EXPECTED_PLATFORM_NEUTRAL_GATE_IDS.filter((id) => id !== 'vitest'));
+        ).toEqual(
+            EXPECTED_PLATFORM_NEUTRAL_GATE_IDS.filter((id) => id !== 'vitest' && id !== 'eslint'),
+        );
         expect(
             platformCheckCommands({}, { includeNodePtyPreparation: false }).map(({ id }) => id),
         ).toEqual(EXPECTED_PLATFORM_NEUTRAL_GATE_IDS);

@@ -176,16 +176,6 @@ jobs:
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
-      # ESLint has no type-aware rules (oxlint owns those), so its content-hashed cache stays valid across runs as long as
-      # the dependency tree, config, and local rules match. Main-scoped entries seed the next main push.
-      - name: Restore ESLint cache
-        if: needs.retry-policy.outputs.checks_scope == 'full'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .cache/eslint
-          key: eslint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.ts', 'scripts/eslint-rules/**') }}-${{ github.sha }}
-          restore-keys: |
-            eslint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.ts', 'scripts/eslint-rules/**') }}-
       - name: Run gitleaks
         # Scoped to the commits this push or pull request actually introduced. The full-history scan runs instead,
         # inside "Run full platform checks", whenever this job handles the 'full' scope.
@@ -210,7 +200,61 @@ jobs:
         env:
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
           CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest
+        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint
+  # Full-scope ESLint is the longest platform-neutral gate (about ten minutes serially on macos-15), so it runs on a
+  # four-core Linux runner with worker concurrency, beside `checks` and outside the account's macOS concurrency limit.
+  # Lifecycle scripts never run there, so no native module or Electron binary is involved.
+  lint:
+    name: lint
+    needs: retry-policy
+    if: >-
+      needs.retry-policy.outputs.checks_scope == 'full' &&
+      (
+        github.event_name != 'workflow_dispatch' ||
+        inputs.validation_target != 'hosted-full' ||
+        needs.retry-policy.outputs.e2e_profile != 'optimized'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify read-only event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+          allow-external-pull-request: 'true'
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+      # ESLint has no type-aware rules (oxlint owns those), so its content-hashed cache stays valid across runs as long as
+      # the dependency tree, config, and local rules match. Main-scoped entries seed the next main push.
+      - name: Restore ESLint cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/eslint
+          key: eslint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.ts', 'scripts/eslint-rules/**') }}-${{ github.sha }}
+          restore-keys: |
+            eslint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.ts', 'scripts/eslint-rules/**') }}-
+      - name: Run ESLint
+        env:
+          ESLINT_CONCURRENCY: auto
+        run: >-
+          bun run scripts/ci-metrics.ts --label "ESLint concurrency=$ESLINT_CONCURRENCY" --
+          bun run lint --concurrency "$ESLINT_CONCURRENCY"
   # Vitest dominates both the `full` and `affected` scopes, so it runs in shards beside the lint and type gates instead
   # of after them. The CI gate requires every shard whenever `checks` runs one of those scopes.
   unit:
@@ -666,7 +710,7 @@ jobs:
   ci:
     name: CI gate
     if: ${{ !cancelled() }}
-    needs: [retry-policy, checks, unit, hosted-smoke, e2e]
+    needs: [retry-policy, checks, lint, unit, hosted-smoke, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required execution path
@@ -676,6 +720,7 @@ jobs:
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
           FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}
+          LINT_RESULT: ${{ needs.lint.result }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
           SMOKE_RESULT: ${{ needs.hosted-smoke.result }}
           UNIT_RESULT: ${{ needs.unit.result }}
@@ -700,6 +745,13 @@ jobs:
             test "$UNIT_RESULT" = success
           else
             test "$UNIT_RESULT" = skipped
+          fi
+
+          # The Linux lint job runs exactly when checks runs the full scope.
+          if test "$CHECKS_SCOPE" = full && test "$CHECKS_RESULT" != skipped; then
+            test "$LINT_RESULT" = success
+          else
+            test "$LINT_RESULT" = skipped
           fi
 
           case "$VALIDATION_TARGET" in

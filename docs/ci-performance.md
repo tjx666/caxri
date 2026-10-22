@@ -316,9 +316,9 @@ routes it to the `affected` scope:
 - **Unit**: `vitest related --run` over the changed sources, split into two `--shard` jobs that run
   beside `checks` instead of after it (`scripts/run-ci-unit-tests.ts`). `related` walks the whole
   import graph, so a change in a shared package reaches every suite that transitively imports it.
-  The `full` scope shards the complete suite the same way, and `checks` runs
-  `scripts/ci-platform-checks.ts --skip-vitest`. The CI gate requires every shard whenever
-  `checks` runs either scope.
+  The `full` scope shards the complete suite the same way, moves ESLint to a Linux `lint` job, and
+  `checks` runs `scripts/ci-platform-checks.ts --skip-vitest --skip-eslint`. The CI gate requires
+  every shard whenever `checks` runs either scope, and `lint` whenever it runs `full`.
 - **E2E selection**: the union of specs declared in the PR body with one
   `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line, ordinary specs the PR changed, and specs that directly
   import a changed source file. The selection is recorded for an explicit validation dispatch; a PR never starts
@@ -367,14 +367,20 @@ cold Android Gradle build that only started after the Linux natives finished. Th
   account's concurrent macOS runners are the scarce resource that queues `checks` and `unit`.
 - Vitest runs in two `unit` shards beside `checks`. Two shards, not more, keep one PR at three
   concurrent macOS jobs; every extra shard repeats about 80 seconds of setup.
-- The `full` scope restores a main-seeded ESLint cache keyed on the lockfile, `eslint.config.ts`, and
-  `scripts/eslint-rules/**`. ESLint has no type-aware rules, so the content-hashed cache stays sound.
+- Full-scope ESLint runs in a `lint` job on `ubuntu-latest` with `--concurrency auto`, beside
+  `checks`. It installs without lifecycle scripts, so no native module is involved, and it does not
+  count against the macOS concurrency limit. Locally a full lint took 93 s serially and 41 s with
+  four workers. The job restores a main-seeded ESLint cache keyed on the lockfile,
+  `eslint.config.ts`, and `scripts/eslint-rules/**`. ESLint has no type-aware rules, so the
+  content-hashed cache stays sound. The hosted full-E2E route and Go's local fallback still run
+  ESLint inside the platform checks.
 - `@yutengjing/no-declare-implicit-any-var` is replaced by the local `caxri/no-declare-implicit-any-var`.
   Upstream probed four Vue packages through `local-pkg` once per linted file, which was 46% of ESLint
   time; dropping the probe cut a `packages` plus `apps/server` lint from 88 s to 35 s locally.
 - The first split run measured both `unit` shards at about 6.5 minutes, while `checks` without
   Vitest still took 18 minutes: a cold 702 s ESLint, then oxlint (71 s), typecheck (3.5 minutes), and
-  the bundle budget gate (83 s).
+  the bundle budget gate (83 s). With the rule port, macOS ESLint still took 565 s, which is why
+  ESLint moved to its own Linux job.
 - Vitest's `fsModuleCache` is not persisted: a warm cache measured no faster than a cold one
   locally, because import time is module evaluation rather than transformation.
 - The Release workflow builds the Android update bundle in its own `android-bundle` job, in parallel
