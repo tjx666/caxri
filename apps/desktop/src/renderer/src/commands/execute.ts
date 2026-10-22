@@ -1,7 +1,12 @@
 import './definitions';
 
 import type { CommandId } from '@caxri/protocol';
-import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
+import {
+    errorMessage,
+    listPaneTerminalIds,
+    paneSplitBlockedReason,
+    paneTabIdsToClose,
+} from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
 import {
@@ -16,7 +21,11 @@ import { takeBackFromCommander } from '../features/agent-commander/commander-han
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
-import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
+import {
+    closeDocumentTabFamily,
+    closeDocumentTabs,
+    saveActiveEditor,
+} from '../features/editor/document-commands';
 import {
     addGitReviewComment,
     canAddGitReviewComment,
@@ -322,6 +331,16 @@ const commandContext: CommandContext = {
             else if (tab) void closeDocumentTabs([tab.id]);
             // With no Session there is no tab, only the Welcome view's Settings surface to close.
             else if (!getSelectedSession()) useDialogStore.getState().dismissSessionlessSettings();
+        },
+        canCloseOtherTabs: () => {
+            const layout = getPaneLayout();
+            const tab = getActivePaneTab();
+            return Boolean(layout && tab && paneTabIdsToClose(layout, tab.id, 'others').length > 0);
+        },
+        closeOtherTabs: () => {
+            const tab = getActivePaneTab();
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, as for closeActiveTab
+            if (tab) void closeDocumentTabFamily(tab.id, 'others');
         },
         cycleTab: cycleActiveTab,
         /**

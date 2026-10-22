@@ -33,6 +33,10 @@ export interface FakeTurn {
      */
     threadId?: string;
     isCompaction?: boolean;
+    /**
+     * Steered messages held while the turn compacts its context, which Codex records only once the compaction ends.
+     */
+    deferredSteers?: Array<() => void>;
     items: FakeItem[];
     status: string;
     error: { message: string } | null;

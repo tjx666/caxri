@@ -112,11 +112,23 @@ describe('agentChatRevealItemKeys', () => {
         expect(agentChatRevealItemKeys(entry, 's2', () => false)).toEqual(['turn:t1']);
     });
 
+    it('opens no summary group for a lone call, which renders as its own row', () => {
+        const lone = {
+            ...entry,
+            entries: [{ kind: 'work' as const, id: 'work:c1', items: [command('c1')] }],
+        };
+        expect(agentChatRevealItemKeys(lone, 'c1', () => false)).toEqual(['turn:t1']);
+    });
+
     it('anchors a summary to the whole work run even when the first item is independent', () => {
         const anchored = {
             ...entry,
             entries: [
-                { kind: 'work' as const, id: 'work:s1', items: [spawn('s1'), command('c1')] },
+                {
+                    kind: 'work' as const,
+                    id: 'work:s1',
+                    items: [spawn('s1'), command('c1'), command('c3')],
+                },
             ],
         };
         expect(agentChatRevealItemKeys(anchored, 'c1', () => false)).toEqual([

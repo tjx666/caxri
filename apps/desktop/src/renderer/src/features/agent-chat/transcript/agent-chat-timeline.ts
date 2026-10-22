@@ -38,7 +38,16 @@ export type AgentChatTimelineEntry =
            */
           artifacts?: AgentChatTurnArtifacts;
       }
-    | { kind: 'work'; id: string; items: readonly AgentChatWorkItem[] }
+    | {
+          kind: 'work';
+          id: string;
+          items: readonly AgentChatWorkItem[];
+          /**
+           * The running turn's trailing run of work, which the next tool call still joins. A settled run of one call
+           * renders as its own row; an open one keeps the summary so a second call does not reshape the row.
+           */
+          isOpen?: true;
+      }
     | {
           /**
            * A finished turn's artifacts when the turn ended without a reply to carry them, such as a stopped turn.
@@ -74,12 +83,22 @@ export type AgentChatTimelineEntry =
 
 type FlatEntry = Exclude<AgentChatTimelineEntry, { kind: 'turn' }>;
 
-function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): FlatEntry[] {
+function groupWork(
+    items: readonly AgentChatItem[],
+    finalReplyId?: string,
+    isRunning = false,
+): FlatEntry[] {
     const entries: FlatEntry[] = [];
     let work: AgentChatWorkItem[] = [];
-    const flush = (): void => {
+    const flush = (isOpen = false): void => {
         const first = work.at(0);
-        if (first) entries.push({ kind: 'work', id: `work:${first.id}`, items: work });
+        if (first)
+            entries.push({
+                kind: 'work',
+                id: `work:${first.id}`,
+                items: work,
+                ...(isOpen && { isOpen: true as const }),
+            });
         work = [];
     };
     for (const item of items) {
@@ -95,7 +114,7 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
             ...(item.id === finalReplyId && { isFinalReply: true }),
         });
     }
-    flush();
+    flush(isRunning);
     return entries;
 }
 
@@ -291,7 +310,7 @@ export function buildAgentChatTimeline(
                           start === 0 && isTruncated && segment[0]?.type !== 'userMessage',
                       ),
                   )
-                : groupWork(segment, finalReplyId)),
+                : groupWork(segment, finalReplyId, turnId !== undefined && running.has(turnId))),
         );
         start = end;
     }
@@ -382,6 +401,7 @@ function reuseAgentChatTimelineEntry(entry: AgentChatTimelineEntry): AgentChatTi
             if (
                 previous &&
                 previous.id === entry.id &&
+                previous.isOpen === entry.isOpen &&
                 previous.items.length === entry.items.length &&
                 previous.items.every((item, index) => item === entry.items[index])
             )

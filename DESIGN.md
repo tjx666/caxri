@@ -1202,7 +1202,8 @@ a `goal` command; it enters Goal mode), and Plan mode (with its description and 
 trailing check while on); under `Sessions`, the five most recently opened Sessions with an Agent
 conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
 Chromium's file input selects files only. Trailing on the right: the context meter (a
-14px pie inside a thin ring that fills with the share of the window in use; a quiet `--muted` glyph
+14px ring, as in the Codex app's composer: a faint track and an arc over it that fills with the share of
+the window in use; a quiet `--muted` glyph
 with no number below 85%, and from 85% `--warning` with its percentage beside it, matching the
 compact alert there, because running low on context is advice, not a failure; a `meter` and a Tab
 stop whose popover gives the token breakdown and, when the provider has a compact command, a Compact
@@ -1297,7 +1298,8 @@ stays only while something still needs the user, leading with it instead of the 
 task inline with its Stop, `N background tasks running`, unseen failures in `--danger`, or `Plan
 stopped at 2/5` with the current step. A failure counts as seen once the user opened the task list
 and closed the popover; opening the plan does not clear it, and only failures that ended during the
-latest turn count. The row unfolds and folds rather than popping, badges pop in and out, numbers
+latest turn count. The row unfolds and folds rather than popping, and the strip's frame fades in
+with its first row instead of drawing ahead of it; badges pop in and out, numbers
 roll, and all of it honors reduced motion. References: the Codex app's and Mux's compact turn
 summaries, Warp's and VS Code's one-line agent status. While the provider pursues a goal, a goal row leads the strip, after the Codex
 app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
@@ -1378,9 +1380,13 @@ when the server has none) and reads as the tool alone in sentence case (`Web sea
 icon already names the server; expanded, its arguments list as muted mono names beside body-font
 values, and its result wraps. Consecutive work collapses into one summary row. While it runs, the
 row names the newest active action and its target ("Reading app.ts", "Running git status --short")
-and uses that tool kind's glyph. Once every item settles, it becomes an aggregate (`Ran 3 commands,
-read 2 files`) that leads with the glyph of
-the kind its phrase names first (an MCP lead shows that call's server icon), ending `, N failed` when items
+and uses that tool kind's glyph. While it is still the running turn's latest work, its title keeps
+sweeping and naming the newest step between calls (`Running git status --short` after that command
+finished), so a run of fast commands never reads as idle. Its chevron follows the title and stays
+shown while expanded, and the expanded rows continue at the header's own pitch. Once the run ends
+(a reply follows it or the turn ends), it becomes an aggregate (`Ran 3 commands, read 2 files`) that leads with the glyph of the one kind its
+items share (an MCP lead shows that call's server icon), or the generic work glyph when they mix
+kinds, ending `, N failed` when items
 failed or were declined, whose expanded list scrolls past 240px and fades its clipped edge over
 24px. A shell command that only reads, searches, or lists files reads as that action (`sed -n
 '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is `Searched foo in src`), keeping its command
@@ -1537,9 +1543,9 @@ someone answers. It shows one request at a time (oldest first) and a muted "N mo
 and folds into an "N waiting for you" pill that unfolds again only when a new request arrives, so folding
 means "not now" rather than "mute". It sits under dialogs (`z-40`) and never takes focus, so it
 cannot steal keystrokes from the composer the user is typing in; its keys work once focus is in it.
-A click on a question's option only selects it, and an approval's buttons ignore the pointer for
-about 450ms after its card drops in, because a stray click on a card that just dropped in must not
-send an answer. Esc folds the popup on both card types; Skip stays an explicit button.
+For about 450ms after a card drops in, a click on a question's option only selects it and an
+approval's buttons ignore the pointer, because a stray click on a card that just dropped in must not
+send an answer; after that, a click answers in one step, as in the Chat's own card. Esc folds the popup on both card types; Skip stays an explicit button.
 
 **Software update**: a release Caxri finds on its own raises a notification and nothing more. A
 modal belongs to a user who asked; Caxri is opened while someone is already doing something else,

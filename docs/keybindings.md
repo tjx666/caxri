@@ -134,7 +134,10 @@ one above it.
 
 `Cmd+Shift+W` (Close Open Session) is a plain `add` entry in `defaultKeybindingChanges`; `Cmd+W`
 (`workbench.closeActiveTab`) keeps its binding but no longer archives a Session when it closes the
-last tab (see [open-sessions.md](open-sessions.md#shortcuts)).
+last tab (see [open-sessions.md](open-sessions.md#shortcuts)). `Cmd+K Cmd+W`
+(`workbench.closeOtherTabs`) is the keyboard form of the tab menu's Close Others in the active pane.
+VS Code binds the same sequence to Close All Editors; Caxri keeps the active tab because `Cmd+W`
+already closes it.
 
 ## Contextual bindings (`when`)
 

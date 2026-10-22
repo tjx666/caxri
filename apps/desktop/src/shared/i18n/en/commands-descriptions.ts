@@ -86,6 +86,8 @@ export const commandDescriptions = {
         "Move keyboard focus into the waiting popup's question or approval, unfolding it first",
     'commands.description.terminal.close': 'Close the active Terminal',
     'commands.description.workbench.closeActiveTab': 'Close the active Terminal or file tab',
+    'commands.description.workbench.closeOtherTabs':
+        'Close the other Terminal or file tabs in the active pane',
     'commands.description.workbench.nextTab': 'Activate the next Terminal or file tab',
     'commands.description.workbench.previousTab': 'Activate the previous Terminal or file tab',
     'commands.description.editor.save': 'Save the active file',

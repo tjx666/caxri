@@ -13,11 +13,10 @@ import { contextCategoryLabel } from './category-labels';
 import { inRequestOrder, segmentShade } from './composition';
 
 /**
- * The pie's slice is a circle stroked as wide as its own diameter, so a dash of `share × circumference` paints a
- * sector; the outline ring sits just outside it.
+ * The ring the meter draws, as in the Codex app's composer: a faint full track and an arc of the share used over it.
  */
-const PIE_RADIUS = 2.6;
-const PIE_CIRCUMFERENCE = 2 * Math.PI * PIE_RADIUS;
+const RING_RADIUS = 5.5;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 const TONE_CLASS_NAMES: Record<AgentChatContextUsage['tone'], string> = {
     normal: 'text-muted',
@@ -132,14 +131,15 @@ function ContextCard({
 }
 
 /**
- * How much of the context window the conversation uses, as a small filling pie in the composer's bottom row. It stays a
- * quiet neutral glyph with no number until the share reaches where the composer suggests compacting; from there it
+ * How much of the context window the conversation uses, as a small filling ring in the composer's bottom row. It stays
+ * a quiet neutral glyph with no number until the share reaches where the composer suggests compacting; from there it
  * turns `--warning` and shows the percentage, whose digits roll as a response moves it. Both measure against the window
  * the provider compacts at. Its card gives the token counts, what fills the window when the provider reports it, a
  * Details button opening the Chat's Context tab when the provider can describe its context, and a Compact button when
  * the provider has a compact command. The card opens on click only, so passing the pointer over the composer's bottom
- * row never throws a card over the draft; Enter or Space on the pie (a Tab stop) opens it with focus inside, and Escape
- * hands focus back. The pie is a `meter`, so a screen reader hears the share as a value with the counts as its text.
+ * row never throws a card over the draft; Enter or Space on the ring (a Tab stop) opens it with focus inside, and
+ * Escape hands focus back. The ring is a `meter`, so a screen reader hears the share as a value with the counts as its
+ * text.
  */
 export function AgentChatContextMeter({
     onCompact,
@@ -186,12 +186,12 @@ export function AgentChatContextMeter({
             >
                 <svg aria-hidden className="size-3.5 -rotate-90" viewBox="0 0 14 14">
                     <circle
-                        className="stroke-current opacity-40"
+                        className="stroke-current opacity-30"
                         cx="7"
                         cy="7"
                         fill="none"
-                        r="6.25"
-                        strokeWidth="1.25"
+                        r={RING_RADIUS}
+                        strokeWidth="2"
                     />
                     {usage.used > 0 && (
                         <circle
@@ -199,10 +199,11 @@ export function AgentChatContextMeter({
                             cx="7"
                             cy="7"
                             fill="none"
-                            r={PIE_RADIUS}
-                            strokeDasharray={PIE_CIRCUMFERENCE}
-                            strokeDashoffset={PIE_CIRCUMFERENCE * (1 - usage.used)}
-                            strokeWidth={PIE_RADIUS * 2}
+                            r={RING_RADIUS}
+                            strokeDasharray={RING_CIRCUMFERENCE}
+                            strokeDashoffset={RING_CIRCUMFERENCE * (1 - usage.used)}
+                            strokeLinecap="round"
+                            strokeWidth="2"
                         />
                     )}
                 </svg>

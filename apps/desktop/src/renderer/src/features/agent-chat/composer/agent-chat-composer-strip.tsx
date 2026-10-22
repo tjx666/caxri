@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 
+import { cn } from '../../../lib/utilities';
 import { AgentChatGoalBar } from '../activity/agent-chat-goal-bar';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import { AgentChatQueueList } from './agent-chat-queue-list';
@@ -44,7 +45,13 @@ export function AgentChatComposerStrip({
 }) {
     return (
         <div
-            className="mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents"
+            className={cn(
+                'mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents',
+                // The tab draws as soon as its first row mounts, while that row is still unfolding from nothing, so its
+                // frame fades in with the row instead of popping in ahead of it. Gaining a row switches the animation on,
+                // which restarts it each time the strip reappears; it lasts about as long as the row's unfolding spring.
+                'motion-safe:has-[[data-agent-chat-composer-strip-row]]:animate-in motion-safe:has-[[data-agent-chat-composer-strip-row]]:fade-in-0 duration-(--motion-status-swap) ease-(--motion-ease-enter)',
+            )}
             data-agent-chat-composer-strip=""
         >
             {/*

@@ -86,6 +86,12 @@ export interface CommandContext {
     };
     workbench: {
         closeActiveTab(): void;
+        /**
+         * True only when the active pane holds another tab that the tab menu's Close Others would close, so the palette
+         * never offers a close that would silently no-op.
+         */
+        canCloseOtherTabs(): boolean;
+        closeOtherTabs(): void;
         cycleTab(delta: 1 | -1): void;
         /**
          * True only when the active pane holds more than one tab, since splitting the last tab out of a pane would

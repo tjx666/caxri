@@ -143,6 +143,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'window', group: 0, order: 0 },
     },
     {
+        id: 'workbench.closeOtherTabs',
+        title: 'Close Other Tabs',
+        category: 'View',
+        description: 'Close the other Terminal or file tabs in the active pane',
+    },
+    {
         id: 'workbench.nextTab',
         title: 'Show Next Tab',
         category: 'View',

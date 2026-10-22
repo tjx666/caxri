@@ -152,6 +152,8 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             workbench: {
                 closeActiveTab: record('workbench.closeActiveTab'),
+                canCloseOtherTabs: () => true,
+                closeOtherTabs: record('workbench.closeOtherTabs'),
                 cycleTab: record('workbench.cycleTab'),
                 canSplitActive: () => true,
                 splitActive: record('workbench.splitActive'),

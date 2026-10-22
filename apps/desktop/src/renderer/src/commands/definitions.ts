@@ -254,6 +254,10 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('workbench.closeActiveTab', (context) => context.workbench.closeActiveTab(), {
         allowInEditable: true,
     }),
+    fromCatalog('workbench.closeOtherTabs', (context) => context.workbench.closeOtherTabs(), {
+        allowInEditable: true,
+        when: (context) => context.workbench.canCloseOtherTabs(),
+    }),
     fromCatalog('workbench.nextTab', (context) => context.workbench.cycleTab(1), {
         allowInEditable: true,
     }),

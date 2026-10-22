@@ -318,6 +318,26 @@ export function agentChatWorkGroupFailure(
 }
 
 /**
+ * What a group still being worked on is doing now: the running item, or between calls the newest one, so the title
+ * keeps naming the current step (`Running pnpm lint`) until the run ends instead of falling back to a count. Reasoning
+ * names it only when the group holds nothing else.
+ */
+export function agentChatCurrentWork(
+    items: readonly AgentChatWorkItem[],
+): { item: AgentChatWorkItem; presentation: AgentToolPresentation } | undefined {
+    const active = agentChatActiveWork(items);
+    if (active) return active;
+    let item = items.at(-1);
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+        if (items[index].type !== 'reasoning') {
+            item = items[index];
+            break;
+        }
+    }
+    return item && { item, presentation: describeAgentChatWork(item) };
+}
+
+/**
  * The items a work summary row describes. While its running item is not yet shown (`shouldShowRunning` is false), the
  * row keeps describing the work that already settled, so a call that finishes within moments never flips a settled
  * `Edited 5 files` to `Running pnpm lint` and back. A group with nothing settled yet describes its running work at
@@ -349,14 +369,17 @@ export function summarizeAgentChatWork(
 /**
  * {@link summarizeAgentChatWork} as keyed phrases that join into it: the running action, the thinking label, or one
  * phrase per tool kind (`Edited 1 file`, `, ran 3 commands`) followed by the failure count (`, 1 failed`). A key stays
- * the same while its phrase only updates a count, so the Renderer can animate a phrase that joins the summary.
+ * the same while its phrase only updates a count, so the Renderer can animate a phrase that joins the summary. An open
+ * group (`isOpen`, the running turn's latest work) names its current step even between calls, as the Codex app does,
+ * and becomes the aggregate only once the run ends.
  */
 export function agentChatWorkSummaryPhrases(
     items: readonly AgentChatWorkItem[],
     t: AgentChatLabelTranslate = translateAgentChatLabel,
+    { isOpen = false }: { isOpen?: boolean } = {},
 ): Array<{ key: string; text: string }> {
-    const active = agentChatActiveWork(items);
-    if (active) {
+    const active = isOpen ? agentChatCurrentWork(items) : agentChatActiveWork(items);
+    if (active && (active.item.type !== 'reasoning' || isAgentChatWorkRunning(active.item))) {
         const verb = agentToolActiveLabel(active.presentation, t);
         const text = [verb, active.presentation.subject].filter(Boolean).join(' ');
         return [{ key: 'active', text }];
@@ -427,15 +450,18 @@ export function describeAgentChatWorkRow(
 }
 
 /**
- * The glyph a work summary row leads with, the way the Codex app marks a group by its first part: the kind its phrase
- * names first (`Called 3 MCP tools, ran 2 commands` leads with MCP), plus the first MCP tool call's name when MCP
- * leads, so the row shows that server's icon.
+ * The glyph a work summary row leads with: the running call's kind while one runs, otherwise the kind every call shares
+ * (plus the first MCP tool call's name, so the row shows that server's icon). A settled summary mixing kinds (`Searched
+ * once, ran 1 command`) takes the generic work glyph, since no single kind's icon describes it.
  */
-export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): {
+export function agentChatWorkSummaryGlyph(
+    items: readonly AgentChatWorkItem[],
+    { isOpen = false }: { isOpen?: boolean } = {},
+): {
     kind: AgentToolKind;
     mcpToolName?: string;
 } {
-    const active = agentChatActiveWork(items);
+    const active = isOpen ? agentChatCurrentWork(items) : agentChatActiveWork(items);
     if (active)
         return {
             kind: active.presentation.kind,
@@ -443,7 +469,9 @@ export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): 
                 active.item.type === 'toolCall' && { mcpToolName: active.item.name }),
         };
     const tools = agentChatWorkSummaryTools(items);
-    const kind = agentToolKindCounts(tools).at(0)?.kind ?? 'thought';
+    const counts = agentToolKindCounts(tools);
+    if (counts.length > 1) return { kind: 'other' };
+    const kind = counts.at(0)?.kind ?? 'thought';
     const mcpToolName =
         kind === 'mcp'
             ? tools.find((tool) => describeAgentTool(tool).kind === 'mcp')?.name

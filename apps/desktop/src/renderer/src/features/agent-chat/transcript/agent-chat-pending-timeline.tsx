@@ -9,8 +9,8 @@ import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatAskingQuestions } from './questions/agent-chat-answered-questions';
 
 /**
- * A message on its way, laid out like the user message it becomes but faded, with a Sending caption and none of its
- * actions, since nothing can act on a message the conversation does not hold yet.
+ * A message on its way, laid out like the user message it becomes but faded, with a sweeping Sending caption and none
+ * of its actions, since nothing can act on a message the conversation does not hold yet.
  */
 function AgentChatPendingUserMessage({
     message,
@@ -37,7 +37,8 @@ function AgentChatPendingUserMessage({
                     onOpenFile={onOpenFile}
                 />
             )}
-            <span className="-mt-0.5 text-[11px] leading-4 text-muted">
+            {/* The caption sweeps like running work, so a provider slow to accept the message never reads as stuck. */}
+            <span className="activity-shimmer -mt-0.5 text-[11px] leading-4 text-muted">
                 {t('agentChat.message.sending')}
             </span>
         </div>

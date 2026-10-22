@@ -3,6 +3,7 @@ import { Info } from 'lucide-react';
 import { AnimatePresence, domMax, LazyMotion, MotionConfig } from 'motion/react';
 import * as m from 'motion/react-m';
 
+import { useHasLasted } from '../../../hooks/use-has-lasted';
 import { useShouldReduceMotion } from '../../../hooks/use-should-reduce-motion';
 import { useTranslation } from '../../../i18n';
 import { useIsAgentChatStopping } from '../hooks/use-agent-chat-stop';
@@ -14,6 +15,13 @@ import {
     agentChatStatusRowAnnouncement,
     agentChatStatusRowView,
 } from './status-row/agent-chat-status-row-view';
+
+/**
+ * How long a Chat loads its conversation or starts its Agent before the status row says so. Opening a Chat usually
+ * finishes both within a few hundred milliseconds, and a row that unfolds and folds again in that time only pushes the
+ * transcript up and back down.
+ */
+const STARTING_ROW_DELAY_MS = 1000;
 
 /**
  * The composer strip's status rows: the one status row (`AgentChatStatusRow`) whenever the Chat is busy or something it
@@ -59,8 +67,12 @@ export function AgentChatActivityBar({
     const { t } = useTranslation();
     const isStopping = useIsAgentChatStopping(terminalId, turnId) && activity?.kind === 'working';
     const isReducedMotion = useShouldReduceMotion();
+    const hasStartingLasted = useHasLasted(
+        activity?.kind === 'starting' ? terminalId : undefined,
+        STARTING_ROW_DELAY_MS,
+    );
     const view = agentChatStatusRowView({
-        activity,
+        activity: !hasStartingLasted && activity?.kind === 'starting' ? undefined : activity,
         latestTurnStartedAt: agentChatLatestTurnStart(snapshot),
         plan: snapshot?.plan,
         seenFailureIds: useAgentChatSeenFailures(terminalId),

@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
     archiveSession: vi.fn(),
     closeTerminal: vi.fn(),
     activeTab: undefined as { id: string; resource: unknown } | undefined,
+    closeDocumentTabFamily: vi.fn(),
+    paneLayout: undefined as unknown,
 }));
 
 /**
@@ -11,6 +13,10 @@ const mocks = vi.hoisted(() => ({
  */
 vi.mock('../features/editor/git-review-comment-binding', () => ({
     listBoundGitReviewCommentEditors: () => new Set(),
+}));
+vi.mock('../features/editor/document-commands', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    closeDocumentTabFamily: mocks.closeDocumentTabFamily,
 }));
 vi.mock('../features/session/session-archive-commands', async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
@@ -23,9 +29,10 @@ vi.mock('../features/terminal/terminal-commands', async (importOriginal) => ({
 vi.mock('../features/workbench/pane-actions', async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
     getActivePaneTab: () => mocks.activeTab,
+    getPaneLayout: () => mocks.paneLayout,
 }));
 
-import { executeCommand } from './execute';
+import { executeCommand, isCommandAvailable } from './execute';
 
 /**
  * Cmd+W and Close Terminal act on a pane tab, never on the Session: closing the last pane tab leaves the Session open
@@ -50,5 +57,39 @@ describe('closing the last pane tab', () => {
 
         expect(mocks.closeTerminal).toHaveBeenCalledWith('terminal-1');
         expect(mocks.archiveSession).not.toHaveBeenCalled();
+    });
+});
+
+const terminalTab = { id: 'tab-1', resource: { kind: 'terminal', terminalId: 'terminal-1' } };
+const fileTab = { id: 'tab-2', resource: { kind: 'file', path: 'a.ts' } };
+
+function paneWith(tabs: unknown[]) {
+    return {
+        root: { type: 'pane', id: 'pane-1', tabs, activeTabId: 'tab-1' },
+        activePaneId: 'pane-1',
+    };
+}
+
+/**
+ * `Cmd+K Cmd+W` is the keyboard form of the tab menu's Close Others, so it resolves through the same close family.
+ */
+describe('closing the other tabs', () => {
+    beforeEach(() => {
+        mocks.closeDocumentTabFamily.mockReset();
+        mocks.closeDocumentTabFamily.mockResolvedValue(undefined);
+        mocks.activeTab = terminalTab;
+        mocks.paneLayout = paneWith([terminalTab, fileTab]);
+    });
+
+    it("closes the active pane's other tabs through the Close Others family", () => {
+        executeCommand('workbench.closeOtherTabs');
+
+        expect(mocks.closeDocumentTabFamily).toHaveBeenCalledWith('tab-1', 'others');
+    });
+
+    it('is unavailable when the active tab is alone in its pane', () => {
+        mocks.paneLayout = paneWith([terminalTab]);
+
+        expect(isCommandAvailable('workbench.closeOtherTabs')).toBe(false);
     });
 });

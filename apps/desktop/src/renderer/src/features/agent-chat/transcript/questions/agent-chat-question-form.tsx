@@ -1,13 +1,9 @@
 import type { KeyboardEvent, MouseEvent, RefObject } from 'react';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
-import {
-    agentChatNextUnansweredQuestion,
-    agentChatQuestionAnswers,
-    agentChatQuestionOption,
-} from '@caxri/protocol';
-import { ArrowRight, Check } from 'lucide-react';
+import { agentChatNextUnansweredQuestion, agentChatQuestionAnswers } from '@caxri/protocol';
+import { Check } from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../../../components/chrome-tabs';
 import { Button } from '../../../../components/ui/button';
@@ -15,6 +11,7 @@ import { Input, InputGroup } from '../../../../components/ui/input';
 import { Kbd } from '../../../../components/ui/kbd';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
+import { isApprovalClickGuarded } from '../agent-chat-presentation';
 import type { QuestionFormPrimaryAction, QuestionPanelKeyAction } from './agent-chat-question-flow';
 import {
     agentChatQuestionResponse,
@@ -22,115 +19,10 @@ import {
     questionFormPrimaryAction,
     questionPanelKeyAction,
 } from './agent-chat-question-flow';
+import { AgentChatQuestionOptionRow } from './agent-chat-question-option-row';
 import { agentChatQuestionTicks, useAgentChatQuestionDraft } from './use-agent-chat-question-draft';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
-type QuestionOption = QuestionRequest['questions'][number]['options'][number];
-
-/**
- * One numbered answer row, a radio in a radio group, or a checkbox when the question takes several options. A click,
- * Enter, Space, or its digit answers with a radio row, as in the Codex app; a checkbox row toggles instead and the
- * footer sends. The selected row (the recommended option to start with, then wherever the arrow keys move) takes the
- * list's selection fill and an arrow, and a hovered row shows the same arrow, so either reads as "this answers"; the
- * recommended option also carries a badge that stays when the selection moves elsewhere.
- */
-function QuestionOptionRow({
-    buttonReference,
-    isAnswering,
-    isCheckbox,
-    isFocusable,
-    isSelected,
-    number,
-    onAnswer,
-    option,
-}: {
-    buttonReference: (element: HTMLButtonElement | null) => void;
-    isAnswering: boolean;
-    /**
-     * The question takes several options: the row is a checkbox and `isSelected` says it is ticked.
-     */
-    isCheckbox: boolean;
-    /**
-     * Roving tab stop: only the selected row (or the first, before any selection) is in the tab order.
-     */
-    isFocusable: boolean;
-    isSelected: boolean;
-    number: number;
-    onAnswer: (event: MouseEvent<HTMLButtonElement>) => void;
-    option: QuestionOption;
-}) {
-    const { t } = useTranslation();
-    const { isRecommended, text } = agentChatQuestionOption(option.label);
-    const descriptionId = useId();
-    return (
-        <button
-            ref={buttonReference}
-            aria-checked={isSelected}
-            aria-describedby={option.description ? descriptionId : undefined}
-            aria-keyshortcuts={number <= 9 ? String(number) : undefined}
-            className={cn(
-                'group/option flex w-full cursor-pointer items-start gap-2.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] leading-5 text-foreground outline-none select-none focus-visible:shadow-[inset_0_0_0_1px_var(--accent)] disabled:opacity-50',
-                isSelected
-                    ? 'bg-list-active-selection-background text-list-active-selection-foreground'
-                    : 'hover:bg-list-hover-background hover:text-list-hover-foreground',
-            )}
-            data-recommended={isRecommended || undefined}
-            disabled={isAnswering}
-            role={isCheckbox ? 'checkbox' : 'radio'}
-            tabIndex={isFocusable ? 0 : -1}
-            type="button"
-            onClick={onAnswer}
-        >
-            {/* The digit is announced through `aria-keyshortcuts`, so the row's name starts with the option itself. */}
-            <Kbd
-                aria-hidden
-                className={cn(
-                    'mt-0.5 shrink-0 bg-transparent',
-                    isSelected ? 'border-current text-current' : 'text-muted',
-                )}
-                size="compact"
-            >
-                {number}
-            </Kbd>
-            <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className={cn(isRecommended && 'font-semibold')}>{text}</span>
-                    {isRecommended && (
-                        <span className="rounded bg-muted/25 px-1.5 text-[10px] leading-4 font-semibold text-foreground">
-                            {t('agentChat.request.recommended')}
-                        </span>
-                    )}
-                </span>
-                {option.description && (
-                    <span
-                        id={descriptionId}
-                        className={cn(
-                            'block text-[11px] leading-4',
-                            isSelected ? 'opacity-75' : 'text-muted',
-                        )}
-                    >
-                        {option.description}
-                    </span>
-                )}
-            </span>
-            {isCheckbox ? (
-                <Check
-                    aria-hidden
-                    className={cn('size-3.5 shrink-0 self-center', !isSelected && 'invisible')}
-                />
-            ) : (
-                <ArrowRight
-                    aria-hidden
-                    className={cn(
-                        // Like the Codex app, the arrow centers on the whole row while the number stays with the title.
-                        'size-3.5 shrink-0 self-center',
-                        !isSelected && 'invisible group-hover/option:visible',
-                    )}
-                />
-            )}
-        </button>
-    );
-}
 
 /**
  * The `Q1 Q2 Q3` tab strip over several questions. A tab's check marks a question that already has an answer the user
@@ -324,8 +216,8 @@ function QuestionFormFooter({
  * primary button moves on with every ticked option (plus a typed answer, when there is one).
  */
 export function AgentChatQuestionForm({
+    armDelayMs = 0,
     isAnswering,
-    isPointerSelect = false,
     onEscape,
     providerName,
     request,
@@ -333,17 +225,18 @@ export function AgentChatQuestionForm({
     terminalId,
     title,
 }: {
+    /**
+     * For this long after the card appears, a pointer click on an option only selects it; Enter, a digit, or the
+     * primary button still answers. For a card that shows up on its own (the waiting popup), where a click meant for
+     * whatever was under the pointer must not send an answer; once the card has settled, a click answers as it does in
+     * the Chat's own card.
+     */
+    armDelayMs?: number;
     isAnswering: boolean;
     /**
      * Runs on Escape instead of skipping the request, for a card whose surface owns Escape (the waiting popup folds).
      */
     onEscape?: () => void;
-    /**
-     * A click on an option only selects it; Enter, a digit, or the primary button still answers. For a card that shows
-     * up on its own (the waiting popup), where a click meant for whatever was under the pointer must not send an
-     * answer. The Chat's own card keeps click-to-answer.
-     */
-    isPointerSelect?: boolean;
     providerName: string;
     request: QuestionRequest;
     respond: (response: AgentChatResponse) => void;
@@ -372,6 +265,7 @@ export function AgentChatQuestionForm({
         discard();
         respond(response);
     };
+    const [shownAt] = useState(() => performance.now());
     const optionReferences = useRef<Array<HTMLButtonElement | null>>([]);
     const inputReference = useRef<HTMLInputElement>(null);
     const panelReference = useRef<HTMLDivElement>(null);
@@ -454,7 +348,10 @@ export function AgentChatQuestionForm({
      */
     const clickOption = (label: string, event: MouseEvent<HTMLButtonElement>): void => {
         if (isMulti) return toggleOption(label);
-        if (isPointerSelect && event.detail > 0) return selectOption(label);
+        // An event's timeStamp shares performance.now()'s clock.
+        const elapsedMs = event.timeStamp - shownAt;
+        if (isApprovalClickGuarded({ armDelayMs, detail: event.detail, elapsedMs }))
+            return selectOption(label);
         answerWithOption(label);
     };
     const runKeyAction = (action: QuestionPanelKeyAction): void => {
@@ -495,7 +392,7 @@ export function AgentChatQuestionForm({
             role={isMulti ? 'group' : 'radiogroup'}
         >
             {options.map((option, optionIndex) => (
-                <QuestionOptionRow
+                <AgentChatQuestionOptionRow
                     buttonReference={(element) => {
                         optionReferences.current[optionIndex] = element;
                     }}

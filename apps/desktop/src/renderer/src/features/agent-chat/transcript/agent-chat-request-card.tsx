@@ -189,7 +189,6 @@ function ApprovalBody({
 export function AgentChatRequestCard({
     approvalArmDelayMs = 0,
     isFramed = true,
-    isPointerSelect = false,
     linkedItem,
     onAnswered,
     onEscape,
@@ -200,9 +199,10 @@ export function AgentChatRequestCard({
     terminalId,
 }: {
     /**
-     * Ignores pointer clicks on the approval buttons for this long after the card appears; for a card that drops in on
-     * its own (the waiting popup), where the second click of a double click aimed at the previous card must not decide
-     * this one.
+     * Ignores pointer clicks on the approval buttons for this long after the card appears, and makes a question
+     * option's click only select it in that time; for a card that drops in on its own (the waiting popup), where the
+     * second click of a double click aimed at the previous card, or a click meant for what was under the pointer, must
+     * not decide this one.
      */
     approvalArmDelayMs?: number;
     /**
@@ -213,10 +213,6 @@ export function AgentChatRequestCard({
      * Muted line above an approval's buttons.
      */
     reviewHint?: string;
-    /**
-     * A click on a question's option only selects it (see `AgentChatQuestionForm`).
-     */
-    isPointerSelect?: boolean;
     /**
      * Draws the card's own warning frame; off where a surrounding surface (the waiting popup) already frames it, so the
      * request does not read as a card nested in a card.
@@ -274,7 +270,7 @@ export function AgentChatRequestCard({
             {request.kind === 'question' ? (
                 <AgentChatQuestionForm
                     isAnswering={isAnswering}
-                    isPointerSelect={isPointerSelect}
+                    armDelayMs={approvalArmDelayMs}
                     onEscape={onEscape}
                     providerName={providerName}
                     request={request}

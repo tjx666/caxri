@@ -88,7 +88,8 @@ export function agentChatRevealItemKeys(
     for (const child of entry.entries) {
         if (child.kind !== 'work' || child.items.every((item) => item.id !== itemId)) continue;
         const { summarized } = splitAgentChatWork(child.items, isLive);
-        if (summarized.some((item) => item.id === itemId))
+        // A finished turn's lone call renders as its own row, with no summary group to open.
+        if (summarized.length > 1 && summarized.some((item) => item.id === itemId))
             keys.push(agentChatSummaryExpansionKey(child.items));
     }
     return keys;

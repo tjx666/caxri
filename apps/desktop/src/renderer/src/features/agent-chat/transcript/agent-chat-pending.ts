@@ -124,6 +124,10 @@ export function showAgentChatPendingMessage(
     message: {
         text: string;
         images: ReadonlyArray<{ thumbnail: string }>;
+        /**
+         * The message's image count when it carries images the Client holds no thumbnails for (a queued message).
+         */
+        imageCount?: number;
         delivery: 'queue' | 'steer' | undefined;
     },
 ): string {
@@ -133,7 +137,7 @@ export function showAgentChatPendingMessage(
         id,
         text: message.text,
         images: message.images,
-        imageCount: message.images.length,
+        imageCount: message.imageCount ?? message.images.length,
         placement: agentChatPendingPlacement(snapshot, message.delivery, ahead.length > 0),
         knownIds: agentChatPendingKnownIds(snapshot),
     });
@@ -142,11 +146,17 @@ export function showAgentChatPendingMessage(
 
 /**
  * Bounds an accepted message's pending row (see {@link AGENT_CHAT_PENDING_ACCEPTED_TTL_MS}); the projection showing it
- * usually drops the row long before.
+ * usually drops the row long before. The bound restarts while the context compacts: a provider records input that
+ * arrived meanwhile only once the compaction ends, which can take minutes.
  */
-export function expireAgentChatPendingMessage(terminalId: string, id: string): void {
-    setTimeout(
-        () => dropAgentChatPendingMessage(terminalId, id),
-        AGENT_CHAT_PENDING_ACCEPTED_TTL_MS,
-    );
+export function expireAgentChatPendingMessage(
+    terminalId: string,
+    id: string,
+    snapshotOf: (terminalId: string) => AgentChatSnapshot | undefined,
+): void {
+    setTimeout(() => {
+        if (snapshotOf(terminalId)?.operation === 'compacting')
+            expireAgentChatPendingMessage(terminalId, id, snapshotOf);
+        else dropAgentChatPendingMessage(terminalId, id);
+    }, AGENT_CHAT_PENDING_ACCEPTED_TTL_MS);
 }

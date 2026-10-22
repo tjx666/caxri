@@ -66,6 +66,7 @@ export const commandIds = [
     'agentChat.focusWaitingRequest',
     'terminal.close',
     'workbench.closeActiveTab',
+    'workbench.closeOtherTabs',
     'workbench.nextTab',
     'workbench.previousTab',
     'editor.save',
