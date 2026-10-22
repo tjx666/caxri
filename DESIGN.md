@@ -1202,7 +1202,8 @@ a `goal` command; it enters Goal mode), and Plan mode (with its description and 
 trailing check while on); under `Sessions`, the five most recently opened Sessions with an Agent
 conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
 Chromium's file input selects files only. Trailing on the right: the context meter (a
-14px pie inside a thin ring that fills with the share of the window in use; a quiet `--muted` glyph
+14px ring, as in the Codex app's composer: a faint track and an arc over it that fills with the share of
+the window in use; a quiet `--muted` glyph
 with no number below 85%, and from 85% `--warning` with its percentage beside it, matching the
 compact alert there, because running low on context is advice, not a failure; a `meter` and a Tab
 stop whose popover gives the token breakdown and, when the provider has a compact command, a Compact
