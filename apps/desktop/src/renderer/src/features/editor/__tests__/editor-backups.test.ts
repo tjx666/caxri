@@ -180,6 +180,18 @@ describe('editor backups across a restart', () => {
         stop();
     });
 
+    it('keeps a backup whose read failed at launch, so the next launch can restore it', async () => {
+        const { backend, entries } = memoryBackend();
+        const backups = launch(entries, {
+            ...backend,
+            read: () => Promise.reject(new Error('io')),
+        });
+        const stop = await backups.start();
+        await backups.flush();
+        expect(entries.size).toBe(1);
+        stop();
+    });
+
     it("drops the backups of this launch's buffers on Don't Save", async () => {
         const { backend, entries } = memoryBackend();
         const backups = launch(entries, backend);

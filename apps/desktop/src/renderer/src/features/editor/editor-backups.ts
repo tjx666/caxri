@@ -224,9 +224,11 @@ export function createEditorBackups(options: EditorBackupsOptions) {
                     name,
                 })),
             );
-            for (const { entry, name } of loaded)
-                if (entry) restorable.set(name, entry.value);
-                else store.remove(name);
+            /**
+             * A miss is never removed here: `load` cannot tell a transient read failure from a stale entry, and
+             * removing on a transient failure would lose recoverable text. Stale entries age out through retention.
+             */
+            for (const { entry, name } of loaded) if (entry) restorable.set(name, entry.value);
         } catch {
             // An unreadable database restores nothing; backing up this launch's buffers still works.
         }
