@@ -21,6 +21,14 @@ interface EnvironmentStoreState {
 export const useEnvironmentStore = createStore<EnvironmentStoreState>('environment', () => ({}));
 
 /**
+ * The name this window's environment keys its on-device state by: `local`, or the SSH Host's resolved identity, so two
+ * aliases of one host share their drafts and backups while two hosts never see each other's.
+ */
+export function environmentStorageScope(environment: EnvironmentState): string {
+    return environment.kind === 'ssh' ? `ssh:${environment.hostIdentity}` : 'local';
+}
+
+/**
  * Starts mirroring Main's environment state. It subscribes before reading so a change pushed while `environment.get` is
  * in flight is never lost, and once any event has arrived the slower read is discarded: an event is always at least as
  * new as the read it raced. It also explains a connect that Main answered by focusing this SSH Host window.

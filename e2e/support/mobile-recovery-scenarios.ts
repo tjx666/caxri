@@ -5,15 +5,18 @@ import { writeJsonAtomic } from '../../scripts/atomic-json.ts';
 import { expect } from './fixtures.ts';
 import { pageRequest } from './helpers.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture.ts';
+import { openComposerSession } from './mobile-agent-actions-scenarios.ts';
 import {
     adbShell,
     captureMobileFramebuffer,
     mobileSemantics,
+    observeMobileNode,
     openMobilePairingLink,
     startMobileFramebufferRecording,
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android.ts';
+import { enterComposerText } from './mobile-unicode-input.ts';
 
 interface Environment {
     artifactManifestPath: string;
@@ -243,6 +246,54 @@ export async function executeMobileRecoveryScenario(
                 } finally {
                     await fixture.stop();
                 }
+            }
+            return;
+        }
+        case 'MOB-STORAGE-02': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'waiting',
+                serial: environment.serial,
+            });
+            const draft = '先别发送：重启后这段草稿还在。';
+            try {
+                await fixture.pair();
+                const sessionId = fixture.allowedSessionId;
+                if (!sessionId) throw new Error('Composer Session is unavailable');
+                await openComposerSession(environment.serial, sessionId);
+                await enterComposerText(environment.serial, draft);
+                await capture(environment, 'draft-typed', artifacts);
+                // Drafts are written about a second after typing pauses; force-stop gives no background flush.
+                await new Promise((resolve) => setTimeout(resolve, 2_000));
+                await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === `session-row-${sessionId}`),
+                );
+                await openComposerSession(environment.serial, sessionId);
+                const restored = await waitForMobile(
+                    () =>
+                        observeMobileNode(environment.serial, 'session-composer-input', {
+                            kind: 'equals',
+                            value: draft,
+                        }),
+                    (observation) => observation.textMatches === true,
+                );
+                expect(restored.textMatches).toBe(true);
+                await capture(environment, 'draft-restored', artifacts);
+                expect((await fixture.readCapturedInput()).length).toBe(0);
+                await finish(environment, artifacts, {
+                    draft: 'restored-after-force-stop',
+                    inputSent: 'none',
+                    status: 'passed',
+                });
+            } finally {
+                await fixture.stop();
             }
             return;
         }

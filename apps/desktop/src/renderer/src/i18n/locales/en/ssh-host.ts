@@ -65,6 +65,8 @@ export const sshHost = {
     'sshHost.failure.unknown': 'Something went wrong while connecting to the SSH Host.',
     'sshHost.reconnect': 'Reconnect',
     'sshHost.useHere': 'Use Here',
+    'sshHost.workbenchPaused':
+        'Showing this window as it was. Editing resumes when the SSH Host is back.',
     'sshHost.closeWindow': 'Close Window',
     'sshHost.copyDetails': 'Copy Details',
     'sshHost.copyCommand': 'Copy Command',

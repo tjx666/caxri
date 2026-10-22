@@ -114,6 +114,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'credential-storage-retry',
     },
+    'MOB-STORAGE-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'adapter',
+        scenario: 'composer-draft-restart',
+    },
     'MOB-SESSION-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

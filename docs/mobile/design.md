@@ -239,7 +239,11 @@ no background of its own keeps its default dark text readable.
   the one-line input matches that height. Stop interrupts only the current Agent endpoint and never sends
   a raw Ctrl-C to a shell.
 - The byte counter appears only past 75% of the limit.
-- Drafts are kept per Session in memory and survive segment switches, navigation, and reconnects.
+- Drafts are kept per Session and survive segment switches, navigation, reconnects, and the system
+  ending the app in the background: the newest 50 unsent drafts (1,000,000 characters in total,
+  as on Desktop) are saved beside the [read cache](#read-cache) under the same pairing scope, one
+  second after typing pauses and at once when the app goes to the background. A draft typed since
+  launch wins over a saved one; sending or clearing a draft removes it.
 - The attach button opens an image source sheet. A choice slides the sheet away first and only then
   opens the photo picker or camera, so system UI never covers a sheet still on screen
   (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 20 images and
@@ -555,7 +559,7 @@ Chat presentation label goes through the shared resources; see [Internationaliza
 - Only visible views subscribe or poll. Leaving a screen or backgrounding the app ends its
   subscriptions.
 - The device credential lives in the secure store. Apart from it, only the read cache persists
-  remote data on the device.
+  remote data on the device, and only the saved drafts persist the user's unsent input.
 
 ### Read cache
 
@@ -587,6 +591,8 @@ paused until Caxri reconnects.` instead of repeating `Showing the last known sta
   dropped rather than saved under either pairing.
 - Writes trail the live view by one second and flush when the app goes to the background. Every
   read or write failure counts as a miss, so a broken file never blocks the live view.
+- The store is the shared device store (`packages/protocol/src/device-store`), the same engine the
+  Desktop Renderer's Editor backups use; see [client-local data](../client-local-data.md).
 
 ## Performance budgets
 

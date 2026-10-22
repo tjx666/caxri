@@ -54,6 +54,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Welcome and Add Project copy; Chinese UI style**: "Folder" wording; VS Code Simplified Chinese conventions. Evidence: `DESIGN.md` (welcome); `docs/i18n.md`.
 - **File icons; codicons**: vscode-icons look; six vendored codicons (copied, CC BY 4.0). Evidence: `THIRD_PARTY_NOTICES.md`; `apps/desktop/src/renderer/src/icons/codicons/`; `licenses/VSCODE_CODICONS_LICENSE.txt`.
 - **Agent environment from the interactive login shell**: Resolving a GUI launch's environment by running `$SHELL -i -l -c` and parsing the printed environment between markers. Evidence: `apps/server/src/domains/executables.ts` (`agentEnvironment`).
+- **Editor hot exit**: Back up each dirty buffer about one second after typing pauses, keep its disk base for conflict detection, and restore it as unsaved on the next launch (`workingCopyBackupTracker`). Evidence: `apps/desktop/src/renderer/src/features/editor/editor-backups.ts`; `docs/client-local-data.md`.
 
 ## GitLens (MIT, except `plus/` directories)
 

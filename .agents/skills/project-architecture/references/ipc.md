@@ -7,10 +7,13 @@ idempotency policy, Zod parameter/result schemas, and an optional principal proj
 negotiation welcome identifies the authenticated principal and enumerates granted capabilities and
 supported commands, so callers can query support without inferring it from errors. Desktop bridge
 imports consume the owning `packages/protocol` public export; no other tree may define a second method
-or schema table. Protocol source is grouped behind seven domain barrels:
-`agent`, `configuration`, `desktop`, `domain`, `mobile`, `registry`, and `transport`; the package root is the
-only public package entrypoint. Do not add or remove one of those domains without updating this
-reference and `scripts/__tests__/workspace-contract.test.ts`.
+or schema table. Protocol source is grouped behind eight domain barrels:
+`agent`, `configuration`, `desktop`, `device-store`, `domain`, `mobile`, `registry`, and `transport`; the
+package root is the only public package entrypoint. Do not add or remove one of those domains without
+updating this reference and `scripts/__tests__/workspace-contract.test.ts`. `device-store` is the one
+client-side persistence engine the phone and the Desktop Renderer share: scope-bound, debounced,
+best-effort entries for saved copies and unsent-input backups (see
+[docs/client-local-data.md](../../../../docs/client-local-data.md)).
 
 The shared dispatcher validates protocol version, command, parameters, principal, capabilities,
 owner availability, and results before it returns `{ protocolVersion, ok, result | error }`. Read

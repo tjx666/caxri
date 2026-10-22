@@ -17,6 +17,10 @@ const unsavedEditorsReplySchema = z.discriminatedUnion('kind', [
         autoSave: z.boolean(),
     }),
     z.object({ kind: z.literal('saved') }),
+    /**
+     * The answer to `discardAll`: the backups of the discarded buffers are gone from this device.
+     */
+    z.object({ kind: z.literal('discarded') }),
     z.object({ kind: z.literal('saveFailed'), reason: z.enum(['writeFailed', 'inactiveRoot']) }),
 ]);
 

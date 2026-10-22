@@ -15,7 +15,10 @@ type UnsavedEditorsReplyParameters = Extract<
 >['params'];
 type UnsavedEditorsReply = UnsavedEditorsReplyParameters['reply'];
 export type UnsavedEditorsSummary = Extract<UnsavedEditorsReply, { kind: 'summary' }>;
-export type UnsavedEditorsSaveResult = Exclude<UnsavedEditorsReply, { kind: 'summary' }>;
+export type UnsavedEditorsSaveResult = Extract<
+    UnsavedEditorsReply,
+    { kind: 'saveFailed' | 'saved' }
+>;
 export type UnsavedEditorsChoice = 'cancel' | 'discard' | 'save';
 export type UnsavedEditorsPurpose = 'close' | 'quit';
 /**
@@ -68,7 +71,7 @@ export function createUnsavedEditorsBridge(options: UnsavedEditorsBridgeOptions)
     const createRequestId = options.createRequestId ?? randomUUID;
 
     function ask(
-        action: 'inspect' | 'saveAll',
+        action: 'discardAll' | 'inspect' | 'saveAll',
         timeoutMs: number,
     ): Promise<UnsavedEditorsReply | undefined> {
         const requestId = createRequestId();
@@ -93,12 +96,19 @@ export function createUnsavedEditorsBridge(options: UnsavedEditorsBridgeOptions)
                 throw new CaxriError('INTERNAL', 'Workbench answered inspect with a save result');
             return reply;
         },
+        /**
+         * Drops the Workbench's on-device backups after Don't Save. Bounded like `inspect`: a Renderer that cannot
+         * answer still lets the quit continue, and at worst its next launch offers the discarded text back.
+         */
+        async discardAll(): Promise<void> {
+            await ask('discardAll', options.inspectTimeoutMs ?? INSPECT_TIMEOUT_MS);
+        },
         async saveAll(): Promise<UnsavedEditorsSaveResult> {
             const reply = await ask('saveAll', options.saveTimeoutMs ?? SAVE_TIMEOUT_MS);
             // The Workbench vanished between the prompt and the save, taking its buffers with it.
             if (!reply) return { kind: 'saveFailed', reason: 'writeFailed' };
-            if (reply.kind === 'summary')
-                throw new CaxriError('INTERNAL', 'Workbench answered saveAll with a summary');
+            if (reply.kind !== 'saved' && reply.kind !== 'saveFailed')
+                throw new CaxriError('INTERNAL', `Workbench answered saveAll with ${reply.kind}`);
             return reply;
         },
         reveal(): void {
@@ -179,6 +189,10 @@ async function confirmUnsavedEditors(
 
 export interface UnsavedEditorsDecisionOptions {
     confirm: (summary: UnsavedEditorsSummary) => Promise<UnsavedEditorsChoice>;
+    /**
+     * Tells the Workbench the user chose Don't Save, so its on-device backups of those buffers are dropped too.
+     */
+    discardAll: () => Promise<void>;
     inspect: () => Promise<UnsavedEditorsSummary>;
     /**
      * One structured record per consultation. `error` is set only for the failure outcomes.
@@ -259,6 +273,12 @@ export async function decideUnsavedEditors(
     }
     if (choice === 'discard') {
         options.log('discarded', summary.count);
+        // Fails open like `inspect`: a backup left behind is offered back on the next launch, never written to disk.
+        try {
+            await options.discardAll();
+        } catch {
+            // Continue regardless; see above.
+        }
         return 'continue';
     }
     try {
@@ -368,6 +388,9 @@ export function createWorkbenchUnsavedEditors(options: WorkbenchUnsavedEditorsOp
                             logEventCatalog.app.unsavedEditorsDecided,
                             { fields: { purpose, outcome, count, ...(error && { error }) } },
                         ),
+                discardAll: async () => {
+                    await Promise.allSettled([...dirty].map((key) => bridgeFor(key).discardAll()));
+                },
                 reveal: () => {
                     for (const key of dirty) bridgeFor(key).reveal();
                 },

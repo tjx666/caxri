@@ -169,7 +169,14 @@ export async function cacheDocument(
         await tryCommand(translate('editor.document.openFailed'), async () => {
             try {
                 const document = await caxri.request('files.read', { sessionId, path });
-                if (!operation.discarded) {
+                /**
+                 * A read only fills a missing document. When the buffer became unsaved while the read was in flight
+                 * (typing, a hot-exit restore, or a second read StrictMode started), the buffer is newer than disk.
+                 */
+                const isUnsaved = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
+                    operation.path
+                ]?.dirty;
+                if (!isUnsaved && !operation.discarded) {
                     useSessionViewStore.getState().cacheDocument(
                         sessionId,
                         {

@@ -21,6 +21,7 @@ import {
     isAutoSaveOnFocusChange,
     shouldAutoSaveDocument,
 } from './editor-auto-save-commands';
+import { discardEditorBackups } from './editor-backups';
 import { focusEditor } from './editor-reveal';
 
 type UnsavedEditorsRequest = Extract<ServerEvent, { event: 'editor.unsavedRequest' }>['payload'];
@@ -198,6 +199,14 @@ async function handleUnsavedEditorsRequest(request: UnsavedEditorsRequest): Prom
                 ),
                 autoSave: isAutoSaveOnFocusChange(),
             },
+        });
+        return;
+    }
+    if (request.action === 'discardAll') {
+        await discardEditorBackups();
+        await caxri.request('editor.unsavedReply', {
+            requestId: request.requestId,
+            reply: { kind: 'discarded' },
         });
         return;
     }

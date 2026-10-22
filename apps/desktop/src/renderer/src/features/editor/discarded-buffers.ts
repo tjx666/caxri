@@ -1,8 +1,11 @@
+import { parseExternalEditorTab } from '@caxri/protocol';
+import { pathBasename } from '@caxri/utils';
 import type { EditorDocument } from '@desktop-shared/editor-state';
 
 import { translate } from '../../i18n';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import type { ToastActionParameters } from '../../stores/toast-actions';
+import { pushToast } from '../../stores/toasts';
 import { sessionStateOf } from './session-pane-state';
 
 type RestoreTarget = ToastActionParameters['editor.restoreDiscardedChanges'];
@@ -38,7 +41,7 @@ function bufferKey(sessionId: string, workbenchProjectId: string, path: string):
 export function stashDiscardedBuffers(
     sessionId: string,
     workbenchProjectId: string,
-    documents: readonly EditorDocument[],
+    documents: ReadonlyArray<Pick<EditorDocument, 'content' | 'path'>>,
 ): void {
     for (const document of documents) {
         const key = bufferKey(sessionId, workbenchProjectId, document.path);
@@ -52,6 +55,48 @@ export function stashDiscardedBuffers(
         if (oldest.done) break;
         discardedBuffers.delete(oldest.value);
     }
+}
+
+/**
+ * The notice for unsaved buffers a newer disk state just replaced. It names the loss rather than the reload: the reload
+ * is routine, and what the user needs to learn is that their typing is gone and can still be taken back.
+ */
+function discardedChangesMessage(names: readonly string[]): string {
+    return names.length === 1
+        ? translate('editor.externalSync.discardedOne', { name: names[0] })
+        : translate('editor.externalSync.discardedOther', { count: names.length });
+}
+
+/**
+ * Stashes unsaved buffers a newer disk state replaced and announces the loss with "Restore My Changes". Shared by the
+ * live watcher and by a backup from an earlier launch whose file changed on disk while Caxri was closed.
+ */
+export function announceDiscardedBuffers(
+    sessionId: string,
+    workbenchProjectId: string,
+    documents: ReadonlyArray<Pick<EditorDocument, 'content' | 'path'>>,
+): void {
+    stashDiscardedBuffers(sessionId, workbenchProjectId, documents);
+    if (documents.length === 0) return;
+    const name = (document: Pick<EditorDocument, 'path'>) =>
+        parseExternalEditorTab(document.path)?.name ?? pathBasename(document.path);
+    /**
+     * A 4-second auto-dismiss would let this notice vanish while the user is away from the window, silently taking the
+     * only way back to the discarded buffer with it. This event already cost the user unsaved work, so it stays until
+     * explicitly dismissed, and it is a warning: the editor still works, but on terms the user did not choose.
+     */
+    pushToast('warning', discardedChangesMessage(documents.map(name)), {
+        persist: true,
+        dismissOnSuccess: true,
+        action: {
+            id: 'editor.restoreDiscardedChanges',
+            params: {
+                sessionId,
+                workbenchProjectId,
+                paths: documents.map((document) => document.path),
+            },
+        },
+    });
 }
 
 /**

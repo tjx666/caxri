@@ -3,7 +3,9 @@
  * from the `app.startup_profile` and `server_core.ready` records. The first launch of a profile is reported apart from
  * the rest because it also pays one-time costs (cold OS file cache, profile creation, database migrations); every later
  * launch is a warm restart with a fresh Server Core. Pass `--variant` more than once to A/B two builds (or one build
- * under two environments) interleaved, so machine drift during the run hits both sides equally.
+ * under two environments) interleaved, so machine drift during the run hits both sides equally. `--seed
+ * projects,sessions,archived,terminals` fills each profile with that many synthetic rows after its first launch (which
+ * creates the schema), so the warm launches measure a used profile instead of an empty one.
  *
  * Run it under the desktop lease:
  *
@@ -13,7 +15,7 @@
  * --variant head=release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri --runs 7
  */
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -48,6 +50,7 @@ export type StartupRun = Partial<Record<Metric, number>>;
 export interface StartupSummary {
     first: StartupRun;
     warmMedian: Partial<Record<Metric, number>>;
+    warmP95: Partial<Record<Metric, number>>;
     warmRuns: number;
 }
 
@@ -64,16 +67,131 @@ export function median(values: readonly number[]): number | undefined {
     return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+/**
+ * Nearest-rank percentile, so a small run count reports a value that was actually observed.
+ */
+export function percentile(values: readonly number[], rank: number): number | undefined {
+    if (values.length === 0) return undefined;
+    const sorted = values.toSorted((left, right) => left - right);
+    return sorted[Math.min(sorted.length, Math.ceil((rank / 100) * sorted.length)) - 1];
+}
+
 export function summarizeStartupRuns(runs: readonly StartupRun[]): StartupSummary {
     const [first = {}, ...warm] = runs;
     const warmMedian: Partial<Record<Metric, number>> = {};
+    const warmP95: Partial<Record<Metric, number>> = {};
     for (const metric of METRICS) {
-        const value = median(
-            warm.map((run) => run[metric]).filter((entry) => typeof entry === 'number'),
-        );
-        if (value !== undefined) warmMedian[metric] = value;
+        const values = warm.map((run) => run[metric]).filter((entry) => typeof entry === 'number');
+        const middle = median(values);
+        if (middle !== undefined) warmMedian[metric] = middle;
+        const tail = percentile(values, 95);
+        if (tail !== undefined) warmP95[metric] = tail;
     }
-    return { first, warmMedian, warmRuns: warm.length };
+    return { first, warmMedian, warmP95, warmRuns: warm.length };
+}
+
+export interface ProfileSeed {
+    archived: number;
+    projects: number;
+    sessions: number;
+    terminals: number;
+}
+
+export function parseProfileSeed(value: string | undefined): ProfileSeed | undefined {
+    if (value === undefined) return undefined;
+    const counts = value.split(',').map(Number);
+    if (counts.length !== 4 || counts.some((count) => !Number.isSafeInteger(count) || count < 0))
+        throw new Error(`--seed must be projects,sessions,archived,terminals: ${value}`);
+    const [projects, sessions, archived, terminals] = counts;
+    if (projects < 1 || archived > sessions || (sessions > 0 && terminals < sessions))
+        throw new Error(
+            `--seed needs a Project, archived <= sessions, terminals >= sessions: ${value}`,
+        );
+    return { archived, projects, sessions, terminals };
+}
+
+interface SeedDatabase {
+    close(): void;
+    prepare(sql: string): { run(...values: Array<number | string | null>): unknown };
+    transaction(work: () => void): () => void;
+}
+
+/**
+ * Adds synthetic Projects, Sessions, and Terminals to a profile whose first launch already created the schema. Every
+ * Project root is an empty directory inside the profile, and every Terminal is a stopped shell, so no launch restores a
+ * process or reads a real file. The selection stays on the first launch's own Session.
+ */
+async function seedProfile(userData: string, seed: ProfileSeed): Promise<void> {
+    // The scripts project does not load Bun's type declarations, so the module is named through a variable (TypeScript
+    // would otherwise fail to resolve it) and the slice of `bun:sqlite` used here is typed locally.
+    const sqliteModule = 'bun:sqlite';
+    const { Database } = (await import(sqliteModule)) as {
+        Database: new (path: string) => SeedDatabase;
+    };
+    const database = new Database(join(userData, 'caxri.db'));
+    try {
+        const now = Date.now();
+        const projectIds = Array.from(
+            { length: seed.projects },
+            (_, index) => `seed-project-${index}`,
+        );
+        await Promise.all(
+            projectIds.map((id) => mkdir(join(userData, 'seed-roots', id), { recursive: true })),
+        );
+        database.transaction(() => {
+            const project = database.prepare(
+                'INSERT INTO projects (id, root_path, display_title, order_index, created_at, last_opened_at) VALUES (?, ?, ?, ?, ?, ?)',
+            );
+            for (const [index, id] of projectIds.entries())
+                project.run(
+                    id,
+                    join(userData, 'seed-roots', id),
+                    `Project ${index}`,
+                    1_000 + index,
+                    now,
+                    now,
+                );
+            const session = database.prepare(
+                'INSERT INTO sessions (id, project_id, created_at, last_opened_at, last_session_activity_at, sidebar_order, archived_at, display_title, title_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            );
+            const state = database.prepare(
+                "INSERT INTO session_state (session_id, desired_secondary_sidebar_view_container_id) VALUES (?, 'caxri.files')",
+            );
+            const terminal = database.prepare(
+                "INSERT INTO terminals (id, session_id, kind, cwd, title, icon, order_index, last_process_state, created_at, updated_at) VALUES (?, ?, 'shell', ?, 'zsh', 'terminal', ?, 'stopped', ?, ?)",
+            );
+            for (let index = 0; index < seed.sessions; index += 1) {
+                const projectId = projectIds[index % projectIds.length];
+                const id = `seed-session-${index}`;
+                const at = now - index * 60_000;
+                session.run(
+                    id,
+                    projectId,
+                    at,
+                    at,
+                    at,
+                    1_000 + index,
+                    index < seed.archived ? at : null,
+                    `Session ${index}`,
+                    'manual',
+                );
+                state.run(id);
+            }
+            for (let index = 0; index < seed.terminals && seed.sessions > 0; index += 1) {
+                const sessionIndex = index % seed.sessions;
+                terminal.run(
+                    `seed-terminal-${index}`,
+                    `seed-session-${sessionIndex}`,
+                    join(userData, 'seed-roots', projectIds[sessionIndex % projectIds.length]),
+                    Math.floor(index / seed.sessions),
+                    now,
+                    now,
+                );
+            }
+        })();
+    } finally {
+        database.close();
+    }
 }
 
 /**
@@ -221,12 +339,14 @@ async function main(): Promise<void> {
         options: {
             env: { type: 'string', multiple: true, default: [] },
             runs: { type: 'string', default: '7' },
+            seed: { type: 'string' },
             settle: { type: 'string', default: '3000' },
             variant: { type: 'string', multiple: true, default: [] },
         },
     });
     const runs = Number(values.runs);
     const settleMs = Number(values.settle);
+    const seed = parseProfileSeed(values.seed);
     const variants: Variant[] = await Promise.all(
         parseVariants(values.variant, values.env).map(async (variant) => ({
             ...variant,
@@ -246,6 +366,8 @@ async function main(): Promise<void> {
                 process.stderr.write(
                     `${variant.label} #${round}: firstFrame=${run.firstFrameMs}ms\n`,
                 );
+                // eslint-disable-next-line no-await-in-loop -- the seed must land before this profile's next launch
+                if (round === 0 && seed) await seedProfile(variant.userData, seed);
             }
     } finally {
         await Promise.all(
@@ -267,6 +389,19 @@ async function main(): Promise<void> {
             formatRow(
                 metric,
                 summaries.map((summary) => summary.warmMedian[metric]),
+            ),
+        );
+    console.log(
+        formatRow(
+            'warm p95 (ms)',
+            summaries.map((summary) => summary.label),
+        ),
+    );
+    for (const metric of METRICS)
+        console.log(
+            formatRow(
+                metric,
+                summaries.map((summary) => summary.warmP95[metric]),
             ),
         );
     console.log(

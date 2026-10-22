@@ -15,6 +15,7 @@ import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
 import { ConfirmationDialog } from './features/confirmations/confirmation-dialog';
 import { openFileForSession } from './features/editor/document-commands';
+import { subscribeEditorBackups } from './features/editor/editor-backups';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { subscribeUnsavedEditorRequests } from './features/editor/unsaved-editor-commands';
@@ -46,6 +47,7 @@ import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { SessionSearchDialog } from './features/session/session-search/session-search-dialog';
 import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
 import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
+import { isConnectionOverlayVisible } from './features/ssh-host/connection-status';
 import { subscribeFileWatchLimitAlerts } from './features/ssh-host/file-watch-limit-alert';
 import { SshHostFolderPickerDialog } from './features/ssh-host/ssh-host-folder-picker-dialog';
 import { SshHostLayer } from './features/ssh-host/ssh-host-layer';
@@ -81,7 +83,7 @@ import {
     useChromeViewportClamp,
 } from './stores/chrome-layout';
 import { useDialogStore } from './stores/dialogs';
-import { subscribeEnvironment } from './stores/environment';
+import { subscribeEnvironment, useSshEnvironment } from './stores/environment';
 import { useIsFullScreen } from './stores/selectors';
 import { syncWindowFullScreen } from './stores/window-full-screen';
 import {
@@ -175,6 +177,7 @@ export function App() {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
     const isSecondarySidebarVisible = useIsSecondarySidebarShown();
+    const isWorkbenchPaused = isConnectionOverlayVisible(useSshEnvironment());
 
     useEffect(() => subscribeEnvironment(), []);
     useEffect(() => subscribeFileWatchLimitAlerts(), []);
@@ -186,6 +189,7 @@ export function App() {
     useEffect(() => startViewEventBridge(), []);
     useEffect(() => subscribeHeldMessageQueue(), []);
     useEffect(() => subscribeUnsavedEditorRequests(), []);
+    useEffect(() => subscribeEditorBackups(), []);
     useEffect(() => registerPickerFallbackFocus(activeWorkbenchFocusElement), []);
     useSessionMruSwitcherLifecycle();
     useCommandShortcuts();
@@ -235,6 +239,8 @@ export function App() {
         <>
             <TooltipProvider>
                 <main
+                    // Readable but not operable while an SSH Host reconnects; see `SshHostConnectionOverlay`.
+                    inert={isWorkbenchPaused}
                     className={cn(
                         /*
                          * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
