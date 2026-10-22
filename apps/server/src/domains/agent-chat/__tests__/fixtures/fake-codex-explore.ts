@@ -44,3 +44,29 @@ export async function runExplore(io: FakeCodexIo, turn: FakeTurn, isGradual: boo
     completeMcpCalls(io, turn);
     await io.streamMessage(turn, 'Explored the project.', 0);
 }
+
+/**
+ * Three commands started together that end newest first, as an Agent issuing parallel tool calls does, so the work
+ * group's title shows a call beside the others still running.
+ */
+export async function runParallelExplore(io: FakeCodexIo, turn: FakeTurn) {
+    const commands = ['cat src/app.ts', 'git status --short', 'ls src'];
+    const items = commands.map((command): FakeItem => ({
+        type: 'commandExecution',
+        id: crypto.randomUUID(),
+        command: `/bin/zsh -lc "${command}"`,
+        cwd: process.cwd(),
+        status: 'inProgress',
+        aggregatedOutput: '',
+        exitCode: null,
+        durationMs: null,
+    }));
+    await io.streamMessage(turn, 'Looking around the project in parallel.', 0);
+    for (const item of items) io.startItem(turn, item);
+    for (const item of items.toReversed()) {
+        // eslint-disable-next-line no-await-in-loop -- each call ends after the one started after it.
+        await delay(2500);
+        io.completeItem(turn, { ...item, status: 'completed', exitCode: 0, durationMs: 5 });
+    }
+    await io.streamMessage(turn, 'Explored the project.', 0);
+}

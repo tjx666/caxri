@@ -367,6 +367,14 @@ export function summarizeAgentChatWork(
 }
 
 /**
+ * The tool calls of a group running at the same time: an Agent can start several before any ends (three reads at once),
+ * and a title naming only one of them would read as if the Agent did one thing.
+ */
+function agentChatParallelWork(items: readonly AgentChatWorkItem[]): AgentChatWorkItem[] {
+    return items.filter((item) => item.type !== 'reasoning' && isAgentChatWorkRunning(item));
+}
+
+/**
  * {@link summarizeAgentChatWork} as keyed phrases that join into it: the running action, the thinking label, or one
  * phrase per tool kind (`Edited 1 file`, `, ran 3 commands`) followed by the failure count (`, 1 failed`). A key stays
  * the same while its phrase only updates a count, so the Renderer can animate a phrase that joins the summary. An open
@@ -381,7 +389,10 @@ export function agentChatWorkSummaryPhrases(
     const active = isOpen ? agentChatCurrentWork(items) : agentChatActiveWork(items);
     if (active && (active.item.type !== 'reasoning' || isAgentChatWorkRunning(active.item))) {
         const verb = agentToolActiveLabel(active.presentation, t);
-        const text = [verb, active.presentation.subject].filter(Boolean).join(' ');
+        const label = [verb, active.presentation.subject].filter(Boolean).join(' ');
+        const others = agentChatParallelWork(items).filter((item) => item !== active.item).length;
+        const text =
+            others > 0 ? t('agentChat.workGroup.andMore', { label, count: others }) : label;
         return [{ key: 'active', text }];
     }
     const tools = agentChatWorkSummaryTools(items);
@@ -462,6 +473,10 @@ export function agentChatWorkSummaryGlyph(
     mcpToolName?: string;
 } {
     const active = isOpen ? agentChatCurrentWork(items) : agentChatActiveWork(items);
+    const parallelKinds = new Set(
+        agentChatParallelWork(items).map((item) => describeAgentChatWork(item).kind),
+    );
+    if (parallelKinds.size > 1) return { kind: 'other' };
     if (active)
         return {
             kind: active.presentation.kind,
