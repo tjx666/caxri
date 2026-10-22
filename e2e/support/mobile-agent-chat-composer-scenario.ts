@@ -178,6 +178,28 @@ export async function executeMobileChatComposerScenario(
         await recording?.stop();
         recording = undefined;
 
+        // Steered messages (#2408): a message steered into the running turn folds its own work and keeps its own reply.
+        await chat.send({ text: 'slow please' });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => Boolean(snapshot.activeTurnId),
+        );
+        await chat.send({ text: 'Is it deployed? Please answer.', delivery: 'steer' });
+        const steered = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                agentText(snapshot).includes('Answered in this turn') && !snapshot.activeTurnId,
+            60_000,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        const steeredTurnId = findItem(
+            steered,
+            (item) => item.type === 'agentMessage' && item.text.includes('Answered in this turn'),
+        )?.turnId;
+        if (!steeredTurnId) throw new Error('The steered turn is incomplete');
+        await waitForCheck(serial, `agent-chat-turn-${steeredTurnId}:1`);
+        await capture(environment, 'steered-segments', artifacts);
+
         // Slash commands (#1708): typing `/` lists the provider's commands, and choosing one runs it.
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
         await adbShell(serial, ['input', 'text', '/']);
@@ -268,6 +290,7 @@ export async function executeMobileChatComposerScenario(
             sendFailure: 'returned-to-composer',
             slashCommand: 'compact-ran',
             status: 'passed',
+            steeredFold: 'per-segment',
             turnFold: 'collapsed-then-expanded',
         });
     } finally {

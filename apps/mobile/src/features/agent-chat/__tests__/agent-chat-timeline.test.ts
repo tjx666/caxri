@@ -213,6 +213,42 @@ describe('buildAgentChatTimeline', () => {
         ).toEqual(['u-t1', 'turn:t1', 'a-t1', 'u-t2', 'turn:t2', 'work:c-t2', 'a-t2']);
     });
 
+    it('folds a steered turn per segment, each timed and expanded on its own', () => {
+        const timeline: Timeline = {
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Go', createdAt: 0 },
+                command('c1', 'completed'),
+                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'One', streaming: false },
+                { id: 'u2', turnId: 't1', type: 'userMessage', text: 'Also', createdAt: 60_000 },
+                command('c2', 'completed'),
+                { id: 'a2', turnId: 't1', type: 'agentMessage', text: 'Two', streaming: false },
+            ],
+            turns: [{ id: 't1', status: 'interrupted', startedAt: 0, durationMs: 90_000 }],
+        };
+        const entries = buildAgentChatTimeline(timeline);
+        expect(entries.map((entry) => entry.id)).toEqual([
+            'u1',
+            'turn:t1',
+            'a1',
+            'u2',
+            'turn:t1:1',
+            'a2',
+        ]);
+        expect(entries[1]).toMatchObject({
+            label: 'Worked for 1m',
+            status: 'completed',
+            foldKey: 't1',
+        });
+        expect(entries[4]).toMatchObject({
+            label: 'Stopped after 30s',
+            status: 'interrupted',
+            foldKey: 't1:1',
+        });
+        expect(
+            buildAgentChatTimeline(timeline, new Set(['t1:1'])).map((entry) => entry.id),
+        ).toEqual(['u1', 'turn:t1', 'a1', 'u2', 'turn:t1:1', 'work:c2', 'a2']);
+    });
+
     it('keeps provider feedback severity, source, and complete details in dedicated cards', () => {
         const notices = [
             {

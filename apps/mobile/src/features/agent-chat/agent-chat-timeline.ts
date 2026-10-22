@@ -8,11 +8,13 @@ import type {
     AgentChatSnapshot,
     AgentChatTurn,
     AgentChatTurnArtifacts,
+    AgentChatTurnFoldSegment,
     AgentChatWorkItem,
     AgentTimelineItem,
 } from '@caxri/protocol';
 import {
     agentChatFinalReplyId,
+    agentChatFoldTiming,
     agentChatNoticeMessage,
     agentChatTurnLabel,
     collectAgentChatTurnArtifacts,
@@ -93,6 +95,11 @@ export type AgentChatTimelineEntry =
           kind: 'turn';
           id: string;
           turnId: string;
+          /**
+           * The key the list's expanded set holds for this row: the turn id for its first fold, and the turn id with
+           * the segment index for each later fold of a turn split by steered messages, so each fold opens on its own.
+           */
+          foldKey: string;
           label: string;
           status: AgentChatTurn['status'];
           stoppedBy?: AgentChatTurn['stoppedBy'];
@@ -231,6 +238,11 @@ function groupEntries(
 }
 
 /**
+ * The single segment of a turn nobody steered, for the row of a turn with nothing to fold.
+ */
+const WHOLE_TURN: AgentChatTurnFoldSegment = { index: 0, opensTurn: true, closesTurn: true };
+
+/**
  * A finished turn's entries. Collapsed, the turn reads as its prompt, the `Worked for` row, its final reply with the
  * artifacts under it, and its notices; expanded, the folded work follows the row. A turn with nothing to fold still
  * gets the row, just before its reply, so how long it ran and how it ended stay in view.
@@ -239,23 +251,46 @@ function finishedTurnEntries(
     visible: readonly AgentChatItem[],
     turn: AgentChatTurn,
     artifacts: AgentChatTurnArtifacts | undefined,
-    isExpanded: boolean,
+    expandedIds: ReadonlySet<string>,
     t: Translate,
     taskItemIds: ReadonlySet<string>,
 ): AgentChatTimelineEntry[] {
     const finalReplyId = agentChatFinalReplyId(visible);
     const parts = foldAgentChatTurn(visible, finalReplyId);
+    // The runtime lib stops at ES2022, which has no `findLast`.
+    const lastFold = parts[parts.map((part) => part.kind).lastIndexOf('fold')];
+    const foldKey = (segment: AgentChatTurnFoldSegment): string =>
+        segment.index === 0 ? turn.id : `${turn.id}:${segment.index}`;
+    /**
+     * A turn split by steered messages gets a row per fold, each timed by its own segment; only the last says how the
+     * turn ended, as on Desktop.
+     */
     const row = (
         fold: 'collapsed' | 'expanded' | undefined,
-    ): Extract<AgentChatTimelineEntry, { kind: 'turn' }> => ({
-        kind: 'turn',
-        id: `turn:${turn.id}`,
-        turnId: turn.id,
-        label: agentChatTurnLabel(turn, t),
-        status: turn.status,
-        ...(turn.stoppedBy && { stoppedBy: turn.stoppedBy }),
-        ...(fold && { fold }),
-    });
+        segment: AgentChatTurnFoldSegment = WHOLE_TURN,
+        hasOutcome = true,
+    ): Extract<AgentChatTimelineEntry, { kind: 'turn' }> => {
+        const status = hasOutcome ? turn.status : 'completed';
+        const stoppedBy = hasOutcome ? turn.stoppedBy : undefined;
+        const { durationMs } = agentChatFoldTiming(segment, turn);
+        return {
+            kind: 'turn',
+            id: segment.index === 0 ? `turn:${turn.id}` : `turn:${turn.id}:${segment.index}`,
+            turnId: turn.id,
+            foldKey: foldKey(segment),
+            label: agentChatTurnLabel(
+                {
+                    status,
+                    ...(stoppedBy && { stoppedBy }),
+                    ...(durationMs !== undefined && { durationMs }),
+                },
+                t,
+            ),
+            status,
+            ...(stoppedBy && { stoppedBy }),
+            ...(fold && { fold }),
+        };
+    };
     const artifactsEntry: AgentChatTimelineEntry[] = artifacts
         ? [{ kind: 'artifacts', id: `artifacts:${artifacts.turnId}`, artifacts }]
         : [];
@@ -263,6 +298,7 @@ function finishedTurnEntries(
     const entries: AgentChatTimelineEntry[] = [];
     for (const part of parts) {
         if (part.kind === 'fold') {
+            const isExpanded = expandedIds.has(foldKey(part.segment));
             const subagents = isExpanded
                 ? []
                 : part.items.filter(
@@ -270,7 +306,7 @@ function finishedTurnEntries(
                           isAgentChatWorkItem(item) && isAgentChatSubagentItem(item),
                   );
             entries.push({
-                ...row(isExpanded ? 'expanded' : 'collapsed'),
+                ...row(isExpanded ? 'expanded' : 'collapsed', part.segment, part === lastFold),
                 ...(subagents.length > 0 && { subagents }),
             });
             if (isExpanded) entries.push(...groupEntries(part.items, t, taskItemIds));
@@ -324,7 +360,7 @@ export function buildAgentChatTimeline(
                       visible,
                       turn,
                       isComplete ? collectAgentChatTurnArtifacts(turn.id, segment) : undefined,
-                      expandedIds.has(turn.id),
+                      expandedIds,
                       t,
                       taskItemIds,
                   )

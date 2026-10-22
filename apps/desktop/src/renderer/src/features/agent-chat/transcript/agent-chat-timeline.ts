@@ -3,10 +3,12 @@ import type {
     AgentChatSnapshot,
     AgentChatTurn,
     AgentChatTurnArtifacts,
+    AgentChatTurnFoldSegment,
     AgentChatWorkItem,
 } from '@caxri/protocol';
 import {
     agentChatFinalReplyId,
+    agentChatFoldTiming,
     collectAgentChatTurnArtifacts,
     foldAgentChatTurn,
     isAgentChatAwaitingReply,
@@ -20,7 +22,7 @@ import { agentChatMessageFullTime } from './agent-chat-time';
 
 /**
  * One rendered row of the Chat timeline. Consecutive work collapses into one `work` entry, and a finished turn folds
- * everything but the prompt, the final reply, and notices into one `turn` entry.
+ * everything but the prompt, the final reply, and notices into a `turn` entry (one per steered segment).
  */
 export type AgentChatTimelineEntry =
     | {
@@ -49,7 +51,8 @@ export type AgentChatTimelineEntry =
           kind: 'turn';
           id: string;
           /**
-           * How long the turn ran, for its fold row's label (`agentChatTurnLabel`), translated where it renders.
+           * How long the turn (or its steered segment) ran, for its fold row's label (`agentChatTurnLabel`), translated
+           * where it renders.
            */
           durationMs?: number;
           /**
@@ -123,30 +126,36 @@ export function agentChatTurnTone(
     return turn.stoppedBy === 'user' ? 'stopped' : 'warning';
 }
 
+const WHOLE_TURN: AgentChatTurnFoldSegment = { index: 0, opensTurn: true, closesTurn: true };
+
+/**
+ * One fold row. A turn split by steered messages has a row per segment: each times its own segment, and only the last
+ * row carries how the turn ended, since the earlier segments ran on after their reply. The first row keeps the id
+ * `turn:<id>` a turn nobody steered has, so its expansion state survives.
+ */
 function turnEntry(
     turn: AgentChatTurn,
     entries: Extract<AgentChatTimelineEntry, { kind: 'turn' }>['entries'],
+    segment: AgentChatTurnFoldSegment = WHOLE_TURN,
+    hasOutcome = true,
 ): AgentChatTimelineEntry {
+    const timing = agentChatFoldTiming(segment, turn);
     return {
         kind: 'turn',
-        id: `turn:${turn.id}`,
-        status: turn.status,
-        ...(turn.stoppedBy && { stoppedBy: turn.stoppedBy }),
-        ...(turn.durationMs !== undefined && { durationMs: turn.durationMs }),
-        ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
-        ...(turn.startedAt !== undefined &&
-            turn.durationMs !== undefined && {
-                endedAt: turn.startedAt + turn.durationMs,
-            }),
+        id: segment.index === 0 ? `turn:${turn.id}` : `turn:${turn.id}:${segment.index}`,
+        status: hasOutcome ? turn.status : 'completed',
+        ...(hasOutcome && turn.stoppedBy && { stoppedBy: turn.stoppedBy }),
+        ...timing,
         entries,
     };
 }
 
 /**
- * A finished turn's work and commentary before the reply fold into one `turn` entry where `foldAgentChatTurn` (shared
- * with the phone) puts the fold; the prompt, the final reply, and its notices stay in view. A stopped turn with nothing
- * to fold (a plain reply cut off, or no reply yet) still gets an empty `turn` entry before its reply, so the transcript
- * says it was stopped and by whom instead of reading as a reply that simply ended there.
+ * A finished turn's work and commentary before the reply fold into a `turn` entry where `foldAgentChatTurn` (shared
+ * with the phone) puts the fold, one per segment when messages were steered into the turn; the prompt, the final reply,
+ * and its notices stay in view. A stopped turn with nothing to fold (a plain reply cut off, or no reply yet) still gets
+ * an empty `turn` entry before its reply, so the transcript says it was stopped and by whom instead of reading as a
+ * reply that simply ended there.
  */
 function foldTurn(
     items: readonly AgentChatItem[],
@@ -161,10 +170,11 @@ function foldTurn(
         const replyIndex = kept.findIndex((entry) => entry.kind === 'item' && entry.isFinalReply);
         return kept.toSpliced(replyIndex === -1 ? kept.length : replyIndex, 0, turnEntry(turn, []));
     }
+    const lastFold = parts.findLast((part) => part.kind === 'fold');
     return parts.flatMap((part): AgentChatTimelineEntry[] =>
         part.kind === 'kept'
             ? groupWork([part.item], finalReplyId)
-            : [turnEntry(turn, groupWork(part.items))],
+            : [turnEntry(turn, groupWork(part.items), part.segment, part === lastFold)],
     );
 }
 

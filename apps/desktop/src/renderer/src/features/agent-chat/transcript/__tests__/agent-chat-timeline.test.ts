@@ -238,6 +238,53 @@ describe('buildAgentChatTimeline', () => {
         expect(finalReplies(subagent)).toEqual(['s2']);
     });
 
+    it('folds a steered turn per segment, each steer followed by its own fold and reply', () => {
+        const turns: AgentChatTurn[] = [
+            {
+                id: 't1',
+                status: 'interrupted',
+                stoppedBy: 'user',
+                startedAt: 0,
+                durationMs: 90_000,
+            },
+        ];
+        const steer: AgentChatItem = {
+            id: 'u2',
+            turnId: 't1',
+            type: 'userMessage',
+            text: 'Is it deployed?',
+            delivery: 'steered',
+            createdAt: 60_000,
+        };
+        const items: AgentChatItem[] = [
+            user('u1', 't1'),
+            command('c1', 't1'),
+            reply('a1', 't1'),
+            steer,
+            command('c2', 't1'),
+            reply('a2', 't1'),
+        ];
+        const timeline = buildAgentChatTimeline(items, turns, undefined);
+
+        expect(shape(timeline)).toEqual([
+            'u1',
+            { 'Worked for 1m': [['c1']] },
+            'a1',
+            'u2',
+            { 'Stopped by you after 30s': [['c2']] },
+            'a2',
+        ]);
+        expect(timeline.flatMap((entry) => (entry.kind === 'turn' ? [entry.id] : []))).toEqual([
+            'turn:t1',
+            'turn:t1:1',
+        ]);
+        expect(
+            timeline.flatMap((entry) =>
+                entry.kind === 'item' && entry.isFinalReply ? [entry.item.id] : [],
+            ),
+        ).toEqual(['a2']);
+    });
+
     it('carries when a folded turn started and ended for its tooltip', () => {
         const items = [user('u', 't1'), command('c', 't1'), reply('a', 't1')];
         const [, fold] = buildAgentChatTimeline(

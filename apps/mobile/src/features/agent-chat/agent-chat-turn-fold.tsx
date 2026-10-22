@@ -29,7 +29,7 @@ export const AgentChatTurnFold = ({
     theme,
 }: {
     entry: TurnEntry;
-    onToggle: (turnId: string) => void;
+    onToggle: (foldKey: string) => void;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
@@ -53,7 +53,7 @@ export const AgentChatTurnFold = ({
             ) : null}
         </>
     );
-    const testID = `agent-chat-turn-${entry.turnId}`;
+    const testID = `agent-chat-turn-${entry.foldKey}`;
     return (
         <View
             style={[conversationStyles.message, styles.root, { borderBottomColor: theme.border }]}
@@ -64,7 +64,7 @@ export const AgentChatTurnFold = ({
                     accessibilityLabel={entry.label}
                     accessibilityRole="button"
                     accessibilityState={{ expanded: isExpanded }}
-                    onPress={() => onToggle(entry.turnId)}
+                    onPress={() => onToggle(entry.foldKey)}
                     style={({ pressed }) => [
                         styles.row,
                         styles.toggle,
