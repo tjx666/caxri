@@ -11,6 +11,12 @@ import { agentChatSuggestionFooter } from './agent-chat-suggestions';
 
 const ICON_CLASS_NAME = 'size-3.5';
 
+const AGENT_CHAT_MENU_HEADING_KEYS = {
+    Commands: 'agentChat.slash.commands',
+    Recent: 'agentChat.slash.recent',
+    Skills: 'agentChat.slash.skills',
+} as const satisfies Record<NonNullable<ReturnType<typeof agentChatMenuGroupHeading>>, string>;
+
 interface SuggestionMenuState {
     activeIndex: number;
     highlight: (index: number) => void;
@@ -33,6 +39,7 @@ export function AgentChatSuggestionMenu({
 }: {
     commandMenu: SuggestionMenuState & {
         matches: readonly AgentAction[];
+        recentCount: number;
         skillNotice: { text: string; isLoading: boolean } | undefined;
     };
     /**
@@ -73,13 +80,13 @@ export function AgentChatSuggestionMenu({
                     commandMenu.matches[commandMenu.activeIndex],
                 )}
                 headingAt={(index) => {
-                    const heading = agentChatMenuGroupHeading(commandMenu.matches, index);
-                    if (heading === undefined) return;
-                    return t(
-                        heading === 'Commands'
-                            ? 'agentChat.slash.commands'
-                            : 'agentChat.slash.skills',
+                    const heading = agentChatMenuGroupHeading(
+                        commandMenu.matches,
+                        index,
+                        commandMenu.recentCount,
                     );
+                    if (heading === undefined) return;
+                    return t(AGENT_CHAT_MENU_HEADING_KEYS[heading]);
                 }}
                 iconAt={(index) =>
                     commandMenu.matches[index]?.kind === 'skill' ? (

@@ -200,8 +200,16 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await expectComposerValue(message, '$review-pr ');
         await expect(commands).toHaveCount(0);
 
+        // A row picked from the menu leads a bare `/` next time, under its own heading, and is not repeated below.
         await message.fill('/');
-        await expect(commands.getByRole('option').first()).toHaveText(/^\/compact/u);
+        await expect(commands.getByRole('option')).toHaveText([
+            /^\$review-pr/u,
+            /^\/compact/u,
+            /^\/goal/u,
+        ]);
+        await expect(commands.getByText('Recently Used', { exact: true })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-recent-commands.png') });
+        await message.press('ArrowDown');
         await message.press('Enter');
         await expect(commands).toHaveCount(0);
         await expect(chat.getByText('Context compacted')).toBeVisible();

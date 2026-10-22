@@ -92,6 +92,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.slash.noMatches': '没有匹配的命令或 Skill',
     'agentChat.slash.confirmSendAsText': '没有这个命令。再按一次 Enter 作为文本发送。',
     'agentChat.slash.commands': '命令',
+    'agentChat.slash.recent': '最近使用',
     'agentChat.slash.skills': 'Skill',
     'agentChat.slash.skillsNeedAgent': 'Agent 运行后才会显示 Skill',
     'agentChat.slash.loadingSkills': '正在加载 Skill…',

@@ -1339,6 +1339,12 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   lists keeps its command row. Choosing a skill inserts its invocation and a space instead of
   sending: a Codex `$skill` travels as ordinary text, which Codex resolves to the skill the same way
   its own composer does.
+- **Recently used.** A bare `/` or `$` leads with a Recently Used group: the commands and skills
+  last picked from this menu (Enter, click, or Tab) that it still offers, most recent first, as
+  Claude Code's TUI ranks its own `/` menu by use. A pick goes through `agentActions.recordRecent`,
+  so the Chat menu and the Agent Commands & Skills picker share the provider's eight recents. A
+  recent row is not repeated in its own group, and typing a name ranks by the match alone. The
+  phone menu does not lead with recents yet.
 - `agentChat.runCommand` runs a listed command with optional arguments and rejects anything the
   Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when

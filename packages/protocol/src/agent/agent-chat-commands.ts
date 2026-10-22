@@ -106,30 +106,57 @@ export function filterAgentChatActions(
 }
 
 /**
- * The menu rows for a draft: none unless it is a bare invocation (`agentChatSlashQuery`), otherwise the matches led by
- * the group its sigil names (`filterAgentChatActions`).
+ * The rows the menu leads with under `Recent` while nothing follows the sigil yet: the provider's recently used actions
+ * (`AgentActionsSettings.recent`, most recent first) that this menu still offers, as Claude Code's own `/` menu puts
+ * the user's frequent skills first. Typing a name ranks by the match alone, so the group is empty for any other draft.
+ */
+export function agentChatRecentMenuActions(
+    actions: readonly AgentAction[],
+    draft: string,
+    recent: readonly string[],
+): AgentAction[] {
+    if (agentChatSlashQuery(draft) !== '') return [];
+    const actionsByInvocation = new Map(actions.map((action) => [action.invocation, action]));
+    return recent.flatMap((invocation) => {
+        const action = actionsByInvocation.get(invocation);
+        return action ? [action] : [];
+    });
+}
+
+/**
+ * The menu rows for a draft: none unless it is a bare invocation (`agentChatSlashQuery`), otherwise the recently used
+ * rows (`agentChatRecentMenuActions`) followed by the matches led by the group its sigil names
+ * (`filterAgentChatActions`). A recent row is not repeated in its own group.
  */
 export function agentChatDraftMatches(
     actions: readonly AgentAction[],
     draft: string,
+    recent: readonly string[] = [],
 ): AgentAction[] {
     const query = agentChatSlashQuery(draft);
     if (query === undefined) return [];
-    return filterAgentChatActions(actions, query, draft.startsWith('$') ? '$' : '/');
+    const leading = agentChatRecentMenuActions(actions, draft, recent);
+    const rest =
+        leading.length === 0 ? actions : actions.filter((action) => !leading.includes(action));
+    return [...leading, ...filterAgentChatActions(rest, query, draft.startsWith('$') ? '$' : '/')];
 }
 
 /**
- * The group heading a row starts, or `undefined` when it continues the group above it. An identity, not display text:
- * each surface translates it.
+ * The group heading a row starts, or `undefined` when it continues the group above it. The first `recentCount` rows are
+ * the `Recent` group (`agentChatRecentMenuActions`). An identity, not display text: each surface translates it.
  */
 export function agentChatMenuGroupHeading(
     actions: readonly AgentAction[],
     index: number,
-): 'Commands' | 'Skills' | undefined {
-    const group = (action: AgentAction | undefined) =>
-        action === undefined ? undefined : action.kind === 'command' ? 'Commands' : 'Skills';
-    const current = group(actions[index]);
-    return current === group(actions[index - 1]) ? undefined : current;
+    recentCount = 0,
+): 'Commands' | 'Recent' | 'Skills' | undefined {
+    const group = (position: number) => {
+        if (position < 0 || position >= actions.length) return;
+        if (position < recentCount) return 'Recent';
+        return actions[position].kind === 'command' ? 'Commands' : 'Skills';
+    };
+    const current = group(index);
+    return current === group(index - 1) ? undefined : current;
 }
 
 /**

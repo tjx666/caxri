@@ -1,13 +1,18 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
-import { agentChatDraftMatches, agentChatMenuActions, agentChatSlashQuery } from '@caxri/protocol';
+import {
+    agentChatDraftMatches,
+    agentChatMenuActions,
+    agentChatRecentMenuActions,
+    agentChatSlashQuery,
+} from '@caxri/protocol';
 
 import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
-import { useTerminal } from '../../../stores/selectors';
+import { useSettings, useTerminal } from '../../../stores/selectors';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
 import { agentChatSkillDiscoveryNotice } from '../composer-input/agent-chat-slash-commands';
 import { agentChatActionSuggestion } from '../composer-input/agent-chat-suggestions';
@@ -27,7 +32,8 @@ export const AGENT_ACTION_DISCOVERY_STALE_MS = 30_000;
  * the list for the current draft only: any edit brings it back, including clearing the box and typing the same `/`
  * again. Skills are discovered only once the user starts an invocation, and the provider's commands show while
  * discovery runs or when it fails; `skillNotice` says why skills are missing until discovery answers. The list shows
- * only while the input has focus, so it never stays over another surface the user moved to.
+ * only while the input has focus, so it never stays over another surface the user moved to. A bare `/` or `$` leads
+ * with the provider's recently used rows, the same recents the Agent Commands & Skills picker records and shows.
  */
 export function useAgentChatCommandMenu({
     commands,
@@ -43,7 +49,12 @@ export function useAgentChatCommandMenu({
     const listId = useId();
     const query = agentChatSlashQuery(draft);
     // Discovery answers only for a running Agent, the same gate as the picker.
-    const isAgentRunning = isAgentProcessRunning(useTerminal(terminalId)?.lastAgentProcessState);
+    const terminal = useTerminal(terminalId);
+    const isAgentRunning = isAgentProcessRunning(terminal?.lastAgentProcessState);
+    const settings = useSettings();
+    const recent = terminal?.provider
+        ? settings?.['agents.providers'][terminal.provider].actions.recent.invocations
+        : undefined;
     const discovery = useCaxriQuery(
         'agentActions.list',
         { terminalId },
@@ -74,7 +85,8 @@ export function useAgentChatCommandMenu({
      * Keyed by query so a new search starts at the first match.
      */
     const [active, setActive] = useState({ query, index: 0 });
-    const matches = agentChatDraftMatches(actions, draft);
+    const matches = agentChatDraftMatches(actions, draft, recent);
+    const recentCount = agentChatRecentMenuActions(actions, draft, recent ?? []).length;
     const isOpen = query !== undefined && dismissedDraft !== draft && isInputFocused;
     const activeIndex =
         active.query === query ? Math.min(active.index, Math.max(matches.length - 1, 0)) : 0;
@@ -102,6 +114,10 @@ export function useAgentChatCommandMenu({
          */
         confirmsSendAsText: isOpen && matches.length === 0 && confirmingDraft === draft,
         matches,
+        /**
+         * How many leading `matches` are the recently used group (`agentChatMenuGroupHeading`).
+         */
+        recentCount,
         suggestions: matches.map(agentChatActionSuggestion),
         skillNotice: agentChatSkillDiscoveryNotice({
             isAgentRunning,
