@@ -148,6 +148,8 @@ describe('public Actions E2E log boundary', () => {
         expect(reporterOwners).toEqual([
             '.agents/skills/quality-check/scripts/full-suite-authorization.ts',
             '.github/workflows/release.yml',
+            // Names `--reporter` only to skip its value when parsing an Agent's test command.
+            'packages/protocol/src/agent/agent-shell-command.ts',
             'scripts/reporters/public-e2e-reporter-policy.ts',
         ]);
         const additiveReporterOwners = sources
