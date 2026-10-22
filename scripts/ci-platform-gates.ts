@@ -31,8 +31,8 @@ export interface PlatformCheckCommand {
 export interface PlatformCheckOptions {
     includeNodePtyPreparation?: boolean;
     /**
-     * Gates another job owns. Hosted CI skips `vitest` (the sharded `unit` job) and `eslint` (the Linux `lint` job);
-     * local fallbacks and the hosted full-E2E route keep every gate.
+     * Gates another job owns. Hosted CI skips `vitest` (the sharded `unit` job), `eslint` (the Linux `lint` job), and
+     * `bundle-budget` (the macOS `bundle-budget` job); local fallbacks and the hosted full-E2E route keep every gate.
      */
     skipGates?: readonly PlatformNeutralCIGateId[];
 }

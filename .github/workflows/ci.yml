@@ -139,7 +139,7 @@ jobs:
         needs.retry-policy.outputs.checks_scope != 'full' ||
         needs.retry-policy.outputs.e2e_profile != 'optimized'
       )
-    # Every full-scope gate left here is platform-neutral (Vitest and ESLint run in their own jobs), so the full scope
+    # Every full-scope gate left here is platform-neutral (Vitest, ESLint, and the bundle budget run in their own jobs), so the full scope
     # uses a Linux runner and leaves the account's macOS concurrency to the unit shards. The focused scopes may run
     # tests that load native modules, so they stay on macOS.
     runs-on: ${{ needs.retry-policy.outputs.checks_scope == 'full' && 'ubuntu-latest' || 'macos-15' }}
@@ -210,7 +210,7 @@ jobs:
         env:
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
           CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint
+        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint --skip-bundle-budget
   # Full-scope ESLint is the longest platform-neutral gate (about ten minutes serially on macos-15), so it runs on a
   # four-core Linux runner with worker concurrency, beside `checks` and outside the account's macOS concurrency limit.
   # Lifecycle scripts never run there, so no native module or Electron binary is involved.
@@ -265,6 +265,50 @@ jobs:
         run: >-
           bun run scripts/ci-metrics.ts --label "ESLint concurrency=$ESLINT_CONCURRENCY" --
           bun run lint --concurrency "$ESLINT_CONCURRENCY"
+  # The bundle budget packages a macOS `dir` build with electron-builder, so it is the one full-scope gate that cannot
+  # follow `checks` to Linux. It runs alone on macOS beside the other jobs.
+  bundle-budget:
+    name: bundle budget
+    needs: retry-policy
+    if: >-
+      needs.retry-policy.outputs.checks_scope == 'full' &&
+      (
+        github.event_name != 'workflow_dispatch' ||
+        inputs.validation_target != 'hosted-full' ||
+        needs.retry-policy.outputs.e2e_profile != 'optimized'
+      )
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      CAXRI_EXPECTED_HEAD: ${{ github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify read-only event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+          allow-external-pull-request: 'true'
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+      - name: Run bundle budget gate
+        run: bun run scripts/ci-metrics.ts --label "Bundle budget gate" -- bun run scripts/ci-bundle-budget.ts
   # Vitest dominates both the `full` and `affected` scopes, so it runs in shards beside the lint and type gates instead
   # of after them. The CI gate requires every shard whenever `checks` runs one of those scopes.
   unit:
@@ -720,7 +764,7 @@ jobs:
   ci:
     name: CI gate
     if: ${{ !cancelled() }}
-    needs: [retry-policy, checks, lint, unit, hosted-smoke, e2e]
+    needs: [retry-policy, checks, lint, bundle-budget, unit, hosted-smoke, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required execution path
@@ -731,6 +775,7 @@ jobs:
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
           FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}
           LINT_RESULT: ${{ needs.lint.result }}
+          BUNDLE_BUDGET_RESULT: ${{ needs.bundle-budget.result }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
           SMOKE_RESULT: ${{ needs.hosted-smoke.result }}
           UNIT_RESULT: ${{ needs.unit.result }}
@@ -757,11 +802,13 @@ jobs:
             test "$UNIT_RESULT" = skipped
           fi
 
-          # The Linux lint job runs exactly when checks runs the full scope.
+          # The Linux lint and macOS bundle budget jobs run exactly when checks runs the full scope.
           if test "$CHECKS_SCOPE" = full && test "$CHECKS_RESULT" != skipped; then
             test "$LINT_RESULT" = success
+            test "$BUNDLE_BUDGET_RESULT" = success
           else
             test "$LINT_RESULT" = skipped
+            test "$BUNDLE_BUDGET_RESULT" = skipped
           fi
 
           case "$VALIDATION_TARGET" in

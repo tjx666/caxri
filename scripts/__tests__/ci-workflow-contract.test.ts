@@ -46,6 +46,7 @@ describe('CI workflow contract', () => {
         );
         expect(document.jobs.unit['runs-on']).toBe('macos-15');
         expect(document.jobs.lint['runs-on']).toBe('ubuntu-latest');
+        expect(document.jobs['bundle-budget']['runs-on']).toBe('macos-15');
         expect(document.jobs.ci['runs-on']).toBe('ubuntu-latest');
         expect(document.jobs.e2e['runs-on']).toBe('macos-15');
         expect(document.jobs.e2e.if).toContain("github.event_name == 'workflow_dispatch'");
@@ -103,18 +104,20 @@ describe('CI workflow contract', () => {
     it('separates event trust from runner hardware trust', () => {
         const retry = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1] ?? '';
         const checks = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}lint:/u)?.[1] ?? '';
-        const lint = workflow.match(/\n {2}lint:\n([\s\S]*?)\n {2}unit:/u)?.[1] ?? '';
+        const lint = workflow.match(/\n {2}lint:\n([\s\S]*?)\n {2}bundle-budget:/u)?.[1] ?? '';
+        const bundleBudget =
+            workflow.match(/\n {2}bundle-budget:\n([\s\S]*?)\n {2}unit:/u)?.[1] ?? '';
         const unit = workflow.match(/\n {2}unit:\n([\s\S]*?)\n {2}hosted-smoke:/u)?.[1] ?? '';
 
         for (const job of [retry, checks, lint]) {
             expect(job).toContain('test "$RUNNER_OS" = Linux');
             expect(job).toContain('test "$RUNNER_ARCH" = X64');
         }
-        for (const job of [checks, unit]) {
+        for (const job of [checks, bundleBudget, unit]) {
             expect(job).toContain('test "$RUNNER_OS" = macOS');
             expect(job).toContain('test "$RUNNER_ARCH" = ARM64');
         }
-        for (const job of [retry, checks, lint, unit]) {
+        for (const job of [retry, checks, lint, bundleBudget, unit]) {
             expect(job.indexOf('Verify hosted runner boundary before checkout')).toBeLessThan(
                 job.indexOf('actions/checkout@'),
             );
@@ -211,7 +214,7 @@ describe('CI workflow contract', () => {
         const run = job.steps.find((step) => step.run === 'bun run scripts/run-ci-unit-tests.ts');
         expect(run?.env?.CAXRI_VITEST_SHARD).toBe('${{ matrix.shard }}');
         expect(workflow).toContain(
-            'bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint',
+            'bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint --skip-bundle-budget',
         );
         const lint = unit.jobs.lint;
         expect(lint.needs).toBe('retry-policy');
@@ -238,6 +241,7 @@ describe('CI workflow contract', () => {
             'retry-policy',
             'checks',
             'lint',
+            'bundle-budget',
             'unit',
             'hosted-smoke',
             'e2e',
@@ -246,6 +250,8 @@ describe('CI workflow contract', () => {
         expect(gate).toContain('test "$UNIT_RESULT" = skipped');
         expect(gate).toContain('test "$LINT_RESULT" = success');
         expect(gate).toContain('test "$LINT_RESULT" = skipped');
+        expect(gate).toContain('test "$BUNDLE_BUDGET_RESULT" = success');
+        expect(gate).toContain('test "$BUNDLE_BUDGET_RESULT" = skipped');
         expect(gate).toContain('hosted-smoke)');
         expect(gate).toContain('hosted-full)');
         expect(gate).not.toContain('self-hosted-final');

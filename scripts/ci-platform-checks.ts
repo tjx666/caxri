@@ -10,6 +10,7 @@ import { runChildProcess } from './exec';
  * Hosted CI runs these gates in their own jobs beside the remaining platform checks.
  */
 const SKIP_GATE_ARGUMENTS: Readonly<Record<string, PlatformNeutralCIGateId>> = {
+    '--skip-bundle-budget': 'bundle-budget',
     '--skip-eslint': 'eslint',
     '--skip-vitest': 'vitest',
 };
