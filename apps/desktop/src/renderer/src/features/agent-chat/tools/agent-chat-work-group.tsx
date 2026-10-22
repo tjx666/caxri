@@ -100,6 +100,7 @@ function DisclosureRow({
     disclosureKind,
     expansionKey,
     glyph,
+    isList = false,
     isRunning = false,
     itemId,
     title,
@@ -118,6 +119,11 @@ function DisclosureRow({
     expansionKey: string;
     glyph: ReactNode;
     /**
+     * A summary whose detail is its list of rows. As in the Codex app, its chevron follows the title and stays shown
+     * while expanded, and the rows continue at the header's own pitch instead of after a gap.
+     */
+    isList?: boolean;
+    /**
      * Sweeps the activity highlight across the whole title while the work runs, the way the Codex app marks its live
      * row.
      */
@@ -134,6 +140,17 @@ function DisclosureRow({
     const detailId = useId();
     const titleId = useId();
     const trailingId = useId();
+    const chevron = (
+        <ChevronRight
+            aria-hidden="true"
+            className={cn(
+                'size-3.5 shrink-0 text-muted opacity-0 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
+                agentChatChevronMotion(isExpanded),
+                isExpanded && 'rotate-90',
+                isList && isExpanded && 'opacity-100',
+            )}
+        />
+    );
     const row = (
         <div className="group/row relative flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-muted hover:bg-list-hover-background hover:text-list-hover-foreground has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-accent">
             <button
@@ -153,6 +170,7 @@ function DisclosureRow({
                 id={titleId}
             >
                 {title}
+                {isList && chevron}
             </span>
             <span className="flex shrink-0 items-center gap-2" id={trailingId}>
                 {trailing}
@@ -162,14 +180,7 @@ function DisclosureRow({
              * stack a column of arrows down the transcript's edge. It keeps its box while hidden, so
              * revealing it never shifts the trailing stats.
              */}
-            <ChevronRight
-                aria-hidden="true"
-                className={cn(
-                    'size-3.5 shrink-0 text-muted opacity-0 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
-                    agentChatChevronMotion(isExpanded),
-                    isExpanded && 'rotate-90',
-                )}
-            />
+            {!isList && chevron}
         </div>
     );
     return (
@@ -183,7 +194,7 @@ function DisclosureRow({
                 row
             )}
             <DisclosureMotion animate expanded={isExpanded} id={detailId} kind={disclosureKind}>
-                <div className="mt-1 mb-2 ml-7 space-y-2">{children}</div>
+                <div className={isList ? 'mb-1 ml-7' : 'mt-1 mb-2 ml-7 space-y-2'}>{children}</div>
             </DisclosureMotion>
         </div>
     );
@@ -484,8 +495,8 @@ function AgentChatWorkSummary({
     onOpenFile,
 }: {
     /**
-     * Whether the next tool call can still join this run. Its title keeps sweeping between calls, so fast commands that
-     * each settle before `SUMMARY_RUNNING_DELAY_MS` still show the turn working (as T3 Code's live work row does).
+     * Whether the next tool call can still join this run. Its title names the current step and keeps sweeping between
+     * calls, so fast commands still show the turn working; the aggregate replaces it once the run ends.
      */
     isOpen: boolean;
     items: readonly AgentChatWorkItem[];
@@ -497,16 +508,18 @@ function AgentChatWorkSummary({
         agentChatActiveWork(items)?.item.id,
         SUMMARY_RUNNING_DELAY_MS,
     );
-    const described = agentChatWorkSummaryItems(items, shouldShowRunning);
+    // An open group names each step as it starts, so the delay that keeps a settled count from flickering is moot.
+    const described = isOpen ? items : agentChatWorkSummaryItems(items, shouldShowRunning);
     const failureStatus = agentChatWorkGroupFailure(described);
-    const phrases = agentChatWorkSummaryPhrases(described, t);
-    const glyph = agentChatWorkSummaryGlyph(described);
+    const phrases = agentChatWorkSummaryPhrases(described, t, { isOpen });
+    const glyph = agentChatWorkSummaryGlyph(described, { isOpen });
     const isRunning = described.some(isAgentChatWorkRunning);
     return (
         <DisclosureRow
             containedItems={items}
             disclosureKind="agent-chat-work-group"
             expansionKey={agentChatSummaryExpansionKey(anchorItems)}
+            isList
             glyph={
                 <AgentChatWorkGlyph
                     isFailed={failureStatus !== undefined}

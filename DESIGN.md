@@ -1381,8 +1381,10 @@ icon already names the server; expanded, its arguments list as muted mono names 
 values, and its result wraps. Consecutive work collapses into one summary row. While it runs, the
 row names the newest active action and its target ("Reading app.ts", "Running git status --short")
 and uses that tool kind's glyph. While it is still the running turn's latest work, its title keeps
-sweeping between calls, so a run of fast commands never reads as idle. Once every item settles, it
-becomes an aggregate (`Ran 3 commands, read 2 files`) that leads with the glyph of the one kind its
+sweeping and naming the newest step between calls (`Running git status --short` after that command
+finished), so a run of fast commands never reads as idle. Its chevron follows the title and stays
+shown while expanded, and the expanded rows continue at the header's own pitch. Once the run ends
+(a reply follows it or the turn ends), it becomes an aggregate (`Ran 3 commands, read 2 files`) that leads with the glyph of the one kind its
 items share (an MCP lead shows that call's server icon), or the generic work glyph when they mix
 kinds, ending `, N failed` when items
 failed or were declined, whose expanded list scrolls past 240px and fades its clipped edge over

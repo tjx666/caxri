@@ -255,6 +255,22 @@ describe('agentChatWorkSummaryPhrases', () => {
         ]);
     });
 
+    it('names the current step of an open group between calls and counts only once it ends', () => {
+        const second: AgentChatWorkItem = { ...command, id: 'second', command: 'printf second' };
+        const reasoning: AgentChatWorkItem = {
+            id: 'reasoning',
+            type: 'reasoning',
+            text: '',
+            streaming: false,
+        };
+        expect(
+            agentChatWorkSummaryPhrases([command, second, reasoning], undefined, { isOpen: true }),
+        ).toEqual([{ key: 'active', text: 'Running printf second' }]);
+        expect(agentChatWorkSummaryPhrases([command, second])).toEqual([
+            { key: 'command', text: 'Ran 2 commands' },
+        ]);
+    });
+
     it('ends with the failure count and joins into the summary text', () => {
         const phrases = agentChatWorkSummaryPhrases([edit, failed]);
         expect(phrases.at(-1)).toEqual({ key: 'failures', text: ', 1 failed' });
