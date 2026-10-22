@@ -877,7 +877,8 @@ several callbacks can share one item, so the transport id is never the key.
   (`agentChat.animatedToolIcons`), and the composer status line's indicator follows
   `agentChat.workingIndicator` (Buddy acting out the turn's current tool from the snapshot's
   `activity.work`, or the spinner). A thought shows the latest bold title Codex opens a reasoning
-  summary part with (`Thinking Planning the fix`). Expanded command and tool output is
+  summary part with (`Thinking Planning the fix`). Back-to-back reasoning items merge into one thought
+  row whose expanded view lists every summary in order, its bold titles in the row's muted color. Expanded command and tool output is
   painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
   `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
   `git diff`/`git show`, or JSON; anything else stays plain text. Timeline folding lives in

@@ -97,6 +97,7 @@ import {
     runBigDiff,
     runBurstStream,
     runCodeBlocks,
+    runConsecutiveThoughts,
     runLongStream,
     runMarkdownTable,
     runTestCommands,
@@ -325,6 +326,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runSlow(io, turn, text.includes('reconnect'));
     } else if (text.includes('codeblocks')) {
         await runCodeBlocks(io, turn);
+    } else if (text.includes('thoughts')) {
+        await runConsecutiveThoughts(io, turn);
     } else if (text.includes('testrun')) {
         await runTestCommands(io, turn);
     } else if (text.includes('workrows')) {
