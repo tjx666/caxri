@@ -5,6 +5,7 @@ import {
     completeAgentChatAction,
 } from '@caxri/protocol';
 
+import { recordRecentAgentAction } from '../../agent-actions/agent-actions-commands';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../activity/agent-chat-goal-mode';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
 import {
@@ -146,9 +147,19 @@ export function useAgentChatComposerSend({
               }
             : undefined;
     /**
+     * Promotes a row picked from the slash menu in the provider's recents, which a bare `/` lists first next time
+     * (`agentChatRecentMenuActions`). The menu has closed by the time the write lands, so the settings push that
+     * carries it is early enough and nothing waits for it.
+     */
+    const recordRecent = (action: AgentAction): void => {
+        // eslint-disable-next-line no-void -- recordRecentAgentAction reports its own failures through tryCommand
+        void recordRecentAgentAction(terminalId, action.invocation);
+    };
+    /**
      * Tab: put the row's text into the input and stop there, so the user can add arguments or press Enter to run it.
      */
     const complete = (action: AgentAction): void => {
+        recordRecent(action);
         if (isGoalOffered && isAgentChatGoalAction(action)) {
             setDraft(() => '');
             enterGoalMode();
@@ -162,6 +173,7 @@ export function useAgentChatComposerSend({
             complete(action);
             return;
         }
+        recordRecent(action);
         const completed = completeAgentChatAction(action);
         setDraft(() => completed);
         focusInput();

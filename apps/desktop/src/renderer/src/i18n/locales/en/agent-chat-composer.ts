@@ -96,6 +96,7 @@ export const agentChatComposer = {
     'agentChat.slash.noMatches': 'No matching command or skill',
     'agentChat.slash.confirmSendAsText': 'No such command. Press Enter again to send as text.',
     'agentChat.slash.commands': 'Commands',
+    'agentChat.slash.recent': 'Recently Used',
     'agentChat.slash.skills': 'Skills',
     'agentChat.slash.skillsNeedAgent': 'Skills appear once the Agent is running',
     'agentChat.slash.loadingSkills': 'Loading skills…',

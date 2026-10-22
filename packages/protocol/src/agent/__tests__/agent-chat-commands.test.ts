@@ -5,6 +5,7 @@ import {
     agentChatDraftMatches,
     agentChatMenuActions,
     agentChatMenuGroupHeading,
+    agentChatRecentMenuActions,
     agentChatSlashQuery,
     completeAgentChatAction,
     filterAgentChatActions,
@@ -108,6 +109,37 @@ describe('Agent Chat composer menu', () => {
             'Skills',
         ]);
         expect(agentChatMenuGroupHeading([skill('$commit')], 0)).toBe('Skills');
+    });
+
+    it('leads a bare sigil with the recently used rows it still offers, under their own heading', () => {
+        const actions = agentChatMenuActions(commands, [skill('$commit')]);
+        // Most recent first; `/gone` is no longer offered.
+        const recent = ['$commit', '/gone', '/review'];
+        const matches = agentChatDraftMatches(actions, '/', recent);
+        expect(matches.map((action) => action.invocation)).toEqual([
+            '$commit',
+            '/review',
+            '/compact',
+            '/security-review',
+        ]);
+        const recentCount = agentChatRecentMenuActions(actions, '/', recent).length;
+        expect(recentCount).toBe(2);
+        expect(
+            matches.map((_, index) => agentChatMenuGroupHeading(matches, index, recentCount)),
+        ).toEqual(['Recent', undefined, 'Commands', undefined]);
+        // A `$` draft keeps the same recents ahead of its skills-first order.
+        expect(
+            agentChatDraftMatches(actions, '$', ['/review']).map((action) => action.invocation),
+        ).toEqual(['/review', '$commit', '/compact', '/security-review']);
+    });
+
+    it('ranks a typed name by the match alone, ignoring recents', () => {
+        const actions = agentChatMenuActions(commands, [skill('$commit', 'Review and commit')]);
+        expect(agentChatRecentMenuActions(actions, '/rev', ['$commit'])).toEqual([]);
+        expect(
+            agentChatDraftMatches(actions, '/rev', ['$commit']).map((action) => action.invocation),
+        ).toEqual(['/review', '/security-review', '$commit']);
+        expect(agentChatDraftMatches(actions, 'plain', ['$commit'])).toEqual([]);
     });
 
     it('leaves room for arguments when a command takes them and after every skill', () => {
