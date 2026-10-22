@@ -83,7 +83,9 @@ export function AgentChatActivityBar({
                             exit={{ height: 0, opacity: 0 }}
                             initial={{ height: 0, opacity: 0 }}
                             key="status"
-                            transition={STATUS_ROW_SPRING}
+                            // `MotionConfig reducedMotion` only drops transform and layout animation; height and opacity
+                            // still tweened, so Reduce Motion snaps the row instead.
+                            transition={isReducedMotion ? { duration: 0 } : STATUS_ROW_SPRING}
                         >
                             <AgentChatStatusRow
                                 isStopping={isStopping}
