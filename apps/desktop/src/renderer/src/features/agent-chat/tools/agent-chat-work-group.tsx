@@ -18,6 +18,7 @@ import {
     agentToolActiveLabel,
     describeAgentChatWorkRow,
     isAgentChatWorkRunning,
+    mergeAgentChatReasoning,
     splitAgentChatWork,
     stripLineNumberGutter,
     unwrapShellCommand,
@@ -250,9 +251,12 @@ function WorkDetail({
     const isPaintable = !isAgentChatWorkRunning(item);
     switch (item.type) {
         case 'reasoning': {
+            // Codex titles each summary part in bold; at full contrast those titles outshone the muted 12px row they
+            // sit under, so they keep the thought's color and size and stand out by weight alone, as the Codex TUI dims
+            // its whole reasoning cell.
             return (
                 <AgentChatMessage
-                    className="text-muted select-text"
+                    className="gap-2 text-[12px] text-muted select-text [&_strong]:text-inherit"
                     isStreaming={item.streaming}
                     text={agentChatReasoningTitle(item.text).body}
                     onOpenFile={onOpenFile}
@@ -567,8 +571,9 @@ export function AgentChatWorkGroup({
     onOpenFile?: (target: string) => void;
 }) {
     const links = useContext(AgentChatTaskLinksContext);
+    const merged = useMemo(() => mergeAgentChatReasoning(items), [items]);
     const { summarized, rows } = splitAgentChatWork(
-        items,
+        merged,
         (item) => links?.tasksByItem.has(item.id) === true,
     );
     const single = !isOpen && summarized.length === 1 ? summarized[0] : undefined;

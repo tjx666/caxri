@@ -126,6 +126,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Agent Chat system-event visibility**: Explicit system-subtype handling keeps routine Hook diagnostics out of the conversation. Evidence: `docs/agent-chat.md`; `apps/server/src/domains/agent-chat/claude-system-notices.ts`.
 - **Agent Chat feedback callouts**: Paseo notification severity uses an icon and a tinted container; Caxri preserves provider warning/error levels, source headings, and full readable details. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/messages/agent-chat-message.tsx`; `apps/mobile/src/features/agent-chat/agent-chat-feedback.tsx`.
 - **Window presence**: Client heartbeat of visible and focused state, used to decide what a user is looking at. Evidence: `docs/adr/0017-per-window-session-presence.md`; `apps/server/src/domains/window-presence/window-presence.ts`.
+- **Consecutive reasoning as one thought**: A thought chunk appends to the previous thought instead of starting a new row. Evidence: `packages/protocol/src/agent/agent-chat-work.ts` (`mergeAgentChatReasoning`).
 
 ## Superset, Synara, Muxy, Herdr, Kero
 
@@ -203,3 +204,4 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Enter steers while the Agent waits on subagents**: While a Codex main Agent waits on its subagents, Enter steers the message into the running turn (ending the wait) instead of queueing it. Reference: Codex CLI TUI. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-presentation.ts` (`agentChatSubmitDelivery`); `docs/agent-chat.md`.
 - **Streaming reply fade-in**: Newly streamed characters fade in from transparent, so the reply's tail reads as a short gradient. Reference: Codex app. Evidence: `apps/desktop/src/renderer/src/components/markdown/revealing-text.tsx`; `DESIGN.md` (Motion).
 - **Sidebar Fork Session and Session menu grouping**: A sidebar menu entry that forks the whole conversation into a new chat; a Copy submenu; Archive and Delete grouped last. Reference: Codex app. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-row-menu.tsx`; `docs/agent-chat.md` (Fork Session).
+- **Muted reasoning summary titles**: Bold summary titles keep the dimmed reasoning color instead of full contrast. Reference: Codex TUI. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tools/agent-chat-work-group.tsx`.

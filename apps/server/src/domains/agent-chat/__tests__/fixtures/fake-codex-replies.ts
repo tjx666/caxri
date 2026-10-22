@@ -92,6 +92,38 @@ export async function runCodeBlocks(io: FakeCodexIo, turn: FakeTurn) {
 }
 
 /**
+ * The `thoughts` turn: three reasoning items in a row whose summaries are only bold titles, as Codex often emits them,
+ * a command, two more such items, then a reply.
+ */
+export async function runConsecutiveThoughts(io: FakeCodexIo, turn: FakeTurn) {
+    const thought = (summary: string[]) =>
+        io.completeItem(turn, {
+            type: 'reasoning',
+            id: crypto.randomUUID(),
+            summary,
+            content: [],
+        });
+    thought(['**Analyzing detached submodule reasoning**']);
+    thought(['**Clarifying submodule branch usage in worktrees**']);
+    thought([
+        '**Identifying incorrect detached submodule setup**\n\nThe worktree checks out a detached HEAD.',
+    ]);
+    io.completeItem(turn, {
+        type: 'commandExecution',
+        id: crypto.randomUUID(),
+        command: '/bin/zsh -lc "git status --short"',
+        cwd: process.cwd(),
+        status: 'completed',
+        aggregatedOutput: ' M src/total.ts\n',
+        exitCode: 0,
+        durationMs: 1200,
+    });
+    thought(['**Planning branch ownership transfer**']);
+    thought(['**Preparing concise branch transfer explanation**']);
+    await io.streamMessage(turn, 'The submodule should track its own branch.', 0);
+}
+
+/**
  * The `testrun` turn: a thought, a test command that fails with exit code 1, a passing command, then a short reply.
  */
 export async function runTestCommands(io: FakeCodexIo, turn: FakeTurn) {

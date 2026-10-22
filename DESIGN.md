@@ -1378,7 +1378,8 @@ and its command line moves into the expanded view. An MCP call leads with its se
 icon (radius 2, fading in over the generic MCP glyph that holds the slot while it loads, which stays
 when the server has none) and reads as the tool alone in sentence case (`Web search exa`), since the
 icon already names the server; expanded, its arguments list as muted mono names beside body-font
-values, and its result wraps. Consecutive work collapses into one summary row. While it runs, the
+values, and its result wraps. Back-to-back thoughts are one row titled by the latest summary title;
+expanded, its text is the row's 12px `--muted`, bold titles included. Consecutive work collapses into one summary row. While it runs, the
 row names the newest active action and its target ("Reading app.ts", "Running git status --short")
 and uses that tool kind's glyph. While it is still the running turn's latest work, its title keeps
 sweeping and naming the newest step between calls (`Running git status --short` after that command

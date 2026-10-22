@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import type { AgentChatItem } from '../agent-chat-contract';
 import type { AgentChatWorkItem } from '../agent-chat-work';
 import {
-    agentChatReasoningTitle,
     agentChatTurnActiveWork,
     agentChatTurnLabel,
     agentChatWorkDuration,
@@ -398,39 +397,6 @@ describe('agentChatWorkGroupFailure', () => {
                 { ...command('c1'), status: 'failed' },
             ] as Items),
         ).toBe('failed');
-    });
-});
-
-describe('agentChatReasoningTitle', () => {
-    it('names a thought by its latest Codex summary title', () => {
-        expect(agentChatReasoningTitle('**Planning the fix**\n\nRead the parser first.')).toEqual({
-            title: 'Planning the fix',
-            body: 'Read the parser first.',
-        });
-        const twoParts = '**Reading code**\n\nOpened it.\n\n**Writing tests**\n\nAdded one.';
-        expect(agentChatReasoningTitle(twoParts)).toEqual({
-            title: 'Writing tests',
-            body: twoParts,
-        });
-        expect(agentChatReasoningTitle('Plain **bold** thought')).toEqual({
-            body: 'Plain **bold** thought',
-        });
-    });
-
-    it('shows the title beside the Thinking verb', () => {
-        expect(
-            describeAgentChatWork({
-                id: 'r',
-                type: 'reasoning',
-                text: '**Tracing the bug**\n\n',
-                streaming: true,
-            }),
-        ).toEqual({
-            kind: 'thought',
-            label: 'Thinking',
-            subject: 'Tracing the bug',
-            isCodeSubject: false,
-        });
     });
 });
 

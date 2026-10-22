@@ -112,6 +112,33 @@ export function agentChatReasoningTitle(text: string): { title?: string; body: s
 }
 
 /**
+ * Back-to-back reasoning items read as one thought. Codex emits a reasoning item per burst of thinking, often several
+ * in a row whose summaries are only bold titles, and a row each stacked identical `Thought` rows down the transcript. A
+ * run becomes one item keyed by its first item, so the row keeps its expansion as later items join; its text joins the
+ * parts, so the row shows the latest title and the expanded view lists every title in order (Paseo likewise appends a
+ * thought to the one before it). A lone reasoning item and every other item are returned as they are.
+ */
+export function mergeAgentChatReasoning(
+    items: readonly AgentChatWorkItem[],
+): readonly AgentChatWorkItem[] {
+    const merged: AgentChatWorkItem[] = [];
+    for (const item of items) {
+        const previous = merged.at(-1);
+        if (item.type !== 'reasoning' || previous?.type !== 'reasoning') {
+            merged.push(item);
+            continue;
+        }
+        const text = [previous.text.trim(), item.text.trim()].filter(Boolean).join('\n\n');
+        merged[merged.length - 1] = {
+            ...previous,
+            text,
+            streaming: previous.streaming || item.streaming,
+        };
+    }
+    return merged.length === items.length ? items : merged;
+}
+
+/**
  * The kind, verb, and subject a work row shows, in the reader's language. Commands and file changes are first-class
  * items rather than named tools, so they are described here; every other tool goes through the shared provider tool
  * table. A settled item that did not complete names its outcome in the verb (`Failed to edit`), so the title tells the
