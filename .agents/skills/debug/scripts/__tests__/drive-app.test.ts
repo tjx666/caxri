@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseDriveCommand, settingsSourceWithLanguage } from '../drive-app';
+import { chatChoiceName, parseDriveCommand, settingsSourceWithLanguage } from '../drive-app';
 
 describe('drive-app', () => {
     it('reads a step, its argument, and a trailing screenshot path', () => {
@@ -48,6 +48,13 @@ describe('drive-app', () => {
                 },
             ).inspectorPort,
         ).toBe(9440);
+    });
+
+    it('finds the Chat row of the add-Project dialog in either interface language', () => {
+        expect(chatChoiceName('codex').test('Codex Chat')).toBe(true);
+        expect(chatChoiceName('codex').test('Codex对话')).toBe(true);
+        expect(chatChoiceName('codex').test('Codex')).toBe(false);
+        expect(chatChoiceName('claude').test('Codex Chat')).toBe(false);
     });
 
     it('writes the language into the whole settings source that settings.update replaces', () => {
