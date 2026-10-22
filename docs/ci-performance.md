@@ -391,6 +391,14 @@ cold Android Gradle build that only started after the Linux natives finished. Th
 - The Release workflow builds the Android update bundle in its own `android-bundle` job, in parallel
   with `linux-natives`, and restores a Gradle home cache with the build cache enabled. The
   publishing job downloads the bundle and still compares it byte for byte with both Desktop flavors.
+  With the Gradle cache warm (v0.0.128), the Android build took 10 minutes against 18.8 cold, and
+  the release finished 19.7 minutes after its trigger. Of those 10 minutes, about four were CMake
+  compiles the Gradle build cache does not cover and 3.6 were R8 inside the project's 2 GiB heap, so
+  the shared setup now routes CMake through a per-run `ccache` cache and raises the Gradle heap to
+  4 GiB.
+- `scripts/ci-platform-gates.ts` marks the gates that need macOS (`vitest`, `bundle-budget`). A
+  contract test requires the Linux full-scope `checks` command to skip each of them, and
+  `ci-platform-checks.ts` refuses such a selection off macOS before any gate runs.
 
 ## Explicit full-E2E dispatch contract
 

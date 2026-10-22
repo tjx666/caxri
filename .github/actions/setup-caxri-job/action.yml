@@ -136,6 +136,30 @@ runs:
       run: |
         mkdir -p "$HOME/.gradle"
         echo 'org.gradle.caching=true' >> "$HOME/.gradle/gradle.properties"
+        # R8 spent 3.6 of a warm 10-minute release build inside the project's 2 GiB heap; the 7 GiB macos-15 runner
+        # has room for more. Gradle-home properties override the project's gradle.properties.
+        echo 'org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g' >> "$HOME/.gradle/gradle.properties"
+
+    # The Gradle build cache does not cover CMake: the worklets, reanimated, expo-modules-core, and app native
+    # libraries recompiled from scratch for about four minutes of every warm release build. CMake 3.17+ reads the
+    # compiler launcher from these variables for every project AGP configures, including third-party libraries.
+    - name: Enable the native compiler cache
+      if: inputs.gradle-cache == 'true'
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: '1'
+        HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      run: |
+        brew install ccache
+        {
+          echo "CCACHE_DIR=$HOME/.ccache"
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE"
+          echo 'CCACHE_COMPILERCHECK=content'
+          echo 'CCACHE_MAXSIZE=2G'
+          echo 'CCACHE_NOHASHDIR=true'
+          echo 'CMAKE_C_COMPILER_LAUNCHER=ccache'
+          echo 'CMAKE_CXX_COMPILER_LAUNCHER=ccache'
+        } >> "$GITHUB_ENV"
 
     - name: Cache Gradle home
       if: inputs.gradle-cache == 'true'
@@ -147,6 +171,17 @@ runs:
         key: gradle-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'mise.toml') }}
         restore-keys: |
           gradle-${{ runner.os }}-${{ runner.arch }}-
+
+    # Unlike the Gradle home, the compiler cache is keyed per run so each release refreshes it from the previous one;
+    # ccache evicts beyond CCACHE_MAXSIZE.
+    - name: Cache native compiler output
+      if: inputs.gradle-cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.ccache
+        key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
+        restore-keys: |
+          ccache-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Install media tools on hosted runner
       if: inputs.install-media-tools == 'true'

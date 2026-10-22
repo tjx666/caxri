@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import { MACOS_ONLY_CI_GATE_IDS, SKIP_GATE_ARGUMENTS } from '../ci-platform-gates';
+
 const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const performanceTrendWorkflow = await readFile(
     new URL('../../.github/workflows/performance-trend.yml', import.meta.url),
@@ -175,6 +177,32 @@ describe('CI workflow contract', () => {
         expect(setupAction).toContain('test -x "$sdk_root/cmake/3.22.1/bin/ninja"');
     });
 
+    it('caches Gradle and native compiler output for Android release builds', () => {
+        const steps = (
+            parse(setupAction) as {
+                runs: {
+                    steps: Array<{
+                        if?: string;
+                        name?: string;
+                        run?: string;
+                        with?: Record<string, string>;
+                    }>;
+                };
+            }
+        ).runs.steps;
+        const gradleProperties = steps.find(
+            (step) => step.name === 'Enable the Gradle build cache',
+        );
+        expect(gradleProperties?.run).toContain('org.gradle.jvmargs=-Xmx4g');
+        const ccache = steps.find((step) => step.name === 'Enable the native compiler cache');
+        expect(ccache?.if).toBe("inputs.gradle-cache == 'true'");
+        expect(ccache?.run).toContain("echo 'CMAKE_C_COMPILER_LAUNCHER=ccache'");
+        expect(ccache?.run).toContain("echo 'CMAKE_CXX_COMPILER_LAUNCHER=ccache'");
+        const cache = steps.find((step) => step.name === 'Cache native compiler output');
+        expect(cache?.with?.path).toBe('~/.ccache');
+        expect(cache?.with?.key).toContain('${{ github.run_id }}');
+    });
+
     it('keeps external pull requests on a read-only token without secrets or write permission', () => {
         expect(workflow).toContain('permissions:\n  actions: read\n  contents: read');
         expect(workflow).not.toContain('pull_request_target:');
@@ -232,6 +260,22 @@ describe('CI workflow contract', () => {
             expect(lint.if).toContain(condition);
             expect(unit.jobs.checks.if).toContain(condition);
         }
+    });
+
+    it('skips every macOS-only gate in the Linux full-scope platform checks', () => {
+        const document = parse(workflow) as {
+            jobs: { checks: { steps: Array<{ name?: string; run?: string }> } };
+        };
+        const run = document.jobs.checks.steps.find(
+            (step) => step.name === 'Run full platform checks',
+        )?.run;
+        const skipped = (run ?? '')
+            .split(/\s+/u)
+            .flatMap((argument) =>
+                Object.hasOwn(SKIP_GATE_ARGUMENTS, argument) ? [SKIP_GATE_ARGUMENTS[argument]] : [],
+            );
+        expect(MACOS_ONLY_CI_GATE_IDS.length).toBeGreaterThan(0);
+        for (const id of MACOS_ONLY_CI_GATE_IDS) expect(skipped).toContain(id);
     });
 
     it('keeps the stable gate aware of every explicit route', () => {

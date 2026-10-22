@@ -2,18 +2,12 @@
 
 import process from 'node:process';
 
-import type { PlatformNeutralCIGateId } from './ci-platform-gates';
-import { platformCheckCommands } from './ci-platform-gates';
+import {
+    assertGatesRunOnPlatform,
+    platformCheckCommands,
+    SKIP_GATE_ARGUMENTS,
+} from './ci-platform-gates';
 import { runChildProcess } from './exec';
-
-/**
- * Hosted CI runs these gates in their own jobs beside the remaining platform checks.
- */
-const SKIP_GATE_ARGUMENTS: Readonly<Record<string, PlatformNeutralCIGateId>> = {
-    '--skip-bundle-budget': 'bundle-budget',
-    '--skip-eslint': 'eslint',
-    '--skip-vitest': 'vitest',
-};
 
 async function main(): Promise<void> {
     const arguments_ = process.argv.slice(2);
@@ -29,6 +23,10 @@ async function main(): Promise<void> {
         includeNodePtyPreparation: isIncludeNodePtyPreparation,
         skipGates: arguments_.flatMap((argument) => SKIP_GATE_ARGUMENTS[argument] ?? []),
     });
+    assertGatesRunOnPlatform(
+        checks.map(({ id }) => id),
+        process.platform,
+    );
     for (const check of checks) {
         // eslint-disable-next-line no-await-in-loop -- matches the fail-fast ordering of the former workflow steps
         const result = await runChildProcess(check.command, check.arguments, { stdio: 'inherit' });
