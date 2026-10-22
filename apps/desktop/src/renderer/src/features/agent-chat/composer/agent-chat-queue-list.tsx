@@ -206,7 +206,7 @@ function QueueCard({
         <li
             aria-busy={isPending}
             className={cn(
-                'group flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-list-hover-background',
+                'group relative flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-0.5 pl-2 text-[12px] leading-5 focus-within:pr-21 hover:bg-list-hover-background hover:pr-21',
                 isPending && 'opacity-60',
             )}
         >
@@ -225,52 +225,59 @@ function QueueCard({
                 // Stays while the composer is focused (the caller passes `enterQueuedId` only then), hover included.
                 <span
                     aria-hidden="true"
-                    className="flex shrink-0 items-center gap-1 pr-1 text-[11px] text-muted"
+                    className="flex shrink-0 items-center gap-1 pr-1.5 text-[11px] text-muted"
                     data-agent-chat-queue-enter-hint=""
                 >
                     <ShortcutBadge compact shortcut="enter" />
                     {t('agentChat.queue.steer')}
                 </span>
             )}
-            <QueueCardAction
-                ariaLabel={t('agentChat.queue.editMessage')}
-                isDisabled={!entry.canEdit}
-                tooltip={labels.editTooltip}
-                // A message with images is edited in its row, which keeps focus there until it closes.
-                onAction={entry.imageCount > 0 ? noop : onAction}
-                onRun={() => {
-                    if (entry.imageCount > 0) {
-                        setIsEditingText(true);
-                        return;
-                    }
-                    // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                    void editAgentChatQueued(terminalId, entry.id, onEdit);
-                }}
-            >
-                <Pencil className="size-3.5" />
-            </QueueCardAction>
-            <QueueCardAction
-                ariaLabel={t('agentChat.queue.deleteMessage')}
-                isDisabled={isPending}
-                tooltip={labels.deleteTooltip}
-                onAction={onAction}
-                onRun={() => removeAgentChatQueued(terminalId, entry.id)}
-            >
-                <Trash2 className="size-3.5" />
-            </QueueCardAction>
-            <QueueCardAction
-                ariaLabel={labels.sendAriaLabel}
-                isDisabled={!entry.canSendNow}
-                tooltip={labels.sendTooltip}
-                onAction={onAction}
-                onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
-            >
-                {isTurnRunning ? (
-                    <ArrowUpToLine className="size-3.5" />
-                ) : (
-                    <CornerDownLeft className="size-3.5" />
-                )}
-            </QueueCardAction>
+            {/*
+             * The actions float over the row's end instead of holding their width in the flow, so while they are hidden
+             * the Enter hint sits flush with the row's end. Hover or focus pads the row by their width (`pr-21`), so they
+             * never cover the message or the hint. They stay full size and in place, so a pointer or Tab reaches them.
+             */}
+            <span className="absolute inset-y-0 right-0.5 flex items-center gap-1">
+                <QueueCardAction
+                    ariaLabel={t('agentChat.queue.editMessage')}
+                    isDisabled={!entry.canEdit}
+                    tooltip={labels.editTooltip}
+                    // A message with images is edited in its row, which keeps focus there until it closes.
+                    onAction={entry.imageCount > 0 ? noop : onAction}
+                    onRun={() => {
+                        if (entry.imageCount > 0) {
+                            setIsEditingText(true);
+                            return;
+                        }
+                        // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
+                        void editAgentChatQueued(terminalId, entry.id, onEdit);
+                    }}
+                >
+                    <Pencil className="size-3.5" />
+                </QueueCardAction>
+                <QueueCardAction
+                    ariaLabel={t('agentChat.queue.deleteMessage')}
+                    isDisabled={isPending}
+                    tooltip={labels.deleteTooltip}
+                    onAction={onAction}
+                    onRun={() => removeAgentChatQueued(terminalId, entry.id)}
+                >
+                    <Trash2 className="size-3.5" />
+                </QueueCardAction>
+                <QueueCardAction
+                    ariaLabel={labels.sendAriaLabel}
+                    isDisabled={!entry.canSendNow}
+                    tooltip={labels.sendTooltip}
+                    onAction={onAction}
+                    onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
+                >
+                    {isTurnRunning ? (
+                        <ArrowUpToLine className="size-3.5" />
+                    ) : (
+                        <CornerDownLeft className="size-3.5" />
+                    )}
+                </QueueCardAction>
+            </span>
         </li>
     );
 }

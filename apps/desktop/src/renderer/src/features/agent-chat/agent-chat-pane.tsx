@@ -101,6 +101,20 @@ function openAsTerminalAction(terminal: ReturnType<typeof useTerminal>): (() => 
     };
 }
 
+/**
+ * Follows a sent message to the bottom. Sending also moves the conversation on from what the user missed, so the return
+ * hint about it has done its job.
+ */
+function sentAction(
+    terminal: ReturnType<typeof useTerminal>,
+    jumpToLatest: () => void,
+): () => void {
+    return () => {
+        jumpToLatest();
+        if (terminal) dismissReturn(terminal.sessionId);
+    };
+}
+
 interface AgentChatPaneProperties {
     ariaLabel: string;
     /**
@@ -429,7 +443,7 @@ export function AgentChatPane({
                 isShown={isShown}
                 providerName={providerName}
                 onOpenTask={taskLinks.openTask}
-                onSent={jumpToLatest}
+                onSent={sentAction(terminal, jumpToLatest)}
                 pendingQueue={composerView.pendingQueue}
                 queue={composerView.queue}
                 snapshot={composerView.snapshot}

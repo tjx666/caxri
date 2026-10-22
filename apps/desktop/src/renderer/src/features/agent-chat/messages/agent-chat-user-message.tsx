@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-import type { AgentChatDelegatedTask } from '@caxri/protocol';
+import type { AgentChatDelegatedTask, AgentChatSkillReference } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
@@ -20,6 +20,7 @@ import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
 import { useAgentChatUserMessageMenu } from '../hooks/use-agent-chat-user-message-menu';
 import { useIsAgentChatClamped } from '../hooks/use-is-agent-chat-clamped';
 import { AgentChatDelegatedTaskBubble } from '../tasks/agent-chat-delegated-task-bubble';
+import { AgentChatSkillPill } from '../tools/agent-chat-skill-card';
 import { openAgentChatLink } from '../transcript/agent-chat-links';
 import { agentChatDeliveryCaption } from '../transcript/agent-chat-presentation';
 import { AgentChatMessageTime } from './agent-chat-message-time';
@@ -45,7 +46,7 @@ import {
  * (`agentChatUserMessageMenu`), so they are reachable without finding the hover row; a message read back from history
  * lists Edit and Fork there disabled with why. Files and folders the message cites (`agentChatTextWithPathReferences`)
  * show as chips above its bubble rather than as the reference block the provider received; clicking one shows it in
- * Finder.
+ * Finder. Skills it asked for lead the bubble's text as inline chips, so the message reads as one.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -113,17 +114,18 @@ export function AgentChatUserMessage({
             ref={container}
             onContextMenu={menu.onContextMenu}
         >
-            <AgentChatPathReferenceChips references={references} skills={skills} />
+            <AgentChatPathReferenceChips references={references} />
             {delegatedTask ? (
                 <AgentChatDelegatedTaskBubble task={delegatedTask} text={text} />
             ) : (
-                (words || (images && images.length > 0)) && (
+                (words || skills.length > 0 || (images && images.length > 0)) && (
                     <AgentChatUserMessageBubble
                         images={images}
                         imageRecord={
                             terminalId === undefined ? undefined : { terminalId, itemId: id }
                         }
                         isEditing={isEditing}
+                        skills={skills}
                         text={words}
                         onOpenFile={onOpenFile}
                     />
@@ -144,6 +146,7 @@ export function AgentChatUserMessageBubble({
     images,
     imageRecord,
     isEditing,
+    skills = [],
     text,
     onOpenFile,
 }: {
@@ -156,6 +159,10 @@ export function AgentChatUserMessageBubble({
      */
     imageRecord?: { terminalId: string; itemId: string };
     isEditing: boolean;
+    /**
+     * The skills the message asked the Agent to load, as chips ahead of its text.
+     */
+    skills?: readonly AgentChatSkillReference[];
     text: string;
     onOpenFile?: (target: string) => void;
 }) {
@@ -172,8 +179,11 @@ export function AgentChatUserMessageBubble({
             )}
             data-agent-chat-user-bubble=""
         >
-            {text && (
+            {(text || skills.length > 0) && (
                 <div className={cn(!isExpanded && 'line-clamp-12')} ref={textReference}>
+                    {skills.map(({ name }) => (
+                        <AgentChatSkillPill key={name} name={name} />
+                    ))}
                     {invocation ? (
                         <>
                             <AgentChatInvocationChip invocation={invocation.invocation} />
@@ -200,7 +210,7 @@ export function AgentChatUserMessageBubble({
             )}
             {images && images.length > 0 && (
                 <AgentChatMessageImages
-                    className={cn(text && 'mt-2')}
+                    className={cn((text || skills.length > 0) && 'mt-2')}
                     firstNumber={agentChatFirstImageNumber(text, images.length)}
                     images={images}
                     message={imageRecord}

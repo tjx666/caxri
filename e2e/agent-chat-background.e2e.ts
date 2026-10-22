@@ -203,12 +203,20 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
             'aria-placeholder',
             'Enter to steer the first queued message',
         );
-        await expect(
-            queue
-                .getByRole('listitem')
-                .filter({ hasText: 'hello fourth' })
-                .locator('[data-agent-chat-queue-enter-hint]'),
-        ).toBeVisible();
+        const enterRow = queue.getByRole('listitem').filter({ hasText: 'hello fourth' });
+        const enterHint = enterRow.locator('[data-agent-chat-queue-enter-hint]');
+        await expect(enterHint).toBeVisible();
+        // The row's hidden actions take no width, so the hint ends at the row's end instead of short of three buttons.
+        await page.mouse.move(0, 0);
+        await expect
+            .poll(async () => {
+                const [row, hint] = await Promise.all([
+                    enterRow.boundingBox(),
+                    enterHint.boundingBox(),
+                ]);
+                return row && hint ? row.x + row.width - (hint.x + hint.width) : Infinity;
+            })
+            .toBeLessThanOrEqual(12);
         await page.screenshot({ path: testInfo.outputPath('codex-queue-empty-enter.png') });
         await message.press('Enter');
         await expect(queue).toHaveCount(0);

@@ -39,19 +39,22 @@ export function AgentChatSkillCard({ name, onRemove }: { name: string; onRemove:
 }
 
 /**
- * A skill a sent message asked the Agent to load, as a pill beside its file and folder pills. It only names the skill:
- * the instruction that loads it is the message's own text, kept out of the bubble.
+ * A skill a sent message asked the Agent to load, as an inline chip at the start of its bubble, styled like the
+ * `$skill` invocation chip (`AgentChatInvocationChip`) so the skill and the words read as one message. It only names
+ * the skill: the instruction that loads it is the message's own text, kept out of the bubble. `align-top` for the same
+ * reason as the invocation chip: an inline flex box takes its baseline from the icon and would lift above the words.
  */
 export function AgentChatSkillPill({ name }: { name: string }) {
     const { t } = useTranslation();
     return (
-        <li className="min-w-0" data-agent-chat-skill-reference={name}>
-            <Tooltip content={t('agentChat.skill.sentTooltip', { name })}>
-                <span className="flex h-7 max-w-60 min-w-0 items-center gap-1.5 rounded-full border border-border bg-elevated px-2.5 text-[12px] text-foreground">
-                    <Package aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
-                    <span className="truncate">{agentChatSkillLabel(name, t)}</span>
-                </span>
-            </Tooltip>
-        </li>
+        <Tooltip content={t('agentChat.skill.sentTooltip', { name })}>
+            <span
+                className="mr-1 inline-flex max-w-full items-center gap-1 rounded-md bg-accent/15 px-1.5 align-top font-medium text-accent"
+                data-agent-chat-skill-reference={name}
+            >
+                <Package aria-hidden="true" className="size-3.5 shrink-0" />
+                <span className="truncate">{agentChatSkillLabel(name, t)}</span>
+            </span>
+        </Tooltip>
     );
 }

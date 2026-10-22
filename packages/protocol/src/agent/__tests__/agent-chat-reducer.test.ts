@@ -285,6 +285,17 @@ describe('Agent Chat reducer: tasks, queue, and operation state', () => {
         expect(snapshot.models).toEqual(models);
         expect(snapshot.usage).toBeUndefined();
     });
+
+    it('keeps the permission a provider runs with across a conversation reset', () => {
+        // A resumed Claude Code reports its level before its history replay resets the Chat, and reports it only once.
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'state',
+            state: { permissionMode: 'fullAccess', planMode: false },
+        });
+        snapshot = applyAgentChatOperation(snapshot, { op: 'reset' });
+        expect(snapshot.permissionMode).toBe('fullAccess');
+        expect(snapshot.planMode).toBe(false);
+    });
 });
 
 describe('Agent Chat task reducer', () => {
