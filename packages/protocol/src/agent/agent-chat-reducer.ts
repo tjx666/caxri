@@ -207,10 +207,11 @@ export function applyAgentChatOperation(
     switch (operation.op) {
         case 'reset': {
             /**
-             * Commands, models, and MCP servers describe the running provider, and the follow-up queue belongs to
-             * Server Core; none is part of the conversation being replaced. A resumed Claude Code reports its models
-             * before its history replay resets the Chat, so dropping them here hid the model picker on every resumed
-             * Chat.
+             * Commands, models, MCP servers, and the permission level and plan mode describe the running provider, and
+             * the follow-up queue belongs to Server Core; none is part of the conversation being replaced. A resumed
+             * Claude Code reports its models and permission before its history replay resets the Chat, and reports the
+             * permission again only when it changes, so dropping them here hid the model picker and showed "Custom" for
+             * the permission on every resumed Chat.
              */
             return {
                 ...emptyAgentChatSnapshot(snapshot.terminalId),
@@ -218,6 +219,8 @@ export function applyAgentChatOperation(
                 ...(snapshot.commands && { commands: snapshot.commands }),
                 ...(snapshot.models && { models: snapshot.models }),
                 ...(snapshot.mcpServers && { mcpServers: snapshot.mcpServers }),
+                ...(snapshot.permissionMode && { permissionMode: snapshot.permissionMode }),
+                ...(snapshot.planMode !== undefined && { planMode: snapshot.planMode }),
                 ...(snapshot.queue && { queue: snapshot.queue }),
                 ...(snapshot.queueLength !== undefined && { queueLength: snapshot.queueLength }),
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
