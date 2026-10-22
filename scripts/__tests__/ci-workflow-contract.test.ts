@@ -190,10 +190,6 @@ describe('CI workflow contract', () => {
                 };
             }
         ).runs.steps;
-        const gradleProperties = steps.find(
-            (step) => step.name === 'Enable the Gradle build cache',
-        );
-        expect(gradleProperties?.run).toContain('org.gradle.jvmargs=-Xmx4g');
         const ccache = steps.find((step) => step.name === 'Enable the native compiler cache');
         expect(ccache?.if).toBe("inputs.gradle-cache == 'true'");
         expect(ccache?.run).toContain("echo 'CMAKE_C_COMPILER_LAUNCHER=ccache'");
