@@ -145,7 +145,12 @@ const AgentChatWorkRow = memo(
         const linked = useAgentChatTaskLink(item.id)?.task;
         const task = linked?.kind === 'agent' ? linked : undefined;
         const mcpIconUrls = useMcpIconUrls(item.type === 'toolCall' ? item.name : undefined);
-        const row = agentChatWorkRowPresentation(item, t, mcpIconUrls.length > 0);
+        const row = agentChatWorkRowPresentation(
+            item,
+            t,
+            mcpIconUrls.length > 0,
+            task?.status === 'running',
+        );
         const activity = task && agentChatTaskActivity(task, t);
         return (
             <ConversationToolRowView

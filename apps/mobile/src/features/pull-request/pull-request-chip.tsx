@@ -10,10 +10,10 @@ import { PullRequestSheet } from './pull-request-sheet';
 import { useSessionPullRequest } from './use-session-pull-request';
 
 /**
- * The chip is 28pt tall; 8pt of slop above and below reaches the 44pt minimum touch target. The width is the glyph plus
+ * The chip is 28dp tall; 10dp of slop above and below reaches the app's 48dp touch target. The width is the glyph plus
  * the number, so the sides get the same slop.
  */
-const CHIP_HIT_SLOP = { bottom: 8, left: 8, right: 8, top: 8 };
+const CHIP_HIT_SLOP = { bottom: 10, left: 10, right: 10, top: 10 };
 
 /**
  * The Session header's pull request entry: the lifecycle glyph colored by how close the pull request is to merging, and

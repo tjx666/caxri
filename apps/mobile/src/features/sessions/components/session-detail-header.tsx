@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { HostInstance } from 'react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 
 import type { LucideIcon } from 'lucide-react-native';
 import {
@@ -42,7 +42,6 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
  * The selected tab grows to fit its label, so every tab animates its frame instead of snapping its neighbours aside.
  */
 const tabLayoutTransition = LinearTransition.duration(200);
-const tabLabelEntering = FadeIn.duration(160).delay(60);
 
 const fixedSegmentPresentation: Record<
     (typeof SESSION_SEGMENTS)[number],
@@ -139,13 +138,12 @@ const SessionSegmentTab = ({
                 ) : null}
             </View>
             {selected ? (
-                <Animated.Text
-                    entering={tabLabelEntering}
-                    numberOfLines={1}
-                    style={[styles.tabText, { color }]}
-                >
+                // A plain Text, not a fading `Animated.Text`: the delayed entering fade left the label at opacity 0
+                // whenever the header re-rendered mid-animation (a subagent starting flips the Session to running),
+                // so only the icon showed. The tab's own layout transition still animates the width.
+                <Text numberOfLines={1} style={[styles.tabText, { color }]}>
                     {label}
-                </Animated.Text>
+                </Text>
             ) : null}
             {count === null ? null : (
                 <Text

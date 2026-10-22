@@ -2,6 +2,7 @@ import type { AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
 import {
     agentChatItemStatusLabel,
     agentChatWorkVerb,
+    agentToolActiveLabel,
     describeAgentChatWork,
     describeAgentChatWorkRow,
     isAgentChatWorkRunning,
@@ -38,6 +39,9 @@ export interface AgentChatWorkRowPresentation {
 }
 
 /**
+ * `isTaskRunning`: the background task this row started still runs, so the row reads as running even though the item
+ * itself settled.
+ *
  * `hasServerIcon`: the row draws its MCP server's own icon, so the title is the tool alone (`Web search exa`) as on
  * Desktop; without an icon the server's name stays in the title so the row still says which server answered.
  */
@@ -45,12 +49,17 @@ export function agentChatWorkRowPresentation(
     item: AgentChatWorkItem,
     t: Translate = translate,
     hasServerIcon = false,
+    isTaskRunning = false,
 ): AgentChatWorkRowPresentation {
     const presentation = hasServerIcon
         ? describeAgentChatWorkRow(item, t)
         : describeAgentChatWork(item, t);
-    const verb = agentChatWorkVerb(item, presentation, t);
-    const isRunning = isAgentChatWorkRunning(item);
+    // A subagent's tool call returns while the subagent keeps working, so its settled `Ran agent` would sit beside a
+    // spinner; the linked task still running keeps the row in the present tense (`Running agent`).
+    const isRunning = isAgentChatWorkRunning(item) || isTaskRunning;
+    const verb = isTaskRunning
+        ? agentToolActiveLabel(presentation, t)
+        : agentChatWorkVerb(item, presentation, t);
     const isSettledCommand = item.type === 'command' && !isRunning;
     const isBackground = isSettledCommand && item.background === true;
     const failedExitCode =

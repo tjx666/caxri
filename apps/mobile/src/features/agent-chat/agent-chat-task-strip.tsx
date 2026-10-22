@@ -16,7 +16,6 @@ import {
     AgentChatTaskDetailBody,
     AgentChatTaskKindGlyph,
     AgentChatTaskStatusGlyph,
-    AgentChatTaskStopButton,
 } from './agent-chat-task-detail';
 import { publishAgentChatTaskLinks, withdrawAgentChatTaskLinks } from './agent-chat-task-links';
 import type { AgentChatTaskPill } from './agent-chat-tasks';
@@ -29,94 +28,69 @@ import {
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatTaskClock, useAgentChatTaskStop } from './use-agent-chat-task-detail';
 
+/**
+ * One task in the list. It only opens the task: Stop lives in the task's detail behind a confirmation, because beside
+ * the timer and spinner a stray tap ended a running subagent.
+ */
 const TaskRow = ({
-    canControl,
     now,
     onOpen,
-    stopper,
     task,
     theme,
 }: {
-    canControl: boolean;
     now: number;
     onOpen: (taskId: string) => void;
-    stopper: AgentChatTaskStopper;
     task: AgentChatTask;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     const row = agentChatTaskRow(task, now, t);
-    const stopError = stopper.errorFor(task);
     return (
-        <View>
-            <View style={styles.row}>
-                <Pressable
-                    accessibilityHint={t('chat.tasks.openHint')}
-                    accessibilityLabel={row.accessibilityLabel}
-                    accessibilityRole="button"
-                    onPress={() => onOpen(task.id)}
-                    style={({ pressed }) => [
-                        styles.rowButton,
-                        { backgroundColor: pressed ? theme.elevated : 'transparent' },
-                    ]}
-                    testID="agent-chat-task-row"
-                >
-                    <AgentChatTaskKindGlyph kind={task.kind} theme={theme} />
-                    <View style={styles.rowText}>
-                        <Text
-                            numberOfLines={1}
-                            style={[
-                                row.isCommandTitle ? styles.rowCommand : styles.rowTitle,
-                                { color: theme.text },
-                            ]}
-                        >
-                            {row.title}
-                        </Text>
-                        {row.summary ? (
-                            <Text
-                                numberOfLines={1}
-                                style={[styles.rowSummary, { color: theme.muted }]}
-                            >
-                                {row.summary}
-                            </Text>
-                        ) : null}
-                    </View>
-                    {row.elapsed ? (
-                        <Text style={[styles.rowElapsed, { color: theme.muted }]}>
-                            {row.elapsed}
+        <View style={styles.row}>
+            <Pressable
+                accessibilityHint={t('chat.tasks.openHint')}
+                accessibilityLabel={row.accessibilityLabel}
+                accessibilityRole="button"
+                onPress={() => onOpen(task.id)}
+                style={({ pressed }) => [
+                    styles.rowButton,
+                    { backgroundColor: pressed ? theme.elevated : 'transparent' },
+                ]}
+                testID="agent-chat-task-row"
+            >
+                <AgentChatTaskKindGlyph kind={task.kind} theme={theme} />
+                <View style={styles.rowText}>
+                    <Text
+                        numberOfLines={1}
+                        style={[
+                            row.isCommandTitle ? styles.rowCommand : styles.rowTitle,
+                            { color: theme.text },
+                        ]}
+                    >
+                        {row.title}
+                    </Text>
+                    {row.summary ? (
+                        <Text numberOfLines={1} style={[styles.rowSummary, { color: theme.muted }]}>
+                            {row.summary}
                         </Text>
                     ) : null}
-                    <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
-                </Pressable>
-                {canControl && row.canStop ? (
-                    <AgentChatTaskStopButton
-                        stopper={stopper}
-                        task={task}
-                        theme={theme}
-                        title={row.title}
-                    />
+                </View>
+                {row.elapsed ? (
+                    <Text style={[styles.rowElapsed, { color: theme.muted }]}>{row.elapsed}</Text>
                 ) : null}
-            </View>
-            {stopError ? (
-                <Text accessibilityRole="alert" style={[styles.rowError, { color: theme.danger }]}>
-                    {stopError}
-                </Text>
-            ) : null}
+                <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
+            </Pressable>
         </View>
     );
 };
 
 const TaskList = ({
-    canControl,
     onOpen,
     pill,
-    stopper,
     theme,
 }: {
-    canControl: boolean;
     onOpen: (taskId: string) => void;
     pill: AgentChatTaskPill;
-    stopper: AgentChatTaskStopper;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
@@ -128,15 +102,7 @@ const TaskList = ({
                     {title}
                 </Text>
                 {tasks.map((task) => (
-                    <TaskRow
-                        canControl={canControl}
-                        key={task.id}
-                        now={now}
-                        onOpen={onOpen}
-                        stopper={stopper}
-                        task={task}
-                        theme={theme}
-                    />
+                    <TaskRow key={task.id} now={now} onOpen={onOpen} task={task} theme={theme} />
                 ))}
             </View>
         ) : null;
@@ -217,13 +183,7 @@ const TaskSheet = ({
     const { t } = useTranslation();
     const shownRow = shownTask && agentChatTaskRow(shownTask, 0, t);
     const list = pill ? (
-        <TaskList
-            canControl={canControl}
-            onOpen={onOpenTask}
-            pill={pill}
-            stopper={stopper}
-            theme={theme}
-        />
+        <TaskList onOpen={onOpenTask} pill={pill} theme={theme} />
     ) : (
         <Text style={[styles.empty, { color: theme.muted }]}>{t('chat.tasks.empty')}</Text>
     );
@@ -261,6 +221,7 @@ const TaskSheet = ({
                 <ScrollView style={styles.list}>
                     <AgentChatTaskDetailBody
                         canControl={canControl}
+                        isCommandShown={shownRow?.isCommandTitle}
                         stopper={stopper}
                         task={shownTask}
                         terminalId={terminalId}
@@ -277,9 +238,9 @@ const TaskSheet = ({
 /**
  * Background work, just above the composer, as Desktop's strip: a one-row pill counting the subagents and background
  * shells that run (and those that ended), shown by the same rule (`agentChatTaskStripView`) and gone once nothing runs.
- * Tapping it opens a sheet listing each task with its elapsed time and, for a control device, Stop; a task opens its
- * command and live output in the same sheet. Stopping the turn never stops these. A saved copy shows no pill, since its
- * tasks may have ended long ago. The strip also publishes the Chat's tasks for background command rows
+ * Tapping it opens a sheet listing each task with its elapsed time; a task opens its command, live output, and, for a
+ * control device, a confirmed Stop in the same sheet. Stopping the turn never stops these. A saved copy shows no pill,
+ * since its tasks may have ended long ago. The strip also publishes the Chat's tasks for background command rows
  * (`agent-chat-task-links.ts`), so a row's detail can show the same live output.
  */
 export const AgentChatTaskStrip = ({
@@ -387,7 +348,6 @@ const styles = StyleSheet.create({
     rowText: { flex: 1, gap: 2, minWidth: 0 },
     rowTitle: { fontSize: 15 },
     rowCommand: { fontFamily: MONOSPACE_FONT, fontSize: 13 },
-    rowError: { fontSize: 12, lineHeight: 17, paddingBottom: 6, paddingHorizontal: 6 },
     rowSummary: { fontSize: 12 },
     rowElapsed: { fontSize: 12, fontVariant: ['tabular-nums'] },
     empty: { fontSize: 14, paddingVertical: 16, textAlign: 'center' },
