@@ -174,7 +174,7 @@ export function useAgentChatSubmit({
         onSent?.();
         const isSent = await didSendAgentChatMessage(terminalId, message, delivery);
         if (isSent) {
-            expireAgentChatPendingMessage(terminalId, pendingId);
+            expireAgentChatPendingMessage(terminalId, pendingId, cachedAgentChatSnapshot);
             return;
         }
         dropAgentChatPendingMessage(terminalId, pendingId);

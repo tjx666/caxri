@@ -34,6 +34,8 @@
  * - `background`: a unified-exec command (with a `processId`) that outlives its turn, streaming output until
  *   `thread/backgroundTerminals/terminate` stops it. With `flood`, it emits Codex's 10,000 output deltas at once; with
  *   `quiet`, it prints one line a second instead of one every 30 ms, so a phone screen showing it can settle.
+ * - `autocompact`: the turn compacts its context on its own for 40 seconds, holding steered messages until it ends
+ *   (`fake-codex-autocompact.ts`).
  * - `vanish`: every background terminal disappears from `thread/backgroundTerminals/list` without a notification.
  * - `unannounced`: a background terminal only `thread/backgroundTerminals/list` reports.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
@@ -71,6 +73,8 @@ import {
     runQuestions,
 } from './fake-codex-approvals.ts';
 import { runTurnArtifacts, runTurnManyFiles } from './fake-codex-artifacts.ts';
+import { runAutoCompact } from './fake-codex-autocompact.ts';
+import { runDefaultReply } from './fake-codex-default-reply.ts';
 import { runExplore } from './fake-codex-explore.ts';
 import { didHandleGoalRequest } from './fake-codex-goals.ts';
 import {
@@ -313,6 +317,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runQuestions(io, turn);
     } else if (text.includes('ask')) {
         await runQuestion(io, turn);
+    } else if (text.includes('autocompact')) {
+        await runAutoCompact(io, turn);
     } else if (text.includes('slow')) {
         await runSlow(io, turn, text.includes('reconnect'));
     } else if (text.includes('codeblocks')) {
@@ -328,48 +334,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         turn.error = { message: 'Fake provider failure' };
         notify('error', { turnId: turn.id, willRetry: false, error: turn.error });
     } else {
-        const reasoning = { type: 'reasoning', id: crypto.randomUUID(), summary: [], content: [] };
-        startItem(turn, { ...reasoning });
-        /**
-         * Real Codex announces every summary part, including the first, before streaming its text.
-         */
-        const summary = ['Thinking about it.', 'Checking the reply.'];
-        for (const [summaryIndex, delta] of summary.entries()) {
-            notify('item/reasoning/summaryPartAdded', {
-                turnId: turn.id,
-                itemId: reasoning.id,
-                summaryIndex,
-            });
-            notify('item/reasoning/summaryTextDelta', {
-                turnId: turn.id,
-                itemId: reasoning.id,
-                delta,
-                summaryIndex,
-            });
-        }
-        completeItem(turn, { ...reasoning, summary });
-        notify('turn/plan/updated', {
-            turnId: turn.id,
-            explanation: null,
-            plan: [
-                { step: 'Read the message', status: 'completed' },
-                { step: 'Reply', status: 'inProgress' },
-            ],
-        });
-        await streamMessage(turn, `Hello from fake Codex. You said: ${said}`, 0);
-        notify('thread/tokenUsage/updated', {
-            turnId: turn.id,
-            tokenUsage: {
-                total: { totalTokens: 1200 },
-                last: {
-                    totalTokens: 1200,
-                    inputTokens: 1150,
-                    cachedInputTokens: 900,
-                    outputTokens: 50,
-                },
-                modelContextWindow: 200000,
-            },
-        });
+        await runDefaultReply(io, turn, said);
     }
     finishTurn(turn);
 }
@@ -552,10 +517,14 @@ function handle(message: RpcMessage) {
                         : null,
                 content: input,
             };
-            startItem(turn, user);
-            completeItem(turn, user);
-            wakeFakeWait();
-            if (text.includes('answer')) answerSteeredMessage(io, turn, text);
+            const record = () => {
+                startItem(turn, user);
+                completeItem(turn, user);
+                wakeFakeWait();
+                if (text.includes('answer')) answerSteeredMessage(io, turn, text);
+            };
+            if (turn.deferredSteers) turn.deferredSteers.push(record);
+            else record();
             return;
         }
         case 'thread/items/list': {

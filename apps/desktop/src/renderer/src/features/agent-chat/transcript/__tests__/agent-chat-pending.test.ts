@@ -226,11 +226,30 @@ describe('pending store', () => {
             images: [],
             delivery: undefined,
         });
-        expireAgentChatPendingMessage('terminal-1', id);
+        expireAgentChatPendingMessage('terminal-1', id, () => snapshot());
         vi.advanceTimersByTime(AGENT_CHAT_PENDING_ACCEPTED_TTL_MS);
         expect(
             selectAgentChatPendingMessages('terminal-1')(useAgentChatPendingStore.getState()),
         ).toEqual([]);
+    });
+
+    it('keeps an accepted message past its bound while the context compacts', () => {
+        vi.useFakeTimers();
+        let current = snapshot({ activeTurnId: 't', operation: 'compacting' });
+        const id = showAgentChatPendingMessage('terminal-1', current, {
+            text: 'Steered during compaction',
+            images: [],
+            delivery: 'steer',
+        });
+        expireAgentChatPendingMessage('terminal-1', id, () => current);
+        const select = selectAgentChatPendingMessages('terminal-1');
+        vi.advanceTimersByTime(AGENT_CHAT_PENDING_ACCEPTED_TTL_MS * 3);
+        expect(select(useAgentChatPendingStore.getState()).map((message) => message.id)).toEqual([
+            id,
+        ]);
+        current = snapshot({ activeTurnId: 't' });
+        vi.advanceTimersByTime(AGENT_CHAT_PENDING_ACCEPTED_TTL_MS);
+        expect(select(useAgentChatPendingStore.getState())).toEqual([]);
     });
 
     it('keeps one pending answer per request and prunes it once settled', () => {

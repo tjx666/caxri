@@ -32,6 +32,7 @@ import {
     restartTerminal,
     restartTerminalWithRecovery,
 } from '../terminal/terminal-commands';
+import { cachedAgentChatSnapshot } from './agent-chat-client';
 import { agentChatHandoffPrompt } from './agent-chat-handoff';
 import {
     agentChatReferenceAttachments,
@@ -42,6 +43,9 @@ import { agentChatConfigureFailureMessage } from './model/agent-chat-model-selec
 import {
     addAgentChatPendingAnswer,
     dropAgentChatPendingAnswer,
+    dropAgentChatPendingMessage,
+    expireAgentChatPendingMessage,
+    showAgentChatPendingMessage,
 } from './transcript/agent-chat-pending';
 import type { AgentChatRecoveryNotice } from './transcript/agent-chat-presentation';
 import { previewAgentChatRevert } from './turns/agent-chat-restore-preview-commands';
@@ -482,13 +486,33 @@ export function openAgentChatPathReference(path: string): void {
 }
 
 /**
- * Sends a queued message now: it steers the running turn, or starts one when the Chat is idle.
+ * Sends a queued message now: it steers the running turn, or starts one when the Chat is idle. A steered message leaves
+ * the queue at once, but the provider may record it in the turn only later (Codex holds it until a running compaction
+ * ends), so it shows where it lands in the meantime instead of vanishing from both the queue and the timeline.
  */
 export function sendAgentChatQueuedNow(terminalId: string, id: string): void {
+    const snapshot = cachedAgentChatSnapshot(terminalId);
+    const steered = snapshot?.activeTurnId
+        ? snapshot.queue?.find((entry) => entry.id === id && !entry.command)
+        : undefined;
+    const pendingId =
+        steered &&
+        showAgentChatPendingMessage(terminalId, snapshot, {
+            text: steered.text,
+            images: [],
+            imageCount: steered.imageCount,
+            delivery: 'steer',
+        });
     // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
-    void tryCommand(translate('agentChat.commands.sendQueuedFailed'), () =>
-        caxri.request('agentChat.sendQueuedNow', { terminalId, id }),
-    );
+    void tryCommand(translate('agentChat.commands.sendQueuedFailed'), async () => {
+        await caxri.request('agentChat.sendQueuedNow', { terminalId, id });
+        return true;
+    }).then((isSent) => {
+        if (!pendingId) return;
+        if (isSent) expireAgentChatPendingMessage(terminalId, pendingId, cachedAgentChatSnapshot);
+        // A refused steer returns the message to its place in the queue.
+        else dropAgentChatPendingMessage(terminalId, pendingId);
+    });
 }
 
 /**
