@@ -285,6 +285,38 @@ describe('buildAgentChatTimeline', () => {
         ).toEqual(['a2']);
     });
 
+    it('says how a steered turn stopped under its last segment when that segment folded nothing', () => {
+        const steer: AgentChatItem = {
+            id: 'u2',
+            turnId: 't1',
+            type: 'userMessage',
+            text: 'Is it deployed?',
+            delivery: 'steered',
+            createdAt: 60_000,
+        };
+        const timeline = buildAgentChatTimeline(
+            [user('u1', 't1'), command('c1', 't1'), reply('a1', 't1'), steer, reply('a2', 't1')],
+            [
+                {
+                    id: 't1',
+                    status: 'interrupted',
+                    stoppedBy: 'user',
+                    startedAt: 0,
+                    durationMs: 90_000,
+                },
+            ],
+            undefined,
+        );
+        expect(shape(timeline)).toEqual([
+            'u1',
+            { 'Worked for 1m': [['c1']] },
+            'a1',
+            'u2',
+            { 'Stopped by you after 30s': [] },
+            'a2',
+        ]);
+    });
+
     it('carries when a folded turn started and ended for its tooltip', () => {
         const items = [user('u', 't1'), command('c', 't1'), reply('a', 't1')];
         const [, fold] = buildAgentChatTimeline(

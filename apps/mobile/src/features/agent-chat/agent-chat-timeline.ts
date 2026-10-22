@@ -238,6 +238,14 @@ function groupEntries(
 }
 
 /**
+ * The expansion key of a finished turn's fold: the turn id for its first, suffixed by the segment index for each fold a
+ * steered message started after it.
+ */
+function agentChatFoldKey(turnId: string, segmentIndex: number): string {
+    return segmentIndex === 0 ? turnId : `${turnId}:${segmentIndex}`;
+}
+
+/**
  * The single segment of a turn nobody steered, for the row of a turn with nothing to fold.
  */
 const WHOLE_TURN: AgentChatTurnFoldSegment = { index: 0, opensTurn: true, closesTurn: true };
@@ -257,10 +265,8 @@ function finishedTurnEntries(
 ): AgentChatTimelineEntry[] {
     const finalReplyId = agentChatFinalReplyId(visible);
     const parts = foldAgentChatTurn(visible, finalReplyId);
-    // The runtime lib stops at ES2022, which has no `findLast`.
-    const lastFold = parts[parts.map((part) => part.kind).lastIndexOf('fold')];
     const foldKey = (segment: AgentChatTurnFoldSegment): string =>
-        segment.index === 0 ? turn.id : `${turn.id}:${segment.index}`;
+        agentChatFoldKey(turn.id, segment.index);
     /**
      * A turn split by steered messages gets a row per fold, each timed by its own segment; only the last says how the
      * turn ended, as on Desktop.
@@ -294,7 +300,11 @@ function finishedTurnEntries(
     const artifactsEntry: AgentChatTimelineEntry[] = artifacts
         ? [{ kind: 'artifacts', id: `artifacts:${artifacts.turnId}`, artifacts }]
         : [];
-    const hasFold = parts.some((part) => part.kind === 'fold');
+    const closing = parts.at(-1)?.segment ?? WHOLE_TURN;
+    // Without a fold of its own, the closing segment still gets the row: before its reply, or at the end without one.
+    let isNeedsOutcomeRow = parts.every(
+        (part) => !(part.kind === 'fold' && part.segment.closesTurn),
+    );
     const entries: AgentChatTimelineEntry[] = [];
     for (const part of parts) {
         if (part.kind === 'fold') {
@@ -306,17 +316,24 @@ function finishedTurnEntries(
                           isAgentChatWorkItem(item) && isAgentChatSubagentItem(item),
                   );
             entries.push({
-                ...row(isExpanded ? 'expanded' : 'collapsed', part.segment, part === lastFold),
+                ...row(
+                    isExpanded ? 'expanded' : 'collapsed',
+                    part.segment,
+                    part.segment.closesTurn,
+                ),
                 ...(subagents.length > 0 && { subagents }),
             });
             if (isExpanded) entries.push(...groupEntries(part.items, t, taskItemIds));
             continue;
         }
-        if (!hasFold && part.item.id === finalReplyId) entries.push(row(undefined));
+        if (isNeedsOutcomeRow && part.segment.closesTurn && part.item.id === finalReplyId) {
+            entries.push(row(undefined, closing));
+            isNeedsOutcomeRow = false;
+        }
         entries.push(...groupEntries([part.item], t, taskItemIds));
         if (part.item.id === finalReplyId) entries.push(...artifactsEntry);
     }
-    if (!hasFold && finalReplyId === undefined) entries.push(row(undefined));
+    if (isNeedsOutcomeRow) entries.push(row(undefined, closing));
     if (finalReplyId === undefined) entries.push(...artifactsEntry);
     return entries;
 }
@@ -411,17 +428,29 @@ export function agentChatRunningTurnIds(
 export function holdEndedTurnsOpen(
     expandedIds: ReadonlySet<string>,
     previouslyRunning: ReadonlySet<string>,
-    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'turns'>,
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>,
     isFollowing: boolean,
 ): ReadonlySet<string> {
     if (isFollowing) return expandedIds;
     const running = agentChatRunningTurnIds(snapshot);
-    const ended = snapshot.turns.filter(
-        (turn) =>
-            previouslyRunning.has(turn.id) && !running.has(turn.id) && !expandedIds.has(turn.id),
+    const ended = new Set(
+        snapshot.turns
+            .filter((turn) => previouslyRunning.has(turn.id) && !running.has(turn.id))
+            .map((turn) => turn.id),
     );
-    if (ended.length === 0) return expandedIds;
-    return new Set([...expandedIds, ...ended.map((turn) => turn.id)]);
+    // Every fold of the turn stays open, including those its steered messages started; a key past its last fold is inert.
+    const keys = [...ended].map((turnId) => agentChatFoldKey(turnId, 0));
+    const segments = new Map<string, number>();
+    for (const item of snapshot.items) {
+        if (item.type !== 'userMessage' || item.turnId === undefined || !ended.has(item.turnId))
+            continue;
+        const index = (segments.get(item.turnId) ?? 0) + 1;
+        segments.set(item.turnId, index);
+        keys.push(agentChatFoldKey(item.turnId, index));
+    }
+    const added = keys.filter((key) => !expandedIds.has(key));
+    if (added.length === 0) return expandedIds;
+    return new Set([...expandedIds, ...added]);
 }
 
 /**

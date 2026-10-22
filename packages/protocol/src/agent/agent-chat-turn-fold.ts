@@ -17,10 +17,11 @@ export interface AgentChatTurnFoldSegment {
 
 /**
  * One piece of a finished turn as every Chat client folds it: an item that stays in view (`kept`), or one segment's
- * work and commentary gathered behind its `Worked for` row (`fold`). A turn has at most one `fold` per segment.
+ * work and commentary gathered behind its `Worked for` row (`fold`). A turn has at most one `fold` per segment. Every
+ * part names its segment, so a client can still place the turn's outcome when the closing segment folded nothing.
  */
 export type AgentChatTurnFoldPart =
-    | { kind: 'kept'; item: AgentChatItem }
+    | { kind: 'kept'; item: AgentChatItem; segment: AgentChatTurnFoldSegment }
     | { kind: 'fold'; items: readonly AgentChatItem[]; segment: AgentChatTurnFoldSegment };
 
 /**
@@ -87,7 +88,7 @@ export function foldAgentChatTurn(
         let hasFold = false;
         for (const item of items) {
             if (isKept(item)) {
-                parts.push({ kind: 'kept', item });
+                parts.push({ kind: 'kept', item, segment });
                 continue;
             }
             if (hasFold) continue;

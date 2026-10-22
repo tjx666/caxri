@@ -860,7 +860,7 @@ several callbacks can share one item, so the transport id is never the key.
   a transient retry in view. A message steered into the running turn starts a new segment there:
   each segment folds its own work behind a row timed from its first item to the next segment's, and
   keeps its own last reply in view, so every steered message stays above the answer it got. Only the
-  last segment's row carries the turn's outcome. A retry reads as a `--warning` row whose icon and words name the cause
+  closing segment's row carries the turn's outcome; a stopped turn whose closing segment folded nothing still gets that row before its reply. A retry reads as a `--warning` row whose icon and words name the cause
   from a closed set (`retry.cause`: a lost connection shows Wi-Fi off, then rate limit, overload,
   server error, other) with the attempt against the provider's limit (`Connection lost, retrying
 (2/10)`), and the provider's detail muted beneath. Claude Code's `api_retry` gives the cause through
