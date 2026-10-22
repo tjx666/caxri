@@ -40,8 +40,10 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('push:');
         expect(workflow).not.toContain('schedule:');
         expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
-        expect(document.jobs['retry-policy']['runs-on']).toBe('macos-15');
+        expect(document.jobs['retry-policy']['runs-on']).toBe('ubuntu-latest');
         expect(document.jobs.checks['runs-on']).toBe('macos-15');
+        expect(document.jobs.unit['runs-on']).toBe('macos-15');
+        expect(document.jobs.lint['runs-on']).toBe('ubuntu-latest');
         expect(document.jobs.ci['runs-on']).toBe('ubuntu-latest');
         expect(document.jobs.e2e['runs-on']).toBe('macos-15');
         expect(document.jobs.e2e.if).toContain("github.event_name == 'workflow_dispatch'");
@@ -98,15 +100,23 @@ describe('CI workflow contract', () => {
 
     it('separates event trust from runner hardware trust', () => {
         const retry = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1] ?? '';
-        const checks = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}hosted-smoke:/u)?.[1] ?? '';
+        const checks = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}lint:/u)?.[1] ?? '';
+        const lint = workflow.match(/\n {2}lint:\n([\s\S]*?)\n {2}unit:/u)?.[1] ?? '';
+        const unit = workflow.match(/\n {2}unit:\n([\s\S]*?)\n {2}hosted-smoke:/u)?.[1] ?? '';
 
-        for (const job of [retry, checks]) {
+        for (const job of [retry, lint]) {
+            expect(job).toContain('test "$RUNNER_OS" = Linux');
+            expect(job).toContain('test "$RUNNER_ARCH" = X64');
+        }
+        for (const job of [checks, unit]) {
+            expect(job).toContain('test "$RUNNER_OS" = macOS');
+            expect(job).toContain('test "$RUNNER_ARCH" = ARM64');
+        }
+        for (const job of [retry, checks, lint, unit]) {
             expect(job.indexOf('Verify hosted runner boundary before checkout')).toBeLessThan(
                 job.indexOf('actions/checkout@'),
             );
             expect(job).toContain('test "$RUNNER_ENVIRONMENT" = github-hosted');
-            expect(job).toContain('test "$RUNNER_OS" = macOS');
-            expect(job).toContain('test "$RUNNER_ARCH" = ARM64');
             expect(job).toContain('uses: ./.github/actions/verify-trust-boundary');
             expect(job).toContain("allow-external-pull-request: 'true'");
             expect(job).not.toContain('CAXRI_DESKTOP_LEASE_OWNER');
@@ -179,10 +189,61 @@ describe('CI workflow contract', () => {
         expect(setupAction).not.toContain('scripts/self-hosted-runner.ts');
     });
 
+    it('runs sharded Vitest and Linux ESLint beside the remaining platform gates', () => {
+        const unit = parse(workflow) as {
+            jobs: Record<
+                string,
+                {
+                    if?: string;
+                    needs?: string;
+                    steps: Array<{ env?: Record<string, string>; name?: string; run?: string }>;
+                    strategy?: { matrix?: { shard?: string[] } };
+                }
+            >;
+        };
+        const job = unit.jobs.unit;
+        expect(job.needs).toBe('retry-policy');
+        expect(job.strategy?.matrix?.shard).toEqual(['1/2', '2/2']);
+        expect(job.if).toContain("needs.retry-policy.outputs.checks_scope == 'full'");
+        expect(job.if).toContain("needs.retry-policy.outputs.checks_scope == 'affected'");
+        const run = job.steps.find((step) => step.run === 'bun run scripts/run-ci-unit-tests.ts');
+        expect(run?.env?.CAXRI_VITEST_SHARD).toBe('${{ matrix.shard }}');
+        expect(workflow).toContain(
+            'bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest --skip-eslint',
+        );
+        const lint = unit.jobs.lint;
+        expect(lint.needs).toBe('retry-policy');
+        expect(lint.if).toContain("needs.retry-policy.outputs.checks_scope == 'full'");
+        expect(lint.if).not.toContain("'affected'");
+        expect(lint.steps.find((step) => step.name === 'Run ESLint')?.env?.ESLINT_CONCURRENCY).toBe(
+            'auto',
+        );
+        // The optimized hosted-full route runs every check inside E2E, so unit and lint skip exactly when checks does.
+        for (const condition of [
+            "inputs.validation_target != 'hosted-full'",
+            "needs.retry-policy.outputs.e2e_profile != 'optimized'",
+        ]) {
+            expect(job.if).toContain(condition);
+            expect(lint.if).toContain(condition);
+            expect(unit.jobs.checks.if).toContain(condition);
+        }
+    });
+
     it('keeps the stable gate aware of every explicit route', () => {
         const gate = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1] ?? '';
 
-        expect(document.jobs.ci.needs).toEqual(['retry-policy', 'checks', 'hosted-smoke', 'e2e']);
+        expect(document.jobs.ci.needs).toEqual([
+            'retry-policy',
+            'checks',
+            'lint',
+            'unit',
+            'hosted-smoke',
+            'e2e',
+        ]);
+        expect(gate).toContain('test "$UNIT_RESULT" = success');
+        expect(gate).toContain('test "$UNIT_RESULT" = skipped');
+        expect(gate).toContain('test "$LINT_RESULT" = success');
+        expect(gate).toContain('test "$LINT_RESULT" = skipped');
         expect(gate).toContain('hosted-smoke)');
         expect(gate).toContain('hosted-full)');
         expect(gate).not.toContain('self-hosted-final');

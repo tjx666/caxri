@@ -26,6 +26,10 @@ inputs:
     description: Install and verify the exact Android JDK, SDK, NDK, and CMake toolchain.
     required: false
     default: 'false'
+  gradle-cache:
+    description: Restore and save Gradle dependencies, wrapper distributions, and task outputs across runs.
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -121,6 +125,28 @@ runs:
         test -d "$sdk_root/ndk/27.1.12297006"
         echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
         echo "$java_home/bin" >> "$GITHUB_PATH"
+
+    # A cold Android release build spends most of its 19 minutes resolving dependencies, compiling Gradle plugins,
+    # and re-running cacheable Kotlin, Java, and R8 tasks. Only workflows running on main can write a cache that
+    # main-triggered release jobs restore; pull-request caches are scoped to their own ref. See
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache
+    - name: Enable the Gradle build cache
+      if: inputs.gradle-cache == 'true'
+      shell: bash
+      run: |
+        mkdir -p "$HOME/.gradle"
+        echo 'org.gradle.caching=true' >> "$HOME/.gradle/gradle.properties"
+
+    - name: Cache Gradle home
+      if: inputs.gradle-cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: gradle-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'mise.toml') }}
+        restore-keys: |
+          gradle-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Install media tools on hosted runner
       if: inputs.install-media-tools == 'true'
