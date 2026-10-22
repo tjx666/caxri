@@ -144,6 +144,9 @@ export const AgentChatComposerButton = ({
     const { t } = useTranslation();
     const action = agentChatComposerButton({ isRunning, isStopAction, isStopping, provider }, t);
     const Icon = action.kind === 'stop' ? Square : isRunning ? CornerDownLeft : ArrowUp;
+    // A button that cannot act (offline, no access, an empty draft) drops the brand color for the neutral surface,
+    // since a dimmed pink still read as enabled beside `Reconnect to send messages.`; busy keeps its color.
+    const isDisabled = !canSubmit && !isBusy;
     return (
         <Pressable
             accessibilityActions={
@@ -165,8 +168,12 @@ export const AgentChatComposerButton = ({
             style={[
                 styles.sendButton,
                 {
-                    backgroundColor: action.kind === 'stop' ? theme.danger : theme.primary,
-                    opacity: canSubmit || isBusy ? 1 : 0.38,
+                    backgroundColor: isDisabled
+                        ? theme.elevated
+                        : action.kind === 'stop'
+                          ? theme.danger
+                          : theme.primary,
+                    opacity: isDisabled ? 0.7 : 1,
                 },
             ]}
             testID={action.testID}
@@ -174,7 +181,11 @@ export const AgentChatComposerButton = ({
             {isBusy ? (
                 <ActivityIndicator color={theme.primaryForeground} />
             ) : (
-                <Icon color={theme.primaryForeground} size={20} strokeWidth={2.5} />
+                <Icon
+                    color={isDisabled ? theme.muted : theme.primaryForeground}
+                    size={20}
+                    strokeWidth={2.5}
+                />
             )}
         </Pressable>
     );

@@ -6,4 +6,10 @@ export const keyboardShortcuts = {
     'keyboardShortcuts.noMatches': 'No keyboard shortcuts match your search.',
     'keyboardShortcuts.none': 'No command has a keyboard shortcut yet.',
     'keyboardShortcuts.editKeybindings': 'Edit Keybindings',
+    'keyboardShortcuts.pinnedRange': 'Switch to Pinned Session 1 to 9',
+    'keyboardShortcuts.sidebar.category': 'Session list',
+    'keyboardShortcuts.sidebar.move': 'Move between rows',
+    'keyboardShortcuts.sidebar.collapse': 'Collapse Project',
+    'keyboardShortcuts.sidebar.expand': 'Expand Project',
+    'keyboardShortcuts.sidebar.archive': 'Archive Session',
 } as const;

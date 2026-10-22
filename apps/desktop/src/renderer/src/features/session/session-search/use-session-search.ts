@@ -68,6 +68,10 @@ export function useSessionSearch() {
         setStatus,
         provider,
         setProvider,
+        clearFilters: () => {
+            setStatus('all');
+            setProvider(undefined);
+        },
         result: response.data,
         entries,
         selectedIndex,

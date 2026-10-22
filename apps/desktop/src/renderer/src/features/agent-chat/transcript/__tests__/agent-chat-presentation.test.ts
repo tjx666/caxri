@@ -421,7 +421,7 @@ describe('agentChatDeliveryCaption', () => {
 describe('agentChatComposerPlaceholder', () => {
     const sendAction = { placeholder: 'Queue a follow-up' };
 
-    it('invites a follow-up while a message waits in a running turn, and says Enter sends it in an idle Chat', () => {
+    it('says Enter steers the first queued message in a running turn, and says Enter sends it in an idle Chat', () => {
         const state = {
             hasNextQueued: true,
             hasStash: false,
@@ -429,7 +429,9 @@ describe('agentChatComposerPlaceholder', () => {
             isGoalMode: false,
             isTurnRunning: true,
         };
-        expect(agentChatComposerPlaceholder(sendAction, state)).toBe('Type a follow-up');
+        expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
+            'Enter to steer the first queued message',
+        );
         expect(agentChatComposerPlaceholder(sendAction, { ...state, isTurnRunning: false })).toBe(
             'Enter to send the queued message, or type a new one',
         );

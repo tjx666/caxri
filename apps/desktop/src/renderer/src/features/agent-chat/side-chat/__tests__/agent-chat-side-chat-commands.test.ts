@@ -37,6 +37,7 @@ import {
     convertAgentChatSideChatToSession,
     discardAgentChatSideChat,
     discardAgentChatSideChatIfChatGone,
+    isAgentChatSideChatBusyFor,
     retryAgentChatSideQuestion,
     useAgentChatSideChatStore,
 } from '../agent-chat-side-chat-commands';
@@ -186,5 +187,19 @@ describe('convertAgentChatSideChatToSession', () => {
         await convertAgentChatSideChatToSession(terminalId);
         expect(thread()).toHaveLength(1);
         discardAgentChatSideChat(terminalId);
+    });
+});
+
+describe('isAgentChatSideChatBusyFor', () => {
+    it('is true only while a question of the Chat is pending', async () => {
+        expect(isAgentChatSideChatBusyFor(terminalId)).toBe(false);
+        const answer = Promise.withResolvers<unknown>();
+        mocks.request.mockReturnValueOnce(answer.promise);
+        const asking = askAgentChatSideQuestion(terminalId, 'slow?');
+        expect(isAgentChatSideChatBusyFor(terminalId)).toBe(true);
+        expect(isAgentChatSideChatBusyFor('other-chat')).toBe(false);
+        answer.resolve({ response: 'done' });
+        await asking;
+        expect(isAgentChatSideChatBusyFor(terminalId)).toBe(false);
     });
 });

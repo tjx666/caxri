@@ -46,6 +46,8 @@ export const agentChatComposer = {
     'agentChat.add.filesAndFolders': 'Files and folders',
     'agentChat.add.goal': 'Goal',
     'agentChat.add.goalMode': 'Goal mode',
+    'agentChat.add.sideChatDescription':
+        'Ask a quick question without adding it to the conversation',
     'agentChat.add.goalDescription': 'Set a goal the Agent keeps working toward',
     'agentChat.add.turnOffPlanMode': 'Turn off plan mode',
     'agentChat.add.turnOffGoalMode': 'Turn off goal mode',
@@ -198,17 +200,17 @@ export const agentChatComposer = {
     'agentChat.context.cacheText':
         'Idle {{duration}} · next reply re-reads the whole conversation{{cost}}',
     'agentChat.context.cacheDetail':
-        'The prompt cache lasts {{minutes}}m, so the next reply reads all {{tokens}} tokens again without it.',
+        'The Agent keeps a conversation ready for {{minutes}} minutes after each reply. After that, the next reply reads the whole conversation ({{tokens}}) again, which is slower and costs more.',
     'agentChat.context.cacheDetailCost': ' The cost is an estimate at standard API prices.',
     'agentChat.context.cacheExpiringText':
-        'Cache expires in {{remaining}} · reply now to skip a full re-read{{cost}}',
+        'Reply within {{remaining}} to skip a full re-read{{cost}}',
     'agentChat.context.cacheExpiringDetail':
-        'The prompt cache lasts {{minutes}}m from the last reply. A message sent within {{remaining}} reuses it; after that the next reply reads all {{tokens}} tokens again.',
+        'The Agent keeps a conversation ready for {{minutes}} minutes after each reply. A message sent within {{remaining}} picks up where it left off; after that, the next reply reads the whole conversation ({{tokens}}) again.',
     'agentChat.context.pressureText': 'Context {{tokens}} / {{window}} · consider compacting',
     'agentChat.context.pressureDetail':
         'The conversation fills {{percent}}% of the window the Agent compacts at. Compacting now keeps answers sharp.',
-    'agentChat.context.cacheExpiringAnnouncement': 'Prompt cache expires soon',
-    'agentChat.context.cacheExpiredAnnouncement': 'Prompt cache expired',
+    'agentChat.context.cacheExpiringAnnouncement': 'Reply soon to skip a full re-read',
+    'agentChat.context.cacheExpiredAnnouncement': 'The next reply re-reads the whole conversation',
     'agentChat.context.pressureAnnouncement': 'Context nearly full, consider compacting',
     'agentChat.context.title': 'Context',
     'agentChat.context.autoCompacts': 'Auto-compacts at {{window}} of the {{modelWindow}} window',

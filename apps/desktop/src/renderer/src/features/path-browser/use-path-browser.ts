@@ -7,6 +7,7 @@ import { clamp } from 'es-toolkit';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { translate, useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { isImeComposing } from '../../lib/ime';
 import { setPathBrowserOpen } from '../../stores/dialogs';
@@ -14,16 +15,10 @@ import { isSshHost } from '../../stores/environment';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
-import type {
-    PathBrowserCreateCandidate,
-    PathBrowserInputState,
-    PathBrowserKeyIntent,
-    PathBrowserMode,
-} from './path-browser';
+import type { PathBrowserInputState } from './path-browser';
 import {
     completePathQuery,
     parsePathBrowserInput,
-    pathBrowserCreateCandidate,
     pathBrowserError,
     PathBrowserInputError,
     pathBrowserInputTransition,
@@ -37,16 +32,20 @@ import {
     openPathBrowserEntry,
     startPathBrowser,
 } from './path-browser-client';
-import type { PathBrowserEntry, PathBrowserRow } from './path-browser-rows';
+import type { PathBrowserEntry } from './path-browser-rows';
 import {
     firstSelectablePathBrowserIndex,
     isSelectablePathBrowserRow,
     nextSelectablePathBrowserIndex,
-    pathBrowserRows,
 } from './path-browser-rows';
+import {
+    applyPathBrowserIntent,
+    derivePathBrowserView,
+    isBrowseRedundant,
+    withoutTrailingSlash,
+} from './path-browser-view';
 
 const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
-const EMPTY_ENTRIES: MethodResult<'pathBrowser.start'>['entries'] = [];
 
 type PathBrowserSnapshot = MethodResult<'pathBrowser.start'>;
 
@@ -75,132 +74,16 @@ function isSnapshot(result: PathBrowserNavigationResult): result is PathBrowserS
     return 'browserId' in result;
 }
 
+function externalOpenError(): Error {
+    return new Error(translate('pathBrowser.errors.openExternalFailed'));
+}
+
+function reopenFolderError(): Error {
+    return new Error(translate('pathBrowser.errors.reopenFolderFailed'));
+}
+
 function toBrowserError(value: unknown, fallback: string): Error {
     return pathBrowserError(value, fallback, isSshHost());
-}
-
-/**
- * True when a browse request would add nothing: the input is unparsable, a navigation already owns the browser, or the
- * current snapshot already answers exactly this input and mode.
- *
- * Takes the snapshot and request fields as primitives so the calling effect can keep listing them individually and stay
- * free of whole-object dependencies.
- */
-function isBrowseRedundant(state: {
-    hasSyntaxError: boolean;
-    isNavigating: boolean;
-    requestedInput: string;
-    requestedMode: PathBrowserMode;
-    snapshotInput: string | undefined;
-    snapshotMode: PathBrowserMode | undefined;
-}): boolean {
-    if (state.hasSyntaxError || state.isNavigating) return true;
-    return (
-        state.snapshotMode === state.requestedMode && state.snapshotInput === state.requestedInput
-    );
-}
-
-/**
- * Projects one snapshot plus the in-flight flags into everything the dialog renders.
- *
- * Results are shown only while the snapshot answers the current input, so a stale list never appears actionable.
- * Creation is decided against the current directory alone: `projectSearch` rows name files elsewhere, so finding a
- * same-named file in another folder must not silently remove the user's ability to create one here.
- */
-function derivePathBrowserView(state: {
-    hasSyntaxError: boolean;
-    inputState: PathBrowserInputState;
-    isFetching: boolean;
-    isNavigating: boolean;
-    isStarting: boolean;
-    snapshot: PathBrowserSnapshot | undefined;
-}): {
-    candidateToCreate: PathBrowserCreateCandidate | undefined;
-    directoryMatches: PathBrowserSnapshot['entries'];
-    isResultsReady: boolean;
-    isTruncated: boolean;
-    rows: PathBrowserRow[];
-} {
-    const { hasSyntaxError, inputState, isFetching, isNavigating, isStarting, snapshot } = state;
-    const isSnapshotCurrent =
-        snapshot?.mode === inputState.mode && snapshot.input === inputState.input;
-    const isResultsReady =
-        !isStarting && !isNavigating && !isFetching && isSnapshotCurrent && !hasSyntaxError;
-    const entries = isResultsReady ? snapshot.entries : EMPTY_ENTRIES;
-    const directoryMatches = entries.filter((entry) => entry.source === 'directory');
-    const isTruncated = snapshot?.truncated ?? false;
-    const candidateToCreate =
-        snapshot?.canCreate === true
-            ? pathBrowserCreateCandidate(
-                  inputState.mode,
-                  inputState.input,
-                  directoryMatches.length,
-                  isTruncated,
-                  isResultsReady,
-              )
-            : undefined;
-    return {
-        candidateToCreate,
-        directoryMatches,
-        isResultsReady,
-        isTruncated,
-        rows: isResultsReady
-            ? pathBrowserRows({
-                  candidateToCreate,
-                  entries,
-                  isDirectoryTruncated: isTruncated,
-                  query: parsePathBrowserInput(inputState.input).filter,
-                  searchStatus: snapshot.projectSearch,
-              })
-            : [],
-    };
-}
-
-/**
- * Dispatches one decoded key intent onto the dialog's actions. Keeping the branch table outside the hook leaves the
- * hook body to state and data flow only.
- */
-function applyPathBrowserIntent(
-    intent: PathBrowserKeyIntent,
-    actions: {
-        accept: () => void;
-        close: () => void;
-        complete: () => void;
-        detachProject: () => void;
-        enterDirectory: () => void;
-        moveSelection: (delta: -1 | 1) => void;
-        parent: () => void;
-    },
-): void {
-    switch (intent.kind) {
-        case 'accept': {
-            actions.accept();
-            return;
-        }
-        case 'close': {
-            actions.close();
-            return;
-        }
-        case 'complete': {
-            actions.complete();
-            return;
-        }
-        case 'detach-project': {
-            actions.detachProject();
-            return;
-        }
-        case 'enter-directory': {
-            actions.enterDirectory();
-            return;
-        }
-        case 'move-selection': {
-            actions.moveSelection(intent.delta);
-            return;
-        }
-        case 'parent': {
-            actions.parent();
-        }
-    }
 }
 
 export function usePathBrowser(projectRoot: string, sessionId: string, workbenchProjectId: string) {
@@ -238,26 +121,42 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         let isDisposed = false;
         let browserId: string | undefined;
         const startingInputRevision = inputRevision.current;
-        const startBrowser = async (): Promise<void> => {
+        /**
+         * The request settles into a value and the state updates run in a plain callback, so no `finally` (which React
+         * Compiler cannot lower) and no state update follows an `await` in this effect.
+         */
+        const startBrowser = async (): Promise<
+            { result: PathBrowserSnapshot } | { failure: unknown }
+        > => {
             try {
-                const result = await startPathBrowser({ sessionId });
-                browserId = result.browserId;
-                if (isDisposed) {
-                    runPathBrowserDetached(closePathBrowserSession({ browserId }));
-                    return;
-                }
-                setSnapshot(result);
-                if (inputRevision.current === startingInputRevision)
-                    setInputState({ input: result.input, mode: result.mode });
-                setError(undefined);
+                return { result: await startPathBrowser({ sessionId }) };
             } catch (error_) {
-                if (!isDisposed)
-                    setError(toBrowserError(error_, translate('pathBrowser.errors.browseFailed')));
-            } finally {
-                if (!isDisposed) setIsStarting(false);
+                return { failure: error_ };
             }
         };
-        runPathBrowserDetached(startBrowser());
+        const applyStart = (outcome: Awaited<ReturnType<typeof startBrowser>>): void => {
+            // `browserId` is recorded here, not when the request settles, so the cleanup and this callback never both close it.
+            if ('result' in outcome) browserId = outcome.result.browserId;
+            if (isDisposed) {
+                if (browserId) runPathBrowserDetached(closePathBrowserSession({ browserId }));
+                return;
+            }
+            if ('result' in outcome) {
+                setSnapshot(outcome.result);
+                if (inputRevision.current === startingInputRevision)
+                    setInputState({ input: outcome.result.input, mode: outcome.result.mode });
+                setError(undefined);
+            } else {
+                setError(
+                    toBrowserError(outcome.failure, translate('pathBrowser.errors.browseFailed')),
+                );
+            }
+            setIsStarting(false);
+        };
+        const startAndApply = async (): Promise<void> => {
+            applyStart(await startBrowser());
+        };
+        runPathBrowserDetached(startAndApply());
         return () => {
             isDisposed = true;
             requestGeneration.current += 1;
@@ -296,15 +195,16 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                     input: debouncedInputState.input,
                     mode: debouncedInputState.mode,
                 });
-                if (requestGeneration.current !== generation) return;
-                setSnapshot(result);
-                setError(undefined);
+                if (requestGeneration.current === generation) {
+                    setSnapshot(result);
+                    setError(undefined);
+                }
             } catch (error_) {
-                if (requestGeneration.current !== generation) return;
-                setError(toBrowserError(error_, translate('pathBrowser.errors.browseFailed')));
-            } finally {
-                if (requestGeneration.current === generation) setIsFetching(false);
+                if (requestGeneration.current === generation)
+                    setError(toBrowserError(error_, translate('pathBrowser.errors.browseFailed')));
             }
+            // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+            if (requestGeneration.current === generation) setIsFetching(false);
         };
         runPathBrowserDetached(browse());
     }, [
@@ -388,9 +288,9 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
             }
         } catch (error_) {
             setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
-        } finally {
-            setIsNavigating(false);
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        setIsNavigating(false);
     };
 
     const detachProject = (): void => {
@@ -427,20 +327,26 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 browserId: snapshot.browserId,
                 entryId: entry.id,
             });
-            if (result.kind === 'external') {
-                const opened = openExternalEditorDocument({
-                    document: result.document,
-                    sessionId,
-                    workbenchProjectId,
-                });
-                if (!opened) throw new Error(translate('pathBrowser.errors.openExternalFailed'));
-            }
-            closePathBrowser();
+            let isOpened = true;
+            if (result.kind === 'external')
+                isOpened = Boolean(
+                    openExternalEditorDocument({
+                        document: result.document,
+                        sessionId,
+                        workbenchProjectId,
+                    }),
+                );
+            // No `throw` here: React Compiler cannot lower a throw inside a try/catch.
+            if (isOpened) closePathBrowser();
+            else
+                setError(
+                    toBrowserError(externalOpenError(), translate('pathBrowser.errors.openFailed')),
+                );
         } catch (error_) {
             setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
-        } finally {
-            setIsNavigating(false);
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        setIsNavigating(false);
     };
 
     const choose = (entry: PathBrowserEntry | undefined): void => {
@@ -468,51 +374,56 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         if (isNavigating) return;
         setIsNavigating(true);
         setError(undefined);
-        try {
-            const client = await activeResourceExplorerClient();
-            const path = projectDirectoryPath(projectRoot, snapshot.directoryLabel);
-            const directory = path === '/' ? path : path.slice(0, -1);
-            const created = await createItem(
-                client,
-                sessionId,
-                directory,
-                candidateToCreate.name,
-                candidateToCreate.kind,
-            );
-            if (!created) return;
-            if (candidateToCreate.kind === 'directory') {
-                const listed = await browsePath({
-                    browserId: snapshot.browserId,
-                    input: candidateToCreate.name,
-                    mode: 'project',
-                });
-                const directory = listed.entries.find(
-                    (entry) => entry.kind === 'directory' && entry.name === candidateToCreate.name,
-                );
-                if (!directory) throw new Error(translate('pathBrowser.errors.reopenFolderFailed'));
-                await applySnapshotOperation(
-                    navigatePathBrowser({
+        const createFailedMessage = translate(
+            candidateToCreate.kind === 'directory'
+                ? 'pathBrowser.errors.createFolderFailed'
+                : 'pathBrowser.errors.createFileFailed',
+        );
+        // The `finally` lives in `awaitThenCleanup` because React Compiler cannot lower it inside a hook.
+        await awaitThenCleanup(
+            (async (): Promise<void> => {
+                try {
+                    const client = await activeResourceExplorerClient();
+                    const path = projectDirectoryPath(projectRoot, snapshot.directoryLabel);
+                    const directory = withoutTrailingSlash(path);
+                    const created = await createItem(
+                        client,
+                        sessionId,
+                        directory,
+                        candidateToCreate.name,
+                        candidateToCreate.kind,
+                    );
+                    if (!created) return;
+                    if (candidateToCreate.kind !== 'directory') {
+                        closePathBrowser();
+                        return;
+                    }
+                    const listed = await browsePath({
                         browserId: snapshot.browserId,
-                        target: { entryId: directory.id, kind: 'entry' },
-                    }),
-                );
-                return;
-            }
-            closePathBrowser();
-        } catch (error_) {
-            setError(
-                toBrowserError(
-                    error_,
-                    translate(
-                        candidateToCreate.kind === 'directory'
-                            ? 'pathBrowser.errors.createFolderFailed'
-                            : 'pathBrowser.errors.createFileFailed',
-                    ),
-                ),
-            );
-        } finally {
-            setIsNavigating(false);
-        }
+                        input: candidateToCreate.name,
+                        mode: 'project',
+                    });
+                    const createdDirectory = listed.entries.find(
+                        (entry) =>
+                            entry.kind === 'directory' && entry.name === candidateToCreate.name,
+                    );
+                    // No `throw` here: React Compiler cannot lower a throw inside a try/catch.
+                    if (!createdDirectory) {
+                        setError(toBrowserError(reopenFolderError(), createFailedMessage));
+                        return;
+                    }
+                    await applySnapshotOperation(
+                        navigatePathBrowser({
+                            browserId: snapshot.browserId,
+                            target: { entryId: createdDirectory.id, kind: 'entry' },
+                        }),
+                    );
+                } catch (error_) {
+                    setError(toBrowserError(error_, createFailedMessage));
+                }
+            })(),
+            () => setIsNavigating(false),
+        );
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {

@@ -53,7 +53,8 @@ function useAgentChatAnchorAbove(
         };
         let frame: number | undefined;
         const schedule = (): void => {
-            frame ??= requestAnimationFrame(() => {
+            if (frame !== undefined) return;
+            frame = requestAnimationFrame(() => {
                 frame = undefined;
                 measure();
             });

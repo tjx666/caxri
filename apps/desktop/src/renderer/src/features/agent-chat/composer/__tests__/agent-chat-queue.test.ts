@@ -66,11 +66,12 @@ describe('agentChatQueueEntries', () => {
 });
 
 describe('agentChatEnterQueuedId', () => {
-    it('marks the next queued message only while a turn runs and the input is empty', () => {
-        const running = { hasContent: false, isTurnRunning: true };
+    it('marks the next queued message only while a turn runs and the focused input is empty', () => {
+        const running = { hasContent: false, isInputFocused: true, isTurnRunning: true };
         expect(agentChatEnterQueuedId('m1', running)).toBe('m1');
         expect(agentChatEnterQueuedId('m1', { ...running, hasContent: true })).toBeUndefined();
         expect(agentChatEnterQueuedId('m1', { ...running, isTurnRunning: false })).toBeUndefined();
+        expect(agentChatEnterQueuedId('m1', { ...running, isInputFocused: false })).toBeUndefined();
         expect(agentChatEnterQueuedId(undefined, running)).toBeUndefined();
     });
 });

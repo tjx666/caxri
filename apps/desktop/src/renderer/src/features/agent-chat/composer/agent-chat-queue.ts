@@ -83,13 +83,16 @@ export function agentChatNextQueuedId(
 /**
  * The queued message whose row carries the `Enter Steer` chip: the one an empty composer's Enter steers into the
  * running turn ({@link agentChatNextQueuedId}). `undefined` while the user is typing, when Enter would queue the draft
- * instead, and with no turn running, when the placeholder already says what Enter does.
+ * instead, with no turn running, when the placeholder already says what Enter does, and while the composer is not
+ * focused, since Enter then does nothing there.
  */
 export function agentChatEnterQueuedId(
     nextQueuedId: string | undefined,
-    state: { hasContent: boolean; isTurnRunning: boolean },
+    state: { hasContent: boolean; isInputFocused: boolean; isTurnRunning: boolean },
 ): string | undefined {
-    return state.isTurnRunning && !state.hasContent ? nextQueuedId : undefined;
+    return state.isTurnRunning && state.isInputFocused && !state.hasContent
+        ? nextQueuedId
+        : undefined;
 }
 
 function queueEntryView(

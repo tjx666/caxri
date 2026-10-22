@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { SourceControlHistoryDescriptor } from '@caxri/protocol';
+import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@caxri/protocol';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
@@ -57,37 +57,45 @@ export function useSourceControlHistory(
             activeRequest.current = request;
             setLoading(true);
             setError(undefined);
+            // Built before the `try`: React Compiler cannot lower a conditional or logical expression inside a try/catch.
+            const historyRequest = {
+                historyId: descriptor.id,
+                ...(descriptor.itemActivation && {
+                    itemActivation: descriptor.itemActivation,
+                }),
+                offset,
+                pageSize: descriptor.pageSize,
+                revision: descriptor.revision!,
+                ...(scopePath && { path: scopePath }),
+            };
+            // Settled into a value instead of try/catch/finally: React Compiler cannot lower `finally`, and the settle
+            // step below must run for success, failure, and a stale response alike.
+            let result:
+                { ok: true; page: SourceControlHistoryPage } | { ok: false; error: unknown };
             try {
-                const page = await client.historyPage(
-                    {
-                        historyId: descriptor.id,
-                        ...(descriptor.itemActivation && {
-                            itemActivation: descriptor.itemActivation,
-                        }),
-                        offset,
-                        pageSize: descriptor.pageSize,
-                        revision: descriptor.revision!,
-                        ...(scopePath && { path: scopePath }),
-                    },
-                    request.signal,
-                );
-                if (request !== activeRequest.current || page.revision !== descriptor.revision)
-                    return;
-                setPageState((current) =>
-                    applySourceControlHistoryPage(
-                        current,
-                        { ...page, path: scopePath },
-                        shouldReplace,
-                    ),
-                );
+                result = {
+                    ok: true,
+                    page: await client.historyPage(historyRequest, request.signal),
+                };
             } catch (error_) {
-                if (request === activeRequest.current)
-                    setError(describeFailure(error_, descriptor.loadErrorMessage));
-            } finally {
-                const isCurrentRequest = request === activeRequest.current;
-                if (isCurrentRequest) activeRequest.current = undefined;
-                setLoading((current) => (isCurrentRequest ? false : current));
+                result = { ok: false, error: error_ };
             }
+            const isCurrentRequest = request === activeRequest.current;
+            if (isCurrentRequest) activeRequest.current = undefined;
+            setLoading((current) => (isCurrentRequest ? false : current));
+            if (!isCurrentRequest) return;
+            if (!result.ok) {
+                setError(describeFailure(result.error, descriptor.loadErrorMessage));
+                return;
+            }
+            if (result.page.revision !== descriptor.revision) return;
+            setPageState((current) =>
+                applySourceControlHistoryPage(
+                    current,
+                    { ...result.page, path: scopePath },
+                    shouldReplace,
+                ),
+            );
         },
         [client, descriptor, scopePath],
     );

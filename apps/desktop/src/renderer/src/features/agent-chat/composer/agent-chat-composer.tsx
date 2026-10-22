@@ -41,11 +41,7 @@ import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { agentChatEnterQueuedId, agentChatNextQueuedId } from './agent-chat-queue';
 import type { agentChatSendBlock } from './send/agent-chat-send-tooltip';
-import {
-    agentChatSendTooltip,
-    agentChatSendTooltipKeys,
-    agentChatSendTooltipShortcut,
-} from './send/agent-chat-send-tooltip';
+import { agentChatSendLabels } from './send/agent-chat-send-tooltip';
 import { agentChatSubmitterDelivery } from './send/agent-chat-submitter-delivery';
 
 /**
@@ -273,31 +269,41 @@ export function AgentChatComposer({
         supportsImages,
         terminalId,
     });
-    const { choose, compact, complete, edit, goalMode, hasContent, isSendable, isSending, submit } =
-        useAgentChatComposerSend({
-            canSend: sendBlock === undefined,
-            commands,
-            draft,
-            edit: {
-                inputReference,
-                isBusy,
-                isSteerDefault,
-                isTurnRunning,
-                options: editOptions,
-                providerName,
-                snapshot,
-            },
-            focusInput,
-            images,
-            // A Session chosen from the `@` list is not in the draft until its reference is written.
-            isAttaching: isAttaching || sessionMenu.isPreparing,
-            onSent: () => {
-                onSent?.();
-                stash.restoreAfterSend();
-            },
-            setDraft,
-            terminalId,
-        });
+    const {
+        choose,
+        compact,
+        complete,
+        edit,
+        goalMode,
+        hasContent,
+        isSendable,
+        isSending,
+        sideChatNotice,
+        submit,
+    } = useAgentChatComposerSend({
+        canSend: sendBlock === undefined,
+        commands,
+        draft,
+        edit: {
+            inputReference,
+            isBusy,
+            isSteerDefault,
+            isTurnRunning,
+            options: editOptions,
+            providerName,
+            snapshot,
+        },
+        focusInput,
+        images,
+        // A Session chosen from the `@` list is not in the draft until its reference is written.
+        isAttaching: isAttaching || sessionMenu.isPreparing,
+        onSent: () => {
+            onSent?.();
+            stash.restoreAfterSend();
+        },
+        setDraft,
+        terminalId,
+    });
     // The turn review's "Back to Chat and Send" sends the message from outside the composer.
     useAgentChatComposerCommand(terminalId, 'send', isSendable, () => {
         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
@@ -320,9 +326,7 @@ export function AgentChatComposer({
         isPreparingReference: sessionMenu.isPreparing,
         isSending,
     };
-    const sendTooltip = agentChatSendTooltip(sendAction, sendState, t);
-    const sendShortcut = agentChatSendTooltipShortcut(sendAction, sendState);
-    const sendKeys = agentChatSendTooltipKeys(sendAction, sendState);
+    const { sendKeys, sendShortcut, sendTooltip } = agentChatSendLabels(sendAction, sendState, t);
     const composerKeys = useAgentChatComposerEnter({
         cancelEdit: edit.cancel,
         clearAttachments: () => images.clearSent(images.attachments),
@@ -358,6 +362,7 @@ export function AgentChatComposer({
                     activeTurnId={activeTurnId}
                     enterQueuedId={agentChatEnterQueuedId(nextQueuedId, {
                         hasContent,
+                        isInputFocused,
                         isTurnRunning,
                     })}
                     isQueuePaused={isQueuePaused}
@@ -377,6 +382,7 @@ export function AgentChatComposer({
                         isEditing={edit.isEditing}
                         notice={
                             composerKeys.notice ??
+                            sideChatNotice ??
                             stash.notice ??
                             (menu.confirmsSendAsText
                                 ? t('agentChat.slash.confirmSendAsText')
@@ -460,17 +466,9 @@ export function AgentChatComposer({
                         onGoal={goalMode.enter}
                         onTurnOffGoalMode={goalMode.isOn ? goalMode.exit : undefined}
                         onReferenceSession={sessionMenu.reference}
-                        onPick={(files) => {
-                            fileInput.pick(files);
-                            focusInput();
-                        }}
-                        onPickPaths={
-                            fileInput.pickPaths &&
-                            (() => {
-                                // eslint-disable-next-line no-void -- pickAgentChatPaths reports its own failures through tryCommand
-                                void fileInput.pickPaths?.().then(focusInput);
-                            })
-                        }
+                        onPick={fileInput.pick}
+                        onPickPaths={fileInput.pickPaths}
+                        onPicked={focusInput}
                         onStop={stopAndFocus}
                         sendAction={sendAction}
                         sendKeys={sendKeys}

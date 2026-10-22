@@ -116,26 +116,15 @@ export function useAgentChatSessionMenu({
     }, [activeOptionId]);
 
     /**
-     * Writes the Session's reference file, then puts `@<path>` over `range` of the draft. The user may keep typing
-     * while the file is written, so the range is used only while it still holds the text it held when chosen; otherwise
-     * the reference goes at the end.
-     */
-    const insertReference = async (
-        candidate: SessionReferenceCandidate,
-        range: { start: number; end: number },
-        typed: string,
-    ): Promise<void> => {
-        setPreparing(candidate.title);
-        const reference = await prepareSessionReference(candidate.sessionId);
-        setPreparing(undefined);
-        if (reference) insertText(reference, range, typed);
-    };
-    /**
      * Puts `text` over `range` of the draft, then the caret after it. The user may keep typing while a Session's
      * reference is written, so the range is used only while it still holds `typed`; otherwise the text goes at the
      * end.
      */
-    function insertText(text: string, range: { start: number; end: number }, typed: string): void {
+    const insertText = (
+        text: string,
+        range: { start: number; end: number },
+        typed: string,
+    ): void => {
         const input = inputReference.current;
         if (!input) return;
         const current = input.value;
@@ -152,8 +141,23 @@ export function useAgentChatSessionMenu({
             input.focus();
             input.setSelectionRange(inserted.caret, inserted.caret);
         });
-    }
+    };
 
+    /**
+     * Writes the Session's reference file, then puts `@<path>` over `range` of the draft. The user may keep typing
+     * while the file is written, so the range is used only while it still holds the text it held when chosen; otherwise
+     * the reference goes at the end.
+     */
+    const insertReference = async (
+        candidate: SessionReferenceCandidate,
+        range: { start: number; end: number },
+        typed: string,
+    ): Promise<void> => {
+        setPreparing(candidate.title);
+        const reference = await prepareSessionReference(candidate.sessionId);
+        setPreparing(undefined);
+        if (reference) insertText(reference, range, typed);
+    };
     const chooseRow = (row: AgentChatMentionRow | undefined): void => {
         if (!mention || isPreparing || !row) return;
         const typed = draft.slice(mention.start, mention.end);

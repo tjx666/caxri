@@ -108,3 +108,8 @@ jobs:
       # red after the merge (PR 2313 and the directory-density ratchet). Imports only Node builtins.
       - name: Run directory-density ratchet
         run: bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts
+
+      # React Compiler skips a component silently when it meets unsupported syntax (`try`/`finally`, `??=`), so a
+      # skipped component loses memoization with no build or lint error. Root dependencies only; about ten seconds.
+      - name: Run React Compiler coverage
+        run: bunx vitest run scripts/__tests__/react-compiler-coverage.test.ts

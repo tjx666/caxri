@@ -49,11 +49,11 @@ test('a missing file save shows a safe reason and retries after the file is rest
         await unlink(path);
         await running.page.keyboard.press('Meta+S');
 
-        const failure = running.page.locator('.toast', { hasText: 'Save failed.' });
+        const failure = running.page.locator('.toast', { hasText: "Couldn't save note.txt" });
         await expect(failure).toContainText('Requested path no longer exists.');
         await expect(failure).not.toContainText('ENOENT');
         await expect(failure).not.toContainText(root);
-        const retry = failure.getByRole('button', { name: 'Retry Save failed' });
+        const retry = failure.getByRole('button', { name: "Retry Couldn't save note.txt" });
         await expect(retry).toBeVisible();
         await failure.screenshot({ path: test.info().outputPath('save-enoent-toast.png') });
 
@@ -97,9 +97,9 @@ test('a failed save retries at the renamed editor path', async () => {
         await chmod(root, 0o500);
         await running.page.keyboard.press('Meta+S');
 
-        const failure = running.page.locator('.toast', { hasText: 'Save failed.' });
+        const failure = running.page.locator('.toast', { hasText: "Couldn't save note.txt" });
         await expect(failure).toBeVisible();
-        const retry = failure.getByRole('button', { name: 'Retry Save failed' });
+        const retry = failure.getByRole('button', { name: "Retry Couldn't save note.txt" });
         await expect(retry).toBeVisible();
         await failure.hover();
 

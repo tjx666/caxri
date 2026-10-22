@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { CommanderDataSummary } from '@caxri/protocol';
 import type { UseQueryResult } from '@tanstack/react-query';
 
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { useCaxriQuery } from '../../../queries/client';
 import type { CommanderClearDataSelection, CommanderTaskCounts } from '../commander-clear-data';
 import {
@@ -60,11 +61,7 @@ export function useCommanderClearData(): CommanderClearDataState {
         submit: async () => {
             if (!request || isSubmitting) return;
             setIsSubmitting(true);
-            try {
-                await clearCommanderData(request);
-            } finally {
-                setIsSubmitting(false);
-            }
+            await awaitThenCleanup(clearCommanderData(request), () => setIsSubmitting(false));
         },
     };
 }

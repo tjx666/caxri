@@ -1,7 +1,8 @@
 import { useState } from 'react';
 
 import type { SessionSearchEntry } from '@caxri/protocol';
-import { Check, Copy } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Archive, Check, CircleDot, Copy, Unlink } from 'lucide-react';
 
 import {
     COPY_FEEDBACK_RESET_MS,
@@ -31,11 +32,14 @@ const statusLabelKeys = {
     external: 'session.search.status.external',
 } as const satisfies Record<SessionSearchEntry['status'], string>;
 
-const statusClassNames: Record<SessionSearchEntry['status'], string> = {
-    open: 'text-muted',
-    archived: 'text-warning',
-    external: 'text-accent',
-};
+/**
+ * Status is told apart by icon and word, not hue: the tinted labels competed with the row title and the hit highlight.
+ */
+const statusIcons = {
+    open: CircleDot,
+    archived: Archive,
+    external: Unlink,
+} as const satisfies Record<SessionSearchEntry['status'], LucideIcon>;
 
 function entryTitle(entry: SessionSearchEntry, t: Translate): string {
     if (entry.status !== 'external') return sessionTitleForDisplay(entry.title, t);
@@ -66,7 +70,7 @@ function MatchLine({ entry }: { entry: SessionSearchEntry }) {
                 </span>
                 {snippetSegments(snippet).map((segment, index) =>
                     segment.isMatch ? (
-                        <mark key={index} className="rounded-sm bg-warning px-0.5 text-background">
+                        <mark key={index} className="bg-transparent font-semibold text-foreground">
                             {segment.text}
                         </mark>
                     ) : (
@@ -82,6 +86,17 @@ function MatchLine({ entry }: { entry: SessionSearchEntry }) {
             </span>
         );
     return null;
+}
+
+function StatusLabel({ status }: { status: SessionSearchEntry['status'] }) {
+    const { t } = useTranslation();
+    const Icon = statusIcons[status];
+    return (
+        <span className="flex flex-none items-center gap-1 text-[11px] text-muted">
+            <Icon aria-hidden="true" size={11} />
+            {t(statusLabelKeys[status])}
+        </span>
+    );
 }
 
 function CopyIdButton({ id }: { id: string }) {
@@ -172,14 +187,7 @@ export function SessionSearchResults({
                                 <span className="truncate text-[13px] font-medium">
                                     {entryTitle(entry, t)}
                                 </span>
-                                <span
-                                    className={cn(
-                                        'flex-none text-[11px]',
-                                        statusClassNames[entry.status],
-                                    )}
-                                >
-                                    {t(statusLabelKeys[entry.status])}
-                                </span>
+                                <StatusLabel status={entry.status} />
                             </span>
                             <MatchLine entry={entry} />
                             <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
@@ -198,7 +206,7 @@ export function SessionSearchResults({
                                         </span>
                                     )}
                                 {entry.status === 'external' && !action && (
-                                    <span className="flex-none text-warning">
+                                    <span className="flex-none">
                                         · {t('session.search.noFolder')}
                                     </span>
                                 )}

@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -7,6 +7,7 @@ import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskIdentity, agentChatTaskUsageSummary } from '@caxri/protocol';
 import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
 
+import { SheetButton } from '../../components/sheet-button';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
@@ -62,22 +63,22 @@ export const AgentChatTaskStatusGlyph = ({
 };
 
 /**
- * Stop for one task, shown only to a control device while the task runs and the provider can stop it on its own. It
- * stays `Stopping…` until the Chat reports the task ended.
+ * Stop for one task, shown only to a control device while the task runs and the provider can stop it on its own, and
+ * only in the task's detail, never in a list row where a stray tap would end a subagent. Pressing it asks for
+ * confirmation (`onPress` opens `StopConfirmation`); it stays `Stopping…` until the Chat reports the task ended.
  */
-export const AgentChatTaskStopButton = ({
-    stopper,
-    task,
+const AgentChatTaskStopButton = ({
+    isStopping,
+    onPress,
     theme,
     title,
 }: {
-    stopper: AgentChatTaskStopper;
-    task: AgentChatTask;
+    isStopping: boolean;
+    onPress: () => void;
     theme: MobileTheme;
     title: string;
 }) => {
     const { t } = useTranslation();
-    const isStopping = stopper.isStopping(task);
     return (
         <Pressable
             accessibilityHint={t('chat.tasks.stopHint')}
@@ -85,10 +86,7 @@ export const AgentChatTaskStopButton = ({
             accessibilityRole="button"
             accessibilityState={{ busy: isStopping, disabled: isStopping }}
             disabled={isStopping}
-            onPress={() => {
-                // eslint-disable-next-line no-void -- The detail reports a failed stop itself.
-                void stopper.stop(task.id);
-            }}
+            onPress={onPress}
             style={({ pressed }) => [styles.stop, { opacity: pressed ? 0.6 : 1 }]}
             testID="agent-chat-task-stop"
         >
@@ -101,6 +99,54 @@ export const AgentChatTaskStopButton = ({
                 {t(isStopping ? 'chat.tasks.stopping' : 'chat.tasks.stop')}
             </Text>
         </Pressable>
+    );
+};
+
+/**
+ * The second step before a stop, in the sheet itself like the pull request merge confirmation: Stop ends a subagent for
+ * good, so one tap on the button never does it.
+ */
+const StopConfirmation = ({
+    onCancel,
+    onStop,
+    theme,
+    title,
+}: {
+    onCancel: () => void;
+    onStop: () => void;
+    theme: MobileTheme;
+    title: string;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.confirmation} testID="agent-chat-task-stop-confirmation">
+            <Text style={[styles.confirmTitle, { color: theme.text }]}>
+                {t('chat.tasks.stopConfirmTitle')}
+            </Text>
+            <Text numberOfLines={3} style={[styles.confirmText, { color: theme.muted }]}>
+                {t('chat.tasks.stopConfirmBody', { title })}
+            </Text>
+            <View style={styles.confirmButtons}>
+                <View style={styles.confirmSlot}>
+                    <SheetButton
+                        label={t('common.cancel')}
+                        onPress={onCancel}
+                        testID="agent-chat-task-stop-cancel"
+                        theme={theme}
+                        variant="secondary"
+                    />
+                </View>
+                <View style={styles.confirmSlot}>
+                    <SheetButton
+                        label={t('chat.tasks.stop')}
+                        onPress={onStop}
+                        testID="agent-chat-task-stop-confirm"
+                        theme={theme}
+                        variant="danger"
+                    />
+                </View>
+            </View>
+        </View>
     );
 };
 
@@ -188,6 +234,60 @@ const TaskDetailContent = ({
 };
 
 /**
+ * The status line with Stop beside it; pressing Stop swaps the button for `StopConfirmation` below the line.
+ */
+const TaskStatusRow = ({
+    canStop,
+    row,
+    stopper,
+    task,
+    theme,
+}: {
+    canStop: boolean;
+    row: ReturnType<typeof agentChatTaskRow>;
+    stopper: AgentChatTaskStopper;
+    task: AgentChatTask;
+    theme: MobileTheme;
+}) => {
+    const [isConfirmingStop, setConfirmingStop] = useState(false);
+    const isStopping = stopper.isStopping(task);
+    // A task that ended (or a device that lost control) while the question was open leaves nothing to confirm.
+    const showStopConfirmation = isConfirmingStop && canStop && !isStopping;
+    return (
+        <>
+            <View style={styles.facts}>
+                <View accessible style={styles.status}>
+                    <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
+                    <Text style={[styles.factsText, { color: theme.muted }]}>
+                        {row.elapsed ? `${row.statusLabel} · ${row.elapsed}` : row.statusLabel}
+                    </Text>
+                </View>
+                {canStop && !showStopConfirmation ? (
+                    <AgentChatTaskStopButton
+                        isStopping={isStopping}
+                        onPress={() => setConfirmingStop(true)}
+                        theme={theme}
+                        title={row.title}
+                    />
+                ) : null}
+            </View>
+            {showStopConfirmation ? (
+                <StopConfirmation
+                    onCancel={() => setConfirmingStop(false)}
+                    onStop={() => {
+                        setConfirmingStop(false);
+                        // eslint-disable-next-line no-void -- The detail reports a failed stop itself.
+                        void stopper.stop(task.id);
+                    }}
+                    theme={theme}
+                    title={row.title}
+                />
+            ) : null}
+        </>
+    );
+};
+
+/**
  * What one background task did and is doing: its status and elapsed time, Stop, a subagent's type, model, and usage,
  * the command line, the provider's summary, and a shell's output tail or a subagent's transcript, read through
  * `mobile.agentChat.readTask` and kept current while it runs (`useAgentChatTaskDetail`). The Background work sheet and
@@ -195,12 +295,18 @@ const TaskDetailContent = ({
  */
 export const AgentChatTaskDetailBody = ({
     canControl,
+    isCommandShown = false,
     stopper,
     task,
     terminalId,
     theme,
 }: {
     canControl: boolean;
+    /**
+     * Whether the surrounding sheet already shows the task's command (as its title or in its own code block), so the
+     * body does not repeat it.
+     */
+    isCommandShown?: boolean;
     stopper: AgentChatTaskStopper;
     task: AgentChatTask;
     terminalId: string;
@@ -212,29 +318,22 @@ export const AgentChatTaskDetailBody = ({
     const { detail, isError, isLoading } = useAgentChatTaskDetail(terminalId, task);
     const content = detail ? agentChatTaskDetailContent(task, detail, t) : undefined;
     const stopError = stopper.errorFor(task);
-    const command = task.command ?? (row.isCommandTitle ? task.title : undefined);
+    const command = isCommandShown
+        ? undefined
+        : (task.command ?? (row.isCommandTitle ? task.title : undefined));
     const facts = [
         task.kind === 'agent' ? agentChatTaskIdentity(task) : undefined,
         agentChatTaskUsageSummary(task, t),
     ].filter(Boolean);
     return (
         <View style={styles.body} testID="agent-chat-task-detail">
-            <View style={styles.facts}>
-                <View accessible style={styles.status}>
-                    <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
-                    <Text style={[styles.factsText, { color: theme.muted }]}>
-                        {row.elapsed ? `${row.statusLabel} · ${row.elapsed}` : row.statusLabel}
-                    </Text>
-                </View>
-                {canControl && row.canStop ? (
-                    <AgentChatTaskStopButton
-                        stopper={stopper}
-                        task={task}
-                        theme={theme}
-                        title={row.title}
-                    />
-                ) : null}
-            </View>
+            <TaskStatusRow
+                canStop={canControl && row.canStop}
+                row={row}
+                stopper={stopper}
+                task={task}
+                theme={theme}
+            />
             {facts.length > 0 ? (
                 <Text
                     style={[styles.identity, { color: theme.muted }]}
@@ -286,6 +385,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
     },
     stopText: { fontSize: 14, fontWeight: '700' },
+    confirmation: { gap: 8 },
+    confirmTitle: { fontSize: 16, fontWeight: '700' },
+    confirmText: { fontSize: 14, lineHeight: 20 },
+    confirmButtons: { flexDirection: 'row', gap: 10, paddingTop: 4 },
+    confirmSlot: { flex: 1 },
     command: {
         borderRadius: 8,
         fontFamily: MONOSPACE_FONT,

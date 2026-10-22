@@ -126,6 +126,8 @@ const LinkedTask = ({ itemId, theme }: { itemId: string; theme: MobileTheme }) =
             </Text>
             <AgentChatTaskDetailBody
                 canControl={link.canControl}
+                // A background command's own code block above already shows the command line.
+                isCommandShown={link.task.kind === 'shell'}
                 stopper={stopper}
                 task={link.task}
                 terminalId={link.terminalId}

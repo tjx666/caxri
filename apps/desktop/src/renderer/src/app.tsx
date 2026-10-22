@@ -152,6 +152,21 @@ function useRuntimeAttachment(): void {
     }, []);
 }
 
+/**
+ * Mounts the hooks that follow the selected Session without rendering anything. They live in this leaf instead of `App`
+ * so a Session switch or an activity update on the selected record re-renders this null component rather than the whole
+ * shell and every child below it.
+ */
+function SessionEffects({ isAttached }: { isAttached: boolean }) {
+    useFileMutationReconciliation(isAttached);
+    useSessionNavigationHistory();
+    useSessionAttentionAcknowledgement();
+    useSessionLookTracker();
+    useDeliveryFocusRefresh();
+    useGitDecorationSync();
+    return null;
+}
+
 export function App() {
     const { t } = useTranslation();
     const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
@@ -166,7 +181,6 @@ export function App() {
     useRuntimeAttachment();
     useStartupLoaderRemoval(isAttached);
     useSettingsTabOpener();
-    useFileMutationReconciliation(isAttached);
     useRuntimeQueryInvalidation();
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
     useEffect(() => startViewEventBridge(), []);
@@ -174,13 +188,8 @@ export function App() {
     useEffect(() => subscribeUnsavedEditorRequests(), []);
     useEffect(() => registerPickerFallbackFocus(activeWorkbenchFocusElement), []);
     useSessionMruSwitcherLifecycle();
-    useSessionNavigationHistory();
     useCommandShortcuts();
-    useSessionAttentionAcknowledgement();
-    useSessionLookTracker();
-    useDeliveryFocusRefresh();
     useExternalDocumentSync();
-    useGitDecorationSync();
     useChromeViewportClamp(getSecondarySidebarYieldScope);
     useSecondarySidebarYieldSync();
     useWorkbenchAppearance();
@@ -212,11 +221,13 @@ export function App() {
      * Server attaches underneath it; see `SshHostLayer`.
      */
     const sshHostLayer = <SshHostLayer />;
+    const sessionEffects = <SessionEffects isAttached={isAttached} />;
     if (!isAttached)
         return (
             <>
                 <LoadingScreen />
                 {sshHostLayer}
+                {sessionEffects}
             </>
         );
 
@@ -316,6 +327,7 @@ export function App() {
                 </main>
             </TooltipProvider>
             {sshHostLayer}
+            {sessionEffects}
         </>
     );
 }

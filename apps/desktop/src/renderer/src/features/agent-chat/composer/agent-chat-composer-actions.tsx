@@ -40,6 +40,7 @@ export function AgentChatComposerActions({
     onTurnOffGoalMode,
     onPick,
     onPickPaths,
+    onPicked,
     onReferenceSession,
     onStop,
     recentSessions,
@@ -99,7 +100,11 @@ export function AgentChatComposerActions({
      * Opens the panel for files and folders together (`useAgentChatFileInput`'s `pickPaths`), or `undefined` in an SSH
      * Host window.
      */
-    onPickPaths: (() => void) | undefined;
+    onPickPaths: (() => Promise<unknown>) | undefined;
+    /**
+     * Runs after a pick lands (the input takes focus back from the menu or native panel).
+     */
+    onPicked: () => void;
     onReferenceSession: (candidate: SessionReferenceCandidate) => void;
     onStop: () => void;
     /**
@@ -141,11 +146,10 @@ export function AgentChatComposerActions({
     useAgentChatComposerCommand(terminalId, 'togglePlanMode', planMode !== undefined, () =>
         permission.configure({ planMode: !planMode }),
     );
-    useAgentChatComposerCommand(
-        terminalId,
-        'openSideChat',
-        provider !== undefined && agentProviderCatalog[provider].capabilities.chatSideQuestion,
-        () => openAgentChatSideChat(terminalId),
+    const hasSideChat =
+        provider !== undefined && agentProviderCatalog[provider].capabilities.chatSideQuestion;
+    useAgentChatComposerCommand(terminalId, 'openSideChat', hasSideChat, () =>
+        openAgentChatSideChat(terminalId),
     );
     return (
         <div className="flex items-center gap-1 px-2 pb-2">
@@ -155,9 +159,19 @@ export function AgentChatComposerActions({
                     caxriSkill={caxriSkill}
                     isBusy={isAttaching}
                     onGoal={onGoal}
-                    onPick={onPick}
-                    onPickPaths={onPickPaths}
+                    onPick={(files) => {
+                        onPick(files);
+                        onPicked();
+                    }}
+                    onPickPaths={
+                        onPickPaths &&
+                        (() => {
+                            // eslint-disable-next-line no-void -- pickAgentChatPaths reports its own failures through tryCommand
+                            void onPickPaths().then(onPicked);
+                        })
+                    }
                     onReferenceSession={onReferenceSession}
+                    onSideChat={hasSideChat ? () => openAgentChatSideChat(terminalId) : undefined}
                     sessions={recentSessions}
                     planMode={
                         planMode === undefined

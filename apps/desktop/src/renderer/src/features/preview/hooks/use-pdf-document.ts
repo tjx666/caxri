@@ -104,18 +104,17 @@ export function usePdfDocument(
                     : current,
             );
         };
+        // Computed before the `try`: React Compiler cannot lower a conditional inside a try/catch.
+        const assetSource: PreviewAssetSource =
+            externalDocumentId !== undefined && externalDirectory !== undefined
+                ? { externalDocumentId, directory: externalDirectory }
+                : { sessionId };
+        const password = request.password?.source === source ? request.password.value : undefined;
         const open = async (): Promise<void> => {
             try {
-                const assetSource: PreviewAssetSource =
-                    externalDocumentId !== undefined && externalDirectory !== undefined
-                        ? { externalDocumentId, directory: externalDirectory }
-                        : { sessionId };
                 const bytes = await readAssetBytes(assetSource, readPath, controller.signal);
                 if (isSuperseded()) return;
-                task = loadPdfDocument(
-                    bytes,
-                    request.password?.source === source ? request.password.value : undefined,
-                );
+                task = loadPdfDocument(bytes, password);
                 const document = await task.promise;
                 settle({ status: 'ready', document }, task);
             } catch (error) {

@@ -126,4 +126,66 @@ describe('decideAgentLifecycleUpdate', () => {
             ),
         ).toEqual({ lastActivityState: 'running' });
     });
+    describe('answered attention', () => {
+        const primary = terminal({ id: 'claude-1', provider: 'claude' });
+        const unread = (
+            kind: 'waiting' | 'completed',
+            state: 'waiting' | 'completed' | 'running',
+        ) =>
+            session({
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastActivityState: state,
+                lastAttentionKind: kind,
+                primaryAgentTerminalId: primary.id,
+            });
+
+        it('supersedes an unread waiting notice and keeps the Session running', () => {
+            for (const phase of ['attentionResolved', 'toolBatchFinished'] as const)
+                expect(
+                    decideAgentLifecycleUpdate(
+                        primary,
+                        unread('waiting', 'waiting'),
+                        'claude',
+                        phase,
+                    ),
+                ).toEqual({ lastActivityState: 'running', supersedesUnreadAttention: true });
+        });
+
+        it('supersedes a stale unread waiting notice even when the state already moved on', () => {
+            expect(
+                decideAgentLifecycleUpdate(
+                    primary,
+                    unread('waiting', 'running'),
+                    'claude',
+                    'attentionResolved',
+                ),
+            ).toEqual({ lastActivityState: 'running', supersedesUnreadAttention: true });
+        });
+
+        it('leaves an unread result untouched', () => {
+            expect(
+                decideAgentLifecycleUpdate(
+                    primary,
+                    unread('completed', 'completed'),
+                    'claude',
+                    'attentionResolved',
+                ),
+            ).toBeUndefined();
+        });
+
+        it('raises the result notice when the turn finishes after the answer', () => {
+            const answered = session({
+                attentionEpoch: 1,
+                readAttentionEpoch: 1,
+                hasUnread: false,
+                lastActivityState: 'running',
+                lastAttentionKind: 'waiting',
+                primaryAgentTerminalId: primary.id,
+            });
+            expect(decideAgentLifecycleUpdate(primary, answered, 'claude', 'turnFinished')).toEqual(
+                { lastActivityState: 'completed', attentionKind: 'completed' },
+            );
+        });
+    });
 });

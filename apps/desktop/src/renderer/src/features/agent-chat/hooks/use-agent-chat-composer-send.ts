@@ -5,6 +5,7 @@ import {
     completeAgentChatAction,
 } from '@caxri/protocol';
 
+import { useTranslation } from '../../../i18n';
 import { recordRecentAgentAction } from '../../agent-actions/agent-actions-commands';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../activity/agent-chat-goal-mode';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
@@ -16,6 +17,7 @@ import {
 import { agentChatCompactCommand } from '../context/agent-chat-context';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import { useAgentChatComposerEdit } from './use-agent-chat-composer-edit';
+import { LONG_NOTICE_MS, useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
 import { useAgentChatSubmit } from './use-agent-chat-submit';
 import { useAgentChatUnsentReturns } from './use-agent-chat-unsent-returns';
 
@@ -70,6 +72,8 @@ export function useAgentChatComposerSend({
     setDraft: (update: (current: string) => string) => void;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
+    const sideChatNotice = useAgentChatComposerNotice();
     const {
         isSending,
         runCommand,
@@ -80,6 +84,8 @@ export function useAgentChatComposerSend({
         clearSent: images.clearSent,
         commands,
         onSent,
+        onSideChatBusy: () =>
+            sideChatNotice.show(t('agentChat.sideChat.stillAnswering'), LONG_NOTICE_MS),
         providerName: editInput.providerName,
         setDraft,
         terminalId,
@@ -205,6 +211,10 @@ export function useAgentChatComposerSend({
         hasContent,
         isSendable,
         isSending,
+        /**
+         * Why a `/btw` question was held back, while the line shows.
+         */
+        sideChatNotice: sideChatNotice.notice,
         submit,
     };
 }

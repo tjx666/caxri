@@ -34,6 +34,19 @@ export const usePlanPaceDismissals = createStore<{ dismissedOn: PlanPaceDismissa
 );
 
 /**
+ * A dismissal in another window arrives as a `storage` event; adopting it keeps every open window in step instead of
+ * leaving the others on yesterday's warning until reload.
+ */
+if (typeof addEventListener === 'function') {
+    addEventListener('storage', (event) => {
+        if (event.key !== null && event.key !== DISMISSALS_STORAGE_KEY) return;
+        usePlanPaceDismissals.setState({
+            dismissedOn: parsePlanPaceDismissals(readLocalStorageJson(DISMISSALS_STORAGE_KEY)),
+        });
+    });
+}
+
+/**
  * Whether the provider's pace reminder was dismissed on the current local day.
  */
 export function isPlanPaceDismissed(

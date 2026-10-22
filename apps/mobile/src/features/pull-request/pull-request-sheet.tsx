@@ -1,11 +1,12 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import type { MobilePullRequest } from '@caxri/protocol';
 import { ExternalLink } from 'lucide-react-native';
 
 import { BottomSheet, SheetAction, SheetCancel } from '../../components/bottom-sheet';
+import { SheetButton } from '../../components/sheet-button';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
@@ -321,49 +322,6 @@ const Note = ({
     </View>
 );
 
-const SheetButton = ({
-    isBusy = false,
-    isDisabled = false,
-    label,
-    onPress,
-    testID,
-    theme,
-    variant,
-}: {
-    isBusy?: boolean;
-    isDisabled?: boolean;
-    label: string;
-    onPress: () => void;
-    testID: string;
-    theme: MobileTheme;
-    variant: 'success' | 'danger' | 'primary' | 'secondary';
-}) => {
-    const background = {
-        success: theme.success,
-        danger: theme.danger,
-        primary: theme.primary,
-        secondary: theme.elevated,
-    }[variant];
-    const foreground = variant === 'secondary' ? theme.text : theme.primaryForeground;
-    const isInert = isBusy || isDisabled;
-    return (
-        <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ busy: isBusy, disabled: isInert }}
-            disabled={isInert}
-            onPress={onPress}
-            style={({ pressed }) => [
-                styles.button,
-                { backgroundColor: background, opacity: isDisabled ? 0.4 : pressed ? 0.8 : 1 },
-            ]}
-            testID={testID}
-        >
-            {isBusy ? <ActivityIndicator color={foreground} size="small" /> : null}
-            <Text style={[styles.buttonText, { color: foreground }]}>{label}</Text>
-        </Pressable>
-    );
-};
-
 const styles = StyleSheet.create({
     body: { paddingHorizontal: 4 },
     heading: { alignItems: 'center', flexDirection: 'row', gap: 6, paddingHorizontal: 8 },
@@ -398,15 +356,6 @@ const styles = StyleSheet.create({
     confirmText: { fontSize: 14, lineHeight: 20 },
     buttons: { flexDirection: 'row', gap: 10, paddingTop: 6 },
     buttonSlot: { flex: 1 },
-    button: {
-        alignItems: 'center',
-        borderRadius: 12,
-        flexDirection: 'row',
-        gap: 8,
-        justifyContent: 'center',
-        minHeight: 48,
-    },
-    buttonText: { fontSize: 16, fontWeight: '700' },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

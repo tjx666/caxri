@@ -43,6 +43,8 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
 
     // Timeline notices (`agentChatNoticeMessage`)
     'agentChat.message.contextCompacted': '上下文已压缩',
+    'agentChat.message.contextCompactedLabel':
+        '上下文已压缩，从 {{before}} 降到 {{after}} 个 token',
     'agentChat.message.contextCompactedSizes': '上下文已压缩 · {{before}} → {{after}}',
     'agentChat.message.contextCompactedAuto': '上下文接近上限，已自动压缩',
     'agentChat.message.contextCompactedManual': '已按你的要求压缩',

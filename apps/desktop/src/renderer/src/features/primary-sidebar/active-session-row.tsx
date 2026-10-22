@@ -17,6 +17,7 @@ import { SessionOpenLabel } from './session-open-label';
 import { canSuggestSessionTitle } from './session-rename-draft';
 import { SessionRenameInput } from './session-rename-input';
 import { SessionRowActions } from './session-row-actions';
+import { sessionRowDetail } from './session-row-detail';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowStatus } from './session-row-status';
 import { SessionRowTrigger } from './session-row-trigger';
@@ -143,6 +144,7 @@ export function ActiveSessionRow({
     // The shared label rule (collision suffix included); `title` above stays the plain stored title for rename and the
     // tree row's accessible name.
     const label = useSessionLabel(session.id);
+    const detail = sessionRowDetail(label.suffix, projectDisplayTitle, showProjectName === true);
     // Read per row as a primitive, so another window's navigation re-renders only the rows it concerns.
     const isOpenElsewhere = useIsSessionOpenElsewhere(session.id);
     const project = {
@@ -222,12 +224,12 @@ export function ActiveSessionRow({
                         </span>
                     </strong>
                     {/* Muted disambiguation, shown only when another Session carries the same title. */}
-                    {label.suffix && (
+                    {detail.suffix && (
                         <span
                             aria-hidden="true"
                             className="session-label-detail min-w-0 flex-none overflow-hidden text-[11px] whitespace-nowrap text-muted"
                         >
-                            {label.suffix}
+                            {detail.suffix}
                         </span>
                     )}
                     <SessionOpenLabel isOpenElsewhere={isOpenElsewhere} />
@@ -236,7 +238,7 @@ export function ActiveSessionRow({
                      * the Project twice; the hover card names it for anyone who needs the full sentence. Allowed to
                      * shrink to nothing so a long Session title still wins the row.
                      */}
-                    {showProjectName && (
+                    {detail.showProjectName && (
                         <span
                             aria-hidden="true"
                             className="session-project min-w-0 flex-1 basis-0 overflow-hidden text-[11px] whitespace-nowrap text-muted"

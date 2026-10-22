@@ -160,9 +160,9 @@ function DisclosureRow({
             <ChevronRight
                 aria-hidden="true"
                 className={cn(
-                    'size-3.5 shrink-0 opacity-0 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
+                    'size-3.5 shrink-0 text-muted',
                     agentChatChevronMotion(isExpanded),
-                    isExpanded && 'rotate-90 opacity-100',
+                    isExpanded && 'rotate-90',
                 )}
             />
         </div>

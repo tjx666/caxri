@@ -191,7 +191,10 @@ export function NotificationCenter() {
         ? t('toasts.center.titleUnread', { count: unread })
         : t('toasts.center.title');
     return (
-        <Popover open={isOpen} onOpenChange={useNotificationStore.getState().setOpen}>
+        <Popover
+            open={isOpen}
+            onOpenChange={(open) => useNotificationStore.getState().setOpen(open)}
+        >
             <Tooltip content={triggerLabel}>
                 <PopoverTrigger
                     render={
@@ -222,7 +225,7 @@ export function NotificationCenter() {
                                 size="icon"
                                 disabled={entries.length === 0}
                                 aria-label={t('toasts.center.clearAll')}
-                                onClick={useNotificationStore.getState().clear}
+                                onClick={() => useNotificationStore.getState().clear()}
                             >
                                 <CheckCheck size={16} />
                             </Button>

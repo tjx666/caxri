@@ -4,6 +4,7 @@ import type { CommanderHandoverRejection } from '@caxri/protocol';
 import { MAX_COMMANDER_HANDOVER_BATCH } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { useCaxriQuery } from '../../../queries/client';
 import type { HandoverCandidateGroup, HandoverSummary } from '../commander-handover';
 import {
@@ -112,15 +113,13 @@ export function useCommanderHandoverPicker({
     const submit = async (): Promise<void> => {
         if (isSubmitting || selected.length === 0 || overLimitCount > 0) return;
         setSubmitting(true);
-        let summary: HandoverSummary | undefined;
-        try {
-            summary = await handOverToCommander(
+        const summary: HandoverSummary | undefined = await awaitThenCleanup(
+            handOverToCommander(
                 { ...handoverRequestEntries(selection, allCandidates), note },
                 { isFromWorkbench, isReportedInPlace: isOpen },
-            );
-        } finally {
-            setSubmitting(false);
-        }
+            ),
+            () => setSubmitting(false),
+        );
         if (!summary) return;
         if (summary.rejected.length === 0) {
             onDone();

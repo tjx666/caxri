@@ -92,7 +92,13 @@ Visual phase:
   second Electron instance, never bypassing the lease.
 - Give it the concrete surface list derived from the scope (which dialogs to open, which menus to
   right-click, which settings tabs to scroll) rather than "look around".
-- Screenshots go to a temp directory with paths reported per finding.
+- Evidence (screenshots, render tables, recordings) goes to one per-run directory outside `/tmp`,
+  such as `~/.cache/caxri-ux-audit-<date>/<phase>/`, with paths reported per finding. A run spans
+  hours and several agents; a `/tmp` evidence tree vanished mid-audit once. Agents never delete a
+  directory they did not create.
+- Surfaces that only appear in a state (the waiting popup, a pace alert, an image marker) need the
+  fixture or trigger that produces the state named in the prompt; "the state never appeared" is a
+  setup gap to fix, not a verdict.
 - It stops the app and releases the lease before the render phase starts.
 
 Render phase: follow [references/render-layer.md](references/render-layer.md), which owns the
@@ -110,9 +116,24 @@ arming flag, the collector, and the traps:
 - Every render finding must name the avoidable cause: the prop, state, context, or hook that
   moved. Counts alone go into the report as observations, never into a fix batch.
 
-Both phases end with an explicit "surfaces and scenarios not verified" list: automation limits
-(canvas terminals, agent credentials, multi-project roots) are normal; a silent gap reads as
-coverage.
+**Mobile agent**: when the scope touches `apps/mobile`, one more agent runs the `acceptance`
+skill's Android surface on the disposable emulator and captures every mobile surface in scope,
+including offline, empty, and error states. A mobile visual verdict read off the code is
+unverified: one audit's "hardcoded English Done" was rendered translated on the emulator.
+
+Both phases end with an explicit "surfaces and scenarios not verified" list; a silent gap reads as
+coverage. An item enters that list only after **two concrete methods** were tried, each recorded
+with its command and failure output. "Automation cannot reach it" is the start of the work, not
+the verdict. Try the existing mechanisms first:
+
+- Native context menus: `e2e/support/native-context-menu.ts` reads and clicks the menu Main
+  intercepted under E2E.
+- Usage and pace states: the seeding in `e2e/agent-chat-plan-limits.e2e.ts`.
+- Motion (frost, glide, fades): `screencapture -v` plus extracted frames, not a still.
+- Agent behavior the fake fixture does not emit: the fixtures under `e2e/support/agent-*.ts`;
+  failing that, the `debug` skill's fail-closed real-CLI procedure.
+- Mobile states without a scenario: adb input, toggled emulator networking, or an ad hoc scenario
+  beside `e2e/support/mobile-*-scenario.ts`.
 
 ## 4. Synthesize: the root agent's own work
 
@@ -120,6 +141,9 @@ Do not paste subagent output through. Merge, then:
 
 1. **Deduplicate** across packages and cross-check the layers. Screenshot evidence upgrades or
    kills code-inferred visual claims; a render table upgrades or kills a code-inferred cost claim.
+   Check a subagent's negative claim against the code before it explains a missed repro: "Chat
+   never emits a waiting attention" was false (the Claude and Codex request paths emit one), and
+   accepting it would have closed a user-reported bug as unreproducible.
 2. **Prioritize** with this rubric:
    - **High: breaks trust or loses work**: silent clipboard clobbering, an error the user cannot
      see, a destructive action with no feedback, a state the UI cannot get out of. A render finding
@@ -156,7 +180,7 @@ Final reply in the conversation language; code, paths, and UI strings stay Engli
    scenario, the observed and expected counts, and the named cause.
 3. **Strengths worth keeping**: verified-working recent fixes and load-bearing good behavior, with
    evidence.
-4. Surfaces/claims not verified and why.
+4. Surfaces/claims not verified, each with the two methods tried and their failure output.
 5. Offer next steps (fix batch, GitHub issues) without starting them.
 
 ## 6. Fix mode: only on explicit request (`--fix` or a follow-up "优化下")

@@ -12,6 +12,7 @@ import { defineConfig } from 'electron-vite';
 import Sonda from 'sonda/vite';
 import type { PluginOption } from 'vite';
 
+import { rendererReactCompilerOptions } from './scripts/react-compiler-options';
 import { resolveSourceMapFlavor, shouldIncludeSourceMaps } from './scripts/source-map-flavor';
 
 /**
@@ -71,7 +72,9 @@ export default defineConfig(async ({ command }) => {
      * config before Vite resolves async plugins. Resolve it here so the official React Compiler preset reaches only the
      * Renderer pipeline as a plain plugin object.
      */
-    const reactCompiler = await babel({ presets: [reactCompilerPreset()] });
+    const reactCompiler = await babel({
+        presets: [reactCompilerPreset(rendererReactCompilerOptions)],
+    });
     const packageJson = JSON.parse(await readFile(resolve('package.json'), 'utf8')) as {
         version: string;
     };

@@ -164,7 +164,7 @@ export const editor = {
     'editor.document.noRoom':
         'There is no room left for another open file. Save or close some files, then try again.',
     'editor.document.openFileFailed': 'Unable to open file',
-    'editor.document.saveFailed': 'Save failed',
+    'editor.document.saveFailedFile': "Couldn't save {{name}}",
     'editor.document.saveRetryUnavailable':
         'Save retry is no longer available because the editor was closed or its Project changed.',
     'editor.document.moveStateSaveFailed': 'Moved editor state could not be saved',

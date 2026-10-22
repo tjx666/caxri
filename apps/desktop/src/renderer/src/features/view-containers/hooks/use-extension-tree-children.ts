@@ -165,45 +165,62 @@ export function useExtensionTreeChildren(
                 next.delete(parentHandle);
                 return next;
             });
+            // Settled into a value instead of try/catch/finally: React Compiler cannot lower `finally`, and the cleanup
+            // below must run for success, failure, and a superseded request alike.
+            let outcome:
+                | { ok: true; result: Awaited<ReturnType<typeof requestTreeChildren>> }
+                | { ok: false; error: unknown };
             try {
-                const result = await requestTreeChildren(scope, parentHandle, requestId);
-                if (requests.current.get(parentHandle) !== requestId) return;
-                if (result.reset) resetLoadedChildren();
-                const resultParentHandle = result.reset ? ROOT_HANDLE : parentHandle;
-                replaceLoadedChildren(resultParentHandle, result.items);
-                updateTreeState((current) => {
-                    let next = reconcileTreeItems(current, result.items);
-                    if (resultParentHandle === ROOT_HANDLE && !next.focusedKey && result.items[0])
-                        next = focusTreeItem(next, result.items[0]);
-                    return next;
-                });
+                outcome = {
+                    ok: true,
+                    result: await requestTreeChildren(scope, parentHandle, requestId),
+                };
             } catch (error) {
-                if (requests.current.get(parentHandle) !== requestId) return;
-                /**
-                 * CANCELLED means this tree's Session is no longer active on the Server: the view is being retired, so
-                 * the read is superseded rather than failed and must not paint an error into the branch.
-                 */
-                if (isCancelledRequest(error)) return;
-                setErrors((current) =>
-                    new Map(current).set(
-                        parentHandle,
-                        error instanceof Error ? error.message : String(error),
-                    ),
-                );
-            } finally {
-                if (requests.current.get(parentHandle) === requestId) {
-                    requests.current.delete(parentHandle);
-                    if (currentRootLoad !== undefined)
-                        setRootLoads((current) => ({
-                            ...current,
-                            completed: Math.max(current.completed, currentRootLoad),
-                        }));
-                    setLoading((current) => {
-                        const next = new Set(current);
-                        next.delete(parentHandle);
+                outcome = { ok: false, error };
+            }
+            if (requests.current.get(parentHandle) === requestId) {
+                if (outcome.ok) {
+                    const { result } = outcome;
+                    if (result.reset) resetLoadedChildren();
+                    const resultParentHandle = result.reset ? ROOT_HANDLE : parentHandle;
+                    replaceLoadedChildren(resultParentHandle, result.items);
+                    updateTreeState((current) => {
+                        let next = reconcileTreeItems(current, result.items);
+                        if (
+                            resultParentHandle === ROOT_HANDLE &&
+                            !next.focusedKey &&
+                            result.items[0]
+                        )
+                            next = focusTreeItem(next, result.items[0]);
                         return next;
                     });
+                } else if (!isCancelledRequest(outcome.error)) {
+                    /**
+                     * CANCELLED (skipped above) means this tree's Session is no longer active on the Server: the view
+                     * is being retired, so the read is superseded rather than failed and must not paint an error into
+                     * the branch.
+                     */
+                    const { error } = outcome;
+                    setErrors((current) =>
+                        new Map(current).set(
+                            parentHandle,
+                            error instanceof Error ? error.message : String(error),
+                        ),
+                    );
                 }
+            }
+            if (requests.current.get(parentHandle) === requestId) {
+                requests.current.delete(parentHandle);
+                if (currentRootLoad !== undefined)
+                    setRootLoads((current) => ({
+                        ...current,
+                        completed: Math.max(current.completed, currentRootLoad),
+                    }));
+                setLoading((current) => {
+                    const next = new Set(current);
+                    next.delete(parentHandle);
+                    return next;
+                });
             }
         },
         [isActive, replaceLoadedChildren, resetLoadedChildren, scope, updateTreeState],

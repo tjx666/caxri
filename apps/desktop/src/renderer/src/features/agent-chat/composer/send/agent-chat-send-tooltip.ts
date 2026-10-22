@@ -67,6 +67,26 @@ export function agentChatSendTooltipKeys(
     return sendBlockedReason(state, translate) === undefined ? action.keys : undefined;
 }
 
+/**
+ * Everything the Send button's tooltip shows, derived together from the one action and send state.
+ */
+export function agentChatSendLabels(
+    action: Parameters<typeof agentChatSendTooltipKeys>[0] &
+        Parameters<typeof agentChatSendTooltipShortcut>[0],
+    state: Parameters<typeof agentChatSendTooltip>[1],
+    t: Translate,
+): {
+    sendKeys: readonly AgentChatSendKey[] | undefined;
+    sendShortcut: string | undefined;
+    sendTooltip: string;
+} {
+    return {
+        sendKeys: agentChatSendTooltipKeys(action, state),
+        sendShortcut: agentChatSendTooltipShortcut(action, state),
+        sendTooltip: agentChatSendTooltip(action, state, t),
+    };
+}
+
 function sendBlockedReason(
     state: Parameters<typeof agentChatSendTooltip>[1],
     t: Translate,

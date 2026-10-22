@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react';
 import { useRef } from 'react';
 
 import { translate } from '../i18n';
+import { awaitThenCleanup } from '../lib/await-then-cleanup';
 import type { ContextMenuEntries } from '../lib/context-menu';
 import { showContextMenu } from '../lib/context-menu';
 import { tryCommand } from '../stores/toasts';
@@ -42,15 +43,14 @@ export function useContextMenu(
             latest.current.onOpenChange?.(false);
         };
         // eslint-disable-next-line no-void -- intentional floating-promise discard; both steps report their own errors
-        void (async () => {
-            try {
+        void awaitThenCleanup(
+            (async () => {
                 const entries = await tryCommand(translate('core.contextMenu.showFailed'), () =>
                     Promise.resolve(latest.current.build()),
                 );
                 if (entries) await showContextMenu(entries, position, close);
-            } finally {
-                close();
-            }
-        })();
+            })(),
+            close,
+        );
     };
 }

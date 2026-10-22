@@ -107,12 +107,38 @@ export function nextStatusFilter(
     return sessionSearchStatusFilters[(index + delta + count) % count];
 }
 
+export const sessionSearchProviders: readonly AgentProvider[] = agentProviderIds;
+
+/**
+ * Shift+Tab steps through the Agent filter (All Agents, then each provider) and wraps, so both filter groups are
+ * reachable from the input without leaving the keyboard.
+ */
+export function nextProviderFilter(
+    current: AgentProvider | undefined,
+    delta: 1 | -1,
+): AgentProvider | undefined {
+    const options: ReadonlyArray<AgentProvider | undefined> = [
+        undefined,
+        ...sessionSearchProviders,
+    ];
+    const index = options.indexOf(current);
+    return options[(index + delta + options.length) % options.length];
+}
+
+/**
+ * Whether either filter group narrows the list, which decides if an empty result can offer "Clear filters".
+ */
+export function hasActiveSearchFilters(
+    status: SessionSearchStatusFilter,
+    provider: AgentProvider | undefined,
+): boolean {
+    return status !== 'all' || provider !== undefined;
+}
+
 export function nextSelectionIndex(count: number, current: number, delta: number): number {
     if (count === 0) return 0;
     return Math.max(0, Math.min(current + delta, count - 1));
 }
-
-export const sessionSearchProviders: readonly AgentProvider[] = agentProviderIds;
 
 /**
  * The footer's index line: progress while the background index catches up, the indexed count once it has, and a plain

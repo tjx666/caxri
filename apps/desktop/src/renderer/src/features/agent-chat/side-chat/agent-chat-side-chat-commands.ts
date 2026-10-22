@@ -79,6 +79,13 @@ export function isAgentChatSideChatBusy(exchanges: readonly SideChatExchange[]):
 }
 
 /**
+ * Whether the Chat's side chat is still answering a question, so `/btw` holds the draft instead of dropping it.
+ */
+export function isAgentChatSideChatBusyFor(terminalId: string): boolean {
+    return isAgentChatSideChatBusy(useAgentChatSideChatStore.getState().threads[terminalId] ?? []);
+}
+
+/**
  * The threads whose Chat is still in the workbench. A Chat deleted while its side chat tab was closed never unmounts a
  * tab that could discard it, so each new question sweeps those away; with no workbench loaded nothing is known gone.
  */

@@ -89,3 +89,27 @@ describe('agentChatWorkRowPresentation for MCP tool calls', () => {
         expect(row.subject).toBeUndefined();
     });
 });
+
+describe('agentChatWorkRowPresentation for a subagent call', () => {
+    const agentCall: AgentChatWorkItem = {
+        id: 'a1',
+        turnId: 't1',
+        type: 'toolCall',
+        name: 'Task',
+        status: 'completed',
+    };
+
+    it('says Ran agent once the subagent ended', () => {
+        expect(agentChatWorkRowPresentation(agentCall)).toMatchObject({
+            isRunning: false,
+            verb: 'Ran agent',
+        });
+    });
+
+    it('says Running agent while the subagent it started still runs', () => {
+        expect(agentChatWorkRowPresentation(agentCall, undefined, false, true)).toMatchObject({
+            isRunning: true,
+            verb: 'Running agent',
+        });
+    });
+});

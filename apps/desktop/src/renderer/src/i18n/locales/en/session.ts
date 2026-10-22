@@ -94,7 +94,8 @@ export const session = {
     'session.search.substringScan': 'Short terms scan every message, so results may be slower',
     'session.search.helpMove': '↑↓ Move',
     'session.search.helpAction': '↵ Open, restore, or add',
-    'session.search.helpFilter': 'Tab Next filter',
+    'session.search.helpFilter': 'Tab Location filter, Shift+Tab Agent filter',
+    'session.search.clearFilters': 'Clear filters',
     'session.search.importFailed': 'Could not add the conversation to Caxri',
     'session.search.imported': 'Added "{{title}}" to Caxri',
 

@@ -269,7 +269,7 @@ function ArchivedSessionRow({
                     <p className="m-0 truncate text-[12px] font-medium">
                         {sessionTitleForDisplay(item.session.displayTitle, t)}
                     </p>
-                    <p className="m-0 text-[10px] text-muted">
+                    <p className="m-0 text-[11px] text-muted">
                         {resolveAgentIcon(item.agent).label}
                         {' · '}
                         {t('session.archived.archivedAt', {

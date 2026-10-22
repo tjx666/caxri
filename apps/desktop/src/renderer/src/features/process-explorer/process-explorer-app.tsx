@@ -118,10 +118,10 @@ export function ProcessExplorerApp() {
                 console.error('processExplorer.snapshot failed', error_);
                 setSnapshot(undefined);
                 setError({ kind: 'sample' });
-            } finally {
-                refreshInFlight.current = false;
-                setRefreshing(false);
             }
+            // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+            refreshInFlight.current = false;
+            setRefreshing(false);
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void runRefresh();

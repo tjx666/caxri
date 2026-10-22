@@ -151,7 +151,9 @@ export function autoSaveDocument(sessionId: string, path: string): void {
     if (pendingAutoSaves.has(key)) return;
     pendingAutoSaves.add(key);
     // eslint-disable-next-line no-void -- tryCommand inside didSaveDocumentAt reports failures through the toast
-    void didSaveDocumentAt(sessionId, path).finally(() => pendingAutoSaves.delete(key));
+    void didSaveDocumentAt(sessionId, path, { isAutomatic: true }).finally(() =>
+        pendingAutoSaves.delete(key),
+    );
 }
 
 async function revealFirstUnsavedEditor(): Promise<void> {

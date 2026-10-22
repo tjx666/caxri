@@ -115,9 +115,9 @@ function InlineFileName({
             await onSubmit(value);
         } catch (submissionError) {
             setError(describeFailure(submissionError, failureLabel));
-        } finally {
-            setPending(false);
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        setPending(false);
     };
 
     return (

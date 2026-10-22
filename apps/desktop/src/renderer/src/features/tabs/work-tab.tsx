@@ -182,11 +182,13 @@ function useWorkTabMotion(shouldFill: boolean) {
      * after a transitionEnd update. Exiting tabs release the floor immediately so their width can collapse.
      */
     const [hasSettled, setHasSettled] = useState(false);
+    // Frozen at mount: the timer belongs to this tab's own enter animation, so a later change of `enterDuration` must not
+    // restart it.
+    const [mountEnterDuration] = useState(enterDuration);
     useEffect(() => {
-        const timer = setTimeout(() => setHasSettled(true), enterDuration * 1_000);
+        const timer = setTimeout(() => setHasSettled(true), mountEnterDuration * 1_000);
         return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once for this tab's own enter animation; enterDuration is fixed for its lifetime
-    }, []);
+    }, [mountEnterDuration]);
     const isSettled = isPresent && hasSettled;
     return {
         enterDuration,

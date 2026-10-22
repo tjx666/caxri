@@ -17,7 +17,8 @@ import { useSessionViewStore } from '../../../stores/session-view';
 import { configureToastActions } from '../../../stores/toast-actions';
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { closeDocumentTabs, remapOpenEditors, saveActiveEditor } from '../document-commands';
+import { closeDocumentTabs, saveActiveEditor } from '../document-commands';
+import { remapOpenEditors } from '../document-remap';
 
 function installDirtyDocument(path: string): void {
     const sessionState: SessionState = {

@@ -10,6 +10,7 @@ import type {
     ThemeTokens,
     ViewContainerId,
 } from '@caxri/protocol';
+import { activeTab } from '@caxri/protocol';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useWorkbenchStore } from './workbench';
@@ -109,6 +110,35 @@ export function getSessionOwnerProjectId(sessionId: string): string | undefined 
 
 export function getSessionState(): SessionState | undefined {
     return selectSessionState(getBootstrap());
+}
+
+/**
+ * The selected Session's id alone. Unlike {@link useSelectedSession} it does not change when the record's activity or
+ * timestamps do, so App-level hooks that only key on the id stay quiet.
+ */
+export function useSelectedSessionId(): string | undefined {
+    return useWorkbenchStore((state) => selectSelectedSession(state.bootstrap)?.id);
+}
+
+/**
+ * `<sessionId>:<workbenchProjectId>` of the selected Session, as one string that only changes when the Session or its
+ * Project does.
+ */
+export function useSelectedSessionScopeKey(): string | undefined {
+    return useWorkbenchStore((state) => {
+        const session = selectSelectedSession(state.bootstrap);
+        return session ? `${session.id}:${session.workbenchProjectId}` : undefined;
+    });
+}
+
+/**
+ * The file path of the active work tab, or undefined when it is not a file. A primitive, so it only notifies when the
+ * path itself changes.
+ */
+export function selectActiveFilePath(bootstrap?: BootstrapState): string | undefined {
+    const layout = selectSessionState(bootstrap)?.paneLayout;
+    const resource = layout ? activeTab(layout)?.resource : undefined;
+    return resource?.kind === 'file' ? resource.path : undefined;
 }
 
 export function useSelectedSession(): SessionRecord | undefined {

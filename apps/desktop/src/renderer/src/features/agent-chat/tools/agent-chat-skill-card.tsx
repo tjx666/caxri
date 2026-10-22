@@ -1,4 +1,4 @@
-import { BookOpenText } from 'lucide-react';
+import { Package } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
@@ -17,7 +17,7 @@ export function AgentChatSkillCard({ name, onRemove }: { name: string; onRemove:
             <Tooltip content={t('agentChat.skill.tooltip', { name })}>
                 <div className="flex h-14 max-w-60 min-w-0 items-center gap-2.5 rounded-lg border border-border bg-elevated pr-4 pl-2">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
-                        <BookOpenText aria-hidden="true" className="size-5" />
+                        <Package aria-hidden="true" className="size-5" />
                     </span>
                     <span className="flex min-w-0 flex-col">
                         <span className="truncate text-[13px] leading-5 font-medium text-foreground">
@@ -48,7 +48,7 @@ export function AgentChatSkillPill({ name }: { name: string }) {
         <li className="min-w-0" data-agent-chat-skill-reference={name}>
             <Tooltip content={t('agentChat.skill.sentTooltip', { name })}>
                 <span className="flex h-7 max-w-60 min-w-0 items-center gap-1.5 rounded-full border border-border bg-elevated px-2.5 text-[12px] text-foreground">
-                    <BookOpenText aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
+                    <Package aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
                     <span className="truncate">{agentChatSkillLabel(name, t)}</span>
                 </span>
             </Tooltip>

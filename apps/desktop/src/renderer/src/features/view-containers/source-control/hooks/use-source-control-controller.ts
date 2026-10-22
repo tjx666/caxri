@@ -17,15 +17,13 @@ import {
 } from '../../../../features/view-containers/view-container-commands';
 import { useTranslation } from '../../../../i18n';
 import { useToastOnQueryError } from '../../../../queries/client';
-import { useSelectedSession, useSettings } from '../../../../stores/selectors';
+import { useSessionViewScope, useSettings } from '../../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../../stores/toasts';
 import { openEditorTab } from '../../../editor/document-commands';
-import { useActivePaneTab } from '../../../workbench/pane-actions';
 import { useControlledView, useSourceControlClient } from '../../controlled-view-context';
 import {
     isViewContainerQueryEnabled,
     useCancelViewContainerQueryWhenHidden,
-    useHeldWhileHidden,
     useIsViewContainerActive,
 } from '../../view-container-activity';
 import { subscribeViewEvents } from '../../view-event-bridge';
@@ -37,9 +35,13 @@ import {
 } from '../source-control-action-resolution';
 import { refreshingActionMessage } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
-import { resolveSourceControlPanelState } from '../source-control-panel-state';
+import {
+    isSupersededSnapshotError,
+    resolveSourceControlPanelState,
+} from '../source-control-panel-state';
 import type { SourceControlViewNavigation } from '../source-control-state';
 import { setSourceControlDisclosuresExpanded } from '../source-control-state';
+import { useHeldActiveFilePath } from './use-held-active-file-path';
 import type { SourceControlNavigationScope } from './use-source-control-navigation';
 import { useSourceControlNavigation } from './use-source-control-navigation';
 
@@ -193,26 +195,24 @@ export function useSourceControlController(
     const { configurationDependencies, presentation, providerGeneration, viewId } =
         useControlledView();
     const client = useSourceControlClient();
-    const session = useSelectedSession();
+    const { sessionId, workbenchProjectId } = useSessionViewScope();
+    const hasSession = sessionId !== undefined && workbenchProjectId !== undefined;
     const settings = useSettings();
     const isContainerActive = useIsViewContainerActive();
-    const liveActiveResource = useActivePaneTab()?.resource;
     /**
      * The active file is part of the snapshot key. A hidden view keeps the file it last showed: following every
      * work-tab switch moved its disabled query to an empty key, dropped the panel to `loading`, and remounted the whole
      * tree.
      */
-    const activeFilePath = useHeldWhileHidden(
-        liveActiveResource?.kind === 'file' ? liveActiveResource.path : undefined,
-    );
+    const activeFilePath = useHeldActiveFilePath();
     /**
      * Prefer the view's held scope: a Session switch while the view is hidden must not move the disabled query to a new
      * key either, for the same remount reason as the active file above.
      */
     const queryScope = navigationScope
         ? `${navigationScope.sessionId}:${navigationScope.workbenchProjectId}`
-        : session
-          ? `${session.id}:${session.workbenchProjectId}`
+        : hasSession
+          ? `${sessionId}:${workbenchProjectId}`
           : undefined;
     const [fileHistoryExpanded, setFileHistoryExpanded] = useState(false);
     const [refresh, setRefresh] = useState(0);
@@ -233,7 +233,7 @@ export function useSourceControlController(
     const snapshotOptions = sourceControlSnapshotQueryOptions({
         client,
         configRevision,
-        enabled: isViewContainerQueryEnabled(isContainerActive, Boolean(session)),
+        enabled: isViewContainerQueryEnabled(isContainerActive, hasSession),
         queryScope,
         refresh,
         request: snapshotRequest,
@@ -268,13 +268,13 @@ export function useSourceControlController(
     ]);
     useEffect(
         () =>
-            !session
+            sessionId === undefined || workbenchProjectId === undefined
                 ? () => {}
                 : subscribeViewEvents(
                       {
                           viewId,
-                          sessionId: session.id,
-                          workbenchProjectId: session.workbenchProjectId,
+                          sessionId,
+                          workbenchProjectId,
                           extensionGeneration: providerGeneration,
                       },
                       (event) => {
@@ -285,7 +285,14 @@ export function useSourceControlController(
                               });
                       },
                   ),
-        [providerGeneration, requestRefresh, session, updateNavigation, viewId],
+        [
+            providerGeneration,
+            requestRefresh,
+            sessionId,
+            updateNavigation,
+            viewId,
+            workbenchProjectId,
+        ],
     );
     const refetchSnapshot = snapshot.refetch;
     const runAction = useCallback(
@@ -339,8 +346,9 @@ export function useSourceControlController(
         [updateNavigation],
     );
     const panelState = resolveSourceControlPanelState({
-        hasSession: Boolean(session),
+        hasSession,
         hasSnapshotError: snapshot.isError,
+        isSnapshotSuperseded: isSupersededSnapshotError(snapshot.error),
         model: snapshot.data,
     });
     if (panelState.status !== 'ready')

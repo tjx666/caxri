@@ -29,6 +29,7 @@ export const agentChatPane = {
     'agentChat.sideChat.convertTooltip': 'Continue this side chat in a new Session',
     'agentChat.sideChat.askFirst': 'Ask a question first',
     'agentChat.sideChat.waitForAnswer': 'Wait for the answer',
+    'agentChat.sideChat.stillAnswering': 'The previous side chat question is still being answered.',
     'agentChat.sideChat.askFailed': 'Side question could not be answered',
     'agentChat.sideChat.convertFailed': 'Side chat could not be converted',
     'agentChat.sideChat.unavailable': 'This Chat is no longer available.',

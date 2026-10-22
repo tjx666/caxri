@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE } from '../transcript/agent-chat-history';
 import {
@@ -99,7 +99,8 @@ export function useAgentChatMessageRail(
         };
         let frame: number | undefined;
         const schedule = (): void => {
-            frame ??= requestAnimationFrame(() => {
+            if (frame !== undefined) return;
+            frame = requestAnimationFrame(() => {
                 frame = undefined;
                 measure();
             });
@@ -119,29 +120,25 @@ export function useAgentChatMessageRail(
             if (frame !== undefined) cancelAnimationFrame(frame);
         };
     }, [scrollReference, contentReference, idsKey]);
-    const jumpTo = useCallback(
-        (id: string): void => {
-            const view = scrollReference.current;
-            const content = contentReference.current;
-            const element = content && agentChatMessageElement(content, id);
-            if (!view || !element) return;
+    const jumpTo = (id: string): void => {
+        const view = scrollReference.current;
+        const content = contentReference.current;
+        const element = content && agentChatMessageElement(content, id);
+        if (!view || !element) return;
+        /**
+         * Instant rather than smooth: a smooth scroll's first frames still sit within the follow threshold of the end,
+         * so their scroll events would resume following and the next layout would pin the view straight back down.
+         */
+        const align = (frames: number): void => {
+            const top = Math.max(contentTop(view, element) - JUMP_MARGIN_PX, 0);
+            if (Math.abs(view.scrollTop - top) > 1) view.scrollTo({ top });
             /**
-             * Instant rather than smooth: a smooth scroll's first frames still sit within the follow threshold of the
-             * end, so their scroll events would resume following and the next layout would pin the view straight back
-             * down.
+             * Entries of history read back render at a placeholder height until they come near the view, so the ones
+             * the jump brings into range resize and move the message; align again until they settle.
              */
-            const align = (frames: number): void => {
-                const top = Math.max(contentTop(view, element) - JUMP_MARGIN_PX, 0);
-                if (Math.abs(view.scrollTop - top) > 1) view.scrollTo({ top });
-                /**
-                 * Entries of history read back render at a placeholder height until they come near the view, so the
-                 * ones the jump brings into range resize and move the message; align again until they settle.
-                 */
-                if (frames > 0) requestAnimationFrame(() => align(frames - 1));
-            };
-            align(JUMP_SETTLE_FRAMES);
-        },
-        [contentReference, scrollReference],
-    );
+            if (frames > 0) requestAnimationFrame(() => align(frames - 1));
+        };
+        align(JUMP_SETTLE_FRAMES);
+    };
     return { activeIndex, jumpTo };
 }

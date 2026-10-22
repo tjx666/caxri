@@ -241,6 +241,8 @@ export const chat = {
     'chat.tasks.status.running': 'Running',
     'chat.tasks.status.stopped': 'Stopped',
     'chat.tasks.stop': 'Stop',
+    'chat.tasks.stopConfirmBody': "{{title}} stops now. The Agent's turn keeps running.",
+    'chat.tasks.stopConfirmTitle': 'Stop this task?',
     'chat.tasks.stopError': 'Unable to stop this task. Try again.',
     'chat.tasks.stopUnconfirmed': "Couldn't confirm the stop. Check the task on your computer.",
     'chat.tasks.stopHint': "Stops this task without stopping the Agent's turn.",

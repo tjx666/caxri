@@ -4,6 +4,7 @@ import { FolderGit2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { isEditableEventTarget } from '../../lib/keybindings';
 import { restorePickerFocus } from '../../lib/picker-final-focus';
 import { useDialogStore } from '../../stores/dialogs';
@@ -45,9 +46,7 @@ export function WorkbenchRootPrompt() {
         // Read now, not in `finally`: answering the prompt unmounts it, and React nulls the ref on the way out.
         const promptElement = promptReference.current;
         const focusOrigin = focusOriginReference.current;
-        try {
-            await command();
-        } finally {
+        await awaitThenCleanup(command(), () => {
             isPendingReference.current = false;
             setPending(false);
             // The answered prompt takes its focused button with it, so focus would otherwise land on `document.body`
@@ -55,7 +54,7 @@ export function WorkbenchRootPrompt() {
             // took it from, or (for a pointer answer, which recorded no origin) to the workbench's registered
             // fallback, which is the active pane's Terminal.
             restorePickerFocus(focusOrigin, promptElement);
-        }
+        });
     };
 
     useEffect(() => {

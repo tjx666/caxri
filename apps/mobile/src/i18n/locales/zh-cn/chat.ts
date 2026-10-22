@@ -234,6 +234,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.tasks.status.running': '运行中',
     'chat.tasks.status.stopped': '已停止',
     'chat.tasks.stop': '停止',
+    'chat.tasks.stopConfirmBody': '{{title}} 将立即停止，Agent 的当前这一轮会继续运行。',
+    'chat.tasks.stopConfirmTitle': '停止这个任务？',
     'chat.tasks.stopError': '无法停止此任务，请重试。',
     'chat.tasks.stopUnconfirmed': '无法确认任务是否已停止。请在电脑上检查该任务。',
     'chat.tasks.stopHint': '停止此任务，但不停止 Agent 的当前这一轮。',

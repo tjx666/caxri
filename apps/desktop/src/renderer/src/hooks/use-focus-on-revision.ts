@@ -34,6 +34,5 @@ export function useFocusOnRevision(
         });
 
         return () => cancelAnimationFrame(frame);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- `reference` is a stable ref object, intentionally excluded
-    }, [revision, isSelect, isScrollIntoView]);
+    }, [revision, reference, isSelect, isScrollIntoView]);
 }

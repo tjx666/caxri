@@ -58,6 +58,8 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.agentChat.changePermissionMode': '打开当前对话的权限级别菜单',
     'commands.description.agentChat.togglePlanMode': '为当前对话开启或关闭计划模式',
     'commands.description.agentChat.openSideChat': '在当前对话旁快速提问，不会加入对话',
+    'commands.description.agentChat.focusWaitingRequest':
+        '把键盘焦点移入等待弹窗中的问题或审批，必要时先展开',
     'commands.description.terminal.close': '关闭当前终端',
     'commands.description.workbench.closeActiveTab': '关闭当前终端或文件标签页',
     'commands.description.workbench.nextTab': '激活下一个终端或文件标签页',

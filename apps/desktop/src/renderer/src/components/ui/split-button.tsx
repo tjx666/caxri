@@ -36,7 +36,7 @@ export function SplitButtonAction({ className, ...properties }: ButtonProperties
  * seam. `menu.tsx` draws its popup hairline the same way.
  */
 export function SplitButtonTrigger({
-    children = <ChevronDown aria-hidden="true" size={11} />,
+    children,
     className,
     size = 'sm',
     ...properties
@@ -47,7 +47,7 @@ export function SplitButtonTrigger({
             size={size}
             {...properties}
         >
-            {children}
+            {children === undefined ? <ChevronDown aria-hidden="true" size={11} /> : children}
         </Button>
     );
 }

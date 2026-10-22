@@ -35,10 +35,23 @@ export function AgentChatCompactedNotice({
                 percent: `${Math.round((1 - afterTokens / beforeTokens) * 100)}%`,
             }),
     ].filter(Boolean);
+    // The detail lives in a tooltip, so a keyboard or screen-reader user reaches it through focus and a label that
+    // reads the before and after sizes as words instead of "248k 32k".
+    const isFocusable = detail.length > 0;
     const row = (
         <div
-            className="flex items-center gap-3 py-1 text-[12px] leading-5 text-muted"
+            aria-label={
+                hasSizes
+                    ? t('agentChat.message.contextCompactedLabel', {
+                          before: formatTokens(beforeTokens),
+                          after: formatTokens(afterTokens),
+                      })
+                    : t('agentChat.message.contextCompacted')
+            }
+            className="flex items-center gap-3 rounded-sm py-1 text-[12px] leading-5 text-muted focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground"
             data-agent-chat-compacted=""
+            role="note"
+            tabIndex={isFocusable ? 0 : undefined}
         >
             <span aria-hidden="true" className="h-px flex-1 bg-border" />
             <span className="flex shrink-0 items-center gap-1.5">

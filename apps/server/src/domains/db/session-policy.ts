@@ -313,10 +313,22 @@ export function decideAgentLifecycleUpdate(
     ) {
         return undefined;
     }
-    if (phase === 'toolBatchFinished' || phase === 'attentionResolved')
-        return session.lastActivityState === 'waiting'
-            ? { lastActivityState: 'running' }
-            : undefined;
+    if (phase === 'toolBatchFinished' || phase === 'attentionResolved') {
+        /**
+         * The question was answered elsewhere (for example the global waiting popup), so an unread `waiting` notice is
+         * stale: the Session row kept its question icon until the user opened it. Only a `waiting` generation is
+         * superseded; an unread `completed` or `failed` result still has to be seen. The attention tracker only lets
+         * the final concurrent request through, so a still-pending sibling request never reaches this branch.
+         */
+        const supersedesUnreadAttention =
+            session.hasUnread && session.lastAttentionKind === 'waiting';
+        if (!supersedesUnreadAttention && session.lastActivityState !== 'waiting') return undefined;
+        return {
+            lastActivityState:
+                session.lastActivityState === 'waiting' ? 'running' : session.lastActivityState,
+            ...(supersedesUnreadAttention && { supersedesUnreadAttention }),
+        };
+    }
     const lastActivityState: AgentActivityState =
         phase === 'turnStarted'
             ? 'running'

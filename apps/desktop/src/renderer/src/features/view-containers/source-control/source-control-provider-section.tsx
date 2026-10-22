@@ -190,11 +190,14 @@ function ProviderHeader({
     const run = async (action_: SourceControlAction): Promise<void> => {
         if (runningActionId) return;
         setRunningActionId(action_.id);
+        // Reset on both outcomes without `finally`, which React Compiler cannot lower.
         try {
             await controller.runAction(action_);
-        } finally {
+        } catch (error) {
             setRunningActionId(undefined);
+            throw error;
         }
+        setRunningActionId(undefined);
     };
     /**
      * The uncommitted notice joins the row's context menu rather than `provider.actions`, because the protocol

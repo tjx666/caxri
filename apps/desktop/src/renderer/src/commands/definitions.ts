@@ -87,6 +87,10 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
         when: (context) => context.agentChat.canRun('openSideChat'),
     }),
+    fromCatalog('agentChat.focusWaitingRequest', (context) => context.agentChatWaiting.focus(), {
+        allowInEditable: true,
+        when: (context) => context.agentChatWaiting.canFocus(),
+    }),
     /**
      * `Cmd+O` must work from anywhere, including a focused Terminal or editor: it opens a native folder dialog and
      * types nothing into the editable surface.

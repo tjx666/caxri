@@ -10,6 +10,7 @@ import Editor from '@monaco-editor/react';
 import { useEditorOptions } from '@/hooks/use-editor-options';
 import { languageEditorOptions } from '@/lib/editor-options';
 
+import { runThenCleanup } from '../../lib/await-then-cleanup';
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
 import { useTheme } from '../../stores/selectors';
@@ -95,13 +96,14 @@ export function GitDiffSurface({
              */
             const listeners = contentSizeListeners.current;
             contentSizeListeners.current = [];
-            try {
-                disposeAllThenRethrow(listeners);
-            } finally {
-                diffEditorRegistrationReference.current?.();
-                diffEditorRegistrationReference.current = undefined;
-                editorReference.current = null;
-            }
+            runThenCleanup(
+                () => disposeAllThenRethrow(listeners),
+                () => {
+                    diffEditorRegistrationReference.current?.();
+                    diffEditorRegistrationReference.current = undefined;
+                    editorReference.current = null;
+                },
+            );
         },
         [],
     );

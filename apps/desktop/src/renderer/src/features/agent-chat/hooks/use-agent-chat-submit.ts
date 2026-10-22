@@ -7,6 +7,7 @@ import {
     parseAgentChatCommand,
 } from '@caxri/protocol';
 
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { useTerminal } from '../../../stores/selectors';
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import {
@@ -25,7 +26,10 @@ import {
     isAgentChatSkillAttachment,
     returnUnsentAgentChatMessage,
 } from '../composer-input/agent-chat-drafts';
-import { askAgentChatSideQuestion } from '../side-chat/agent-chat-side-chat-commands';
+import {
+    askAgentChatSideQuestion,
+    isAgentChatSideChatBusyFor,
+} from '../side-chat/agent-chat-side-chat-commands';
 import { parseAgentChatSideQuestion } from '../side-chat/agent-chat-side-thread';
 import { openAgentChatSideChat } from '../tasks/agent-chat-task-opener';
 import {
@@ -71,6 +75,7 @@ export function useAgentChatSubmit({
     clearSent,
     commands,
     onSent,
+    onSideChatBusy,
     providerName,
     setDraft,
     terminalId,
@@ -83,6 +88,11 @@ export function useAgentChatSubmit({
      * failure of those.
      */
     onSent?: () => void;
+    /**
+     * Runs when a `/btw` question is held back because the side chat is still answering the previous one; the draft
+     * stays in the composer.
+     */
+    onSideChatBusy?: () => void;
     /**
      * The provider catalog's display name, which heads the user's words after cited files and folders.
      */
@@ -100,13 +110,11 @@ export function useAgentChatSubmit({
         delivery: Parameters<typeof didDeliverAgentChatComposerInput>[0],
     ): Promise<boolean> => {
         setSending(true);
-        try {
-            const isDelivered = await didDeliverAgentChatComposerInput(delivery);
-            if (isDelivered) onSent?.();
-            return isDelivered;
-        } finally {
-            setSending(false);
-        }
+        const isDelivered = await awaitThenCleanup(didDeliverAgentChatComposerInput(delivery), () =>
+            setSending(false),
+        );
+        if (isDelivered) onSent?.();
+        return isDelivered;
     };
     /**
      * Runs `command`, typed or chosen in the composer as `sent`. A command the composer did not hold (the compact
@@ -136,6 +144,11 @@ export function useAgentChatSubmit({
         // `/btw <question>` goes to the side chat, not the main turn, at any time: it never queues or steers.
         const sideQuestion = hasSideChat ? parseAgentChatSideQuestion(sent) : undefined;
         if (sideQuestion) {
+            // Checked before the draft clears: `askAgentChatSideQuestion` drops a question asked while one is pending.
+            if (isAgentChatSideChatBusyFor(terminalId)) {
+                onSideChatBusy?.();
+                return;
+            }
             setDraft((current) => draftAfterSend(current, sent));
             onSent?.();
             openAgentChatSideChat(terminalId);

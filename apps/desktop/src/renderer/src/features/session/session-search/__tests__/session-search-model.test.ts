@@ -2,6 +2,8 @@ import type { SessionSearchEntry, SessionSearchResult } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    hasActiveSearchFilters,
+    nextProviderFilter,
     nextStatusFilter,
     retainedSelectionIndex,
     sessionSearchAction,
@@ -21,6 +23,10 @@ const base: SessionSearchEntry = {
     updatedAt: 1,
     match: { field: 'content' },
 };
+
+function first() {
+    return nextProviderFilter(undefined, 1);
+}
 
 describe('Session search model', () => {
     it('picks the action from where the conversation lives', () => {
@@ -83,6 +89,22 @@ describe('Session search model', () => {
     it('cycles status filters with Tab in both directions', () => {
         expect(nextStatusFilter('all', 1)).toBe('caxri');
         expect(nextStatusFilter('all', -1)).toBe('external');
+    });
+
+    it('cycles the Agent filter with Shift+Tab through All Agents and each provider', () => {
+        const first = nextProviderFilter(undefined, 1);
+        expect(first).toBeDefined();
+        let current = first;
+        for (let step = 0; current !== undefined && step < 20; step += 1)
+            current = nextProviderFilter(current, 1);
+        expect(current).toBeUndefined();
+        expect(nextProviderFilter(first, -1)).toBeUndefined();
+    });
+
+    it('reports active filters only when one narrows the list', () => {
+        expect(hasActiveSearchFilters('all', undefined)).toBe(false);
+        expect(hasActiveSearchFilters('archived', undefined)).toBe(true);
+        expect(hasActiveSearchFilters('all', first())).toBe(true);
     });
 
     it('keeps the last two folder segments', () => {

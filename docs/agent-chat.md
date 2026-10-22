@@ -775,8 +775,11 @@ several callbacks can share one item, so the transport id is never the key.
   (`min(640px, 92vw)`), shows the oldest waiting request with the Chat's provider, Session,
   Project, and an Open Session button, counts the rest ("N more pending"), and folds into an
   "N pending" pill that unfolds when a new request arrives. A click on a question's option only
-  selects it, so the user confirms with Submit; the popup never takes focus, and its keys
-  (digits, Enter, Cmd+Enter, Cmd+Backspace, Escape to fold) work only while focus is inside it.
+  selects it, so the user confirms with Submit; the popup never takes focus by itself (the palette's
+  `Focus Waiting Request`, `agentChat.focusWaitingRequest`, unfolds it and moves focus to the question's
+  selected option; Tab then reaches the other controls, since options are one roving tab stop, as in the
+  docked card), and its keys (digits, Enter, Cmd+Enter, Cmd+Backspace, Escape to fold) work only while
+  focus is inside it.
   A file-change approval shows no diff there and points to the Session instead. The design
   follows LobeHub's `GlobalApprovalNotification`; the Agent Commander window does not show it.
 - An answered question leaves an `answered` notice in the timeline, so the transcript records what
@@ -1393,7 +1396,9 @@ interrupts, queues, or steers that turn. Claude and Codex offer it (`capabilitie
 Grok Build does not, and the PTY surface is untouched.
 
 - **Entry points.** `Cmd+;` (`agentChat.openSideChat`, also in the command palette) and typing
-  `/btw <question>` in the main composer, which asks in the side chat instead of sending a message. The
+  `/btw <question>` in the main composer, which asks in the side chat instead of sending a message (while
+  the previous question is still being answered the draft stays and the composer says so), and the
+  composer `+` menu's Side chat row. The
   side chat opens as a tab beside the Chat, in the same side pane task tabs use
   (`caxri-agent-side-chat://<terminalId>`, one per Chat), with its own composer and multi-turn
   follow-ups.

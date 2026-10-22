@@ -142,6 +142,7 @@ export const primarySidebar = {
     'primarySidebar.card.createdByArchived': '{{title}} (archived)',
     'primarySidebar.card.changes': 'Changes',
     'primarySidebar.card.lastOpened': 'Last opened',
+    'primarySidebar.sessionMenu.reopenConversation': 'Reopen previous conversation',
     'primarySidebar.card.history.title': 'Conversations',
     'primarySidebar.card.history.open': 'Open',
     'primarySidebar.card.history.untitled': '{{agent}} conversation',

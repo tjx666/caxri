@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { switchBranch } from './branch-commands';
@@ -51,11 +52,9 @@ export function BranchPicker({
         if (nextBranch === branch || switching) return;
         setSwitching(nextBranch);
         setOpen(false);
-        try {
-            await switchBranch(sessionId, repositoryId, nextBranch);
-        } finally {
-            setSwitching(undefined);
-        }
+        await awaitThenCleanup(switchBranch(sessionId, repositoryId, nextBranch), () =>
+            setSwitching(undefined),
+        );
     };
 
     const content = (

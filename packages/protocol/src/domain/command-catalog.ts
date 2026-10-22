@@ -21,6 +21,7 @@ import { terminalCommandDefinitions } from './terminal-command-definitions.js';
  *   model list, permission levels, or plan mode, so its composer can open that menu or flip that toggle.
  * - `agentChatSideChat`: the active tab is a Chat whose provider answers side questions, so its composer can open the
  *   side chat.
+ * - `agentChatWaiting`: the waiting popup has a request to show, so it can take keyboard focus.
  * - `commanderHandOverAvailable` / `commanderTakeBackAvailable`: a local window whose selected Session the Agent
  *   Commander does not (or does) manage. Exactly one of the pair holds while a Session is selected, so the palette
  *   offers Hand Over or Take Back the way the Session row's menu does; with no Session selected, Hand Over still opens
@@ -38,6 +39,7 @@ export type CommandWhen =
     | 'agentChatPermissionModes'
     | 'agentChatPlanMode'
     | 'agentChatSideChat'
+    | 'agentChatWaiting'
     | 'pinnedSessions';
 
 export interface CommandDefinition {

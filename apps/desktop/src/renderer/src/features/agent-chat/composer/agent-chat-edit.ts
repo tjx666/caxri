@@ -248,3 +248,47 @@ export function agentChatEditSendAction(
         placeholder: t('agentChat.edit.placeholder', { provider: providerName }),
     };
 }
+
+/**
+ * What one rewindable user message offers. `edit` and `fork` are `null` when enabled, otherwise the reason they are
+ * disabled; `restore` is the number of turns it undoes when enabled, otherwise the reason it is disabled.
+ */
+export interface AgentChatEditAvailabilityRow {
+    edit: string | null;
+    fork: string | null;
+    restore: string | number;
+}
+
+/**
+ * Every rewindable message's availability, keyed by item id; a message absent from the table offers no action.
+ */
+export type AgentChatEditAvailabilityTable = ReadonlyMap<string, AgentChatEditAvailabilityRow>;
+
+/**
+ * Computes the availability table and serializes it. The serialized form is the table's identity: a streamed delta
+ * leaves every answer unchanged, so the string stays equal and whatever is derived from it
+ * ({@link parseAgentChatEditAvailability}) stays referentially stable, which keeps the user messages from re-rendering.
+ */
+export function serializeAgentChatEditAvailability(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>,
+): string {
+    const rows: Array<[string, AgentChatEditAvailabilityRow]> = [];
+    for (const itemId of agentChatRewindableMessageIds(snapshot)) {
+        const edit = agentChatEditAvailability(snapshot, itemId);
+        const fork = agentChatForkAvailability(snapshot, itemId);
+        const restore = agentChatRestoreAvailability(snapshot, itemId);
+        rows.push([
+            itemId,
+            {
+                edit: edit.canEdit ? null : edit.reason,
+                fork: fork.canFork ? null : fork.reason,
+                restore: 'reason' in restore ? restore.reason : restore.restoredTurns,
+            },
+        ]);
+    }
+    return JSON.stringify(rows);
+}
+
+export function parseAgentChatEditAvailability(serialized: string): AgentChatEditAvailabilityTable {
+    return new Map(JSON.parse(serialized) as Array<[string, AgentChatEditAvailabilityRow]>);
+}

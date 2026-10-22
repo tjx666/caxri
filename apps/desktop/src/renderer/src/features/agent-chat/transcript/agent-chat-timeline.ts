@@ -295,7 +295,7 @@ export function buildAgentChatTimeline(
         );
         start = end;
     }
-    return entries;
+    return reuseAgentChatTimelineEntries(entries);
 }
 
 /**
@@ -317,4 +317,115 @@ export function isAgentChatAwaitingReplyInTimeline(
         snapshot,
         last?.kind === 'item' && last.item.type === 'userMessage',
     );
+}
+
+type Entry<Kind extends AgentChatTimelineEntry['kind']> = Extract<
+    AgentChatTimelineEntry,
+    { kind: Kind }
+>;
+
+/**
+ * The last entry built per anchor object, one table per kind so a turn and the first work group inside it, which share
+ * their first item, never collide. The projection replaces only the item a patch touches, so an entry whose source
+ * items kept their identities is structurally the same entry; handing back the previous one keeps its props stable and
+ * lets the row skip rendering while a later turn streams.
+ */
+const items = new WeakMap<AgentChatItem, Entry<'item'>>();
+const works = new WeakMap<AgentChatItem, Entry<'work'>>();
+const turns = new WeakMap<AgentChatItem, Entry<'turn'>>();
+const artifactLists = new WeakMap<AgentChatTurnArtifacts, Entry<'artifacts'>>();
+
+function areSameEntries(
+    left: readonly AgentChatTimelineEntry[],
+    right: readonly AgentChatTimelineEntry[],
+): boolean {
+    return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+
+function firstItem(entry: AgentChatTimelineEntry): AgentChatItem | undefined {
+    switch (entry.kind) {
+        case 'item': {
+            return entry.item;
+        }
+        case 'work': {
+            return entry.items[0];
+        }
+        case 'turn': {
+            return entry.entries.map((child) => firstItem(child)).find(Boolean);
+        }
+        case 'artifacts': {
+            return undefined;
+        }
+    }
+}
+
+/**
+ * The entry itself, or the equal one built before when its source items kept their identities. Children of a `turn`
+ * entry are reused first, so the comparison is a shallow identity check.
+ */
+function reuseAgentChatTimelineEntry(entry: AgentChatTimelineEntry): AgentChatTimelineEntry {
+    switch (entry.kind) {
+        case 'item': {
+            const previous = items.get(entry.item);
+            if (
+                previous &&
+                previous.isFinalReply === entry.isFinalReply &&
+                previous.artifacts === entry.artifacts
+            )
+                return previous;
+            items.set(entry.item, entry);
+            return entry;
+        }
+        case 'work': {
+            const anchor = entry.items[0];
+            const previous = works.get(anchor);
+            if (
+                previous &&
+                previous.id === entry.id &&
+                previous.items.length === entry.items.length &&
+                previous.items.every((item, index) => item === entry.items[index])
+            )
+                return previous;
+            works.set(anchor, entry);
+            return entry;
+        }
+        case 'artifacts': {
+            const previous = artifactLists.get(entry.artifacts);
+            if (previous && previous.id === entry.id) return previous;
+            artifactLists.set(entry.artifacts, entry);
+            return entry;
+        }
+        case 'turn': {
+            const children = entry.entries.map((child) => reuseAgentChatTimelineEntry(child));
+            const next = areSameEntries(children, entry.entries)
+                ? entry
+                : { ...entry, entries: children as Entry<'turn'>['entries'] };
+            const anchor = firstItem(next);
+            // A stopped turn that did no work has nothing to anchor on, so it is rebuilt each time.
+            if (!anchor) return next;
+            const previous = turns.get(anchor);
+            if (
+                previous &&
+                previous.id === next.id &&
+                previous.status === next.status &&
+                previous.stoppedBy === next.stoppedBy &&
+                previous.durationMs === next.durationMs &&
+                previous.startedAt === next.startedAt &&
+                previous.endedAt === next.endedAt &&
+                areSameEntries(previous.entries, next.entries)
+            )
+                return previous;
+            turns.set(anchor, next);
+            return next;
+        }
+    }
+}
+
+/**
+ * Applies {@link reuseAgentChatTimelineEntry} to a built timeline.
+ */
+function reuseAgentChatTimelineEntries(
+    entries: readonly AgentChatTimelineEntry[],
+): AgentChatTimelineEntry[] {
+    return entries.map((entry) => reuseAgentChatTimelineEntry(entry));
 }
