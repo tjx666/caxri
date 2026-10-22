@@ -36,16 +36,26 @@ describe('MCP tool rows', () => {
         ).toBeUndefined();
     });
 
-    it('leads a summary with its first kind and names the first MCP call', () => {
+    it('leads a one-kind summary with that kind and names the first MCP call', () => {
+        expect(
+            agentChatWorkSummaryGlyph([
+                toolCall('mcp__exa__web_search_exa'),
+                toolCall('mcp__linear__get_issue'),
+            ]),
+        ).toEqual({ kind: 'mcp', mcpToolName: 'mcp__exa__web_search_exa' });
+        expect(agentChatWorkSummaryGlyph([shell('a'), shell('b')])).toEqual({ kind: 'command' });
+    });
+
+    it('leads a settled mixed-kind summary with the generic work glyph', () => {
         expect(
             agentChatWorkSummaryGlyph([
                 toolCall('mcp__exa__web_search_exa'),
                 shell('a'),
                 toolCall('mcp__linear__get_issue'),
             ]),
-        ).toEqual({ kind: 'mcp', mcpToolName: 'mcp__exa__web_search_exa' });
+        ).toEqual({ kind: 'other' });
         expect(agentChatWorkSummaryGlyph([shell('a'), toolCall('exa/web_search_exa')])).toEqual({
-            kind: 'command',
+            kind: 'other',
         });
     });
 });

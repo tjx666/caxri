@@ -427,9 +427,9 @@ export function describeAgentChatWorkRow(
 }
 
 /**
- * The glyph a work summary row leads with, the way the Codex app marks a group by its first part: the kind its phrase
- * names first (`Called 3 MCP tools, ran 2 commands` leads with MCP), plus the first MCP tool call's name when MCP
- * leads, so the row shows that server's icon.
+ * The glyph a work summary row leads with: the running call's kind while one runs, otherwise the kind every call shares
+ * (plus the first MCP tool call's name, so the row shows that server's icon). A settled summary mixing kinds (`Searched
+ * once, ran 1 command`) takes the generic work glyph, since no single kind's icon describes it.
  */
 export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): {
     kind: AgentToolKind;
@@ -443,7 +443,9 @@ export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): 
                 active.item.type === 'toolCall' && { mcpToolName: active.item.name }),
         };
     const tools = agentChatWorkSummaryTools(items);
-    const kind = agentToolKindCounts(tools).at(0)?.kind ?? 'thought';
+    const counts = agentToolKindCounts(tools);
+    if (counts.length > 1) return { kind: 'other' };
+    const kind = counts.at(0)?.kind ?? 'thought';
     const mcpToolName =
         kind === 'mcp'
             ? tools.find((tool) => describeAgentTool(tool).kind === 'mcp')?.name

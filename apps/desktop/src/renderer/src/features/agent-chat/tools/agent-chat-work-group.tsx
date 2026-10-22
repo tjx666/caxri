@@ -478,10 +478,16 @@ const SUMMARY_RUNNING_DELAY_MS = 1000;
  * Ordinary work as one stable summary row (`Ran 3 commands, read 2 files`) that lists each piece when expanded.
  */
 function AgentChatWorkSummary({
+    isOpen,
     items,
     anchorItems,
     onOpenFile,
 }: {
+    /**
+     * Whether the next tool call can still join this run. Its title keeps sweeping between calls, so fast commands that
+     * each settle before `SUMMARY_RUNNING_DELAY_MS` still show the turn working (as T3 Code's live work row does).
+     */
+    isOpen: boolean;
     items: readonly AgentChatWorkItem[];
     anchorItems: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
@@ -510,7 +516,7 @@ function AgentChatWorkSummary({
                 />
             }
             // Like a single running row, the live summary sweeps its title instead of trailing a spinner.
-            isRunning={isRunning}
+            isRunning={isRunning || isOpen}
             title={<AgentChatWorkSummaryTitle phrases={phrases} />}
             trailing={
                 <>
@@ -559,6 +565,7 @@ export function AgentChatWorkGroup({
             {!single && summarized.length > 0 && (
                 <AgentChatWorkSummary
                     anchorItems={items}
+                    isOpen={isOpen}
                     items={summarized}
                     onOpenFile={onOpenFile}
                 />
