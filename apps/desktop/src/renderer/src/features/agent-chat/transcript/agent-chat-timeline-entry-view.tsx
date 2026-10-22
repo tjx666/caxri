@@ -66,48 +66,58 @@ const AgentChatMessageItem = memo(
 
 /**
  * One timeline entry: a message or notice inline, a run of work as one collapsible group, or a finished turn folded
- * behind its duration.
+ * behind its duration. `buildAgentChatTimeline` hands back the same entry object while its source items keep their
+ * identities, so a settled entry skips rendering while a later turn streams.
  */
-export function AgentChatTimelineEntryView({
-    entry,
-    onOpenFile,
-}: {
+const MemoizedTimelineEntry = memo(
+    ({
+        entry,
+        onOpenFile,
+    }: {
+        entry: AgentChatTimelineEntry;
+        /**
+         * Opens a file the reply cites, resolved against the Chat Terminal's reachable Projects.
+         */
+        onOpenFile?: (target: string) => void;
+    }): ReactNode => {
+        switch (entry.kind) {
+            case 'item': {
+                return (
+                    <AgentChatMessageItem
+                        artifacts={entry.artifacts}
+                        isFinalReply={entry.isFinalReply}
+                        item={entry.item}
+                        onOpenFile={onOpenFile}
+                    />
+                );
+            }
+            case 'work': {
+                return <AgentChatWorkGroup items={entry.items} onOpenFile={onOpenFile} />;
+            }
+            case 'artifacts': {
+                return <AgentChatTurnArtifactList artifacts={entry.artifacts} />;
+            }
+            case 'turn': {
+                return (
+                    <AgentChatTurnFold
+                        entry={entry}
+                        renderEntry={(child) => (
+                            <AgentChatTimelineEntryView
+                                entry={child}
+                                key={child.kind === 'item' ? child.item.id : child.id}
+                                onOpenFile={onOpenFile}
+                            />
+                        )}
+                    />
+                );
+            }
+        }
+    },
+);
+
+export function AgentChatTimelineEntryView(properties: {
     entry: AgentChatTimelineEntry;
-    /**
-     * Opens a file the reply cites, resolved against the Chat Terminal's reachable Projects.
-     */
     onOpenFile?: (target: string) => void;
 }): ReactNode {
-    switch (entry.kind) {
-        case 'item': {
-            return (
-                <AgentChatMessageItem
-                    artifacts={entry.artifacts}
-                    isFinalReply={entry.isFinalReply}
-                    item={entry.item}
-                    onOpenFile={onOpenFile}
-                />
-            );
-        }
-        case 'work': {
-            return <AgentChatWorkGroup items={entry.items} onOpenFile={onOpenFile} />;
-        }
-        case 'artifacts': {
-            return <AgentChatTurnArtifactList artifacts={entry.artifacts} />;
-        }
-        case 'turn': {
-            return (
-                <AgentChatTurnFold
-                    entry={entry}
-                    renderEntry={(child) => (
-                        <AgentChatTimelineEntryView
-                            entry={child}
-                            key={child.kind === 'item' ? child.item.id : child.id}
-                            onOpenFile={onOpenFile}
-                        />
-                    )}
-                />
-            );
-        }
-    }
+    return <MemoizedTimelineEntry {...properties} />;
 }

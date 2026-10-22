@@ -5,6 +5,7 @@ import { BUG_REPORT_JPEG_DATA_URL_PREFIX, errorMessage } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
 import { translate, useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { caxri } from '../../lib/caxri';
 import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
@@ -56,6 +57,49 @@ function visibleWorkContext(): BugReportContext['visibleWork'] {
     const terminal = bootstrap?.terminals.find((item) => item.id === resource.terminalId);
     if (!terminal) return { kind: 'none' };
     return { kind: 'terminal', provider: terminal.provider, terminalId: terminal.id };
+}
+
+/**
+ * The image the report shows and sends: the annotated one when marks exist, otherwise the original capture. The
+ * original only stays around so the marks remain editable.
+ */
+function currentScreenshotDataUrl(screenshot: BugReportScreenshot): string {
+    return screenshot.annotatedDataUrl ?? screenshot.original.dataUrl;
+}
+
+/**
+ * The saved file's path for `dataUrl`, reusing the previous save when the image has not changed. Kept outside the hook
+ * because React Compiler cannot lower a conditional inside a try/catch.
+ */
+async function savedScreenshotPath(
+    cached: { dataUrl: string; path: string } | undefined,
+    dataUrl: string,
+): Promise<string> {
+    if (cached?.dataUrl === dataUrl) return cached.path;
+    return (await saveBugReportScreenshot({ dataUrl })).path;
+}
+
+/**
+ * The Agent-facing screenshot plus, when the target can take images, its Chat attachment. Kept outside the hook because
+ * React Compiler cannot lower a conditional inside a try/catch.
+ */
+async function agentScreenshotDelivery(
+    screenshot: BugReportScreenshot | undefined,
+    canAttach: boolean,
+): Promise<{
+    chatImage: AgentChatImageInput | undefined;
+    screenshot: { dataUrl: string; height: number; width: number } | undefined;
+}> {
+    if (!screenshot) return { chatImage: undefined, screenshot: undefined };
+    const dataUrl = currentScreenshotDataUrl(screenshot);
+    return {
+        chatImage: canAttach ? await bugReportChatImage(dataUrl) : undefined,
+        screenshot: {
+            dataUrl,
+            height: screenshot.original.height,
+            width: screenshot.original.width,
+        },
+    };
 }
 
 /**
@@ -253,9 +297,9 @@ export function useBugReportDialog() {
             updateState({
                 screenshotError: errorMessage(error, translate('bugReport.flow.captureFailed')),
             });
-        } finally {
-            updateState({ captureHidden: false, capturing: false });
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        updateState({ captureHidden: false, capturing: false });
     };
 
     /**
@@ -384,39 +428,37 @@ export function useBugReportDialog() {
         if (!source || !diagnostics || !canPreview) return;
         const context: BugReportContext = { ...diagnostics, ...source };
         updateState({ busy: true, sendError: undefined });
-        try {
-            let reference: BugReportScreenshotReference | undefined;
-            if (screenshot) {
-                try {
-                    const dataUrl = screenshot.annotatedDataUrl ?? screenshot.original.dataUrl;
-                    const cached = savedScreenshot.current;
-                    const path =
-                        cached?.dataUrl === dataUrl
-                            ? cached.path
-                            : (await saveBugReportScreenshot({ dataUrl })).path;
-                    savedScreenshot.current = { dataUrl, path };
-                    reference = {
-                        annotations: screenshot.annotations,
-                        height: screenshot.original.height,
-                        path,
-                        width: screenshot.original.width,
-                    };
-                    updateState({ screenshotError: undefined });
-                } catch (error) {
-                    // A failed save must not block the report: the text half is still worth sending, it just cannot
-                    // name a file the Agent can open.
-                    updateState({
-                        screenshotError: errorMessage(
-                            error,
-                            t('bugReport.flow.saveScreenshotFailed'),
-                        ),
-                    });
+        // The `finally` lives in `awaitThenCleanup` because React Compiler cannot lower it inside a hook.
+        await awaitThenCleanup(
+            (async (): Promise<void> => {
+                let reference: BugReportScreenshotReference | undefined;
+                if (screenshot) {
+                    try {
+                        const dataUrl = currentScreenshotDataUrl(screenshot);
+                        const path = await savedScreenshotPath(savedScreenshot.current, dataUrl);
+                        savedScreenshot.current = { dataUrl, path };
+                        reference = {
+                            annotations: screenshot.annotations,
+                            height: screenshot.original.height,
+                            path,
+                            width: screenshot.original.width,
+                        };
+                        updateState({ screenshotError: undefined });
+                    } catch (error) {
+                        // A failed save must not block the report: the text half is still worth sending, it just cannot
+                        // name a file the Agent can open.
+                        updateState({
+                            screenshotError: errorMessage(
+                                error,
+                                t('bugReport.flow.saveScreenshotFailed'),
+                            ),
+                        });
+                    }
                 }
-            }
-            updateState({ report: buildBugReport(draft, context, reference) });
-        } finally {
-            updateState({ busy: false });
-        }
+                updateState({ report: buildBugReport(draft, context, reference) });
+            })(),
+            () => updateState({ busy: false }),
+        );
     };
 
     const copyReport = async (): Promise<void> => {
@@ -450,18 +492,14 @@ export function useBugReportDialog() {
         updateState({ busy: true, sendError: undefined });
         try {
             // The Agent-facing image is the annotated one; the original only exists so the marks stay editable.
-            const agentScreenshot = screenshot && {
-                dataUrl: screenshot.annotatedDataUrl ?? screenshot.original.dataUrl,
-                height: screenshot.original.height,
-                width: screenshot.original.width,
-            };
+            const delivery = await agentScreenshotDelivery(
+                screenshot,
+                canAttachBugReportScreenshot(liveTarget),
+            );
             await sendBugReport({
-                chatImage:
-                    agentScreenshot && canAttachBugReportScreenshot(liveTarget)
-                        ? await bugReportChatImage(agentScreenshot.dataUrl)
-                        : undefined,
+                chatImage: delivery.chatImage,
                 report,
-                screenshot: agentScreenshot,
+                screenshot: delivery.screenshot,
                 sessionId: source.session.id,
                 terminalId: liveTarget.id,
             });
@@ -474,9 +512,9 @@ export function useBugReportDialog() {
             pushToast('success', t('bugReport.flow.sent', { title: liveTarget.title }));
         } catch (error) {
             updateState({ sendError: errorMessage(error, t('bugReport.flow.sendFailed')) });
-        } finally {
-            updateState({ busy: false });
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        updateState({ busy: false });
     };
 
     return {

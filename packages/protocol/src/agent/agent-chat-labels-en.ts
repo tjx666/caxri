@@ -43,6 +43,8 @@ export const agentChatLabelsEn = {
 
     // Timeline notices (`agentChatNoticeMessage`)
     'agentChat.message.contextCompacted': 'Context compacted',
+    'agentChat.message.contextCompactedLabel':
+        'Context compacted, from {{before}} to {{after}} tokens',
     'agentChat.message.contextCompactedSizes': 'Context compacted · {{before}} → {{after}}',
     'agentChat.message.contextCompactedAuto': 'Compacted automatically when the context filled up',
     'agentChat.message.contextCompactedManual': 'Compacted on request',

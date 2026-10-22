@@ -4,6 +4,7 @@ import type { WorkbenchRootOption } from '@caxri/protocol';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { selectWorkbenchRoot } from '../workbench-root-commands';
 import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
 
@@ -73,12 +74,10 @@ export function useWorkbenchRootPicker(
         setSwitching(true);
         setSwitchingLabel(root.displayTitle);
         setOpen(false);
-        try {
-            const selected = await selectWorkbenchRoot(sessionId, root);
-            if (selected !== 'selected') setOpen(true);
-        } finally {
-            setSwitching(false);
-        }
+        const selected = await awaitThenCleanup(selectWorkbenchRoot(sessionId, root), () =>
+            setSwitching(false),
+        );
+        if (selected !== 'selected') setOpen(true);
     };
     return {
         open,

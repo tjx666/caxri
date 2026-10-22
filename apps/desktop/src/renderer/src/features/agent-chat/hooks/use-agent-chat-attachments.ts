@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import type { AgentChatPathReference } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { pushToast } from '../../../stores/toasts';
 import { attachmentsWithReattached } from '../attachments/agent-chat-image-placeholders';
 import type {
@@ -170,13 +171,18 @@ export function useAgentChatAttachments(terminalId: string) {
         resolving: Promise<readonly AgentChatPathReference[]>,
     ): Promise<void> => {
         setReadingCount((count) => count + 1);
-        try {
-            addPaths(await resolving);
-        } catch {
-            // Resolving a path cannot reasonably fail; if it does, no card is attached and Send is released below.
-        } finally {
-            setReadingCount((count) => count - 1);
-        }
+        /**
+         * Resolving a path cannot reasonably fail. The `finally` lives in `awaitThenCleanup` because React Compiler
+         * cannot compile one inside a hook.
+         */
+        const addWhenSettled = async (): Promise<void> => {
+            try {
+                addPaths(await resolving);
+            } catch {
+                // No card is attached; Send is released below all the same.
+            }
+        };
+        await awaitThenCleanup(addWhenSettled(), () => setReadingCount((count) => count - 1));
     };
     /**
      * Removes the cards `ids` names, such as the ones an "Edit from here" brought back when the edit is cancelled.

@@ -145,6 +145,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.card.createdByArchived': '{{title}}（已归档）',
     'primarySidebar.card.changes': '更改',
     'primarySidebar.card.lastOpened': '上次打开',
+    'primarySidebar.sessionMenu.reopenConversation': '重新打开历史对话',
     'primarySidebar.card.history.title': '历史对话',
     'primarySidebar.card.history.open': '已打开',
     'primarySidebar.card.history.untitled': '{{agent}} 对话',

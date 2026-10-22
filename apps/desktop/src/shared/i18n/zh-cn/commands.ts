@@ -70,6 +70,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.agentChat.changePermissionMode': '切换权限模式…',
     'commands.agentChat.togglePlanMode': '切换计划模式',
     'commands.agentChat.openSideChat': '打开旁路对话',
+    'commands.agentChat.focusWaitingRequest': '聚焦等待中的请求',
     'commands.terminal.close': '关闭终端',
     'commands.workbench.closeActiveTab': '关闭当前标签页',
     'commands.workbench.nextTab': '显示下一个标签页',

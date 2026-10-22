@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionRecord } from '@caxri/protocol';
 
 import { useLatestReference } from '../../../hooks/use-latest-reference';
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { didReorderSession } from '../../session/session-commands';
 import type { SessionDropTarget } from '../session-order';
 import {
@@ -106,13 +107,15 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
                 target,
             );
             pending.current = true;
-            try {
-                if (await reorder(sessionId, target.anchorSessionId, target.placement))
-                    setAnnouncement(moveAnnouncement);
-            } finally {
-                pending.current = false;
-                clear();
-            }
+            // The `finally` lives in `awaitThenCleanup` because React Compiler cannot lower it inside a hook.
+            const didMove = await awaitThenCleanup(
+                reorder(sessionId, target.anchorSessionId, target.placement),
+                () => {
+                    pending.current = false;
+                    clear();
+                },
+            );
+            if (didMove) setAnnouncement(moveAnnouncement);
         },
         [clear, latestSessions, reorder],
     );
@@ -221,9 +224,8 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
      * Memoized so a re-render that leaves this list's own drag state untouched returns the exact same controller
      * object. Every Session row receives it as a prop, so a fresh object would render every row again (issues #1108 and
      * #1356). None of its inputs depend on the records themselves, which is what keeps it stable through a Session
-     * switch; the ordered list travels beside it instead of inside it. React Compiler cannot cover this hook on its
-     * own: the `try`/`finally` in `persist` above has no `catch` clause, which is also not yet lowered
-     * (`BuildHIR::lowerStatement`), so this hook falls back to manual memoization throughout.
+     * switch; the ordered list travels beside it instead of inside it. React Compiler cannot cover this hook on its own
+     * for this object: it is kept memoized by hand so its identity stays stable independent of compiler coverage.
      */
     const controller = useMemo(
         () => ({

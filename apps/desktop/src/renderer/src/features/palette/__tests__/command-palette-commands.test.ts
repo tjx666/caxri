@@ -73,6 +73,7 @@ describe('isCommandVisibleInPalette', () => {
         agentChatPermissionModes: false,
         agentChatPlanMode: false,
         agentChatSideChat: false,
+        agentChatWaiting: false,
         pinnedSessions: false,
     };
     const localWindow = {
@@ -132,6 +133,7 @@ describe('isCommandVisibleInPalette', () => {
             agentChatPermissionModes: 'agentChat.changePermissionMode',
             agentChatPlanMode: 'agentChat.togglePlanMode',
             agentChatSideChat: 'agentChat.openSideChat',
+            agentChatWaiting: 'agentChat.focusWaitingRequest',
         } as const;
         for (const [predicate, id] of Object.entries(chatCommands)) {
             const command = commandDefinitions.find((definition) => definition.id === id);
@@ -210,6 +212,7 @@ describe('commanderPaletteWhenContext', () => {
             agentChatPermissionModes: false,
             agentChatPlanMode: false,
             agentChatSideChat: false,
+            agentChatWaiting: false,
             localMachine: true,
             pinnedSessions: false,
             sessionHasDetachedAgent: false,

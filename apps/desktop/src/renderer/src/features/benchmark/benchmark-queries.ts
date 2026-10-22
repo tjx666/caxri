@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, useCaxriQuery } from '../../queries/client';
 import { refreshBenchmarkCatalog } from './benchmark-commands';
@@ -62,11 +63,7 @@ export function useBenchmarkCatalog() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const refresh = async () => {
         setIsRefreshing(true);
-        try {
-            await refreshBenchmarkCatalog();
-        } finally {
-            setIsRefreshing(false);
-        }
+        await awaitThenCleanup(refreshBenchmarkCatalog(), () => setIsRefreshing(false));
     };
     return { ...query, isRefreshing, refresh };
 }

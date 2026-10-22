@@ -126,13 +126,11 @@ export function SessionSubagentRows({
                     onClick={open}
                 >
                     <AgentChatStatusGlyph status={glyphStatus} />
-                    <span className="overflow-fade min-w-0 flex-1 whitespace-nowrap [--overflow-fade-size:16px]">
-                        {title}
-                    </span>
+                    <span className="min-w-0 flex-1 truncate">{title}</span>
                     {subagent.agentType && (
                         <span
                             aria-hidden="true"
-                            className="max-w-[40%] flex-none truncate text-[11px]"
+                            className="max-w-[40%] shrink-0 truncate text-[11px]"
                         >
                             {subagent.agentType}
                         </span>

@@ -94,24 +94,24 @@ describe('agentChatContextAlerts', () => {
         expect(agentChatContextAlerts(usage, 75 * MINUTE).cache).toEqual({
             state: 'expired',
             text: 'Idle 1h 15m · next reply re-reads the whole conversation (est. ~$0.69)',
-            detail: 'The prompt cache lasts 60m, so the next reply reads all 113k tokens again without it. The cost is an estimate at standard API prices.',
+            detail: 'The Agent keeps a conversation ready for 60 minutes after each reply. After that, the next reply reads the whole conversation (113k) again, which is slower and costs more. The cost is an estimate at standard API prices.',
         });
         const unpriced = { totalTokens: 113_000, cacheTtlMinutes: 60, lastResponseAt: 0 };
         expect(agentChatContextAlerts(unpriced, 60 * MINUTE).cache).toEqual({
             state: 'expired',
             text: 'Idle 1h · next reply re-reads the whole conversation',
-            detail: 'The prompt cache lasts 60m, so the next reply reads all 113k tokens again without it.',
+            detail: 'The Agent keeps a conversation ready for 60 minutes after each reply. After that, the next reply reads the whole conversation (113k) again, which is slower and costs more.',
         });
     });
 
     it('counts down the last 10 minutes before the cache expires', () => {
         expect(agentChatContextAlerts(usage, 50 * MINUTE).cache).toEqual({
             state: 'expiring',
-            text: 'Cache expires in 10m · reply now to skip a full re-read (est. ~$0.69)',
-            detail: 'The prompt cache lasts 60m from the last reply. A message sent within 10m reuses it; after that the next reply reads all 113k tokens again. The cost is an estimate at standard API prices.',
+            text: 'Reply within 10m to skip a full re-read (est. ~$0.69)',
+            detail: 'The Agent keeps a conversation ready for 60 minutes after each reply. A message sent within 10m picks up where it left off; after that, the next reply reads the whole conversation (113k) again. The cost is an estimate at standard API prices.',
         });
         expect(agentChatContextAlerts(usage, 59.5 * MINUTE).cache?.text).toBe(
-            'Cache expires in 1m · reply now to skip a full re-read (est. ~$0.69)',
+            'Reply within 1m to skip a full re-read (est. ~$0.69)',
         );
     });
 
@@ -120,7 +120,7 @@ describe('agentChatContextAlerts', () => {
         expect(agentChatContextAlerts(short, 2 * MINUTE).cache).toBeUndefined();
         expect(agentChatContextAlerts(short, 2.5 * MINUTE).cache).toMatchObject({
             state: 'expiring',
-            text: 'Cache expires in 3m · reply now to skip a full re-read (est. ~$0.69)',
+            text: 'Reply within 3m to skip a full re-read (est. ~$0.69)',
         });
     });
 
@@ -204,12 +204,12 @@ describe('agentChatContextAnnouncement', () => {
                 agentChatContextAlerts({ ...usage, totalTokens: tokens }, minutes * MINUTE),
             );
         expect(at(49)).toBe('');
-        expect(at(51)).toBe('Prompt cache expires soon');
+        expect(at(51)).toBe('Reply soon to skip a full re-read');
         expect(at(55)).toBe(at(51));
-        expect(at(61)).toBe('Prompt cache expired');
+        expect(at(61)).toBe('The next reply re-reads the whole conversation');
         expect(at(75)).toBe(at(61));
         expect(at(75, 900_000)).toBe(
-            'Prompt cache expired. Context nearly full, consider compacting',
+            'The next reply re-reads the whole conversation. Context nearly full, consider compacting',
         );
     });
 });

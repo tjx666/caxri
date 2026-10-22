@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 import { Search } from 'lucide-react';
 
@@ -17,6 +17,7 @@ import {
     buildKeyboardShortcutGroups,
     EXTENSION_SHORTCUT_CATEGORY,
     filterKeyboardShortcutGroups,
+    sidebarShortcutGroup,
 } from './keyboard-shortcut-groups';
 
 const NO_KEYBINDINGS: never[] = [];
@@ -45,14 +46,23 @@ function KeyboardShortcutsBody() {
         useWorkbenchStore((state) => state.bootstrap?.keybindings) ?? NO_KEYBINDINGS;
     const contributedCommands = useCaxriQuery('viewContainers.catalog', {}).data?.commands;
     const groups = useMemo(
-        () =>
-            buildKeyboardShortcutGroups(keybindings, contributedCommands ?? NO_KEYBINDINGS, {
+        () => [
+            ...buildKeyboardShortcutGroups(keybindings, contributedCommands ?? NO_KEYBINDINGS, {
                 category: (category) =>
                     category === EXTENSION_SHORTCUT_CATEGORY
                         ? t('keyboardShortcuts.extensionsCategory')
                         : commandCategory(category, t),
+                pinnedRangeTitle: t('keyboardShortcuts.pinnedRange'),
                 title: (command) => commandTitle(command, t),
             }),
+            sidebarShortcutGroup({
+                archive: t('keyboardShortcuts.sidebar.archive'),
+                category: t('keyboardShortcuts.sidebar.category'),
+                collapse: t('keyboardShortcuts.sidebar.collapse'),
+                expand: t('keyboardShortcuts.sidebar.expand'),
+                move: t('keyboardShortcuts.sidebar.move'),
+            }),
+        ],
         [contributedCommands, keybindings, t],
     );
     const visibleGroups = useMemo(
@@ -135,8 +145,15 @@ function KeyboardShortcutSection({ group }: { group: KeyboardShortcutGroup }) {
                     >
                         <span className="min-w-0 truncate text-foreground">{entry.titleLabel}</span>
                         <span className="flex shrink-0 items-center gap-1.5">
-                            {entry.keys.map((key) => (
-                                <ShortcutBadge key={key} compact shortcut={key} />
+                            {entry.keys.map((key, index) => (
+                                <Fragment key={key}>
+                                    {entry.isRange && index > 0 && (
+                                        <span aria-hidden="true" className="text-muted">
+                                            –
+                                        </span>
+                                    )}
+                                    <ShortcutBadge compact shortcut={key} />
+                                </Fragment>
                             ))}
                         </span>
                     </li>

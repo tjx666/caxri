@@ -53,9 +53,9 @@ function ScreenshotAnnotatorContent({
         } catch (error) {
             // Staying open with the marks intact beats silently handing back an unannotated image.
             setRenderError(errorMessage(error, t('bugReport.annotator.renderFailed')));
-        } finally {
-            setBusy(false);
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        setBusy(false);
     };
 
     return (

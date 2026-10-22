@@ -8,6 +8,10 @@ import {
     canRunAgentChatComposerCommand,
     runAgentChatComposerCommand,
 } from '../features/agent-chat/composer/agent-chat-composer-commands';
+import {
+    canFocusAgentChatWaiting,
+    focusAgentChatWaiting,
+} from '../features/agent-chat/waiting/agent-chat-waiting-focus';
 import { takeBackFromCommander } from '../features/agent-commander/commander-handover-commands';
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
@@ -197,6 +201,10 @@ const commandContext: CommandContext = {
     agentChat: {
         canRun: (command) => canRunAgentChatComposerCommand(activeTerminalId(), command),
         run: (command) => runAgentChatComposerCommand(activeTerminalId(), command),
+    },
+    agentChatWaiting: {
+        canFocus: canFocusAgentChatWaiting,
+        focus: focusAgentChatWaiting,
     },
     agentActions: {
         canOpen: () => Boolean(activeAgentTerminal()),

@@ -141,11 +141,10 @@ export function AgentChatComposerActions({
     useAgentChatComposerCommand(terminalId, 'togglePlanMode', planMode !== undefined, () =>
         permission.configure({ planMode: !planMode }),
     );
-    useAgentChatComposerCommand(
-        terminalId,
-        'openSideChat',
-        provider !== undefined && agentProviderCatalog[provider].capabilities.chatSideQuestion,
-        () => openAgentChatSideChat(terminalId),
+    const hasSideChat =
+        provider !== undefined && agentProviderCatalog[provider].capabilities.chatSideQuestion;
+    useAgentChatComposerCommand(terminalId, 'openSideChat', hasSideChat, () =>
+        openAgentChatSideChat(terminalId),
     );
     return (
         <div className="flex items-center gap-1 px-2 pb-2">
@@ -158,6 +157,7 @@ export function AgentChatComposerActions({
                     onPick={onPick}
                     onPickPaths={onPickPaths}
                     onReferenceSession={onReferenceSession}
+                    onSideChat={hasSideChat ? () => openAgentChatSideChat(terminalId) : undefined}
                     sessions={recentSessions}
                     planMode={
                         planMode === undefined

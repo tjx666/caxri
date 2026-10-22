@@ -6,6 +6,7 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { Empty, EmptyTitle } from '../../components/ui/empty';
 import { useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { caxri } from '../../lib/caxri';
 import { useProjects } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
@@ -99,17 +100,16 @@ export function BenchmarkPage() {
     const [isStarting, setIsStarting] = useState(false);
     const start = async () => {
         setIsStarting(true);
-        try {
-            const runId = await tryCommand(t('benchmark.form.startLabel'), () =>
+        const runId = await awaitThenCleanup(
+            tryCommand(t('benchmark.form.startLabel'), () =>
                 startBenchmark(startParameters(draft, catalog.data)),
-            );
-            if (!runId) return;
-            rememberDraftPreferences(draft);
-            setDraft((current) => ({ ...current, prompt: '' }));
-            setSelection({ kind: 'run', runId });
-        } finally {
-            setIsStarting(false);
-        }
+            ),
+            () => setIsStarting(false),
+        );
+        if (!runId) return;
+        rememberDraftPreferences(draft);
+        setDraft((current) => ({ ...current, prompt: '' }));
+        setSelection({ kind: 'run', runId });
     };
     return (
         <div

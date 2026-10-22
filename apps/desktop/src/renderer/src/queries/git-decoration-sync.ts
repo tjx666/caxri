@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import type { GitSummary } from '@caxri/protocol';
 
 import { setGitDecorationSummary } from '../stores/git-decorations';
-import { useSelectedSession } from '../stores/selectors';
+import { useSelectedSessionId } from '../stores/selectors';
 import { useCaxriQuery } from './client';
 
 export type GitDecorationSummaryUpdate =
@@ -33,15 +33,15 @@ export function gitDecorationSummaryUpdate(
  * of.
  */
 export function useGitDecorationSync(): void {
-    const session = useSelectedSession();
+    const sessionId = useSelectedSessionId();
     const summary = useCaxriQuery(
         'git.summary',
-        { sessionId: session?.id ?? '' },
-        { enabled: Boolean(session), retry: false, staleTime: 60_000 },
+        { sessionId: sessionId ?? '' },
+        { enabled: Boolean(sessionId), retry: false, staleTime: 60_000 },
     ).data;
     useEffect(() => {
-        const update = gitDecorationSummaryUpdate(Boolean(session), summary);
+        const update = gitDecorationSummaryUpdate(Boolean(sessionId), summary);
         if (update.kind === 'keep') return;
         setGitDecorationSummary(update.summary);
-    }, [session, summary]);
+    }, [sessionId, summary]);
 }

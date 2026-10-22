@@ -97,6 +97,17 @@ function SessionPullRequestLink({
     );
 }
 
+/**
+ * The only subscriber to the shared relative-time clock on the card. The label is rendered here instead of in the card
+ * so a half-minute tick re-renders this text node, not the card, its hover content, and its children.
+ */
+function LastOpenedText({ sentence, timestamp }: { sentence?: boolean; timestamp: number }) {
+    const { t } = useTranslation();
+    const lastOpened = useRelativeTime(timestamp);
+    if (sentence) return t('primarySidebar.card.lastOpenedSentence', { time: lastOpened });
+    return <span className="text-right text-foreground">{lastOpened}</span>;
+}
+
 function SessionPullRequestDetails({
     pullRequest,
     presentation,
@@ -170,7 +181,6 @@ export function SessionActivityCard({
         lastProcessState: terminal?.lastProcessState,
     });
     const agentLabel = resolveAgentIcon(agent).label;
-    const lastOpened = useRelativeTime(session.lastOpenedAt);
     const unreadAttention = unreadAttentionPresentation(session);
     const unread = unreadAttention
         ? t('primarySidebar.card.unreadAttention', { label: unreadAttention.label })
@@ -193,11 +203,10 @@ export function SessionActivityCard({
         worktreeProject &&
             t('primarySidebar.card.worktreeSentence', { title: worktreeProject.displayTitle }),
         changes?.ariaLabel,
-        t('primarySidebar.card.lastOpenedSentence', { time: lastOpened }),
-        unread ? t('primarySidebar.card.sentence', { text: unread }) : undefined,
     ]
         .filter(Boolean)
         .join(' ');
+    const unreadSentence = unread ? t('primarySidebar.card.sentence', { text: unread }) : undefined;
 
     useEffect(() => {
         if (!visible) return;
@@ -220,7 +229,8 @@ export function SessionActivityCard({
                 render={trigger}
             />
             <span id={accessibleDescriptionId} className="sr-only">
-                {accessibleDescription}
+                {accessibleDescription} <LastOpenedText sentence timestamp={session.lastOpenedAt} />
+                {unreadSentence ? ` ${unreadSentence}` : undefined}
             </span>
             <HoverCardContent
                 align="start"
@@ -291,7 +301,7 @@ export function SessionActivityCard({
                 )}
                 <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
                     <span>{t('primarySidebar.card.lastOpened')}</span>
-                    <span className="text-right text-foreground">{lastOpened}</span>
+                    <LastOpenedText timestamp={session.lastOpenedAt} />
                 </div>
                 {unread && unreadAttention && (
                     <p

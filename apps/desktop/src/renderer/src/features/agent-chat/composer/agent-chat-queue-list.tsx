@@ -18,6 +18,7 @@ import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { isImeComposing } from '../../../lib/ime';
 import { cn } from '../../../lib/utilities';
 import {
@@ -112,16 +113,14 @@ function QueueTextEditor({
     const save = async (): Promise<void> => {
         if (isSaving) return;
         setIsSaving(true);
-        let isSaved: boolean;
-        try {
-            isSaved = await didSaveAgentChatQueuedText(
+        const isSaved = await awaitThenCleanup(
+            didSaveAgentChatQueuedText(
                 terminalId,
                 entry.id,
                 agentChatQueuedTextAfterEdit(prefix, value),
-            );
-        } finally {
-            setIsSaving(false);
-        }
+            ),
+            () => setIsSaving(false),
+        );
         if (isSaved) onClose();
     };
     return (
@@ -223,10 +222,10 @@ function QueueCard({
                 )}
             </span>
             {isEnterTarget && (
-                // Hidden while the row's own actions show, since its Steer action does the same thing.
+                // Stays while the composer is focused (the caller passes `enterQueuedId` only then), hover included.
                 <span
                     aria-hidden="true"
-                    className="flex shrink-0 items-center gap-1 pr-1 text-[11px] text-muted group-focus-within:hidden group-hover:hidden"
+                    className="flex shrink-0 items-center gap-1 pr-1 text-[11px] text-muted"
                     data-agent-chat-queue-enter-hint=""
                 >
                     <ShortcutBadge compact shortcut="enter" />
@@ -279,10 +278,10 @@ function QueueCard({
 /**
  * Follow-ups waiting for the running turn, in the order Server Core will send them, as one list just above the
  * composer. Each row shows only the message until hovered or focused, then offers taking it back into the composer,
- * deleting it, or sending it now (steering the running turn). The row Enter would steer from an empty composer carries
- * an `Enter Steer` chip, so that shortcut is visible where its effect lands rather than in the placeholder. After the
- * user stops a turn the queue pauses instead of firing the next message by surprise, and says so with a Resume action;
- * a pause caused by a failed send says that in `--danger` and offers Retry instead (`agentChatQueueHeader`).
+ * deleting it, or sending it now (steering the running turn). While the composer is focused and empty, the row Enter
+ * would steer carries an `Enter Steer` chip, kept on hover, so that shortcut is visible where its effect lands. After
+ * the user stops a turn the queue pauses instead of firing the next message by surprise, and says so with a Resume
+ * action; a pause caused by a failed send says that in `--danger` and offers Retry instead (`agentChatQueueHeader`).
  */
 export function AgentChatQueueList({
     enterQueuedId,

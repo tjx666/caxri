@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 
 import type {
     ProjectRecord,
+    SessionAgentHistoryEntry,
     SessionPullRequest,
     SessionRecord,
     TerminalRecord,
@@ -11,6 +12,7 @@ import { isPinnedSession } from '@caxri/protocol';
 import { ContextMenuTrigger } from '../../components/context-menu-trigger';
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
@@ -50,6 +52,8 @@ import {
     terminalSurfaceMenuEntry,
 } from '../terminal/terminal-surface-commands';
 import { getActivePaneTab } from '../workbench/pane-actions';
+import { reopenSessionConversation } from './session-agent-history-commands';
+import { reopenableConversations } from './session-agent-history-entries';
 import { resolveSessionCreator } from './session-creator';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
@@ -188,6 +192,54 @@ async function isCommanderManaged(sessionId: string): Promise<boolean> {
     );
 }
 
+/**
+ * The Session's Agent conversations that can be brought back, read when the menu opens. Mirrors the hover card's list
+ * so keyboard and context-menu users reach the same entries; an unanswered read hides the submenu instead of blocking.
+ */
+async function readReopenableConversations(sessionId: string): Promise<SessionAgentHistoryEntry[]> {
+    const read = async (): Promise<SessionAgentHistoryEntry[]> => {
+        const { entries } = await fetchCaxriQuery(
+            'session.agentHistory',
+            { sessionId },
+            { staleTime: 0 },
+        );
+        return reopenableConversations(entries);
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<SessionAgentHistoryEntry[]>((resolve) => {
+        timer = setTimeout(() => resolve([]), MENU_READ_TIMEOUT_MS);
+    });
+    try {
+        return await Promise.race([read(), timeout]);
+    } catch {
+        return [];
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function reopenConversationMenuEntry(
+    sessionId: string,
+    entries: readonly SessionAgentHistoryEntry[],
+): ContextMenuEntries[number] {
+    if (entries.length === 0) return false;
+    return {
+        type: 'submenu',
+        label: translate('primarySidebar.sessionMenu.reopenConversation'),
+        entries: entries.map((entry) => ({
+            label:
+                entry.title ??
+                translate('primarySidebar.card.history.untitled', {
+                    agent: resolveAgentIcon(entry.provider).label,
+                }),
+            onSelect: () => {
+                // eslint-disable-next-line no-void -- the command reports its own failure in a toast
+                void reopenSessionConversation(sessionId, entry);
+            },
+        })),
+    };
+}
+
 async function sessionRowMenu({
     onBeginRename,
     onMarkRead,
@@ -234,10 +286,11 @@ async function sessionRowMenu({
      * as it is: navigating must not restore an archived one.
      */
     const creator = resolveSessionCreator(session, sessions, undefined);
-    const [isAutoAllowGranted, isResumable, isManaged] = await Promise.all([
+    const [isAutoAllowGranted, isResumable, isManaged, reopenable] = await Promise.all([
         isPermissionAutoAllowGranted(session.id),
         isAgentConversationResumable(primaryTerminal),
         isCommanderManaged(session.id),
+        readReopenableConversations(session.id),
     ]);
     const forkBlocker = sessionForkBlocker(primaryTerminal);
     /**
@@ -327,6 +380,7 @@ async function sessionRowMenu({
                   disabledReason: translate('primarySidebar.sessionMenu.noRunningAgentReason'),
                   onSelect: () => detachSession(session.id),
               },
+        reopenConversationMenuEntry(session.id, reopenable),
         isAutoAllowGranted && {
             label: translate('primarySidebar.sessionMenu.turnOffAlwaysAllow'),
             onSelect: () => revokePermissionAutoAllow(session.id),

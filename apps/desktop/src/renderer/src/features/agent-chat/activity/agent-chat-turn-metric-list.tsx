@@ -29,7 +29,8 @@ function metricTooltip(metric: AgentChatTurnMetric, t: Translate): string {
  * each a bare figure behind its icon and split by hairlines, with a pointer tooltip naming it (and the cost's currency:
  * the dollar glyph already says it, so the figure carries no `$`). The figures roll to each new value in tabular
  * digits, so a climbing count reads as progress and the row never shifts. A narrow strip keeps only the token count.
- * The figures are hidden from assistive technology; the Usage page and the status bar carry the accessible figures.
+ * The rolling digits are hidden from assistive technology, which reads the tooltip's sentence from an `sr-only` copy
+ * instead (the figure's raw value, so a screen reader hears the exact count while the eye sees the abbreviated one).
  */
 export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage | undefined }) {
     const { t } = useTranslation();
@@ -54,12 +55,15 @@ export function AgentChatTurnMetricList({ usage }: { usage: AgentChatTurnUsage |
                                 data-agent-chat-turn-metric={metric.kind}
                                 data-value={metric.value}
                             >
-                                <Icon className="size-3.5 shrink-0" />
-                                <AnimatedNumber
-                                    fractionDigits={metric.figure.fractionDigits}
-                                    suffix={metric.figure.suffix}
-                                    value={metric.figure.value}
-                                />
+                                <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+                                <span aria-hidden="true" className="inline-flex">
+                                    <AnimatedNumber
+                                        fractionDigits={metric.figure.fractionDigits}
+                                        suffix={metric.figure.suffix}
+                                        value={metric.figure.value}
+                                    />
+                                </span>
+                                <span className="sr-only">{metricTooltip(metric, t)}</span>
                             </span>
                         </Tooltip>
                     </Fragment>

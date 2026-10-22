@@ -1,14 +1,12 @@
 import { createContext, useContext, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { agentChatRewindableMessageIds } from '@caxri/protocol';
 
 import { forkAgentChat, restoreAgentChatFiles } from '../agent-chat-commands';
 import {
-    agentChatEditAvailability,
-    agentChatForkAvailability,
-    agentChatRestoreAvailability,
+    parseAgentChatEditAvailability,
     readAgentChatEdit,
+    serializeAgentChatEditAvailability,
 } from '../composer/agent-chat-edit';
 import type { AgentChatComposerEditHandle } from './use-agent-chat-composer-edit';
 
@@ -51,8 +49,8 @@ export function useAgentChatEdit(): AgentChatEditActions | undefined {
 /**
  * The Chat pane's "Edit from here", "Fork from here", and (when the provider restores files) "Restore code to here"
  * state: the actions its user messages read, the composer handle that starts an edit, and the setter the composer
- * reports the edited message through. The actions are memoized on what the availability reads, so a streamed delta does
- * not re-render every user message.
+ * reports the edited message through. The actions derive from the serialized availability table, which a streamed delta
+ * leaves equal, so the context value keeps its identity and does not re-render every user message.
  */
 export function useAgentChatEditActions(
     terminalId: string,
@@ -65,71 +63,47 @@ export function useAgentChatEditActions(
 ) {
     const composerEdit = useRef<AgentChatComposerEditHandle | null>(null);
     const [editingId, setEditingId] = useState(() => readAgentChatEdit(terminalId)?.itemId);
-    const items = snapshot?.items;
-    const turns = snapshot?.turns;
-    const activeTurnId = snapshot?.activeTurnId;
+    const availability = useMemo(
+        () => (snapshot ? serializeAgentChatEditAvailability(snapshot) : undefined),
+        [snapshot],
+    );
+    const table = useMemo(
+        () =>
+            availability === undefined ? undefined : parseAgentChatEditAvailability(availability),
+        [availability],
+    );
     const editActions = useMemo<AgentChatEditActions | undefined>(() => {
-        if (!items || !turns) return;
-        const rewindable = agentChatRewindableMessageIds({ items, turns, activeTurnId });
+        if (!table) return;
         return {
-            availability: (itemId) => {
-                if (!rewindable.has(itemId)) return;
-                const availability = agentChatEditAvailability(
-                    { items, turns, activeTurnId },
-                    itemId,
-                );
-                return availability.canEdit ? null : availability.reason;
-            },
+            availability: (itemId) => table.get(itemId)?.edit,
             editingId,
             startEdit: (itemId, text) => composerEdit.current?.startEdit(itemId, text),
             ...(canFork && {
                 fork: {
-                    availability: (itemId) => {
-                        if (!rewindable.has(itemId)) return;
-                        const availability = agentChatForkAvailability(
-                            { items, turns, activeTurnId },
-                            itemId,
-                        );
-                        return availability.canFork ? null : availability.reason;
-                    },
+                    availability: (itemId) => table.get(itemId)?.fork,
                     run: (itemId, text) => forkAgentChat(terminalId, { itemId, text }),
                 },
             }),
             ...(supportsRewindFiles && {
                 restore: {
                     availability: (itemId) => {
-                        if (!rewindable.has(itemId)) return;
-                        const availability = agentChatRestoreAvailability(
-                            { items, turns, activeTurnId },
-                            itemId,
-                        );
-                        return 'reason' in availability ? availability.reason : null;
+                        const restore = table.get(itemId)?.restore;
+                        if (restore === undefined) return;
+                        return typeof restore === 'string' ? restore : null;
                     },
                     run: (itemId) => {
-                        const availability = agentChatRestoreAvailability(
-                            { items, turns, activeTurnId },
-                            itemId,
-                        );
-                        if ('reason' in availability) return;
+                        const restore = table.get(itemId)?.restore;
+                        if (typeof restore !== 'number') return;
                         // eslint-disable-next-line no-void -- tryCommand reports a failure through the toast
                         void restoreAgentChatFiles(terminalId, {
                             itemId,
                             providerName,
-                            restoredTurns: availability.restoredTurns,
+                            restoredTurns: restore,
                         });
                     },
                 },
             }),
         };
-    }, [
-        items,
-        turns,
-        activeTurnId,
-        editingId,
-        canFork,
-        supportsRewindFiles,
-        terminalId,
-        providerName,
-    ]);
+    }, [table, editingId, canFork, supportsRewindFiles, terminalId, providerName]);
     return { composerEdit, editActions, setEditingId };
 }

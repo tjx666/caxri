@@ -10,6 +10,7 @@ import { PanelHeader } from '../../components/panel-header';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
@@ -154,24 +155,25 @@ export function ViewContainerSurface({
                                                                       'viewContainers.surface.retryExtensionFailed',
                                                                   ),
                                                                   async () => {
-                                                                      try {
-                                                                          await retryExtension(
+                                                                      await awaitThenCleanup(
+                                                                          retryExtension(
                                                                               extensionId,
-                                                                          );
-                                                                      } finally {
-                                                                          setRetryingExtensionIds(
-                                                                              (current) => {
-                                                                                  const next =
-                                                                                      new Set(
-                                                                                          current,
+                                                                          ),
+                                                                          () => {
+                                                                              setRetryingExtensionIds(
+                                                                                  (current) => {
+                                                                                      const next =
+                                                                                          new Set(
+                                                                                              current,
+                                                                                          );
+                                                                                      next.delete(
+                                                                                          extensionId,
                                                                                       );
-                                                                                  next.delete(
-                                                                                      extensionId,
-                                                                                  );
-                                                                                  return next;
-                                                                              },
-                                                                          );
-                                                                      }
+                                                                                      return next;
+                                                                                  },
+                                                                              );
+                                                                          },
+                                                                      );
                                                                   },
                                                               );
                                                           }}

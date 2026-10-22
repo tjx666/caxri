@@ -1,5 +1,5 @@
 import { useOnVisible } from '../../../hooks/use-on-visible';
-import { useSelectedSession } from '../../../stores/selectors';
+import { useSelectedSessionId } from '../../../stores/selectors';
 import { requestDeliveryFocusRefresh } from '../delivery-focus-refresh-client';
 
 /**
@@ -10,7 +10,7 @@ import { requestDeliveryFocusRefresh } from '../delivery-focus-refresh-client';
  * minutes. See `DeliveryFocusRefresh` on the Server for the throttle and the refresh order.
  */
 export function useDeliveryFocusRefresh(): void {
-    const sessionId = useSelectedSession()?.id;
+    const sessionId = useSelectedSessionId();
     useOnVisible(() => {
         // Fire-and-forget: the client swallows failures and the change events deliver the result.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

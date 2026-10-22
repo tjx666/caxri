@@ -12,6 +12,7 @@ import {
 } from '../../components/ui/dialog';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { getBootstrap, selectSelectedWorkbenchProject } from '../../stores/selectors';
@@ -49,13 +50,11 @@ export function GitReviewSend({
     const send = async () => {
         setSending(true);
         setSendError(undefined);
-        try {
-            const result = await sendGitReviewComments(sessionId, repositoryId);
-            if (result.ok) setOpen(false);
-            else setSendError(result.message);
-        } finally {
-            setSending(false);
-        }
+        const result = await awaitThenCleanup(sendGitReviewComments(sessionId, repositoryId), () =>
+            setSending(false),
+        );
+        if (result.ok) setOpen(false);
+        else setSendError(result.message);
     };
     const sendLabel = t(
         comments.length === 1

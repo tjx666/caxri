@@ -14,7 +14,10 @@ export const editorSettingsSpec = [
         keywords: ['save', 'auto save', 'autosave', 'focus', 'blur', 'dirty', 'unsaved'],
         options: [
             { value: 'off', label: 'Off' },
-            { value: 'onFocusChange', label: 'When the editor loses focus' },
+            {
+                value: 'onFocusChange',
+                label: 'Saves when you leave the file, switch tabs, or close it. Closing a changed tab no longer asks.',
+            },
         ],
         /*
          * Agents edit the same files in parallel, so a buffer left dirty after the user moves on drifts from disk and

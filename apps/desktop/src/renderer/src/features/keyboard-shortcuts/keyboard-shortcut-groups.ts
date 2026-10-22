@@ -1,5 +1,5 @@
 import type { CommandDefinition, Keybinding } from '@caxri/protocol';
-import { commandDefinitions, formatShortcut } from '@caxri/protocol';
+import { commandDefinitions, formatShortcut, sessionOpenPinnedCommandIds } from '@caxri/protocol';
 
 /**
  * Category id for bound commands an extension contributes. Catalog categories never use it, so the cheatsheet can give
@@ -13,6 +13,10 @@ export const EXTENSION_SHORTCUT_CATEGORY = 'Extensions';
  */
 export interface KeyboardShortcutLabels {
     category(category: string): string;
+    /**
+     * Title of the single row that stands for the nine Switch to Pinned Session commands.
+     */
+    pinnedRangeTitle: string;
     title(command: { id: string; title: string }): string;
 }
 
@@ -24,6 +28,11 @@ interface KeyboardShortcutEntry {
      * Every live binding of the command, in `keybindings.jsonc` order, so a user who added a second chord sees both.
      */
     keys: string[];
+    /**
+     * The keys span a range (`⌘1` to `⌘9`) rather than being alternative bindings, so the row shows them joined by a
+     * dash.
+     */
+    isRange?: boolean;
     title: string;
     titleLabel: string;
 }
@@ -33,6 +42,16 @@ export interface KeyboardShortcutGroup {
     label: string;
     entries: KeyboardShortcutEntry[];
 }
+
+/**
+ * Category id of the static Session list keys.
+ */
+const SIDEBAR_SHORTCUT_CATEGORY = 'Sidebar';
+
+/**
+ * Id of the synthetic row that replaces the nine Switch to Pinned Session commands.
+ */
+export const PINNED_RANGE_COMMAND = 'session.openPinned';
 
 interface CommandTitleSource {
     category: string;
@@ -119,6 +138,7 @@ export function buildKeyboardShortcutGroups(
         });
     }
 
+    collapsePinnedRange(entries, labels);
     const groups = new Map<string, KeyboardShortcutGroup>();
     for (const entry of entries.values()) {
         let group = groups.get(entry.category);
@@ -133,6 +153,58 @@ export function buildKeyboardShortcutGroups(
         .toArray()
         .toSorted((left, right) => compareCategories(left.category, right.category))
         .map((group) => ({ ...group, entries: group.entries.toSorted(compareEntries) }));
+}
+
+/**
+ * Nine near-identical rows ("Switch to Pinned Session N") would take a column of the sheet, so they fold into one row
+ * showing the span of keys. Only when all nine have exactly one binding each; a partly rebound set stays expanded so no
+ * binding is hidden behind a range that misdescribes it.
+ */
+function collapsePinnedRange(
+    entries: Map<string, KeyboardShortcutEntry>,
+    labels: KeyboardShortcutLabels,
+): void {
+    const pinned = sessionOpenPinnedCommandIds.map((id) => entries.get(id));
+    const first = pinned[0];
+    const last = pinned.at(-1);
+    if (!first || !last) return;
+    if (pinned.some((entry) => entry?.keys.length !== 1)) return;
+    for (const id of sessionOpenPinnedCommandIds) entries.delete(id);
+    entries.set(PINNED_RANGE_COMMAND, {
+        ...first,
+        command: PINNED_RANGE_COMMAND,
+        isRange: true,
+        keys: [first.keys[0], last.keys[0]],
+        title: labels.pinnedRangeTitle,
+        titleLabel: labels.pinnedRangeTitle,
+    });
+}
+
+/**
+ * Keys that act on the focused Session list rather than through the command catalog, so they would never reach the
+ * sheet otherwise. Appended after the catalog groups.
+ */
+export function sidebarShortcutGroup(
+    labels: Record<'archive' | 'category' | 'collapse' | 'expand' | 'move', string>,
+): KeyboardShortcutGroup {
+    const entry = (command: string, title: string, keys: string[]): KeyboardShortcutEntry => ({
+        category: SIDEBAR_SHORTCUT_CATEGORY,
+        categoryLabel: labels.category,
+        command,
+        keys,
+        title,
+        titleLabel: title,
+    });
+    return {
+        category: SIDEBAR_SHORTCUT_CATEGORY,
+        label: labels.category,
+        entries: [
+            entry('sidebar.move', labels.move, ['arrowup', 'arrowdown']),
+            entry('sidebar.collapse', labels.collapse, ['arrowleft']),
+            entry('sidebar.expand', labels.expand, ['arrowright']),
+            entry('sidebar.archive', labels.archive, ['delete']),
+        ],
+    };
 }
 
 function isEntryMatching(entry: KeyboardShortcutEntry, needle: string): boolean {

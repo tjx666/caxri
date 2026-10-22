@@ -5,6 +5,8 @@ import type { SessionSearchStatusFilter } from '@caxri/protocol';
 import { sessionSearchStatusFilters } from '@caxri/protocol';
 import { Search } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../../components/loading-skeleton';
+import { Button } from '../../../components/ui/button';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../../components/ui/dialog';
 import { Input, InputGroup } from '../../../components/ui/input';
 import { Spinner } from '../../../components/ui/spinner';
@@ -15,6 +17,8 @@ import { isImeComposing } from '../../../lib/ime';
 import { setSessionSearchOpen, useDialogStore } from '../../../stores/dialogs';
 import { runSessionSearchAction } from './session-search-commands';
 import {
+    hasActiveSearchFilters,
+    nextProviderFilter,
     nextSelectionIndex,
     nextStatusFilter,
     sessionSearchIndexLabel,
@@ -82,8 +86,10 @@ function SessionSearchBody() {
             return;
         }
         if (event.key === 'Tab') {
+            // Tab cycles the location scope, Shift+Tab the Agent filter; the footer names both.
             event.preventDefault();
-            search.setStatus(nextStatusFilter(search.status, event.shiftKey ? -1 : 1));
+            if (event.shiftKey) search.setProvider(nextProviderFilter(search.provider, 1));
+            else search.setStatus(nextStatusFilter(search.status, 1));
             return;
         }
         if (selected && event.key === 'Enter') {
@@ -221,12 +227,24 @@ function SessionSearchContent({
         );
     if (search.isLoading)
         return (
-            <div className="flex-1 p-4 text-center text-muted">{t('session.search.searching')}</div>
+            <div className="flex-1 p-2">
+                <LoadingSkeleton
+                    variant="list"
+                    rows={6}
+                    isImmediate
+                    label={t('session.search.searching')}
+                />
+            </div>
         );
     if (search.entries.length === 0)
         return (
-            <div className="flex-1 p-4 text-center text-muted">
-                {t(sessionSearchEmptyKey(search))}
+            <div className="flex flex-1 flex-col items-center gap-3 p-4 text-center text-muted">
+                <span>{t(sessionSearchEmptyKey(search))}</span>
+                {hasActiveSearchFilters(search.status, search.provider) && (
+                    <Button size="sm" variant="secondary" onClick={search.clearFilters}>
+                        {t('session.search.clearFilters')}
+                    </Button>
+                )}
             </div>
         );
     return (

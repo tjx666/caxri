@@ -202,6 +202,7 @@ function CommandPaletteBody() {
         agentChatPermissionModes: isCommandAvailable('agentChat.changePermissionMode'),
         agentChatPlanMode: isCommandAvailable('agentChat.togglePlanMode'),
         agentChatSideChat: isCommandAvailable('agentChat.openSideChat'),
+        agentChatWaiting: isCommandAvailable('agentChat.focusWaitingRequest'),
     };
     const paletteCommands = commandDefinitions.filter(
         (command) => !command.requiresArguments && isCommandVisibleInPalette(command, whenContext),

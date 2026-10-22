@@ -202,12 +202,12 @@ export function useTerminalPaneRuntime({
                 await loadTerminalFonts();
             } catch (error) {
                 onError(errorMessage(error, translate('terminal.errors.fontsFailed')));
-            } finally {
-                /**
-                 * A corrupt font must degrade to the system monospace stack instead of blocking the PTY.
-                 */
-                if (!isCanceled) setFontsReady(true);
             }
+            /**
+             * A corrupt font must degrade to the system monospace stack instead of blocking the PTY. After the
+             * try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+             */
+            if (!isCanceled) setFontsReady(true);
         };
         // Effects cannot be async themselves; the failure path above already reports the error.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -551,12 +551,13 @@ export function useTerminalPaneRuntime({
             try {
                 attachment = await attachTerminal(terminalId, initialSize);
                 isAttached = true;
-                if (initialSize && latestReference.current.processState === 'running')
-                    resizeController.confirmSent(initialSize);
             } catch (error) {
                 if (!isDisposed)
                     reportTerminalOperationError(error, 'terminal.errors.attachFailed');
             }
+            // After the try/catch: React Compiler cannot lower a logical expression inside one.
+            if (isAttached && initialSize && latestReference.current.processState === 'running')
+                resizeController.confirmSent(initialSize);
             if (isDisposed) {
                 settleSnapshotReplay();
                 return;
@@ -694,8 +695,7 @@ export function useTerminalPaneRuntime({
                     : undefined,
             'terminal.errors.reattachFailed',
         );
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
-    }, [attachEpoch, terminalId]);
+    }, [attachEpoch, latestReference, terminalId]);
 
     useEffect(() => {
         const xterm = xtermReference.current;

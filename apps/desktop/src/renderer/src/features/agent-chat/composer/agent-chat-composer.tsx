@@ -273,31 +273,41 @@ export function AgentChatComposer({
         supportsImages,
         terminalId,
     });
-    const { choose, compact, complete, edit, goalMode, hasContent, isSendable, isSending, submit } =
-        useAgentChatComposerSend({
-            canSend: sendBlock === undefined,
-            commands,
-            draft,
-            edit: {
-                inputReference,
-                isBusy,
-                isSteerDefault,
-                isTurnRunning,
-                options: editOptions,
-                providerName,
-                snapshot,
-            },
-            focusInput,
-            images,
-            // A Session chosen from the `@` list is not in the draft until its reference is written.
-            isAttaching: isAttaching || sessionMenu.isPreparing,
-            onSent: () => {
-                onSent?.();
-                stash.restoreAfterSend();
-            },
-            setDraft,
-            terminalId,
-        });
+    const {
+        choose,
+        compact,
+        complete,
+        edit,
+        goalMode,
+        hasContent,
+        isSendable,
+        isSending,
+        sideChatNotice,
+        submit,
+    } = useAgentChatComposerSend({
+        canSend: sendBlock === undefined,
+        commands,
+        draft,
+        edit: {
+            inputReference,
+            isBusy,
+            isSteerDefault,
+            isTurnRunning,
+            options: editOptions,
+            providerName,
+            snapshot,
+        },
+        focusInput,
+        images,
+        // A Session chosen from the `@` list is not in the draft until its reference is written.
+        isAttaching: isAttaching || sessionMenu.isPreparing,
+        onSent: () => {
+            onSent?.();
+            stash.restoreAfterSend();
+        },
+        setDraft,
+        terminalId,
+    });
     // The turn review's "Back to Chat and Send" sends the message from outside the composer.
     useAgentChatComposerCommand(terminalId, 'send', isSendable, () => {
         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
@@ -358,6 +368,7 @@ export function AgentChatComposer({
                     activeTurnId={activeTurnId}
                     enterQueuedId={agentChatEnterQueuedId(nextQueuedId, {
                         hasContent,
+                        isInputFocused,
                         isTurnRunning,
                     })}
                     isQueuePaused={isQueuePaused}
@@ -377,6 +388,7 @@ export function AgentChatComposer({
                         isEditing={edit.isEditing}
                         notice={
                             composerKeys.notice ??
+                            sideChatNotice ??
                             stash.notice ??
                             (menu.confirmsSendAsText
                                 ? t('agentChat.slash.confirmSendAsText')

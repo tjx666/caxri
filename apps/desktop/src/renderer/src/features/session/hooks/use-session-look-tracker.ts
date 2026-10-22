@@ -2,7 +2,7 @@ import { useCallback, useEffect } from 'react';
 
 import { useOnVisible } from '@/hooks/use-on-visible';
 
-import { useSelectedSession } from '../../../stores/selectors';
+import { useSelectedSessionId } from '../../../stores/selectors';
 import { setWatchedSession } from '../session-look-boundary';
 
 function isWindowShown(): boolean {
@@ -15,7 +15,7 @@ function isWindowShown(): boolean {
  * read.
  */
 export function useSessionLookTracker(): void {
-    const sessionId = useSelectedSession()?.id;
+    const sessionId = useSelectedSessionId();
     const sync = useCallback((): void => {
         setWatchedSession(isWindowShown() ? sessionId : undefined);
     }, [sessionId]);

@@ -8,9 +8,9 @@ import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
-import { getSessionOwnerProjectId, useSelectedSession } from '../../../stores/selectors';
+import { getSessionOwnerProjectId, useSelectedSessionScopeKey } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
-import { remapOpenEditorsDurably } from '../../editor/document-commands';
+import { remapOpenEditorsDurably } from '../../editor/document-remap';
 import { availableResourceExplorerClient } from '../resource-explorer-catalog-client';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import { useFileOperationStore } from './file-operation-state';
@@ -333,8 +333,7 @@ async function loadFileMutations(): Promise<void> {
  * cannot leave recovery holding stale authorization context.
  */
 export function useFileMutationReconciliation(isActive: boolean): void {
-    const session = useSelectedSession();
-    const sessionScope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
+    const sessionScope = useSelectedSessionScopeKey();
     useEffect(() => {
         if (!isActive || !sessionScope) return;
         const reportRecoveryUnavailable = (): void => {

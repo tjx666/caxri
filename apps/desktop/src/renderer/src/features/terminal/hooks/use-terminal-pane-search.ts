@@ -5,12 +5,9 @@ import type { ISearchOptions } from '@xterm/addon-search';
 import { SearchAddon } from '@xterm/addon-search';
 
 import { translate } from '../../../i18n';
+import { runThenCleanup } from '../../../lib/await-then-cleanup';
 import { emptySearchResults, opaqueSearchColor } from '../terminal-pane-support';
-import type {
-    TerminalSearchOptions,
-    TerminalSearchResults,
-    TerminalSearchSelectionGuard,
-} from '../terminal-search';
+import type { TerminalSearchOptions, TerminalSearchResults } from '../terminal-search';
 import {
     createTerminalSearchSelectionGuard,
     TERMINAL_SEARCH_HIGHLIGHT_LIMIT,
@@ -23,13 +20,23 @@ interface TerminalThemeReference {
 }
 
 /**
+ * The user-facing reason a search failed. Kept outside the hook because React Compiler cannot lower a conditional
+ * inside a try/catch.
+ */
+function searchFailureMessage(error: unknown): string {
+    return translate(
+        error instanceof SyntaxError
+            ? 'terminal.search.invalidRegex'
+            : 'terminal.search.unavailable',
+    );
+}
+
+/**
  * Owns xterm search state and decoration lifecycle independently from the pane's PTY lifecycle.
  */
 export function useTerminalPaneSearch(latest: TerminalThemeReference) {
     const searchReference = useRef<SearchAddon | undefined>(undefined);
-    const selectionGuardReference = useRef<TerminalSearchSelectionGuard | undefined>(undefined);
-    selectionGuardReference.current ??= createTerminalSearchSelectionGuard();
-    const selectionGuard = selectionGuardReference.current;
+    const [selectionGuard] = useState(createTerminalSearchSelectionGuard);
     const searchSignatureReference = useRef('');
     const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
 
@@ -65,12 +72,13 @@ export function useTerminalPaneSearch(latest: TerminalThemeReference) {
     );
 
     const endSearch = useCallback((): void => {
-        try {
-            searchReference.current?.clearDecorations();
-        } finally {
-            searchSignatureReference.current = '';
-            setSearchResults(emptySearchResults);
-        }
+        runThenCleanup(
+            () => searchReference.current?.clearDecorations(),
+            () => {
+                searchSignatureReference.current = '';
+                setSearchResults(emptySearchResults);
+            },
+        );
     }, []);
 
     const find = useCallback(
@@ -97,15 +105,20 @@ export function useTerminalPaneSearch(latest: TerminalThemeReference) {
                     },
                 }),
             };
+            const signature = JSON.stringify([query, options, theme]);
+            /**
+             * Computed before the `try`: React Compiler cannot lower a conditional or logical expression inside a
+             * try/catch.
+             */
+            const hasSignatureChanged =
+                isIncremental && signature !== searchSignatureReference.current;
             try {
-                const signature = JSON.stringify([query, options, theme]);
                 /**
                  * Addon-search beta updates its cached options before checking whether options changed, so toggling
                  * Match Case/Whole Word/Regex for the same query would retain stale decorations and counts. Clear only
                  * on an incremental signature change; explicit next/previous navigation must preserve the result.
                  */
-                if (isIncremental && signature !== searchSignatureReference.current)
-                    search.clearDecorations();
+                if (hasSignatureChanged) search.clearDecorations();
                 searchSignatureReference.current = signature;
                 if (!query) {
                     search.findNext('', searchOptions);
@@ -117,11 +130,7 @@ export function useTerminalPaneSearch(latest: TerminalThemeReference) {
             } catch (error) {
                 search.clearDecorations();
                 setSearchResults({
-                    error: translate(
-                        error instanceof SyntaxError
-                            ? 'terminal.search.invalidRegex'
-                            : 'terminal.search.unavailable',
-                    ),
+                    error: searchFailureMessage(error),
                     resultCount: 0,
                     resultIndex: -1,
                 });

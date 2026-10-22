@@ -207,11 +207,7 @@ export function AgentChatStatusRow({
                     onShow={show}
                 />
                 <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-1.5">
-                    {lead.kind === 'activity' && (
-                        <span aria-hidden="true" className="inline-flex">
-                            <AgentChatTurnMetricList usage={usage} />
-                        </span>
-                    )}
+                    {lead.kind === 'activity' && <AgentChatTurnMetricList usage={usage} />}
                     <span className="flex shrink-0 items-center gap-0.5">
                         <AnimatePresence initial={false} mode="popLayout">
                             {planBadge && (

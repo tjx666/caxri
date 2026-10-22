@@ -16,27 +16,19 @@ import {
     openResource,
     paneTabIdsToClose,
     pinPaneTab,
-    remapPaneLayoutPaths,
 } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
-import { remapPath } from '../../lib/file-path';
-import {
-    getBootstrap,
-    getProjectSessionIds,
-    getSelectedSession,
-    getSessionProjectId,
-    getSessionState,
-} from '../../stores/selectors';
+import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
 import {
     getSessionDocuments,
     sessionViewScope,
     useSessionViewStore,
 } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
-import { patchSessionState, persistSessionState } from '../../stores/workbench';
+import { patchSessionState } from '../../stores/workbench';
 import { previewOnlyTabPath } from '../preview/preview-registry';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
@@ -54,11 +46,12 @@ import {
 } from './editor-open-intent';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 import { focusEditor, queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
+import { finishDocumentOperation, trackDocumentOperation } from './pending-document-operations';
 import {
-    finishDocumentOperation,
-    remapPendingDocumentOperations,
-    trackDocumentOperation,
-} from './pending-document-operations';
+    createSaveFailureTracker,
+    saveFailedLabel,
+    writeReportingNewFailures,
+} from './save-failure-tracker';
 import { persistOpenedEditorTab, sessionStateOf } from './session-pane-state';
 
 interface OpenFileOptions {
@@ -361,10 +354,18 @@ export function pinDocumentTab(sessionId: string, tabId: string): void {
     if (next !== current.paneLayout) patchSessionState({ ...current, paneLayout: next });
 }
 
+const saveFailures = createSaveFailureTracker();
+
 /**
- * Writes one document's current content to disk; returns false only when the write itself failed.
+ * Writes one document's current content to disk; returns false only when the write itself failed. An automatic save
+ * (`isAutomatic`) stays quiet about a failure the user was already told about for this file; a manual save always shows
+ * its failure.
  */
-export async function didSaveDocumentAt(sessionId: string, path: string): Promise<boolean> {
+export async function didSaveDocumentAt(
+    sessionId: string,
+    path: string,
+    options: { isAutomatic?: boolean } = {},
+): Promise<boolean> {
     const document = getSessionDocuments(sessionId)?.[path];
     if (!document || document.readOnly) return true;
     const operation = trackDocumentOperation(sessionId, path);
@@ -377,9 +378,15 @@ export async function didSaveDocumentAt(sessionId: string, path: string): Promis
     let isSaved = false;
     try {
         await tryCommand(
-            translate('editor.document.saveFailed'),
+            saveFailedLabel(path),
             async () => {
-                const result = await writeEditorDocument(sessionId, path, document.content);
+                const result = await writeReportingNewFailures(
+                    saveFailures,
+                    `${sessionId}\u{0}${path}`,
+                    options.isAutomatic === true,
+                    () => writeEditorDocument(sessionId, path, document.content),
+                );
+                if (!result) return;
                 if (!operation.discarded) {
                     const current = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
                         operation.path
@@ -508,94 +515,4 @@ export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void
 export function closeDocumentTabFamily(tabId: string, mode: PaneTabCloseMode): Promise<void> {
     const layout = getPaneLayout();
     return layout ? closeDocumentTabs(paneTabIdsToClose(layout, tabId, mode)) : Promise.resolve();
-}
-
-function remapOpenEditorsInSession(
-    sessionId: string,
-    workbenchProjectId: string,
-    previousPath: string,
-    nextPath: string,
-    isDurable = false,
-    operationId?: string,
-): Promise<boolean> | undefined {
-    const current = sessionStateOf(sessionId);
-    const isRootIsCurrent = current?.workbenchProjectId === workbenchProjectId;
-    if (
-        isDurable &&
-        operationId &&
-        isRootIsCurrent &&
-        current.editorRemapOperationId === operationId
-    )
-        return persistSessionState(current, {
-            failureLabel: translate('editor.document.moveStateSaveFailed'),
-            reportFailure: false,
-            retainOnFailure: true,
-        });
-    remapPendingDocumentOperations(sessionId, workbenchProjectId, previousPath, nextPath);
-    if (previousPath === nextPath) return isDurable ? Promise.resolve(true) : undefined;
-    useSessionViewStore
-        .getState()
-        .remapDocuments(sessionId, previousPath, nextPath, workbenchProjectId);
-    if (!current || !isRootIsCurrent) return isDurable ? Promise.resolve(true) : undefined;
-    const nextState = {
-        ...current,
-        paneLayout: remapPaneLayoutPaths(current.paneLayout, (path) =>
-            isVirtualEditorTabPath(path) ? path : remapPath(path, previousPath, nextPath),
-        ),
-        ...(operationId && { editorRemapOperationId: operationId }),
-    };
-    const failureLabel = translate('editor.document.moveStateSaveFailed');
-    if (isDurable)
-        return persistSessionState(nextState, {
-            failureLabel,
-            reportFailure: false,
-            retainOnFailure: true,
-        });
-    patchSessionState(nextState, failureLabel);
-    return undefined;
-}
-
-/**
- * Keeps every same-Project Session's normal tabs and dirty buffers attached after a move.
- */
-export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
-    const workbenchProjectId = getSessionProjectId(sessionId);
-    if (!workbenchProjectId) return;
-    for (const projectSessionId of getProjectSessionIds(sessionId))
-        // Fire-and-forget: the non-durable remap only touches in-memory Renderer state and never
-        // rejects, so there is nothing for this loop to await or react to.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void remapOpenEditorsInSession(
-            projectSessionId,
-            workbenchProjectId,
-            previousPath,
-            nextPath,
-        );
-}
-
-/**
- * Remaps transient state for the originating root; Server acknowledgement owns inactive storage.
- */
-export async function remapOpenEditorsDurably(
-    sessionId: string,
-    workbenchProjectId: string,
-    operationId: string,
-    previousPath: string,
-    nextPath: string,
-): Promise<void> {
-    const saved = await Promise.all(
-        (getBootstrap()?.sessions.map((session) => session.id) ?? [sessionId]).map(
-            (projectSessionId) =>
-                remapOpenEditorsInSession(
-                    projectSessionId,
-                    workbenchProjectId,
-                    previousPath,
-                    nextPath,
-                    true,
-                    operationId,
-                ) ?? Promise.resolve(true),
-        ),
-    );
-    if (saved.some((result) => !result))
-        throw new Error(translate('editor.document.moveStateSaveFailed'));
 }

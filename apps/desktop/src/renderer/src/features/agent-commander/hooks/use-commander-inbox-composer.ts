@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import type { CommanderInboxItem } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
+import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { isImeComposing } from '../../../lib/ime';
 import {
     mentionAtCaret,
@@ -125,12 +126,9 @@ export function useCommanderInboxComposer(
         const body = draft.trim();
         if (!target || body === '' || isSending) return;
         setIsSending(true);
-        let replied: Awaited<ReturnType<typeof replyToCommanderInboxItem>>;
-        try {
-            replied = await replyToCommanderInboxItem(target.id, body);
-        } finally {
-            setIsSending(false);
-        }
+        const replied = await awaitThenCleanup(replyToCommanderInboxItem(target.id, body), () =>
+            setIsSending(false),
+        );
         if (!replied) return;
         setDraft('');
         setCaret(0);

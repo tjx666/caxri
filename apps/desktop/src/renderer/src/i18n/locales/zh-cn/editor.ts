@@ -148,7 +148,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.document.openFailed': '无法打开此文件',
     'editor.document.noRoom': '已无法再打开更多文件。请保存或关闭部分文件后重试。',
     'editor.document.openFileFailed': '无法打开文件',
-    'editor.document.saveFailed': '保存失败',
+    'editor.document.saveFailedFile': '无法保存 {{name}}',
     'editor.document.saveRetryUnavailable': '无法再重试保存，因为编辑器已关闭或其项目已更改。',
     'editor.document.moveStateSaveFailed': '无法保存移动后的编辑器状态',
     'editor.document.trashStateSaveFailed': '无法保存移到废纸篓后的编辑器状态',

@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { CircleHelp } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
@@ -11,20 +12,25 @@ import { motionDurationMs, motionEasing } from '../../../lib/motion';
 import { cn } from '../../../lib/utilities';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatWaitingCard } from './agent-chat-waiting-card';
+import {
+    agentChatWaitingFocusTarget,
+    registerAgentChatWaitingFocus,
+} from './agent-chat-waiting-focus';
 import { AgentChatWaitingStatus } from './agent-chat-waiting-status';
 import { useAgentChatWaiting } from './use-agent-chat-waiting';
 
 const SURFACE_CLASS_NAME =
-    'pointer-events-auto rounded-xl border border-border bg-elevated text-foreground shadow-[0_12px_32px_var(--shadow)]';
+    'pointer-events-auto rounded-lg border border-border bg-elevated text-foreground shadow-[0_12px_32px_var(--shadow)]';
 
 /**
  * Asks, from anywhere in the window, what a Chat that is not on screen waits on: a question or an approval from a
  * provider that is still running. It drops in 4px below the window's 36px title bar so it never covers a tab or the New
  * Terminal button, one request at a time, and folds into an "N waiting for you" pill the user can reopen; a new request
- * unfolds it again. It never takes focus: the keys a request answers to (option digits, Enter, Cmd+Enter,
- * Cmd+Backspace) work only once the user has moved focus into it, and the card carries the pane attribute so approval
- * keys stay inside the popup instead of reaching a Chat behind it. The layout follows LobeHub's
- * `GlobalApprovalNotification` (design only; the code is Caxri's own).
+ * unfolds it again. It never takes focus by itself (`Focus Waiting Request` in the command palette moves it in,
+ * unfolding the card first): the keys a request answers to (option digits, Enter, Cmd+Enter, Cmd+Backspace) work only
+ * once the user has moved focus into it, and the card carries the pane attribute so approval keys stay inside the popup
+ * instead of reaching a Chat behind it. The layout follows LobeHub's `GlobalApprovalNotification` (design only; the
+ * code is Caxri's own).
  */
 export function AgentChatWaitingPopup() {
     const { t } = useTranslation();
@@ -49,6 +55,24 @@ export function AgentChatWaitingPopup() {
         event.preventDefault();
         setCollapsed(true);
     };
+    const cardReference = useRef<HTMLElement | null>(null);
+    /**
+     * Set when the focus command runs while the popup is folded: the card is not mounted yet, so it takes focus as it
+     * mounts (see the card's `ref`).
+     */
+    const shouldFocusCard = useRef(false);
+    const hasRequest = current !== undefined;
+    useEffect(() => {
+        if (!hasRequest) return;
+        return registerAgentChatWaitingFocus(() => {
+            if (cardReference.current) {
+                agentChatWaitingFocusTarget(cardReference.current).focus();
+                return;
+            }
+            shouldFocusCard.current = true;
+            setCollapsed(false);
+        });
+    }, [hasRequest, setCollapsed]);
     const pendingLabel = t('agentChat.waiting.pending', { count });
     return (
         <LazyMotion strict features={domAnimation}>
@@ -77,6 +101,12 @@ export function AgentChatWaitingPopup() {
                     {current && !isCollapsed && (
                         <m.section
                             key="card"
+                            ref={(element: HTMLElement | null) => {
+                                cardReference.current = element;
+                                if (!element || !shouldFocusCard.current) return;
+                                shouldFocusCard.current = false;
+                                agentChatWaitingFocusTarget(element).focus();
+                            }}
                             animate={{ opacity: 1, y: 0, scale: 1, transition: enter }}
                             aria-label={t('agentChat.waiting.label')}
                             className={cn(SURFACE_CLASS_NAME, 'w-[min(640px,92vw)] p-3')}

@@ -1,7 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
+
+import { useShallow } from 'zustand/react/shallow';
 
 import { runCommand } from '../../../commands/execute';
-import { useSelectedSession, useSessions } from '../../../stores/selectors';
+import { useSelectedSessionId } from '../../../stores/selectors';
+import { useWorkbenchStore } from '../../../stores/workbench';
 import { useSessionNavigationHistoryStore } from '../session-navigation-history';
 
 /**
@@ -19,14 +22,16 @@ const MOUSE_BUTTON_FORWARD = 4;
  * correct without every future navigation source remembering to write it.
  */
 export function useSessionNavigationHistory(): void {
-    const selectedSessionId = useSelectedSession()?.id;
-    const sessions = useSessions();
-    const activeSessionIds = useMemo(
-        () =>
-            (sessions ?? [])
+    const selectedSessionId = useSelectedSessionId();
+    /**
+     * Shallow-compared ids, so a Session's activity or timestamp update does not re-prune.
+     */
+    const activeSessionIds = useWorkbenchStore(
+        useShallow((state) =>
+            (state.bootstrap?.sessions ?? [])
                 .filter((session) => session.archivedAt === undefined)
                 .map((session) => session.id),
-        [sessions],
+        ),
     );
 
     useEffect(() => {

@@ -12,6 +12,7 @@ import {
     DialogTitle,
 } from '../../components/ui/dialog';
 import { useTranslation } from '../../i18n';
+import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { cn } from '../../lib/utilities';
 import { closeProjectIconDialog, useDialogStore } from '../../stores/dialogs';
 import { useProjects } from '../../stores/selectors';
@@ -53,15 +54,13 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
     const persist = async (shouldClear: boolean): Promise<void> => {
         if (!shouldClear && !iconName) return;
         setSaving(true);
-        let didSave: boolean;
-        try {
-            didSave = await didSaveProjectIcon(
+        const didSave = await awaitThenCleanup(
+            didSaveProjectIcon(
                 project.id,
                 shouldClear ? null : { name: iconName!, ...(iconColor && { color: iconColor }) },
-            );
-        } finally {
-            setSaving(false);
-        }
+            ),
+            () => setSaving(false),
+        );
         if (didSave) close();
     };
     const clearIcon = async (): Promise<void> => {

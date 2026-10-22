@@ -20,6 +20,13 @@ export interface CommandContext {
         canRun(command: AgentChatComposerCommand): boolean;
         run(command: AgentChatComposerCommand): void;
     };
+    /**
+     * The waiting popup, reachable only while it has a request to show.
+     */
+    agentChatWaiting: {
+        canFocus(): boolean;
+        focus(): void;
+    };
     project: {
         create(): void;
         customizeIcon(projectId?: string): void;

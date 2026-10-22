@@ -79,13 +79,10 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const { tokens } = readout;
     const cost = agentUsageCostLabel(readout);
     const limitWindows = currentLimitWindows(readout.limit, now);
-    const limitTone = agentUsageLimitTone(
-        readout,
-        now,
-        chipOptions,
-        isPlanPaceDismissed(paceDismissals, readout.provider, now),
-    );
-    const paceNote = agentUsagePaceNote(readout, now, t);
+    const isPaceDismissed = isPlanPaceDismissed(paceDismissals, readout.provider, now);
+    const limitTone = agentUsageLimitTone(readout, now, chipOptions, isPaceDismissed);
+    // The pace note explains why the chip warns; once the user dismisses that warning the tooltip stops repeating it.
+    const paceNote = isPaceDismissed ? undefined : agentUsagePaceNote(readout, now, t);
     return (
         <StatusItem
             ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}

@@ -13,11 +13,13 @@ export function useAgentChatPacedText(text: string, isStreaming: boolean): strin
     useEffect(() => {
         if (!isStreaming) return;
         // Each delta restarts the loop with the longer target; the pacer carries the reveal across restarts.
-        let frame = requestAnimationFrame(function step(now) {
+        let frame = 0;
+        const step = (now: number): void => {
             const next = pacer.next(text, now);
             setShown(next);
             if (next !== text) frame = requestAnimationFrame(step);
-        });
+        };
+        frame = requestAnimationFrame(step);
         return () => cancelAnimationFrame(frame);
     }, [isStreaming, pacer, text]);
     return isStreaming ? shown : text;

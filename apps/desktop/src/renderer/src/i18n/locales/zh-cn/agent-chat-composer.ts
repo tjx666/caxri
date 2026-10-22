@@ -45,6 +45,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.add.filesAndFolders': '文件和文件夹',
     'agentChat.add.goal': '目标',
     'agentChat.add.goalMode': '目标模式',
+    'agentChat.add.sideChatDescription': '快速提一个问题，不会加入当前对话',
     'agentChat.add.goalDescription': '设定一个让 Agent 持续推进的目标',
     'agentChat.add.turnOffPlanMode': '关闭计划模式',
     'agentChat.add.turnOffGoalMode': '关闭目标模式',
@@ -191,17 +192,16 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.context.cacheCost': '（预计约 {{cost}}）',
     'agentChat.context.cacheText': '已闲置 {{duration}} · 下次回复将重新读取整个对话{{cost}}',
     'agentChat.context.cacheDetail':
-        '提示缓存只保留 {{minutes}} 分钟，缓存失效后，下次回复会重新读取全部 {{tokens}} 个 token。',
+        '每次回复后，Agent 会把对话保持就绪 {{minutes}} 分钟。超过这个时间，下次回复要重新读取整个对话（{{tokens}}），更慢也更贵。',
     'agentChat.context.cacheDetailCost': '费用按标准 API 价格估算。',
-    'agentChat.context.cacheExpiringText':
-        '缓存将在 {{remaining}} 后失效 · 现在回复可避免重新读取整个对话{{cost}}',
+    'agentChat.context.cacheExpiringText': '在 {{remaining}} 内回复可避免重新读取整个对话{{cost}}',
     'agentChat.context.cacheExpiringDetail':
-        '提示缓存从上次回复起保留 {{minutes}} 分钟。在 {{remaining}} 内发送消息会复用缓存；之后下次回复会重新读取全部 {{tokens}} 个 token。',
+        '每次回复后，Agent 会把对话保持就绪 {{minutes}} 分钟。在 {{remaining}} 内发送消息可以接着上次继续；之后下次回复要重新读取整个对话（{{tokens}}）。',
     'agentChat.context.pressureText': '上下文 {{tokens}} / {{window}} · 建议压缩',
     'agentChat.context.pressureDetail':
         '对话已占用 Agent 自动压缩阈值窗口的 {{percent}}%。现在压缩可以保持回答质量。',
-    'agentChat.context.cacheExpiringAnnouncement': '提示缓存即将失效',
-    'agentChat.context.cacheExpiredAnnouncement': '提示缓存已失效',
+    'agentChat.context.cacheExpiringAnnouncement': '尽快回复可避免重新读取整个对话',
+    'agentChat.context.cacheExpiredAnnouncement': '下次回复将重新读取整个对话',
     'agentChat.context.pressureAnnouncement': '上下文接近上限，建议压缩',
     'agentChat.context.title': '上下文',
     'agentChat.context.autoCompacts': '在 {{modelWindow}} 窗口中达到 {{window}} 时自动压缩',

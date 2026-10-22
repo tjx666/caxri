@@ -79,28 +79,29 @@ export function AgentMessageApprovalDialog() {
     const isBodyLoading = !isBodyReady && !detailFailed;
 
     useEffect(() => {
-        setDetail(undefined);
-        setDetailFailed(false);
         const messageId = currentMessageId;
-        if (!messageId) return () => {};
         let isActive = true;
-        // eslint-disable-next-line no-void -- the loader owns error handling and the effect cleanup only flips isActive
-        void loadHeldMessageDetail({
-            isActive: () => isActive,
-            onDetail: setDetail,
-            onFailure: (error) => {
-                setDetailFailed(true);
-                pushToast(
-                    'error',
-                    describeFailure(error, translate('agentInbox.dialog.loadBodyFailed')),
-                );
-            },
-            onStale: () =>
-                updateHeldMessageQueue((existing) => removeHeldMessage(existing, messageId)),
-            request: () => getHeldAgentMessage(messageId),
-        });
+        if (messageId)
+            // eslint-disable-next-line no-void -- the loader owns error handling and the effect cleanup only flips isActive
+            void loadHeldMessageDetail({
+                isActive: () => isActive,
+                onDetail: setDetail,
+                onFailure: (error) => {
+                    setDetailFailed(true);
+                    pushToast(
+                        'error',
+                        describeFailure(error, translate('agentInbox.dialog.loadBodyFailed')),
+                    );
+                },
+                onStale: () =>
+                    updateHeldMessageQueue((existing) => removeHeldMessage(existing, messageId)),
+                request: () => getHeldAgentMessage(messageId),
+            });
         return () => {
             isActive = false;
+            // Reset on the way out rather than on the way in: the next message (or attempt) starts from a blank read.
+            setDetail(undefined);
+            setDetailFailed(false);
         };
     }, [currentMessageId, detailAttempt]);
 
@@ -185,10 +186,11 @@ export function AgentMessageApprovalDialog() {
         if (!current || pending) return;
         if (action === 'approve' && isBodyLoading) return;
         setPending(true);
+        const { messageId } = current;
         try {
-            await settleHeldAgentMessage(action, current.messageId);
+            await settleHeldAgentMessage(action, messageId);
             updateHeldMessageQueue((existing) =>
-                settleHeldMessage(existing, current.messageId, 'confirmed'),
+                settleHeldMessage(existing, messageId, 'confirmed'),
             );
         } catch (error) {
             pushToast(
@@ -202,16 +204,14 @@ export function AgentMessageApprovalDialog() {
                     ),
                 ),
             );
+            // Computed outside the closure: React Compiler cannot track a catch binding captured by one.
+            const failureResult = heldMessageActionResultForError(error);
             updateHeldMessageQueue((existing) =>
-                settleHeldMessage(
-                    existing,
-                    current.messageId,
-                    heldMessageActionResultForError(error),
-                ),
+                settleHeldMessage(existing, messageId, failureResult),
             );
-        } finally {
-            setPending(false);
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        setPending(false);
     }
 
     return (

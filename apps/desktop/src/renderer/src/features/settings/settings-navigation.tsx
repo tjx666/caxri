@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utilities';
 
@@ -13,8 +14,8 @@ import { agentProviderForSubcategory } from './settings-registry';
  * pointer never reads as a second current location.
  */
 const ENTRY_CLASS =
-    'flex h-7 w-full cursor-pointer items-center rounded border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-elevated/50 hover:text-foreground';
-const ACTIVE_CLASS = 'bg-elevated font-medium text-foreground hover:bg-elevated';
+    'w-full justify-start border-0 text-left text-[12px] font-normal text-muted hover:text-foreground';
+const ACTIVE_CLASS = 'bg-elevated font-medium text-foreground enabled:hover:bg-elevated';
 
 /**
  * The two configuration files that are not schema categories of `settings.jsonc`, listed after them in the same column.
@@ -73,7 +74,9 @@ export function SettingsNavigation({
                     const isActive = isSettings && activeAnchor === category.id;
                     return (
                         <li key={category.id}>
-                            <button
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 type="button"
                                 aria-current={isActive ? 'location' : undefined}
                                 className={cn(
@@ -85,9 +88,11 @@ export function SettingsNavigation({
                             >
                                 <span className="truncate">{category.title}</span>
                                 {searching && (
-                                    <span className="text-[10px] text-muted">{count}</span>
+                                    <span className="text-[10px] text-muted tabular-nums">
+                                        {count}
+                                    </span>
                                 )}
-                            </button>
+                            </Button>
                             {category.subcategories.length > 0 && (
                                 <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                                     {category.subcategories.map((subcategory) => {
@@ -99,7 +104,9 @@ export function SettingsNavigation({
                                         const isSubActive = isSettings && activeAnchor === anchor;
                                         return (
                                             <li key={anchor}>
-                                                <button
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
                                                     type="button"
                                                     aria-current={
                                                         isSubActive ? 'location' : undefined
@@ -118,7 +125,7 @@ export function SettingsNavigation({
                                                         />
                                                     )}
                                                     <span className="truncate">{subcategory}</span>
-                                                </button>
+                                                </Button>
                                             </li>
                                         );
                                     })}
@@ -132,14 +139,16 @@ export function SettingsNavigation({
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                 {FILE_SECTIONS.map(({ kind, label }) => (
                     <li key={kind}>
-                        <button
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             type="button"
                             aria-current={section === kind ? 'page' : undefined}
                             className={cn(ENTRY_CLASS, section === kind && ACTIVE_CLASS)}
                             onClick={() => onSectionChange(kind)}
                         >
                             <span className="truncate">{t(label)}</span>
-                        </button>
+                        </Button>
                     </li>
                 ))}
             </ul>

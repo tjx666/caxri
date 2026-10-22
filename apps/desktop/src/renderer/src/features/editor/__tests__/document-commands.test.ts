@@ -20,9 +20,9 @@ import {
     openEditorTab,
     openFile,
     openFileForSession,
-    remapOpenEditors,
     saveActiveEditor,
 } from '../document-commands';
+import { remapOpenEditors } from '../document-remap';
 import { closeOpenEditorsUnderPath } from '../document-trash';
 import {
     activePaneTabPath,

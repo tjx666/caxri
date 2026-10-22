@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveSourceControlPanelState } from '../source-control-panel-state';
+import {
+    isSupersededSnapshotError,
+    resolveSourceControlPanelState,
+} from '../source-control-panel-state';
 
 describe('resolveSourceControlPanelState', () => {
     it('keeps no Session distinct from loading', () => {
@@ -63,6 +66,33 @@ describe('resolveSourceControlPanelState', () => {
             status: 'unavailable',
             message: 'Source Control is unavailable right now.',
         });
+    });
+
+    it('stays ready when a superseded refetch errors over a healthy snapshot', () => {
+        expect(
+            resolveSourceControlPanelState({
+                hasSession: true,
+                hasSnapshotError: true,
+                isSnapshotSuperseded: true,
+                model: { emptyKind: undefined, emptyMessage: undefined },
+            }),
+        ).toEqual({ status: 'ready' });
+    });
+
+    it('shows a superseded refetch as unavailable when nothing is cached', () => {
+        expect(
+            resolveSourceControlPanelState({
+                hasSession: true,
+                hasSnapshotError: true,
+                isSnapshotSuperseded: true,
+            }).status,
+        ).toBe('unavailable');
+    });
+
+    it('recognizes only GENERATION_EXPIRED as superseded', () => {
+        expect(isSupersededSnapshotError({ code: 'GENERATION_EXPIRED' })).toBe(true);
+        expect(isSupersededSnapshotError({ code: 'PROVIDER_FAILED' })).toBe(false);
+        expect(isSupersededSnapshotError(null)).toBe(false);
     });
 
     it('keeps a healthy snapshot ready', () => {

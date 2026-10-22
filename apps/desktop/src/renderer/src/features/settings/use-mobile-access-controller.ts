@@ -192,23 +192,24 @@ export const useMobileAccessController = () => {
             const now = Date.now();
             try {
                 const result = await listMobileDevices();
-                if (!isActive) return;
-                const pairingCompleted = result.devices.some(
-                    (device) =>
-                        device.revokedAt === undefined &&
-                        !state.pairing?.knownDeviceIds.has(device.deviceId),
-                );
-                dispatch({
-                    devices: result.devices,
-                    now,
-                    pairingCompleted,
-                    type: 'pairing-polled',
-                });
+                if (isActive) {
+                    const pairingCompleted = result.devices.some(
+                        (device) =>
+                            device.revokedAt === undefined &&
+                            !state.pairing?.knownDeviceIds.has(device.deviceId),
+                    );
+                    dispatch({
+                        devices: result.devices,
+                        now,
+                        pairingCompleted,
+                        type: 'pairing-polled',
+                    });
+                }
             } catch {
                 // The existing QR remains usable while a transient Desktop request retries.
-            } finally {
-                isLoading = false;
             }
+            // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+            isLoading = false;
         };
         const poll = (): void => {
             // eslint-disable-next-line no-void -- This effect owns one bounded pairing-status poll.
@@ -235,9 +236,9 @@ export const useMobileAccessController = () => {
                     : 'settings.mobileAccess.error.disable',
                 type: 'set-error',
             });
-        } finally {
-            dispatch({ busy: false, type: 'set-busy' });
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        dispatch({ busy: false, type: 'set-busy' });
     };
 
     const createPairing = async (): Promise<void> => {
@@ -270,9 +271,9 @@ export const useMobileAccessController = () => {
             }
         } catch {
             dispatch({ error: 'settings.mobileAccess.error.createPairing', type: 'set-error' });
-        } finally {
-            dispatch({ busy: false, type: 'set-busy' });
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        dispatch({ busy: false, type: 'set-busy' });
     };
 
     const revoke = async (deviceId: string): Promise<void> => {
@@ -283,9 +284,9 @@ export const useMobileAccessController = () => {
             await load();
         } catch {
             dispatch({ error: 'settings.mobileAccess.error.revoke', type: 'set-error' });
-        } finally {
-            dispatch({ busy: false, type: 'set-busy' });
         }
+        // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        dispatch({ busy: false, type: 'set-busy' });
     };
 
     const copyPairingLink = async (): Promise<void> => {

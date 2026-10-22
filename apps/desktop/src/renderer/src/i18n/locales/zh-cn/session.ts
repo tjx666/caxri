@@ -93,7 +93,8 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.search.substringScan': '短关键词会逐条扫描消息，结果可能稍慢',
     'session.search.helpMove': '↑↓ 移动',
     'session.search.helpAction': '↵ 打开、恢复或加入',
-    'session.search.helpFilter': 'Tab 切换筛选',
+    'session.search.helpFilter': 'Tab 切换位置，Shift+Tab 切换 Agent',
+    'session.search.clearFilters': '清除筛选',
     'session.search.importFailed': '无法将对话加入 Caxri',
     'session.search.imported': '已将“{{title}}”加入 Caxri',
 

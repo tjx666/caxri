@@ -1,7 +1,15 @@
 import { useRef } from 'react';
 
 import type { LucideIcon } from 'lucide-react';
-import { BookOpenText, Goal, Lightbulb, MessageCircle, Paperclip, Plus } from 'lucide-react';
+import {
+    BookOpenText,
+    Goal,
+    Lightbulb,
+    MessageCircle,
+    MessageCircleQuestion,
+    Paperclip,
+    Plus,
+} from 'lucide-react';
 
 import { ShortcutBadge } from '../../../components/shortcut-badge';
 import { Button } from '../../../components/ui/button';
@@ -44,10 +52,11 @@ function RowText({ description, label }: { description: string; label: string })
  * folder together with files, so it remains only in an SSH Host window, as Files, whose Agent cannot read this Mac's
  * paths anyway but can still take a picked image (each picked `File` carries its bytes, so that pick takes a drop's
  * route); Goal, only while the provider reports a goal command, puts the composer in Goal mode; Plan mode toggles the
- * provider's plan mode; Caxri skill attaches a card that asks the Agent to load the `caxri-cli` skill with the message,
- * so a request to open a Session or manage a Project needs no prompt about the CLI. Under Sessions, the most recently
- * opened Sessions with an Agent conversation can be cited the way the `@` list cites them. Every row is a capability
- * this Chat already has; the menu only gathers them.
+ * provider's plan mode; Side chat, for a provider with one, opens the Chat's side chat (the `Cmd+;` command); Caxri
+ * skill attaches a card that asks the Agent to load the `caxri-cli` skill with the message, so a request to open a
+ * Session or manage a Project needs no prompt about the CLI. Under Sessions, the most recently opened Sessions with an
+ * Agent conversation can be cited the way the `@` list cites them. Every row is a capability this Chat already has; the
+ * menu only gathers them.
  */
 export function AgentChatAddMenu({
     caxriSkill,
@@ -57,6 +66,7 @@ export function AgentChatAddMenu({
     onPick,
     onPickPaths,
     onReferenceSession,
+    onSideChat,
     planMode,
     sessions,
 }: {
@@ -84,6 +94,10 @@ export function AgentChatAddMenu({
     onPickPaths: (() => void) | undefined;
     onReferenceSession: (candidate: SessionReferenceCandidate) => void;
     /**
+     * Opens the Chat's side chat; `undefined` when the provider has none.
+     */
+    onSideChat: (() => void) | undefined;
+    /**
      * The provider's plan mode, or `undefined` for a provider without one.
      */
     planMode: { isOn: boolean; onChange: (isOn: boolean) => void } | undefined;
@@ -92,6 +106,7 @@ export function AgentChatAddMenu({
     const { t } = useTranslation();
     const inputReference = useRef<HTMLInputElement>(null);
     const planModeShortcut = useCommandShortcut('agentChat.togglePlanMode');
+    const sideChatShortcut = useCommandShortcut('agentChat.openSideChat');
     return (
         <>
             <input
@@ -174,6 +189,18 @@ export function AgentChatAddMenu({
                                     <ShortcutBadge compact shortcut={planModeShortcut} />
                                 )}
                             </MenuCheckboxItem>
+                        )}
+                        {onSideChat && (
+                            <MenuItem className={ROW_CLASS_NAME} onClick={onSideChat}>
+                                <MessageCircleQuestion className="size-4 shrink-0 text-muted" />
+                                <RowText
+                                    description={t('agentChat.add.sideChatDescription')}
+                                    label={t('agentChat.sideChat.title')}
+                                />
+                                {sideChatShortcut && (
+                                    <ShortcutBadge compact shortcut={sideChatShortcut} />
+                                )}
+                            </MenuItem>
                         )}
                     </MenuGroup>
                     {sessions.length > 0 && (

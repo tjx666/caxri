@@ -324,8 +324,9 @@ export function agentChatSendAction(
 
 /**
  * The input's placeholder. Goal mode asks for the goal, as the Codex app does. While a message waits at the head of the
- * queue, an empty input's Enter sends it now (`agentChatComposerKeyAction`). An idle Chat's placeholder says so; while
- * a turn runs, the queue's first row carries that Enter chip instead, so the placeholder only invites a follow-up.
+ * queue, an empty input's Enter sends it now (`agentChatComposerKeyAction`). The placeholder says so in an idle Chat
+ * and, while a turn runs, says Enter steers the first queued message into that turn; the queue's first row carries an
+ * Enter chip as well.
  */
 export function agentChatComposerPlaceholder(
     sendAction: { placeholder: string },

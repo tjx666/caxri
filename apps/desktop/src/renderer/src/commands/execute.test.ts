@@ -101,6 +101,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 canRun: () => true,
                 run: record('agentChat.run'),
             },
+            agentChatWaiting: {
+                canFocus: () => true,
+                focus: record('agentChatWaiting.focus'),
+            },
             project: {
                 create: record('project.create'),
                 customizeIcon: record('project.customizeIcon'),

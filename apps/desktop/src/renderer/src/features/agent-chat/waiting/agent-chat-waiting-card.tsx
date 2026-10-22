@@ -78,25 +78,30 @@ export function AgentChatWaitingCard({
                     </Button>
                 </Tooltip>
             </header>
-            <div className="max-h-[min(480px,60vh)] overflow-y-auto border-t border-border pt-2.5">
-                <AgentChatRequestCard
-                    key={request.id}
-                    approvalArmDelayMs={AGENT_CHAT_APPROVAL_ARM_DELAY_MS}
-                    isFramed={false}
-                    isPointerSelect
-                    reviewHint={
-                        request.kind === 'fileChange'
-                            ? t('agentChat.waiting.reviewChanges')
-                            : undefined
-                    }
-                    onEscape={onCollapse}
-                    linkedItem={undefined}
-                    onAnswered={() => {}}
-                    projectRoot={session?.rootPath}
-                    providerName={provider?.displayName ?? t('agentChat.waiting.agent')}
-                    request={request}
-                    terminalId={chat.terminalId}
-                />
+            <div className="border-t border-border pt-2.5">
+                {/* The question form's rows bleed 8px outward (`-mx-2`) so their highlight lines up with the text in the
+                    docked card's padding. `overflow-y: auto` clips the x axis too, so the scroll area claims that 8px
+                    back from the card's own padding instead. */}
+                <div className="-mx-2 max-h-[min(480px,60vh)] overflow-y-auto px-2">
+                    <AgentChatRequestCard
+                        key={request.id}
+                        approvalArmDelayMs={AGENT_CHAT_APPROVAL_ARM_DELAY_MS}
+                        isFramed={false}
+                        isPointerSelect
+                        reviewHint={
+                            request.kind === 'fileChange'
+                                ? t('agentChat.waiting.reviewChanges')
+                                : undefined
+                        }
+                        onEscape={onCollapse}
+                        linkedItem={undefined}
+                        onAnswered={() => {}}
+                        projectRoot={session?.rootPath}
+                        providerName={provider?.displayName ?? t('agentChat.waiting.agent')}
+                        request={request}
+                        terminalId={chat.terminalId}
+                    />
+                </div>
             </div>
             {moreCount > 0 && (
                 <p className="m-0 text-[11px] text-muted">

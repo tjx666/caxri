@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ImageIcon } from 'lucide-react';
 
+import {
+    LOADING_SKELETON_DELAY_MS,
+    scheduleLoadingSkeletonReveal,
+} from '../../../components/loading-skeleton-delay';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
+import { Skeleton } from '../../../components/ui/skeleton';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
@@ -57,6 +62,29 @@ export function AgentChatMessageImages({
 const TILE_CLASS_NAME =
     'flex size-24 items-center justify-center rounded-md border border-border bg-background text-muted';
 
+/**
+ * The tile of an image being read back from the provider's record. Like every loading placeholder it draws its shape
+ * only after `LOADING_SKELETON_DELAY_MS` (DESIGN.md), so a quick local read swaps straight to the preview with no
+ * flash; the shape then fades in and pulses on the shared skeleton tokens.
+ */
+function ImageLoadingTile({ label }: { label: string }) {
+    const [isRevealed, setRevealed] = useState(false);
+    useEffect(
+        () =>
+            scheduleLoadingSkeletonReveal(
+                () => setRevealed(true),
+                undefined,
+                LOADING_SKELETON_DELAY_MS,
+            ),
+        [],
+    );
+    return (
+        <div aria-busy="true" aria-label={label} className={TILE_CLASS_NAME} role="img">
+            {isRevealed && <Skeleton className="size-full rounded-md" />}
+        </div>
+    );
+}
+
 function MessageImage({
     firstNumber,
     index,
@@ -98,16 +126,10 @@ function MessageImage({
                 </Tooltip>
             );
         }
-        return (
-            <div
-                aria-busy={restored.status === 'loading' || undefined}
-                aria-label={label}
-                className={cn(
-                    TILE_CLASS_NAME,
-                    restored.status === 'loading' && 'motion-safe:animate-pulse',
-                )}
-                role="img"
-            >
+        return restored.status === 'loading' ? (
+            <ImageLoadingTile label={label} />
+        ) : (
+            <div aria-label={label} className={TILE_CLASS_NAME} role="img">
                 <ImageIcon className="size-5" />
             </div>
         );
