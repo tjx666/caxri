@@ -1290,8 +1290,9 @@ queued messages below the goal row, then the status row nearest the input, since
 often. The status row is the one place the Chat's live state shows: on the left Buddy, the turn's
 verb (which swaps with a short rise, blur, and fade), and the elapsed time (`4m 23s`); on the right
 the turn's spend as bare icon-and-figure pairs with details in tooltips (cost without a `$`), then
-two badges pinned to the far right, the plan (`ListTodo 2/5`) and background work (its glyph and the
-running count, a `--danger` dot while a failure is unseen). Each badge opens one popover anchored to
+two badges pinned to the far right, the plan (`ListTodo 2/5`) and background work (a small spinner,
+then each running kind's glyph and count, subagents before background shells so one kind never hides
+the other, a `--danger` dot while a failure is unseen). Each badge opens one popover anchored to
 the row on click, showing only its own section; clicking the other badge swaps the content in place
 while a pill slides between the badges and the popover's height springs. After the turn the row
 stays only while something still needs the user, leading with it instead of the verb: one running

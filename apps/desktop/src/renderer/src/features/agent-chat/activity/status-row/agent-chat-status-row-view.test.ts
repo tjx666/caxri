@@ -5,6 +5,7 @@ import { translate } from '../../../../i18n';
 import {
     agentChatLatestTurnStart,
     agentChatPlanBadgeLabel,
+    agentChatRunningKinds,
     agentChatStatusRowView,
     agentChatTaskBadgeLabel,
 } from './agent-chat-status-row-view';
@@ -185,14 +186,40 @@ describe('status row badge labels', () => {
         ).toBe(translate('agentChat.plan.progress', { completed: 3, total: 3 }));
     });
 
-    it('sums up running and unseen failed background work', () => {
-        const running = translate('agentChat.tasks.runningCount', { count: 2 });
+    it('sums up running work per kind and unseen failures', () => {
+        const kinds = [
+            { kind: 'agent', count: 1 },
+            { kind: 'shell', count: 2 },
+        ] as const;
+        const agents = translate('agentChat.tasks.kindRunningCount', {
+            count: 1,
+            kind: translate('agentChat.tasks.subagent'),
+        });
+        const shells = translate('agentChat.tasks.kindRunningCount', {
+            count: 2,
+            kind: translate('agentChat.tasks.shell'),
+        });
         const failed = translate('agentChat.status.tasksFailedOne');
-        expect(agentChatTaskBadgeLabel({ running: 2, unseenFailures: 1 }, translate)).toBe(
-            translate('agentChat.status.tasksBadge', { summary: `${running}, ${failed}` }),
+        expect(agentChatTaskBadgeLabel({ running: 3, unseenFailures: 1 }, kinds, translate)).toBe(
+            translate('agentChat.status.tasksBadge', {
+                summary: `${agents}, ${shells}, ${failed}`,
+            }),
         );
-        expect(agentChatTaskBadgeLabel({ running: 2, unseenFailures: 0 }, translate)).toBe(
-            translate('agentChat.status.tasksBadge', { summary: running }),
+        expect(agentChatTaskBadgeLabel({ running: 0, unseenFailures: 1 }, [], translate)).toBe(
+            translate('agentChat.status.tasksBadge', { summary: failed }),
         );
+    });
+});
+
+describe('agentChatRunningKinds', () => {
+    it('counts each running kind, subagents before shells, so neither hides the other', () => {
+        const shell = task('shell', 'running', 100);
+        const agent: AgentChatTask = { ...task('agent', 'running', 200), kind: 'agent' };
+        expect(agentChatRunningKinds([shell, agent, task('shell-2', 'running', 300)])).toEqual([
+            { kind: 'agent', count: 1 },
+            { kind: 'shell', count: 2 },
+        ]);
+        expect(agentChatRunningKinds([shell])).toEqual([{ kind: 'shell', count: 1 }]);
+        expect(agentChatRunningKinds([])).toEqual([]);
     });
 });

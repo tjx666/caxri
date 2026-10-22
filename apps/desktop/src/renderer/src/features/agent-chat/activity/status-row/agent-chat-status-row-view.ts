@@ -27,6 +27,11 @@ type AgentChatStatusRowLead =
     | { kind: 'failures'; count: number }
     | { kind: 'plan'; progress: AgentChatPlanProgress };
 
+export interface AgentChatRunningKind {
+    kind: AgentChatTask['kind'];
+    count: number;
+}
+
 export interface AgentChatStatusRowView {
     lead: AgentChatStatusRowLead;
     /**
@@ -45,6 +50,11 @@ export interface AgentChatStatusRowView {
      * Running tasks in start order.
      */
     running: AgentChatTask[];
+    /**
+     * How many tasks of each kind run, subagents before shells and only kinds with one running, so a badge or lead can
+     * show every kind at once instead of only the first task's.
+     */
+    runningKinds: AgentChatRunningKind[];
     /**
      * Failed tasks, most recent first; the popover lists them above the running ones.
      */
@@ -121,10 +131,23 @@ export function agentChatStatusRowView({
         taskBadge,
         plan: plan && progress ? { plan, progress } : undefined,
         running,
+        runningKinds: agentChatRunningKinds(running),
         failed,
         ended,
         unseenFailureIds,
     };
+}
+
+const RUNNING_KIND_ORDER: ReadonlyArray<AgentChatTask['kind']> = ['agent', 'shell'];
+
+/**
+ * Counts running tasks per kind in a fixed order, so the glyphs never swap places as tasks start and end.
+ */
+export function agentChatRunningKinds(running: readonly AgentChatTask[]): AgentChatRunningKind[] {
+    return RUNNING_KIND_ORDER.map((kind) => ({
+        kind,
+        count: running.filter((task) => task.kind === kind).length,
+    })).filter(({ count }) => count > 0);
 }
 
 function statusRowLead(
@@ -164,14 +187,20 @@ export function agentChatPlanBadgeLabel(
 }
 
 /**
- * The background work badge's accessible name: how many tasks run and, when some failed unseen, how many.
+ * The background work badge's accessible name: how many tasks of each kind run and, when some failed unseen, how many.
  */
 export function agentChatTaskBadgeLabel(
     badge: NonNullable<AgentChatStatusRowView['taskBadge']>,
+    runningKinds: readonly AgentChatRunningKind[],
     t: Translate,
 ): string {
     const parts = [
-        badge.running > 0 && t('agentChat.tasks.runningCount', { count: badge.running }),
+        ...runningKinds.map(({ kind, count }) =>
+            t('agentChat.tasks.kindRunningCount', {
+                count,
+                kind: t(kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent'),
+            }),
+        ),
         badge.unseenFailures > 0 && agentChatFailuresText(badge.unseenFailures, t),
     ];
     return t('agentChat.status.tasksBadge', { summary: parts.filter(Boolean).join(', ') });
