@@ -27,11 +27,12 @@ function AgentChatPendingUserMessage({
             className="flex flex-col items-end gap-1.5 opacity-60"
             data-agent-chat-pending=""
         >
-            <AgentChatPathReferenceChips references={references} skills={skills} />
-            {(text || message.images.length > 0) && (
+            <AgentChatPathReferenceChips references={references} />
+            {(text || skills.length > 0 || message.images.length > 0) && (
                 <AgentChatUserMessageBubble
                     images={message.images}
                     isEditing={false}
+                    skills={skills}
                     text={text}
                     onOpenFile={onOpenFile}
                 />

@@ -157,10 +157,15 @@ function DisclosureRow({
             <span className="flex shrink-0 items-center gap-2" id={trailingId}>
                 {trailing}
             </span>
+            {/*
+             * The chevron shows only while the row is hovered or holds keyboard focus, so a turn's many rows do not
+             * stack a column of arrows down the transcript's edge. It keeps its box while hidden, so
+             * revealing it never shifts the trailing stats.
+             */}
             <ChevronRight
                 aria-hidden="true"
                 className={cn(
-                    'size-3.5 shrink-0 text-muted',
+                    'size-3.5 shrink-0 text-muted opacity-0 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
                     agentChatChevronMotion(isExpanded),
                     isExpanded && 'rotate-90',
                 )}

@@ -429,7 +429,11 @@ export function AgentChatPane({
                 isShown={isShown}
                 providerName={providerName}
                 onOpenTask={taskLinks.openTask}
-                onSent={jumpToLatest}
+                onSent={() => {
+                    jumpToLatest();
+                    // Sending moves the conversation on from what the user missed, so the hint about it has done its job.
+                    if (terminal) dismissReturn(terminal.sessionId);
+                }}
                 pendingQueue={composerView.pendingQueue}
                 queue={composerView.queue}
                 snapshot={composerView.snapshot}

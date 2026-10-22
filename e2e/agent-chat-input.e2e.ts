@@ -339,9 +339,12 @@ test('a Codex Chat attaches picked files and folders as cards and saves a long p
         const sent = chat.locator('[data-agent-chat-user-message]').last();
         await expect(sent).not.toContainText('Files mentioned by the user');
         await expect(sent).not.toContainText('Skills the user asked you to use');
-        await expect(sent.locator('[data-agent-chat-skill-reference="caxri-cli"]')).toHaveText(
-            'Caxri skill',
-        );
+        // The skill leads the bubble's own text, so the message reads as one bubble rather than a chip row above it.
+        await expect(
+            sent.locator(
+                '[data-agent-chat-user-bubble] [data-agent-chat-skill-reference="caxri-cli"]',
+            ),
+        ).toHaveText('Caxri skill');
         const folderChip = sent.getByRole('button', { name: 'Open prettier-config in Finder' });
         await expect(folderChip).toBeVisible();
         await folderChip.click();
