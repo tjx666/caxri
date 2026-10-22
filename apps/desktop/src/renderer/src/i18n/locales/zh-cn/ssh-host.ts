@@ -67,6 +67,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.failure.unknown': '连接 SSH Host 时出现问题。',
     'sshHost.reconnect': '重新连接',
     'sshHost.useHere': '在此处使用',
+    'sshHost.workbenchPaused': '正在显示断开前的窗口内容，SSH Host 恢复后即可继续操作。',
     'sshHost.closeWindow': '关闭窗口',
     'sshHost.copyDetails': '复制详细信息',
     'sshHost.copyCommand': '复制命令',
