@@ -92,7 +92,13 @@ const MemoizedTimelineEntry = memo(
                 );
             }
             case 'work': {
-                return <AgentChatWorkGroup items={entry.items} onOpenFile={onOpenFile} />;
+                return (
+                    <AgentChatWorkGroup
+                        isOpen={entry.isOpen}
+                        items={entry.items}
+                        onOpenFile={onOpenFile}
+                    />
+                );
             }
             case 'artifacts': {
                 return <AgentChatTurnArtifactList artifacts={entry.artifacts} />;

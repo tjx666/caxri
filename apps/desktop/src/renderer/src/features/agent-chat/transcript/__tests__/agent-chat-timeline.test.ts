@@ -77,6 +77,39 @@ describe('buildAgentChatTimeline', () => {
         ]);
     });
 
+    it("leaves only the running turn's trailing work open for the next tool call", () => {
+        const items = [
+            user('u1', 't1'),
+            command('c1', 't1'),
+            reply('a1', 't1'),
+            user('u2', 't2'),
+            command('c2', 't2'),
+            reply('a2', 't2'),
+            command('c3', 't2'),
+        ];
+        const openness = (turns: AgentChatTurn[], activeTurnId?: string) =>
+            buildAgentChatTimeline(items, turns, activeTurnId)
+                .flatMap((entry) => (entry.kind === 'turn' ? entry.entries : [entry]))
+                .filter((entry) => entry.kind === 'work')
+                .map((entry) => entry.isOpen ?? false);
+        // t1 ended, and a reply already closed t2's first run; only the run t2 is still adding to stays open.
+        expect(
+            openness(
+                [
+                    { id: 't1', status: 'running' },
+                    { id: 't2', status: 'running' },
+                ],
+                't2',
+            ),
+        ).toEqual([false, false, true]);
+        expect(
+            openness([
+                { id: 't1', status: 'completed', durationMs: 1000 },
+                { id: 't2', status: 'completed', durationMs: 1000 },
+            ]),
+        ).not.toContain(true);
+    });
+
     it('folds a finished turn behind its duration, keeping the prompt, final reply, and notices', () => {
         const turns: AgentChatTurn[] = [{ id: 't1', status: 'completed', durationMs: 121_000 }];
         const items: AgentChatItem[] = [

@@ -103,7 +103,10 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
             .getByRole('button', { name: /^Worked(?: for |$)/u })
             .last()
             .click();
-        await chat.getByRole('button', { name: 'Ran 1 command', exact: true }).click();
+        // A settled run of one command is that command's own row, not a `Ran 1 command` summary over it.
+        await expect(chat.getByRole('button', { name: 'Ran 1 command', exact: true })).toHaveCount(
+            0,
+        );
         const commandRow = chat.getByRole('button', { name: /^Ran Print a confirmation/u });
         // The toggle is stretched over its row, which holds the visible title and facts. The fake command finishes well
         // under a second, and a sub-second duration is left out as noise.

@@ -533,11 +533,17 @@ function AgentChatWorkSummary({
 
 /**
  * A stable summary from the first ordinary tool call. Independent tasks retain their own live rows and Open buttons.
+ * Once the run settles, a summary of one call adds nothing over the call itself, so that call renders as its own row.
  */
 export function AgentChatWorkGroup({
+    isOpen = false,
     items,
     onOpenFile,
 }: {
+    /**
+     * Whether the next tool call can still join this run (the running turn's trailing work).
+     */
+    isOpen?: boolean;
     items: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
 }) {
@@ -546,9 +552,11 @@ export function AgentChatWorkGroup({
         items,
         (item) => links?.tasksByItem.has(item.id) === true,
     );
+    const single = !isOpen && summarized.length === 1 ? summarized[0] : undefined;
     return (
         <div className="flex flex-col">
-            {summarized.length > 0 && (
+            {single && <AgentChatWorkRow item={single} onOpenFile={onOpenFile} />}
+            {!single && summarized.length > 0 && (
                 <AgentChatWorkSummary
                     anchorItems={items}
                     items={summarized}
