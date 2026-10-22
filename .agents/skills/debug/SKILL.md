@@ -160,7 +160,9 @@ points at `/tmp/<task>/project`, so Add Project (`Cmd+O`) uses the existing test
 native folder picker. A new Agent opens as a Terminal unless `session.openAgentsInChat` is on; the
 tab bar's Chat toggle switches an open one. Run the repeated Caxri steps through
 `.agents/skills/debug/scripts/drive-app.ts` instead of hand-writing Playwright: `language en`
-(English labels for the E2E helpers), `send <text>` into the Chat message box, `idle` until a reply
+(English labels for the E2E helpers), `open-chat <claude|codex|grok>` to add the test-root Project
+and open that Agent in Chat (driving the dialog by hand lets the root grant expire, and
+`project.create` then fails with `PATH_DENIED` and no Session), `send <text>` into the Chat message box, `idle` until a reply
 stops changing the window, `search <query>` in Session search, and `screenshot`, each with an
 optional `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
 which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
