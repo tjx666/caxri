@@ -51,6 +51,9 @@ resolve any restore conflicts without discarding work. The hook's type-aware lin
 from disk, so a staged version that still imports a file the working tree renamed or deleted fails
 with `no-unsafe-*` errors. Stage the rename together with its importers, or restore the old file
 from `HEAD` for that commit and remove it afterwards.
+Do not leave intent-to-add entries (`git add -N`, used to show new files in `git diff`) in the
+index when committing: lint-staged refuses to run on them, so a commit splitting a large batch
+fails until `git reset -- <paths>` clears them and each commit re-stages its own new files fully.
 
 The repository's `lint:staged` entry point must include `--no-stash`. All worktrees share Git's
 stash stack, so commit hooks must not use lint-staged's default stash backup. Preserve partially
