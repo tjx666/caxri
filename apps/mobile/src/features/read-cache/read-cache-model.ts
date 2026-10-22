@@ -2,11 +2,14 @@ import type {
     AgentChatItem,
     AgentChatSnapshot,
     AgentTimelineItem,
+    DeviceStoreEntry,
     MobileDashboardResult,
 } from '@caxri/protocol';
 import {
     agentChatSnapshotSchema,
     agentTimelineItemSchema,
+    decodeDeviceStoreEntry,
+    encodeDeviceStoreEntry,
     findAgentChatModel,
     mobileDashboardResultSchema,
 } from '@caxri/protocol';
@@ -15,7 +18,7 @@ import { z } from 'zod';
 /**
  * Bumped when a cached shape changes; an entry written by another version is dropped instead of migrated.
  */
-const READ_CACHE_VERSION = 1;
+export const READ_CACHE_VERSION = 1;
 
 /**
  * The newest messages a Conversation or Chat keeps on the phone, as Paseo keeps 50 per agent.
@@ -29,18 +32,19 @@ export const READ_CACHE_MAX_CONVERSATIONS = 20;
 
 export type ReadCacheKey =
     | { kind: 'dashboard' }
+    | { kind: 'drafts' }
     | { kind: 'timeline'; sessionId: string }
     | { kind: 'chat'; terminalId: string };
 
-export interface ReadCacheEntry<Value> {
-    savedAt: number;
-    value: Value;
-}
+export type ReadCacheEntry<Value> = DeviceStoreEntry<Value>;
 
 export const readCacheFileName = (key: ReadCacheKey): string => {
     switch (key.kind) {
         case 'dashboard': {
             return 'dashboard.json';
+        }
+        case 'drafts': {
+            return 'drafts.json';
         }
         case 'timeline': {
             return `timeline-${encodeURIComponent(key.sessionId)}.json`;
@@ -54,18 +58,8 @@ export const readCacheFileName = (key: ReadCacheKey): string => {
 export const isConversationCacheFile = (name: string): boolean =>
     name.startsWith('timeline-') || name.startsWith('chat-');
 
-const envelopeSchema = z.strictObject({
-    version: z.literal(READ_CACHE_VERSION),
-    /**
-     * The pairing identity (server, device, generation) the entry was read under; never the device key.
-     */
-    scope: z.string().min(1),
-    savedAt: z.number().int().nonnegative(),
-    value: z.unknown(),
-});
-
 export const encodeReadCacheEntry = (scope: string, savedAt: number, value: unknown): string =>
-    JSON.stringify({ version: READ_CACHE_VERSION, scope, savedAt, value });
+    encodeDeviceStoreEntry(READ_CACHE_VERSION, scope, savedAt, value);
 
 /**
  * An entry for this pairing, or `null` for a corrupt, foreign, or older-version file.
@@ -74,18 +68,8 @@ export const decodeReadCacheEntry = <Value>(
     text: string,
     scope: string,
     valueSchema: z.ZodType<Value>,
-): ReadCacheEntry<Value> | null => {
-    let raw: unknown;
-    try {
-        raw = JSON.parse(text);
-    } catch {
-        return null;
-    }
-    const envelope = envelopeSchema.safeParse(raw);
-    if (!envelope.success || envelope.data.scope !== scope) return null;
-    const value = valueSchema.safeParse(envelope.data.value);
-    return value.success ? { savedAt: envelope.data.savedAt, value: value.data } : null;
-};
+): ReadCacheEntry<Value> | null =>
+    decodeDeviceStoreEntry(text, READ_CACHE_VERSION, scope, valueSchema);
 
 /**
  * The scope a live read may be saved under: the pairing it was read under, and only while that pairing is still

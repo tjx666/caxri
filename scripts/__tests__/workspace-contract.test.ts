@@ -249,6 +249,7 @@ describe('pnpm workspace contract', () => {
             'agent',
             'configuration',
             'desktop',
+            'device-store',
             'domain',
             'mobile',
             'registry',
