@@ -92,8 +92,9 @@ process.stdout.write('Question fixture ready\r\n');
         await row.screenshot({ path: testInfo.outputPath('question-attention.png') });
         await emit('PostToolUse', 'request_user_input', 'question-1');
         await expect.poll(state).toBe('running');
-        // Unread attention outranks running on the icon, so the resumed work shows in its accessible description.
-        await expect(status).toHaveAccessibleDescription(/Current status: Working\./);
+        // Answering is the user's response to that reminder: the question icon gives way to the running state.
+        await expect(status).toHaveAttribute('data-session-status', 'running');
+        await expect(status).toHaveAccessibleDescription('The Agent is running.');
         await emit('Stop');
         await expect.poll(state).toBe('completed');
     } finally {

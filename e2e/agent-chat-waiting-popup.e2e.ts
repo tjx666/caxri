@@ -53,7 +53,7 @@ test('Chats that are not on screen ask through the waiting popup, one request at
         await approving.getByRole('textbox', { name: 'Message' }).press('Enter');
         await expect(approving.getByRole('region', { name: 'Run this command?' })).toBeVisible();
         await expect(popup).toContainText('Which checks should run before the pull request?');
-        await expect(popup).toContainText('Waiting for your answer');
+        await expect(popup).toContainText('Claude has a question');
         await expect(popup).toContainText('ask multi');
 
         // Two Chats wait off screen: the earlier one asks first, and the other is counted.
@@ -78,14 +78,14 @@ test('Chats that are not on screen ask through the waiting popup, one request at
         await popup.getByRole('button', { name: 'Submit' }).click();
 
         // The next waiting Chat takes its place.
-        await expect(popup).toContainText('Waiting for your approval');
+        await expect(popup).toContainText('Run this command?');
         await expect(popup).toContainText('echo approved');
         await expect(popup).not.toContainText('more pending');
         await page.screenshot({ path: testInfo.outputPath('waiting-popup-approval.png') });
 
         // Minimizing folds the popup into a pill that reopens it.
         await popup.getByRole('button', { name: 'Minimize' }).click();
-        const pill = page.getByRole('button', { name: 'Show 1 pending' });
+        const pill = page.getByRole('button', { name: 'Show 1 waiting for you' });
         await expect(pill).toBeVisible();
         await expect(popup).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('waiting-popup-pill.png') });
