@@ -25,6 +25,12 @@ describe('drive-app', () => {
         expect(() => parseDriveCommand(['idle', 'soon'], {})).toThrow(/seconds/u);
     });
 
+    it('opens a Chat only for a known Agent provider', () => {
+        expect(parseDriveCommand(['open-chat', 'codex'], {}).argument).toBe('codex');
+        expect(() => parseDriveCommand(['open-chat', 'shell'], {})).toThrow(/claude, codex/u);
+        expect(() => parseDriveCommand(['open-chat'], {})).toThrow(/needs an argument/u);
+    });
+
     it('takes the Main inspector port from the flag or the variable the dev launch exported', () => {
         expect(() => parseDriveCommand(['stub-folder-dialog', '/tmp/a/project'], {})).toThrow(
             /V8_INSPECTOR_PORT/u,

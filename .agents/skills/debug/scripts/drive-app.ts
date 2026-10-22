@@ -9,6 +9,7 @@
  * Steps:
  *
  * - `language <en|zh-CN|system>`: sets `workbench.language`, so English-label E2E helpers match.
+ * - `open-chat <claude|codex|grok>`: adds the fixture's test-root Project (`Cmd+O`) and opens that Agent in Chat.
  * - `send <text>`: types into the visible Agent Chat message box and presses Enter.
  * - `search <query>`: opens Session search and types the query.
  * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply.
@@ -19,6 +20,8 @@
 import { isAbsolute } from 'node:path';
 import process from 'node:process';
 
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 import { chromium } from '@playwright/test';
 
@@ -27,7 +30,15 @@ import type { CdpTarget } from './cdp-client';
 import { connectToNodeInspector, selectRendererTarget } from './cdp-client';
 import { browserEnvironment, resolveTarget } from './worktree-browser';
 
-const STEPS = ['language', 'send', 'search', 'idle', 'stub-folder-dialog', 'screenshot'] as const;
+const STEPS = [
+    'language',
+    'open-chat',
+    'send',
+    'search',
+    'idle',
+    'stub-folder-dialog',
+    'screenshot',
+] as const;
 type Step = (typeof STEPS)[number];
 
 export interface DriveCommand {
@@ -43,6 +54,7 @@ const IDLE_POLL_MS = 1_000;
  */
 const IDLE_STABLE_POLLS = 3;
 const DEFAULT_IDLE_SECONDS = 120;
+const OPEN_CHAT_TIMEOUT_MS = 30_000;
 
 export function parseDriveCommand(
     argv: string[],
@@ -66,6 +78,12 @@ export function parseDriveCommand(
     }
     const isArgumentRequired = step !== 'idle';
     if (isArgumentRequired && !argument) throw new CommandError(`\`${step}\` needs an argument`, 2);
+    if (step === 'open-chat' && !Object.hasOwn(agentProviderCatalog, argument)) {
+        throw new CommandError(
+            `\`open-chat\` takes ${Object.keys(agentProviderCatalog).join(', ')}, not ${argument}`,
+            2,
+        );
+    }
     if (step === 'idle' && argument && !(Number(argument) > 0)) {
         throw new CommandError(`\`idle\` takes a number of seconds, not ${argument}`, 2);
     }
@@ -115,6 +133,48 @@ async function request<T>(page: Page, method: string, parameters?: unknown): Pro
     )) as { ok: true; result: T } | { ok: false; error: { code: string; message: string } };
     if (!reply.ok) throw new Error(`${method} failed: ${reply.error.code}: ${reply.error.message}`);
     return reply.result;
+}
+
+/**
+ * Runs the add-Project dialog in one go. The test-root selection behind `Cmd+O` expires while the dialog waits, and an
+ * expired one fails `project.create` with `PATH_DENIED` and creates nothing, so a slow hand-driven choice silently
+ * leaves the app without a Session.
+ */
+async function openChat(page: Page, provider: AgentProvider): Promise<void> {
+    const before = await request<{ selectedSessionId?: string }>(page, 'app.bootstrap');
+    // A CDP connection does not focus the window, and the shortcut only reaches a focused document.
+    await page.bringToFront();
+    await page.keyboard.press('Meta+o');
+    const dialog = page.getByRole('dialog');
+    const inChat = dialog.getByRole('switch');
+    await inChat.waitFor();
+    if ((await inChat.getAttribute('aria-checked')) !== 'true') await inChat.click();
+    // The provider row gains its Chat badge once the setting lands; choosing earlier opens a Terminal.
+    const choice = dialog.getByRole('button', {
+        name: new RegExp(String.raw`^${agentProviderCatalog[provider].displayName}\s*Chat$`),
+    });
+    await choice.waitFor();
+    // Choosing closes the dialog synchronously, so Enter avoids a pointer click observing its target detach.
+    await choice.focus();
+    await choice.press('Enter');
+    const deadline = Date.now() + OPEN_CHAT_TIMEOUT_MS;
+    for (;;) {
+        // eslint-disable-next-line no-await-in-loop
+        const state = await request<{ selectedSessionId?: string }>(page, 'app.bootstrap');
+        if (state.selectedSessionId && state.selectedSessionId !== before.selectedSessionId) break;
+        if (Date.now() > deadline) {
+            throw new Error(
+                'No Session was created; check the structured logs for a failed project.create',
+            );
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(IDLE_POLL_MS);
+    }
+    await page
+        .locator('.cm-content')
+        .filter({ visible: true })
+        .last()
+        .waitFor({ timeout: OPEN_CHAT_TIMEOUT_MS });
 }
 
 async function waitForIdle(page: Page, seconds: number): Promise<void> {
@@ -168,6 +228,8 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
             });
             return;
         }
+        case 'open-chat':
+            return openChat(page, argument as AgentProvider);
         case 'send': {
             // The message box is CodeMirror, which exposes no textbox role to fill.
             await page.locator('.cm-content').filter({ visible: true }).last().click();
