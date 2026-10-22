@@ -54,6 +54,11 @@ const IDLE_POLL_MS = 1_000;
  */
 const IDLE_STABLE_POLLS = 3;
 const DEFAULT_IDLE_SECONDS = 120;
+/**
+ * How long one `Cmd+O` gets to show the add-Project dialog, and how many presses `open-chat` makes.
+ */
+const OPEN_DIALOG_ATTEMPT_MS = 5_000;
+const OPEN_DIALOG_ATTEMPTS = 3;
 const OPEN_CHAT_TIMEOUT_MS = 30_000;
 
 export function parseDriveCommand(
@@ -121,6 +126,17 @@ export function settingsSourceWithLanguage(
     );
 }
 
+/**
+ * The add-Project dialog's row for an Agent opened in Chat (`Codex Chat`, `Codex 对话`). It matches either interface
+ * language, because a fresh fixture profile follows the macOS language and an English-only name never appears there.
+ * The markers are `terminal.new.chatMarker` in the en and zh-cn Renderer locales, which this script's TypeScript
+ * project cannot import.
+ */
+export function chatChoiceName(provider: AgentProvider): RegExp {
+    const name = RegExp.escape(agentProviderCatalog[provider].displayName);
+    return new RegExp(String.raw`^${name}\s*(?:Chat|对话)$`);
+}
+
 async function request<T>(page: Page, method: string, parameters?: unknown): Promise<T> {
     const reply = (await page.evaluate(
         ([requestMethod, requestParameters]) =>
@@ -144,15 +160,24 @@ async function openChat(page: Page, provider: AgentProvider): Promise<void> {
     const before = await request<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     // A CDP connection does not focus the window, and the shortcut only reaches a focused document.
     await page.bringToFront();
-    await page.keyboard.press('Meta+o');
     const dialog = page.getByRole('dialog');
     const inChat = dialog.getByRole('switch');
-    await inChat.waitFor();
+    // Right after launch the window can drop the first `Cmd+O` (the shortcut registers after the first paint), so a
+    // dialog that does not show presses it again rather than failing the whole step.
+    for (let attempt = 1; ; attempt += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each press waits to see whether the previous one landed.
+        await page.keyboard.press('Meta+o');
+        try {
+            // eslint-disable-next-line no-await-in-loop
+            await inChat.waitFor({ timeout: OPEN_DIALOG_ATTEMPT_MS });
+            break;
+        } catch (error) {
+            if (attempt >= OPEN_DIALOG_ATTEMPTS) throw error;
+        }
+    }
     if ((await inChat.getAttribute('aria-checked')) !== 'true') await inChat.click();
     // The provider row gains its Chat badge once the setting lands; choosing earlier opens a Terminal.
-    const choice = dialog.getByRole('button', {
-        name: new RegExp(String.raw`^${agentProviderCatalog[provider].displayName}\s*Chat$`),
-    });
+    const choice = dialog.getByRole('button', { name: chatChoiceName(provider) });
     await choice.waitFor();
     // Choosing closes the dialog synchronously, so Enter avoids a pointer click observing its target detach.
     await choice.focus();
