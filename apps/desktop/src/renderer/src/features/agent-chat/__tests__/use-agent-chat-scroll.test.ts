@@ -167,6 +167,22 @@ describe('isAgentChatCatchUpScroll', () => {
         ).toBe(true);
     });
 
+    it('treats following a view that only changed size as a catch-up, however short', () => {
+        // The composer strip folding away by one 33px row once an opened Chat finished starting.
+        expect(
+            isAgentChatCatchUpScroll({
+                from: 1189,
+                hasMoved: true,
+                isViewResize: true,
+                to: 1156,
+                viewHeight: 651,
+            }),
+        ).toBe(true);
+        expect(
+            isAgentChatCatchUpScroll({ from: 1189, hasMoved: true, to: 1156, viewHeight: 651 }),
+        ).toBe(false);
+    });
+
     it('treats a jump of more than one screen as a catch-up once the view has moved', () => {
         expect(
             isAgentChatCatchUpScroll({ from: 4000, hasMoved: true, to: 4601, viewHeight: 600 }),

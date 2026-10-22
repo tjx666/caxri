@@ -106,22 +106,26 @@ export function isNewAgentChatPrompt(
 
 /**
  * Whether a follow scroll catches the view up rather than tracking a reply as it streams: the first move the view ever
- * makes (a Chat opening onto its end) or a jump of more than one screen (a Chat that grew while it was off screen, a
- * long block landing at once). The user scrolled neither, so such a move must not flash the overlay scrollbar; a
- * streaming reply moves the view a few lines at a time, and there the scrollbar keeps showing the motion as before.
+ * makes (a Chat opening onto its end), a jump of more than one screen (a Chat that grew while it was off screen, a long
+ * block landing at once), or the view itself changing size (`isViewResize`: the composer strip folding away once an
+ * opened Chat finishes starting, a dock below expanding). The user scrolled none of them, so such a move must not flash
+ * the overlay scrollbar; a streaming reply moves the view a few lines at a time, and there the scrollbar keeps showing
+ * the motion as before.
  */
 export function isAgentChatCatchUpScroll({
     from,
     hasMoved,
+    isViewResize = false,
     to,
     viewHeight,
 }: {
     from: number;
     hasMoved: boolean;
+    isViewResize?: boolean;
     to: number;
     viewHeight: number;
 }): boolean {
-    return !hasMoved || Math.abs(to - from) > viewHeight;
+    return !hasMoved || isViewResize || Math.abs(to - from) > viewHeight;
 }
 
 function offsetInView(view: HTMLElement, element: HTMLElement): number {
@@ -219,50 +223,58 @@ export function useAgentChatScroll(
      * Whether the view has ever left its top, by the user or by following; see {@link isAgentChatCatchUpScroll}.
      */
     const hasMovedReference = useRef(false);
-    const pin = useCallback(() => {
-        const element = scrollReference.current;
-        if (!element) return;
-        const content = contentReference.current;
-        const spacer = spacerReference.current;
-        if (turnSelector && content && spacer) {
-            const turns = content.querySelectorAll<HTMLElement>(turnSelector);
-            const turn = turns.item(turns.length - 1) as HTMLElement | null;
-            const height =
-                turn && isTurnLive
-                    ? agentChatTurnSpacerHeight(
-                          element.clientHeight,
-                          content.getBoundingClientRect().bottom - turn.getBoundingClientRect().top,
-                      )
-                    : 0;
-            spacer.style.height = `${height}px`;
-        }
-        const anchored = anchorReference.current;
-        if (anchored && (performance.now() > anchored.until || !anchored.element.isConnected))
-            anchorReference.current = undefined;
-        else if (anchored) {
-            element.scrollTop = agentChatAnchoredScrollTop(
-                element.scrollTop,
-                anchored.offset,
-                offsetInView(element, anchored.element),
-            );
+    const pin = useCallback(
+        /**
+         * @param isViewResize Only the view changed size, not the content; see {@link isAgentChatCatchUpScroll}.
+         */
+        (isViewResize = false) => {
+            const element = scrollReference.current;
+            if (!element) return;
+            const content = contentReference.current;
+            const spacer = spacerReference.current;
+            if (turnSelector && content && spacer) {
+                const turns = content.querySelectorAll<HTMLElement>(turnSelector);
+                const turn = turns.item(turns.length - 1) as HTMLElement | null;
+                const height =
+                    turn && isTurnLive
+                        ? agentChatTurnSpacerHeight(
+                              element.clientHeight,
+                              content.getBoundingClientRect().bottom -
+                                  turn.getBoundingClientRect().top,
+                          )
+                        : 0;
+                spacer.style.height = `${height}px`;
+            }
+            const anchored = anchorReference.current;
+            if (anchored && (performance.now() > anchored.until || !anchored.element.isConnected))
+                anchorReference.current = undefined;
+            else if (anchored) {
+                element.scrollTop = agentChatAnchoredScrollTop(
+                    element.scrollTop,
+                    anchored.offset,
+                    offsetInView(element, anchored.element),
+                );
+                lastScrollTopReference.current = element.scrollTop;
+                return;
+            }
+            const top = agentChatFollowScrollTop(element, isFollowingReference.current);
+            if (top === null) return;
+            const isCatchUp =
+                Math.abs(top - element.scrollTop) >= 1 &&
+                (isViewResize ||
+                    isAgentChatCatchUpScroll({
+                        from: element.scrollTop,
+                        hasMoved: hasMovedReference.current,
+                        to: top,
+                        viewHeight: element.clientHeight,
+                    }));
+            if (isCatchUp) scrollWithoutScrollbarFlash(element, top);
+            else element.scrollTop = top;
+            if (element.scrollTop > 0) hasMovedReference.current = true;
             lastScrollTopReference.current = element.scrollTop;
-            return;
-        }
-        const top = agentChatFollowScrollTop(element, isFollowingReference.current);
-        if (top === null) return;
-        const isCatchUp =
-            Math.abs(top - element.scrollTop) >= 1 &&
-            isAgentChatCatchUpScroll({
-                from: element.scrollTop,
-                hasMoved: hasMovedReference.current,
-                to: top,
-                viewHeight: element.clientHeight,
-            });
-        if (isCatchUp) scrollWithoutScrollbarFlash(element, top);
-        else element.scrollTop = top;
-        if (element.scrollTop > 0) hasMovedReference.current = true;
-        lastScrollTopReference.current = element.scrollTop;
-    }, [isTurnLive, turnSelector]);
+        },
+        [isTurnLive, turnSelector],
+    );
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
@@ -322,8 +334,8 @@ export function useAgentChatScroll(
         const view = scrollReference.current;
         if (!content || !view) return;
         // A reply growing past the view's bottom, or the view shrinking, moves the latest entry out of sight.
-        const observer = new ResizeObserver(() => {
-            pin();
+        const observer = new ResizeObserver((entries) => {
+            pin(entries.every((entry) => entry.target === view));
             syncLatestInView();
         });
         observer.observe(content);
