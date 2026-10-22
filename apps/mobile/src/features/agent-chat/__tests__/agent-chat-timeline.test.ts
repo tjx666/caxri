@@ -4,10 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatChangeColor,
     agentChatChangeRows,
-    agentChatRunningTurnIds,
     agentChatTurnTone,
     buildAgentChatTimeline,
-    holdEndedTurnsOpen,
     isAgentChatTurnStart,
     toggleAgentChatExpansion,
     withAgentChatAwaitingReply,
@@ -211,6 +209,66 @@ describe('buildAgentChatTimeline', () => {
                 new Set(['t2']),
             ).map((entry) => entry.id),
         ).toEqual(['u-t1', 'turn:t1', 'a-t1', 'u-t2', 'turn:t2', 'work:c-t2', 'a-t2']);
+    });
+
+    it('says how a steered turn stopped under its last segment when that segment folded nothing', () => {
+        const entries = buildAgentChatTimeline({
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Go', createdAt: 0 },
+                command('c1', 'completed'),
+                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'One', streaming: false },
+                { id: 'u2', turnId: 't1', type: 'userMessage', text: 'Also', createdAt: 60_000 },
+                { id: 'a2', turnId: 't1', type: 'agentMessage', text: 'Two', streaming: false },
+            ],
+            turns: [{ id: 't1', status: 'interrupted', startedAt: 0, durationMs: 90_000 }],
+        });
+        expect(entries.map((entry) => entry.id)).toEqual([
+            'u1',
+            'turn:t1',
+            'a1',
+            'u2',
+            'turn:t1:1',
+            'a2',
+        ]);
+        expect(entries[1]).toMatchObject({ label: 'Worked for 1m', status: 'completed' });
+        expect(entries[4]).toMatchObject({ label: 'Stopped after 30s', status: 'interrupted' });
+        expect(entries[4]).not.toHaveProperty('fold');
+    });
+
+    it('folds a steered turn per segment, each timed and expanded on its own', () => {
+        const timeline: Timeline = {
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Go', createdAt: 0 },
+                command('c1', 'completed'),
+                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'One', streaming: false },
+                { id: 'u2', turnId: 't1', type: 'userMessage', text: 'Also', createdAt: 60_000 },
+                command('c2', 'completed'),
+                { id: 'a2', turnId: 't1', type: 'agentMessage', text: 'Two', streaming: false },
+            ],
+            turns: [{ id: 't1', status: 'interrupted', startedAt: 0, durationMs: 90_000 }],
+        };
+        const entries = buildAgentChatTimeline(timeline);
+        expect(entries.map((entry) => entry.id)).toEqual([
+            'u1',
+            'turn:t1',
+            'a1',
+            'u2',
+            'turn:t1:1',
+            'a2',
+        ]);
+        expect(entries[1]).toMatchObject({
+            label: 'Worked for 1m',
+            status: 'completed',
+            foldKey: 't1',
+        });
+        expect(entries[4]).toMatchObject({
+            label: 'Stopped after 30s',
+            status: 'interrupted',
+            foldKey: 't1:1',
+        });
+        expect(
+            buildAgentChatTimeline(timeline, new Set(['t1:1'])).map((entry) => entry.id),
+        ).toEqual(['u1', 'turn:t1', 'a1', 'u2', 'turn:t1:1', 'work:c2', 'a2']);
     });
 
     it('keeps provider feedback severity, source, and complete details in dedicated cards', () => {
@@ -469,40 +527,6 @@ describe('withAgentChatAwaitingReply', () => {
                 requests: [{ id: 'r1' } as never],
             }),
         ).toBe(entries);
-    });
-});
-
-describe('holdEndedTurnsOpen', () => {
-    const turn = (status: 'completed' | 'running') => ({
-        id: 't1',
-        status,
-        startedAt: 1,
-    });
-    const running = { activeTurnId: 't1', turns: [turn('running')] } as Parameters<
-        typeof agentChatRunningTurnIds
-    >[0];
-    const ended = { activeTurnId: undefined, turns: [turn('completed')] } as typeof running;
-    const none = new Set<string>();
-
-    it('lists the active and running turns', () => {
-        expect([...agentChatRunningTurnIds(running)]).toEqual(['t1']);
-        expect([...agentChatRunningTurnIds(ended)]).toEqual([]);
-    });
-
-    it('keeps a turn open that ends under a reader who is not following', () => {
-        const held = holdEndedTurnsOpen(none, new Set(['t1']), ended, false);
-        expect(held.has('t1')).toBe(true);
-        // The fold row then draws expanded.
-        expect(held).not.toBe(none);
-    });
-
-    it('folds the turn as usual for a reader following the end', () => {
-        expect(holdEndedTurnsOpen(none, new Set(['t1']), ended, true)).toBe(none);
-    });
-
-    it('does nothing while the turn still runs or when it was not running before', () => {
-        expect(holdEndedTurnsOpen(none, new Set(['t1']), running, false)).toBe(none);
-        expect(holdEndedTurnsOpen(none, none, ended, false)).toBe(none);
     });
 });
 

@@ -107,6 +107,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Side pane minimum width**: A 360px minimum for the pane beside the Chat, as for its right panel. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`.
 - **Long paste saved as a file**: 32 KiB threshold. Evidence: `docs/agent-chat.md`; `packages/protocol/src/agent/agent-chat-contract.ts`.
 - **Turn review, folding, work log**: Turn review and folding (with the Codex app). Evidence: `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/desktop/src/renderer/src/features/agent-chat/turns/agent-chat-turn-review-tab.tsx`.
+- **Steered message fold segments**: Each message steered into a running turn starts its own fold and keeps its own last reply visible, timed per segment. Evidence: `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/mobile/src/features/agent-chat/agent-chat-timeline.ts`.
 - **Mobile foreground recovery**: Probe or reconnect on return to foreground. Evidence: `docs/mobile/design.md`.
 - **Streaming Markdown tests**: Prefix-equality tests. Evidence: `chat-markdown-rendering.md`.
 - **Background wait status**: Background shells never hold a turn's completion. Evidence: `docs/activity-view.md`.

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatItem } from '../agent-chat-contract';
-import { agentChatFinalReplyId, foldAgentChatTurn } from '../agent-chat-turn-fold';
+import {
+    agentChatFinalReplyId,
+    agentChatFoldTiming,
+    foldAgentChatTurn,
+} from '../agent-chat-turn-fold';
 
 const user: AgentChatItem = { id: 'u1', type: 'userMessage', text: 'Fix it' };
 const reasoning: AgentChatItem = { id: 'r1', type: 'reasoning', text: 'Looking', streaming: false };
@@ -62,5 +66,68 @@ describe('foldAgentChatTurn', () => {
 
     it('keeps everything when there is nothing to fold', () => {
         expect(shape(foldAgentChatTurn([user, reply], 'a2'))).toEqual(['u1', 'a2']);
+    });
+
+    it('splits the fold at each steered message so every steer keeps its own reply in view', () => {
+        const steer: AgentChatItem = {
+            id: 'u2',
+            type: 'userMessage',
+            text: 'Is it deployed?',
+            delivery: 'steered',
+        };
+        const steerReply: AgentChatItem = {
+            id: 'a3',
+            type: 'agentMessage',
+            text: 'Not yet.',
+            streaming: false,
+        };
+        const wait: AgentChatItem = { ...command, id: 'c2' };
+        const items = [user, reasoning, commentary, steer, steerReply, wait, reply];
+
+        expect(shape(foldAgentChatTurn(items, 'a2'))).toEqual([
+            'u1',
+            'fold(r1)',
+            'a1',
+            'u2',
+            'fold(a3,c2)',
+            'a2',
+        ]);
+    });
+});
+
+describe('agentChatFoldTiming', () => {
+    const turn = { startedAt: 1_000, durationMs: 9_000 };
+    const steer: AgentChatItem = {
+        id: 'u2',
+        type: 'userMessage',
+        text: 'Is it deployed?',
+        delivery: 'steered',
+        createdAt: 4_000,
+    };
+    const folds = (items: readonly AgentChatItem[]) =>
+        foldAgentChatTurn(items, 'a2').flatMap((part) =>
+            part.kind === 'fold' ? [agentChatFoldTiming(part.segment, turn)] : [],
+        );
+
+    it("keeps the turn's own timing when nobody steered it", () => {
+        expect(folds([user, command, reply])).toEqual([
+            { durationMs: 9_000, startedAt: 1_000, endedAt: 10_000 },
+        ]);
+    });
+
+    it('times each steered segment from its steer to the next, bounded by the turn', () => {
+        expect(folds([user, command, commentary, steer, { ...command, id: 'c2' }, reply])).toEqual([
+            { durationMs: 3_000, startedAt: 1_000, endedAt: 4_000 },
+            { durationMs: 6_000, startedAt: 4_000, endedAt: 10_000 },
+        ]);
+    });
+
+    it('leaves the duration unknown when a steer carries no arrival time', () => {
+        const untimed: AgentChatItem = { ...steer };
+        delete untimed.createdAt;
+        expect(folds([user, command, untimed, { ...command, id: 'c2' }, reply])).toEqual([
+            { startedAt: 1_000 },
+            { endedAt: 10_000 },
+        ]);
     });
 });

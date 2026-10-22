@@ -857,7 +857,10 @@ several callbacks can share one item, so the transport id is never the key.
   and the phrases already there when a Chat opens, stay still (`agentChatWorkSummaryPhrases`).
   Once a turn ends its work and commentary fold behind `Worked for X`
   (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
-  a transient retry in view. A retry reads as a `--warning` row whose icon and words name the cause
+  a transient retry in view. A message steered into the running turn starts a new segment there:
+  each segment folds its own work behind a row timed from its first item to the next segment's, and
+  keeps its own last reply in view, so every steered message stays above the answer it got. Only the
+  closing segment's row carries the turn's outcome; a stopped turn whose closing segment folded nothing still gets that row before its reply. A retry reads as a `--warning` row whose icon and words name the cause
   from a closed set (`retry.cause`: a lost connection shows Wi-Fi off, then rate limit, overload,
   server error, other) with the attempt against the provider's limit (`Connection lost, retrying
 (2/10)`), and the provider's detail muted beneath. Claude Code's `api_retry` gives the cause through
@@ -1087,7 +1090,7 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   no artifacts rather than an incomplete summary. The phone folds a finished turn as Desktop does
   (`foldAgentChatTurn`): its work and commentary sit behind a `Worked for X`, `Failed after X`, or
   `Stopped after X` row (`agentChatTurnLabel`) that a tap expands, and a turn with nothing to fold
-  keeps the row, without a chevron, before its reply. The Chat view holds the expanded turn ids,
+  keeps the row, without a chevron, before its reply. A steered turn folds per segment there too. The Chat view holds the expanded fold keys (the turn id, suffixed by the segment index after the first),
   not the rows, so FlashList recycling never moves one turn's state onto another. The window keeps `plan`, so the phone docks a
   one-row plan card above its composer (Desktop shows the same plan in its composer status row's
   plan popover instead) (`agentChatDockedPlan`: the latest plan

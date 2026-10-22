@@ -42,12 +42,12 @@
  * id, as a resumed thread reads after Server Core restarted and no longer holds the thumbnails, and
  * `thread/compact/start` runs a compaction turn that stays in progress briefly and cannot be steered. `turn/steer`
  * echoes the steered message into the running turn; a steered message containing `late` ends the turn first, so the
- * steer loses that race, and one containing `refuse` is rejected outright. A started or steered message containing
- * `stall` is recorded at once but answered only after {@link STALL_MS}, as a loaded Codex answers past Caxri's request
- * timeout; one containing `lost` is never answered nor recorded. `thread/turns/list` returns the newest turns with
- * their items, and `thread/items/list` the newest items with when each started. `model/list` offers two models, and a
- * `turn/start` that names a model, effort, or service tier saves it on the thread, as Codex does, so a resumed thread
- * reports the last choice.
+ * steer loses that race, one containing `refuse` is rejected outright, and one containing `answer` gets its own command
+ * and reply inside the running turn. A started or steered message containing `stall` is recorded at once but answered
+ * only after {@link STALL_MS}, as a loaded Codex answers past Caxri's request timeout; one containing `lost` is never
+ * answered nor recorded. `thread/turns/list` returns the newest turns with their items, and `thread/items/list` the
+ * newest items with when each started. `model/list` offers two models, and a `turn/start` that names a model, effort,
+ * or service tier saves it on the thread, as Codex does, so a resumed thread reports the last choice.
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
@@ -103,6 +103,7 @@ import {
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
 import { runSlow } from './fake-codex-slow.ts';
+import { answerSteeredMessage } from './fake-codex-steer.ts';
 import {
     didHandleTaskRequest,
     dropTerminalsSilently,
@@ -554,6 +555,7 @@ function handle(message: RpcMessage) {
             startItem(turn, user);
             completeItem(turn, user);
             wakeFakeWait();
+            if (text.includes('answer')) answerSteeredMessage(io, turn, text);
             return;
         }
         case 'thread/items/list': {
