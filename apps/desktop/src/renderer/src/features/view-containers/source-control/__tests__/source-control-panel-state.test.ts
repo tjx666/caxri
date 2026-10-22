@@ -1,3 +1,4 @@
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -89,9 +90,10 @@ describe('resolveSourceControlPanelState', () => {
         ).toBe('unavailable');
     });
 
-    it('recognizes only GENERATION_EXPIRED as superseded', () => {
-        expect(isSupersededSnapshotError({ code: 'GENERATION_EXPIRED' })).toBe(true);
-        expect(isSupersededSnapshotError({ code: 'PROVIDER_FAILED' })).toBe(false);
+    it('recognizes only the wire CANCELLED a retired read answers with as superseded', () => {
+        expect(isSupersededSnapshotError(new CaxriError('CANCELLED', 'superseded'))).toBe(true);
+        expect(isSupersededSnapshotError(new CaxriError('GIT', 'git failed'))).toBe(false);
+        expect(isSupersededSnapshotError({ code: 'GENERATION_EXPIRED' })).toBe(false);
         expect(isSupersededSnapshotError(null)).toBe(false);
     });
 
