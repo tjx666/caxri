@@ -19,6 +19,10 @@ export interface PlatformCheckDefinition {
     id: PlatformNeutralCIGateId;
     label: string;
     receiptCommand: string;
+    /**
+     * The gate cannot run on a Linux runner; see {@link MACOS_ONLY_CI_GATE_IDS}.
+     */
+    requiresMacOS?: true;
 }
 
 export interface PlatformCheckCommand {
@@ -40,6 +44,7 @@ export interface PlatformCheckOptions {
 interface DirectGateSpec {
     id: PlatformNeutralCIGateId;
     label: string;
+    requiresMacOS?: true;
     script: string;
 }
 
@@ -59,12 +64,18 @@ const metricArguments = (label: string, command: string[]): string[] => [
     ...command,
 ];
 
-const directGate = ({ id, label, script }: DirectGateSpec): PlatformCheckDefinition => ({
+const directGate = ({
+    id,
+    label,
+    requiresMacOS,
+    script,
+}: DirectGateSpec): PlatformCheckDefinition => ({
     arguments: () => ['run', script],
     command: 'bun',
     id,
     label,
     receiptCommand: `bun run ${script}`,
+    ...(requiresMacOS && { requiresMacOS }),
 });
 
 const metricGate = ({
@@ -74,6 +85,7 @@ const metricGate = ({
     metricLabel,
     receiptLabel,
     receiptMode = 'metric',
+    requiresMacOS,
     script,
 }: MetricGateSpec): PlatformCheckDefinition => ({
     arguments: (environment) =>
@@ -90,6 +102,7 @@ const metricGate = ({
         receiptMode === 'direct'
             ? `bun run ${script}`
             : `bun run scripts/ci-metrics.ts --label "${receiptLabel}" -- bun run ${script}`,
+    ...(requiresMacOS && { requiresMacOS }),
 });
 
 /**
@@ -169,6 +182,7 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
         },
         receiptLabel:
             'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
+        requiresMacOS: true,
         script: 'test',
     }),
     metricGate({
@@ -176,6 +190,7 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
         label: 'bundle budget',
         metricLabel: () => 'Bundle budget gate',
         receiptLabel: 'Bundle budget gate',
+        requiresMacOS: true,
         script: 'scripts/ci-bundle-budget.ts',
     }),
 ] as const satisfies readonly PlatformCheckDefinition[];
@@ -183,6 +198,41 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
 export const PLATFORM_NEUTRAL_CI_COMMANDS: readonly string[] = Object.freeze(
     PLATFORM_NEUTRAL_CI_GATES.map(({ receiptCommand }) => receiptCommand),
 );
+
+/**
+ * Gates that need the darwin `node-pty` layout or an `electron-builder --mac` package. The Linux full-scope `checks`
+ * job must skip each of them; a Linux run that selects one fails before spending time on the other gates.
+ */
+export const MACOS_ONLY_CI_GATE_IDS: readonly PlatformNeutralCIGateId[] = Object.freeze(
+    PLATFORM_NEUTRAL_CI_GATES.filter((gate) => 'requiresMacOS' in gate).map(({ id }) => id),
+);
+
+/**
+ * Hosted CI runs these gates in their own jobs beside the remaining platform checks.
+ */
+export const SKIP_GATE_ARGUMENTS: Readonly<Record<string, PlatformNeutralCIGateId>> = {
+    '--skip-bundle-budget': 'bundle-budget',
+    '--skip-eslint': 'eslint',
+    '--skip-vitest': 'vitest',
+};
+
+/**
+ * Rejects a selection that would run a macOS-only gate on another platform.
+ */
+export function assertGatesRunOnPlatform(
+    gateIds: ReadonlyArray<PlatformCheckCommand['id']>,
+    platform: NodeJS.Platform,
+): void {
+    if (platform === 'darwin') return;
+    const unsupported = gateIds.filter((id) =>
+        (MACOS_ONLY_CI_GATE_IDS as readonly string[]).includes(id),
+    );
+    if (unsupported.length > 0)
+        throw new Error(
+            `These CI gates require macOS and cannot run on ${platform}: ${unsupported.join(', ')}. ` +
+                `Skip them with ${Object.keys(SKIP_GATE_ARGUMENTS).join(', ')} and run them in a macOS job.`,
+        );
+}
 
 export function platformCheckCommands(
     environment: NodeJS.ProcessEnv,

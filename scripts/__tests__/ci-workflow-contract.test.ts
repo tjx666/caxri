@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import { MACOS_ONLY_CI_GATE_IDS, SKIP_GATE_ARGUMENTS } from '../ci-platform-gates';
+
 const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const performanceTrendWorkflow = await readFile(
     new URL('../../.github/workflows/performance-trend.yml', import.meta.url),
@@ -232,6 +234,22 @@ describe('CI workflow contract', () => {
             expect(lint.if).toContain(condition);
             expect(unit.jobs.checks.if).toContain(condition);
         }
+    });
+
+    it('skips every macOS-only gate in the Linux full-scope platform checks', () => {
+        const document = parse(workflow) as {
+            jobs: { checks: { steps: Array<{ name?: string; run?: string }> } };
+        };
+        const run = document.jobs.checks.steps.find(
+            (step) => step.name === 'Run full platform checks',
+        )?.run;
+        const skipped = (run ?? '')
+            .split(/\s+/u)
+            .flatMap((argument) =>
+                Object.hasOwn(SKIP_GATE_ARGUMENTS, argument) ? [SKIP_GATE_ARGUMENTS[argument]] : [],
+            );
+        expect(MACOS_ONLY_CI_GATE_IDS.length).toBeGreaterThan(0);
+        for (const id of MACOS_ONLY_CI_GATE_IDS) expect(skipped).toContain(id);
     });
 
     it('keeps the stable gate aware of every explicit route', () => {
