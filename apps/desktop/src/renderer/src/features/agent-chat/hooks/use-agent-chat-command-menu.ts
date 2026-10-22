@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
+import type { AgentAction, AgentChatCommand, AgentProvider } from '@caxri/protocol';
 import {
     agentChatDraftMatches,
     agentChatMenuActions,
@@ -23,6 +23,14 @@ import { agentChatCommandMenuKeyStep } from '../transcript/agent-chat-presentati
  * re-reads the skill folders the way the picker does on open.
  */
 export const AGENT_ACTION_DISCOVERY_STALE_MS = 30_000;
+
+/**
+ * The provider's recently used invocations, most recent first (`AgentActionsSettings.recent`).
+ */
+function useProviderRecentInvocations(provider: AgentProvider | undefined): readonly string[] {
+    const settings = useSettings();
+    return (provider && settings?.['agents.providers'][provider].actions.recent.invocations) ?? [];
+}
 
 /**
  * Suggestion state for a draft that is a bare `/name` or `$name`. The list stays open with a `No matching command or
@@ -51,10 +59,7 @@ export function useAgentChatCommandMenu({
     // Discovery answers only for a running Agent, the same gate as the picker.
     const terminal = useTerminal(terminalId);
     const isAgentRunning = isAgentProcessRunning(terminal?.lastAgentProcessState);
-    const settings = useSettings();
-    const recent = terminal?.provider
-        ? settings?.['agents.providers'][terminal.provider].actions.recent.invocations
-        : undefined;
+    const recent = useProviderRecentInvocations(terminal?.provider);
     const discovery = useCaxriQuery(
         'agentActions.list',
         { terminalId },
@@ -86,7 +91,7 @@ export function useAgentChatCommandMenu({
      */
     const [active, setActive] = useState({ query, index: 0 });
     const matches = agentChatDraftMatches(actions, draft, recent);
-    const recentCount = agentChatRecentMenuActions(actions, draft, recent ?? []).length;
+    const recentCount = agentChatRecentMenuActions(actions, draft, recent).length;
     const isOpen = query !== undefined && dismissedDraft !== draft && isInputFocused;
     const activeIndex =
         active.query === query ? Math.min(active.index, Math.max(matches.length - 1, 0)) : 0;

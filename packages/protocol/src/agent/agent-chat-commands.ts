@@ -136,8 +136,8 @@ export function agentChatDraftMatches(
     const query = agentChatSlashQuery(draft);
     if (query === undefined) return [];
     const leading = agentChatRecentMenuActions(actions, draft, recent);
-    const rest =
-        leading.length === 0 ? actions : actions.filter((action) => !leading.includes(action));
+    const leadingSet = new Set(leading);
+    const rest = actions.filter((action) => !leadingSet.has(action));
     return [...leading, ...filterAgentChatActions(rest, query, draft.startsWith('$') ? '$' : '/')];
 }
 
