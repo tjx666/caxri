@@ -1297,7 +1297,8 @@ stays only while something still needs the user, leading with it instead of the 
 task inline with its Stop, `N background tasks running`, unseen failures in `--danger`, or `Plan
 stopped at 2/5` with the current step. A failure counts as seen once the user opened the task list
 and closed the popover; opening the plan does not clear it, and only failures that ended during the
-latest turn count. The row unfolds and folds rather than popping, badges pop in and out, numbers
+latest turn count. The row unfolds and folds rather than popping, and the strip's frame fades in
+with its first row instead of drawing ahead of it; badges pop in and out, numbers
 roll, and all of it honors reduced motion. References: the Codex app's and Mux's compact turn
 summaries, Warp's and VS Code's one-line agent status. While the provider pursues a goal, a goal row leads the strip, after the Codex
 app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
