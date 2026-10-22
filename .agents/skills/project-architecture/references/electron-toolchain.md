@@ -87,6 +87,8 @@ cutoff.
 
 The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Host, Preload, and Runtime remain on their existing Node-oriented transforms.
 
+The compiler skips any component or hook it cannot lower (`try` without `catch`, `try`/`finally`, `??=`, a `throw` inside `try`, an ESLint suppression of a React rule) without a build error, so the skipped code silently loses memoization. `scripts/__tests__/react-compiler-coverage.test.ts` compiles every Renderer source with `scripts/react-compiler-options.ts`, the options the build also reads, and runs in the `guards` job. It fails on a bailout missing from `scripts/react-compiler-known-bailouts.ts` and on a ledger entry that now compiles, so the ledger only shrinks. Rewrite new code so it compiles, for example settle a promise with `.then(cleanup, cleanup)` instead of `try`/`finally`; do not add a ledger entry.
+
 Desktop Main, Preload, Renderer, and the embedded macOS Server share the strict
 `CAXRI_SOURCE_MAPS=include|omit` build flavor. An absent variable defaults to `include`; any other
 explicit value fails the build. Ordinary builds and the canonical macOS DMG include Source Maps.
