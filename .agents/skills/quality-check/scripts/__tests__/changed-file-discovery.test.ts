@@ -148,3 +148,22 @@ describe('design-prototype runtime contract selection', () => {
         ).resolves.not.toContain(contract);
     });
 });
+
+describe('GitHub config reader test selection', () => {
+    it('selects tests that read a changed workflow or composite action as text', async () => {
+        const workflowReaders = await selectedTestCandidates(process.cwd(), [
+            '.github/workflows/ci.yml',
+        ]);
+        expect(workflowReaders).toContain(
+            '.agents/skills/go/scripts/__tests__/ci-fallback.test.ts',
+        );
+        expect(workflowReaders).toContain('scripts/__tests__/ci-workflow-contract.test.ts');
+
+        await expect(
+            selectedTestCandidates(process.cwd(), ['.github/actions/setup-caxri-job/action.yml']),
+        ).resolves.toContain('scripts/__tests__/release-workflow-contract.test.ts');
+        await expect(
+            selectedTestCandidates(process.cwd(), ['apps/server/src/core/core-methods.ts']),
+        ).resolves.not.toContain('scripts/__tests__/ci-workflow-contract.test.ts');
+    });
+});
