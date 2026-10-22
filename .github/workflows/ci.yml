@@ -139,16 +139,26 @@ jobs:
         needs.retry-policy.outputs.checks_scope != 'full' ||
         needs.retry-policy.outputs.e2e_profile != 'optimized'
       )
-    runs-on: macos-15
+    # Every full-scope gate left here is platform-neutral (Vitest and ESLint run in their own jobs), so the full scope
+    # uses a Linux runner and leaves the account's macOS concurrency to the unit shards. The focused scopes may run
+    # tests that load native modules, so they stay on macOS.
+    runs-on: ${{ needs.retry-policy.outputs.checks_scope == 'full' && 'ubuntu-latest' || 'macos-15' }}
     env:
       CAXRI_EXPECTED_HEAD: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
     steps:
       - name: Verify hosted runner boundary before checkout
+        env:
+          CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
         run: |
           test "$RUNNER_ENVIRONMENT" = github-hosted
-          test "$RUNNER_OS" = macOS
-          test "$RUNNER_ARCH" = ARM64
+          if test "$CHECKS_SCOPE" = full; then
+            test "$RUNNER_OS" = Linux
+            test "$RUNNER_ARCH" = X64
+          else
+            test "$RUNNER_OS" = macOS
+            test "$RUNNER_ARCH" = ARM64
+          fi
       - id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -173,9 +183,9 @@ jobs:
         with:
           setup-toolchain: 'true'
           install-dependencies: 'true'
-          install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
-          install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
-          install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
+          install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
+          install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
+          install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
       - name: Run gitleaks
         # Scoped to the commits this push or pull request actually introduced. The full-history scan runs instead,
         # inside "Run full platform checks", whenever this job handles the 'full' scope.
@@ -274,7 +284,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1/2, 2/2]
+        shard: [1/3, 2/3, 3/3]
     runs-on: macos-15
     env:
       CAXRI_EXPECTED_HEAD: ${{ github.sha }}

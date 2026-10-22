@@ -41,7 +41,9 @@ describe('CI workflow contract', () => {
         expect(workflow).not.toContain('schedule:');
         expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
         expect(document.jobs['retry-policy']['runs-on']).toBe('ubuntu-latest');
-        expect(document.jobs.checks['runs-on']).toBe('macos-15');
+        expect(document.jobs.checks['runs-on']).toBe(
+            "${{ needs.retry-policy.outputs.checks_scope == 'full' && 'ubuntu-latest' || 'macos-15' }}",
+        );
         expect(document.jobs.unit['runs-on']).toBe('macos-15');
         expect(document.jobs.lint['runs-on']).toBe('ubuntu-latest');
         expect(document.jobs.ci['runs-on']).toBe('ubuntu-latest');
@@ -104,7 +106,7 @@ describe('CI workflow contract', () => {
         const lint = workflow.match(/\n {2}lint:\n([\s\S]*?)\n {2}unit:/u)?.[1] ?? '';
         const unit = workflow.match(/\n {2}unit:\n([\s\S]*?)\n {2}hosted-smoke:/u)?.[1] ?? '';
 
-        for (const job of [retry, lint]) {
+        for (const job of [retry, checks, lint]) {
             expect(job).toContain('test "$RUNNER_OS" = Linux');
             expect(job).toContain('test "$RUNNER_ARCH" = X64');
         }
@@ -151,7 +153,7 @@ describe('CI workflow contract', () => {
         expect(setupAction).toContain('command -v ffprobe');
         expect(setupAction).toContain('libx264');
         expect(checks).toContain(
-            "install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}",
+            "install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}",
         );
         expect(e2e).toContain("install-media-tools: 'true'");
         expect(checksWorktree).toContain("requiredEnvironment(environment, 'CAXRI_CACHE_ROOT')");
@@ -203,7 +205,7 @@ describe('CI workflow contract', () => {
         };
         const job = unit.jobs.unit;
         expect(job.needs).toBe('retry-policy');
-        expect(job.strategy?.matrix?.shard).toEqual(['1/2', '2/2']);
+        expect(job.strategy?.matrix?.shard).toEqual(['1/3', '2/3', '3/3']);
         expect(job.if).toContain("needs.retry-policy.outputs.checks_scope == 'full'");
         expect(job.if).toContain("needs.retry-policy.outputs.checks_scope == 'affected'");
         const run = job.steps.find((step) => step.run === 'bun run scripts/run-ci-unit-tests.ts');
