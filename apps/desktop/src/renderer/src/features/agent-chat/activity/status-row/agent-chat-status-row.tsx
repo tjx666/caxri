@@ -7,13 +7,13 @@ import { AnimatePresence, useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
 import { Popover, PopoverContent, PopoverTrigger } from '../../../../components/ui/popover';
+import { Spinner } from '../../../../components/ui/spinner';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
-import { AgentChatTaskGlyph } from '../../tasks/agent-chat-task-glyph';
 import { AgentChatTurnMetricList } from '../agent-chat-turn-metric-list';
 import { markAgentChatFailuresSeen } from './agent-chat-seen-failures';
 import { AgentChatStatusDetails } from './agent-chat-status-details';
-import { AgentChatStatusRowLead, FailureDot } from './agent-chat-status-row-lead';
+import { AgentChatStatusRowLead, RunningKindGlyphs } from './agent-chat-status-row-lead';
 import { STATUS_ROW_SPRING, STATUS_ROW_SWAP } from './agent-chat-status-row-motion';
 import type {
     AgentChatStatusRowSection,
@@ -87,17 +87,17 @@ function StatusBadge({
 }
 
 /**
- * The background work badge's glyph and figure: the running tasks' glyph and count (with the failure dot), or a red
- * cross and the unseen failures once nothing runs.
+ * The background work badge's glyphs and figures: a spinner saying the work still runs, then each running kind's glyph
+ * and count (with the failure dot), or a red cross and the unseen failures once nothing runs.
  */
 function TaskBadgeContent({
     badge,
     isShowsFailureDot,
-    running,
+    runningKinds,
 }: {
     badge: NonNullable<AgentChatStatusRowView['taskBadge']>;
     isShowsFailureDot: boolean;
-    running: AgentChatStatusRowView['running'];
+    runningKinds: AgentChatStatusRowView['runningKinds'];
 }) {
     if (badge.running === 0) {
         return (
@@ -109,10 +109,12 @@ function TaskBadgeContent({
     }
     return (
         <>
-            <FailureDot isShown={isShowsFailureDot}>
-                <AgentChatTaskGlyph kind={running[0]?.kind ?? 'agent'} />
-            </FailureDot>
-            {badge.running}
+            <Spinner className="size-3" role="presentation" />
+            <RunningKindGlyphs
+                isCounted
+                isShowsFailureDot={isShowsFailureDot}
+                kinds={runningKinds}
+            />
         </>
     );
 }
@@ -201,7 +203,7 @@ export function AgentChatStatusRow({
                     isShowsFailureDot={isShowsFailureDot}
                     isStopping={isStopping}
                     lead={lead}
-                    running={view.running}
+                    runningKinds={view.runningKinds}
                     terminalId={terminalId}
                     turnId={turnId}
                     onShow={show}
@@ -226,14 +228,14 @@ export function AgentChatStatusRow({
                                 <StatusBadge
                                     isActive={isViewingTasks}
                                     key="tasks"
-                                    label={agentChatTaskBadgeLabel(taskBadge, t)}
+                                    label={agentChatTaskBadgeLabel(taskBadge, view.runningKinds, t)}
                                     pillId={pillId}
                                     onClick={show('tasks')}
                                 >
                                     <TaskBadgeContent
                                         badge={taskBadge}
                                         isShowsFailureDot={isShowsFailureDot}
-                                        running={view.running}
+                                        runningKinds={view.runningKinds}
                                     />
                                 </StatusBadge>
                             )}

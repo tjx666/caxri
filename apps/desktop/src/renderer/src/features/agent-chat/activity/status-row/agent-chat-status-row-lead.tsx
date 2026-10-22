@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 
-import type { AgentChatTask } from '@caxri/protocol';
 import { ChevronRight, CircleX, ListTodo } from 'lucide-react';
 
 import { PopoverTrigger } from '../../../../components/ui/popover';
@@ -12,6 +11,7 @@ import { AgentChatTaskGlyph } from '../../tasks/agent-chat-task-glyph';
 import { agentChatTaskTitle } from '../../tasks/agent-chat-tasks';
 import { AgentChatActivityLead } from './agent-chat-activity-lead';
 import type {
+    AgentChatRunningKind,
     AgentChatStatusRowSection,
     AgentChatStatusRowView,
 } from './agent-chat-status-row-view';
@@ -22,13 +22,41 @@ const LEAD_TRIGGER_CLASS_NAME =
 /**
  * A red dot on a task glyph: a background task failed and the user has not looked at the task list since.
  */
-export function FailureDot({ children, isShown }: { children: ReactNode; isShown: boolean }) {
+function FailureDot({ children, isShown }: { children: ReactNode; isShown: boolean }) {
     return (
         <span className="relative inline-flex shrink-0">
             {children}
             {isShown && (
                 <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-danger ring-1 ring-surface" />
             )}
+        </span>
+    );
+}
+
+/**
+ * One glyph per running task kind (subagents, then background shells), each with its count when `isCounted`, so a shell
+ * running beside a subagent is never hidden behind the first task's glyph. The unseen failure dot sits on the first
+ * glyph.
+ */
+export function RunningKindGlyphs({
+    isCounted,
+    isShowsFailureDot,
+    kinds,
+}: {
+    isCounted: boolean;
+    isShowsFailureDot: boolean;
+    kinds: readonly AgentChatRunningKind[];
+}) {
+    return (
+        <span className="inline-flex shrink-0 items-center gap-1.5">
+            {kinds.map(({ kind, count }, index) => (
+                <span className="inline-flex items-center gap-0.5" data-task-kind={kind} key={kind}>
+                    <FailureDot isShown={isShowsFailureDot && index === 0}>
+                        <AgentChatTaskGlyph kind={kind} />
+                    </FailureDot>
+                    {isCounted && count}
+                </span>
+            ))}
         </span>
     );
 }
@@ -43,7 +71,7 @@ export function AgentChatStatusRowLead({
     isShowsFailureDot,
     isStopping,
     lead,
-    running,
+    runningKinds,
     terminalId,
     turnId,
     onShow: show,
@@ -52,7 +80,7 @@ export function AgentChatStatusRowLead({
     isShowsFailureDot: boolean;
     isStopping: boolean;
     lead: AgentChatStatusRowView['lead'];
-    running: readonly AgentChatTask[];
+    runningKinds: readonly AgentChatRunningKind[];
     terminalId: string;
     turnId: string | undefined;
     /**
@@ -107,9 +135,11 @@ export function AgentChatStatusRowLead({
                     className={LEAD_TRIGGER_CLASS_NAME}
                     onClick={show('tasks')}
                 >
-                    <FailureDot isShown={isShowsFailureDot}>
-                        <AgentChatTaskGlyph kind={running[0]?.kind ?? 'agent'} />
-                    </FailureDot>
+                    <RunningKindGlyphs
+                        isCounted={runningKinds.length > 1}
+                        isShowsFailureDot={isShowsFailureDot}
+                        kinds={runningKinds}
+                    />
                     <span className="truncate text-foreground">{text}</span>
                     <Spinner className="size-3.5 shrink-0" role="presentation" />
                     <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />

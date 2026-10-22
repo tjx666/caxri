@@ -12,6 +12,7 @@ import { AgentChatTaskEntry } from '../../tasks/agent-chat-task-entry';
 import { AgentChatTaskGlyph } from '../../tasks/agent-chat-task-glyph';
 import { AgentChatPlanSteps } from '../../tools/agent-chat-plan-steps';
 import { agentChatChevronMotion } from '../../transcript/agent-chat-disclosure';
+import { RunningKindGlyphs } from './agent-chat-status-row-lead';
 import { STATUS_ROW_SPRING, STATUS_ROW_SWAP } from './agent-chat-status-row-motion';
 import type {
     AgentChatStatusRowSection,
@@ -75,7 +76,15 @@ function TaskSection({
     return (
         <section aria-label={t('agentChat.tasks.backgroundWork')} className="px-1 py-2">
             <h4 className="m-0 mb-1 flex items-center gap-2 px-2 text-[11px] font-normal text-muted">
-                <AgentChatTaskGlyph kind={running[0]?.kind ?? 'agent'} />
+                {view.runningKinds.length > 0 ? (
+                    <RunningKindGlyphs
+                        isCounted={false}
+                        isShowsFailureDot={false}
+                        kinds={view.runningKinds}
+                    />
+                ) : (
+                    <AgentChatTaskGlyph kind="agent" />
+                )}
                 <span className="min-w-0 flex-1 truncate">
                     {t('agentChat.tasks.backgroundWork')}
                 </span>
