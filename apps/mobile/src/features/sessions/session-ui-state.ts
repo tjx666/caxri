@@ -217,14 +217,20 @@ export const rememberSessionSegment = (
     segmentBySession: { ...state.segmentBySession, [sessionId]: segment },
 });
 
+/**
+ * Keeps `draftBySession` in recency order, newest last, and drops an emptied draft, so the saved copy can keep the
+ * newest drafts by position alone.
+ */
 export const rememberSessionDraft = (
     state: HostSessionUiState,
     sessionId: string,
     draft: string,
-): HostSessionUiState => ({
-    ...state,
-    draftBySession: { ...state.draftBySession, [sessionId]: draft },
-});
+): HostSessionUiState => {
+    const draftBySession = { ...state.draftBySession };
+    delete draftBySession[sessionId];
+    if (draft !== '') draftBySession[sessionId] = draft;
+    return { ...state, draftBySession };
+};
 
 export const selectSessionProject = (
     state: HostSessionUiState,

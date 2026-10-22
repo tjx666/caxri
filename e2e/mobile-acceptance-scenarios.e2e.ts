@@ -117,7 +117,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
         await executeMobileUiAuditScenario(environment, artifacts);
         return;
     }
-
     switch (environment.caseId) {
         case 'MOB-SESSION-PUSH-01':
             test.setTimeout(300_000);
@@ -126,6 +125,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-PAIR-CANCEL-01':
         case 'MOB-RENDER-01':
         case 'MOB-STORAGE-01':
+        case 'MOB-STORAGE-02':
             await executeMobileRecoveryScenario({ ...environment, remoteVideoPath }, artifacts);
             break;
         case 'MOB-ATTN-01':
