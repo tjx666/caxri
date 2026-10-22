@@ -147,9 +147,11 @@ describe('Go local CI fallback', () => {
             'actions/checkout',
             './.github/actions/verify-trust-boundary',
             './.github/actions/setup-caxri-job',
+            'actions/cache',
         ]);
+        // Hosted Vitest runs in the sharded `unit` job; the local fallback keeps it inside the platform checks.
         expect(commands).toEqual([
-            'bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation',
+            'bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation --skip-vitest',
         ]);
         expect(PLATFORM_NEUTRAL_CI_COMMANDS).toContain('bun run doctor:changed');
         expect(workflow).toContain(
