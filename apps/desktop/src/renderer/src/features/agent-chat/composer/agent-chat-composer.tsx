@@ -41,11 +41,7 @@ import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { agentChatEnterQueuedId, agentChatNextQueuedId } from './agent-chat-queue';
 import type { agentChatSendBlock } from './send/agent-chat-send-tooltip';
-import {
-    agentChatSendTooltip,
-    agentChatSendTooltipKeys,
-    agentChatSendTooltipShortcut,
-} from './send/agent-chat-send-tooltip';
+import { agentChatSendLabels } from './send/agent-chat-send-tooltip';
 import { agentChatSubmitterDelivery } from './send/agent-chat-submitter-delivery';
 
 /**
@@ -330,9 +326,7 @@ export function AgentChatComposer({
         isPreparingReference: sessionMenu.isPreparing,
         isSending,
     };
-    const sendTooltip = agentChatSendTooltip(sendAction, sendState, t);
-    const sendShortcut = agentChatSendTooltipShortcut(sendAction, sendState);
-    const sendKeys = agentChatSendTooltipKeys(sendAction, sendState);
+    const { sendKeys, sendShortcut, sendTooltip } = agentChatSendLabels(sendAction, sendState, t);
     const composerKeys = useAgentChatComposerEnter({
         cancelEdit: edit.cancel,
         clearAttachments: () => images.clearSent(images.attachments),
@@ -472,17 +466,9 @@ export function AgentChatComposer({
                         onGoal={goalMode.enter}
                         onTurnOffGoalMode={goalMode.isOn ? goalMode.exit : undefined}
                         onReferenceSession={sessionMenu.reference}
-                        onPick={(files) => {
-                            fileInput.pick(files);
-                            focusInput();
-                        }}
-                        onPickPaths={
-                            fileInput.pickPaths &&
-                            (() => {
-                                // eslint-disable-next-line no-void -- pickAgentChatPaths reports its own failures through tryCommand
-                                void fileInput.pickPaths?.().then(focusInput);
-                            })
-                        }
+                        onPick={fileInput.pick}
+                        onPickPaths={fileInput.pickPaths}
+                        onPicked={focusInput}
                         onStop={stopAndFocus}
                         sendAction={sendAction}
                         sendKeys={sendKeys}

@@ -121,26 +121,42 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         let isDisposed = false;
         let browserId: string | undefined;
         const startingInputRevision = inputRevision.current;
-        const startBrowser = async (): Promise<void> => {
+        /**
+         * The request settles into a value and the state updates run in a plain callback, so no `finally` (which React
+         * Compiler cannot lower) and no state update follows an `await` in this effect.
+         */
+        const startBrowser = async (): Promise<
+            { result: PathBrowserSnapshot } | { failure: unknown }
+        > => {
             try {
-                const result = await startPathBrowser({ sessionId });
-                browserId = result.browserId;
-                if (isDisposed) {
-                    runPathBrowserDetached(closePathBrowserSession({ browserId }));
-                } else {
-                    setSnapshot(result);
-                    if (inputRevision.current === startingInputRevision)
-                        setInputState({ input: result.input, mode: result.mode });
-                    setError(undefined);
-                }
+                return { result: await startPathBrowser({ sessionId }) };
             } catch (error_) {
-                if (!isDisposed)
-                    setError(toBrowserError(error_, translate('pathBrowser.errors.browseFailed')));
+                return { failure: error_ };
             }
-            // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
-            if (!isDisposed) setIsStarting(false);
         };
-        runPathBrowserDetached(startBrowser());
+        const applyStart = (outcome: Awaited<ReturnType<typeof startBrowser>>): void => {
+            // `browserId` is recorded here, not when the request settles, so the cleanup and this callback never both close it.
+            if ('result' in outcome) browserId = outcome.result.browserId;
+            if (isDisposed) {
+                if (browserId) runPathBrowserDetached(closePathBrowserSession({ browserId }));
+                return;
+            }
+            if ('result' in outcome) {
+                setSnapshot(outcome.result);
+                if (inputRevision.current === startingInputRevision)
+                    setInputState({ input: outcome.result.input, mode: outcome.result.mode });
+                setError(undefined);
+            } else {
+                setError(
+                    toBrowserError(outcome.failure, translate('pathBrowser.errors.browseFailed')),
+                );
+            }
+            setIsStarting(false);
+        };
+        const startAndApply = async (): Promise<void> => {
+            applyStart(await startBrowser());
+        };
+        runPathBrowserDetached(startAndApply());
         return () => {
             isDisposed = true;
             requestGeneration.current += 1;

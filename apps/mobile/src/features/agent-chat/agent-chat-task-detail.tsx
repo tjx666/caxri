@@ -234,6 +234,60 @@ const TaskDetailContent = ({
 };
 
 /**
+ * The status line with Stop beside it; pressing Stop swaps the button for `StopConfirmation` below the line.
+ */
+const TaskStatusRow = ({
+    canStop,
+    row,
+    stopper,
+    task,
+    theme,
+}: {
+    canStop: boolean;
+    row: ReturnType<typeof agentChatTaskRow>;
+    stopper: AgentChatTaskStopper;
+    task: AgentChatTask;
+    theme: MobileTheme;
+}) => {
+    const [isConfirmingStop, setConfirmingStop] = useState(false);
+    const isStopping = stopper.isStopping(task);
+    // A task that ended (or a device that lost control) while the question was open leaves nothing to confirm.
+    const showStopConfirmation = isConfirmingStop && canStop && !isStopping;
+    return (
+        <>
+            <View style={styles.facts}>
+                <View accessible style={styles.status}>
+                    <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
+                    <Text style={[styles.factsText, { color: theme.muted }]}>
+                        {row.elapsed ? `${row.statusLabel} · ${row.elapsed}` : row.statusLabel}
+                    </Text>
+                </View>
+                {canStop && !showStopConfirmation ? (
+                    <AgentChatTaskStopButton
+                        isStopping={isStopping}
+                        onPress={() => setConfirmingStop(true)}
+                        theme={theme}
+                        title={row.title}
+                    />
+                ) : null}
+            </View>
+            {showStopConfirmation ? (
+                <StopConfirmation
+                    onCancel={() => setConfirmingStop(false)}
+                    onStop={() => {
+                        setConfirmingStop(false);
+                        // eslint-disable-next-line no-void -- The detail reports a failed stop itself.
+                        void stopper.stop(task.id);
+                    }}
+                    theme={theme}
+                    title={row.title}
+                />
+            ) : null}
+        </>
+    );
+};
+
+/**
  * What one background task did and is doing: its status and elapsed time, Stop, a subagent's type, model, and usage,
  * the command line, the provider's summary, and a shell's output tail or a subagent's transcript, read through
  * `mobile.agentChat.readTask` and kept current while it runs (`useAgentChatTaskDetail`). The Background work sheet and
@@ -259,7 +313,6 @@ export const AgentChatTaskDetailBody = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const [isConfirmingStop, setConfirmingStop] = useState(false);
     const now = useAgentChatTaskClock(task.status === 'running');
     const row = agentChatTaskRow(task, now, t);
     const { detail, isError, isLoading } = useAgentChatTaskDetail(terminalId, task);
@@ -268,43 +321,19 @@ export const AgentChatTaskDetailBody = ({
     const command = isCommandShown
         ? undefined
         : (task.command ?? (row.isCommandTitle ? task.title : undefined));
-    const isStopAvailable = canControl && row.canStop;
-    // A task that ended (or a device that lost control) while the question was open leaves nothing to confirm.
-    const showStopConfirmation = isConfirmingStop && isStopAvailable && !stopper.isStopping(task);
     const facts = [
         task.kind === 'agent' ? agentChatTaskIdentity(task) : undefined,
         agentChatTaskUsageSummary(task, t),
     ].filter(Boolean);
     return (
         <View style={styles.body} testID="agent-chat-task-detail">
-            <View style={styles.facts}>
-                <View accessible style={styles.status}>
-                    <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
-                    <Text style={[styles.factsText, { color: theme.muted }]}>
-                        {row.elapsed ? `${row.statusLabel} · ${row.elapsed}` : row.statusLabel}
-                    </Text>
-                </View>
-                {isStopAvailable && !showStopConfirmation ? (
-                    <AgentChatTaskStopButton
-                        isStopping={stopper.isStopping(task)}
-                        onPress={() => setConfirmingStop(true)}
-                        theme={theme}
-                        title={row.title}
-                    />
-                ) : null}
-            </View>
-            {showStopConfirmation ? (
-                <StopConfirmation
-                    onCancel={() => setConfirmingStop(false)}
-                    onStop={() => {
-                        setConfirmingStop(false);
-                        // eslint-disable-next-line no-void -- The detail reports a failed stop itself.
-                        void stopper.stop(task.id);
-                    }}
-                    theme={theme}
-                    title={row.title}
-                />
-            ) : null}
+            <TaskStatusRow
+                canStop={canControl && row.canStop}
+                row={row}
+                stopper={stopper}
+                task={task}
+                theme={theme}
+            />
             {facts.length > 0 ? (
                 <Text
                     style={[styles.identity, { color: theme.muted }]}

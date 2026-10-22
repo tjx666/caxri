@@ -135,6 +135,45 @@ function SessionPullRequestDetails({
     return <SessionPullRequestLink pullRequest={pullRequest} presentation={presentation} />;
 }
 
+/**
+ * The row's accessible description up to (not including) the last-opened and unread sentences, which the card appends
+ * itself so the live relative-time clock stays out of its render.
+ */
+function sessionCardDescription(
+    t: ReturnType<typeof useTranslation>['t'],
+    parts: {
+        activityLabel: string | undefined;
+        agentLabel: string;
+        changesLabel: string | undefined;
+        inPinnedGroup: boolean | undefined;
+        project: Pick<ProjectRecord, 'displayTitle'>;
+        pullRequestLabel: string | undefined;
+        pullRequestUnavailable: PullRequestUnavailable | undefined;
+        worktreeProject: ProjectRecord | undefined;
+    },
+): string {
+    return [
+        // The pin has no visible mark on the row itself (it is the group the row sits in) and a pinned Session is
+        // listed only there, so this sentence is the only thing that says the row is pinned at all.
+        parts.inPinnedGroup && t('primarySidebar.card.inPinnedGroup'),
+        t('primarySidebar.card.projectSentence', { title: parts.project.displayTitle }),
+        t('primarySidebar.card.agentSentence', { agent: parts.agentLabel }),
+        parts.activityLabel,
+        !parts.pullRequestUnavailable && parts.pullRequestLabel,
+        parts.pullRequestUnavailable &&
+            t('primarySidebar.card.pullRequestUnknown', {
+                hint: parts.pullRequestUnavailable.hint,
+            }),
+        parts.worktreeProject &&
+            t('primarySidebar.card.worktreeSentence', {
+                title: parts.worktreeProject.displayTitle,
+            }),
+        parts.changesLabel,
+    ]
+        .filter(Boolean)
+        .join(' ');
+}
+
 export function SessionActivityCard({
     inPinnedGroup,
     project,
@@ -190,22 +229,16 @@ export function SessionActivityCard({
         : undefined;
     const visible = open && !suppressed;
     const changes = useSessionChanges(session, visible);
-    const accessibleDescription = [
-        // The pin has no visible mark on the row itself (it is the group the row sits in) and a pinned Session is
-        // listed only there, so this sentence is the only thing that says the row is pinned at all.
-        inPinnedGroup && t('primarySidebar.card.inPinnedGroup'),
-        t('primarySidebar.card.projectSentence', { title: project.displayTitle }),
-        t('primarySidebar.card.agentSentence', { agent: agentLabel }),
-        activity.ariaLabel,
-        !pullRequestUnavailable && pullRequestPresentation?.ariaLabel,
-        pullRequestUnavailable &&
-            t('primarySidebar.card.pullRequestUnknown', { hint: pullRequestUnavailable.hint }),
-        worktreeProject &&
-            t('primarySidebar.card.worktreeSentence', { title: worktreeProject.displayTitle }),
-        changes?.ariaLabel,
-    ]
-        .filter(Boolean)
-        .join(' ');
+    const accessibleDescription = sessionCardDescription(t, {
+        agentLabel,
+        activityLabel: activity.ariaLabel,
+        changesLabel: changes?.ariaLabel,
+        inPinnedGroup,
+        project,
+        pullRequestLabel: pullRequestPresentation?.ariaLabel,
+        pullRequestUnavailable,
+        worktreeProject,
+    });
     const unreadSentence = unread ? t('primarySidebar.card.sentence', { text: unread }) : undefined;
 
     useEffect(() => {
