@@ -26,7 +26,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.commands.runHint': '立即运行命令。',
     'chat.commands.sendAsText': '没有这个命令。再次轻点发送，按普通文本发送。',
     'chat.commands.skillHint': '将 Skill 加入消息，以便说明要做什么。',
-    'chat.commands.skills': '技能',
+    'chat.commands.skills': 'Skill',
     'chat.commands.skillsNeedAgent': 'Agent 运行后才会显示 Skill',
     'chat.composer.attachImage': '附加图片',
     'chat.composer.holdToSteerHint': '长按可立即插入 {{provider}} 的当前这一轮。',

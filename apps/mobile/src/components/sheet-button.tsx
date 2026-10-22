@@ -34,8 +34,11 @@ export const SheetButton = ({
     const isInert = isBusy || isDisabled;
     return (
         <Pressable
+            accessibilityLabel={label}
             accessibilityRole="button"
-            accessibilityState={{ busy: isBusy, disabled: isInert }}
+            // `busy` is passed only while true: Android sets the content description to "busy" and never restores the
+            // label once `busy` turns false again, so a failed merge kept announcing "busy".
+            accessibilityState={isBusy ? { busy: true, disabled: true } : { disabled: isDisabled }}
             disabled={isInert}
             onPress={onPress}
             style={({ pressed }) => [
