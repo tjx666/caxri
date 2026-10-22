@@ -52,6 +52,19 @@ export function SshHostConnectionOverlay() {
     return <ConnectionPanel environment={environment} isOverWorkbench={isAttached} />;
 }
 
+/**
+ * Over an attached Workbench the card floats and lets the readable Workbench show around it; before the first attach
+ * the panel fills the window and doubles as its drag region.
+ */
+const FLOATING_PLACEMENT = {
+    card: 'pointer-events-auto rounded-lg border border-border bg-surface p-4 shadow-[0_16px_48px_var(--shadow)]',
+    container: 'pointer-events-none inset-x-0 top-12',
+};
+const FULL_WINDOW_PLACEMENT = {
+    card: '',
+    container: 'inset-0 items-center bg-background [-webkit-app-region:drag]',
+};
+
 function ConnectionPanel({
     environment,
     isOverWorkbench,
@@ -61,7 +74,6 @@ function ConnectionPanel({
 }) {
     const { t } = useTranslation();
     const panelReference = useRef<HTMLDivElement>(null);
-    const percent = installProgressPercent(environment);
     const isBusy = isConnectionBusy(environment.phase);
     const isSettled = isConnectionSettled(environment.phase);
     const isReconnectable = canReconnect(environment);
@@ -69,6 +81,7 @@ function ConnectionPanel({
     const { failure } = environment;
     const resetCommand = hostKeyResetCommand(failure);
     const detail = connectionFailureDetail(failure);
+    const placement = isOverWorkbench ? FLOATING_PLACEMENT : FULL_WINDOW_PLACEMENT;
     /**
      * Pulls focus off the Workbench underneath, where a focused Terminal would otherwise keep taking keystrokes for a
      * Server that cannot receive them. Once the connection gives up, focus moves to the action that resolves it, so a
@@ -89,9 +102,7 @@ function ConnectionPanel({
             aria-modal="true"
             className={cn(
                 'ssh-host-connection-overlay fixed z-40 flex justify-center outline-none',
-                isOverWorkbench
-                    ? 'pointer-events-none inset-x-0 top-12'
-                    : 'inset-0 items-center bg-background [-webkit-app-region:drag]',
+                placement.container,
             )}
             // A native <dialog> would dismiss on Escape; this state cannot be dismissed until the Server attaches.
             // react-doctor-disable-next-line react-doctor/prefer-html-dialog
@@ -101,8 +112,7 @@ function ConnectionPanel({
             <div
                 className={cn(
                     'flex w-[min(440px,calc(100vw-48px))] flex-col gap-3 [-webkit-app-region:no-drag]',
-                    isOverWorkbench &&
-                        'pointer-events-auto rounded-lg border border-border bg-surface p-4 shadow-[0_16px_48px_var(--shadow)]',
+                    placement.card,
                 )}
             >
                 <h1
@@ -122,19 +132,7 @@ function ConnectionPanel({
                     {isBusy && <Spinner className="text-muted" />}
                     {t(phaseLabel.key, phaseLabel.values)}
                 </p>
-                {environment.phase === 'installing' && (
-                    <div className="flex items-center gap-2">
-                        <Progress
-                            aria-label={t('sshHost.progress.label')}
-                            value={percent ?? null}
-                        />
-                        {percent !== undefined && (
-                            <span className="flex-none text-[11px] text-muted tabular-nums">
-                                {t('sshHost.progress.percent', { percent })}
-                            </span>
-                        )}
-                    </div>
-                )}
+                <InstallProgress environment={environment} />
                 {isOverWorkbench && (
                     <p className="m-0 text-[12px] text-muted">{t('sshHost.workbenchPaused')}</p>
                 )}
@@ -182,6 +180,25 @@ function ConnectionPanel({
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+/**
+ * How far the Server install on the SSH Host has come; shown only while installing.
+ */
+function InstallProgress({ environment }: { environment: SshEnvironmentState }) {
+    const { t } = useTranslation();
+    if (environment.phase !== 'installing') return null;
+    const percent = installProgressPercent(environment);
+    return (
+        <div className="flex items-center gap-2">
+            <Progress aria-label={t('sshHost.progress.label')} value={percent ?? null} />
+            {percent !== undefined && (
+                <span className="flex-none text-[11px] text-muted tabular-nums">
+                    {t('sshHost.progress.percent', { percent })}
+                </span>
+            )}
         </div>
     );
 }

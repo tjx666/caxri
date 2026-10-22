@@ -110,9 +110,13 @@ export const createDeviceStore = (options: DeviceStoreOptions) => {
             .filter(({ name }) => retention.isBounded(name))
             // eslint-disable-next-line unicorn/no-array-sort -- The mobile Hermes target does not support ES2023 toSorted.
             .sort((left, right) => right.modifiedAt - left.modifiedAt);
-        for (const { name } of bounded.slice(retention.maxEntries))
-            // eslint-disable-next-line no-await-in-loop -- removals stay ordered with the writes around them
-            await backend.remove(name);
+        // Removals stay ordered with the writes around them.
+        await bounded
+            .slice(retention.maxEntries)
+            .reduce<Promise<void>>(
+                (previous, { name }) => previous.then(() => backend.remove(name)),
+                Promise.resolve(),
+            );
     };
 
     const evictSync = (): unknown => {
