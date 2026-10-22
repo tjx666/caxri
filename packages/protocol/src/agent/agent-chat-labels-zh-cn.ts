@@ -83,6 +83,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.fold.stoppedByAgent': '已被 Agent 停止',
 
     // A work summary that counts unsuccessful items
+    'agentChat.workGroup.andMore': '{{label}}，另有 {{count}} 项',
     'agentChat.workGroup.withFailures': '{{summary}}，{{count}} 个失败',
 
     // Work item status (`agentChatItemStatusLabel`)

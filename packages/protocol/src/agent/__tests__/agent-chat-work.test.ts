@@ -9,6 +9,7 @@ import {
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
     agentChatWorkKind,
+    agentChatWorkSummaryGlyph,
     agentChatWorkSummaryItems,
     agentChatWorkSummaryPhrases,
     agentChatWorkVerb,
@@ -271,6 +272,41 @@ describe('agentChatWorkSummaryPhrases', () => {
         ]);
     });
 
+    it('counts the other calls running beside the one the title names', () => {
+        const first: AgentChatWorkItem = {
+            ...command,
+            id: 'first',
+            command: 'printf first',
+            status: 'running',
+        };
+        const second: AgentChatWorkItem = { ...first, id: 'second', command: 'printf second' };
+        const third: AgentChatWorkItem = { ...first, id: 'third', command: 'printf third' };
+        expect(
+            agentChatWorkSummaryPhrases([first, second, third], undefined, { isOpen: true }),
+        ).toEqual([{ key: 'active', text: 'Running printf third and 2 more' }]);
+        // The newest call ends first: the title names a call still running and counts the rest.
+        const settled: AgentChatWorkItem = { ...third, status: 'completed' };
+        expect(
+            agentChatWorkSummaryPhrases([first, second, settled], undefined, { isOpen: true }),
+        ).toEqual([{ key: 'active', text: 'Running printf second and 1 more' }]);
+        expect(
+            agentChatWorkSummaryPhrases([first, { ...second, status: 'completed' }, settled]),
+        ).toEqual([{ key: 'active', text: 'Running printf first' }]);
+    });
+
+    it('leads parallel calls of different kinds with the generic work glyph', () => {
+        const running: AgentChatWorkItem = { ...command, status: 'running' };
+        const reading: AgentChatWorkItem = { ...edit, status: 'running' };
+        expect(agentChatWorkSummaryGlyph([running, reading], { isOpen: true })).toEqual({
+            kind: 'other',
+        });
+        expect(
+            agentChatWorkSummaryGlyph([running, { ...running, id: 'again' }], { isOpen: true }),
+        ).toEqual({
+            kind: 'command',
+        });
+    });
+
     it('ends with the failure count and joins into the summary text', () => {
         const phrases = agentChatWorkSummaryPhrases([edit, failed]);
         expect(phrases.at(-1)).toEqual({ key: 'failures', text: ', 1 failed' });
@@ -297,7 +333,7 @@ describe('summarizeAgentChatWork', () => {
             status: 'running',
         };
         expect(summarizeAgentChatWork([first])).toBe('Running printf first');
-        expect(summarizeAgentChatWork([first, second])).toBe('Running printf second');
+        expect(summarizeAgentChatWork([first, second])).toBe('Running printf second and 1 more');
         expect(summarizeAgentChatWork([first, { ...second, status: 'completed' }])).toBe(
             'Running printf first',
         );

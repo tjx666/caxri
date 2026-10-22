@@ -75,7 +75,7 @@ import {
 import { runTurnArtifacts, runTurnManyFiles } from './fake-codex-artifacts.ts';
 import { runAutoCompact } from './fake-codex-autocompact.ts';
 import { runDefaultReply } from './fake-codex-default-reply.ts';
-import { runExplore } from './fake-codex-explore.ts';
+import { runExplore, runParallelExplore } from './fake-codex-explore.ts';
 import { didHandleGoalRequest } from './fake-codex-goals.ts';
 import {
     listThreadItems,
@@ -310,6 +310,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runBigDiff(io, turn);
     } else if (text.includes('browsestep')) {
         await runBrowserStep(io, turn);
+    } else if (text.includes('parallel')) {
+        await runParallelExplore(io, turn);
     } else if (text.includes('explore')) {
         await runExplore(io, turn, text.includes('gradual'));
     } else if (text.includes('several questions') || text.includes('askmany')) {

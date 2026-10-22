@@ -83,6 +83,7 @@ export const agentChatLabelsEn = {
     'agentChat.fold.stoppedByAgent': 'Stopped by an Agent',
 
     // A work summary that counts unsuccessful items
+    'agentChat.workGroup.andMore': '{{label}} and {{count}} more',
     'agentChat.workGroup.withFailures': '{{summary}}, {{count}} failed',
 
     // Work item status (`agentChatItemStatusLabel`)
