@@ -22,7 +22,7 @@ const LEAD_TRIGGER_CLASS_NAME =
 /**
  * A red dot on a task glyph: a background task failed and the user has not looked at the task list since.
  */
-export function FailureDot({ children, isShown }: { children: ReactNode; isShown: boolean }) {
+function FailureDot({ children, isShown }: { children: ReactNode; isShown: boolean }) {
     return (
         <span className="relative inline-flex shrink-0">
             {children}
