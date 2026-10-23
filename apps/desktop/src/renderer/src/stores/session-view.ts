@@ -124,6 +124,12 @@ function canRetainEphemeralDocument(
 ): boolean {
     const scopedDocuments = readScopedDocuments(documents, scope);
     const existing = scopedDocuments?.[document.path];
+    /**
+     * The budget bounds read copies that could be fetched again. An open untitled buffer's store copy is the only
+     * record of its text, the one Save As and on-device backups read, so an edit that outgrows the budget must still
+     * replace it; dropping the edit would save the text from before it.
+     */
+    if (existing && isUntitledEditorTabPath(document.path)) return true;
     const existingEphemeralCount = Object.values(scopedDocuments ?? {}).filter(
         (candidate) => candidate.ephemeral,
     ).length;
