@@ -61,17 +61,24 @@ architecture path while intending to preserve its nearest user-visible behavior.
 process/package/protocol ownership moves with no direct UI change; a label or proposed commit type
 does not override the behavior-preservation requirement.
 
-Every refactor issue must put these exact fields in `Acceptance 方案`:
+Every refactor issue must put these exact fields in `Acceptance 方案`. The validator reads each
+field only from a single top-level bullet line, `- **<field>**: <value>`, so keep the whole value on
+that line: wrapped continuation lines and nested sub-bullets are ignored, and a field whose
+same-line value is shorter than 8 characters counts as missing. For example,
+`- **前后基线**: 重构前在 v0.0.129 采集 Session 列表截图，重构后在同一 fixture 重放并对比`.
 
-- **证据模式**: `视觉` or `非视觉`.
+- **证据模式**: exactly `视觉` or `非视觉`, with nothing else on the line; put the reasoning in
+  another field.
 - **最近用户可见行为**: name the closest observable behavior, including for architecture-only work.
 - **保留行为**: enumerate the old product behaviors that must survive; proving only that the new
   architecture or UI exists is insufficient.
 - **前后基线**: name the surfaces/states or structured receipts captured before the refactor and
-  replayed after it. “对比截图” or a new-head-only screenshot is not a plan.
-- **固定环境**: visual parity uses the same Project/fixture, persisted state, theme, window size,
-  and viewport. Non-visual parity freezes the Project/fixture, persisted state, configuration, and
-  app version, and explicitly marks irrelevant desktop dimensions.
+  replayed after it, using the literal words `重构前` and `重构后` (or `before` and `after`).
+  “对比截图” or a new-head-only screenshot is not a plan.
+- **固定环境**: say `同一` or `固定` explicitly. Visual parity uses the same Project/fixture,
+  persisted state, theme, window size, and viewport. Non-visual parity freezes the Project/fixture,
+  persisted state, configuration, and app version, and states that theme, window size, and viewport
+  are `不适用`.
 - **交互重放**: enumerate applicable click, double-click, keyboard, Refresh, Retry, navigation,
   restart, and state-restoration actions. Non-visual work enumerates its equivalent API/CLI and
   failure-injection sequence. If no interaction applies, use `不适用：<reason>` or
