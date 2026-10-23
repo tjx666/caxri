@@ -76,3 +76,13 @@ export function agentChatPathPillRanges(
 function isBoundary(character: string | undefined): boolean {
     return character === undefined || /\s/u.test(character);
 }
+
+/**
+ * Whether a sent message's path lies inside the Session's Project root, the only place the Server may say whether it
+ * names a folder (`files.resolveKind` rejects anything outside it).
+ */
+export function isPathInsideProject(path: string, projectRoot: string | undefined): boolean {
+    if (!projectRoot) return false;
+    const root = projectRoot.replace(/\/+$/u, '');
+    return path === root || path.startsWith(`${root}/`);
+}

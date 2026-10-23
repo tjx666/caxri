@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { startFilePathDrag } from '../../../../lib/file-drag';
 import type { AgentChatPathPill } from '../agent-chat-path-pills';
-import { agentChatDropPathPills, agentChatPathPillRanges } from '../agent-chat-path-pills';
+import {
+    agentChatDropPathPills,
+    agentChatPathPillRanges,
+    isPathInsideProject,
+} from '../agent-chat-path-pills';
 
 vi.mock('../../../../stores/environment', () => ({ isSshHost: () => false }));
 
@@ -65,5 +69,15 @@ describe('agentChatPathPillRanges', () => {
             { from: 0, pill: index, to: 18 },
             { from: 19, pill: source, to: 28 },
         ]);
+    });
+});
+
+describe('isPathInsideProject', () => {
+    it('accepts the Project root and paths under it, and nothing else', () => {
+        expect(isPathInsideProject('/repo', '/repo')).toBe(true);
+        expect(isPathInsideProject('/repo/src', '/repo/')).toBe(true);
+        expect(isPathInsideProject('/repository', '/repo')).toBe(false);
+        expect(isPathInsideProject('/elsewhere/src', '/repo')).toBe(false);
+        expect(isPathInsideProject('/repo/src', undefined)).toBe(false);
     });
 });

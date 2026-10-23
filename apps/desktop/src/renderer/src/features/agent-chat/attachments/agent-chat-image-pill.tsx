@@ -4,6 +4,10 @@ import { ImageIcon } from 'lucide-react';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { resolveFileIcon } from '../../../icons/files/file-icon-resolver';
+import { useCaxriQuery } from '../../../queries/client';
+import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
+import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
+import { isPathInsideProject } from './agent-chat-path-pills';
 
 /**
  * The inline pills a sent message draws where the composer drew them while it was written.
@@ -37,6 +41,28 @@ export function AgentChatImagePill({
 }
 
 /**
+ * Whether a sent message's path names a folder. A path the composer wrote for a dropped folder ends in `/`; one the
+ * user typed or pasted does not, so for a path inside the Session's Project the Server says what it names.
+ */
+function useIsFolderPath(path: string, hasTrailingSlash: boolean): boolean {
+    const session = useSessionById(useTerminal(useAgentChatTerminal() ?? '')?.sessionId);
+    const projectRoot = useProjectById(session?.projectId)?.rootPath;
+    const { data: kind } = useCaxriQuery(
+        'files.resolveKind',
+        { sessionId: session?.id ?? '', path },
+        {
+            enabled:
+                !hasTrailingSlash &&
+                session !== undefined &&
+                isPathInsideProject(path, projectRoot),
+            retry: false,
+            staleTime: Infinity,
+        },
+    );
+    return hasTrailingSlash || kind === 'directory';
+}
+
+/**
  * An absolute path in a sent message, drawn as the pill the composer showed while it was written: the entry's file-type
  * icon and name, with the full path on hover. When the Chat can open files the pill opens it; it is an anchor so a pill
  * at the end of a line wraps with the text around it, as the file links beside it do.
@@ -51,12 +77,13 @@ export function AgentChatPathPill({
     path: string;
 }) {
     const name = pathBasename(path) || path;
+    const isFolder = useIsFolderPath(path, isDirectory);
     const content = (
         <>
             <img
                 alt=""
                 className="size-3.5 shrink-0"
-                src={resolveFileIcon({ kind: isDirectory ? 'directory' : 'file', name }).src}
+                src={resolveFileIcon({ kind: isFolder ? 'directory' : 'file', name }).src}
             />
             {name}
         </>

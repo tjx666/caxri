@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -60,6 +60,15 @@ test('a Files folder dropped into Agent Chat shows as a pill, keeps its absolute
         await expect(sent.locator('img')).toHaveAttribute('src', /folder/u);
         await expect(chat.getByText(`You said: look at ${hooks}/`)).toBeVisible();
         await chat.screenshot({ path: testInfo.outputPath('chat-path-pill-sent.png') });
+
+        // A typed folder path has no trailing `/`; the Server still says it names a folder inside the Project.
+        // The Project stores the canonical root (`/private/var/...` on macOS), so type that form.
+        const canonicalRoot = await realpath(root);
+        await message.fill(`check ${canonicalRoot}`);
+        await message.press('Enter');
+        const typed = chat.locator(`[data-agent-chat-path-pill="${canonicalRoot}"]`);
+        await expect(typed).toHaveText('project');
+        await expect(typed.locator('img')).toHaveAttribute('src', /folder/u);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
