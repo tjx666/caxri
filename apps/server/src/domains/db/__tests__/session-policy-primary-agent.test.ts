@@ -1,7 +1,11 @@
 import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { chooseLivePrimaryAgentSuccessor, DEFAULT_SESSION_TITLE } from '../session-policy';
+import {
+    chooseLivePrimaryAgentSuccessor,
+    decideAgentMetadataUpdate,
+    DEFAULT_SESSION_TITLE,
+} from '../session-policy';
 
 function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
     return {
@@ -109,5 +113,27 @@ describe('chooseLivePrimaryAgentSuccessor', () => {
                 secondary.id,
             ),
         ).toBeUndefined();
+    });
+});
+
+describe('decideAgentMetadataUpdate primary Agent tab title', () => {
+    it('titles the primary Agent tab with an automatically named Session when the probe carries no title', () => {
+        const primary = terminal({ id: 'claude-1', provider: 'claude', title: 'Claude' });
+        const decision = decideAgentMetadataUpdate(
+            primary,
+            session({ primaryAgentTerminalId: 'claude-1', displayTitle: 'Review the hooks' }),
+            { provider: 'claude', available: true, observedAt: 0, status: 'running' },
+        );
+        expect(decision?.terminalTitle).toBe('Review the hooks');
+    });
+
+    it('leaves a secondary Agent tab on its own title when the probe carries no title', () => {
+        const secondary = terminal({ id: 'claude-2', provider: 'claude', title: 'Claude' });
+        const decision = decideAgentMetadataUpdate(
+            secondary,
+            session({ primaryAgentTerminalId: 'claude-1', displayTitle: 'Review the hooks' }),
+            { provider: 'claude', available: true, observedAt: 0, status: 'running' },
+        );
+        expect(decision?.terminalTitle).toBeUndefined();
     });
 });
