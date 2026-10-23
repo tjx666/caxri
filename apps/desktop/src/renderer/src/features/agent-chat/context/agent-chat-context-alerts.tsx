@@ -1,4 +1,5 @@
 import type { AgentChatUsage } from '@caxri/protocol';
+import { agentChatIdleCompactionAt, defaultAppSettings } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import { Gauge, MessageSquarePlus, Timer, TimerOff, X } from 'lucide-react';
 
@@ -7,6 +8,7 @@ import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
+import { useWorkbenchStore } from '../../../stores/workbench';
 import { useClockTick } from '../hooks/use-clock-tick';
 import {
     agentChatContextAlerts,
@@ -17,6 +19,31 @@ import {
     dismissAgentChatCacheNotice,
     useAgentChatCacheNoticeDismissals,
 } from './agent-chat-context-dismissals';
+
+/**
+ * When Server Core's idle compaction will compact this Chat (`agentChatIdleCompactionAt`), or `undefined` when it will
+ * not: the provider or context does not qualify, the Chat is not its Session's primary Agent or its provider is not
+ * running (a suspended Chat is never woken to compact), or the user turned the setting off. Each selector returns a
+ * primitive, so an unrelated Terminal or setting change does not re-render the composer.
+ */
+function useAgentChatIdleCompactionAt(
+    terminalId: string,
+    usage: AgentChatUsage | undefined,
+): number | undefined {
+    const provider = useWorkbenchStore((state) => {
+        const terminal = state.bootstrap?.terminals.find(({ id }) => id === terminalId);
+        const session = state.bootstrap?.sessions.find(({ id }) => id === terminal?.sessionId);
+        return terminal?.lastProcessState === 'running' &&
+            session?.primaryAgentTerminalId === terminalId
+            ? terminal.provider
+            : undefined;
+    });
+    const isEnabled = useWorkbenchStore(
+        (state) =>
+            (state.bootstrap?.settings ?? defaultAppSettings)['agentChat.idleCompaction.enabled'],
+    );
+    return isEnabled ? agentChatIdleCompactionAt(usage, provider) : undefined;
+}
 
 /**
  * Both of the row's actions share one Button shape, so neither reads as the lesser choice by styling alone.
@@ -36,7 +63,7 @@ function ContextNotice({
     /**
      * Marks the cache notice with its state for tests; omitted for the context-pressure notice.
      */
-    cacheState?: 'expired' | 'expiring';
+    cacheState?: 'compacting' | 'expired' | 'expiring';
     className: string;
     icon: LucideIcon;
 }) {
@@ -164,9 +191,11 @@ export function AgentChatContextAlerts({
     const dismissedResponseAt = useAgentChatCacheNoticeDismissals(
         (state) => state.dismissedResponseAt[terminalId],
     );
+    const now = useClockTick('minute');
+    const idleCompactionAt = useAgentChatIdleCompactionAt(terminalId, usage);
     const lastResponseAt = usage?.lastResponseAt;
     const alerts = agentChatUndismissedContextAlerts(
-        agentChatContextAlerts(usage, useClockTick('minute')),
+        agentChatContextAlerts(usage, now, idleCompactionAt),
         lastResponseAt,
         dismissedResponseAt,
     );

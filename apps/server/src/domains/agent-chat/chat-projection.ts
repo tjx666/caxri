@@ -29,6 +29,12 @@ import { ChatTaskProjections } from './chat-task-projections';
  */
 const PATCH_FLUSH_MS = 16;
 
+/**
+ * How long after idle compaction asks the provider to compact its `compacted` notice is still labeled `idle`; a
+ * compaction of a context large enough for idle compaction finishes well within it.
+ */
+const IDLE_COMPACTION_LABEL_WINDOW_MS = 10 * 60_000;
+
 interface ChatProjectionOptions {
     terminalId: string;
     /**
@@ -206,6 +212,10 @@ export class ChatProjection {
      * Who asked to stop each turn; see {@link stampStoppedTurns}.
      */
     private stops = new Map<string, NonNullable<AgentChatTurn['stoppedBy']>>();
+    /**
+     * Until when the next live `compacted` notice is idle compaction's; see {@link noteIdleCompaction}.
+     */
+    private idleCompactionUntil: number | undefined;
     snapshot: AgentChatSnapshot;
     /**
      * Subagent conversations and background shell output, each with its own revisions.
@@ -361,6 +371,33 @@ export class ChatProjection {
         return operations;
     }
 
+    private labelIdleCompaction(
+        operations: readonly AgentChatPatchOperation[],
+    ): readonly AgentChatPatchOperation[] {
+        if (this.idleCompactionUntil === undefined) return operations;
+        if (Date.now() > this.idleCompactionUntil) {
+            this.idleCompactionUntil = undefined;
+            return operations;
+        }
+        return operations.map((operation) => {
+            if (
+                this.idleCompactionUntil === undefined ||
+                operation.op !== 'upsertItem' ||
+                operation.item.type !== 'notice' ||
+                operation.item.kind !== 'compacted'
+            )
+                return operation;
+            this.idleCompactionUntil = undefined;
+            return {
+                ...operation,
+                item: {
+                    ...operation.item,
+                    compaction: { ...operation.item.compaction, trigger: 'idle' as const },
+                },
+            };
+        });
+    }
+
     apply(operations: readonly AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
@@ -368,8 +405,9 @@ export class ChatProjection {
         const carried = isHistoryReplay
             ? this.carryNotices(operations)
             : this.persistNewNotices(operations);
+        const labeled = isHistoryReplay ? carried : this.labelIdleCompaction(carried);
         const timed = stampStoppedTurns(
-            stampNewItems(this.snapshot, carried, Date.now()),
+            stampNewItems(this.snapshot, labeled, Date.now()),
             this.stops,
         );
         const stamped = stampDelegatedTasks(timed, (delegationId) =>
@@ -457,6 +495,24 @@ export class ChatProjection {
     noteStopRequest(by: NonNullable<AgentChatTurn['stoppedBy']>): void {
         const { activeTurnId } = this.snapshot;
         if (activeTurnId) this.stops.set(activeTurnId, by);
+    }
+
+    /**
+     * Records that idle compaction just asked the provider to compact, so the `compacted` notice that follows is
+     * labeled `idle` instead of the `manual` the provider reports for a `/compact`. Providers report the notice in
+     * different places within the turn (Claude Code may send it with no turn id), so the label is held for a bounded
+     * window rather than tied to a turn: a compaction that failed must not label one the user starts much later.
+     */
+    noteIdleCompaction(now = Date.now()): void {
+        this.idleCompactionUntil = now + IDLE_COMPACTION_LABEL_WINDOW_MS;
+    }
+
+    /**
+     * Withdraws `noteIdleCompaction` when the provider refused the command, so a compaction the user or the provider
+     * starts later is not labeled idle.
+     */
+    forgetIdleCompaction(): void {
+        this.idleCompactionUntil = undefined;
     }
 
     /**

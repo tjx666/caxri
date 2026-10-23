@@ -23,9 +23,13 @@ export function AgentChatCompactedNotice({
     const detail = [
         trigger &&
             t(
-                trigger === 'auto'
-                    ? 'agentChat.message.contextCompactedAuto'
-                    : 'agentChat.message.contextCompactedManual',
+                (
+                    {
+                        auto: 'agentChat.message.contextCompactedAuto',
+                        idle: 'agentChat.message.contextCompactedIdle',
+                        manual: 'agentChat.message.contextCompactedManual',
+                    } as const
+                )[trigger],
             ),
         hasSizes &&
             beforeTokens > 0 &&

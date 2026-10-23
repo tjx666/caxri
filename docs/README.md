@@ -52,7 +52,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [startup-performance.md](startup-performance.md)                   | Launch milestone log, packaged startup runner, rejected tricks |
 | [server-architecture.md](server-architecture.md)                   | Current Server/Client architecture contract                    |
 | [server-footprint.md](server-footprint.md)                         | SSH Host Server memory and disk requirements and the baseline  |
-| [session-compaction.md](session-compaction.md)                     | Batch Session compaction command                               |
+| [session-compaction.md](session-compaction.md)                     | Batch command and idle Chat compaction                         |
 | [session-search.md](session-search.md)                             | Session search across Caxri and external Agent conversations   |
 | [session-conversation-context.md](session-conversation-context.md) | Reading a Session's own Agent conversation                     |
 | [ssh-host.md](ssh-host.md)                                         | SSH Host windows: connect, install, lifecycle, remote layers   |

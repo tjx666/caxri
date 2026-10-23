@@ -36,7 +36,9 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
             { step: 'Reply', status: 'inProgress' },
         ]);
         expect(snapshot.model).toBe('grok-fake');
-        expect(snapshot.usage).toEqual({ totalTokens: 1208, contextWindow: 256000 });
+        const { lastResponseAt, ...usage } = snapshot.usage ?? {};
+        expect(usage).toEqual({ totalTokens: 1208, contextWindow: 256000, cacheTtlMinutes: 60 });
+        expect(lastResponseAt).toBeTypeOf('number');
         const [open] = await sessionOpens();
         expect(open.method).toBe('session/new');
         // Ask is passed explicitly so a user's `[ui] permission_mode = "always-approve"` cannot override it (#1957).

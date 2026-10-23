@@ -823,7 +823,11 @@ several callbacks can share one item, so the transport id is never the key.
   "Motion"). Only a change after 1.5s of stillness rolls, so the ticking seconds and tokens climbing while a reply streams jump while minutes, steps, and cost roll; the live time keeps `0s` on a whole minute so its seconds never fade out for one tick. Server Core sums each Claude
   response once by message id (subagent responses included) and each Codex request of the parent thread from
   `thread/tokenUsage/updated` (a child thread's subagent spend is not counted yet) into the snapshot's `turnUsage`; Grok Build reports usage only when a turn ends, so its strip shows none. The row holds no key hints: Send's tooltip
-  lists Enter (queue), ⌘Enter (steer), and Esc (stop turn), and holding Cmd or Ctrl turns Send into Steer. The plan
+  lists Enter (queue), ⌘Enter (steer), and Esc (stop turn), and holding Cmd or Ctrl turns Send into Steer. After a turn that was stopped or failed, an empty composer's Send turns into
+  Continue (an accent play glyph, as in the Codex app): a click sends `Continue` in the interface language as an
+  ordinary message, the one the user would otherwise type (`isAgentChatTurnResumable`). The Codex app starts an
+  empty turn instead, which not every provider supports. Enter in the empty input stays inert, so a stray press never
+  sends; typing, an attachment, a queued message, Goal mode, or "Edit from here" brings Send back. The plan
   (`ListTodo 2/5`) and background work badges sit at the row's far right and each opens one popover anchored to the
   row with only its own section; after the turn, the row leads with a running task (inline Stop), several running
   tasks, unseen failures, or `Plan stopped at 2/5`. A failure counts as seen once the task list was opened and the

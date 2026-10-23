@@ -115,6 +115,21 @@ describe('agentChatContextAlerts', () => {
         );
     });
 
+    it('says the Chat compacts on its own when idle compaction is due before the cache expires', () => {
+        const compactsAt = 54 * MINUTE;
+        expect(agentChatContextAlerts(usage, 49 * MINUTE, compactsAt)).toEqual({});
+        expect(agentChatContextAlerts(usage, 50 * MINUTE, compactsAt).cache).toEqual({
+            state: 'compacting',
+            text: 'Auto-compacts in 4m, before the cache expires',
+            detail: 'The Agent keeps a conversation ready for 60 minutes after each reply. Unless you reply first, Caxri compacts this conversation (113k) in 4m, so your next reply reads a summary instead of the whole conversation. You can turn this off in Settings. The cost is an estimate at standard API prices.',
+        });
+        // Past the due time (a busy Chat, or one not compacted yet) the ordinary countdown returns.
+        expect(agentChatContextAlerts(usage, 55 * MINUTE, compactsAt).cache).toMatchObject({
+            state: 'expiring',
+            text: 'Reply within 5m to skip a full re-read (est. ~$0.69)',
+        });
+    });
+
     it('warns only for the second half of a cache shorter than twice the lead', () => {
         const short = { ...usage, cacheTtlMinutes: 5 };
         expect(agentChatContextAlerts(short, 2 * MINUTE).cache).toBeUndefined();

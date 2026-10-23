@@ -545,11 +545,23 @@ export function grokQuestionAnswers(
 }
 
 /**
+ * How long xAI's prompt cache is assumed to survive an idle Grok Build Chat, in minutes. xAI publishes no lifetime (its
+ * guide says entries can be evicted at any time) and Grok Build reports no expiry, so this is an estimate: local Grok
+ * Build sessions still read most of their prompt from the cache after 30 to 60 idle minutes, and stopped doing so after
+ * a few hours. It drives the composer's cache notice and idle compaction only.
+ *
+ * @see https://docs.x.ai/developers/advanced-api-usage/prompt-caching/best-practices
+ */
+const GROK_CACHE_TTL_MINUTES = 60;
+
+/**
  * Context usage from a `session/prompt` result's `_meta.totalTokens`, the conversation's token count after the turn.
+ * `respondedAt` is when the turn's last response arrived, which starts the estimated cache lifetime.
  */
 export function grokUsage(
     result: unknown,
     contextWindow: number | undefined,
+    respondedAt = Date.now(),
 ): AgentChatSnapshot['usage'] {
     const meta = isRecord(result) && isRecord(result._meta) ? result._meta : undefined;
     const totalTokens = meta?.totalTokens;
@@ -557,5 +569,7 @@ export function grokUsage(
     return {
         totalTokens: Math.trunc(totalTokens),
         ...(contextWindow !== undefined && { contextWindow }),
+        cacheTtlMinutes: GROK_CACHE_TTL_MINUTES,
+        lastResponseAt: respondedAt,
     };
 }

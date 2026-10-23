@@ -31,6 +31,7 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import { withCacheRewriteEstimate } from './chat-usage';
 import {
     grokCommands,
     grokContextWindow,
@@ -230,7 +231,8 @@ class GrokChatSession implements AgentChatProviderSession {
                 op: 'upsertItem',
                 item: { id: `${turnId}:compacted`, turnId, type: 'notice', kind: 'compacted' },
             });
-        const usage = grokUsage(details.result, this.contextWindow);
+        const reported = grokUsage(details.result, this.contextWindow);
+        const usage = reported && withCacheRewriteEstimate(reported, snapshot.model);
         operations.push({
             op: 'state',
             state: {

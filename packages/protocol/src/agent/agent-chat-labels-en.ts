@@ -48,6 +48,8 @@ export const agentChatLabelsEn = {
     'agentChat.message.contextCompactedSizes': 'Context compacted · {{before}} → {{after}}',
     'agentChat.message.contextCompactedAuto': 'Compacted automatically when the context filled up',
     'agentChat.message.contextCompactedManual': 'Compacted on request',
+    'agentChat.message.contextCompactedIdle':
+        'Compacted automatically while idle, before the prompt cache expired',
     'agentChat.message.contextCompactedDetail':
         '{{before}} tokens → {{after}} tokens, {{percent}} smaller',
     'agentChat.message.retrying': 'Retrying',

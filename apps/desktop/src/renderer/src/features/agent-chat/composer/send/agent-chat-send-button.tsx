@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 
-import { ArrowUp, ArrowUpToLine, CornerDownLeft } from 'lucide-react';
+import { ArrowUp, ArrowUpToLine, CornerDownLeft, Play } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -13,7 +13,12 @@ import { AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME } from '../../agent-chat-stop-butt
 import type { AgentChatSendKey } from './agent-chat-send-tooltip';
 import { useIsSteerChordHeld } from './use-is-steer-chord-held';
 
-const SEND_GLYPHS = { queue: CornerDownLeft, send: ArrowUp, steer: ArrowUpToLine } as const;
+const SEND_GLYPHS = {
+    queue: CornerDownLeft,
+    resume: Play,
+    send: ArrowUp,
+    steer: ArrowUpToLine,
+} as const;
 
 /**
  * Sends the form. `aria-disabled` rather than `disabled`: a natively disabled button gets no pointer events in
@@ -23,10 +28,12 @@ const SEND_GLYPHS = { queue: CornerDownLeft, send: ArrowUp, steer: ArrowUpToLine
  * While a turn runs, its tooltip lists what Enter, Cmd+Enter, and Esc do, and holding Cmd or Ctrl turns it into Steer
  * (an accent "insert into this turn" glyph) so the chord's effect shows before the press; a click then steers too,
  * through the button's `delivery` value. While Enter itself steers (`isSteerDefault`), the button is Steer without a
- * chord.
+ * chord. After a stopped or failed turn with nothing typed (`isResume`), it is Continue: an accent play glyph, as in
+ * the Codex app, that sends "Continue" for the user.
  */
 export function AgentChatSendButton({
     isQueueing,
+    isResume,
     isSendable,
     keys,
     sendAction,
@@ -34,6 +41,7 @@ export function AgentChatSendButton({
     tooltip,
 }: {
     isQueueing: boolean;
+    isResume: boolean;
     isSendable: boolean;
     /**
      * The running turn's keys (`agentChatSendTooltipKeys`), listed in place of `tooltip`; their presence also lets Cmd
@@ -47,7 +55,8 @@ export function AgentChatSendButton({
     const { t } = useTranslation();
     const isChordHeld = useIsSteerChordHeld() && keys !== undefined;
     const isSteering = isChordHeld || sendAction.kind === 'steer';
-    const glyph = isSteering ? 'steer' : isQueueing ? 'queue' : 'send';
+    const glyph = isResume ? 'resume' : isSteering ? 'steer' : isQueueing ? 'queue' : 'send';
+    const isAccent = isResume || isSteering;
     const Glyph = SEND_GLYPHS[glyph];
     return (
         <Tooltip
@@ -56,11 +65,17 @@ export function AgentChatSendButton({
         >
             <Button
                 aria-disabled={!isSendable || undefined}
-                aria-label={isChordHeld ? t('agentChat.queue.steer') : sendAction.label}
+                aria-label={
+                    isResume
+                        ? t('agentChat.composer.resume')
+                        : isChordHeld
+                          ? t('agentChat.queue.steer')
+                          : sendAction.label
+                }
                 className={cn(
                     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
                     'transition-[background-color,border-color,color]',
-                    isSteering &&
+                    isAccent &&
                         'border-accent bg-accent text-accent-foreground enabled:not-aria-disabled:hover:bg-accent',
                 )}
                 name="delivery"
@@ -79,7 +94,10 @@ export function AgentChatSendButton({
                             initial={{ opacity: 0, scale: 0.6 }}
                             transition={{ duration: 0.12 }}
                         >
-                            <Glyph className="size-4" strokeWidth={2.25} />
+                            <Glyph
+                                className={cn('size-4', glyph === 'resume' && 'fill-current')}
+                                strokeWidth={2.25}
+                            />
                         </m.span>
                     </AnimatePresence>
                 </LazyMotion>

@@ -74,10 +74,15 @@ export class ChatIdleMaintenance {
     }
 
     /**
-     * Batch compaction: runs the provider's native compaction on an idle Chat, through the send chain, only while the
-     * same launch is still idle when the command reaches the head of the chain. Rejects otherwise.
+     * Batch or idle compaction: runs the provider's native compaction on an idle Chat, through the send chain, only
+     * while the same launch is still idle when the command reaches the head of the chain. Rejects otherwise. An `idle`
+     * compaction labels its `compacted` notice so the transcript says Caxri ran it before the cache expired.
      */
-    async compactIdle(terminalId: string, launchId: string): Promise<void> {
+    async compactIdle(
+        terminalId: string,
+        launchId: string,
+        reason: 'batch' | 'idle' = 'batch',
+    ): Promise<void> {
         const state = this.host.states.get(terminalId);
         assertE2EAgentChatInput(readE2EAgentPolicy(), '/compact');
         if (!state || state.launchId !== launchId)
@@ -87,7 +92,14 @@ export class ChatIdleMaintenance {
                 throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
             if (!isAgentChatCommandListed(state.projection.snapshot, 'compact'))
                 throw new CaxriError('VALIDATION', '/compact is not available in this Chat');
-            await session.runCommand('compact', undefined);
+            if (reason === 'batch') return session.runCommand('compact', undefined);
+            state.projection.noteIdleCompaction();
+            try {
+                await session.runCommand('compact', undefined);
+            } catch (error) {
+                state.projection.forgetIdleCompaction();
+                throw error;
+            }
         });
     }
 

@@ -1,8 +1,9 @@
 import type { SettingSpec } from './settings-spec.js';
 
 /**
- * Agent Chat's General settings, kept beside the main catalog so `settingsSpec` stays within the source-size ratchet.
- * `settingsSpec` spreads them in place, so their order on the Settings page is unchanged.
+ * Agent Chat's settings, kept beside the main catalog so `settingsSpec` stays within the source-size ratchet.
+ * `settingsSpec` spreads them in place, so their order on the Settings page is unchanged. Idle compaction is listed
+ * under Agents, beside the other settings that decide what Caxri does with an idle Agent.
  */
 export const agentChatSettingsSpec = [
     {
@@ -64,5 +65,24 @@ export const agentChatSettingsSpec = [
             { value: 'off', label: 'Off' },
         ],
         default: 'dwell',
+    },
+    {
+        kind: 'boolean',
+        key: 'agentChat.idleCompaction.enabled',
+        title: 'Compact idle Chats before the prompt cache expires',
+        description:
+            'Compacts a Claude or Grok Build Chat that holds a large context and has waited long enough that its prompt cache is about to expire, so your next message re-reads the summary instead of the whole conversation.',
+        category: 'agents',
+        keywords: [
+            'agent',
+            'chat',
+            'compact',
+            'compaction',
+            'idle',
+            'cache',
+            'prompt cache',
+            'cost',
+        ],
+        default: true,
     },
 ] as const satisfies readonly SettingSpec[];
