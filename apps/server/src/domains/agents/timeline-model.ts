@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import type { AgentTimelineItem, AgentTimelineTurnOutcome } from '@caxri/protocol';
 
 import type { SystemEventProjection } from './system-event';
@@ -10,6 +12,17 @@ interface TimelineEntry {
     item: AgentTimelineItem;
     offset: number;
     part: number;
+}
+
+/**
+ * Truncates `text` into a string that owns its characters. V8 represents `slice` as a view that keeps the whole source
+ * alive, and `AgentTimelineService` holds projected items across reads, so a 2 KiB detail cut from a 256 KiB tool
+ * result would otherwise pin the full result. UTF-16 round-trips every code unit, lone surrogates included.
+ */
+function bounded(text: string, maximum: number): string {
+    return text.length <= maximum
+        ? text
+        : Buffer.from(text.slice(0, maximum), 'utf16le').toString('utf16le');
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -31,7 +44,7 @@ export function timelineTimestamp(value: unknown): number | undefined {
 export function timelineText(value: unknown, maximum = MAX_MESSAGE_CHARS): string | undefined {
     if (typeof value !== 'string') return;
     const text = stripInjectedTranscriptContent(value).trim();
-    return text ? text.slice(0, maximum) : undefined;
+    return text ? bounded(text, maximum) : undefined;
 }
 
 export function timelineSummary(value: unknown, fallback: string): string {
@@ -60,23 +73,23 @@ export class TimelineBuilder {
         timestamp?: number,
     ): void {
         const type = role === 'user' ? 'userMessage' : 'agentMessage';
-        const bounded = text.slice(0, MAX_MESSAGE_CHARS);
-        if (!bounded) return;
+        const message = bounded(text, MAX_MESSAGE_CHARS);
+        if (!message) return;
         const existing = key ? this.#keys.get(`message:${key}`) : undefined;
         if (existing !== undefined) {
             const entry = this.entries[existing];
             if (entry.item.type !== type) return;
             const previous = entry.item.text;
-            const next = bounded.startsWith(previous)
-                ? bounded
-                : previous.endsWith(bounded)
+            const next = message.startsWith(previous)
+                ? message
+                : previous.endsWith(message)
                   ? previous
-                  : `${previous}${bounded}`.slice(0, MAX_MESSAGE_CHARS);
+                  : bounded(`${previous}${message}`, MAX_MESSAGE_CHARS);
             entry.item = { ...entry.item, text: next };
             return;
         }
         this.#add(
-            { id: this.#id(offset, part), type, text: bounded, ...(timestamp && { timestamp }) },
+            { id: this.#id(offset, part), type, text: message, ...(timestamp && { timestamp }) },
             offset,
             part,
             key && `message:${key}`,
@@ -99,11 +112,11 @@ export class TimelineBuilder {
             {
                 id,
                 type: 'toolCall',
-                name: name.slice(0, 100),
-                summary: summary.slice(0, 240),
+                name: bounded(name, 100),
+                summary: bounded(summary, 240),
                 status: 'running',
                 ...(timestamp && { timestamp }),
-                ...(detail && { detail: detail.slice(0, MAX_DETAIL_CHARS) }),
+                ...(detail && { detail: bounded(detail, MAX_DETAIL_CHARS) }),
             },
             offset,
             part,
@@ -132,7 +145,7 @@ export class TimelineBuilder {
             ...entry.item,
             status: isFailed ? 'failed' : 'succeeded',
             ...(durationMs !== undefined && { durationMs }),
-            ...(detail && { detail: detail.slice(0, MAX_DETAIL_CHARS) }),
+            ...(detail && { detail: bounded(detail, MAX_DETAIL_CHARS) }),
         };
     }
 
@@ -151,10 +164,10 @@ export class TimelineBuilder {
                 id: this.#id(offset, part),
                 type: 'systemEvent',
                 kind,
-                summary: summary.slice(0, 240),
+                summary: bounded(summary, 240),
                 ...(status && { status }),
                 ...(timestamp && { timestamp }),
-                ...(detail && { detail: detail.slice(0, MAX_DETAIL_CHARS) }),
+                ...(detail && { detail: bounded(detail, MAX_DETAIL_CHARS) }),
             },
             offset,
             part,

@@ -280,9 +280,10 @@ export interface AgentProviderDescriptor {
     ): Promise<AgentTranscriptLocation | undefined>;
     /**
      * Appends this provider's projection of one raw transcript line to a mobile timeline page. Pure and synchronous: no
-     * filesystem or network access, matching `AgentTimelineService`'s per-line replay. A provider without a durable
-     * per-line transcript (Grok streams over ACP with no JSONL analog) omits this, and `AgentTimelineService` reports
-     * `unsupported` for that provider instead of guessing at a shape.
+     * filesystem or network access. `AgentTimelineService` keeps the builder across reads and feeds it only appended
+     * lines, so all state between lines must live in the builder. A provider without a durable per-line transcript
+     * (Grok streams over ACP with no JSONL analog) omits this, and `AgentTimelineService` reports `unsupported` for
+     * that provider instead of guessing at a shape.
      */
     timelineProjector?(this: void, builder: TimelineBuilder, record: unknown, offset: number): void;
     /**

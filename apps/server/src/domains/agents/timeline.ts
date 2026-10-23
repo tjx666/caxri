@@ -22,10 +22,20 @@ interface TranscriptLine {
 }
 
 interface CachedTranscript {
+    /**
+     * The projection of every line from `start` to `end`, fed only the appended lines on each read. It replaces the raw
+     * line text this cache used to keep and re-parse on every read: `agent.excerpts` reads each Session's newest page
+     * about once a minute, and re-parsing up to 16 MiB of JSONL per Session for 40 items dominated Server Core CPU
+     * while the raw lines held tens of megabytes of transcript text in memory.
+     */
+    builder: TimelineBuilder;
     end: number;
     fileIdentity: string;
+    /**
+     * Offset of the first line the projection read, or `undefined` when it read none.
+     */
+    firstLineOffset: number | undefined;
     generation: string;
-    lines: TranscriptLine[];
     modifiedAt: number;
     path: string;
     start: number;
@@ -101,6 +111,28 @@ async function readWindow(
     return { lines, consumedEnd: start + last + 1 };
 }
 
+function projectLines(
+    builder: TimelineBuilder,
+    provider: AgentProvider,
+    lines: readonly TranscriptLine[],
+): TimelineBuilder {
+    /**
+     * Resolved once per batch rather than per line: `read()` already proved this provider has a projector before any
+     * transcript byte was opened, so a missing one here would be an internal inconsistency, not user input.
+     */
+    const project = agentProviders[provider].timelineProjector;
+    if (!project) throw new Error(`Agent provider "${provider}" has no timeline projector`);
+    for (const line of lines) {
+        try {
+            const record: unknown = JSON.parse(line.text);
+            project(builder, record, line.offset);
+        } catch {
+            // A partial or future provider record is a capability miss, never a diagnostic payload.
+        }
+    }
+    return builder;
+}
+
 function boundedPage(
     entries: ReadonlyArray<{ item: AgentTimelineItem; offset: number; part: number }>,
     before: { offset: number; part: number } | undefined,
@@ -145,7 +177,7 @@ function boundedPage(
  * A bounded, rebuildable projection. It reads only appended bytes on repeated visits and retains a finite window for
  * older pages. The cursor carries file identity plus byte offset, so a replaced rollout never inherits stale history.
  */
-/* eslint-disable unicorn/consistent-class-member-order -- Public read API precedes private page projection. */
+/* eslint-disable unicorn/consistent-class-member-order -- Public read API precedes private read helpers. */
 export class AgentTimelineService {
     readonly #cache = new Map<string, CachedTranscript>();
     readonly #revisions = new Map<string, number>();
@@ -227,21 +259,31 @@ export class AgentTimelineService {
             if (isRewritten)
                 this.#revisions.set(terminalId, (this.#revisions.get(terminalId) ?? 0) + 1);
             const generation = `${fileIdentity}.${(this.#revisions.get(terminalId) ?? 0).toString(36)}`;
-            if (
+            const isStale =
                 !state ||
                 hasOldTailChanged ||
                 state.path !== path ||
                 state.fileIdentity !== fileIdentity ||
                 stats.size < state.end ||
-                (stats.size === state.end && stats.mtimeMs !== state.modifiedAt)
+                (stats.size === state.end && stats.mtimeMs !== state.modifiedAt);
+            /**
+             * Appending more than one read window, or growing the projection past its retained span, starts a new
+             * projection from the newest window, as a first read does. Older pages then come from the file.
+             */
+            if (
+                !state ||
+                isStale ||
+                stats.size - state.end > READ_WINDOW_BYTES ||
+                stats.size - state.start > MAX_RETAINED_BYTES
             ) {
                 const start = Math.max(0, stats.size - READ_WINDOW_BYTES);
                 const read = await readWindow(handle, start, stats.size, start > 0);
                 state = {
+                    builder: projectLines(new TimelineBuilder(generation), provider, read.lines),
                     end: read.consumedEnd,
                     fileIdentity,
+                    firstLineOffset: read.lines[0]?.offset,
                     generation,
-                    lines: read.lines,
                     modifiedAt: stats.mtimeMs,
                     path,
                     start,
@@ -252,15 +294,9 @@ export class AgentTimelineService {
                 if (this.#cache.size > MAX_CACHED_TRANSCRIPTS)
                     this.#cache.delete(this.#cache.keys().next().value!);
             } else if (stats.size > state.end) {
-                const start =
-                    stats.size - state.end > READ_WINDOW_BYTES
-                        ? stats.size - READ_WINDOW_BYTES
-                        : state.end;
-                const read = await readWindow(handle, start, stats.size, start > state.end);
-                if (start > state.end) {
-                    state.lines = read.lines;
-                    state.start = start;
-                } else state.lines.push(...read.lines);
+                const read = await readWindow(handle, state.end, stats.size, false);
+                projectLines(state.builder, provider, read.lines);
+                state.firstLineOffset ??= read.lines[0]?.offset;
                 state.end = read.consumedEnd;
                 state.modifiedAt = stats.mtimeMs;
                 state.tailSignature = await tailSignature(handle, state.end);
@@ -273,22 +309,26 @@ export class AgentTimelineService {
                     requested.offset > stats.size),
             );
             const beforePosition = isCursorExpired ? undefined : requested;
-            while (state.end - state.start > MAX_RETAINED_BYTES && state.lines.length > 0) {
-                const discarded = state.lines.shift()!;
-                state.start = state.lines[0]?.offset ?? discarded.offset;
-            }
+            /**
+             * A cursor before the first projected line reads the file. A cursor at that line's later part stays here,
+             * because the projection holds the line's earlier siblings.
+             */
             if (
                 beforePosition !== undefined &&
                 state.start > 0 &&
                 (beforePosition.offset < state.start ||
-                    (state.lines.every((line) => line.offset >= beforePosition.offset) &&
-                        !(
-                            beforePosition.part > 0 &&
-                            state.lines.some((line) => line.offset === beforePosition.offset)
-                        )))
+                    state.firstLineOffset === undefined ||
+                    beforePosition.offset < state.firstLineOffset ||
+                    (beforePosition.offset === state.firstLineOffset && beforePosition.part === 0))
             )
                 return await this.#olderPage(handle, state, provider, beforePosition, limit);
-            return this.#page(state, provider, beforePosition, limit, isCursorExpired);
+            return boundedPage(
+                state.builder.entries,
+                beforePosition,
+                limit,
+                state.start,
+                isCursorExpired,
+            );
         } finally {
             await opened.handle.close();
         }
@@ -312,11 +352,11 @@ export class AgentTimelineService {
             const start = Math.max(0, end - READ_WINDOW_BYTES);
             // eslint-disable-next-line no-await-in-loop -- each bounded older window begins where the previous one ended
             const read = await readWindow(handle, start, end, start > 0);
-            const page = this.#page(
-                { ...state, lines: read.lines, start },
-                provider,
+            const page = boundedPage(
+                projectLines(new TimelineBuilder(state.generation), provider, read.lines).entries,
                 before,
                 limit,
+                start,
                 false,
             );
             if (start === 0 || page.items.length > 0) return page;
@@ -330,31 +370,6 @@ export class AgentTimelineService {
             truncated: true,
             cursorExpired: false,
         };
-    }
-
-    #page(
-        state: CachedTranscript,
-        provider: AgentProvider,
-        before: { offset: number; part: number } | undefined,
-        limit: number,
-        isCursorExpired: boolean,
-    ): MobileTimelineReadResult {
-        const builder = new TimelineBuilder(state.generation);
-        /**
-         * Resolved once per page rather than per line: `read()` already proved this provider has a projector before any
-         * transcript byte was opened, so a missing one here would be an internal inconsistency, not user input.
-         */
-        const project = agentProviders[provider].timelineProjector;
-        if (!project) throw new Error(`Agent provider "${provider}" has no timeline projector`);
-        for (const line of state.lines) {
-            try {
-                const record: unknown = JSON.parse(line.text);
-                project(builder, record, line.offset);
-            } catch {
-                // A partial or future provider record is a capability miss, never a diagnostic payload.
-            }
-        }
-        return boundedPage(builder.entries, before, limit, state.start, isCursorExpired);
     }
 }
 /* eslint-enable unicorn/consistent-class-member-order */
