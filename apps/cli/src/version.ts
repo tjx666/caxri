@@ -1,6 +1,6 @@
 /**
  * Kept explicit so release validation can prove package, shim, and standalone artifact parity.
  */
-export const CLI_VERSION = '0.0.130';
+export const CLI_VERSION = '0.0.131';
 
 export { CAXRI_PROTOCOL_VERSION as CLI_PROTOCOL_VERSION } from '@caxri/protocol';
