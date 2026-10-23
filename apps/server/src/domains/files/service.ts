@@ -562,7 +562,7 @@ export class FileService {
         };
     }
 
-    watchSession(sessionId?: string): Promise<void> {
+    watchSession(sessionId?: string): Promise<boolean> {
         return this.watcher.watchSession(
             sessionId
                 ? {
@@ -576,7 +576,7 @@ export class FileService {
     /**
      * Reinstalls the selected watcher after its Session atomically changes Workbench Root.
      */
-    refreshWatchSession(sessionId: string): Promise<void> {
+    refreshWatchSession(sessionId: string): Promise<boolean> {
         return this.watcher.watchSession(
             {
                 sessionId,

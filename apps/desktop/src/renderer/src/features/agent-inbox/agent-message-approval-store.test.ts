@@ -60,8 +60,8 @@ function queue() {
 async function subscribeWith(initial: AgentHeldMessage[]): Promise<() => void> {
     mocks.request.mockResolvedValueOnce({ messages: initial });
     const unsubscribe = subscribeHeldMessageQueue();
-    // A real macrotask lets the initial list settle; `vi.waitFor` would advance the fake expiry clock while it polls.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Settle the initial list without moving the fake expiry clock.
+    await vi.advanceTimersByTimeAsync(0);
     expect(mocks.request).toHaveBeenCalledWith('agent.message.held');
     return unsubscribe;
 }
@@ -74,7 +74,7 @@ describe('held message queue store', () => {
     let unsubscribe: (() => void) | undefined;
 
     beforeEach(() => {
-        vi.useFakeTimers({ now: NOW, toFake: ['setInterval', 'clearInterval', 'Date'] });
+        vi.useFakeTimers({ now: NOW, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
         mocks.request.mockReset();
         mocks.listeners.clear();
         updateHeldMessageQueue(() => ({ deferred: [], messages: [] }));
@@ -129,6 +129,15 @@ describe('held message queue store', () => {
         expect(deferredCount()).toBe(0);
         expect(notified).toHaveBeenCalledOnce();
         stopWatching();
+    });
+
+    it('runs no expiry timer while the queue is empty', async () => {
+        unsubscribe = await subscribeWith([]);
+        expect(vi.getTimerCount()).toBe(0);
+        emit(heldEvent(held('held-1', NOW)));
+        expect(vi.getTimerCount()).toBe(1);
+        emit(receiptEvent('held-1', 'delivered'));
+        expect(vi.getTimerCount()).toBe(0);
     });
 
     it('keeps the presented request on screen as expired when the Server reports its expiry', async () => {

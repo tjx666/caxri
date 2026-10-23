@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CaxriDatabase } from '../../db/repository';
 import { ListingService } from '../listing';
 import { FileService } from '../service';
-import { didFingerprintChange, rememberPolledDirectory } from '../watcher';
+import { didFingerprintChange, rememberPolledDirectory } from '../watch-bounded-maps';
 import { fakeDirent } from './listing-fixtures';
 
 /**

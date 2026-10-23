@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
     PaneResource,
@@ -15,6 +15,7 @@ import {
     executeViewCatalogShortcut,
     invalidateControlledViewSnapshot,
 } from '../../../../features/view-containers/view-container-commands';
+import { useOnVisible } from '../../../../hooks/use-on-visible';
 import { useTranslation } from '../../../../i18n';
 import { useToastOnQueryError } from '../../../../queries/client';
 import { useSessionViewScope, useSettings } from '../../../../stores/selectors';
@@ -244,6 +245,16 @@ export function useSourceControlController(
     const requestRefresh = useCallback(() => {
         setRefresh((current) => current + 1);
     }, []);
+    /**
+     * The Git provider asks for a re-read after every watcher burst. While the window is hidden nobody sees the panel,
+     * so those requests collapse into one re-read when it shows again instead of a snapshot read per Agent write.
+     */
+    const hasHiddenRefreshReference = useRef(false);
+    useOnVisible(() => {
+        if (!hasHiddenRefreshReference.current) return;
+        hasHiddenRefreshReference.current = false;
+        requestRefresh();
+    });
     useEffect(() => {
         if (refresh === 0) return;
         // eslint-disable-next-line no-void -- invalidateQueries reports through the snapshot observer
@@ -278,8 +289,11 @@ export function useSourceControlController(
                           extensionGeneration: providerGeneration,
                       },
                       (event) => {
-                          if (event.payload.change.kind === 'refresh') requestRefresh();
-                          else if (event.payload.change.kind === 'selection')
+                          if (event.payload.change.kind === 'refresh') {
+                              if (document.visibilityState === 'hidden')
+                                  hasHiddenRefreshReference.current = true;
+                              else requestRefresh();
+                          } else if (event.payload.change.kind === 'selection')
                               updateNavigation({
                                   modeId: event.payload.change.selectedModeId,
                               });
