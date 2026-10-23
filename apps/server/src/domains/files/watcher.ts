@@ -18,6 +18,7 @@ import {
     isTraversalExcludedPath,
     WATCHER_EXCLUDE_PATTERNS,
 } from './ignore-rules';
+import { didFingerprintChange, rememberPolledDirectory } from './watch-bounded-maps';
 
 const MAX_PENDING_WATCH_EVENTS = MAX_FILE_CHANGES_PER_EVENT;
 const MAX_POLLED_DIRECTORIES = 64;
@@ -39,61 +40,6 @@ function isWorkingTreeGitIgnore(path: string): boolean {
 
 function fileSignature(stats: Awaited<ReturnType<typeof lstat>>): string {
     return `${stats.mtimeMs}:${stats.ctimeMs}:${stats.size}:${stats.mode}:${stats.ino}`;
-}
-
-/**
- * Finds the oldest evictable key (Map iteration order's first key other than `protectedRoot`). Kept as its own function
- * (rather than nested inside `rememberPolledDirectory`'s `while` loop) so its `continue`/`break` control flow stays
- * scoped to a single loop.
- */
-function oldestEvictableKey<T>(
-    directories: ReadonlyMap<string, T>,
-    protectedRoot: string | undefined,
-): string | undefined {
-    for (const path of directories.keys()) {
-        if (path === protectedRoot) continue;
-        return path;
-    }
-    return undefined;
-}
-
-/**
- * @internal
- */
-export function rememberPolledDirectory<T>(
-    directories: Map<string, T>,
-    directory: string,
-    value: T,
-    protectedRoot: string | undefined,
-    maximum: number,
-): void {
-    directories.delete(directory);
-    directories.set(directory, value);
-    while (directories.size > Math.max(1, maximum)) {
-        const candidate = oldestEvictableKey(directories, protectedRoot);
-        if (!candidate) return;
-        directories.delete(candidate);
-    }
-}
-
-/**
- * @internal
- */
-export function didFingerprintChange(
-    fingerprints: Map<string, string>,
-    path: string,
-    fingerprint: string,
-    maximum: number,
-): boolean {
-    if (fingerprints.get(path) === fingerprint) return false;
-    fingerprints.delete(path);
-    fingerprints.set(path, fingerprint);
-    while (fingerprints.size > Math.max(1, maximum)) {
-        const oldest = fingerprints.keys().next().value;
-        if (!oldest) break;
-        fingerprints.delete(oldest);
-    }
-    return true;
 }
 
 export interface WatcherServiceOptions {
@@ -746,7 +692,11 @@ export class WatcherService {
         });
     }
 
-    watchSession(scope?: WatchScope, shouldForce = false): Promise<void> {
+    /**
+     * Resolves whether this call (re)installed the watcher. `false` means the selected Workbench Project was already
+     * watched, so nothing changed unobserved and callers can skip catch-up work.
+     */
+    async watchSession(scope?: WatchScope, shouldForce = false): Promise<boolean> {
         if (
             shouldForce ||
             scope?.sessionId !== this.watchedScope?.sessionId ||
@@ -762,14 +712,17 @@ export class WatcherService {
             scope.workbenchProjectId === this.watchedScope?.workbenchProjectId
         ) {
             this.watchedScope = scope;
-            return this.watchSetup ?? Promise.resolve();
+            await this.watchSetup;
+            // A failed install left nothing observing the root, so let the caller catch up as after a reinstall.
+            return this.watchHandle === undefined && !this.pollingActive;
         }
         this.flushPendingBatch();
         const generation = ++this.watchGeneration;
         this.watchedScope = scope;
         this.resetWatchState();
         this.watchSetup = this.installWatcher(scope, generation);
-        return this.watchSetup;
+        await this.watchSetup;
+        return true;
     }
 
     noteWorkspacePath(sessionId: string, resolved: ResolvedSessionPath): Promise<void> {

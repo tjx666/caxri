@@ -1,7 +1,6 @@
-import { Buffer } from 'node:buffer';
-
 import type { AgentTimelineItem, AgentTimelineTurnOutcome } from '@caxri/protocol';
 
+import { ownedSlice } from '../owned-string';
 import type { SystemEventProjection } from './system-event';
 import { stripInjectedTranscriptContent } from './visible-transcript-message';
 
@@ -15,14 +14,10 @@ interface TimelineEntry {
 }
 
 /**
- * Truncates `text` into a string that owns its characters. V8 represents `slice` as a view that keeps the whole source
- * alive, and `AgentTimelineService` holds projected items across reads, so a 2 KiB detail cut from a 256 KiB tool
- * result would otherwise pin the full result. UTF-16 round-trips every code unit, lone surrogates included.
+ * Truncates `text` into an owned copy: `AgentTimelineService` holds projected items across reads.
  */
 function bounded(text: string, maximum: number): string {
-    return text.length <= maximum
-        ? text
-        : Buffer.from(text.slice(0, maximum), 'utf16le').toString('utf16le');
+    return text.length <= maximum ? text : ownedSlice(text, 0, maximum);
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {

@@ -318,6 +318,32 @@ describe('FileService watcher and polling behavior', () => {
         database.close();
     });
 
+    it('reports whether a Session selection reinstalled the watcher', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-reuse-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const projectId = database.createProject(root).id;
+        const first = database.createSession(projectId, 'shell').session;
+        const second = database.createSession(projectId, 'shell').session;
+        const subscribe = vi.fn(() => Promise.resolve({ unsubscribe: () => Promise.resolve() }));
+        const service = new FileService(
+            database,
+            () => {},
+            createLogger(join(directory, 'logs')),
+            () => 1024,
+            { subscribe },
+        );
+
+        await expect(service.watchSession(first.id)).resolves.toBe(true);
+        await expect(service.watchSession(second.id)).resolves.toBe(false);
+        await expect(service.refreshWatchSession(second.id)).resolves.toBe(true);
+        expect(subscribe).toHaveBeenCalledTimes(2);
+        await service.close();
+        database.close();
+    });
+
     it('resolves the replacement root while disposing the previous native watcher', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-replace-'));
         temporaryDirectories.push(directory);

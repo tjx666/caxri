@@ -12,6 +12,8 @@ import {
     MAX_AGENT_CHAT_MODELS,
 } from '@caxri/protocol';
 
+import { ownedSlice } from '../owned-string';
+
 /**
  * Provider-neutral helpers every Chat provider uses to build projection operations. Provider inputs are untrusted JSON,
  * so readers are defensive and every string is bounded.
@@ -52,8 +54,12 @@ export function stringField(value: unknown): string | undefined {
     return typeof value === 'string' && value ? value : undefined;
 }
 
+/**
+ * Keeps the head of `value`. Chat items outlive the provider record they were read from, so the cut owns its characters
+ * instead of pinning the record (see {@link ownedSlice}).
+ */
 export function clip(value: string, limit: number): string {
-    return value.length <= limit ? value : value.slice(0, limit);
+    return value.length <= limit ? value : ownedSlice(value, 0, limit);
 }
 
 /**
@@ -104,8 +110,11 @@ export function readableToolInputSummary(input: Json, limit: number): string | u
     return undefined;
 }
 
+/**
+ * Keeps the end of `value`, as an owned copy like {@link clip}.
+ */
 export function tail(value: string, limit: number): string {
-    return value.length <= limit ? value : value.slice(value.length - limit);
+    return value.length <= limit ? value : ownedSlice(value, value.length - limit);
 }
 
 function prefixedLines(value: string, prefix: '+' | '-'): string[] {

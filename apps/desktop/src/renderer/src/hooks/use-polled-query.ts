@@ -69,8 +69,10 @@ export function usePolledQuery<M extends CaxriMethod>(
     useOnVisible(() => {
         // Fire-and-forget: `useCaxriQuery`/`useToastOnQueryError` already own reporting a failed refetch (see call
         // sites), so this resume-triggered refresh has nothing further to await.
+        // Showing a window fires both `visibilitychange` and `focus`; `cancelRefetch: false` lets the second join the
+        // first read instead of cancelling and reissuing it.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        if (enabled) void query.refetch();
+        if (enabled) void query.refetch({ cancelRefetch: false });
     });
 
     return query;

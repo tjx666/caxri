@@ -18,10 +18,18 @@ import {
 } from './agent-message-approval-state';
 
 /**
- * How often the queue drops requests whose approval window closed. The Server expires them too, but only a receipt it
- * sends later would say so, and a request past its window must not keep asking for a decision.
+ * The queue drops a request locally once its approval window closes. The Server expires it too, but only a receipt it
+ * sends later would say so, and a request past its window must not keep asking for a decision. One timer aims at the
+ * earliest deadline and none runs while the queue is empty, so an idle window never wakes for it.
  */
-const EXPIRY_TICK_MS = 1_000;
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+function earliestExpiry(queue: AgentHeldMessageQueue): number | undefined {
+    let earliest: number | undefined;
+    for (const message of queue.messages)
+        if (earliest === undefined || message.expiresAt < earliest) earliest = message.expiresAt;
+    return earliest;
+}
 
 type AgentHeldMessageQueue = HeldMessageQueue<AgentHeldMessage>;
 
@@ -42,7 +50,7 @@ export const useHeldMessageQueueStore = createStore<HeldMessageQueueState>(
 
 /**
  * Applies one queue transition from `agent-message-approval-state.ts`. A transition that returns the same queue leaves
- * the store untouched, which keeps the one-second expiry tick from notifying every reader when nothing expired.
+ * the store untouched, which keeps an expiry check from notifying every reader when nothing expired.
  */
 export function updateHeldMessageQueue(
     transition: (queue: AgentHeldMessageQueue) => AgentHeldMessageQueue,
@@ -100,13 +108,41 @@ export function subscribeHeldMessageQueue(): () => void {
             );
         }
     });
-    const expiryTimer = setInterval(
-        () => updateHeldMessageQueue((queue) => expireHeldMessages(queue, Date.now())),
-        EXPIRY_TICK_MS,
-    );
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+    let armedExpiry: number | undefined;
+    function armExpiry(): void {
+        const expiry = earliestExpiry(useHeldMessageQueueStore.getState().queue);
+        if (expiry === armedExpiry) return;
+        clearTimeout(expiryTimer);
+        expiryTimer = undefined;
+        armedExpiry = expiry;
+        if (expiry === undefined) return;
+        // Clamped to the 32-bit timer limit, past which `setTimeout` fires at once and would spin.
+        const delay = Math.min(MAX_TIMER_DELAY_MS, Math.max(0, expiry - Date.now()));
+        expiryTimer = setTimeout(() => {
+            armedExpiry = undefined;
+            updateHeldMessageQueue((queue) => expireHeldMessages(queue, Date.now()));
+            armExpiry();
+        }, delay);
+    }
+    /**
+     * A timer does not advance while the Mac sleeps, so a deadline that passed during sleep is checked on return.
+     */
+    function expireOnReturn(): void {
+        updateHeldMessageQueue((queue) => expireHeldMessages(queue, Date.now()));
+    }
+    const unsubscribeExpiry = useHeldMessageQueueStore.subscribe(armExpiry);
+    armExpiry();
+    // Absent only in node-environment unit tests.
+    const view = 'window' in globalThis ? globalThis : undefined;
+    view?.addEventListener('focus', expireOnReturn);
+    view?.document.addEventListener('visibilitychange', expireOnReturn);
     return () => {
         isActive = false;
         unsubscribe();
-        clearInterval(expiryTimer);
+        unsubscribeExpiry();
+        clearTimeout(expiryTimer);
+        view?.removeEventListener('focus', expireOnReturn);
+        view?.document.removeEventListener('visibilitychange', expireOnReturn);
     };
 }

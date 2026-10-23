@@ -65,7 +65,14 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      the rest (`features/agent-chat/activity/dwell-shimmer-rest.ts`).
    - Gate event-driven refetches and polling on `document.visibilityState`, then catch up once on
      reveal keyed by what changed, not by React Query's `isInvalidated`, which an in-flight fetch
-     clears (`git.changed` in `queries/invalidation.ts`).
+     clears. Route every new Server-backed invalidation through
+     `queries/invalidation-hidden-window.ts`, which already covers `git.changed`, `files.changed`,
+     and Source Control view changes.
+   - Refresh Server state on a selection change only when something was actually detached: a Session
+     switch inside the same Workbench Project keeps its file watcher, so it must not re-run
+     `git status` (`updateWatch` in `apps/server/src/domains/background-tasks.ts`).
+   - Arm one timer at the next deadline instead of a fixed-rate interval, and run none while there
+     is nothing to expire (the held-message expiry in `agent-message-approval-store.ts`).
    - Long-lived caches must not retain a view over a larger allocation: copy a truncated string out
      of its V8 parent and copy a sync zlib result, which is a slice of Node's shared buffer pool
      (`apps/server/src/domains/agent-chat/chat-history-archive.ts`, the agent timeline projection).

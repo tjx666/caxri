@@ -14,9 +14,13 @@ async function updateWatch(
     shouldForce = false,
 ): Promise<void> {
     try {
-        if (shouldForce && sessionId) await files.refreshWatchSession(sessionId);
-        else await files.watchSession(sessionId);
-        if (sessionId) await git.observeWatcherAttached(sessionId);
+        const isInstalled =
+            shouldForce && sessionId
+                ? await files.refreshWatchSession(sessionId)
+                : await files.watchSession(sessionId);
+        // A Session switch inside the already-watched Workbench Project kept the watcher attached, so nothing was
+        // missed and bumping Git status would only spawn redundant `git status` work on every switch.
+        if (sessionId && isInstalled) await git.observeWatcherAttached(sessionId);
     } catch (error) {
         logger.write(
             'error',
