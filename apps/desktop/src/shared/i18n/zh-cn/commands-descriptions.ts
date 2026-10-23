@@ -67,7 +67,7 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.workbench.previousTab': '激活上一个终端或文件标签页',
     'commands.description.editor.save': '保存当前文件',
     'commands.description.editor.sendReferenceToTerminal':
-        '将当前文件路径和光标所在行（`@path#L12`）输入到最近打开的终端',
+        '将当前文件路径和光标所在行（`@path#L12`）输入到最近打开的终端或 Agent 对话消息',
     'commands.description.editor.addReviewComment': '为 Git 差异中的所选行添加批注',
     'commands.description.editor.openPreview':
         '以渲染预览显示当前 Markdown、SVG、CSV、Mermaid 或 PDF 文件',

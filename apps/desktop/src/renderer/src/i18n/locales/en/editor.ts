@@ -153,6 +153,9 @@ export const editor = {
     // Sending a file reference to a Terminal.
     'editor.sendReference.noTerminal': 'Open a Terminal in this Session first',
     'editor.sendReference.terminalNotReady': 'Terminal is not ready for input',
+    'editor.selectionToolbar.label': 'Selection actions',
+    'editor.selectionToolbar.addToChat': 'Add to Chat',
+    'editor.selectionToolbar.sendToTerminal': 'Send to Terminal',
 
     // Opening import paths.
     'editor.importLink.noImport': 'Put the cursor on an import path to open it.',

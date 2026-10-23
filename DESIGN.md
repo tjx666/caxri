@@ -1454,6 +1454,11 @@ room, holding `Copy` and `Add to message`. Copy confirms in place with a check, 
 to message appends the selection as a `>` Markdown quote paragraph to the Chat's draft and puts
 the caret on a new line after it; from a subagent tab it brings the parent Chat forward. The toolbar follows the selection as the transcript scrolls and leaves on
 Escape, an outside press, or a collapsed selection. References: Synara, LibreChat, assistant-ui.
+Code selected in an editor floats the same toolbar, holding one action named after where the
+reference goes: `Add to Chat` when the Session's most recently opened Agent is a Chat, `Send to
+Terminal` otherwise, with the command's shortcut (`⌥⌘K`) beside it. It sends `@path#L3-L9` the way
+the shortcut does: a Chat gets it at the end of its draft and comes forward with the caret after it.
+The editor toolbar shows only while the editor has focus. References: Cursor, VS Code Copilot.
 
 **Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
 this one tab instead of raising a dialog, so it composes with every other document (the Archived

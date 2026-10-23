@@ -80,7 +80,7 @@ export const commands = {
     'commands.workbench.nextTab': 'Show Next Tab',
     'commands.workbench.previousTab': 'Show Previous Tab',
     'commands.editor.save': 'Save File',
-    'commands.editor.sendReferenceToTerminal': 'Send File Reference to Terminal',
+    'commands.editor.sendReferenceToTerminal': 'Send File Reference to Terminal or Chat',
     'commands.editor.addReviewComment': 'Add Review Comment',
     'commands.editor.openPreview': 'Open Preview',
     'commands.editor.openPreviewToSide': 'Open Preview to the Side',

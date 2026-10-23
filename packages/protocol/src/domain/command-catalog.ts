@@ -170,10 +170,10 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'editor.sendReferenceToTerminal',
-        title: 'Send File Reference to Terminal',
+        title: 'Send File Reference to Terminal or Chat',
         category: 'Editor',
         description:
-            'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal',
+            'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal or Agent Chat message',
         keywords: ['mention', 'at', 'line', 'path', 'agent'],
     },
     {

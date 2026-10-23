@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     activateTerminal: vi.fn(),
+    appendToAgentChatDraft: vi.fn(),
     focusTerminalById: vi.fn(),
     getActivePaneId: vi.fn<() => string | undefined>(),
     getActivePaneTab: vi.fn(),
@@ -34,6 +35,10 @@ vi.mock('../../../stores/selectors', () => ({
 }));
 vi.mock('../../../stores/session-view', () => ({ sessionViewScope: mocks.sessionViewScope }));
 vi.mock('../../../stores/toasts', () => ({ pushToast: mocks.pushToast }));
+vi.mock('../../agent-chat/composer-input/agent-chat-drafts', () => ({
+    appendToAgentChatDraft: mocks.appendToAgentChatDraft,
+    draftWithInlineText: (draft: string, text: string) => `${draft}${text}`,
+}));
 vi.mock('../../terminal/terminal-commands', () => ({
     activateTerminal: mocks.activateTerminal,
     sendTerminalSequence: mocks.sendTerminalSequence,
@@ -55,7 +60,7 @@ vi.mock('../../../queries/client', () => ({
 }));
 
 const { editorStatusKey, useEditorStatusStore } = await import('../editor-status');
-const { canSendActiveFileReference, sendActiveFileReferenceToTerminal } =
+const { canSendActiveFileReference, sendActiveFileReference } =
     await import('../send-file-reference');
 
 const session = { id: 'session-1', projectId: 'project-1' } as SessionRecord;
@@ -70,7 +75,7 @@ function activeFile(path: string): void {
     mocks.getActivePaneTab.mockReturnValue({ id: 'tab-1', resource: { kind: 'file', path } });
 }
 
-describe('sendActiveFileReferenceToTerminal', () => {
+describe('sendActiveFileReference', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         useEditorStatusStore.setState({ statuses: {} });
@@ -96,7 +101,7 @@ describe('sendActiveFileReferenceToTerminal', () => {
                 languageId: 'typescript',
             });
 
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.activateTerminal).toHaveBeenCalledWith('terminal-1');
         expect(mocks.whenTerminalAttached).toHaveBeenCalledWith('terminal-1', expect.any(Number));
@@ -119,7 +124,7 @@ describe('sendActiveFileReferenceToTerminal', () => {
                 languageId: 'typescript',
             });
 
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).toHaveBeenCalledWith(
             'terminal-1',
@@ -127,8 +132,25 @@ describe('sendActiveFileReferenceToTerminal', () => {
         );
     });
 
+    it('appends the reference to an Agent Chat draft instead of typing into its PTY', async () => {
+        const chat = { ...terminal, id: 'chat-1', surface: 'chat' } as TerminalRecord;
+        mocks.getBootstrap.mockReturnValue({ terminals: [chat] } as BootstrapState);
+
+        await sendActiveFileReference();
+
+        expect(mocks.appendToAgentChatDraft).toHaveBeenCalledWith(
+            'chat-1',
+            '@src/index.ts#L1 ',
+            expect.any(Function),
+        );
+        expect(mocks.activateTerminal).toHaveBeenCalledWith('chat-1');
+        expect(mocks.focusTerminalById).toHaveBeenCalledWith('chat-1');
+        expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
+        expect(mocks.whenTerminalAttached).not.toHaveBeenCalled();
+    });
+
     it('falls back to line 1 before the editor has published a cursor', async () => {
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).toHaveBeenCalledWith('terminal-1', '@src/index.ts#L1 ');
     });
@@ -136,7 +158,7 @@ describe('sendActiveFileReferenceToTerminal', () => {
     it('reports instead of writing when the revealed Terminal never attaches', async () => {
         mocks.whenTerminalAttached.mockResolvedValue(false);
 
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
         expect(mocks.focusTerminalById).not.toHaveBeenCalled();
@@ -147,7 +169,7 @@ describe('sendActiveFileReferenceToTerminal', () => {
         mocks.getBootstrap.mockReturnValue({ terminals: [] } as unknown as BootstrapState);
 
         expect(canSendActiveFileReference()).toBe(false);
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.activateTerminal).not.toHaveBeenCalled();
         expect(mocks.pushToast).toHaveBeenCalledWith(
@@ -163,18 +185,18 @@ describe('sendActiveFileReferenceToTerminal', () => {
         });
 
         expect(canSendActiveFileReference()).toBe(false);
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         activeFile(agentTranscriptTabPath('terminal-1'));
 
         expect(canSendActiveFileReference()).toBe(false);
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
     });
 });
 
-describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
+describe('sendActiveFileReference from a Git diff tab', () => {
     const diffTabPath = gitFileDiffTabPath('repo-1', 'src/index.ts');
 
     beforeEach(() => {
@@ -204,7 +226,7 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
         });
 
         expect(canSendActiveFileReference()).toBe(true);
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.getDiffEditorFileSelection).toHaveBeenCalledWith(diffTabPath, 'pane-1');
         expect(mocks.sendTerminalSequence).toHaveBeenCalledWith(
@@ -221,7 +243,7 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
             selectionEndLine: 8,
         });
 
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).toHaveBeenCalledWith(
             'terminal-1',
@@ -232,7 +254,7 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
     it('falls back to line 1 while the diff editor has no caret yet', async () => {
         mocks.getDiffEditorFileSelection.mockReturnValue(undefined);
 
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).toHaveBeenCalledWith('terminal-1', '@src/index.ts#L1 ');
     });
@@ -250,7 +272,7 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
         });
 
         expect(canSendActiveFileReference()).toBe(false);
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
     });
@@ -259,7 +281,7 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
         mocks.getQueryData.mockReturnValue(undefined);
 
         expect(canSendActiveFileReference()).toBe(false);
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
     });
@@ -268,7 +290,7 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
         activeFile(gitChangesDiffTabPath('repo-1', 'repo'));
 
         expect(canSendActiveFileReference()).toBe(false);
-        await sendActiveFileReferenceToTerminal();
+        await sendActiveFileReference();
 
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
     });
@@ -287,7 +309,7 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
         const expectReference = async (path: string): Promise<void> => {
             activeFile(path);
             expect(canSendActiveFileReference()).toBe(true);
-            await sendActiveFileReferenceToTerminal();
+            await sendActiveFileReference();
             expect(mocks.sendTerminalSequence).toHaveBeenLastCalledWith(
                 'terminal-1',
                 '@src/index.ts#L42 ',

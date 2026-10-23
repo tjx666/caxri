@@ -42,7 +42,7 @@ import {
 } from '../features/editor/import-link-commands';
 import {
     canSendActiveFileReference,
-    sendActiveFileReferenceToTerminal,
+    sendActiveFileReference,
 } from '../features/editor/send-file-reference';
 import {
     canOpenActivePreview,
@@ -386,7 +386,7 @@ const commandContext: CommandContext = {
         saveActive: () => void saveActiveEditor(),
         canSendReferenceToTerminal: canSendActiveFileReference,
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        sendReferenceToTerminal: () => void sendActiveFileReferenceToTerminal(),
+        sendReferenceToTerminal: () => void sendActiveFileReference(),
         canAddReviewComment: canAddGitReviewComment,
         addReviewComment: addGitReviewComment,
         canOpenPreview: canOpenActivePreview,
