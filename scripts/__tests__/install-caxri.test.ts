@@ -1,17 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    assertDownloadedSize,
     assertReleaseBundleVersion,
+    downloadWithRetries,
     findDmgPair,
     hostStopCommand,
     isHeadlessCaxriProcess,
     isInstalledCaxriCommand,
     parseArguments,
     parseHostStopActivePtyCount,
+    parseReleaseView,
     quitRunningCaxri,
     releaseVersionFromTag,
     resolveChecksumStep,
     resolveInstalledProfilePath,
+    resumableDownloadArguments,
 } from '../install-caxri';
 
 const GUI = { command: '/Applications/Caxri.app/Contents/MacOS/Caxri', pid: 100 };
@@ -271,5 +275,62 @@ describe('install-caxri', () => {
         await quitRunningCaxri(harness.operations);
         expect(harness.quitApplication).not.toHaveBeenCalled();
         expect(harness.signalled).toEqual([]);
+    });
+});
+
+describe('release download', () => {
+    const DMG_URL =
+        'https://github.com/owner/example/releases/download/v0.0.7/Caxri-0.0.7-arm64.dmg';
+
+    it('reads the tag and the downloadable assets from gh release view', () => {
+        expect(
+            parseReleaseView(
+                JSON.stringify({
+                    assets: [
+                        { name: 'Caxri-0.0.7-arm64.dmg', size: 42, url: DMG_URL },
+                        { name: 'broken' },
+                    ],
+                    tagName: 'v0.0.7',
+                }),
+            ),
+        ).toEqual({
+            assets: [{ name: 'Caxri-0.0.7-arm64.dmg', size: 42, url: DMG_URL }],
+            tag: 'v0.0.7',
+        });
+        expect(() => parseReleaseView('{}')).toThrow('no tagName');
+    });
+
+    it('resumes into the partial file and aborts stalled transfers', () => {
+        const arguments_ = resumableDownloadArguments(DMG_URL, '/tmp/install/Caxri.dmg');
+        expect(arguments_.join(' ')).toContain('--continue-at -');
+        expect(arguments_.join(' ')).toContain('--speed-limit 1024 --speed-time 60');
+        expect(arguments_).toContain('--fail');
+        expect(arguments_.slice(-3)).toEqual(['--output', '/tmp/install/Caxri.dmg', DMG_URL]);
+    });
+
+    it('retries an interrupted download until it completes', async () => {
+        const download = vi
+            .fn<() => Promise<void>>()
+            .mockRejectedValueOnce(new Error('unexpected EOF'))
+            .mockRejectedValueOnce(new Error('unexpected EOF'))
+            .mockResolvedValueOnce();
+        const onRetry = vi.fn<(failedAttempt: number, error: unknown) => void>();
+        await downloadWithRetries({ download, onRetry, wait: () => Promise.resolve() });
+        expect(download).toHaveBeenCalledTimes(3);
+        expect(onRetry.mock.calls.map(([attempt]) => attempt)).toEqual([1, 2]);
+    });
+
+    it('rethrows the last failure once the attempts are spent', async () => {
+        const download = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('reset'));
+        await expect(
+            downloadWithRetries({ download, onRetry: vi.fn(), wait: () => Promise.resolve() }, 3),
+        ).rejects.toThrow('reset');
+        expect(download).toHaveBeenCalledTimes(3);
+    });
+
+    it('rejects a download whose size differs from the Release record', () => {
+        const asset = { name: 'Caxri-0.0.7-arm64.dmg', size: 42 };
+        expect(() => assertDownloadedSize(asset, 42)).not.toThrow();
+        expect(() => assertDownloadedSize(asset, 41)).toThrow('downloaded 41 bytes');
     });
 });

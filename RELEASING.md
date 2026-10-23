@@ -75,7 +75,7 @@ smoke steps are exercised by the read-only no-publish rehearsal before publicati
 ## Install a release
 
 Browser downloads of the unsigned DMG receive a `com.apple.quarantine` flag, so Gatekeeper reports
-the app as "damaged". Install from the terminal instead: `gh` downloads carry no quarantine flag:
+the app as "damaged". Install from the terminal instead: terminal downloads carry no quarantine flag:
 
 ```bash
 bun run install:caxri              # latest Source Map release
@@ -83,9 +83,11 @@ bun run install:caxri -- --no-sourcemap # latest no-map release
 bun run install:caxri -- --tag vX.Y.Z   # specific Source Map release
 ```
 
-The installer selects exactly one requested flavor and its checksum with `gh`; zero or multiple
-matching DMGs abort instead of choosing the first directory entry. Source Map is the default and
-`--no-sourcemap` is explicit. It verifies the SHA-256 (a Release without its
+The installer selects exactly one requested flavor and its checksum from the Release asset list
+`gh` reports; zero or multiple matching DMGs abort instead of choosing the first entry. Source Map
+is the default and `--no-sourcemap` is explicit. It downloads each asset with `curl`, resuming an
+interrupted transfer for up to five attempts, and aborts when the byte count differs from the
+Release's record. It verifies the SHA-256 (a Release without its
 `.sha256` aborts the install; pass `-- --skip-checksum` to install it anyway, with a warning), stops
 tasks through the installed version-matched CLI, quits Caxri without an interactive task prompt, replaces
 `/Applications/Caxri.app`, and strips any quarantine attribute defensively. A failed graceful stop

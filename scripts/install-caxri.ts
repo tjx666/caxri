@@ -4,14 +4,14 @@
  * Install or upgrade the released Caxri app into /Applications without tripping Gatekeeper.
  *
  * The published DMG is unsigned and unnotarized, so a browser download gets a `com.apple.quarantine` flag and macOS
- * reports the app as "damaged". Terminal downloads through `gh` never receive that flag, so this installer downloads
- * the requested release (latest by default), verifies the SHA-256 checksum, mounts the DMG, replaces
- * /Applications/Caxri.app, and defensively strips any quarantine attribute afterwards.
+ * reports the app as "damaged". Terminal downloads through `curl` never receive that flag, so this installer downloads
+ * the requested release (latest by default) with resumable retries, verifies its size and SHA-256 checksum, mounts the
+ * DMG, replaces /Applications/Caxri.app, and defensively strips any quarantine attribute afterwards.
  *
  * Usage: `bun run install:caxri [-- --tag v0.0.7 --no-sourcemap --skip-checksum]`
  */
 
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import process from 'node:process';
@@ -351,6 +351,122 @@ export async function quitRunningCaxri(
     );
 }
 
+const DOWNLOAD_ATTEMPTS = 5;
+const DOWNLOAD_RETRY_DELAY_MS = 3000;
+const DOWNLOAD_ATTEMPT_TIMEOUT_MS = 600_000;
+
+interface ReleaseAsset {
+    name: string;
+    size: number;
+    url: string;
+}
+
+/**
+ * Reads `gh release view --json tagName,assets` output into the Release tag and the assets this installer may fetch.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function parseReleaseView(stdout: string): { assets: ReleaseAsset[]; tag: string } {
+    const parsed = JSON.parse(stdout) as {
+        assets?: Array<{ name?: unknown; size?: unknown; url?: unknown }>;
+        tagName?: unknown;
+    };
+    if (typeof parsed.tagName !== 'string') throw new Error('gh release view returned no tagName.');
+    const assets = (parsed.assets ?? []).flatMap((asset) =>
+        typeof asset.name === 'string' &&
+        typeof asset.size === 'number' &&
+        typeof asset.url === 'string'
+            ? [{ name: asset.name, size: asset.size, url: asset.url }]
+            : [],
+    );
+    return { assets, tag: parsed.tagName };
+}
+
+/**
+ * `curl` arguments that resume into an existing partial file. A slow proxy can cut a 250 MB DMG transfer halfway (`gh
+ * release download` then fails with `unexpected EOF` and keeps nothing), so every attempt continues from the bytes
+ * already on disk, and a transfer that stalls below 1 KiB/s for a minute is aborted so the next attempt can resume it.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function resumableDownloadArguments(url: string, destination: string): string[] {
+    return [
+        '--fail',
+        '--location',
+        '--silent',
+        '--show-error',
+        '--continue-at',
+        '-',
+        '--speed-limit',
+        '1024',
+        '--speed-time',
+        '60',
+        '--output',
+        destination,
+        url,
+    ];
+}
+
+interface DownloadRetryOperations {
+    download: () => Promise<void>;
+    onRetry: (failedAttempt: number, error: unknown) => void;
+    wait: (milliseconds: number) => Promise<void>;
+}
+
+/**
+ * Runs a resumable download up to `attempts` times, rethrowing the last failure once the attempts are spent.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export async function downloadWithRetries(
+    operations: DownloadRetryOperations,
+    attempts = DOWNLOAD_ATTEMPTS,
+): Promise<void> {
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- each attempt resumes the bytes the previous one left
+            await operations.download();
+            return;
+        } catch (error) {
+            if (attempt >= attempts) throw error;
+            operations.onRetry(attempt, error);
+            // eslint-disable-next-line no-await-in-loop -- backoff between resumed attempts
+            await operations.wait(DOWNLOAD_RETRY_DELAY_MS);
+        }
+    }
+}
+
+/**
+ * Rejects a download whose byte count differs from the Release's record before the checksum or mount step reads it.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function assertDownloadedSize(
+    asset: Pick<ReleaseAsset, 'name' | 'size'>,
+    actual: number,
+): void {
+    if (actual !== asset.size) {
+        throw new Error(
+            `${asset.name} downloaded ${actual} bytes, but the Release records ${asset.size}; installation aborted.`,
+        );
+    }
+}
+
+async function downloadReleaseAsset(asset: ReleaseAsset, directory: string): Promise<void> {
+    const destination = join(directory, asset.name);
+    await downloadWithRetries({
+        download: async () => {
+            await execFileAsync('curl', resumableDownloadArguments(asset.url, destination), {
+                timeout: DOWNLOAD_ATTEMPT_TIMEOUT_MS,
+            });
+        },
+        onRetry: (failedAttempt, error) => {
+            const reason = error instanceof Error ? error.message.trim() : String(error);
+            console.warn(
+                `Download of ${asset.name} was interrupted (attempt ${failedAttempt}/${DOWNLOAD_ATTEMPTS}): ${reason}. Resuming…`,
+            );
+        },
+        wait: (milliseconds) => sleep(milliseconds),
+    });
+    assertDownloadedSize(asset, (await stat(destination)).size);
+}
+
 async function main(): Promise<void> {
     if (process.platform !== 'darwin') throw new Error('The Caxri installer is macOS-only.');
     const options = parseArguments(process.argv.slice(2));
@@ -365,37 +481,28 @@ async function main(): Promise<void> {
             '--repo',
             REPOSITORY,
             '--json',
-            'tagName',
-            '--jq',
-            '.tagName',
+            'tagName,assets',
         ];
-        const { stdout: releaseTagOutput } = await execFileAsync('gh', releaseViewArguments, {
+        const { stdout: releaseViewOutput } = await execFileAsync('gh', releaseViewArguments, {
             timeout: 60_000,
         });
-        const releaseTag = releaseTagOutput.trim();
-        const assetName = releaseDmgName(releaseTag, options.shouldOmitSourceMaps ?? false);
-        const downloadArguments = [
-            'release',
-            'download',
-            releaseTag,
-            '--repo',
-            REPOSITORY,
-            '--pattern',
-            assetName,
-            '--pattern',
-            `${assetName}.sha256`,
-            '--dir',
-            downloadDirectory,
-        ];
-        console.log(`Downloading ${releaseTag} from ${REPOSITORY}…`);
-        await execFileAsync('gh', downloadArguments, { timeout: 600_000 });
-
+        const release = parseReleaseView(releaseViewOutput);
+        const releaseTag = release.tag;
         const pair = findDmgPair(
-            await readdir(downloadDirectory),
+            release.assets.map(({ name }) => name),
             releaseTag,
             options.shouldOmitSourceMaps,
         );
         const checksumStep = resolveChecksumStep(pair, { ...options, tag: releaseTag });
+        console.log(`Downloading ${releaseTag} from ${REPOSITORY}…`);
+        await Promise.all(
+            [pair.dmg, ...(pair.checksum ? [pair.checksum] : [])].map((name) => {
+                const asset = release.assets.find((candidate) => candidate.name === name);
+                if (!asset) throw new Error(`The ${name} asset disappeared from ${releaseTag}.`);
+                return downloadReleaseAsset(asset, downloadDirectory);
+            }),
+        );
+
         if (checksumStep.kind === 'verify') {
             await execFileAsync('shasum', ['-a', '256', '-c', checksumStep.checksum], {
                 cwd: downloadDirectory,
@@ -427,7 +534,7 @@ async function main(): Promise<void> {
         await rm(INSTALL_PATH, { force: true, recursive: true });
         await execFileAsync('ditto', [join(mountPoint, 'Caxri.app'), INSTALL_PATH]);
         try {
-            // gh downloads carry no quarantine flag, but strip defensively in case the tooling changes.
+            // curl downloads carry no quarantine flag, but strip defensively in case the tooling changes.
             await execFileAsync('xattr', ['-dr', 'com.apple.quarantine', INSTALL_PATH]);
         } catch {
             // A missing attribute is the expected case; installation already succeeded.
