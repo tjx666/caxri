@@ -118,11 +118,10 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
     const listboxId = useId();
 
     let syntaxError: Error | undefined;
-    let recentFilter: string | undefined;
+    let parsedInput: ReturnType<typeof parsePathBrowserInput> | undefined;
+    // React Compiler cannot compile a conditional inside `try`, so the parse result is read after it.
     try {
-        const parsed = parsePathBrowserInput(inputState.input);
-        // Only a bare filter can mean "a recent file": a typed path or anchor names a place, not a name.
-        if (parsed.kind === 'filter' && inputState.mode === 'project') recentFilter = parsed.filter;
+        parsedInput = parsePathBrowserInput(inputState.input);
     } catch (error_) {
         syntaxError =
             error_ instanceof PathBrowserInputError
@@ -131,6 +130,11 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                   ? error_
                   : new Error(t('pathBrowser.errors.invalidPath'));
     }
+    // Only a bare filter can mean "a recent file": a typed path or anchor names a place, not a name.
+    const recentFilter =
+        parsedInput?.kind === 'filter' && inputState.mode === 'project'
+            ? parsedInput.filter
+            : undefined;
 
     useEffect(() => {
         let isDisposed = false;
