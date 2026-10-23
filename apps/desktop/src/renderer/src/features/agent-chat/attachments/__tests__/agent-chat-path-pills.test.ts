@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { startFilePathDrag } from '../../../../lib/file-drag';
 import type { AgentChatPathPill } from '../agent-chat-path-pills';
 import {
+    agentChatDraftPathPills,
     agentChatDropPathPills,
     agentChatPathPillRanges,
     isPathInsideProject,
@@ -69,6 +70,38 @@ describe('agentChatPathPillRanges', () => {
             { from: 0, pill: index, to: 18 },
             { from: 19, pill: source, to: 28 },
         ]);
+    });
+});
+
+describe('agentChatDraftPathPills', () => {
+    it('brings the dropped paths of a restored draft back as pills', () => {
+        const draft = "check /repo/docs/a.md and '/repo/my docs/' /btw /repo/b.ts:12 then";
+        const pills = agentChatDraftPathPills(draft);
+
+        expect(pills.values().toArray()).toEqual([
+            { kind: 'file', path: '/repo/docs/a.md', token: '/repo/docs/a.md' },
+            { kind: 'directory', path: '/repo/my docs', token: "'/repo/my docs/'" },
+        ]);
+        expect(agentChatPathPillRanges(draft, pills).map(({ pill }) => pill.path)).toEqual([
+            '/repo/docs/a.md',
+            '/repo/my docs',
+        ]);
+    });
+
+    it('keeps a restored drop a pill next to a later one', () => {
+        const pills = new Map(agentChatDraftPathPills('check /repo/docs/a.md'));
+        const dropped: AgentChatPathPill = {
+            kind: 'file',
+            path: '/repo/b.md',
+            token: '/repo/b.md',
+        };
+        pills.set(dropped.token, dropped);
+
+        expect(
+            agentChatPathPillRanges('check /repo/docs/a.md /repo/b.md now', pills).map(
+                ({ pill }) => pill.path,
+            ),
+        ).toEqual(['/repo/docs/a.md', '/repo/b.md']);
     });
 });
 

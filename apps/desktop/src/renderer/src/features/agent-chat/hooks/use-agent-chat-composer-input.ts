@@ -9,7 +9,10 @@ import { isOsFileDrag, isOsFileReferenceRefused, osFilePaths } from '../../../li
 import { pushToast } from '../../../stores/toasts';
 import { agentChatOsFileReferences } from '../attachments/agent-chat-path-attachments';
 import type { AgentChatPathPill } from '../attachments/agent-chat-path-pills';
-import { agentChatDropPathPills } from '../attachments/agent-chat-path-pills';
+import {
+    agentChatDraftPathPills,
+    agentChatDropPathPills,
+} from '../attachments/agent-chat-path-pills';
 import type { AgentChatComposerInput } from '../composer/agent-chat-composer-view';
 import { draftWithInsertion } from '../composer-input/agent-chat-drafts';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
@@ -52,8 +55,9 @@ export function useAgentChatComposerInput({
     supportsImages: boolean;
     terminalId: string;
 }) {
-    const [pathPills, setPathPills] = useState<ReadonlyMap<string, AgentChatPathPill>>(
-        () => new Map(),
+    // A draft this composer did not write itself, restored when it mounts, brings its dropped paths back as pills.
+    const [pathPills, setPathPills] = useState<ReadonlyMap<string, AgentChatPathPill>>(() =>
+        agentChatDraftPathPills(draft),
     );
     /**
      * Inserts `text` over `range` while the input still holds the text the range was taken from, and at the caret
