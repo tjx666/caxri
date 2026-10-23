@@ -136,6 +136,10 @@ Then write the task to a file and run
 - `--new-session --title <subject>` creates the Session together with its task. Name it after the
   task's concrete subject; the user reads it in the sidebar. Without `--new-session`, `--session`
   accepts only your own Session or a Session you already delegated into.
+- Add `--handoff` when the user is done with your Session and the new one carries its work on (the
+  Chat composer's `/new-session` asks for exactly this): the new Session's first message then reads
+  as continued from yours. Write the brief so it stands alone, report the new Session, and stop
+  instead of following the task.
 - Report the returned `sessionId` and title to the user, then follow the task as described below:
   `wait`, `result`, `--follow-up` for the next instruction to the same Agent, and `stop`.
 - Lost track of a task after a context reset? `caxri agent delegate list --active --json` lists

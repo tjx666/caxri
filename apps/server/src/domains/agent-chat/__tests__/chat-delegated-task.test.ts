@@ -10,15 +10,17 @@ const pointer = delegatedTaskPointer(
     DELEGATION_ID,
 );
 
-function database(callerSessionId: string | undefined, commanderSessionId = 'commander-session') {
+function database(
+    callerSessionId: string | undefined,
+    commanderSessionId = 'commander-session',
+    isHandoff = false,
+) {
+    const input = { prompt: 'Fix the flaky login test', ...(isHandoff && { handoff: true }) };
     return {
         agentDelegations: {
             get: (id: string) =>
                 id === DELEGATION_ID
-                    ? {
-                          receipt: { callerTerminalId: 'caller-terminal' },
-                          input: { prompt: 'Fix the flaky login test' },
-                      }
+                    ? { receipt: { callerTerminalId: 'caller-terminal' }, input }
                     : undefined,
         },
         getTerminal: (id: string) =>
@@ -52,6 +54,16 @@ describe('delegatedTaskDetails', () => {
         });
         expect(delegatedTaskDetails(database(undefined), DELEGATION_ID)).toEqual({ prompt });
         expect(delegatedTaskDetails(database('session-a'), 'gone')).toEqual({});
+    });
+
+    it('marks a task its Session handed off with /new-session', () => {
+        expect(
+            delegatedTaskDetails(database('session-a', 'commander-session', true), DELEGATION_ID),
+        ).toEqual({
+            prompt: 'Fix the flaky login test',
+            source: { kind: 'session', sessionId: 'session-a' },
+            handoff: true,
+        });
     });
 });
 

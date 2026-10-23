@@ -19,6 +19,7 @@ import { useAgentChatEdit } from '../hooks/use-agent-chat-edit';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
 import { useAgentChatUserMessageMenu } from '../hooks/use-agent-chat-user-message-menu';
 import { useIsAgentChatClamped } from '../hooks/use-is-agent-chat-clamped';
+import { AgentChatSessionHandoffBubble } from '../session-handoff/agent-chat-session-handoff-bubble';
 import { AgentChatDelegatedTaskBubble } from '../tasks/agent-chat-delegated-task-bubble';
 import { AgentChatSkillPill } from '../tools/agent-chat-skill-card';
 import { openAgentChatLink } from '../transcript/agent-chat-links';
@@ -46,7 +47,8 @@ import {
  * (`agentChatUserMessageMenu`), so they are reachable without finding the hover row; a message read back from history
  * lists Edit and Fork there disabled with why. Files and folders the message cites (`agentChatTextWithPathReferences`)
  * show as chips above its bubble rather than as the reference block the provider received; clicking one shows it in
- * Finder. Skills it asked for lead the bubble's text as inline chips, so the message reads as one.
+ * Finder. Skills it asked for lead the bubble's text as inline chips, so the message reads as one. A `/new-session`
+ * hand-off shows as its own card (`AgentChatSessionHandoffBubble`).
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -79,7 +81,7 @@ export function AgentChatUserMessage({
     const isEditing = edit?.editingId === id;
     const container = useRef<HTMLDivElement>(null);
     const menu = useAgentChatUserMessageMenu({ container, id, text });
-    const { references, skills, text: words } = parseAgentChatPathReferences(text);
+    const { handoff, references, skills, text: words } = parseAgentChatPathReferences(text);
     const hasActions =
         words !== '' ||
         createdAt !== undefined ||
@@ -118,7 +120,11 @@ export function AgentChatUserMessage({
             {delegatedTask ? (
                 <AgentChatDelegatedTaskBubble task={delegatedTask} text={text} />
             ) : (
-                (words || skills.length > 0 || (images && images.length > 0)) && (
+                <>
+                    {handoff && (
+                        <AgentChatSessionHandoffBubble note={handoff.note} sentAt={createdAt} />
+                    )}
+                    {/* A hand-off's words are on its card; the images and skills it carried stay in a bubble. */}
                     <AgentChatUserMessageBubble
                         images={images}
                         imageRecord={
@@ -126,10 +132,10 @@ export function AgentChatUserMessage({
                         }
                         isEditing={isEditing}
                         skills={skills}
-                        text={words}
+                        text={handoff ? '' : words}
                         onOpenFile={onOpenFile}
                     />
-                )
+                </>
             )}
             {caption && <span className="-mt-0.5 text-[11px] leading-4 text-muted">{caption}</span>}
         </AgentChatReplyFrame>
@@ -140,7 +146,7 @@ export function AgentChatUserMessage({
  * The message bubble, shared with a message still on its way (`AgentChatPendingTimeline`): the text, then the images it
  * carried, in one bubble as LobeHub's chat lays a message out. A long message clamps to twelve lines with Show more
  * (the images stay visible under it); the message being edited keeps a `--muted` outline, which marks it without
- * competing with the edit banner's accent for attention.
+ * competing with the edit banner's accent for attention. With no text, skills, or images it renders nothing.
  */
 export function AgentChatUserMessageBubble({
     images,
@@ -171,6 +177,7 @@ export function AgentChatUserMessageBubble({
     const [isExpanded, setExpanded] = useState(false);
     const textReference = useRef<HTMLDivElement>(null);
     const isCut = useIsAgentChatClamped(textReference, { content: text, isClamped: !isExpanded });
+    if (!text && skills.length === 0 && !images?.length) return null;
     return (
         <div
             className={cn(

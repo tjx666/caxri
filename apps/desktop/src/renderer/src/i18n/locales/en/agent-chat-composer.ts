@@ -100,6 +100,8 @@ export const agentChatComposer = {
     'agentChat.slash.commands': 'Commands',
     'agentChat.slash.recent': 'Recently Used',
     'agentChat.slash.skills': 'Skills',
+    'agentChat.slash.newSessionDescription': 'Hand the next task to a new Session and stop here',
+    'agentChat.slash.newSessionHint': '[next task]',
     'agentChat.slash.skillsNeedAgent': 'Skills appear once the Agent is running',
     'agentChat.slash.loadingSkills': 'Loading skills…',
     'agentChat.slash.files': 'Files',

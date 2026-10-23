@@ -17,7 +17,7 @@ export type DelegatedTaskDetails = Omit<AgentChatDelegatedTask, 'delegationId'>;
  * The task the caller wrote, and who called: the Session whose Agent delegated it, or Agent Commander when the caller
  * was the Commander's own hidden Session. The source is absent when no Agent Terminal called it; both are absent when
  * the record is gone. A follow-up or resume has its own record, so its pointer reads as its own task rather than the
- * first.
+ * first. A task the caller handed off with `/new-session` says so (`handoff`).
  */
 export function delegatedTaskDetails(
     database: Pick<CaxriDatabase, 'agentCommanderRows' | 'agentDelegations' | 'getTerminal'>,
@@ -32,7 +32,11 @@ export function delegatedTaskDetails(
             ? { kind: 'commander' }
             : { kind: 'session', sessionId }
         : undefined;
-    return { prompt: record.input.prompt, ...(source && { source }) };
+    return {
+        prompt: record.input.prompt,
+        ...(source && { source }),
+        ...(record.input.handoff && { handoff: true }),
+    };
 }
 
 function withDelegatedTask(

@@ -26,6 +26,11 @@ export const agentChatDelegatedTaskSchema = z.strictObject({
      * Absent when the record is gone.
      */
     prompt: z.string().max(16_384).optional(),
+    /**
+     * The task continues the source Session's work, which handed it off with `/new-session`; see
+     * `agentDelegationCreateRequestSchema`'s `handoff`.
+     */
+    handoff: z.literal(true).optional(),
 });
 
 export type AgentChatDelegatedTask = z.infer<typeof agentChatDelegatedTaskSchema>;

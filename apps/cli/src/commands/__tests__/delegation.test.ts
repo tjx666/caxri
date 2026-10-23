@@ -58,6 +58,28 @@ describe('delegation CLI', () => {
             prompt: 'Synthetic task',
         });
         await expect(command.parseParams([...base, '--new-session'])).rejects.toThrow(/--title/u);
+        expect(
+            await command.parseParams([
+                ...base,
+                '--new-session',
+                '--handoff',
+                '--title',
+                'Fix login retry',
+            ]),
+        ).toMatchObject({ newSession: true, handoff: true });
+        await expect(
+            command.parseParams([...base, '--session', 'session', '--handoff']),
+        ).rejects.toThrow(/--handoff applies only with --new-session/u);
+        await expect(
+            command.parseParams([
+                ...base,
+                '--new-session',
+                '--handoff',
+                '--handoff',
+                '--title',
+                'Fix login retry',
+            ]),
+        ).rejects.toThrow(/--handoff at most once/u);
         await expect(
             command.parseParams([...base, '--session', 'session', '--title', 'Fix login retry']),
         ).rejects.toThrow(/--title/u);

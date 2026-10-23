@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 
 import type { AgentChatDelegatedTask } from '@caxri/protocol';
-import { Forward } from 'lucide-react';
+import { Forward, MessageSquareShare } from 'lucide-react';
 
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
@@ -13,13 +13,18 @@ import { useIsAgentChatClamped } from '../hooks/use-is-agent-chat-clamped';
 
 /**
  * "Delegated by" and who: a link to an open Session, Agent Commander, or an archived Session's title. A source the
- * Workbench cannot show (deleted, or in a hidden Project) reads as a plain delegated task.
+ * Workbench cannot show (deleted, or in a hidden Project) reads as a plain delegated task. A hand-off (`/new-session`)
+ * reads "Continued from" its Session instead, since this Session carries that one's work on.
  */
 function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
     const { t } = useTranslation();
     const sessions = useSessions();
     const { source } = task;
-    const by = <span className="flex-none text-muted">{t('agentChat.delegated.by')}</span>;
+    const by = (
+        <span className="flex-none text-muted">
+            {t(task.handoff ? 'agentChat.handoff.continuedFrom' : 'agentChat.delegated.by')}
+        </span>
+    );
     if (source?.kind === 'commander')
         return (
             <>
@@ -56,7 +61,11 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
                 </span>
             </>
         );
-    return <span>{t('agentChat.delegated.task')}</span>;
+    return (
+        <span>
+            {t(task.handoff ? 'agentChat.handoff.fromEarlier' : 'agentChat.delegated.task')}
+        </span>
+    );
 }
 
 const TOGGLE_CLASS =
@@ -133,7 +142,7 @@ function DelegatedTaskPointer({ text }: { text: string }) {
  * never typed and cannot act on, so the bubble names who delegated it (a link to that Session, Agent Commander, or an
  * archived Session's title) and shows the task the caller wrote, from the delegation record. Only a task whose record
  * is gone falls back to the pointer behind Show instruction. Copy and the message's other actions still take the
- * pointer text.
+ * pointer text. A hand-off wears the `/new-session` card's glyph, so its two ends read as one move.
  */
 export function AgentChatDelegatedTaskBubble({
     task,
@@ -142,13 +151,19 @@ export function AgentChatDelegatedTaskBubble({
     task: AgentChatDelegatedTask;
     text: string;
 }) {
+    const Icon = task.handoff ? MessageSquareShare : Forward;
     return (
         <div
             className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 text-foreground"
             data-agent-chat-delegated-task={task.delegationId}
+            data-agent-chat-handoff={task.handoff ? '' : undefined}
         >
             <div className="flex min-w-0 items-center gap-1.5">
-                <Forward aria-hidden="true" className="flex-none text-muted" size={14} />
+                <Icon
+                    aria-hidden="true"
+                    className={task.handoff ? 'flex-none text-accent' : 'flex-none text-muted'}
+                    size={14}
+                />
                 <DelegatedTaskSource task={task} />
             </div>
             {task.prompt ? (

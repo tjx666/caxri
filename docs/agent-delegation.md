@@ -89,6 +89,34 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   Take Back revokes this as well (`apps/server/src/domains/parking-handlers.ts`).
 - Delegation admission also accepts an earlier task's Session created by any Agent in the caller's
   Session, so a sibling Terminal can send it the next task.
+- `--handoff` (only with `--new-session`) marks the task as the caller's Session handing its work
+  on: the user is done with that Session. It is stored in the delegation record's input (no schema
+  change), and the new Session's first message then reads "Continued from" the caller's Session
+  instead of "Delegated by". The Agent Chat composer's `/new-session [next task]` asks the Chat's
+  Agent for exactly this; see [Hand off with /new-session](#hand-off-with-new-session).
+
+### Hand off with /new-session
+
+`/new-session` is a Caxri command every Chat composer menu offers, ahead of the provider's commands,
+whatever the provider. Caxri runs it rather than the provider: the composer sends an ordinary message
+(`agentChatSessionHandoffText` in `packages/protocol/src/agent/agent-chat-commands.ts`) telling the
+Chat's Agent to write a self-contained brief from the conversation, run
+`agent delegate create --new-session --handoff` with the Chat's own Project and provider already
+filled in, report the new Session, and stop without following the task. The Agent writes the brief
+because only it holds the conversation; the next Agent cannot read it.
+
+- **The asking Session.** Every reading of a sent message as the user's words
+  (`parseAgentChatPathReferences`) returns the hand-off as the `/new-session <note>` the user typed,
+  so Copy, Edit from here, prompt history, queue rows, and the phone never show the instructions.
+  Desktop draws the message as a card: a `New Session` chip with the note, and once the Agent created
+  the Session a "Continued in" link to it. The delegation does not record which message asked for
+  it, so the link names the first Session the asking Session created at or after the message
+  (`agent-chat-session-handoff-target.ts`).
+- **The new Session.** Its first message is the delegated pointer, drawn as the "Continued from"
+  card described under [Agent Chat children](#agent-chat-children) ("How the pointer reads") with the same glyph, so the two
+  ends read as one move. The sidebar's "Created by" row points back as for any created Session.
+- Caxri neither archives the asking Session nor switches to the new one: the user opens it from the
+  link or the sidebar when ready.
 
 An Agent learns this without the `caxri-cli` skill installed. Caxri adds one short pointer to the
 context of every ordinary Claude and Codex Agent, once per launch: it says the Agent runs inside
@@ -427,7 +455,8 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   (`chat-delegated-task.ts` in `apps/server/src/domains/agent-chat/`), so a follow-up or resume
   shows its own task. A caller that is no Agent Terminal reads as a plain "Delegated task"; a record
   that is gone also loses the task, and its bubble keeps the raw pointer behind Show instruction.
-  Mobile still shows only the source and the pointer.
+  A `--handoff` task reads "Continued from" its Session (or "Continued from an earlier Session")
+  with the hand-off glyph instead. Mobile still shows only "Delegated by" and the pointer.
 - **Answer.** Collection reads the turn's final assistant message from the Chat's projection instead
   of a native transcript. A Claude Code answer must match its reported digest; a Codex task
   completes once the projection shows its turn finished, checked every two seconds. An interrupted

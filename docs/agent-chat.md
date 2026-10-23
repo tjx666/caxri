@@ -1336,6 +1336,9 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
   `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
   sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.
+- **`/new-session`.** Caxri adds its own `/new-session [next task]` row first for every provider; it
+  hands the next task to a new Session and runs as a message, not through `agentChat.runCommand`. See
+  [Hand off with /new-session](agent-delegation.md#hand-off-with-new-session).
 - **Skills.** A leading `/` or `$` also lists the skills the
   [Agent Commands & Skills](agent-actions.md) picker discovers for this Terminal (`agentActions.list`,
   after the user's Settings overrides), ranked by the picker's search. Picker-only commands are

@@ -28,11 +28,14 @@ const providerUsage = delegationProviderSchema.options.join('|');
 
 async function createParameters(tokens: readonly string[]) {
     const values = new Map<string, string>();
-    // `--new-session` is the one valueless flag; everything else is `--flag value`.
+    // `--new-session` and `--handoff` are the valueless flags; everything else is `--flag value`.
+    const switches = new Set(['--new-session', '--handoff']);
+    for (const flag of switches)
+        if (tokens.filter((token) => token === flag).length > 1)
+            throw new CaxriError('VALIDATION', `Pass ${flag} at most once`);
     const isNewSession = tokens.includes('--new-session');
-    const valueTokens = tokens.filter((token) => token !== '--new-session');
-    if (tokens.length - valueTokens.length > 1)
-        throw new CaxriError('VALIDATION', 'Pass --new-session at most once');
+    const isHandoff = tokens.includes('--handoff');
+    const valueTokens = tokens.filter((token) => !switches.has(token));
     for (let index = 0; index < valueTokens.length; index += 2) {
         const flag = valueTokens[index];
         const value = valueTokens[index + 1];
@@ -56,10 +59,13 @@ async function createParameters(tokens: readonly string[]) {
             'VALIDATION',
             'Name a new Session with --title; --title applies only with --new-session',
         );
+    if (isHandoff && !isNewSession)
+        throw new CaxriError('VALIDATION', '--handoff applies only with --new-session');
     return agentDelegationCreateRequestSchema.parse({
         projectId,
         ...(sessionId && { sessionId }),
         ...(isNewSession && { newSession: true }),
+        ...(isHandoff && { handoff: true }),
         ...(values.has('--title') && { title: values.get('--title') }),
         provider: values.get('--provider'),
         preset: values.get('--preset'),
@@ -164,7 +170,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: `--project <id> (--session <id> | --new-session --title <text>) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
+        usage: `--project <id> (--session <id> | --new-session --title <text> [--handoff]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
         ownerConfirmation: 'Create this visible Agent delegation?',
         parseParams: createParameters,
     },
