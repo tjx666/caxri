@@ -140,6 +140,9 @@ export const editor: TranslatedNamespace<typeof source> = {
 
     'editor.sendReference.noTerminal': '请先在此会话中打开一个终端',
     'editor.sendReference.terminalNotReady': '终端尚未准备好接收输入',
+    'editor.selectionToolbar.label': '选中内容操作',
+    'editor.selectionToolbar.addToChat': '添加到对话',
+    'editor.selectionToolbar.sendToTerminal': '发送到终端',
 
     'editor.importLink.noImport': '将光标置于 import 路径上即可打开它。',
     'editor.importLink.resolveFailed': '无法解析 {{specifier}}',

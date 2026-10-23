@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { isEditableEventTarget } from '../../../lib/keybindings';
-import { agentChatSelectionToolbarPosition } from '../messages/agent-chat-selection';
+import { selectionToolbarPosition } from '../../../lib/selection-toolbar-position';
 
 /**
  * How long a selection made from the keyboard (Shift+Arrow with caret browsing, Select All) must hold still before the
@@ -86,7 +86,7 @@ export function useAgentChatSelectionToolbar(
             // A Chat kept alive behind another Session or tab lays out at zero size.
             const position =
                 bounds.height > 0
-                    ? agentChatSelectionToolbarPosition({
+                    ? selectionToolbarPosition({
                           bounds,
                           ...lineBoxes(selection.range, content),
                           size: { width: toolbar.offsetWidth, height: toolbar.offsetHeight },

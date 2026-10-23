@@ -77,7 +77,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.workbench.nextTab': '显示下一个标签页',
     'commands.workbench.previousTab': '显示上一个标签页',
     'commands.editor.save': '保存文件',
-    'commands.editor.sendReferenceToTerminal': '将文件引用发送到终端',
+    'commands.editor.sendReferenceToTerminal': '将文件引用发送到终端或对话',
     'commands.editor.addReviewComment': '添加评审评论',
     'commands.editor.openPreview': '打开预览',
     'commands.editor.openPreviewToSide': '在侧边打开预览',

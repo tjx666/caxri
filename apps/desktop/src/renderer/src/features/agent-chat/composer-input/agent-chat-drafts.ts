@@ -319,18 +319,31 @@ export function draftWithParagraph(draft: string, text: string): string {
 }
 
 /**
- * Adds `text` to the end of a Chat's draft without sending it: into the composer on screen when it is mounted,
- * otherwise into the stored draft it opens with. During "Edit from here" the draft is the edited message, which Cancel
- * discards, so the edit also records `text` for Cancel to put back (`draftAfterEditCancel`).
+ * `text` continuing the draft's last line, after a space unless the draft is empty or already ends in whitespace: how
+ * an inline mention such as an editor's `@path#L12` joins the sentence the user is writing.
  */
-export function appendToAgentChatDraft(terminalId: string, text: string): void {
+export function draftWithInlineText(draft: string, text: string): string {
+    return !draft || /\s$/u.test(draft) ? `${draft}${text}` : `${draft} ${text}`;
+}
+
+/**
+ * Adds `text` to the end of a Chat's draft without sending it: into the composer on screen when it is mounted,
+ * otherwise into the stored draft it opens with. It starts a new paragraph unless `join` says otherwise. During "Edit
+ * from here" the draft is the edited message, which Cancel discards, so the edit also records `text` for Cancel to put
+ * back (`draftAfterEditCancel`).
+ */
+export function appendToAgentChatDraft(
+    terminalId: string,
+    text: string,
+    join: (draft: string, text: string) => string = draftWithParagraph,
+): void {
     const edit = readAgentChatEdit(terminalId);
     if (edit)
         writeAgentChatEdit(terminalId, {
             ...edit,
-            appendedDraft: draftWithParagraph(edit.appendedDraft, text),
+            appendedDraft: join(edit.appendedDraft, text),
         });
-    updateAgentChatDraft(terminalId, (draft) => draftWithParagraph(draft, text));
+    updateAgentChatDraft(terminalId, (draft) => join(draft, text));
 }
 
 /**

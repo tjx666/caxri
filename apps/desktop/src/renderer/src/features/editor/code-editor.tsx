@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
@@ -19,6 +19,7 @@ import { resolveEditorLanguage, resolveRegisteredEditorLanguage } from './editor
 import { synchronizeControlledEditorModel } from './editor-model-sync';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
+import { EditorSelectionToolbar } from './editor-selection-toolbar';
 import { editorSelectionEndLine, useEditorStatusStore } from './editor-status';
 import { rememberEditorViewState, restoreEditorViewState } from './editor-view-state';
 
@@ -86,6 +87,11 @@ export function CodeEditor({
     onBlur,
 }: CodeEditorProperties) {
     const editorReference = useRef<Parameters<OnMount>[0] | null>(null);
+    /**
+     * The mounted editor as state, for the selection toolbar, which subscribes to it; `editorReference` serves the
+     * imperative paths that must not re-render.
+     */
+    const [mountedEditor, setMountedEditor] = useState<MonacoCodeEditor>();
     const registrationReference = useRef<(() => void) | undefined>(undefined);
     const cursorSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
     const scrollSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
@@ -198,63 +204,71 @@ export function CodeEditor({
         [],
     );
     return (
-        <Editor
-            path={path}
-            language={language}
-            saveViewState={false}
-            value={value}
-            theme="caxri-active"
-            beforeMount={() => {
-                markEditorBeforeMount();
-                applyEditorTheme(theme);
-            }}
-            onMount={(editor: Parameters<OnMount>[0]) => {
-                editorReference.current = editor;
-                cursorSubscriptionReference.current?.dispose();
-                cursorSubscriptionReference.current = editor.onDidChangeCursorSelection(() =>
-                    publishEditorStatus(editor, statusKeyReference.current),
-                );
-                scrollSubscriptionReference.current?.dispose();
-                scrollSubscriptionReference.current = editor.onDidScrollChange(() =>
-                    publishScrollPosition(editor),
-                );
-                blurSubscriptionReference.current?.dispose();
-                blurSubscriptionReference.current = editor.onDidBlurEditorWidget(() =>
-                    onBlurReference.current?.(),
-                );
-                restoreEditorViewState(editor, editorInstanceId);
-                registrationReference.current?.();
-                registrationReference.current = registerEditorRevealTarget(
-                    path,
-                    editor,
-                    editorInstanceId,
-                );
-                const unregisterSelection = registerTextSelectionSource(
-                    editor.getContainerDomNode(),
-                    () => {
-                        const selection = editor.getSelection();
-                        const model = editor.getModel();
-                        return selection && model ? model.getValueInRange(selection) : '';
-                    },
-                );
-                editor.onDidDispose(unregisterSelection);
-                foldEditorOnOpen(editor, editorInstanceId, foldOnOpenThresholdReference.current);
-                publishEditorStatus(editor, statusKeyReference.current);
-                markEditorMounted();
-            }}
-            onChange={handleChange}
-            options={{
-                // `editor.wordWrap` belongs to the file editor, so this surface takes it from the base options rather
-                // than forcing `off` the way the diff and transcript surfaces do for their own layout reasons.
-                ...editorOptions,
-                // `language` names only Caxri's own registrations; Monaco infers the rest (Markdown included) from the path.
-                ...languageEditorOptions(
-                    resolveRegisteredEditorLanguage(path, monaco.languages.getLanguages()),
-                ),
-                readOnly: readOnly === true,
-                domReadOnly: readOnly === true,
-                find: { addExtraSpaceOnTop: false },
-            }}
-        />
+        <>
+            <Editor
+                path={path}
+                language={language}
+                saveViewState={false}
+                value={value}
+                theme="caxri-active"
+                beforeMount={() => {
+                    markEditorBeforeMount();
+                    applyEditorTheme(theme);
+                }}
+                onMount={(editor: Parameters<OnMount>[0]) => {
+                    editorReference.current = editor;
+                    setMountedEditor(editor);
+                    cursorSubscriptionReference.current?.dispose();
+                    cursorSubscriptionReference.current = editor.onDidChangeCursorSelection(() =>
+                        publishEditorStatus(editor, statusKeyReference.current),
+                    );
+                    scrollSubscriptionReference.current?.dispose();
+                    scrollSubscriptionReference.current = editor.onDidScrollChange(() =>
+                        publishScrollPosition(editor),
+                    );
+                    blurSubscriptionReference.current?.dispose();
+                    blurSubscriptionReference.current = editor.onDidBlurEditorWidget(() =>
+                        onBlurReference.current?.(),
+                    );
+                    restoreEditorViewState(editor, editorInstanceId);
+                    registrationReference.current?.();
+                    registrationReference.current = registerEditorRevealTarget(
+                        path,
+                        editor,
+                        editorInstanceId,
+                    );
+                    const unregisterSelection = registerTextSelectionSource(
+                        editor.getContainerDomNode(),
+                        () => {
+                            const selection = editor.getSelection();
+                            const model = editor.getModel();
+                            return selection && model ? model.getValueInRange(selection) : '';
+                        },
+                    );
+                    editor.onDidDispose(unregisterSelection);
+                    foldEditorOnOpen(
+                        editor,
+                        editorInstanceId,
+                        foldOnOpenThresholdReference.current,
+                    );
+                    publishEditorStatus(editor, statusKeyReference.current);
+                    markEditorMounted();
+                }}
+                onChange={handleChange}
+                options={{
+                    // `editor.wordWrap` belongs to the file editor, so this surface takes it from the base options rather
+                    // than forcing `off` the way the diff and transcript surfaces do for their own layout reasons.
+                    ...editorOptions,
+                    // `language` names only Caxri's own registrations; Monaco infers the rest (Markdown included) from the path.
+                    ...languageEditorOptions(
+                        resolveRegisteredEditorLanguage(path, monaco.languages.getLanguages()),
+                    ),
+                    readOnly: readOnly === true,
+                    domReadOnly: readOnly === true,
+                    find: { addExtraSpaceOnTop: false },
+                }}
+            />
+            <EditorSelectionToolbar editor={mountedEditor} />
+        </>
     );
 }

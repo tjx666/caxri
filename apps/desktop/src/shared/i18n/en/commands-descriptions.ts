@@ -92,7 +92,7 @@ export const commandDescriptions = {
     'commands.description.workbench.previousTab': 'Activate the previous Terminal or file tab',
     'commands.description.editor.save': 'Save the active file',
     'commands.description.editor.sendReferenceToTerminal':
-        'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal',
+        'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal or Agent Chat message',
     'commands.description.editor.addReviewComment': 'Annotate the selected lines in a Git diff',
     'commands.description.editor.openPreview':
         'Show the active Markdown, SVG, CSV, Mermaid, or PDF file as a rendered preview',

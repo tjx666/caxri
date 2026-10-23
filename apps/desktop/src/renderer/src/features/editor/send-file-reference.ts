@@ -1,5 +1,5 @@
-import type { MethodResult, SessionRecord } from '@caxri/protocol';
-import { isVirtualEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
+import type { MethodResult, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { isChatTerminal, isVirtualEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
@@ -12,6 +12,10 @@ import {
 } from '../../stores/selectors';
 import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
+import {
+    appendToAgentChatDraft,
+    draftWithInlineText,
+} from '../agent-chat/composer-input/agent-chat-drafts';
 import { activateTerminal, sendTerminalSequence } from '../terminal/terminal-commands';
 import { focusTerminalById, whenTerminalAttached } from '../terminal/terminal-pane-handlers';
 import { getActivePaneId, getActivePaneTab } from '../workbench/pane-actions';
@@ -92,30 +96,38 @@ function activeFileReference(): ActiveFileReference | undefined {
 }
 
 /**
- * Gate for `editor.sendReferenceToTerminal`: the active editor describes a real file and its Session owns a Terminal.
+ * Where `editor.sendReferenceToTerminal` would send the active editor's reference: the Session's Terminal or Agent Chat
+ * that `chooseReferenceTerminal` picks, or `undefined` when the active editor describes no real file or the Session has
+ * nothing to send it to. The editor's selection toolbar names its action after this target.
  */
-export function canSendActiveFileReference(): boolean {
+export function activeFileReferenceTarget(): TerminalRecord | undefined {
     const reference = activeFileReference();
-    if (!reference) return false;
     const bootstrap = getBootstrap();
-    return Boolean(
-        bootstrap &&
-        chooseReferenceTerminal(
-            bootstrap.terminals,
-            reference.session.id,
-            getSessionState()?.paneLayout,
-        ),
+    if (!reference || !bootstrap) return;
+    return chooseReferenceTerminal(
+        bootstrap.terminals,
+        reference.session.id,
+        getSessionState()?.paneLayout,
     );
 }
 
 /**
- * Types `@path#L<line>` for the active editor's cursor (or selected line span) into the most recently opened Terminal
- * of the Session, then focuses that Terminal so the user can continue the prompt.
+ * Gate for `editor.sendReferenceToTerminal`: the active editor describes a real file and its Session owns a Terminal or
+ * Agent Chat.
+ */
+export function canSendActiveFileReference(): boolean {
+    return activeFileReferenceTarget() !== undefined;
+}
+
+/**
+ * Hands `@path#L<line>` for the active editor's cursor (or selected line span) to the most recently opened Terminal or
+ * Agent Chat of the Session, so the user can continue the prompt there. A Terminal gets it typed at its prompt; a Chat
+ * gets it appended to its composer's draft, since a Chat's PTY input never reaches the message the user is writing.
  *
- * The Terminal is revealed before the write because Server drops input for a Terminal without a mounted pane; the
+ * A Terminal is revealed before the write because Server drops input for a Terminal without a mounted pane; the
  * reference is captured first so revealing the Terminal cannot change which editor it describes.
  */
-export async function sendActiveFileReferenceToTerminal(): Promise<void> {
+export async function sendActiveFileReference(): Promise<void> {
     const reference = activeFileReference();
     const bootstrap = getBootstrap();
     if (!reference || !bootstrap) return;
@@ -134,6 +146,13 @@ export async function sendActiveFileReferenceToTerminal(): Promise<void> {
         startLine: reference.startLine,
         endLine: reference.endLine,
     });
+    if (isChatTerminal(terminal)) {
+        appendToAgentChatDraft(terminal.id, text, draftWithInlineText);
+        activateTerminal(terminal.id);
+        // A Chat in a tab that was just selected mounts its composer and focuses it on its own.
+        focusTerminalById(terminal.id);
+        return;
+    }
     activateTerminal(terminal.id);
     if (!(await whenTerminalAttached(terminal.id, TERMINAL_ATTACH_TIMEOUT_MS))) {
         pushToast('error', translate('editor.sendReference.terminalNotReady'));

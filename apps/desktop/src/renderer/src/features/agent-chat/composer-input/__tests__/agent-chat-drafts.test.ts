@@ -13,6 +13,7 @@ import {
     didDeliverAgentChatComposerInput,
     draftAfterEditCancel,
     draftAfterSend,
+    draftWithInlineText,
     draftWithInsertion,
     readAgentChatAttachments,
     readAgentChatDraft,
@@ -50,6 +51,14 @@ describe('Agent Chat drafts', () => {
         unsubscribe();
         appendToAgentChatDraft('chat-d', 'alone');
         expect(readAgentChatDraft('chat-d')).toBe('alone');
+    });
+
+    it('continues the last line with an inline mention, after a space only when one is missing', () => {
+        writeAgentChatDraft('chat-inline', 'Look at');
+        appendToAgentChatDraft('chat-inline', '@src/a.ts#L3 ', draftWithInlineText);
+        expect(readAgentChatDraft('chat-inline')).toBe('Look at @src/a.ts#L3 ');
+        expect(draftWithInlineText('', '@a#L1 ')).toBe('@a#L1 ');
+        expect(draftWithInlineText('see\n', '@a#L1 ')).toBe('see\n@a#L1 ');
     });
 
     it('releases the images and edit of a Chat that is gone, keeping those of open Chats and every text draft', () => {
