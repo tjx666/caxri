@@ -12,6 +12,7 @@ import { cn } from '../../lib/utilities';
 import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useIsSshHost } from '../../stores/environment';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
+import type { RecentFileMatch } from '../editor/recent-files';
 import { symlinkRowDescription } from '../view-containers/resource-explorer/resource-explorer-state';
 import type { PathBrowserCreateCandidate, PathBrowserMode } from './path-browser';
 import { PathBrowserHelp, PathBrowserStatus } from './path-browser-status';
@@ -62,6 +63,7 @@ function PathBrowserContent({
         rows,
         input,
         mode,
+        openRecent,
         selectedRow,
         selectIndex,
         snapshot,
@@ -74,7 +76,9 @@ function PathBrowserContent({
      * Tab completes the typed path, which only a row of the listed directory can do. The list now mixes both lookups,
      * so the hint follows the highlighted row rather than a mode the whole list is in.
      */
-    const isCompletable = selectedRow?.kind !== 'entry' || selectedRow.entry.source === 'directory';
+    const isCompletable =
+        selectedRow?.kind !== 'recent' &&
+        (selectedRow?.kind !== 'entry' || selectedRow.entry.source === 'directory');
 
     return (
         <PickerDialogContent className="w-[min(620px,calc(100vw-32px))]">
@@ -110,6 +114,7 @@ function PathBrowserContent({
                         selectedIndex={effectiveSelectedIndex}
                         onChoose={choose}
                         onCreate={() => runPathBrowserDetached(createFromQuery())}
+                        onOpenRecent={(file) => runPathBrowserDetached(openRecent(file))}
                         onSelectIndex={selectIndex}
                     />
                 )}
@@ -242,6 +247,7 @@ function PathBrowserResults({
     selectedIndex,
     onChoose,
     onCreate,
+    onOpenRecent,
     onSelectIndex,
 }: {
     createDirectoryLabel: string;
@@ -251,6 +257,7 @@ function PathBrowserResults({
     selectedIndex: number;
     onChoose: (entry: PathBrowserEntry) => void;
     onCreate: () => void;
+    onOpenRecent: (file: RecentFileMatch) => void;
     onSelectIndex: (index: number) => void;
 }) {
     const { t } = useTranslation();
@@ -283,6 +290,18 @@ function PathBrowserResults({
                         >
                             {t(row.text)}
                         </p>
+                    );
+                if (row.kind === 'recent')
+                    return (
+                        <PathBrowserRecentOption
+                            key={`recent:${row.file.path}`}
+                            id={`${listboxId}-option-${index}`}
+                            file={row.file}
+                            groupLabel={t(row.group)}
+                            isSelected={index === selectedIndex}
+                            onClick={() => onOpenRecent(row.file)}
+                            onMouseMove={() => onSelectIndex(index)}
+                        />
                     );
                 return row.kind === 'create' ? (
                     <PathBrowserCreateOption
@@ -375,6 +394,48 @@ function PathBrowserCreateOption({
             </span>
             <span className="min-w-0 flex-none truncate text-[11px] text-muted">
                 {t('pathBrowser.results.createDestination', { directory: directoryLabel })}
+            </span>
+        </button>
+    );
+}
+
+/**
+ * A recent file wears the same row as a listed file (icon, name, muted Project-relative directory); the heading above
+ * it and the screen-reader group suffix say where it came from.
+ */
+function PathBrowserRecentOption({
+    file,
+    groupLabel,
+    id,
+    isSelected,
+    onClick,
+    onMouseMove,
+}: {
+    file: RecentFileMatch;
+    groupLabel: string;
+    id: string;
+    isSelected: boolean;
+    onClick: () => void;
+    onMouseMove: () => void;
+}) {
+    return (
+        <button
+            id={id}
+            aria-selected={isSelected}
+            className={cn(
+                'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground',
+                rowStateClassName(isSelected),
+            )}
+            role="option"
+            type="button"
+            onClick={onClick}
+            onMouseMove={onMouseMove}
+        >
+            <FileTypeIcon entry={{ kind: 'file', name: file.name }} />
+            <span className="min-w-0 shrink truncate">{file.name}</span>
+            <span className="sr-only">{groupLabel}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
+                {file.directoryLabel}
             </span>
         </button>
     );

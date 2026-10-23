@@ -16,6 +16,7 @@ import { openEditorTab, openFileForSession } from '../document-commands';
 function installTabs(paths: readonly string[], activeIndex: number): void {
     useWorkbenchStore.setState({
         bootstrap: {
+            projects: [],
             selectedSessionId: 'session-1',
             sessions: [
                 { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },

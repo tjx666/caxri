@@ -3,6 +3,7 @@ import { sortedCopy } from '@caxri/utils';
 import { filesCoreCommandDefinitions } from '../registry/core-contributions.js';
 import { agentChatCommandDefinitions } from './agent-chat-command-definitions.js';
 import type { CommandId } from './commands.js';
+import { editorCommandDefinitions } from './editor/command-definitions.js';
 import { gitCommandDefinitions } from './git-command-definitions.js';
 import { sessionCommandDefinitions } from './session-command-definitions.js';
 import { terminalCommandDefinitions } from './terminal-command-definitions.js';
@@ -149,6 +150,14 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Close the other Terminal or file tabs in the active pane',
     },
     {
+        id: 'workbench.reopenClosedItem',
+        title: 'Reopen Closed Editor or Session',
+        category: 'View',
+        description:
+            'Reopen the most recently closed file tab or archived Session; repeat to go further back',
+        keywords: ['undo close', 'restore tab', 'unarchive', 'recently closed'],
+    },
+    {
         id: 'workbench.nextTab',
         title: 'Show Next Tab',
         category: 'View',
@@ -162,48 +171,7 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Activate the previous Terminal or file tab',
         nativeMenu: { menu: 'window', group: 1, order: 1 },
     },
-    {
-        id: 'editor.save',
-        title: 'Save File',
-        category: 'Editor',
-        description: 'Save the active file',
-    },
-    {
-        id: 'editor.sendReferenceToTerminal',
-        title: 'Send File Reference to Terminal or Chat',
-        category: 'Editor',
-        description:
-            'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal or Agent Chat message',
-        keywords: ['mention', 'at', 'line', 'path', 'agent'],
-    },
-    {
-        id: 'editor.addReviewComment',
-        title: 'Add Review Comment',
-        category: 'Editor',
-        description: 'Annotate the selected lines in a Git diff',
-        keywords: ['diff', 'comment', 'review', 'agent'],
-    },
-    {
-        id: 'editor.openPreview',
-        title: 'Open Preview',
-        category: 'Editor',
-        description: 'Show the active Markdown or SVG file as a rendered preview',
-        keywords: ['markdown', 'md', 'render', 'svg', 'image', 'mermaid'],
-    },
-    {
-        id: 'editor.openPreviewToSide',
-        title: 'Open Preview to the Side',
-        category: 'Editor',
-        description: 'Show the active Markdown or SVG file as a rendered preview beside its source',
-        keywords: ['markdown', 'md', 'render', 'svg', 'image', 'mermaid', 'split'],
-    },
-    {
-        id: 'editor.openImportLink',
-        title: 'Open Import Link',
-        category: 'Editor',
-        description: 'Open the file named by the import specifier under the editor cursor',
-        keywords: ['definition', 'follow', 'go to', 'module', 'specifier'],
-    },
+    ...editorCommandDefinitions,
     {
         id: 'workbench.splitLeft',
         title: 'Split Left',

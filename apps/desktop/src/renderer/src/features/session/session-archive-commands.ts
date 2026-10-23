@@ -6,6 +6,7 @@ import { useDialogStore } from '../../stores/dialogs';
 import { getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import { recordClosedSession } from '../closed-items/recording';
 import { sessionTitleForDisplay } from './session-title';
 
 /**
@@ -72,6 +73,7 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
         { refresh: refreshWorkbench },
     );
     if (!archived) return;
+    recordClosedSession(sessionId);
     pushToast('info', describeArchivedSession(archived.displayTitle), {
         /**
          * The notice outlives the row it describes, and now outlives the toast as well: the offer is still in the
@@ -113,10 +115,10 @@ export function openArchivedSessions(): void {
     useDialogStore.getState().setArchivedSessionsOpen(true);
 }
 
-async function unarchiveSessionWithNotice(
+async function didRestoreSessionWithNotice(
     sessionId: string,
     placement: SessionRestorePlacement,
-): Promise<void> {
+): Promise<boolean> {
     const restored = await tryCommand(
         translate('session.errors.restoreFailed'),
         () => caxri.request('session.unarchive', { placement, sessionId }),
@@ -128,8 +130,19 @@ async function unarchiveSessionWithNotice(
      * they just watched happen. An explicit restore has neither: it is issued from a dialog wide enough to cover the
      * sidebar, so without this the row reappears somewhere the user cannot see and nothing says so.
      */
-    if (!restored || placement === 'unchanged') return;
-    pushToast('info', describeRestoredSession(restored.displayTitle));
+    if (!restored) return false;
+    if (placement !== 'unchanged')
+        pushToast('info', describeRestoredSession(restored.displayTitle));
+    return true;
+}
+
+/**
+ * Restores an archived Session back to the row it was archived from, resolving to whether the Server restored it.
+ * Reopen Closed Editor or Session uses it: like the archive notice's Undo, it reverses one archive and so reports no
+ * second notice.
+ */
+export function restoreArchivedSession(sessionId: string): Promise<boolean> {
+    return didRestoreSessionWithNotice(sessionId, 'unchanged');
 }
 
 /**
@@ -141,9 +154,9 @@ export function unarchiveSession(
     sessionId: string,
     placement: SessionRestorePlacement = 'top',
 ): void {
-    // Fire-and-forget: `unarchiveSessionWithNotice` funnels its own failures into a toast via `tryCommand`.
+    // Fire-and-forget: `didRestoreSessionWithNotice` funnels its own failures into a toast via `tryCommand`.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void unarchiveSessionWithNotice(sessionId, placement);
+    void didRestoreSessionWithNotice(sessionId, placement);
 }
 
 /**

@@ -61,6 +61,11 @@ an inline module in its own lazy chunk (`features/preview/pdf-binary-data.ts`). 
 the initial Renderer bundle (which grew by ~4 KB of routing code), and a PDF loads only the CMap or
 decoder it actually uses.
 
+Untitled Editor language detection adds one lazy Worker chunk of ~1.9 MiB (shipped, 2026-10):
+TensorFlow.js 3 core, converter, and CPU backend plus the `@vscode/vscode-languagedetection` model,
+whose weights are an inline module for the same `file://` reason. The Worker starts only when an
+untitled buffer first needs detection, so the initial Renderer bundle carries just the client.
+
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
 emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar
 can encounter any file or folder name in a user's project at runtime, so there is no meaningful

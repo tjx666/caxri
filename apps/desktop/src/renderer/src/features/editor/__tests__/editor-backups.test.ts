@@ -1,5 +1,5 @@
 import type { BootstrapState, DeviceStoreBackend, SessionState } from '@caxri/protocol';
-import { encodeDeviceStoreEntry } from '@caxri/protocol';
+import { createPaneLayout, encodeDeviceStoreEntry, untitledEditorTabPath } from '@caxri/protocol';
 import type { EditorDocument, SessionDocuments } from '@desktop-shared/editor-state';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -190,6 +190,61 @@ describe('editor backups across a restart', () => {
         await backups.flush();
         expect(entries.size).toBe(1);
         stop();
+    });
+
+    describe('untitled buffers', () => {
+        const untitledPath = untitledEditorTabPath(1);
+        const launchUntitled = (isTabOpen: boolean) => {
+            useWorkbenchStore.setState({
+                bootstrap: {
+                    ...useWorkbenchStore.getState().bootstrap,
+                    sessionStates: [
+                        {
+                            sessionId: 'session-1',
+                            workbenchProjectId: 'project-1',
+                            paneLayout: createPaneLayout(
+                                isTabOpen ? { kind: 'file', path: untitledPath } : undefined,
+                            ),
+                        } as SessionState,
+                    ],
+                } as BootstrapState,
+            });
+            const { backend, entries } = memoryBackend();
+            entries.set(
+                editorBackupName('session-1', untitledPath),
+                encodeDeviceStoreEntry(
+                    1,
+                    'local',
+                    1,
+                    backup({ path: untitledPath, content: 'scratch', mtimeMs: 0, size: 0 }),
+                ),
+            );
+            return {
+                backups: createEditorBackups({ backend, projectIdOf, scope: 'local' }),
+                entries,
+            };
+        };
+
+        it('recreates an untitled buffer its restored tab still shows', async () => {
+            const { backups } = launchUntitled(true);
+            const stop = await backups.start();
+            expect(getSessionDocuments('session-1', 'project-1')?.[untitledPath]).toMatchObject({
+                content: 'scratch',
+                dirty: true,
+                ephemeral: true,
+            });
+            stop();
+        });
+
+        it('keeps the backup of a closed untitled tab without retrying it forever', async () => {
+            const { backups, entries } = launchUntitled(false);
+            const stop = await backups.start();
+            readFromDisk();
+            await backups.flush();
+            expect(getSessionDocuments('session-1', 'project-1')?.[untitledPath]).toBeUndefined();
+            expect(entries.has(editorBackupName('session-1', untitledPath))).toBe(true);
+            stop();
+        });
     });
 
     it("drops the backups of this launch's buffers on Don't Save", async () => {

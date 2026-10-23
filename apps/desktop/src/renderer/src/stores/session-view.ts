@@ -1,5 +1,5 @@
 import type { ViewContainerId } from '@caxri/protocol';
-import { isPathAtOrBelow } from '@caxri/protocol';
+import { isPathAtOrBelow, isUntitledEditorTabPath } from '@caxri/protocol';
 import type { EditorDocument, SessionDocuments } from '@desktop-shared/editor-state';
 import { setSessionDocument } from '@desktop-shared/editor-state';
 import { omit, omitBy } from 'es-toolkit';
@@ -246,7 +246,16 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
     updateDocumentContent(sessionId, path, content, workbenchProjectId) {
         const existing = getSessionDocuments(sessionId, workbenchProjectId)?.[path];
         if (!existing || existing.readOnly) return;
-        get().cacheDocument(sessionId, { ...existing, content, dirty: true }, workbenchProjectId);
+        /**
+         * An untitled buffer has no file to differ from, so it is unsaved exactly while it holds text: emptying it
+         * makes it clean again, and closing it then asks nothing, as in VS Code.
+         */
+        const isDirty = isUntitledEditorTabPath(path) ? content !== '' : true;
+        get().cacheDocument(
+            sessionId,
+            { ...existing, content, dirty: isDirty },
+            workbenchProjectId,
+        );
     },
 
     /**

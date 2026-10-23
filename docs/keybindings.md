@@ -139,6 +139,15 @@ last tab (see [open-sessions.md](open-sessions.md#shortcuts)). `Cmd+K Cmd+W`
 VS Code binds the same sequence to Close All Editors; Caxri keeps the active tab because `Cmd+W`
 already closes it.
 
+`Cmd+Shift+T` (`workbench.reopenClosedItem`) is the browser and VS Code "reopen closed tab" chord. It
+reaches through a focused Terminal or Chat composer and is a plain `add` entry in
+`defaultKeybindingChanges`. See [open-sessions.md](open-sessions.md#reopening-closed-tabs-and-sessions)
+for what it reopens.
+
+`Cmd+Alt+N` (`editor.newUntitledFile`) is VS Code's macOS New Untitled Text File chord. Caxri does
+not take bare `Cmd+N`, which VS Code uses for the same command, because Caxri binds it to a new
+Session.
+
 ## Contextual bindings (`when`)
 
 A binding may carry `"when": "terminalFocus"`, the only context the schema accepts today.

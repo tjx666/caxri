@@ -22,6 +22,7 @@ export const pathBrowser: TranslatedNamespace<typeof source> = {
     'pathBrowser.results.createDestination': '位于 {{directory}}',
     'pathBrowser.results.directory': '目录',
     // Row groups and notices
+    'pathBrowser.rows.recentGroup': '最近打开',
     'pathBrowser.rows.directoryGroup': '当前文件夹',
     'pathBrowser.rows.projectGroup': '项目中的其他位置',
     'pathBrowser.rows.searchUnavailable': '项目搜索暂不可用。',

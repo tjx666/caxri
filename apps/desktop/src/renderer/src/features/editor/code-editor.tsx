@@ -22,6 +22,12 @@ import { registerEditorRevealTarget } from './editor-reveal';
 import { EditorSelectionToolbar } from './editor-selection-toolbar';
 import { editorSelectionEndLine, useEditorStatusStore } from './editor-status';
 import { rememberEditorViewState, restoreEditorViewState } from './editor-view-state';
+import { detectedEditorLanguage } from './untitled/language-detection';
+
+/**
+ * Monaco's id for Plain Text, the language of an untitled buffer nothing was detected in.
+ */
+const PLAIN_TEXT_LANGUAGE_ID = 'plaintext';
 
 export interface CodeEditorProperties {
     /**
@@ -33,6 +39,11 @@ export interface CodeEditorProperties {
     value: string;
     theme: ThemeTokens;
     readOnly?: boolean;
+    /**
+     * Detected language candidates (file extensions, best first) for a buffer whose path names no file type: an
+     * untitled buffer. When set, the language comes from these instead of the path, and an empty list is Plain Text.
+     */
+    languageCandidates?: readonly string[];
     onChange: (content: string | undefined) => void;
     /**
      * Called when the editor widget loses focus, including when the whole window does.
@@ -83,6 +94,7 @@ export function CodeEditor({
     value,
     theme,
     readOnly,
+    languageCandidates,
     onChange,
     onBlur,
 }: CodeEditorProperties) {
@@ -103,7 +115,11 @@ export function CodeEditor({
     const onBlurReference = useRef(onBlur);
     const programmaticChangeReference = useRef(false);
     const statusKeyReference = useRef(statusKey);
-    const language = resolveEditorLanguage(path);
+    const detectedLanguage = languageCandidates
+        ? (detectedEditorLanguage(languageCandidates, monaco.languages.getLanguages()) ??
+          PLAIN_TEXT_LANGUAGE_ID)
+        : undefined;
+    const language = detectedLanguage ?? resolveEditorLanguage(path);
     const editorOptions = useEditorOptions();
     const foldOnOpenLineThreshold = useWorkbenchStore(
         (state) =>
@@ -195,6 +211,18 @@ export function CodeEditor({
             if (statusKey) useEditorStatusStore.getState().clearStatus(statusKey);
         };
     }, [path, statusKey]);
+    /**
+     * A detected language changes the model's language without a cursor move, so the status bar is told directly. The
+     * frame lets `@monaco-editor/react` apply the new language to the model first.
+     */
+    useEffect(() => {
+        if (!detectedLanguage) return;
+        const frame = requestAnimationFrame(() => {
+            if (editorReference.current)
+                publishEditorStatus(editorReference.current, statusKeyReference.current);
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [detectedLanguage]);
     useEffect(
         () => () => {
             cursorSubscriptionReference.current?.dispose();
@@ -261,7 +289,8 @@ export function CodeEditor({
                     ...editorOptions,
                     // `language` names only Caxri's own registrations; Monaco infers the rest (Markdown included) from the path.
                     ...languageEditorOptions(
-                        resolveRegisteredEditorLanguage(path, monaco.languages.getLanguages()),
+                        detectedLanguage ??
+                            resolveRegisteredEditorLanguage(path, monaco.languages.getLanguages()),
                     ),
                     readOnly: readOnly === true,
                     domReadOnly: readOnly === true,

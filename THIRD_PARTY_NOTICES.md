@@ -138,6 +138,12 @@ ripgrep is Copyright (c) 2015 Andrew Gallant and licensed under the MIT License.
 
 vscode-ripgrep is Copyright (c) Microsoft Corporation and licensed under the MIT License. The vendored license text is in `licenses/VSCODE_RIPGREP_LICENSE.txt`; the upstream source is <https://github.com/microsoft/vscode-ripgrep>.
 
+## vscode-languagedetection
+
+Caxri bundles the language detection model and its loader from Microsoft's `@vscode/vscode-languagedetection` package to choose the language of an untitled Editor buffer, as VS Code does. The model is loaded from local packaged assets, never fetched remotely, and runs on the CPU TensorFlow.js backend.
+
+Copyright (c) Microsoft Corporation. Licensed under the MIT License. The vendored license text is in `licenses/VSCODE_LANGUAGEDETECTION_LICENSE.txt`; the upstream source is <https://github.com/microsoft/vscode-languagedetection>. The model is trained by the guesslang project, <https://github.com/yoeo/guesslang>.
+
 ## PDF.js
 
 Caxri bundles PDF.js from the `pdfjs-dist` package to render PDF files in the Preview, along with the built-in data PDF.js reads while parsing: Adobe CMaps, two Foxit standard fonts, and WebAssembly image decoders. These data files are inlined into the packaged Renderer and loaded locally, never fetched remotely. The PDF Preview stylesheet also copies a subset of the rules in PDF.js's `web/pdf_viewer.css`.

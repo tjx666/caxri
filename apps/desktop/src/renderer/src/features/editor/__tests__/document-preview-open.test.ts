@@ -35,6 +35,7 @@ function installSession(): void {
     };
     useWorkbenchStore.setState({
         bootstrap: {
+            projects: [],
             selectedSessionId: 'session-1',
             sessions: [
                 { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },

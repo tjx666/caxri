@@ -14,6 +14,7 @@ export * from './default-keybindings.js';
 export * from './diff-stat-colors.js';
 export * from './domain.js';
 export * from './editor.js';
+export * from './editor/untitled.js';
 export * from './extension-command-result.js';
 export * from './extension-manifest.js';
 export * from './external-editor-tab.js';

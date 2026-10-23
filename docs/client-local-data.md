@@ -46,6 +46,7 @@ database in the Renderer profile on Desktop.
 | Phone   | Saved Session list, Conversations, Chats | 50 items each, 20 Conversations and Chats   | Forgetting the computer, a revoked device, or a new pairing      |
 | Phone   | Unsent composer drafts                   | 50 drafts, 1,000,000 characters             | Same as above; a sent or cleared draft is removed                |
 | Desktop | Unsaved Editor buffers (hot exit)        | 50 buffers per environment                  | Save, revert, close without saving, Session deletion, Don't Save |
+| Desktop | Recent files for `Cmd+P`                 | 200 paths per Workbench Root                | Never cleared; a file that no longer opens is dropped            |
 | Desktop | Agent Chat drafts and attachments        | Owned by `agent-chat-drafts.ts` and its IDB | Their own rules; not yet on the device store                     |
 
 The phone's read cache and drafts are described in [mobile design](mobile/design.md#read-cache).
@@ -59,6 +60,10 @@ edited from. The backup is removed once the buffer stops being unsaved: saved, r
 without saving, renamed away, or its Session deleted. After the user chooses Don't Save on quit or
 window close, Main sends `editor.unsavedRequest` with `discardAll`, and the Renderer drops those
 backups before answering, so they do not return on the next launch.
+
+Untitled buffers (`caxri-untitled://N`, opened with `Cmd+Alt+N`) are backed up the same way with a
+zero modification time and size, since they have no file. At the next launch a backup recreates its
+buffer only while the Session layout still holds the untitled tab; otherwise it stays until eviction.
 
 A backup from an earlier launch is applied when its document is read from disk again (opening the
 tab, or the active tab loading at startup):
@@ -77,6 +82,26 @@ that typed them, never enter Server Core, and never appear in logs or diagnostic
 has its own database, so an SSH Host window never restores a local buffer and two hosts never see
 each other's text. Workbench windows of one environment, tear-off windows included, share its
 database, so a backup is restored by whichever window next reads its document.
+
+### Desktop recent files
+
+`Cmd+P` lists recently opened files under "Recently opened", as VS Code's Quick Open lists its editor
+history. `apps/desktop/src/renderer/src/features/editor/recent-files.ts` is the pure model and
+`recent-files-store.ts` its storage. Every Project file that opens as an editor tab (Files tree, path
+browser, Terminal links, `caxri open`) moves to the front of its Workbench Root's list, which holds
+200 absolute paths per environment and Workbench Root (VS Code keeps 200 per workspace). It lives in
+Renderer `localStorage` rather than the device store: it is rebuildable view state, not input that
+cannot be recovered, and the dialog reads it synchronously.
+
+A row reopens through `openFileForSession`, the same Server Core-authorized `files.read` a Files-tree
+click uses, so a stored path grants nothing: the Renderer cannot read or write a path outside the
+Session's Project root through it. A file that no longer opens leaves the list and the history.
+External documents are never recorded: their authority is a process-lifetime Main `documentId`
+([ADR 0013](adr/0013-editable-external-documents.md)) that cannot be reopened after a restart. With
+an empty filter the list shows every recent file except the one in the active tab; with a bare
+filter it keeps the names that match (prefix, then substring, then in-order letters), ranked above
+the directory and Project-wide results, which omit files already listed. A typed path
+(`src/`, `/`, `~`) shows no recent files.
 
 ### SSH Host disconnect
 

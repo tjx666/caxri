@@ -35,6 +35,9 @@ Keep these compatibility exceptions:
   The native add-ons are not part of this risk: `better-sqlite3`, `node-pty`, and `@parcel/watcher`
   load in the Server artifact's own bundled Node runtime (`runtime/bin/node`), never in Main or the
   Renderer, so they follow that runtime's ABI rather than Electron's.
+- `@tensorflow/tfjs-*`: caret ranges held on major 3 (`^3.21.0`). The bundled
+  `@vscode/vscode-languagedetection` model was exported for TensorFlow.js 3, as VS Code still ships
+  it; 4.x fails to run it. Upgrade only together with a model that 4.x loads.
 - `@base-ui/react`: caret range (`^1.9.0`), no longer pinned. Versions 1.8.0 and 1.9.0 loop in
   `PopoverStore` / `syncTriggerCount` (React error 185) when one Popover owns several registered
   triggers. The Editor breadcrumb picker therefore uses a controlled, trigger-less Popover anchored

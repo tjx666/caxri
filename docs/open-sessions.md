@@ -47,6 +47,23 @@ Cmd+W closes the active pane tab; closing a Session's last pane tab (a Terminal 
 Session open with the empty Workbench state, so a keystroke never ends or hides a long-running Session.
 Archiving is always an explicit action.
 
+## Reopening closed tabs and Sessions
+
+`Cmd+Shift+T` (**Reopen Closed Editor or Session**) reopens the most recently closed thing and walks
+further back on each press, the way a browser and VS Code do. The history lives in Renderer memory
+only (30 entries, most recent first, `features/closed-items/`) and is not restored after a restart.
+
+- A closed editor tab is remembered with its Session, pane, and tab index. It reopens in that pane at
+  that position when the pane still exists, otherwise in the active pane, switching to its Session
+  first, and a text editor takes focus. External documents keep their content in the entry because
+  closing them evicts the only copy. Terminal tabs are never recorded (closing one ends its PTY), and
+  neither are untitled editor tabs (their content is discarded on close).
+- "Closing a Session" means archiving it. Reopening restores the archived Session to the row it was
+  archived from and selects it; its closed tabs sit behind it in the history. Deleting a Session
+  removes its entries instead, because deletion is irreversible.
+- An entry that cannot reopen (Session deleted or archived by someone else, file deleted, tab already
+  open) is discarded and the press continues to the next entry.
+
 ## Persistence
 
 The window's Open Session is saved on the Server (not in Renderer storage, which same-origin windows

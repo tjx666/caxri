@@ -20,6 +20,7 @@ export type UnsavedEditorsSaveResult = Extract<
     { kind: 'saveFailed' | 'saved' }
 >;
 export type UnsavedEditorsChoice = 'cancel' | 'discard' | 'save';
+export type UnsavedEditorsSaveMode = 'autoSave' | 'saveAll';
 export type UnsavedEditorsPurpose = 'close' | 'quit';
 /**
  * Closed outcome of one quit or close consultation, logged as `app.unsaved_editors_decided`.
@@ -44,6 +45,11 @@ const INSPECT_TIMEOUT_MS = 3000;
  * cannot trap the user; a timed-out save keeps the app open rather than discarding the buffers.
  */
 const SAVE_TIMEOUT_MS = 60_000;
+/**
+ * `saveAll` also shows a Save As dialog for each untitled buffer and waits on the user's answer, so it gets far longer
+ * than a disk write; a user still choosing a folder must not see the quit silently abandoned.
+ */
+const SAVE_ALL_TIMEOUT_MS = 10 * 60_000;
 
 interface PendingReply {
     resolve(reply: UnsavedEditorsReply): void;
@@ -71,7 +77,7 @@ export function createUnsavedEditorsBridge(options: UnsavedEditorsBridgeOptions)
     const createRequestId = options.createRequestId ?? randomUUID;
 
     function ask(
-        action: 'discardAll' | 'inspect' | 'saveAll',
+        action: 'autoSave' | 'discardAll' | 'inspect' | 'saveAll',
         timeoutMs: number,
     ): Promise<UnsavedEditorsReply | undefined> {
         const requestId = createRequestId();
@@ -103,12 +109,20 @@ export function createUnsavedEditorsBridge(options: UnsavedEditorsBridgeOptions)
         async discardAll(): Promise<void> {
             await ask('discardAll', options.inspectTimeoutMs ?? INSPECT_TIMEOUT_MS);
         },
-        async saveAll(): Promise<UnsavedEditorsSaveResult> {
-            const reply = await ask('saveAll', options.saveTimeoutMs ?? SAVE_TIMEOUT_MS);
+        /**
+         * `autoSave` writes only the buffers that already have a file; `saveAll` also asks where to save each untitled
+         * one.
+         */
+        async saveAll(mode: UnsavedEditorsSaveMode = 'saveAll'): Promise<UnsavedEditorsSaveResult> {
+            const reply = await ask(
+                mode,
+                options.saveTimeoutMs ??
+                    (mode === 'saveAll' ? SAVE_ALL_TIMEOUT_MS : SAVE_TIMEOUT_MS),
+            );
             // The Workbench vanished between the prompt and the save, taking its buffers with it.
             if (!reply) return { kind: 'saveFailed', reason: 'writeFailed' };
             if (reply.kind !== 'saved' && reply.kind !== 'saveFailed')
-                throw new CaxriError('INTERNAL', `Workbench answered saveAll with ${reply.kind}`);
+                throw new CaxriError('INTERNAL', `Workbench answered ${mode} with ${reply.kind}`);
             return reply;
         },
         reveal(): void {
@@ -199,7 +213,7 @@ export interface UnsavedEditorsDecisionOptions {
      */
     log: (outcome: UnsavedEditorsOutcome, count: number, error?: string) => void;
     reveal: () => void;
-    saveAll: () => Promise<UnsavedEditorsSaveResult>;
+    saveAll: (mode: UnsavedEditorsSaveMode) => Promise<UnsavedEditorsSaveResult>;
 }
 
 async function inspectOrFailOpen(
@@ -215,14 +229,15 @@ async function inspectOrFailOpen(
 
 /**
  * Saves without asking because `files.autoSave` is on, as VS Code does on quit. The save runs here under the `saveAll`
- * timeout rather than inside `inspect`, whose short timeout fails open and would let a slow write race the quit.
+ * timeout rather than inside `inspect`, whose short timeout fails open and would let a slow write race the quit. Like
+ * VS Code, it never saves an untitled buffer: that needs a file name, so the buffer stays unsaved for the prompt.
  */
 async function didAutoSave(
     options: UnsavedEditorsDecisionOptions,
     count: number,
 ): Promise<boolean> {
     try {
-        const result = await options.saveAll();
+        const result = await options.saveAll('autoSave');
         if (result.kind === 'saved') {
             options.log('autoSaved', count);
             return true;
@@ -250,7 +265,8 @@ export async function decideUnsavedEditors(
     let summary = await inspectOrFailOpen(options);
     if (!summary || summary.count === 0) return 'continue';
     if (summary.autoSave) {
-        if (await didAutoSave(options, summary.count)) return 'continue';
+        await didAutoSave(options, summary.count);
+        // Asked again even after a successful save: untitled buffers are never auto-saved and still need the prompt.
         summary = await inspectOrFailOpen(options);
         if (!summary || summary.count === 0) return 'continue';
     }
@@ -282,7 +298,7 @@ export async function decideUnsavedEditors(
         return 'continue';
     }
     try {
-        const result = await options.saveAll();
+        const result = await options.saveAll('saveAll');
         if (result.kind === 'saved') {
             options.log('saved', summary.count);
             return 'continue';
@@ -394,9 +410,9 @@ export function createWorkbenchUnsavedEditors(options: WorkbenchUnsavedEditorsOp
                 reveal: () => {
                     for (const key of dirty) bridgeFor(key).reveal();
                 },
-                saveAll: async () => {
+                saveAll: async (mode) => {
                     const results = await Promise.all(
-                        [...dirty].map((key) => bridgeFor(key).saveAll()),
+                        [...dirty].map((key) => bridgeFor(key).saveAll(mode)),
                     );
                     return results.find((result) => result.kind !== 'saved') ?? { kind: 'saved' };
                 },

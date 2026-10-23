@@ -258,6 +258,9 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
         when: (context) => context.workbench.canCloseOtherTabs(),
     }),
+    fromCatalog('workbench.reopenClosedItem', (context) => context.workbench.reopenClosedItem(), {
+        allowInEditable: true,
+    }),
     fromCatalog('workbench.nextTab', (context) => context.workbench.cycleTab(1), {
         allowInEditable: true,
     }),
@@ -265,6 +268,9 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('editor.save', (context) => context.editor.saveActive(), { allowInEditable: true }),
+    fromCatalog('editor.newUntitledFile', (context) => context.editor.newUntitledFile(), {
+        allowInEditable: true,
+    }),
     /**
      * Fires from inside Monaco, so it must reach through an editable target like `editor.save`.
      */

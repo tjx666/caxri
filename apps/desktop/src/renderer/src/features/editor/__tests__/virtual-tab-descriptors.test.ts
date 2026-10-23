@@ -10,6 +10,7 @@ import {
     filePreviewTabPath,
     gitFileDiffTabPath,
     settingsTabPath,
+    untitledEditorTabPath,
     usageTabPath,
     virtualEditorTabScheme,
     virtualEditorTabSchemes,
@@ -33,6 +34,7 @@ const samplePaths: Record<VirtualEditorTabScheme, string> = {
     filePreview: filePreviewTabPath('/project/a.md'),
     settings: settingsTabPath(),
     usage: usageTabPath(),
+    untitled: untitledEditorTabPath(1),
 };
 
 describe('virtual tab descriptors', () => {
@@ -57,11 +59,33 @@ describe('virtual tab descriptors', () => {
         expect(virtualEditorTabScheme('/project/notes.md')).toBeUndefined();
     });
 
-    it('keeps an external document the only scheme that shows cursor status', () => {
+    it('shows cursor status only for the editable buffers outside a Project', () => {
         expect(
             virtualEditorTabSchemes.filter(
                 (scheme) => virtualTabDescriptors[scheme].statusBar === 'cursorOnly',
             ),
-        ).toEqual(['external']);
+        ).toEqual(['external', 'untitled']);
+    });
+
+    it('names an untitled buffer by its first line and shows its detected language icon', () => {
+        const t = (key: string, values?: Record<string, unknown>) =>
+            `${key}:${String(values?.index)}`;
+        const path = untitledEditorTabPath(3);
+        expect(virtualTabDescriptors.untitled.present(path, {}, t)).toMatchObject({
+            label: 'editor.tab.untitled:3',
+            labelTooltip: 'editor.tab.untitled:3',
+            fileIconName: 'editor.tab.untitled:3',
+        });
+        expect(
+            virtualTabDescriptors.untitled.present(
+                path,
+                { untitledName: 'print hello', untitledLanguageExtension: 'py' },
+                t,
+            ),
+        ).toMatchObject({
+            label: 'print hello',
+            labelTooltip: 'editor.tab.untitled:3',
+            fileIconName: 'editor.tab.untitled:3.py',
+        });
     });
 });

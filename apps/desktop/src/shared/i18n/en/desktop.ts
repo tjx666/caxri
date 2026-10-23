@@ -224,6 +224,7 @@ export const desktop = {
     'desktop.themeImport.themeFiles': 'Theme Files',
     'desktop.fileFilter.allFiles': 'All Files',
     'desktop.diagnosticsExport.title': 'Export Diagnostics',
+    'desktop.untitledSave.title': 'Save As',
     'desktop.diagnosticsExport.zipArchive': 'ZIP Archive',
     'desktop.benchmarkShare.title': 'Save Share Image',
     'desktop.benchmarkShare.pngImage': 'PNG Image',

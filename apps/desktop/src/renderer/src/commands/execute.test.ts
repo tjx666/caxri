@@ -154,6 +154,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 closeActiveTab: record('workbench.closeActiveTab'),
                 canCloseOtherTabs: () => true,
                 closeOtherTabs: record('workbench.closeOtherTabs'),
+                reopenClosedItem: record('workbench.reopenClosedItem'),
                 cycleTab: record('workbench.cycleTab'),
                 canSplitActive: () => true,
                 splitActive: record('workbench.splitActive'),
@@ -166,6 +167,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             editor: {
                 saveActive: record('editor.save'),
+                newUntitledFile: record('editor.newUntitledFile'),
                 canSendReferenceToTerminal: () => true,
                 sendReferenceToTerminal: record('editor.sendReferenceToTerminal'),
                 canAddReviewComment: () => true,

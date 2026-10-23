@@ -4,15 +4,21 @@ import {
     filePreviewTabPath,
     isExternalEditorTabPath,
 } from '@caxri/protocol';
+import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { translate } from '../../i18n';
 import { getSelectedSession } from '../../stores/selectors';
-import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
+import {
+    getSessionDocuments,
+    sessionViewScope,
+    useSessionViewStore,
+} from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { openFilePreview } from '../preview/preview-commands';
 import { shouldOpenAsPreview } from '../preview/preview-registry';
 import { didOpenEditorTabForSession } from './document-commands';
+import { focusEditor } from './editor-reveal';
 import { openLinkedExternalFile } from './external-document-client';
 
 interface ExternalEditorDocumentResult {
@@ -29,15 +35,21 @@ interface ExternalEditorDocumentResult {
  *
  * Reopening a file that is already open reuses its tab. A clean buffer takes the fresh read; a dirty one is kept, so
  * reopening never discards unsaved edits. A PDF opens straight on its preview tab.
+ *
+ * `focus` moves keyboard focus into the editor once it mounts, as a Project file opened with `focus` does. Without it,
+ * tab focus recovery lands on the tab button after the opener (the Go to File dialog) closes, and the button shows its
+ * focus ring.
  */
 export function openExternalEditorDocument({
     sessionId,
     workbenchProjectId,
     document,
+    focus = false,
 }: {
     sessionId: string;
     workbenchProjectId: string;
     document: ExternalEditorDocumentResult;
+    focus?: boolean;
 }): string | false {
     const sessionState = useWorkbenchStore
         .getState()
@@ -53,8 +65,17 @@ export function openExternalEditorDocument({
                 cached.ephemeral &&
                 cached.displayPath === document.displayPath,
         ) ?? [];
-    if (existingPath && existing?.dirty)
-        return didOpenEditorTabForSession(sessionId, existingPath) && existingPath;
+    const focusOpened = (openedPath: string): void => {
+        if (focus)
+            focusEditor(
+                editorModelPath(sessionViewScope(sessionId, workbenchProjectId), openedPath),
+            );
+    };
+    if (existingPath && existing?.dirty) {
+        if (!didOpenEditorTabForSession(sessionId, existingPath)) return false;
+        focusOpened(existingPath);
+        return existingPath;
+    }
     const path = existingPath ?? externalEditorTabPath(document.id, document.name);
     const view = useSessionViewStore.getState();
     const didCache = view.cacheDocument(
@@ -73,6 +94,7 @@ export function openExternalEditorDocument({
         view.evictDocument(sessionId, path, workbenchProjectId);
         return false;
     }
+    if (tabPath === path) focusOpened(path);
     return path;
 }
 

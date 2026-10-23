@@ -1,5 +1,6 @@
 import type { MethodResult } from '@caxri/protocol';
 
+import type { RecentFileMatch } from '../editor/recent-files';
 import type {
     PathBrowserCreateCandidate,
     PathBrowserInputState,
@@ -48,6 +49,10 @@ export function derivePathBrowserView(state: {
     isFetching: boolean;
     isNavigating: boolean;
     isStarting: boolean;
+    /**
+     * Recent files for the current filter, or none when the input is not a bare filter in Project mode.
+     */
+    recentFiles?: readonly RecentFileMatch[];
     snapshot: PathBrowserSnapshot | undefined;
 }): {
     candidateToCreate: PathBrowserCreateCandidate | undefined;
@@ -56,7 +61,15 @@ export function derivePathBrowserView(state: {
     isTruncated: boolean;
     rows: PathBrowserRow[];
 } {
-    const { hasSyntaxError, inputState, isFetching, isNavigating, isStarting, snapshot } = state;
+    const {
+        hasSyntaxError,
+        inputState,
+        isFetching,
+        isNavigating,
+        isStarting,
+        recentFiles,
+        snapshot,
+    } = state;
     const isSnapshotCurrent =
         snapshot?.mode === inputState.mode && snapshot.input === inputState.input;
     const isResultsReady =
@@ -82,9 +95,11 @@ export function derivePathBrowserView(state: {
         rows: isResultsReady
             ? pathBrowserRows({
                   candidateToCreate,
+                  directoryLabel: snapshot.directoryLabel,
                   entries,
                   isDirectoryTruncated: isTruncated,
                   query: parsePathBrowserInput(inputState.input).filter,
+                  recent: recentFiles,
                   searchStatus: snapshot.projectSearch,
               })
             : [],

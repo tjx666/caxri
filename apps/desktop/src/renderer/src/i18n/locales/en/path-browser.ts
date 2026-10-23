@@ -18,6 +18,7 @@ export const pathBrowser = {
     'pathBrowser.results.createDestination': 'in {{directory}}',
     'pathBrowser.results.directory': 'Directory',
     // Row groups and notices
+    'pathBrowser.rows.recentGroup': 'Recently opened',
     'pathBrowser.rows.directoryGroup': 'In this folder',
     'pathBrowser.rows.projectGroup': 'Elsewhere in this Project',
     'pathBrowser.rows.searchUnavailable': 'Project search is unavailable right now.',

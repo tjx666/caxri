@@ -12,6 +12,7 @@ import {
 import type { VirtualEditorTabScheme } from '@caxri/protocol';
 import {
     isExternalEditorTabPath,
+    isUntitledEditorTabPath,
     parseAgentContextTab,
     parseAgentSideChatTab,
     parseAgentStatusTab,
@@ -45,6 +46,7 @@ import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from '
 import { editorStatusKey } from './editor-status';
 import { FileEditorBreadcrumbs } from './file-editor-breadcrumbs';
 import { autoSaveDocument } from './unsaved-editor-commands';
+import { useUntitledEditor } from './untitled/use-untitled-editor';
 import { virtualTabDescriptors } from './virtual-tab-descriptors';
 
 const GitDiffEditor = lazy(async () => {
@@ -174,13 +176,15 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     const theme = useTheme();
     const document = useDocument(sessionId, path, session?.workbenchProjectId);
     const isExternal = isExternalEditorTabPath(path);
+    const isUntitled = isUntitledEditorTabPath(path);
+    const languageCandidates = useUntitledEditor(session, scope, path, document);
     const load = useCallback(
         () => (sessionId ? cacheDocument(sessionId, path) : Promise.resolve(undefined)),
         [path, sessionId],
     );
     const { failure, retry } = useResourceLoad({
         target: `${scope ?? ''}\u{0}${path}`,
-        enabled: Boolean(sessionId && !document && !isExternal),
+        enabled: Boolean(sessionId && !document && !isExternal && !isUntitled),
         load,
     });
     const autoSave = useCallback(() => {
@@ -213,13 +217,15 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     }
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <FileEditorBreadcrumbs
-                paneId={paneId}
-                path={path}
-                displayPath={document.displayPath}
-                isExternal={isExternal}
-                readOnly={document.readOnly}
-            />
+            {!isUntitled && (
+                <FileEditorBreadcrumbs
+                    paneId={paneId}
+                    path={path}
+                    displayPath={document.displayPath}
+                    isExternal={isExternal}
+                    readOnly={document.readOnly}
+                />
+            )}
             <div className="min-h-0 flex-1">
                 <LoadedCodeEditor
                     editorInstanceId={paneId}
@@ -228,6 +234,7 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                     value={document.content}
                     theme={theme}
                     readOnly={document.readOnly}
+                    languageCandidates={languageCandidates}
                     onChange={(content) =>
                         changeDocument(session.id, session.workbenchProjectId, path, content ?? '')
                     }
@@ -296,6 +303,7 @@ const VIRTUAL_TAB_SURFACES: Record<
         return tab && <AgentChatSideChatTab key={path} tab={tab} />;
     },
     external: ({ paneId, path }) => <FileEditorSurface paneId={paneId} path={path} />,
+    untitled: ({ paneId, path }) => <FileEditorSurface paneId={paneId} path={path} />,
     filePreview: ({ paneId, path }) => {
         const tab = parseFilePreviewTab(path);
         return tab && <PreviewSurface key={tab.path} paneId={paneId} tab={tab} />;

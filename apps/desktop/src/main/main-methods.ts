@@ -49,7 +49,7 @@ import {
 } from './confirmations';
 import { showContextMenu } from './context-menu';
 import {
-    createExternalDocumentChangeWatcher,
+    createExternalDocumentContext,
     handleExternalDocumentRequest,
     isExternalDocumentRequest,
 } from './external-document-methods';
@@ -187,12 +187,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         );
     }
 
-    const externalDocumentWatcher = createExternalDocumentChangeWatcher(options.sendEvent);
+    const externalDocuments = createExternalDocumentContext(options);
 
     return async function handleMainMethod(request: MainRequest): Promise<unknown> {
         const supervisor = options.getSupervisor();
         if (isExternalDocumentRequest(request))
-            return handleExternalDocumentRequest(request, supervisor, externalDocumentWatcher);
+            return handleExternalDocumentRequest(request, supervisor, externalDocuments);
         if (isBenchmarkShare(request)) return handleBenchmarkShare(request, options.getWindow());
         if (isEnvironmentRequest(request)) return handleEnvironmentRequest(request, environment);
         if (isWindowRequest(request)) return handleWindowRequest(request, options);

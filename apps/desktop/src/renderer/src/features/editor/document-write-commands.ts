@@ -1,5 +1,6 @@
 import {
     isExternalEditorTabPath,
+    isUntitledEditorTabPath,
     isVirtualEditorTabPath,
     parseExternalEditorTab,
 } from '@caxri/protocol';
@@ -22,8 +23,13 @@ export async function writeEditorDocument(sessionId: string, path: string, conte
 
 /**
  * Whether a tab path names a document the user can save. Virtual tabs (Settings, diffs, previews) have nothing to write
- * back, except an external document, which saves through Main.
+ * back, except an external document, which saves through Main, and an untitled buffer, which saves through Main's Save
+ * As dialog (`saveUntitledDocument`) rather than `writeEditorDocument`.
  */
 export function isSavableEditorPath(path: string): boolean {
-    return !isVirtualEditorTabPath(path) || isExternalEditorTabPath(path);
+    return (
+        !isVirtualEditorTabPath(path) ||
+        isExternalEditorTabPath(path) ||
+        isUntitledEditorTabPath(path)
+    );
 }

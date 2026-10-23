@@ -192,6 +192,10 @@ export const effectfulCommandRecovery = {
     'external.open': 'durable',
     'editor.confirmDiscard': 'durable',
     /**
+     * Opens a native Save As dialog for one gesture; a replay would ask again where the user already answered.
+     */
+    'editor.saveUntitled': 'none',
+    /**
      * Answers one quit-time question whose Main-side wait has its own timeout; a replay would answer nobody.
      */
     'editor.unsavedReply': 'none',

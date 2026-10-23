@@ -100,6 +100,7 @@ export function installSessions(
 ): void {
     useWorkbenchStore.setState({
         bootstrap: {
+            projects: [],
             selectedSessionId,
             sessions: [
                 {
@@ -141,6 +142,7 @@ export function installSessions(
 export function installEmptySession(): void {
     useWorkbenchStore.setState({
         bootstrap: {
+            projects: [],
             selectedSessionId: 'session-1',
             sessions: [
                 {

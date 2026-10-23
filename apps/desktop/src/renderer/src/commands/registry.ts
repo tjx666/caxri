@@ -92,6 +92,7 @@ export interface CommandContext {
          */
         canCloseOtherTabs(): boolean;
         closeOtherTabs(): void;
+        reopenClosedItem(): void;
         cycleTab(delta: 1 | -1): void;
         /**
          * True only when the active pane holds more than one tab, since splitting the last tab out of a pane would
@@ -121,6 +122,7 @@ export interface CommandContext {
     };
     editor: {
         saveActive(): void;
+        newUntitledFile(): void;
         /**
          * True only when an ordinary file editor is active and its Session has a Terminal to type into.
          */
