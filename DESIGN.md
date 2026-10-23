@@ -857,7 +857,8 @@ shared chrome tab indicator and the PrimarySidebar's selected-row fill move with
 `--motion-chrome-switch` (160ms, `--motion-ease-emphasized`), the row fill as one ghost gliding from
 the previous row while the Workbench content switches instantly; overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
-ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear); loading
+ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear), or by default sweeps on
+`--motion-activity-dwell-sweep` (1400ms) and rests for `--motion-activity-dwell-rest` (2600ms); loading
 skeleton blocks pulse on `--motion-skeleton-pulse` (2000ms, ease-in-out) after fading in on
 `--motion-overlay-enter`; live figures roll on `--motion-number-roll` (600ms); a phrase joining a Chat work
 summary fades in from a slight blur on `--motion-summary-phrase-enter` (320ms, enter curve); a streaming
@@ -886,9 +887,12 @@ disclosures in Files, Source Control, and extension-contributed trees. Do not st
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
 
 The Session status icon is the narrow state-motion exception: unread attention pings so a newly
-actionable event is noticeable, and running spins an arc around the Agent icon. Amber always pings:
-an unread event is the only thing that colors the Agent icon, so a still amber dot never competes
-with it; the collapsed Project heading's static warning dot summarizes rows that already ping. The
+actionable event is noticeable, and running spins an arc around the Agent icon. Amber pings three
+times when the event arrives and three more times whenever the window regains focus, then holds
+still: the ripple's job is to be noticed, the amber color already marks the row once it has been,
+and an endless ripple kept the Renderer and compositor busy for as long as a Session waited. An
+unread event is the only thing that colors the Agent icon, so the still amber dot never competes
+with it; the collapsed Project heading's static warning dot summarizes the same rows. The
 motion belongs to the ring, never the Agent mark itself; swapping among the three list projections
 remains instant.
 

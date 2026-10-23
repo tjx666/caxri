@@ -7,6 +7,7 @@ import './styles/styles.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { installDwellShimmerRest } from './features/agent-chat/activity/dwell-shimmer-rest';
 import { configureAgentChatAttachmentsForCommander } from './features/agent-chat/composer-input/agent-chat-drafts';
 import { AgentCommanderApp } from './features/agent-commander/agent-commander-app';
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
@@ -22,6 +23,7 @@ import { syncWorkbenchLocale } from './stores/workbench-locale';
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
 installStoreInspector();
 observeWindowActive();
+installDwellShimmerRest();
 syncWorkbenchLocale();
 // Before the first render: Main denies this window `app.bootstrap`, so every shared refresh path must already read the
 // Commander-scoped snapshot by the time a Terminal pane can trigger one.

@@ -210,7 +210,8 @@
     --motion-overlay-exit: 100ms;
     --motion-compaction-pulse: 1800ms;
     --motion-activity-shimmer: 2200ms;
-    --motion-activity-dwell: 4000ms;
+    --motion-activity-dwell-sweep: 1400ms;
+    --motion-activity-dwell-rest: 2600ms;
     --motion-skeleton-pulse: 2000ms;
     /*
      * A live figure's digits rolling to a new value (`AnimatedNumber`). Short of the one-second tick of a running
@@ -342,9 +343,11 @@
     }
 
     /*
-     * The Chat's default (`agentChat.statusShimmer`): one softer, slanted sweep over the first 35% of
-     * the period (about 1.4s, linear like Codex's 1s-in-4s summary shimmer), then a rest, so a long
-     * turn's text is not under constant motion. An eased sweep doubled its mid-text speed and read as a flash.
+     * The Chat's default (`agentChat.statusShimmer`): one softer, slanted sweep of about 1.4s (linear
+     * like Codex's 1s-in-4s summary shimmer), then a 2.6s rest, so a long turn's text is not under
+     * constant motion. An eased sweep doubled its mid-text speed and read as a flash. The animation
+     * covers only the sweep and plays once; `installDwellShimmerRest` removes it for the rest and
+     * restarts it, because a hold inside the keyframes still restyled the text every frame.
      */
     [data-agent-chat-status-shimmer='dwell'] .activity-shimmer {
         background-image: linear-gradient(
@@ -354,7 +357,12 @@
             currentColor 58% 100%
         );
         background-size: 250% 100%;
-        animation: activity-dwell-shimmer var(--motion-activity-dwell) linear infinite;
+        animation: activity-dwell-shimmer var(--motion-activity-dwell-sweep) linear;
+    }
+
+    [data-agent-chat-status-shimmer='dwell'] .activity-shimmer[data-activity-shimmer-resting] {
+        background-position: 0 0;
+        animation: none;
     }
 
     [data-agent-chat-status-shimmer='off'] .activity-shimmer {
@@ -365,11 +373,10 @@
 }
 
 @keyframes activity-dwell-shimmer {
-    0% {
+    from {
         background-position: 100% 0;
     }
-    35%,
-    100% {
+    to {
         background-position: 0 0;
     }
 }

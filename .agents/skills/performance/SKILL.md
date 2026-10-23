@@ -1,6 +1,6 @@
 ---
 name: performance
-description: Measure and protect Caxri startup, Server Core responsiveness, and Renderer interaction quality. Use for slow launch or Session restore, repeated Server Core requests, watcher or file-descriptor growth, PTY responsiveness, Git or Agent probe latency, logging overhead, React re-renders, frame gaps, or Renderer bundle regressions.
+description: Measure and protect Caxri startup, Server Core responsiveness, Renderer interaction quality, idle CPU, and long-lived memory. Use for slow launch or Session restore, repeated Server Core requests, watcher or file-descriptor growth, PTY responsiveness, Git or Agent probe latency, logging overhead, React re-renders, frame gaps, idle animation or background-window CPU, heap growth, or Renderer bundle regressions.
 ---
 
 # Measure Caxri Performance
@@ -54,6 +54,27 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    instead of synchronously logging each input, resize, or output event. Keep editor-only
    dependencies out of the terminal-first Renderer entry. Send live PTY output only to attached
    Renderer views; restore the bounded snapshot before replaying output buffered during attachment.
+   Keep idle cost near zero:
+   - Put a continuous `transform` or `opacity` animation on an HTML element, never on an inline
+     `<svg>` root: Chromium runs the SVG case on the main thread with a restyle every frame
+     (`features/primary-sidebar/running-arc.tsx` wraps its `<svg>` in a spinning `<span>`).
+   - Bound decorative animations to the moment they convey something: a finite iteration count
+     with `forwards`, replayed on a real trigger (the attention ripple replays on window `focus`).
+   - Never hold a still phase inside the keyframes of a non-composited property such as
+     `background-position`; the hold restyles every frame. End the animation and restart it after
+     the rest (`features/agent-chat/activity/dwell-shimmer-rest.ts`).
+   - Gate event-driven refetches and polling on `document.visibilityState`, then catch up once on
+     reveal keyed by what changed, not by React Query's `isInvalidated`, which an in-flight fetch
+     clears (`git.changed` in `queries/invalidation.ts`).
+   - Long-lived caches must not retain a view over a larger allocation: copy a truncated string out
+     of its V8 parent and copy a sync zlib result, which is a slice of Node's shared buffer pool
+     (`apps/server/src/domains/agent-chat/chat-history-archive.ts`, the agent timeline projection).
+
+   Measure idle cost over CDP in a frontmost dev window: `SystemInfo.getProcessInfo` CPU time for
+   the Renderer and GPU processes plus `Performance.getMetrics` `RecalcStyleCount` and
+   `TaskDuration`, comparing before and after in the same instance. Discard samples during which
+   `visibilitychange` fired, since an occluded window stops rendering.
+
 6. Add a focused unit or integration test for the optimized boundary and extend the performance E2E
    assertion when a regression can be observed there. Keep React render-count and total-duration
    budgets per stable surface. Browser frame, Long Animation Frame, and Event Timing metrics remain

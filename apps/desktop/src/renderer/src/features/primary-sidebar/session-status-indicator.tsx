@@ -88,7 +88,16 @@ export function SessionStatusIndicator({
                 data-attention-variant={status.kind === 'attention' ? status.variant : undefined}
                 data-session-status={status.kind}
             >
-                <SessionStatusGlyph status={status} />
+                <SessionStatusGlyph
+                    // The attention ripple plays three times per mount; a new kind of attention event remounts it so the
+                    // event is noticed even when the Session never passed through running in between.
+                    key={
+                        status.kind === 'attention'
+                            ? `${session.lastAttentionKind}:${status.variant}`
+                            : status.kind
+                    }
+                    status={status}
+                />
             </span>
             <span id={descriptionId} hidden>
                 {status.ariaDescription}
@@ -109,7 +118,7 @@ function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind:
         <>
             <span
                 aria-hidden="true"
-                className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
+                className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-safe:[animation-fill-mode:forwards] motion-safe:[animation-iteration-count:3] motion-reduce:hidden"
                 data-session-status-ripple=""
             />
             {status.variant === 'waiting' ? (
