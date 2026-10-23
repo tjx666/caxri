@@ -46,6 +46,16 @@ const internalTestReceiptSchema = z.strictObject({
     artifacts: z.array(safeRelativePathSchema).max(100),
     durationMs: nonNegativeIntegerSchema,
     errorIdentity: sha256Schema.nullable(),
+    /**
+     * The failed first attempt of a test the Release pools may retry once (`e2e/startup.performance.e2e.ts`). The
+     * public projection drops it: the Actions log already carries the `Flaky E2E pass` warning for that case.
+     */
+    firstFailure: z
+        .strictObject({
+            errorIdentity: sha256Schema.nullable(),
+            verdict: z.enum(['fail', 'timeout']),
+        })
+        .optional(),
     id: boundedStringSchema,
     location: safeRelativePathSchema,
     title: boundedStringSchema,
