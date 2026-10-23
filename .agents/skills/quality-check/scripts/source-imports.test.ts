@@ -21,6 +21,7 @@ describe('direct import test selection', () => {
             expect.arrayContaining([
                 'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
                 'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
+                'scripts/__tests__/react-compiler-coverage.test.ts',
             ]),
         );
 
@@ -33,6 +34,7 @@ describe('direct import test selection', () => {
         expect(unrelated).not.toContain(
             'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
         );
+        expect(unrelated).not.toContain('scripts/__tests__/react-compiler-coverage.test.ts');
     });
 
     it('recognizes direct relative static imports and re-exports without following dynamic imports', () => {

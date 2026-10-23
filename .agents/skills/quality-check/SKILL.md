@@ -43,7 +43,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   Keep the checker's source roots aligned with Vitest's include patterns, including `extensions/`.
   It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
   focused check into a broad test run. Renderer source changes also run the design and theme
-  contracts, which scan that source tree at runtime without importing individual files. A deleted
+  contracts and the React Compiler coverage ledger, which scan that source tree at runtime without
+  importing individual files. A deleted
   or renamed path, or an edit to `doctor.config.jsonc` or `components.json`, also runs
   `scripts/__tests__/doctor-config-paths.test.ts`, because those configs name source paths as
   plain strings. A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
