@@ -1,6 +1,6 @@
 {
     "name": "@caxri/server",
-    "version": "0.0.132",
+    "version": "0.0.133",
     "private": true,
     "description": "Caxri Server application.",
     "type": "module",
