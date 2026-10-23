@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { agentChatPathReferenceName } from '@caxri/protocol';
 import { Minimize2 } from 'lucide-react';
+import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
+import * as m from 'motion/react-m';
 
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { useContentHeightTransition } from '../../../hooks/use-content-height-transition';
+import { useShouldReduceMotion } from '../../../hooks/use-should-reduce-motion';
 import { useTranslation } from '../../../i18n';
+import { motionDurationMs, motionEasing } from '../../../lib/motion';
 import { cn } from '../../../lib/utilities';
 import type {
     AgentChatAttachment,
@@ -108,6 +114,57 @@ function AttachmentThumbnail({
 }
 
 /**
+ * The gap between attachments (`gap-2.5`), which a leaving attachment gives back as its width collapses.
+ */
+const ATTACHMENT_GAP_PX = 10;
+
+/**
+ * One attachment's list item: it fades in from slightly smaller when attached, and when removed fades out while its
+ * width and trailing gap collapse, so the attachments after it slide into its place instead of jumping. Attachments
+ * already present when the composer mounts (a restored draft) appear without motion (`AnimatePresence initial`).
+ */
+function AttachmentItem({ children, className }: { children: ReactNode; className?: string }) {
+    const isReducedMotion = useShouldReduceMotion();
+    const timing = useMemo(
+        () => ({
+            enter: motionDurationMs('--motion-overlay-enter') / 1000,
+            enterEase: motionEasing('--motion-ease-enter'),
+            exit: motionDurationMs('--motion-collapse') / 1000,
+            exitEase: motionEasing('--motion-ease-exit'),
+        }),
+        [],
+    );
+    return (
+        // react-doctor-disable-next-line react-doctor/no-layout-property-animation -- a removed attachment gives back its width so the ones after it slide over; a transform would leave its space and then jump.
+        <m.li
+            animate={{
+                opacity: 1,
+                scale: 1,
+                transition: {
+                    duration: isReducedMotion ? 0 : timing.enter,
+                    ease: timing.enterEase,
+                },
+            }}
+            className={className}
+            exit={{
+                marginRight: -ATTACHMENT_GAP_PX,
+                opacity: 0,
+                // Set at once, not animated: the leaving item takes no clicks and its content does not spill over the
+                // attachments sliding into its place.
+                overflow: 'hidden',
+                pointerEvents: 'none',
+                scale: 0.92,
+                transition: { duration: isReducedMotion ? 0 : timing.exit, ease: timing.exitEase },
+                width: 0,
+            }}
+            initial={{ opacity: 0, scale: 0.92 }}
+        >
+            {children}
+        </m.li>
+    );
+}
+
+/**
  * Images, files, folders, and skills attached to the message being written, each removable before it is sent, laid out
  * as the Codex app does: large image thumbnails and file or folder cards, bottom-aligned above the input. Removing one
  * unmounts the button that had focus, so the caller hands focus back to the message input. Remove names the image the
@@ -115,7 +172,8 @@ function AttachmentThumbnail({
  * since what is sent is not the original file. Clicking a thumbnail opens the full image in a dialog, since the
  * thumbnail crops a screenshot. An image without a name is named by its position among the images. An image written
  * into the text wears its placeholder's `#N`, as in Orca, so the pill in the text and its thumbnail read as one; a
- * pill's click opens the same preview (`preview`).
+ * pill's click opens the same preview (`preview`). The row stays mounted while empty so its height can grow from zero
+ * when the first attachment arrives and shrink back when the last one leaves.
  */
 export function AgentChatAttachmentList({
     attachments,
@@ -143,62 +201,87 @@ export function AgentChatAttachmentList({
     const images = attachments.filter(isAgentChatImageAttachment);
     const previewIndex = images.findIndex((attachment) => attachment.id === previewId);
     const preview = previewIndex === -1 ? undefined : images[previewIndex];
+    const [outerReference, innerReference] = useContentHeightTransition<
+        HTMLDivElement,
+        HTMLDivElement
+    >();
     return (
         <>
-            <ul
-                aria-label={t('agentChat.attachments.label')}
-                className={cn(
-                    'm-0 flex list-none flex-wrap items-end gap-2.5 px-3 pt-3 pb-0 empty:hidden',
-                    isGoalMode && 'opacity-50',
-                )}
+            <div
+                className="overflow-hidden transition-[height] motion-reduce:transition-none"
+                ref={outerReference}
             >
-                {attachments.map((attachment) => {
-                    if (isAgentChatSkillAttachment(attachment))
-                        return (
-                            <AgentChatSkillCard
-                                key={attachment.id}
-                                name={attachment.skill}
-                                onRemove={() => onRemove(attachment.id)}
-                            />
-                        );
-                    if (!isAgentChatImageAttachment(attachment))
-                        return (
-                            <AgentChatPathAttachmentCard
-                                key={attachment.id}
-                                reference={attachment}
-                                removeLabel={t('agentChat.attachments.remove', {
-                                    name: agentChatPathReferenceName(attachment),
+                <div ref={innerReference}>
+                    <ul
+                        aria-label={t('agentChat.attachments.label')}
+                        className={cn(
+                            'm-0 flex list-none flex-wrap items-end gap-2.5 px-3 pt-3 pb-0 empty:hidden',
+                            isGoalMode && 'opacity-50',
+                        )}
+                    >
+                        <LazyMotion strict features={domAnimation}>
+                            <AnimatePresence initial={false}>
+                                {attachments.map((attachment) => {
+                                    if (isAgentChatSkillAttachment(attachment))
+                                        return (
+                                            <AttachmentItem key={attachment.id}>
+                                                <AgentChatSkillCard
+                                                    name={attachment.skill}
+                                                    onRemove={() => onRemove(attachment.id)}
+                                                />
+                                            </AttachmentItem>
+                                        );
+                                    if (!isAgentChatImageAttachment(attachment))
+                                        return (
+                                            <AttachmentItem key={attachment.id}>
+                                                <AgentChatPathAttachmentCard
+                                                    reference={attachment}
+                                                    removeLabel={t('agentChat.attachments.remove', {
+                                                        name: agentChatPathReferenceName(
+                                                            attachment,
+                                                        ),
+                                                    })}
+                                                    onRemove={() => onRemove(attachment.id)}
+                                                />
+                                            </AttachmentItem>
+                                        );
+                                    const index = images.indexOf(attachment);
+                                    return (
+                                        <AttachmentItem
+                                            className="group/attachment relative"
+                                            key={attachment.id}
+                                        >
+                                            <AttachmentThumbnail
+                                                attachment={attachment}
+                                                index={index}
+                                                onPreview={() => onPreviewChange(attachment.id)}
+                                            />
+                                            <AgentChatAttachmentRemoveButton
+                                                className="top-1.5 right-1.5"
+                                                label={t('agentChat.attachments.remove', {
+                                                    name: agentChatAttachmentName(
+                                                        attachment,
+                                                        index,
+                                                    ),
+                                                })}
+                                                onRemove={() => onRemove(attachment.id)}
+                                            />
+                                        </AttachmentItem>
+                                    );
                                 })}
-                                onRemove={() => onRemove(attachment.id)}
-                            />
-                        );
-                    const index = images.indexOf(attachment);
-                    return (
-                        <li className="group/attachment relative" key={attachment.id}>
-                            <AttachmentThumbnail
-                                attachment={attachment}
-                                index={index}
-                                onPreview={() => onPreviewChange(attachment.id)}
-                            />
-                            <AgentChatAttachmentRemoveButton
-                                className="top-1.5 right-1.5"
-                                label={t('agentChat.attachments.remove', {
-                                    name: agentChatAttachmentName(attachment, index),
-                                })}
-                                onRemove={() => onRemove(attachment.id)}
-                            />
-                        </li>
-                    );
-                })}
-                {Array.from({ length: pendingCount }, (_, index) => (
-                    <PendingAttachmentChip key={`pending-${index}`} />
-                ))}
-            </ul>
-            {isGoalMode && attachments.length > 0 && (
-                <p className="m-0 px-3 pt-2 text-xs text-muted">
-                    {t('agentChat.attachments.goalTextOnly')}
-                </p>
-            )}
+                            </AnimatePresence>
+                        </LazyMotion>
+                        {Array.from({ length: pendingCount }, (_, index) => (
+                            <PendingAttachmentChip key={`pending-${index}`} />
+                        ))}
+                    </ul>
+                    {isGoalMode && attachments.length > 0 && (
+                        <p className="m-0 px-3 pt-2 text-xs text-muted">
+                            {t('agentChat.attachments.goalTextOnly')}
+                        </p>
+                    )}
+                </div>
+            </div>
             <Dialog
                 open={preview !== undefined}
                 onOpenChange={(isOpen) => {

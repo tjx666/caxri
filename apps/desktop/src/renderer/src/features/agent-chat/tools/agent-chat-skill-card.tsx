@@ -13,7 +13,7 @@ export function AgentChatSkillCard({ name, onRemove }: { name: string; onRemove:
     const { t } = useTranslation();
     const label = agentChatSkillLabel(name, t);
     return (
-        <li className="relative" data-agent-chat-skill-attachment={name}>
+        <div className="relative" data-agent-chat-skill-attachment={name}>
             <Tooltip content={t('agentChat.skill.tooltip', { name })}>
                 <div className="flex h-14 max-w-60 min-w-0 items-center gap-2.5 rounded-lg border border-border bg-elevated pr-4 pl-2">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
@@ -34,7 +34,7 @@ export function AgentChatSkillCard({ name, onRemove }: { name: string; onRemove:
                 label={t('agentChat.attachments.remove', { name: label })}
                 onRemove={onRemove}
             />
-        </li>
+        </div>
     );
 }
 

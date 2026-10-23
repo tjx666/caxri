@@ -391,7 +391,11 @@ export function useAgentChatScroll(
         if (!content || !view) return;
         // A reply growing past the view's bottom, or the view shrinking, moves the latest entry out of sight.
         const observer = new ResizeObserver((entries) => {
-            pin(entries.every((entry) => entry.target === view));
+            const isViewResize = entries.every((entry) => entry.target === view);
+            // The composer animating its height resizes the view every frame, and a taller view clamps the offset at
+            // the end down each time; none of that is the user scrolling, so keep the scrollbar hidden through it.
+            if (isViewResize) hideScrollbarWhileSettling(view);
+            pin(isViewResize);
             syncLatestInView();
         });
         observer.observe(content);

@@ -51,7 +51,7 @@ export function AgentChatPathAttachmentCard({
     const { t } = useTranslation();
     const Icon = reference.isDirectory ? Folder : File;
     return (
-        <li className="relative" data-agent-chat-path-attachment={reference.path}>
+        <div className="relative" data-agent-chat-path-attachment={reference.path}>
             <Tooltip content={reference.path}>
                 <div className="flex h-14 max-w-60 min-w-0 items-center gap-2.5 rounded-lg border border-border bg-elevated pr-4 pl-2">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
@@ -76,6 +76,6 @@ export function AgentChatPathAttachmentCard({
                 label={removeLabel}
                 onRemove={onRemove}
             />
-        </li>
+        </div>
     );
 }

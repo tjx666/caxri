@@ -415,15 +415,13 @@ export function AgentChatComposer({
                         sessionMenu={sessionMenu}
                         onChooseCommand={(index) => choose(menu.matches[index])}
                     />
-                    {images.hasAttachmentRow && (
-                        <AgentChatAttachmentList
-                            attachments={images.attachments}
-                            isGoalMode={goalMode.isOn}
-                            pendingCount={images.readingCount}
-                            preview={placeholders.preview}
-                            onRemove={placeholders.removeAttachment}
-                        />
-                    )}
+                    <AgentChatAttachmentList
+                        attachments={images.attachments}
+                        isGoalMode={goalMode.isOn}
+                        pendingCount={images.readingCount}
+                        preview={placeholders.preview}
+                        onRemove={placeholders.removeAttachment}
+                    />
                     <AgentChatComposerEditor
                         composerKeys={composerKeys}
                         draft={draft}
