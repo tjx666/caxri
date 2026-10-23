@@ -13,6 +13,7 @@ import { AgentCommanderApp } from './features/agent-commander/agent-commander-ap
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
 import { configureCommanderTerminalHost } from './features/agent-commander/commander-commands';
 import { configureCommanderToastActions } from './features/agent-commander/commander-toast-actions';
+import { observePowerSource } from './lib/power-source';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
 import { installRendererErrorReporter } from './renderer-error-reporter';
@@ -23,6 +24,7 @@ import { syncWorkbenchLocale } from './stores/workbench-locale';
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
 installStoreInspector();
 observeWindowActive();
+observePowerSource();
 installDwellShimmerRest();
 syncWorkbenchLocale();
 // Before the first render: Main denies this window `app.bootstrap`, so every shared refresh path must already read the

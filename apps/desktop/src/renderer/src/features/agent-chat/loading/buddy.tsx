@@ -1,5 +1,9 @@
 import './loading.css';
 
+import type { CSSProperties, ReactNode } from 'react';
+
+import { cn } from '@/lib/utilities';
+
 import { GLYPH_CUTOUT, staggerIndex } from './glyph-geometry';
 import type { BuddyMood } from './presentation';
 
@@ -33,109 +37,165 @@ const LOOKING_EYES: Record<
 };
 
 /**
+ * One drawing in Buddy's 24-unit view box. Every part shares that box, so the parts stack into the same picture the
+ * single SVG used to draw.
+ */
+function Art({ children }: { children: ReactNode }) {
+    return (
+        <svg className="buddy-art" height="24" viewBox="0 0 24 24" width="24">
+            {children}
+        </svg>
+    );
+}
+
+/**
+ * A part that moves. Each one is an HTML box over the whole view box rather than an SVG group: a transform on an SVG
+ * child restyles and re-layerizes on the main thread every frame, while one on an HTML box runs on the compositor.
+ * `transformOrigin` is in view-box units, since the box is the view box.
+ */
+function Layer({
+    children,
+    className,
+    style,
+}: {
+    children: ReactNode;
+    className: string;
+    style?: CSSProperties;
+}) {
+    return (
+        <span className={cn('buddy-layer', className)} style={style}>
+            {children}
+        </span>
+    );
+}
+
+/**
  * Buddy's eyes and mouth for a mood. Moods that look around (`think`, `read`, `search`) move their eyes as one group.
  */
 function BuddyFace({ mood }: { mood: BuddyMood }) {
     switch (mood) {
         case 'compact': {
             return (
-                <g
-                    fill="none"
-                    stroke={GLYPH_CUTOUT}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                >
-                    <path d="m6.6 11.6 2 1.4-2 1.4" />
-                    <path d="m15.4 11.6-2 1.4 2 1.4" />
-                </g>
+                <Art>
+                    <g
+                        fill="none"
+                        stroke={GLYPH_CUTOUT}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.5"
+                    >
+                        <path d="m6.6 11.6 2 1.4-2 1.4" />
+                        <path d="m15.4 11.6-2 1.4 2 1.4" />
+                    </g>
+                </Art>
             );
         }
         case 'wait': {
             return (
-                <g fill="none" stroke={GLYPH_CUTOUT} strokeLinecap="round" strokeWidth="1.5">
-                    <path d="M6.6 13.2q1.4 1.2 2.8 0" />
-                    <path d="M12.6 13.2q1.4 1.2 2.8 0" />
-                </g>
+                <Art>
+                    <g fill="none" stroke={GLYPH_CUTOUT} strokeLinecap="round" strokeWidth="1.5">
+                        <path d="M6.6 13.2q1.4 1.2 2.8 0" />
+                        <path d="M12.6 13.2q1.4 1.2 2.8 0" />
+                    </g>
+                </Art>
             );
         }
         case 'tired': {
             return (
                 <>
-                    <g fill="none" stroke={GLYPH_CUTOUT} strokeLinecap="round" strokeWidth="1.5">
-                        <path d="M6.6 12.4h2.8" />
-                        <path d="M12.6 12.4h2.8" />
-                    </g>
-                    <ellipse
-                        className="buddy-yawn"
-                        cx="11"
-                        cy="16"
-                        fill={GLYPH_CUTOUT}
-                        rx="1.4"
-                        ry="1.8"
-                    />
+                    <Art>
+                        <g
+                            fill="none"
+                            stroke={GLYPH_CUTOUT}
+                            strokeLinecap="round"
+                            strokeWidth="1.5"
+                        >
+                            <path d="M6.6 12.4h2.8" />
+                            <path d="M12.6 12.4h2.8" />
+                        </g>
+                    </Art>
+                    <Layer className="buddy-yawn">
+                        <Art>
+                            <ellipse cx="11" cy="16" fill={GLYPH_CUTOUT} rx="1.4" ry="1.8" />
+                        </Art>
+                    </Layer>
                 </>
             );
         }
         case 'run': {
             return (
-                <>
+                <Art>
                     <ellipse cx="8" cy="13" fill={GLYPH_CUTOUT} rx="1.6" ry="1.9" />
                     <ellipse cx="14" cy="13" fill={GLYPH_CUTOUT} rx="1.6" ry="1.9" />
                     <g fill="none" stroke={GLYPH_CUTOUT} strokeLinecap="round" strokeWidth="1.3">
                         <path d="M6.2 9.9 9.6 10.9" />
                         <path d="M15.8 9.9 12.4 10.9" />
                     </g>
-                </>
+                </Art>
             );
         }
         default: {
             const [left, right] = LOOKING_EYES[mood];
             return (
-                <g className="buddy-look">
-                    <g className="buddy-blink">
-                        <ellipse cx="8" fill={GLYPH_CUTOUT} {...left} />
-                        <ellipse cx="14" fill={GLYPH_CUTOUT} {...right} />
-                    </g>
+                <Layer className="buddy-look">
+                    {/* Blinks around the eyes' vertical middle; the left eye spans both eyes' height in every mood. */}
+                    <Layer className="buddy-blink" style={{ transformOrigin: `11px ${left.cy}px` }}>
+                        <Art>
+                            <ellipse cx="8" fill={GLYPH_CUTOUT} {...left} />
+                            <ellipse cx="14" fill={GLYPH_CUTOUT} {...right} />
+                        </Art>
+                    </Layer>
                     {mood === 'search' && (
-                        <g
-                            fill="none"
-                            stroke="var(--merged)"
-                            strokeLinecap="round"
-                            strokeWidth="1.3"
-                        >
-                            <circle cx="14" cy="12.6" r="3.6" />
-                            <path d="m16.6 15.2 2.4 2.4" />
-                        </g>
+                        <Art>
+                            <g
+                                fill="none"
+                                stroke="var(--merged)"
+                                strokeLinecap="round"
+                                strokeWidth="1.3"
+                            >
+                                <circle cx="14" cy="12.6" r="3.6" />
+                                <path d="m16.6 15.2 2.4 2.4" />
+                            </g>
+                        </Art>
                     )}
-                </g>
+                </Layer>
             );
         }
     }
 }
 
 /**
- * The rare party hat (`isBuddyPartyTurn`), drawn above the head past the SVG's box.
+ * The rare party hat (`isBuddyPartyTurn`), drawn above the head past the view box.
  */
 function PartyHat() {
     return (
-        <g className="buddy-hat">
-            <path d="M6.4 6.6 11.4-3.4 15.8 6.6Z" fill="var(--merged)" />
-            <path
-                d="M8.2 3.4 14.2 2.6M9.8.2l3.2-.5"
-                stroke="var(--accent)"
-                strokeLinecap="round"
-                strokeWidth="1.1"
-            />
-            <circle cx="11.4" cy="-3.6" fill="var(--warning)" r="1.5" />
-        </g>
+        <Layer className="buddy-hat">
+            <Art>
+                <path d="M6.4 6.6 11.4-3.4 15.8 6.6Z" fill="var(--merged)" />
+                <path
+                    d="M8.2 3.4 14.2 2.6M9.8.2l3.2-.5"
+                    stroke="var(--accent)"
+                    strokeLinecap="round"
+                    strokeWidth="1.1"
+                />
+                <circle cx="11.4" cy="-3.6" fill="var(--warning)" r="1.5" />
+            </Art>
+        </Layer>
     );
 }
+
+const THOUGHT_BUBBLES = [
+    { cx: 18.6, cy: 5.6, r: 1 },
+    { cx: 21.2, cy: 2.6, r: 1.5 },
+] as const;
 
 /**
  * Buddy: a small round character that acts out what the Agent is doing (see `BuddyMood`). Pointing at it boops it: it
  * squishes, its eyes turn into happy arcs, and a heart floats up. It is decoration, so assistive technology never sees
  * it; the status line names the activity.
+ *
+ * The parts are drawn at the 24-unit view box and the stage scales them to `size`, so the keyframes in `loading.css`
+ * move them in view-box units at every size.
  */
 export function Buddy({
     isParty = false,
@@ -151,74 +211,84 @@ export function Buddy({
             aria-hidden="true"
             className="agent-chat-buddy relative inline-flex shrink-0"
             data-mood={mood}
-            style={{ width: size, height: size }}
+            style={{ 'width': size, 'height': size, '--buddy-scale': size / 24 } as CSSProperties}
         >
-            <svg
-                className="buddy-idle overflow-visible"
-                height={size}
-                viewBox="0 0 24 24"
-                width={size}
-            >
-                <g className="buddy-body">
-                    <circle cx="11" cy="13" fill="var(--foreground)" r="8" />
-                    <BuddyFace mood={mood} />
-                </g>
-                {mood === 'think' &&
-                    [
-                        [18.6, 5.6, 1],
-                        [21.2, 2.6, 1.5],
-                    ].map(([cx, cy, radius], index) => (
-                        <circle
-                            className="buddy-bubble"
-                            cx={cx}
-                            cy={cy}
-                            fill="var(--foreground)"
-                            key={cx}
-                            r={radius}
-                            style={staggerIndex(index)}
-                        />
-                    ))}
-                {(mood === 'run' || mood === 'tired') && (
-                    <path className="buddy-sweat" d={SWEAT_DROP} fill="var(--git-modified)" />
-                )}
-                {mood === 'wait' &&
-                    [0, 1].map((index) => (
-                        <path
-                            className="buddy-z"
-                            d="M18 4h2.6L18 7h2.6"
-                            fill="none"
-                            key={index}
-                            stroke="var(--muted)"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.1"
-                            style={staggerIndex(index)}
-                        />
-                    ))}
-                {isParty && <PartyHat />}
-            </svg>
-            <svg
-                className="buddy-booped absolute inset-0 overflow-visible"
-                height={size}
-                viewBox="0 0 24 24"
-                width={size}
-            >
-                <g className="buddy-squish">
-                    <circle cx="11" cy="13" fill="var(--foreground)" r="8" />
-                    <g fill="none" stroke={GLYPH_CUTOUT} strokeLinecap="round" strokeWidth="1.5">
-                        <path d="M6.6 13q1.4-1.6 2.8 0" />
-                        <path d="M12.6 13q1.4-1.6 2.8 0" />
-                    </g>
-                    <circle cx="6" cy="15.6" fill="var(--accent)" opacity=".6" r="1.3" />
-                    <circle cx="16" cy="15.6" fill="var(--accent)" opacity=".6" r="1.3" />
-                </g>
-                <path
-                    className="buddy-heart"
-                    d="M20 6.2c-1-.9-2.2-1.4-2.2-2.5a1.1 1.1 0 0 1 2.2-.2 1.1 1.1 0 0 1 2.2.2c0 1.1-1.2 1.6-2.2 2.5z"
-                    fill="var(--accent)"
-                />
-                {isParty && <PartyHat />}
-            </svg>
+            {/* Keyed so a new mood or hat restarts every loop together, keeping them on the shared tick. */}
+            <span className="buddy-stage" key={`${mood}-${isParty}`}>
+                <span className="buddy-idle buddy-layer">
+                    <Layer className="buddy-body">
+                        <Art>
+                            <circle cx="11" cy="13" fill="var(--foreground)" r="8" />
+                        </Art>
+                        <BuddyFace mood={mood} />
+                    </Layer>
+                    {mood === 'think' &&
+                        THOUGHT_BUBBLES.map(({ cx, cy, r }, index) => (
+                            <Layer
+                                className="buddy-bubble"
+                                key={cx}
+                                style={{
+                                    ...staggerIndex(index),
+                                    transformOrigin: `${cx}px ${cy}px`,
+                                }}
+                            >
+                                <Art>
+                                    <circle cx={cx} cy={cy} fill="var(--foreground)" r={r} />
+                                </Art>
+                            </Layer>
+                        ))}
+                    {(mood === 'run' || mood === 'tired') && (
+                        <Layer className="buddy-sweat">
+                            <Art>
+                                <path d={SWEAT_DROP} fill="var(--git-modified)" />
+                            </Art>
+                        </Layer>
+                    )}
+                    {mood === 'wait' &&
+                        [0, 1].map((index) => (
+                            <Layer className="buddy-z" key={index} style={staggerIndex(index)}>
+                                <Art>
+                                    <path
+                                        d="M18 4h2.6L18 7h2.6"
+                                        fill="none"
+                                        stroke="var(--muted)"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="1.1"
+                                    />
+                                </Art>
+                            </Layer>
+                        ))}
+                    {isParty && <PartyHat />}
+                </span>
+                <span className="buddy-booped buddy-layer">
+                    <Layer className="buddy-squish">
+                        <Art>
+                            <circle cx="11" cy="13" fill="var(--foreground)" r="8" />
+                            <g
+                                fill="none"
+                                stroke={GLYPH_CUTOUT}
+                                strokeLinecap="round"
+                                strokeWidth="1.5"
+                            >
+                                <path d="M6.6 13q1.4-1.6 2.8 0" />
+                                <path d="M12.6 13q1.4-1.6 2.8 0" />
+                            </g>
+                            <circle cx="6" cy="15.6" fill="var(--accent)" opacity=".6" r="1.3" />
+                            <circle cx="16" cy="15.6" fill="var(--accent)" opacity=".6" r="1.3" />
+                        </Art>
+                    </Layer>
+                    <Layer className="buddy-heart">
+                        <Art>
+                            <path
+                                d="M20 6.2c-1-.9-2.2-1.4-2.2-2.5a1.1 1.1 0 0 1 2.2-.2 1.1 1.1 0 0 1 2.2.2c0 1.1-1.2 1.6-2.2 2.5z"
+                                fill="var(--accent)"
+                            />
+                        </Art>
+                    </Layer>
+                    {isParty && <PartyHat />}
+                </span>
+            </span>
         </span>
     );
 }
