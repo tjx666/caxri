@@ -189,6 +189,7 @@ function ApprovalBody({
 export function AgentChatRequestCard({
     approvalArmDelayMs = 0,
     isFramed = true,
+    isWindowWide = false,
     linkedItem,
     onAnswered,
     onEscape,
@@ -218,6 +219,11 @@ export function AgentChatRequestCard({
      * request does not read as a card nested in a card.
      */
     isFramed?: boolean;
+    /**
+     * Lets a question take Enter from anywhere in the window, for a card outside any Chat (the waiting popup); see
+     * `useAgentChatQuestionEnterKey`.
+     */
+    isWindowWide?: boolean;
     /**
      * Timeline item the request gates, when the provider linked one.
      */
@@ -270,6 +276,7 @@ export function AgentChatRequestCard({
             {request.kind === 'question' ? (
                 <AgentChatQuestionForm
                     isAnswering={isAnswering}
+                    isWindowWide={isWindowWide}
                     armDelayMs={approvalArmDelayMs}
                     onEscape={onEscape}
                     providerName={providerName}

@@ -75,7 +75,13 @@ test('Chats that are not on screen ask through the waiting popup, one request at
         await expect(checks.getByRole('checkbox', { name: /^Type check/u })).toBeChecked();
         await expect(checks.getByRole('checkbox', { name: /^Unit tests/u })).not.toBeChecked();
         await page.screenshot({ path: testInfo.outputPath('waiting-popup-multi-select.png') });
-        await popup.getByRole('button', { name: 'Submit' }).click();
+        // Enter typed into a Terminal stays the Terminal's; with nothing focused, it sends the question.
+        const terminalInput = page.locator(VISIBLE_SESSION).locator('.xterm-helper-textarea');
+        await terminalInput.focus();
+        await page.keyboard.press('Enter');
+        await expect(popup).toContainText('Which checks should run before the pull request?');
+        await terminalInput.blur();
+        await page.keyboard.press('Enter');
 
         // The next waiting Chat takes its place.
         await expect(popup).toContainText('Run this command?');

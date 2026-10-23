@@ -51,6 +51,16 @@ test('a Chat asks several questions behind tabs and lists the answers once sent'
         await expect(questionTabs.nth(2)).toHaveAttribute('aria-selected', 'true');
         await questionTabs.nth(1).click();
         await expect(questions.getByRole('radio', { name: /^Free only/u })).toBeChecked();
+        // Enter in the empty composer answers like Enter on the selected row: with a question still unanswered it
+        // moves there, focus following, and the Submit button carries no Enter hint.
+        await message.focus();
+        await message.press('Enter');
+        await expect(questionTabs.nth(2)).toHaveAttribute('aria-selected', 'true');
+        await expect(
+            questions.getByRole('textbox', {
+                name: 'Other answer: Anything else to keep in mind?',
+            }),
+        ).toBeFocused();
         await questions.getByRole('button', { name: 'Submit' }).click();
         await expect(
             session.getByText('You answered Per user (Recommended) / Free only / -.'),

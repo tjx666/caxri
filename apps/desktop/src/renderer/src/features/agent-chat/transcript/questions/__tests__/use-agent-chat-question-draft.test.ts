@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatQuestionDraft } from './use-agent-chat-question-draft';
+import type { AgentChatQuestionDraft } from '../use-agent-chat-question-draft';
 import {
     agentChatQuestionDraftKey,
     agentChatQuestionTicks,
     discardAgentChatQuestionDraft,
     readAgentChatQuestionDraft,
     updateAgentChatQuestionDraft,
-} from './use-agent-chat-question-draft';
+} from '../use-agent-chat-question-draft';
 
 const initial: AgentChatQuestionDraft = {
     index: 0,
