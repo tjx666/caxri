@@ -41,6 +41,19 @@ export function focusedCheckArguments(
     ];
 }
 
+/**
+ * React Doctor (`doctor:changed`) also runs in the `affected` scope when the diff touches a Desktop or Mobile script
+ * module: `check` only suggests it, and leaving it to the `main` push's `full` checks let a PR's new warnings turn
+ * `main` red after merge (#2499). It scans only the changed files, in about 4 s on a hosted runner.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
+export function shouldRunReactDoctor(scope: CIChecksScope, paths: readonly string[]): boolean {
+    return (
+        scope === 'affected' &&
+        paths.some((path) => /^apps\/(?:desktop|mobile)\/.+\.[cm]?[jt]sx?$/u.test(path))
+    );
+}
+
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function focusedDiffArguments(paths: readonly string[]): string[] {
     return ['diff', '--exit-code', '--', ...paths];
@@ -175,6 +188,13 @@ async function main(): Promise<void> {
     if (diffResult !== 0) {
         process.exitCode = diffResult;
         return;
+    }
+    if (shouldRunReactDoctor(scope, currentFiles)) {
+        const doctorResult = await run('bun', ['run', 'doctor:changed']);
+        if (doctorResult !== 0) {
+            process.exitCode = doctorResult;
+            return;
+        }
     }
     // The `affected` scope's `vitest related` run lives in scripts/run-ci-unit-tests.ts, sharded beside this job.
     if (regressionPaths.length === 0) {

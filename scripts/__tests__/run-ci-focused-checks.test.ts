@@ -4,10 +4,24 @@ import {
     focusedCheckArguments,
     focusedDiffArguments,
     focusedRegressionPaths,
+    shouldRunReactDoctor,
     shouldRunSkillRegressions,
 } from '../run-ci-focused-checks';
 
 describe('focused CI checks', () => {
+    it('runs React Doctor for an affected Desktop or Mobile source change only', () => {
+        const renderer =
+            'apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer.tsx';
+        expect(shouldRunReactDoctor('affected', [renderer])).toBe(true);
+        expect(shouldRunReactDoctor('affected', ['apps/mobile/src/app/index.ts'])).toBe(true);
+        expect(shouldRunReactDoctor('affected', ['apps/server/src/domains/git/index.ts'])).toBe(
+            false,
+        );
+        expect(shouldRunReactDoctor('affected', ['apps/desktop/README.md'])).toBe(false);
+        // Draft and focused scopes keep their cheaper gate set; the `full` scope runs it from the platform gates.
+        expect(shouldRunReactDoctor('focused-source', [renderer])).toBe(false);
+    });
+
     it('runs the directory density ratchet when an affected or draft source change touches a guarded directory', () => {
         const guard = 'scripts/__tests__/directory-density-ratchet.test.ts';
         // A new file is not imported by the ratchet (it reads the filesystem), so `vitest related` cannot reach it.

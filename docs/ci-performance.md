@@ -331,10 +331,14 @@ routes it to the `affected` scope:
   the same. This expands hosted platform checks only; `runE2E` remains false and an explicit
   dispatch still owns every full E2E run.
 
-React Doctor and bundle budgets run in the `full` checks scope on hosted macOS; Knip runs in both
-the `full` and `affected` scopes, so an unused export fails a ready source PR before merge. Knip is
+Bundle budgets run in the `full` checks scope on hosted macOS. Knip runs in both the `full` and
+`affected` scopes, so an unused export fails a ready source PR before merge. Knip is
 repository-wide but measured at about 3 s locally (warm cache), cheap enough to add to `affected`
-without a separate job or a change to the required `guards` job. Ordinary pushes to `main` run the
+without a separate job or a change to the required `guards` job. React Doctor (`doctor:changed`)
+runs in `full` and, for the same reason, in `affected` whenever the diff touches a Desktop or
+Mobile script module: it scans only the changed files against the PR base, in about 4 s on a
+hosted runner. Left to the `full` scope alone, a PR's new warnings passed its own CI and turned the
+`main` push red after merge. Ordinary pushes to `main` run the
 `full` checks but do not start full E2E. There is no scheduled full E2E.
 
 `hosted-smoke` is the repeatable hosted desktop launch and runs only `e2e/smoke.e2e.ts`. That spec

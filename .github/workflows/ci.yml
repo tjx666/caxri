@@ -204,6 +204,7 @@ jobs:
         env:
           CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
           CI_CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
+          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: bun run scripts/run-ci-focused-checks.ts
       - name: Run full platform checks
         if: needs.retry-policy.outputs.checks_scope == 'full'
