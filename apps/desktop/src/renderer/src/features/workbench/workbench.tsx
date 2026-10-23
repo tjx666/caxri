@@ -14,7 +14,7 @@ import { useReportViewedSession } from '../session/hooks/use-report-viewed-sessi
 import { chooseProjectFolder } from '../session/session-creation-commands';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
-import { cancelHiddenSessionTransitions } from './hidden-session-transitions';
+import { reconcileSessionAnimations } from './hidden-session-transitions';
 import { PaneView } from './pane-view';
 import { useSessionFocusHandoff } from './session-focus-handoff';
 import {
@@ -164,8 +164,8 @@ export function Workbench() {
         );
     }, [chatTerminalKey]);
     useEffect(() => {
-        // One frame later, so the blur that hiding causes has started its transitions.
-        const frame = requestAnimationFrame(() => cancelHiddenSessionTransitions(document));
+        // One frame later, so the blur that hiding causes has started its transitions and the switch has painted.
+        const frame = requestAnimationFrame(() => reconcileSessionAnimations(document));
         return () => cancelAnimationFrame(frame);
     }, [selectedSessionId]);
     return (
@@ -187,11 +187,12 @@ export function Workbench() {
                          * `content-visibility: hidden` rather than `display: none`: the subtree skips style, layout,
                          * and paint all the same, but keeps its layout and every scroll offset, so coming back neither
                          * starts a Chat at its top nor scrolls it programmatically (which flashed the overlay
-                         * scrollbar). `inert` keeps what `display: none` used to guarantee: no focus, no pointer, and
-                         * no accessibility tree for the hidden subtree.
+                         * scrollbar). `content-visibility: hidden` already keeps what `display: none` used to guarantee
+                         * (no focus, no accessibility tree; `styles.css` also sends the box behind the visible Session
+                         * so it takes no pointer), so `inert` is not set: toggling it restyled the whole subtree on
+                         * every switch. Animations are paused by `reconcileSessionAnimations`.
                          */
                         hidden={sessionId !== selectedSessionId}
-                        inert={sessionId !== selectedSessionId}
                     >
                         <PaneView
                             isVisible={sessionId === selectedSessionId}

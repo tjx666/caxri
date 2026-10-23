@@ -878,8 +878,9 @@ loop after a few iterations and replay it on a real trigger instead of looping (
 ripple); and never hold a still phase inside the keyframes of a property such as
 `background-position`, which restyles every frame of the hold, but end the animation and restart it
 after the rest (the dwell shimmer). A hidden Workbench Session skips style updates, so motion left
-in it never settles: its CSS animations stay paused and its transitions are cancelled when it
-hides (`features/workbench/hidden-session-transitions.ts`). See the `performance` skill for how to measure idle cost. The Terminal and Agent Chat find bars fade in (the floating
+in it never settles: its running CSS animations are paused and its transitions cancelled after it
+hides, and the paused ones resume on return (`features/workbench/hidden-session-transitions.ts`; a
+descendant `[hidden] *` CSS rule is not used because it restyles the whole subtree on every switch). See the `performance` skill for how to measure idle cost. The Terminal and Agent Chat find bars fade in (the floating
 Terminal bar also drops 4px) and close instantly; the pane split drop preview fades in once and
 then glides between zones on `--motion-chrome-switch` so the target split stays legible.
 The Agent Chat composer's attachment row follows its content's height (`useContentHeightTransition`):

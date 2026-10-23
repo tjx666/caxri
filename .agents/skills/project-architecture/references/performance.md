@@ -28,7 +28,7 @@ Component-level fiber trees stay outside the build and durable receipt because s
 cannot supply an additive component budget.
 
 The Workbench keeps the five most recently selected Sessions (the visible one included) mounted in a
-stable id order and hides the off-screen ones with `content-visibility: hidden` plus `inert`, never `display: none`, so a Chat or
+stable id order and hides the off-screen ones with `content-visibility: hidden` (no `inert`, which would restyle the subtree on every switch), never `display: none`, so a Chat or
 Terminal returns at its own scroll offset without a programmatic scroll. A hidden Chat stays subscribed to its
 cached conversation but is not notified of its stream, and cached Chat conversations are retained by
 count rather than time. `benchmark:chat-switch`
