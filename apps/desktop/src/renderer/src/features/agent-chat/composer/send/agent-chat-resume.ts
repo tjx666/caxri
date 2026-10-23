@@ -14,3 +14,23 @@ export function isAgentChatTurnResumable(
     const status = snapshot.turns.at(-1)?.status;
     return status === 'interrupted' || status === 'failed';
 }
+
+/**
+ * Whether the empty composer's Send button continues the stopped or failed turn ({@link isAgentChatTurnResumable})
+ * instead of sending: the Chat accepts a message, nothing is typed, attached, or in flight, no queued message will run
+ * by itself, and neither Goal mode nor "Edit from here" owns the draft.
+ */
+export function isAgentChatResumeOffered(state: {
+    canSend: boolean;
+    hasContent: boolean;
+    hasQueue: boolean;
+    isAttaching: boolean;
+    isEditing: boolean;
+    isGoalMode: boolean;
+    isSending: boolean;
+    snapshot: Parameters<typeof isAgentChatTurnResumable>[0];
+}): boolean {
+    if (!state.canSend || state.isSending || state.isAttaching || state.hasContent) return false;
+    if (state.hasQueue || state.isGoalMode || state.isEditing) return false;
+    return isAgentChatTurnResumable(state.snapshot);
+}
