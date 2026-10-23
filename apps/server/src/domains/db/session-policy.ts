@@ -407,11 +407,19 @@ export function decideAgentMetadataUpdate(
      * `SessionRenameService` commits the local title but skips provider synchronization for a provider without native
      * rename and for an Agent that has not produced a session yet, and an Agent may rename its own thread afterwards in
      * any event. A secondary Agent Terminal is unaffected: its tab is the only thing naming that conversation.
+     *
+     * The same holds when the probe carries no title: Caxri's automatic naming withholds the provider title while it
+     * owns the name, so falling back to the tab's own title left the tab on the provider name ("Claude") beside a named
+     * sidebar row. The primary tab takes the Session's name instead, unless the Session is still unnamed.
      */
+    const hasSessionName = session.displayTitle !== DEFAULT_SESSION_TITLE;
     const preferredTitle =
         isPrimaryAgent && isManuallyTitled
             ? session.displayTitle
-            : agentDisplayTitle(snapshot.title, terminal.title);
+            : agentDisplayTitle(
+                  snapshot.title,
+                  isPrimaryAgent && hasSessionName ? session.displayTitle : terminal.title,
+              );
     const terminalTitle = normalizeTerminalTitle(preferredTitle) ?? terminal.title;
     const lastActivityState = metadataActivityState(session, snapshot.status);
     const attentionKind = isPrimaryAgent

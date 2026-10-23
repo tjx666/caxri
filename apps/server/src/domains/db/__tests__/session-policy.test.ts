@@ -297,7 +297,7 @@ describe('decideAgentMetadataUpdate', () => {
 
     // Claude Code writes `status: "idle"` at launch before any turn runs; that must not read as "waiting for the user".
     it('keeps the current state when a probe reports waiting for a Session that never ran a turn', () => {
-        const primary = terminal({ id: 'claude-1', provider: 'claude' });
+        const primary = terminal({ id: 'c1', provider: 'claude', title: 'Investigate hooks' });
         for (const lastActivityState of ['idle', 'unknown', 'completed'] as const) {
             const decision = decideAgentMetadataUpdate(
                 primary,
@@ -370,7 +370,7 @@ describe('decideAgentMetadataUpdate', () => {
     });
 
     it('emits only reliable primary-Agent attention state transitions', () => {
-        const primary = terminal({ id: 'claude-1', provider: 'claude' });
+        const primary = terminal({ id: 'c1', provider: 'claude', title: 'Investigate hooks' });
         const current = session({
             primaryAgentTerminalId: primary.id,
             lastActivityState: 'running',
