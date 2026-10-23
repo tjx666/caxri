@@ -71,7 +71,6 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
             exact: false,
         });
         await expect(directoryLinkOption).toHaveAttribute('aria-disabled', 'false');
-        await expect(directoryLinkOption).toHaveAttribute('title', 'Symlink to src.');
         await expect(directoryLinkOption).toHaveAccessibleDescription('Symlink to src.');
         const rootListboxId = await rootListbox.getAttribute('id');
         const rootOptionId = await rootDirectoryOption.getAttribute('id');
@@ -235,7 +234,7 @@ test('Cmd+P removes the Project anchor and opens an external file without a pick
          */
         const freeDirectoryLabel = projectRoot === '/' ? '/' : `${projectRoot}/`;
         await expect(input).toHaveValue('');
-        await expect(dialog.getByTitle(freeDirectoryLabel, { exact: true })).toBeVisible();
+        await expect(dialog.getByText(freeDirectoryLabel, { exact: true })).toBeVisible();
         await expect(dialog.getByText('project/', { exact: true })).toHaveCount(0);
 
         const missingDirectory = `${join(testDirectory, 'missing')}/`;
