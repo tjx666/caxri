@@ -35,6 +35,7 @@ import {
     useIsSecondarySidebarShown,
     useSecondarySidebarYieldSync,
 } from './features/secondary-sidebar/secondary-sidebar-visibility';
+import { useStatusOnNewPullRequest } from './features/secondary-sidebar/status-on-new-pull-request';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
 import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
@@ -196,6 +197,7 @@ export function App() {
     useExternalDocumentSync();
     useChromeViewportClamp(getSecondarySidebarYieldScope);
     useSecondarySidebarYieldSync();
+    useStatusOnNewPullRequest();
     useWorkbenchAppearance();
     useTranslucentSidebar();
     useWindowZoomFactor();
