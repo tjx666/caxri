@@ -91,6 +91,8 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.stash.placeholder': '草稿已暂存 · Ctrl+S 恢复',
     'agentChat.slash.label': '命令和 Skill',
     'agentChat.slash.noMatches': '没有匹配的命令或 Skill',
+    'agentChat.slash.newSessionDescription': '把下一个任务交给新 Session，当前 Session 到此为止',
+    'agentChat.slash.newSessionHint': '[下一个任务]',
     'agentChat.slash.confirmSendAsText': '没有这个命令。再按一次 Enter 作为文本发送。',
     'agentChat.slash.commands': '命令',
     'agentChat.slash.recent': '最近使用',

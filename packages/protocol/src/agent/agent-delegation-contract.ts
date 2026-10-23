@@ -121,6 +121,12 @@ const agentDelegationCreateFields = {
      * provider, preset, model, or effort; later tasks continue the delegation this one creates.
      */
     continueFromHandover: identifierSchema.optional(),
+    /**
+     * The caller's Session is done and this task carries its work on in a new Session (the Chat composer's
+     * `/new-session`), so the new Session's first message reads as a continuation of the caller's Session rather than
+     * an ordinary delegated task. Only with `newSession`.
+     */
+    handoff: z.literal(true).optional(),
 };
 
 type DelegationCreateShape = Partial<
@@ -193,6 +199,10 @@ export const agentDelegationCreateRequestSchema = z
             !value.newSession ||
             (!value.followUpOf && !value.resumeFrom && !value.continueFromHandover),
         'A new Session starts a new task',
+    )
+    .refine(
+        (value) => !value.handoff || Boolean(value.newSession),
+        'A hand-off continues in a new Session',
     )
     .refine(
         (value) => Boolean(value.title) === Boolean(value.newSession),

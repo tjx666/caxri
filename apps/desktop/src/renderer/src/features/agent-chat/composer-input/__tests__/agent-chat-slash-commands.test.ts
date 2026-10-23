@@ -6,6 +6,7 @@ import {
     agentChatSkillDiscoveryNotice,
     isAgentChatGoalAction,
     isAgentChatGoalOffered,
+    withAgentChatBuiltInActions,
 } from '../agent-chat-slash-commands';
 
 describe('Agent Chat slash commands', () => {
@@ -89,5 +90,23 @@ describe('Goal mode', () => {
                 source: 'builtIn',
             }),
         ).toBe(false);
+    });
+
+    it('offers /new-session first for every provider, replacing a provider command of that name', () => {
+        const review = {
+            invocation: '/review',
+            kind: 'command',
+            requiresArguments: false,
+            source: 'builtIn',
+        } as const;
+        const actions = withAgentChatBuiltInActions([
+            review,
+            { ...review, invocation: '/new-session' },
+        ]);
+        expect(actions.map(({ invocation }) => invocation)).toEqual(['/new-session', '/review']);
+        expect(actions[0]).toMatchObject({
+            description: 'Hand the next task to a new Session and stop here',
+            argumentHint: '[next task]',
+        });
     });
 });

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+import {
+    agentChatSessionHandoffDraft,
+    parseAgentChatSessionHandoff,
+} from './agent-chat-commands.js';
 import { agentChatImageMediaTypeSchema } from './agent-chat-contract.js';
 import { MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from './agent-chat-limits.js';
 
@@ -126,23 +130,39 @@ function parsePathLines(block: string | undefined): AgentChatPathReference[] | u
 /**
  * Splits a sent message back into its skills, its path references, and what the user typed
  * (`agentChatTextWithPathReferences`), so a Client can show them as chips, including in a conversation resumed from the
- * provider's own record. Text that does not start with the reference block comes back whole with neither.
+ * provider's own record. Text that does not start with the reference block comes back whole with neither. A
+ * `/new-session` hand-off's words come back as the command the user typed (`agentChatSessionHandoffDraft`), with
+ * `handoff` set. Only the instructions the composer wrote set it: a literal `/new-session` the composer could not turn
+ * into a hand-off reached the Agent as plain words, so it must not read as one.
  */
 export function parseAgentChatPathReferences(text: string): {
+    handoff?: { note: string };
     references: AgentChatPathReference[];
     skills: AgentChatSkillReference[];
     text: string;
 } {
+    const whole = { references: [], skills: [], ...requestWords(text) };
     const match = REFERENCE_BLOCK.exec(text);
-    if (!match) return { references: [], skills: [], text };
+    if (!match) return whole;
     // Both sections are optional groups, which come back `undefined` when absent; the exec type does not say so.
     const [, skillBlock, pathBlock] = match as ReadonlyArray<string | undefined>;
-    if (skillBlock === undefined && pathBlock === undefined)
-        return { references: [], skills: [], text };
+    if (skillBlock === undefined && pathBlock === undefined) return whole;
     const skills = parseSkillLines(skillBlock);
     const references = parsePathLines(pathBlock);
-    if (!skills || !references) return { references: [], skills: [], text };
-    return { references, skills, text: text.slice(match[0].length) };
+    if (!skills || !references) return whole;
+    return {
+        references,
+        skills,
+        ...requestWords(text.slice(match[0].length)),
+    };
+}
+
+/**
+ * What the user typed under the reference block, and the hand-off it asked for, if any.
+ */
+function requestWords(text: string): { handoff?: { note: string }; text: string } {
+    const handoff = parseAgentChatSessionHandoff(text);
+    return { text: agentChatSessionHandoffDraft(text), ...(handoff && { handoff }) };
 }
 
 /**
@@ -169,7 +189,7 @@ export function agentChatPathReferencePreview(text: string): string {
                 ...references.map((reference) => referenceName(reference.path)),
             ].join(', ')
         );
-    if (!text.startsWith(REFERENCES_HEADING) && !text.startsWith(SKILLS_HEADING)) return text;
+    if (!text.startsWith(REFERENCES_HEADING) && !text.startsWith(SKILLS_HEADING)) return words;
     return text
         .split('\n')
         .flatMap((line) => {

@@ -179,10 +179,12 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         );
         await page.screenshot({ path: testInfo.outputPath('codex-chat-restored-images.png') });
 
-        // The `/` menu reuses the Agent Commands & Skills discovery, so a Project skill sits beside the commands.
+        // The `/` menu reuses the Agent Commands & Skills discovery, so a Project skill sits beside the commands, after
+        // Caxri's own `/new-session`.
         await message.fill('/');
         const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
         await expect(commands.getByRole('option')).toHaveText([
+            /^\/new-session/u,
             /^\/compact/u,
             /^\/goal/u,
             /^\$review-pr\s*Review the open pull request$/u,
@@ -193,7 +195,7 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await expect(commands).toHaveCount(0);
         await message.fill('');
         await message.fill('/');
-        await expect(commands.getByRole('option').first()).toHaveText(/^\/compact/u);
+        await expect(commands.getByRole('option').first()).toHaveText(/^\/new-session/u);
         await message.fill('$rev');
         await expect(commands.getByRole('option').first()).toHaveText(/^\$review-pr/u);
         await message.press('Enter');
@@ -204,11 +206,13 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await message.fill('/');
         await expect(commands.getByRole('option')).toHaveText([
             /^\$review-pr/u,
+            /^\/new-session/u,
             /^\/compact/u,
             /^\/goal/u,
         ]);
         await expect(commands.getByText('Recently Used', { exact: true })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-recent-commands.png') });
+        await message.press('ArrowDown');
         await message.press('ArrowDown');
         await message.press('Enter');
         await expect(commands).toHaveCount(0);
@@ -412,7 +416,12 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
         await message.fill('/');
         const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
         // Commands that only make sense in Claude Code's own terminal UI (here /exit) are not offered.
-        await expect(commands.getByRole('option')).toHaveText([/^\/compact/u, /^\/review/u]);
+        await expect(commands.getByRole('option')).toHaveText([
+            /^\/new-session/u,
+            /^\/compact/u,
+            /^\/review/u,
+        ]);
+        await message.press('ArrowDown');
         await message.press('ArrowDown');
         await expect(commands.getByRole('option', { name: /^\/review/u })).toHaveAttribute(
             'aria-selected',

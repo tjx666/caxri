@@ -8,7 +8,7 @@ import {
 } from '@caxri/protocol';
 
 import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
-import { useTerminal } from '../../../stores/selectors';
+import { getBootstrap, useTerminal } from '../../../stores/selectors';
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import {
     didRewindAgentChat,
@@ -26,6 +26,7 @@ import {
     isAgentChatSkillAttachment,
     returnUnsentAgentChatMessage,
 } from '../composer-input/agent-chat-drafts';
+import { agentChatSessionHandoffMessage } from '../session-handoff/agent-chat-session-handoff-message';
 import {
     askAgentChatSideQuestion,
     isAgentChatSideChatBusyFor,
@@ -68,7 +69,8 @@ function agentChatMessageInput(
  * once too, while Send says the composer is sending until Server Core answers, and come back if it refuses them
  * (`didDeliverAgentChatComposerInput`). Each clears only what was actually sent, so text typed or images attached while
  * they are in flight survive them. A `/btw <question>` draft, for a provider with side chats, is asked in the Chat's
- * side chat instead and never reaches the main conversation.
+ * side chat instead and never reaches the main conversation. A `/new-session [next task]` draft is sent as the hand-off
+ * instructions (`agentChatSessionHandoffMessage`), ahead of any provider command of that name.
  */
 export function useAgentChatSubmit({
     attachments,
@@ -155,13 +157,14 @@ export function useAgentChatSubmit({
             await askAgentChatSideQuestion(terminalId, sideQuestion);
             return;
         }
-        const command = parseAgentChatCommand(sent, commands);
+        const composed = agentChatSessionHandoffMessage(sent, terminal, getBootstrap()?.sessions);
+        const command = composed === sent ? parseAgentChatCommand(sent, commands) : undefined;
         if (command) {
             await runCommand(sent, command);
             return;
         }
         const sentAttachments = attachments;
-        const message = agentChatMessageInput(sent, sentAttachments, providerName);
+        const message = agentChatMessageInput(composed, sentAttachments, providerName);
         const snapshot = cachedAgentChatSnapshot(terminalId);
         const pendingId = showAgentChatPendingMessage(terminalId, snapshot, {
             text: message.text,
@@ -182,9 +185,9 @@ export function useAgentChatSubmit({
     };
     /**
      * Sends the draft in place of an earlier message ("Edit from here"). It is always sent as a message, never run as a
-     * slash command, because it replaces a message. Once the user confirmed it, the draft the edit replaced comes back
-     * and `onCleared` ends the edit; if Server Core then refuses it, its images come back and `onReturned` puts the
-     * edit back.
+     * slash command, because it replaces a message; an edited `/new-session` still becomes a hand-off. Once the user
+     * confirmed it, the draft the edit replaced comes back and `onCleared` ends the edit; if Server Core then refuses
+     * it, its images come back and `onReturned` puts the edit back.
      */
     const submitEdit = async (
         sent: string,
@@ -198,6 +201,7 @@ export function useAgentChatSubmit({
         { onCleared, onReturned }: { onCleared: () => void; onReturned: () => void },
     ): Promise<void> => {
         const sentAttachments = attachments;
+        const composed = agentChatSessionHandoffMessage(sent, terminal, getBootstrap()?.sessions);
         await didDeliver({
             clear: () => {
                 setDraft((current) => (current === sent ? edit.previousDraft : current));
@@ -212,7 +216,7 @@ export function useAgentChatSubmit({
                         restoreFiles: edit.restoreFiles,
                         providerName: edit.providerName,
                         removedTurns: edit.removedTurns,
-                        message: agentChatMessageInput(sent, sentAttachments, providerName),
+                        message: agentChatMessageInput(composed, sentAttachments, providerName),
                     },
                     clear,
                 ),

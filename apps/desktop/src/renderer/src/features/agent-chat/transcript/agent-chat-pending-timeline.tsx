@@ -4,6 +4,7 @@ import { useTranslation } from '../../../i18n';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
 import type { useAgentChatPending } from '../hooks/use-agent-chat-pending';
 import { AgentChatUserMessageBubble } from '../messages/agent-chat-user-message';
+import { AgentChatSessionHandoffBubble } from '../session-handoff/agent-chat-session-handoff-bubble';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatAskingQuestions } from './questions/agent-chat-answered-questions';
@@ -20,7 +21,7 @@ function AgentChatPendingUserMessage({
     onOpenFile: (target: string) => void;
 }) {
     const { t } = useTranslation();
-    const { references, skills, text } = parseAgentChatPathReferences(message.text);
+    const { handoff, references, skills, text } = parseAgentChatPathReferences(message.text);
     return (
         <div
             aria-busy="true"
@@ -28,15 +29,14 @@ function AgentChatPendingUserMessage({
             data-agent-chat-pending=""
         >
             <AgentChatPathReferenceChips references={references} />
-            {(text || skills.length > 0 || message.images.length > 0) && (
-                <AgentChatUserMessageBubble
-                    images={message.images}
-                    isEditing={false}
-                    skills={skills}
-                    text={text}
-                    onOpenFile={onOpenFile}
-                />
-            )}
+            {handoff && <AgentChatSessionHandoffBubble note={handoff.note} />}
+            <AgentChatUserMessageBubble
+                images={message.images}
+                isEditing={false}
+                skills={skills}
+                text={handoff ? '' : text}
+                onOpenFile={onOpenFile}
+            />
             {/* The caption sweeps like running work, so a provider slow to accept the message never reads as stuck. */}
             <span className="activity-shimmer -mt-0.5 text-[11px] leading-4 text-muted">
                 {t('agentChat.message.sending')}

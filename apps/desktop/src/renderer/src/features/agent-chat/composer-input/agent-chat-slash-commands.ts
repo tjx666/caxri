@@ -1,5 +1,5 @@
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
-import { AGENT_CHAT_GOAL_COMMAND } from '@caxri/protocol';
+import { AGENT_CHAT_GOAL_COMMAND, AGENT_CHAT_SESSION_HANDOFF_COMMAND } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 
@@ -63,4 +63,24 @@ export function isAgentChatGoalAction(action: AgentAction): boolean {
 export function agentChatGoalModeDraft(draft: string): string {
     const match = new RegExp(String.raw`^\s*/${AGENT_CHAT_GOAL_COMMAND}(?:\s+|$)`, 'u').exec(draft);
     return match ? draft.slice(match[0].length) : draft;
+}
+
+/**
+ * The menu rows for a Chat: Caxri's own `/new-session` first, which every provider offers because Caxri runs it (see
+ * `parseAgentChatSessionHandoffCommand`), then the provider's commands and the discovered skills. A provider command of
+ * the same name loses to Caxri's, which the composer runs anyway.
+ */
+export function withAgentChatBuiltInActions(actions: readonly AgentAction[]): AgentAction[] {
+    const invocation = `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`;
+    return [
+        {
+            invocation,
+            kind: 'command',
+            description: translate('agentChat.slash.newSessionDescription'),
+            argumentHint: translate('agentChat.slash.newSessionHint'),
+            requiresArguments: false,
+            source: 'builtIn',
+        },
+        ...actions.filter((action) => action.invocation !== invocation),
+    ];
 }

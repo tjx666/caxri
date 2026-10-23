@@ -25,6 +25,7 @@ import { pullRequestLinkState } from '../../../lib/link-summary';
 import { cn } from '../../../lib/utilities';
 import { pushToast } from '../../../stores/toasts';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
+import { AgentChatIssueHandoffButton } from '../session-handoff/agent-chat-issue-handoff-button';
 import {
     trackerExcerptText,
     trackerPreviewRequest,
@@ -163,7 +164,8 @@ function TrackerStatus({ status }: { status: NonNullable<AgentChatTrackerArtifac
  * it, and the body's first line. Opens the page in the browser, which the trailing external arrow says before the
  * click; the edited-files card beside it expands in place and carries no arrow. A GitHub card without a title shows its
  * reference until the reference preview supplies one, and a Linear card leads its action with the issue's state. A
- * right-click offers Open Link and Copy Link.
+ * right-click offers Open Link and Copy Link. An issue's card ends with a button that starts it in a new Session
+ * (`AgentChatIssueHandoffButton`).
  */
 export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerArtifact }) {
     const Mark = PROVIDER_MARK[artifact.provider];
@@ -181,54 +183,59 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
         previewTitle ??
         (artifact.kind === 'acceptance' ? t('agentChat.tracker.acceptanceTitle') : undefined);
     return (
-        <button
-            aria-label={
-                artifact.status
-                    ? t('agentChat.tracker.cardLabelWithStatus', {
-                          action: label,
-                          title: title ?? reference,
-                          reference,
-                          status: artifact.status.name,
-                      })
-                    : t('agentChat.tracker.cardLabel', {
-                          action: label,
-                          title: title ?? reference,
-                          reference,
-                      })
-            }
-            className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
-            data-agent-chat-tracker={artifact.provider}
-            type="button"
-            onClick={() => openTrackerUrl(artifact.url)}
-            onContextMenu={onContextMenu}
-        >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
-                <Mark className="size-4" />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-                <span className="flex min-w-0 items-baseline gap-2">
-                    <span className="min-w-0 shrink truncate text-[13px] leading-5 text-foreground">
-                        {title ?? reference}
-                    </span>
-                    {title && (
-                        <span className="shrink-0 font-mono text-[11px] text-muted">
-                            {reference}
+        <div className="flex w-full min-w-0 items-center rounded-lg border border-border bg-surface transition-colors hover:bg-elevated motion-reduce:transition-none">
+            <button
+                aria-label={
+                    artifact.status
+                        ? t('agentChat.tracker.cardLabelWithStatus', {
+                              action: label,
+                              title: title ?? reference,
+                              reference,
+                              status: artifact.status.name,
+                          })
+                        : t('agentChat.tracker.cardLabel', {
+                              action: label,
+                              title: title ?? reference,
+                              reference,
+                          })
+                }
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-accent"
+                data-agent-chat-tracker={artifact.provider}
+                type="button"
+                onClick={() => openTrackerUrl(artifact.url)}
+                onContextMenu={onContextMenu}
+            >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
+                    <Mark className="size-4" />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                        <span className="min-w-0 shrink truncate text-[13px] leading-5 text-foreground">
+                            {title ?? reference}
                         </span>
+                        {title && (
+                            <span className="shrink-0 font-mono text-[11px] text-muted">
+                                {reference}
+                            </span>
+                        )}
+                    </span>
+                    {excerpt && (
+                        <span className="truncate text-[12px] leading-5 text-muted">{excerpt}</span>
                     )}
                 </span>
-                {excerpt && (
-                    <span className="truncate text-[12px] leading-5 text-muted">{excerpt}</span>
-                )}
-            </span>
-            <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
-                {artifact.status ? (
-                    <TrackerStatus status={artifact.status} />
-                ) : (
-                    <TrackerKindIcon kind={artifact.kind} pullState={preview.pullState} />
-                )}
-                {label}
-                <ArrowUpRight aria-hidden="true" className="size-3.5" />
-            </span>
-        </button>
+                <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
+                    {artifact.status ? (
+                        <TrackerStatus status={artifact.status} />
+                    ) : (
+                        <TrackerKindIcon kind={artifact.kind} pullState={preview.pullState} />
+                    )}
+                    {label}
+                    <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                </span>
+            </button>
+            {artifact.kind === 'issue' && (
+                <AgentChatIssueHandoffButton reference={reference} url={artifact.url} />
+            )}
+        </div>
     );
 }

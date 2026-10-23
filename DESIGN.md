@@ -1346,7 +1346,13 @@ GitHub mark for GitHub, a globe when there is none, fading in only on first load
 on hover; hovering it opens a 320px card naming the host with an Open action, then where the
 link leads (`owner/repo · #N` beside a pull request, issue, or discussion glyph for GitHub). A user
 message that starts with a skill (`$name`) or command (`/name`) shows it as an `--accent` chip;
-clicking the chip opens a popover with that skill's rendered Markdown.
+clicking the chip opens a popover with that skill's rendered Markdown. A `/new-session` message is a card in the bubble's
+place: an `--accent` `MessageSquareShare` chip reading `New Session`, then the user's note (or a
+muted `Hand off the next task to a new Session`), and, once the Agent created that Session, a
+hairline-separated 12px `Continued in` row whose title opens it. The new Session's first message
+wears the same glyph in `--accent` with `Continued from` and the asking Session's title, so both
+ends of a hand-off read as one move; an ordinary delegated task keeps the muted `Forward` glyph and
+`Delegated by`.
 
 **Agent Chat plan**: the latest plan docks above the composer as one 32px radius-8 `--surface`
 row with a 1px `--border`: a list glyph, `Plan`, the step the Agent is on truncated in `--muted`,
@@ -1438,7 +1444,9 @@ chevron, because it collapses again. Folding closes the hidden rows' diffs, and 
 diff from the header unfolds the list first. Then one card per pull request or
 issue the turn created or edited, with the GitHub or Linear mark, the title, a monospace
 `owner/repo#N` or `ENG-12`, the body's first line, and `Created pull request` with a trailing
-external arrow at the end, since that card opens the browser. A screen
+external arrow at the end, since that card opens the browser. An issue's card adds a ghost icon
+button after the card's own click area, outside it, with the hand-off glyph (`MessageSquareShare`)
+and the tooltip `Start ENG-12 in a new Session`; a pull request or acceptance card has none. A screen
 reader hears `Reply ready`, `Turn failed`, or `Stopped` when a turn ends. A Chat that keeps only the
 recent part of a long conversation opens with a `meta` line saying so, since the provider still has
 all of it, and Open as Terminal. `Jump to latest` shows only once the end of the latest entry has

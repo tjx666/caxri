@@ -127,6 +127,16 @@ test('a finished Codex turn shows its edited files with Undo and the pull reques
         expect(await hasPath(join(root, 'docs', 'greeting.md'))).toBe(false);
         expect(await hasPath(join(root, 'docs', 'greeting.md.trashed'))).toBe(true);
         await page.screenshot({ path: testInfo.outputPath('turn-artifacts-undone.png') });
+
+        // An issue's card starts it in a new Session in one click; a pull request's card has no such button.
+        await expect(
+            chat.getByRole('button', { name: /^Start acme\/widgets#42 in a new Session$/u }),
+        ).toHaveCount(0);
+        await chat.getByRole('button', { name: 'Start ENG-12 in a new Session' }).click();
+        await expect(chat.locator('[data-agent-chat-session-handoff]')).toContainText(
+            /New Session\s*Work on ENG-12: https:\/\//u,
+        );
+        await page.screenshot({ path: testInfo.outputPath('turn-artifacts-issue-handoff.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

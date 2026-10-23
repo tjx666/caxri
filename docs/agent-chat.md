@@ -1014,7 +1014,9 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   the Project cannot be undone. Pull requests and issues the turn created or edited follow as
   cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, a
   `gh api` POST to `repos/o/r/pulls|issues` or PATCH to `repos/o/r/pulls|issues/N` (how an Agent
-  rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. Collection lives in
+  rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. An issue's card also
+  starts that issue in a new Session ([Hand off with /new-session](agent-delegation.md#hand-off-with-new-session)).
+  Collection lives in
   `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and its `trackers/` subdirectory, Undo in the
   Desktop `agent-chat-undo.ts`. The phone shows the same cards without Undo and Review; see
   [Mobile](#mobile).
@@ -1336,6 +1338,9 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
   `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
   sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.
+- **`/new-session`.** Caxri adds its own `/new-session [next task]` row first for every provider; it
+  hands the next task to a new Session and runs as a message, not through `agentChat.runCommand`. See
+  [Hand off with /new-session](agent-delegation.md#hand-off-with-new-session).
 - **Skills.** A leading `/` or `$` also lists the skills the
   [Agent Commands & Skills](agent-actions.md) picker discovers for this Terminal (`agentActions.list`,
   after the user's Settings overrides), ranked by the picker's search. Picker-only commands are

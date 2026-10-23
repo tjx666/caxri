@@ -169,3 +169,83 @@ export function completeAgentChatAction(action: AgentAction): string {
         ? action.invocation
         : `${action.invocation} `;
 }
+
+/**
+ * The Chat composer's built-in `/new-session [next task]` command: the user is done with this Session and asks its
+ * Agent to hand the next task to an Agent in a new Session of the same Project. Caxri runs it, not the provider, so
+ * every provider offers it; the composer sends {@link agentChatSessionHandoffText} as an ordinary message and every
+ * Client reads it back with {@link parseAgentChatSessionHandoff} to show a hand-off card instead of the instructions.
+ */
+export const AGENT_CHAT_SESSION_HANDOFF_COMMAND = 'new-session';
+
+const HEADING = '# Hand off to a new Caxri Session';
+const NOTE_HEADING = '## Next task from the user:';
+
+/**
+ * The text after `/new-session` when the draft runs the command, `''` for a bare `/new-session`, and `undefined` for
+ * any other draft, including `/new-sessions`.
+ */
+export function parseAgentChatSessionHandoffCommand(draft: string): string | undefined {
+    const match = new RegExp(
+        String.raw`^\s*/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}(?:\s([\s\S]*))?$`,
+        'u',
+    ).exec(draft);
+    // The optional group is `undefined` at runtime for a bare `/new-session`, despite its `string` type.
+    return match ? (match[1] || '').trim() : undefined;
+}
+
+/**
+ * The message the command sends. The Project and provider are spelled out, so the Agent needs no lookup before it
+ * delegates, and the task travels as a brief the Agent writes from the conversation: the next Agent cannot read this
+ * one. `--handoff` marks the delegation so the new Session's first message reads as a continuation of this Session. The
+ * user's note comes last, under its own heading, where {@link parseAgentChatSessionHandoff} finds it again.
+ */
+export function agentChatSessionHandoffText({
+    note,
+    projectId,
+    provider,
+}: {
+    note: string;
+    projectId: string;
+    provider: string;
+}): string {
+    return [
+        HEADING,
+        '',
+        'The user is done with this Session and wants the next task to continue in a new Caxri Session that you start now. Do not start the next task here.',
+        '',
+        "1. Write a self-contained brief for the next Agent to a temporary file. It cannot read this conversation, so include every fact it needs: the next task (the user's note below, or the natural next step of this conversation when the note is empty), the background, the user's decisions and corrections, scope and authorization, the current repository and external state (branches, worktrees, pull requests, issues, running processes), what is already done and must not be redone, and how to verify the result.",
+        `2. Run \`"\${CAXRI_CLI:-caxri}" agent delegate create --project ${projectId} --new-session --handoff --title <the task's concrete subject> --provider ${provider} --prompt-file <brief path> --request-id <unique id> --json\`.`,
+        "3. Reply with the new Session's title in one or two sentences, then stop. Do not wait for, follow up on, or continue the delegated task.",
+        '',
+        NOTE_HEADING,
+        note.trim(),
+    ].join('\n');
+}
+
+/**
+ * Reads a sent message back as a `/new-session` hand-off: the user's note, `''` when they gave none. `undefined` for
+ * any other message. The instructions between the headings may change between versions, so only the headings identify
+ * it.
+ */
+export function parseAgentChatSessionHandoff(text: string): { note: string } | undefined {
+    if (!text.startsWith(`${HEADING}\n`)) return undefined;
+    const noteStart = text.indexOf(`\n${NOTE_HEADING}\n`);
+    if (noteStart === -1) {
+        // A note-less message ends at the heading itself.
+        return text.endsWith(`\n${NOTE_HEADING}`) ? { note: '' } : undefined;
+    }
+    return { note: text.slice(noteStart + NOTE_HEADING.length + 2).trim() };
+}
+
+/**
+ * What the user typed to send `text`: `/new-session <note>` for a hand-off, otherwise `text` itself. Every reading of a
+ * sent message as the user's words (Copy, Edit from here, prompt history, queue rows) goes through this, so none of
+ * them shows or puts back the instructions the composer wrote for the Agent.
+ */
+export function agentChatSessionHandoffDraft(text: string): string {
+    const handoff = parseAgentChatSessionHandoff(text);
+    if (!handoff) return text;
+    const command = `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`;
+    return handoff.note ? `${command} ${handoff.note}` : command;
+}

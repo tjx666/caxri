@@ -14,7 +14,10 @@ import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useSettings, useTerminal } from '../../../stores/selectors';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
-import { agentChatSkillDiscoveryNotice } from '../composer-input/agent-chat-slash-commands';
+import {
+    agentChatSkillDiscoveryNotice,
+    withAgentChatBuiltInActions,
+} from '../composer-input/agent-chat-slash-commands';
 import { agentChatActionSuggestion } from '../composer-input/agent-chat-suggestions';
 import { agentChatCommandMenuKeyStep } from '../transcript/agent-chat-presentation';
 
@@ -69,7 +72,7 @@ export function useAgentChatCommandMenu({
         },
     );
     const actions = useMemo(
-        () => agentChatMenuActions(commands, discovery.data?.actions),
+        () => withAgentChatBuiltInActions(agentChatMenuActions(commands, discovery.data?.actions)),
         [commands, discovery.data?.actions],
     );
     const [dismissedDraft, setDismissedDraft] = useState<string>();
