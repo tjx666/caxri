@@ -83,6 +83,8 @@ ${scenario.id === 'no-pr' ? 'echo "no pull requests found" >&2; exit 1' : `print
                 `#!/bin/sh
 # 用途：为 PR 状态验收提供固定的 GitHub CLI 响应，读取临时恢复标记。
 printf '%s\n' "$1 $2" >> ${JSON.stringify(requests)}
+# Server reads the token via \`gh auth token\` before every gh call (#2166); the signed-out state must come from the real call.
+if [ "$1 $2" = "auth token" ]; then printf 'fixture-token'; exit 0; fi
 ${scenario.id === 'not-logged-in' ? `if [ ! -f ${JSON.stringify(ready)} ]; then echo "not logged in" >&2; exit 1; fi` : ''}
 ${response}
 `,
