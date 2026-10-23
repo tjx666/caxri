@@ -7,7 +7,6 @@ import { AnimatePresence, useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
 import { Popover, PopoverContent, PopoverTrigger } from '../../../../components/ui/popover';
-import { Spinner } from '../../../../components/ui/spinner';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { AgentChatTurnMetricList } from '../agent-chat-turn-metric-list';
@@ -87,8 +86,8 @@ function StatusBadge({
 }
 
 /**
- * The background work badge's glyphs and figures: a spinner saying the work still runs, then each running kind's glyph
- * and count (with the failure dot), or a red cross and the unseen failures once nothing runs.
+ * The background work badge's glyphs and figures: each running kind's glyph and count (with the failure dot), or a red
+ * cross and the unseen failures once nothing runs. A count alone already says the work still runs, so no spinner.
  */
 function TaskBadgeContent({
     badge,
@@ -108,14 +107,7 @@ function TaskBadgeContent({
         );
     }
     return (
-        <>
-            <Spinner className="size-3" role="presentation" />
-            <RunningKindGlyphs
-                isCounted
-                isShowsFailureDot={isShowsFailureDot}
-                kinds={runningKinds}
-            />
-        </>
+        <RunningKindGlyphs isCounted isShowsFailureDot={isShowsFailureDot} kinds={runningKinds} />
     );
 }
 
