@@ -72,6 +72,11 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      clears. Route every new Server-backed invalidation through
      `queries/invalidation-hidden-window.ts`, which already covers `git.changed`, `files.changed`,
      and Source Control view changes.
+   - Measure minimized or covered-window behavior with `--remote-debugging-port` closed: an open
+     CDP port (always on in dev) can keep a minimized window at `visibilityState === 'visible'` and
+     120 rAF/s, while a packaged build without it reports `hidden` and stops frames. Launch with
+     `--inspect=<port>` instead and probe through Main
+     (`BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(...)`).
    - Refresh Server state on a selection change only when something was actually detached: a Session
      switch inside the same Workbench Project keeps its file watcher, so it must not re-run
      `git status` (`updateWatch` in `apps/server/src/domains/background-tasks.ts`).
