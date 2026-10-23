@@ -21,6 +21,10 @@ import {
 } from './agent-chat-question-flow';
 import { AgentChatQuestionOptionRow } from './agent-chat-question-option-row';
 import { agentChatQuestionTicks, useAgentChatQuestionDraft } from './use-agent-chat-question-draft';
+import {
+    AGENT_CHAT_QUESTION_ATTRIBUTE,
+    useAgentChatQuestionEnterKey,
+} from './use-agent-chat-question-enter-key';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 
@@ -214,10 +218,14 @@ function QuestionFormFooter({
  *
  * A `multiSelect` question lists checkboxes instead: a click, Space, or a digit ticks an option, and Enter or the
  * primary button moves on with every ticked option (plus a typed answer, when there is one).
+ *
+ * Enter answers from outside the card too, where nothing else takes it (`useAgentChatQuestionEnterKey`): the selected
+ * option answers as Enter on its row does, and with nothing selected focus moves into the card instead.
  */
 export function AgentChatQuestionForm({
     armDelayMs = 0,
     isAnswering,
+    isWindowWide,
     onEscape,
     providerName,
     request,
@@ -233,6 +241,12 @@ export function AgentChatQuestionForm({
      */
     armDelayMs?: number;
     isAnswering: boolean;
+    /**
+     * Takes Enter from anywhere in the window rather than only its own Chat pane (the waiting popup, which never takes
+     * focus by itself); Enter in its first `armDelayMs` is ignored, so a key meant for something else cannot answer
+     * it.
+     */
+    isWindowWide: boolean;
     /**
      * Runs on Escape instead of skipping the request, for a card whose surface owns Escape (the waiting popup folds).
      */
@@ -299,11 +313,17 @@ export function AgentChatQuestionForm({
         (option) => !isMulti && !typedAnswer && option.label === selected[question?.id ?? ''],
     );
 
+    /**
+     * Focuses the question's selected option (its roving tab stop), or its free-text field when it has no options.
+     */
+    const focusQuestionControl = (): void => {
+        const target = optionReferences.current[Math.max(selectedIndex, 0)];
+        (options.length > 0 ? target : inputReference.current)?.focus();
+    };
     useEffect(() => {
         if (!shouldFocusQuestion.current) return;
         shouldFocusQuestion.current = false;
-        const target = optionReferences.current[Math.max(selectedIndex, 0)];
-        (options.length > 0 ? target : inputReference.current)?.focus();
+        focusQuestionControl();
         // Only a question change moves focus; a selection change inside one question must not.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [index]);
@@ -385,6 +405,17 @@ export function AgentChatQuestionForm({
         event.preventDefault();
         runKeyAction(action);
     };
+    const formReference = useRef<HTMLFormElement>(null);
+    useAgentChatQuestionEnterKey(formReference, {
+        isEnabled: !isAnswering,
+        armedAt: shownAt + armDelayMs,
+        isWindowWide,
+        onEnter: () => {
+            // Focus moves in first, so answering one question of several leaves focus on the next one.
+            focusQuestionControl();
+            runKeyAction({ kind: 'advance' });
+        },
+    });
     const optionList = (
         <div
             aria-label={question?.question}
@@ -442,6 +473,8 @@ export function AgentChatQuestionForm({
     );
     return (
         <form
+            ref={formReference}
+            {...{ [AGENT_CHAT_QUESTION_ATTRIBUTE]: '' }}
             className="space-y-2"
             onKeyDown={(event) => {
                 if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;

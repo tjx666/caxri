@@ -54,6 +54,13 @@ test('a Files folder dropped into Agent Chat shows as a pill, keeps its absolute
         await expect(pill.locator('img')).toHaveAttribute('src', /folder/u);
         await chat.screenshot({ path: testInfo.outputPath('chat-path-pill.png') });
 
+        // The draft outlives the composer; its dropped path comes back as a pill, not a raw path.
+        await page.getByRole('button', { name: 'Terminal', exact: true }).click();
+        await page.getByRole('button', { name: 'Chat', exact: true }).click();
+        await expect(pill).toHaveText('.githooks');
+        await expectComposerValue(message, `look at ${hooks}/ `);
+        await message.press('End');
+
         await message.press('Enter');
         const sent = chat.locator(`[data-agent-chat-path-pill="${hooks}"]`);
         await expect(sent).toHaveText('.githooks');

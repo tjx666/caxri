@@ -48,6 +48,55 @@ export function agentChatDropPathPills(event: DragEvent): AgentChatPathPill[] {
 }
 
 /**
+ * A whole-word absolute path, as the composer writes a dropped Files entry, Editor tab, or Project (shell-quoted when
+ * it holds a space; a folder ends in `/`). At least two segments, so a slash command such as `/btw` stays text; a path
+ * with a line (`/repo/a.ts:12`) stays a file link.
+ */
+const ABSOLUTE_PATH = /(?<=^|\s)(?:'(\/[^'\n/]+\/[^'\n]*)'|(\/[^\s'"`/]+\/[^\s'"`]*))(?=$|\s)/gu;
+
+/**
+ * Every whole-word absolute path in `text` (see `ABSOLUTE_PATH`), in order: where it starts, the text it spans, the
+ * path without quotes or a folder's trailing `/`, and whether it names a folder. A sent message draws each as a pill.
+ */
+export function agentChatAbsolutePaths(
+    text: string,
+): Array<{ index: number; isDirectory: boolean; path: string; text: string }> {
+    return text
+        .matchAll(ABSOLUTE_PATH)
+        .flatMap((match) => {
+            // Exactly one alternative matched; the other group is `undefined` at runtime despite its `string` type.
+            const path = match[1] || match[2];
+            if (/:\d+(?::\d+)?$/u.test(path)) return [];
+            const isDirectory = path.endsWith('/');
+            return [
+                {
+                    index: match.index,
+                    isDirectory,
+                    path: isDirectory ? path.replace(/\/+$/u, '') : path,
+                    text: match[0],
+                },
+            ];
+        })
+        .toArray();
+}
+
+/**
+ * The pills a draft restored into a new composer starts with: every whole-word absolute path in it, as a sent message
+ * draws them. The draft outlives the composer (switching Sessions, the Terminal surface, or restarting Caxri) but the
+ * record of which paths were dropped does not, so without this a restored drop reads as a raw path beside the pill of
+ * the next one. A path the user typed into that draft becomes a pill too, as it does once sent; while the composer
+ * stays mounted, a path typed into it turns into a pill only when dropped.
+ */
+export function agentChatDraftPathPills(draft: string): Map<string, AgentChatPathPill> {
+    return new Map(
+        agentChatAbsolutePaths(draft).map(({ isDirectory, path, text }) => [
+            text,
+            { kind: isDirectory ? 'directory' : 'file', path, token: text },
+        ]),
+    );
+}
+
+/**
  * Where each known pill's token stands in `text` as a whole word (bounded by whitespace or the text's ends), in
  * document order and never overlapping, so a longer path that merely starts with a shorter one stays plain text.
  */

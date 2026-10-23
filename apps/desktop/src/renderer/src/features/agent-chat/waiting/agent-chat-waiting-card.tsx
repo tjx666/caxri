@@ -87,6 +87,7 @@ export function AgentChatWaitingCard({
                         key={request.id}
                         approvalArmDelayMs={AGENT_CHAT_APPROVAL_ARM_DELAY_MS}
                         isFramed={false}
+                        isWindowWide
                         reviewHint={
                             request.kind === 'fileChange'
                                 ? t('agentChat.waiting.reviewChanges')

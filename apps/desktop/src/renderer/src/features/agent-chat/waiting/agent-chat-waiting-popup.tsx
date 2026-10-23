@@ -27,10 +27,11 @@ const SURFACE_CLASS_NAME =
  * provider that is still running. It drops in 4px below the window's 36px title bar so it never covers a tab or the New
  * Terminal button, one request at a time, and folds into an "N waiting for you" pill the user can reopen; a new request
  * unfolds it again. It never takes focus by itself (`Focus Waiting Request` in the command palette moves it in,
- * unfolding the card first): the keys a request answers to (option digits, Enter, Cmd+Enter, Cmd+Backspace) work only
- * once the user has moved focus into it, and the card carries the pane attribute so approval keys stay inside the popup
- * instead of reaching a Chat behind it. The layout follows LobeHub's `GlobalApprovalNotification` (design only; the
- * code is Caxri's own).
+ * unfolding the card first): the keys a request answers to (option digits, Cmd+Enter, Cmd+Backspace) work only once the
+ * user has moved focus into it, and the card carries the pane attribute so approval keys stay inside the popup instead
+ * of reaching a Chat behind it. The exception is a question's Enter, which the Submit button advertises: it answers
+ * with nothing focused or from an idle Chat (`useAgentChatQuestionEnterKey`), once the card has settled. The layout
+ * follows LobeHub's `GlobalApprovalNotification` (design only; the code is Caxri's own).
  */
 export function AgentChatWaitingPopup() {
     const { t } = useTranslation();
