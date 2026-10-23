@@ -64,6 +64,8 @@ export const agentChatTimeline = {
     'agentChat.handoff.continuedIn': 'Continued in',
     'agentChat.handoff.continuedFrom': 'Continued from',
     'agentChat.handoff.fromEarlier': 'Continued from an earlier Session',
+    'agentChat.handoff.startIssue': 'Start {{reference}} in a new Session',
+    'agentChat.handoff.unavailable': 'This Chat cannot hand off: its Session or Agent is unknown',
     'agentChat.message.showMore': 'Show more',
     'agentChat.message.editFromHere': 'Edit from here',
     'agentChat.message.forkFromHere': 'Fork from here',

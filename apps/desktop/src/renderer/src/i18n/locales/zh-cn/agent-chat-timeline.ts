@@ -60,6 +60,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.handoff.continuedIn': '已转到',
     'agentChat.handoff.continuedFrom': '接续自',
     'agentChat.handoff.fromEarlier': '接续自之前的 Session',
+    'agentChat.handoff.startIssue': '在新 Session 中开始 {{reference}}',
+    'agentChat.handoff.unavailable': '无法交接：这个 Chat 的 Session 或 Agent 未知',
     'agentChat.message.showMore': '展开',
     'agentChat.message.editFromHere': '从此处编辑',
     'agentChat.message.forkFromHere': '从此处分叉',

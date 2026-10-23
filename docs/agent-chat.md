@@ -1014,7 +1014,9 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   the Project cannot be undone. Pull requests and issues the turn created or edited follow as
   cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, a
   `gh api` POST to `repos/o/r/pulls|issues` or PATCH to `repos/o/r/pulls|issues/N` (how an Agent
-  rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. Collection lives in
+  rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. An issue's card also
+  starts that issue in a new Session ([Hand off with /new-session](agent-delegation.md#hand-off-with-new-session)).
+  Collection lives in
   `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and its `trackers/` subdirectory, Undo in the
   Desktop `agent-chat-undo.ts`. The phone shows the same cards without Undo and Review; see
   [Mobile](#mobile).

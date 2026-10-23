@@ -117,6 +117,10 @@ because only it holds the conversation; the next Agent cannot read it.
   ends read as one move. The sidebar's "Created by" row points back as for any created Session.
 - Caxri neither archives the asking Session nor switches to the new one: the user opens it from the
   link or the sidebar when ready.
+- **From an issue card.** An issue card in the Chat (one the turn created or edited) ends with a
+  "Start ENG-12 in a new Session" button that sends `/new-session Work on <reference>: <url>` from
+  that Chat in one click, without touching the user's draft (`agent-chat-issue-handoff.ts`). It is
+  the same hand-off, queued while a turn runs; the URL lets the Agent read the issue itself.
 
 An Agent learns this without the `caxri-cli` skill installed. Caxri adds one short pointer to the
 context of every ordinary Claude and Codex Agent, once per launch: it says the Agent runs inside

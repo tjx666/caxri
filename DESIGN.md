@@ -1444,7 +1444,9 @@ chevron, because it collapses again. Folding closes the hidden rows' diffs, and 
 diff from the header unfolds the list first. Then one card per pull request or
 issue the turn created or edited, with the GitHub or Linear mark, the title, a monospace
 `owner/repo#N` or `ENG-12`, the body's first line, and `Created pull request` with a trailing
-external arrow at the end, since that card opens the browser. A screen
+external arrow at the end, since that card opens the browser. An issue's card adds a ghost icon
+button after the card's own click area, outside it, with the hand-off glyph (`MessageSquareShare`)
+and the tooltip `Start ENG-12 in a new Session`; a pull request or acceptance card has none. A screen
 reader hears `Reply ready`, `Turn failed`, or `Stopped` when a turn ends. A Chat that keeps only the
 recent part of a long conversation opens with a `meta` line saying so, since the provider still has
 all of it, and Open as Terminal. `Jump to latest` shows only once the end of the latest entry has
