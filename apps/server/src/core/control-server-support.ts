@@ -175,10 +175,11 @@ export interface OrderedQueueTiming {
     enqueuedAt: number;
     queueDepth: number;
     /**
-     * Set when the request waited in the connection's repository lane after ordered admission, so a long `queueMs`
-     * names which lane held it: an earlier repository mutation rather than an ordinary ordered write.
+     * Set when the request waited in the connection's repository or background lane after ordered admission, so a long
+     * `queueMs` names which lane held it: an earlier repository mutation or sweep rather than an ordinary ordered
+     * write.
      */
-    lane?: 'repository';
+    lane?: 'background' | 'repository';
 }
 
 /**

@@ -1,0 +1,354 @@
+import { internalMethods, methods } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import type { ControlLane } from '../control-server-lane';
+import { classifyControlLane } from '../control-server-lane';
+
+/**
+ * Every non-read method and the connection lane it settles in. A request that is not a concurrent read defaults into
+ * the ordered lane, where it blocks every later request on the connection until it settles, so a slow handler added
+ * without thought silently reintroduces the head-of-line blocking behind production's multi-second Session switch
+ * stalls (a Status panel merge, then the focus-driven Workbench Root sweep). Adding a method fails this test until it
+ * is listed here, which is the prompt to decide its lane deliberately:
+ *
+ * - `ordered`: holds the lane. Right for cheap writes and anything a later request must observe the result of.
+ * - `repository`: runs after earlier ordered work in its own chain (Extension mutations, core Git writes).
+ * - `background`: runs in its own chain and the caller does not wait on the effect (the all-Session sweep).
+ * - `self-serialized`: settles outside the lane because its domain service serializes and revalidates itself.
+ *
+ * See `control-server-lane.ts`. Do not move a method out of `ordered` merely to make it faster: that needs the ordering
+ * argument written down beside its predicate.
+ */
+const expectedLanes: Record<string, ControlLane> = {
+    // background
+    'session.validateWorkbenchRoots': 'background',
+    // ordered
+    'agent.control.interrupt': 'ordered',
+    'agent.control.interruptInternal': 'ordered',
+    'agent.control.stop': 'ordered',
+    'agent.control.stopInternal': 'ordered',
+    'agent.delegation.access.bootstrap': 'ordered',
+    'agent.delegation.access.create': 'ordered',
+    'agent.delegation.access.revoke': 'ordered',
+    'agent.delegation.create': 'ordered',
+    'agent.delegation.createInternal': 'ordered',
+    'agent.delegation.stop': 'ordered',
+    'agent.delegation.stopInternal': 'ordered',
+    'agent.dispatch.cancelWaitInternal': 'ordered',
+    'agent.dispatch.resume': 'ordered',
+    'agent.dispatch.resumeInternal': 'ordered',
+    'agent.dispatch.start': 'ordered',
+    'agent.dispatch.startInternal': 'ordered',
+    'agent.dispatch.wakeInternal': 'ordered',
+    'agent.grant': 'ordered',
+    'agent.message.approve': 'ordered',
+    'agent.message.deny': 'ordered',
+    'agent.message.policy.set': 'ordered',
+    'agent.message.reply': 'ordered',
+    'agent.message.send': 'ordered',
+    'agent.revoke': 'ordered',
+    'agent.session.archive': 'ordered',
+    'agent.session.manageInternal': 'ordered',
+    'agent.session.rename': 'ordered',
+    'agent.session.unarchive': 'ordered',
+    'agentActions.recordRecent': 'ordered',
+    'agentChat.askSideQuestion': 'ordered',
+    'agentChat.configure': 'ordered',
+    'agentChat.confirmRevertFiles': 'ordered',
+    'agentChat.editQueued': 'ordered',
+    'agentChat.fork': 'ordered',
+    'agentChat.interrupt': 'ordered',
+    'agentChat.openPathReference': 'ordered',
+    'agentChat.removeQueued': 'ordered',
+    'agentChat.respond': 'ordered',
+    'agentChat.restoreFiles': 'ordered',
+    'agentChat.restoreQueued': 'ordered',
+    'agentChat.resumeQueue': 'ordered',
+    'agentChat.rewind': 'ordered',
+    'agentChat.runCommand': 'ordered',
+    'agentChat.send': 'ordered',
+    'agentChat.sendQueuedNow': 'ordered',
+    'agentChat.stopTask': 'ordered',
+    'agentChat.takeQueued': 'ordered',
+    'agentCommander.clearData': 'ordered',
+    'agentCommander.open': 'ordered',
+    'agentCommander.openFileLink': 'ordered',
+    'agentCommander.openSettings': 'ordered',
+    'agentCommander.revealSession': 'ordered',
+    'agentCommander.stop': 'ordered',
+    'app.auxiliaryWindowState.update': 'ordered',
+    'app.windowState.update': 'ordered',
+    'argv.update': 'ordered',
+    'benchmark.cancel': 'ordered',
+    'benchmark.delete': 'ordered',
+    'benchmark.open': 'ordered',
+    'benchmark.shareImage.copy': 'ordered',
+    'benchmark.shareImage.save': 'ordered',
+    'benchmark.start': 'ordered',
+    'bugReport.captureScreenshot': 'ordered',
+    'bugReport.deliver': 'ordered',
+    'bugReport.saveScreenshot': 'ordered',
+    'bugReport.send': 'ordered',
+    'commander.clearData': 'ordered',
+    'commander.ensure': 'ordered',
+    'commander.inbox.ack': 'ordered',
+    'commander.inbox.add': 'ordered',
+    'commander.inbox.dismiss': 'ordered',
+    'commander.inbox.merge': 'ordered',
+    'commander.inbox.reply': 'ordered',
+    'commander.inbox.resolve': 'ordered',
+    'commander.session.archive': 'ordered',
+    'commander.session.create': 'ordered',
+    'commander.session.handOver': 'ordered',
+    'commander.session.takeBack': 'ordered',
+    'commander.stop': 'ordered',
+    'commander.switchAgent': 'ordered',
+    'commander.task.create': 'ordered',
+    'commander.task.update': 'ordered',
+    'contextMenu.show': 'ordered',
+    'desktop.focus': 'ordered',
+    'desktop.openFile': 'ordered',
+    'desktop.openPath': 'ordered',
+    'desktop.openProject': 'ordered',
+    'diagnostics.export': 'ordered',
+    'diagnostics.exportPath': 'ordered',
+    'dialog.selectDirectory': 'ordered',
+    'dialog.selectPaths': 'ordered',
+    'editor.confirmDiscard': 'ordered',
+    'editor.saveUntitled': 'ordered',
+    'editor.unsavedReply': 'ordered',
+    'extensions.retry': 'ordered',
+    'external.open': 'ordered',
+    'externalDocument.openInTerminal': 'ordered',
+    'externalDocument.openWithDefaultApp': 'ordered',
+    'externalDocument.reveal': 'ordered',
+    'externalDocument.watch': 'ordered',
+    'externalDocument.write': 'ordered',
+    'files.authorizeOpen': 'ordered',
+    'files.authorizeTrash': 'ordered',
+    'files.create': 'ordered',
+    'files.move': 'ordered',
+    'files.openWithDefaultApp': 'ordered',
+    'files.operation.acknowledge': 'ordered',
+    'files.operation.cancel': 'ordered',
+    'files.rename': 'ordered',
+    'files.reveal': 'ordered',
+    'files.trash': 'ordered',
+    'files.trashOnHost': 'ordered',
+    'files.write': 'ordered',
+    'git.discard': 'ordered',
+    'git.discard.preflight': 'ordered',
+    'gitReview.add': 'ordered',
+    'gitReview.clearResolved': 'ordered',
+    'gitReview.edit': 'ordered',
+    'gitReview.refresh': 'ordered',
+    'gitReview.remove': 'ordered',
+    'gitReview.send': 'ordered',
+    'gpu.restartInSafeMode': 'ordered',
+    'gpu.testInjectContextLoss': 'ordered',
+    'host.stop': 'ordered',
+    'keybindings.update': 'ordered',
+    'mobile.access.disable': 'ordered',
+    'mobile.access.enable': 'ordered',
+    'mobile.agent.submit': 'ordered',
+    'mobile.agent.submitInternal': 'ordered',
+    'mobile.agentChat.configure': 'ordered',
+    'mobile.agentChat.interrupt': 'ordered',
+    'mobile.agentChat.removeQueued': 'ordered',
+    'mobile.agentChat.respond': 'ordered',
+    'mobile.agentChat.resumeQueue': 'ordered',
+    'mobile.agentChat.retry': 'ordered',
+    'mobile.agentChat.runCommand': 'ordered',
+    'mobile.agentChat.send': 'ordered',
+    'mobile.agentChat.sendQueuedNow': 'ordered',
+    'mobile.agentChat.stopTask': 'ordered',
+    'mobile.agentChat.takeQueued': 'ordered',
+    'mobile.attention.answer': 'ordered',
+    'mobile.attention.answerInternal': 'ordered',
+    'mobile.attention.autoAllowRevoke': 'ordered',
+    'mobile.attention.autoAllowRevokeInternal': 'ordered',
+    'mobile.chatWatch.unwatchInternal': 'ordered',
+    'mobile.chatWatch.watchInternal': 'ordered',
+    'mobile.commanderInbox.reply': 'ordered',
+    'mobile.commanderInbox.replyInternal': 'ordered',
+    'mobile.device.revoke': 'ordered',
+    'mobile.device.revoke.apply': 'ordered',
+    'mobile.files.write': 'ordered',
+    'mobile.files.writeInternal': 'ordered',
+    'mobile.image.upload': 'ordered',
+    'mobile.image.uploadInternal': 'ordered',
+    'mobile.pairing.create': 'ordered',
+    'mobile.project.add': 'ordered',
+    'mobile.project.addInternal': 'ordered',
+    'mobile.pullRequest.merge': 'ordered',
+    'mobile.session.archive': 'ordered',
+    'mobile.session.create': 'ordered',
+    'mobile.session.createForPrincipal': 'ordered',
+    'mobile.session.rename': 'ordered',
+    'mobile.session.restore': 'ordered',
+    'mobile.session.setPinned': 'ordered',
+    'mobile.terminal.input': 'ordered',
+    'mobile.terminal.release': 'ordered',
+    'mobile.terminal.scroll': 'ordered',
+    'mobile.terminal.takeOver': 'ordered',
+    'mobile.timeline.unwatchInternal': 'ordered',
+    'mobile.timeline.watchInternal': 'ordered',
+    'mobile.update.prepare': 'ordered',
+    'pathBrowser.close': 'ordered',
+    'pathBrowser.navigate': 'ordered',
+    'pathBrowser.open': 'ordered',
+    'pathBrowser.start': 'ordered',
+    'processExplorer.open': 'ordered',
+    'project.add': 'ordered',
+    'project.cancelCreate': 'ordered',
+    'project.create': 'ordered',
+    'project.delete': 'ordered',
+    'project.hide': 'ordered',
+    'project.openInEditor': 'ordered',
+    'project.openRoot': 'ordered',
+    'project.reorder': 'ordered',
+    'project.setChatDefault': 'ordered',
+    'project.setIcon': 'ordered',
+    'requests.cancel': 'ordered',
+    'session.archive': 'ordered',
+    'session.authorizeWorkbenchRoot': 'ordered',
+    'session.compactWarm': 'ordered',
+    'session.continueInWorktree': 'ordered',
+    'session.conversationReference': 'ordered',
+    'session.create': 'ordered',
+    'session.delete': 'ordered',
+    'session.deleteMany': 'ordered',
+    'session.detach': 'ordered',
+    'session.dismissWorkbenchCandidate': 'ordered',
+    'session.importConversation': 'ordered',
+    'session.markRead': 'ordered',
+    'session.refreshDeliveryOnFocus': 'ordered',
+    'session.rename': 'ordered',
+    'session.reopenConversation': 'ordered',
+    'session.reorder': 'ordered',
+    'session.reorderPinned': 'ordered',
+    'session.resume': 'ordered',
+    'session.revokePermissionAutoAllow': 'ordered',
+    'session.select': 'ordered',
+    'session.selectWorkbenchRoot': 'ordered',
+    'session.setPinned': 'ordered',
+    'session.unarchive': 'ordered',
+    'session.unarchiveMany': 'ordered',
+    'session.updateState': 'ordered',
+    'session.workbenchCandidate.authorize': 'ordered',
+    'session.workbenchCandidate.cancel': 'ordered',
+    'session.workbenchCandidate.claim': 'ordered',
+    'session.workbenchRoot.authorizeSelection': 'ordered',
+    'session.workbenchRoot.forgetEditorPath': 'ordered',
+    'settings.delegation.import': 'ordered',
+    'settings.patch': 'ordered',
+    'settings.trustDomain': 'ordered',
+    'settings.trustFolder': 'ordered',
+    'settings.update': 'ordered',
+    'shellCommand.install': 'ordered',
+    'shellCommand.uninstall': 'ordered',
+    'sshHost.askpass.reply': 'ordered',
+    'sshHost.cancel': 'ordered',
+    'sshHost.connect': 'ordered',
+    'sshHost.reconnect': 'ordered',
+    'sshHost.retryNow': 'ordered',
+    'sshHost.sshConfig.reveal': 'ordered',
+    'sshHost.stopServer': 'ordered',
+    'terminal.attach': 'ordered',
+    'terminal.close': 'ordered',
+    'terminal.create': 'ordered',
+    'terminal.createInExternalDirectory': 'ordered',
+    'terminal.detach': 'ordered',
+    'terminal.detachAll': 'ordered',
+    'terminal.fileLink.resolve': 'ordered',
+    'terminal.input': 'ordered',
+    'terminal.inputAgentExact': 'ordered',
+    'terminal.inputBinary': 'ordered',
+    'terminal.moveToNewSession': 'ordered',
+    'terminal.openFileLink': 'ordered',
+    'terminal.resize': 'ordered',
+    'terminal.restart': 'ordered',
+    'terminal.send': 'ordered',
+    'terminal.sendInternal': 'ordered',
+    'terminal.suspend': 'ordered',
+    'terminal.switchSurface': 'ordered',
+    'terminal.terminateAll': 'ordered',
+    'theme.import': 'ordered',
+    'theme.importPath': 'ordered',
+    'theme.update': 'ordered',
+    'updates.acknowledge': 'ordered',
+    'updates.cancel': 'ordered',
+    'updates.download': 'ordered',
+    'updates.open': 'ordered',
+    'viewContainers.cancelRequest': 'ordered',
+    'window.closePresence': 'ordered',
+    'window.openSessions.moveToWindow': 'ordered',
+    'window.openSessions.release': 'ordered',
+    'window.reportPresence': 'ordered',
+    'window.reportViewing': 'ordered',
+    'window.seedPresence': 'ordered',
+    'window.tearOffSession': 'ordered',
+    // repository
+    'git.discard.apply': 'repository',
+    'git.mergePullRequest': 'repository',
+    'git.switchBranch': 'repository',
+    'git.sync': 'repository',
+    'viewContainers.executeCommand': 'repository',
+    'viewContainers.viewOperation': 'repository',
+    // self-serialized
+    'agentChat.saveLongPaste': 'self-serialized',
+    'files.copy': 'self-serialized',
+    'terminal.prepareLongPaste': 'self-serialized',
+};
+
+const methodSpecs = { ...methods, ...internalMethods } as Record<string, { effect: string }>;
+const byName = (left: string, right: string): number => left.localeCompare(right);
+const effectfulMethods = Object.entries(methodSpecs)
+    .filter(([, spec]) => spec.effect !== 'read')
+    .map(([method]) => method)
+    .toSorted(byName);
+
+describe('control lane classification', () => {
+    it('lists every non-read registry method explicitly', () => {
+        expect(Object.keys(expectedLanes).toSorted(byName)).toEqual(effectfulMethods);
+    });
+
+    it.each(effectfulMethods)('settles %s in its declared lane', (method) => {
+        expect(classifyControlLane({ method })).toBe(expectedLanes[method]);
+    });
+
+    it('classifies every read as a concurrent read', () => {
+        const reads = Object.entries(methodSpecs).filter(([, spec]) => spec.effect === 'read');
+        expect(reads.length).toBeGreaterThan(0);
+        for (const [method] of reads) expect(classifyControlLane({ method })).toBe('read');
+    });
+
+    it('keeps the Workbench Root sweep in the background only without a sessionId', () => {
+        expect(classifyControlLane({ method: 'session.validateWorkbenchRoots', params: {} })).toBe(
+            'background',
+        );
+        expect(
+            classifyControlLane({
+                method: 'session.validateWorkbenchRoots',
+                params: { sessionId: 'session-1' },
+            }),
+        ).toBe('ordered');
+    });
+
+    it('settles Extension view reads outside the lane and view mutations in the repository lane', () => {
+        const viewRead = {
+            method: 'viewContainers.viewOperation',
+            params: { operation: 'source.snapshot' },
+        };
+        const viewMutation = {
+            method: 'viewContainers.viewOperation',
+            params: { operation: 'source.action' },
+        };
+        expect(classifyControlLane(viewRead)).toBe('self-serialized');
+        expect(classifyControlLane(viewMutation)).toBe('repository');
+    });
+
+    it('treats an unknown method as ordered', () => {
+        expect(classifyControlLane({ method: 'not.registered' })).toBe('ordered');
+    });
+});

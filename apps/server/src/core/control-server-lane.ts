@@ -46,6 +46,37 @@ function isExtensionViewRead(parameters: unknown): boolean {
 }
 
 /**
+ * True for the all-Session Workbench Root sweep: `session.validateWorkbenchRoots` without a `sessionId`. Desktop Main
+ * sends it on every app activation and window focus and ignores the reply, yet it forces a Git topology read per owning
+ * Project behind the shared Git command budget. Production logged 10 Session switches queued 300-530ms behind it, twice
+ * for about 7s. Nothing orders a later request after it: the sweep revalidates each binding after its awaits and a
+ * newer selection wins, and the Server already coalesces overlapping sweeps. The per-Session form is a deliberate user
+ * action whose result the caller reads, so it stays ordered.
+ */
+function isBackgroundSweep(request: { method: string; params?: unknown }): boolean {
+    if (request.method !== 'session.validateWorkbenchRoots') return false;
+    const parameters = request.params;
+    if (typeof parameters !== 'object' || parameters === null) return true;
+    return (parameters as { sessionId?: unknown }).sessionId === undefined;
+}
+
+/**
+ * The lane a control request settles in. `read` and `self-serialized` requests leave the ordered lane after admission;
+ * `repository` and `background` requests move to their own chains; everything else is `ordered` and holds the lane
+ * until it settles. A new write defaults to `ordered`, which is the wrong lane for anything slow whose caller does not
+ * need later requests to wait: classify it explicitly in the lane test (`control-server-lane.test.ts`).
+ */
+export type ControlLane = 'background' | 'ordered' | 'read' | 'repository' | 'self-serialized';
+
+export function classifyControlLane(request: { method: string; params?: unknown }): ControlLane {
+    if (isConcurrentRead(request.method)) return 'read';
+    if (isRepoMutation(request)) return 'repository';
+    if (isBackgroundSweep(request)) return 'background';
+    if (shouldSettleOutsideOrderedLane(request)) return 'self-serialized';
+    return 'ordered';
+}
+
+/**
  * Reads do not carry mutation ordering. Long-running operations may also settle independently only when their domain
  * service serializes its own shared mutations and revalidates authority after every await boundary.
  */
@@ -79,6 +110,55 @@ function isRepoMutation(request: { method: string; params?: unknown }): boolean 
 }
 
 /**
+ * How long {@link LaneRegistry.drain} waits. A sweep is bounded by Git's own command timeouts, but shutdown must not
+ * hang on a wedged one, so it gives up after this and lets the process exit.
+ */
+const BACKGROUND_DRAIN_MS = 2000;
+
+/**
+ * Creates each control connection's lanes and tracks background-lane requests across every control connection so
+ * `ControlServer.close()` can wait for a running Workbench Root sweep instead of tearing the Server down underneath it.
+ * It holds only requests that are running now, so a closed connection leaves nothing behind. Only the background lane
+ * is awaited: an ordered or repository request may be waiting on a peer that never answers.
+ */
+export class LaneRegistry {
+    private readonly running = new Set<Promise<void>>();
+
+    /**
+     * Creates the lanes for one control connection, sharing this registry's background tracking.
+     */
+    connection(fail: (reason: ControlSocketTerminationReason) => void): ControlConnectionLanes {
+        return new ControlConnectionLanes(fail, this);
+    }
+
+    track(work: Promise<void>): Promise<void> {
+        this.running.add(work);
+        const forget = (): void => {
+            this.running.delete(work);
+        };
+        // eslint-disable-next-line unicorn/prefer-await -- bookkeeping must not change the caller's promise
+        work.then(forget).catch(forget);
+        return work;
+    }
+
+    /**
+     * Resolves when no tracked request is running, or after {@link BACKGROUND_DRAIN_MS}.
+     */
+    async drain(): Promise<void> {
+        if (this.running.size === 0) return;
+        let timer: NodeJS.Timeout | undefined;
+        const timeout = new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, BACKGROUND_DRAIN_MS);
+        });
+        try {
+            await Promise.race([Promise.allSettled(this.running), timeout]);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+}
+
+/**
  * One control connection's request lanes. The ordered lane preserves handshake, control, and mutation order across
  * repeated invocations of the socket's synchronous 'data' handler, so Promise chaining stands in for `await`, which
  * cannot span callbacks. After ordered admission a read settles independently, a repository mutation moves on to the
@@ -87,9 +167,13 @@ function isRepoMutation(request: { method: string; params?: unknown }): boolean 
 export class ControlConnectionLanes {
     private ordered = Promise.resolve();
     private repo = Promise.resolve();
+    private background = Promise.resolve();
     private orderedBacklog = 0;
 
-    constructor(private readonly fail: (reason: ControlSocketTerminationReason) => void) {}
+    constructor(
+        private readonly fail: (reason: ControlSocketTerminationReason) => void,
+        private readonly registry: LaneRegistry,
+    ) {}
 
     /**
      * Runs `handle` once every frame that arrived earlier on this connection has been admitted.
@@ -133,6 +217,19 @@ export class ControlConnectionLanes {
                 .then(() => dispatch(repoTiming))
                 // eslint-disable-next-line unicorn/prefer-await -- see the class note on callback chaining
                 .catch(() => this.fail(failure));
+            return;
+        }
+        if (isBackgroundSweep(request)) {
+            const backgroundTiming: OrderedQueueTiming = { ...timing, lane: 'background' };
+            // Registered the moment it is queued, not when it starts, so `drain()` also waits for a sweep that is still
+            // behind an earlier one on this connection.
+            this.background = this.registry.track(
+                this.background
+                    // eslint-disable-next-line unicorn/prefer-await -- see the class note on callback chaining
+                    .then(() => dispatch(backgroundTiming))
+                    // eslint-disable-next-line unicorn/prefer-await -- see the class note on callback chaining
+                    .catch(() => this.fail(failure)),
+            );
             return;
         }
         await dispatch(timing);

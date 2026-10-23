@@ -557,6 +557,7 @@ export const logEventCatalog = {
         provenanceUnavailable: 'workbench_root.provenance_unavailable',
         rebound: 'workbench_root.rebound',
         selected: 'workbench_root.selected',
+        sweepSlow: 'workbench_root.sweep_slow',
         topologyFailed: 'workbench_root.topology_failed',
         validationDropped: 'workbench_root.validation_dropped',
     },
