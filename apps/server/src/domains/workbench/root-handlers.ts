@@ -1,5 +1,6 @@
 import type { DomainHandlers } from '../domain-services';
 import type { WorkbenchRootService } from './roots';
+import { ValidationSweep } from './validation-sweep';
 
 type WorkbenchRootHandlers = Pick<
     DomainHandlers,
@@ -21,6 +22,7 @@ type WorkbenchRootHandlers = Pick<
  * request-to-service mapping is the part that can leave without splitting that machine.
  */
 export function createWorkbenchRootHandlers(service: WorkbenchRootService): WorkbenchRootHandlers {
+    const sweep = new ValidationSweep(() => service.validate());
     return {
         'session.workbenchRoot.resolve': ({ sessionId, worktreeId }) =>
             service.resolveWorktree(sessionId, worktreeId),
@@ -46,7 +48,7 @@ export function createWorkbenchRootHandlers(service: WorkbenchRootService): Work
         'session.workbenchRoot.authorizeSelection': ({ sessionId, rootPath, worktreeId }) =>
             service.authorizeSelection(sessionId, rootPath, worktreeId),
         'session.validateWorkbenchRoots': async ({ sessionId }) => {
-            await service.validate(sessionId);
+            await (sessionId ? service.validate(sessionId) : sweep.run());
             return null;
         },
     };
