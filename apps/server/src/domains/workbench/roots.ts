@@ -33,14 +33,14 @@ import {
     withConversationRanks,
     worktreeIdentityId,
 } from './root-discovery';
+import type { TopologyValidation } from './sweep';
+import { sweepWorkbenchRoots } from './sweep';
+import type { SweepTimer } from './sweep-timing';
 
 const MAX_OBSERVED_AGENT_CWDS = 256;
 const MAX_PENDING_DELETION_VALIDATIONS = 256;
 const SHELL_VALIDATION_SETTLE_MS = 100;
 const workbenchRootLogEvents = logEventCatalog.workbenchRoot;
-
-type TopologyValidation =
-    { status: 'available'; topology: GitWorktreeTopology } | { status: 'unavailable' };
 
 interface WorkbenchRootServiceOptions {
     /**
@@ -75,6 +75,10 @@ export class WorkbenchRootService {
     private readonly worktreeAttribution: AgentWorktreeAttribution;
     private closed = false;
     private queue: Promise<void> = Promise.resolve();
+    /**
+     * All-Session sweeps run outside `queue`, so `close()` tracks them here to keep the database open until they stop.
+     */
+    private readonly sweeps = new Set<Promise<void>>();
     private onRootChanged?: (sessionId: string) => void;
 
     constructor(private readonly options: WorkbenchRootServiceOptions) {
@@ -114,6 +118,7 @@ export class WorkbenchRootService {
         sessionId: string,
         binding: NonNullable<ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>>,
         topologyValidation?: TopologyValidation,
+        timer?: SweepTimer,
     ): Promise<boolean> {
         const owner = this.options.database.getProject(binding.projectId);
         const active = this.options.database.getProject(binding.workbenchProjectId);
@@ -131,7 +136,9 @@ export class WorkbenchRootService {
                 if (topology.worktrees.every((worktree) => worktree.rootPath !== active.rootPath))
                     reason = 'topology_removed';
                 else {
+                    const identityStartedAt = timer?.mark() ?? 0;
                     const identity = await this.rootIdentity(active.rootPath);
+                    timer?.rootIdentity(identityStartedAt);
                     if (isSameWorkbenchRootIdentity(binding, identity)) {
                         if (identity.device !== binding.rootDevice) drifted = identity;
                     } else reason = 'root_replaced';
@@ -715,42 +722,19 @@ export class WorkbenchRootService {
             await this.validateSession(this.requireSession(sessionId).id);
             return;
         }
-        const groups = new Map<
-            string,
-            Array<{
-                binding: NonNullable<ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>>;
-                sessionId: string;
-            }>
-        >();
-        for (const session of this.options.database.listSessions()) {
-            const binding = this.options.database.getSessionWorkbenchBinding(session.id);
-            if (!binding || binding.workbenchProjectId === binding.projectId) continue;
-            const entries = groups.get(binding.projectId) ?? [];
-            entries.push({ binding, sessionId: session.id });
-            groups.set(binding.projectId, entries);
-        }
-        /**
-         * This sweep gates Workbench Root filesystem authorization, so it deliberately stays sequential: an unexpected
-         * throw must stop the remaining validations instead of letting concurrently dispatched entries finish mutating
-         * Session bindings after the failure.
-         */
-        for (const [ownerProjectId, entries] of groups) {
-            const owner = this.options.database.getProject(ownerProjectId);
-            let topologyValidation: TopologyValidation = { status: 'unavailable' };
-            if (owner)
-                try {
-                    topologyValidation = {
-                        status: 'available',
-                        // eslint-disable-next-line no-await-in-loop -- fail-fast ordering, see above
-                        topology: await this.loadTopology(owner.rootPath),
-                    };
-                } catch {
-                    // Every Session in this owner group receives the same fail-closed result.
-                }
-            for (const entry of entries) {
-                // eslint-disable-next-line no-await-in-loop -- fail-fast ordering, see above
-                await this.validateBinding(entry.sessionId, entry.binding, topologyValidation);
-            }
+        const sweeping = sweepWorkbenchRoots({
+            database: this.options.database,
+            isClosed: () => this.closed,
+            loadTopology: (ownerRoot) => this.loadTopology(ownerRoot),
+            logger: this.options.logger,
+            validateBinding: (sessionId, binding, topology, timer) =>
+                this.validateBinding(sessionId, binding, topology, timer),
+        });
+        this.sweeps.add(sweeping);
+        try {
+            await sweeping;
+        } finally {
+            this.sweeps.delete(sweeping);
         }
     }
 
@@ -762,7 +746,7 @@ export class WorkbenchRootService {
     }
 
     /**
-     * Stops new background work and waits for any topology read that already crossed the boundary.
+     * Stops new background work and waits for any topology read or all-Session sweep that already crossed the boundary.
      */
     async close(): Promise<void> {
         this.closed = true;
@@ -771,5 +755,6 @@ export class WorkbenchRootService {
         this.candidates.clear();
         this.observedAgentCwds.clear();
         await this.queue;
+        await Promise.allSettled(this.sweeps);
     }
 }

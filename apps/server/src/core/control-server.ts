@@ -39,6 +39,7 @@ import type { WebSocketServer } from 'ws';
 import { BinaryStreamControl } from './binary-stream-control';
 import { BinaryStreamRuntime } from './binary-stream-runtime';
 import { listenForControlConnections } from './control-listener';
+import { abandonControlRequests } from './control-server-connection';
 import type { DesktopLeaseHost, PendingDesktopCommand } from './control-server-desktop-lease';
 import {
     clearLeaseLivenessProbe,
@@ -49,7 +50,7 @@ import {
     revokeDesktop,
     routeDesktopOperation,
 } from './control-server-desktop-lease';
-import { ControlConnectionLanes, shouldSettleOutsideOrderedLane } from './control-server-lane';
+import { LaneRegistry, shouldSettleOutsideOrderedLane } from './control-server-lane';
 import { DesktopLeaseWaiters } from './control-server-lease-waiters';
 import type {
     ClientState,
@@ -88,6 +89,7 @@ export class ControlServer {
     private readonly binaryStreams: BinaryStreamControl;
     private readonly clients = new Map<WebSocket, ClientState>();
     private readonly sockets = new Set<WebSocket>();
+    private readonly laneRegistry = new LaneRegistry();
     private readonly dispatch: CommandDispatcher;
     private readonly pendingDesktopCommands = new Map<string, PendingDesktopCommand>();
     private readonly desktopLeaseWaiters = new DesktopLeaseWaiters();
@@ -345,7 +347,7 @@ export class ControlServer {
             HANDSHAKE_TIMEOUT_MS,
         );
         let state: ClientState | undefined;
-        const lanes = new ControlConnectionLanes((reason) => terminate(reason, state?.context));
+        const lanes = this.laneRegistry.connection((reason) => terminate(reason, state?.context));
 
         const remove = (): void => {
             clearTimeout(handshakeTimer);
@@ -357,11 +359,7 @@ export class ControlServer {
                 this.binaryRuntime.revokeConnection(connectionId, 'server-unavailable');
                 this.options.onConnectionClosed?.(connectionId);
             }
-            for (const requestId of state.inFlightRequestIds.keys())
-                this.options.onRequestDisconnected?.(requestId, state.context);
-            state.inFlightRequestIds.clear();
-            state.closed = true;
-            state.inFlightRequests = 0;
+            abandonControlRequests(state, this.options);
             if (!this.clients.has(socket)) return;
             if (state.desktopLease) revokeDesktop(this.leaseHost, state, true, 'connection-closed');
             else {
@@ -723,6 +721,7 @@ export class ControlServer {
             );
         this.sockets.clear();
         this.clients.clear();
+        await this.laneRegistry.drain();
         if (this.currentDesktop) clearLeaseLivenessProbe(this.currentDesktop);
         if (this.currentDesktop?.leaseTimer) clearTimeout(this.currentDesktop.leaseTimer);
         this.currentDesktop = undefined;

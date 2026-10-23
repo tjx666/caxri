@@ -354,10 +354,20 @@ Within one control WebSocket, Server Core admits requests in arrival order
 repository mutation (an Extension command, a `source.action` view operation, or a core Git write such
 as `git.switchBranch` or `git.mergePullRequest`) moves on to the connection's repository lane, where
 those mutations run one at a time, because nothing below serializes an Extension `git pull` against a
-checkout. Every other write holds the ordered lane until it settles. A seconds-long pull request merge
-therefore no longer delays a later `session.select`. The `ipc.request` log records `queueMs` and
-`queueDepth` for every request and `lane: 'repository'` for the repository lane, so a write that
-still holds the ordered lane shows up as queue time on the requests behind it.
+checkout. The all-Session Workbench Root sweep (`session.validateWorkbenchRoots` without a `sessionId`,
+which Desktop sends on every app activation and window focus and ignores the reply of) runs in a
+background lane of its own, and the Server waits for it on close. Every other write holds the ordered
+lane until it settles. A seconds-long pull request merge or a slow sweep therefore no longer delays a
+later `session.select`. The `ipc.request` log records `queueMs` and `queueDepth` for every request and
+`lane: 'repository'` or `lane: 'background'` for those lanes, so a write that still holds the ordered
+lane shows up as queue time on the requests behind it. A slow sweep (200 ms or more) also writes a
+`workbench_root.sweep_slow` event with its listing, Git topology, and root-identity phases.
+
+A new write defaults into the ordered lane, so every non-read method is listed with its lane in
+`apps/server/src/core/__tests__/control-server-lane.test.ts`; adding a method fails that test until the
+author chooses `ordered`, `repository`, `background`, or `self-serialized` on purpose. Move a method out of
+`ordered` only with a written argument that nothing needs to observe its effect in order and that the
+domain revalidates after every await.
 
 The current Server does not expose public HTTP, readiness, pairing, or remote ticket endpoints. Future
 direct access may add only minimal liveness, readiness, pairing, and short-lived WebSocket ticket

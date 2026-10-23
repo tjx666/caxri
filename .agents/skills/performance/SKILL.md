@@ -40,7 +40,14 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,
    `file.list`, `git.command`, `agent.probe`, `watcher.ready`, `pty.first_input`, and
    `pty.throughput_summary` to locate the owner. Add timing logs at operation boundaries for new
-   non-trivial work so regressions remain attributable. Start a live investigation with the
+   non-trivial work so regressions remain attributable.
+   A slow Session switch is usually a `session.select` whose `ipc.request` `queueMs` is large: some
+   earlier write still holds the connection's ordered lane. Name that write from the requests ahead
+   of it in the same log, then check its lane in `docs/server-architecture.md`. When a new or
+   existing write is slow and its caller does not need later requests to wait on it, give it a lane
+   deliberately and list it in `apps/server/src/core/__tests__/control-server-lane.test.ts`; that
+   test fails for any unlisted non-read method, so a new write cannot default into the ordered lane
+   unnoticed. Start a live investigation with the
    volume signals before reading individual records: every rotated generation opens with a
    `log.rotated` record whose `generationMs` and `topEvents` name what filled the file, so a
    generation that lasted hours instead of days points at a runaway event. To see where a live
