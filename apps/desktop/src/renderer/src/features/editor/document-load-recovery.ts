@@ -35,7 +35,6 @@ export function documentReadRecovery(error: unknown): DocumentLoadRecovery {
 function openDocumentWithDefaultApp(path: string): void {
     const external = parseExternalEditorTab(path);
     // Fire-and-forget: both helpers report their own failure through `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void (external
         ? openExternalDocumentWithDefaultApp(external.documentId)
         : openFileWithDefaultApp(path));

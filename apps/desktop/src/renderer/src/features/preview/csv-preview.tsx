@@ -309,7 +309,6 @@ export function CsvPreview({
                             }
                             if (!event.metaKey || event.key.toLowerCase() !== 'c') return;
                             event.preventDefault();
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard; tryCommand reports a failure itself
                             void copySelection(selection);
                         }}
                         onScroll={(event) =>

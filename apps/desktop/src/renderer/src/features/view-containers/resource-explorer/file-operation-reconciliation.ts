@@ -51,7 +51,6 @@ export function createReconciliationQueue(run: () => Promise<void>): {
                 if (isQueued && !isDisposed) {
                     isQueued = false;
                     // Fire-and-forget: the queued pass owns its own failure reporting at the caller boundary.
-                    // eslint-disable-next-line no-void -- one queued recovery pass follows the completed pass
                     void request();
                 } else isQueued = false;
             }
@@ -132,7 +131,6 @@ function scheduleReconciliationRetry(
     const timer = setTimeout(() => {
         // Fire-and-forget: a failed attempt here schedules its own bounded-backoff retry, so
         // there is nothing further to await.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void (async (): Promise<void> => {
             try {
                 await reconcileFileMutation(client, operation);
@@ -348,16 +346,13 @@ export function useFileMutationReconciliation(isActive: boolean): void {
             }
         });
         // Fire-and-forget: the queue coalesces duplicate recovery triggers and reports the list failure above.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.request();
         const unsubscribe = caxri.onEvent((event) => {
             const shouldReconcile =
                 event.event === 'host.connectionChanged' ||
                 (event.event === 'runtime.status' && event.payload.status === 'ready') ||
                 event.event === 'files.operationChanged';
-            if (shouldReconcile)
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                void queue.request();
+            if (shouldReconcile) void queue.request();
         });
         return () => {
             unsubscribe();

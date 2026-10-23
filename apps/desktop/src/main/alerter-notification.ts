@@ -178,7 +178,6 @@ export function createAlerterNotificationDriver(
                 });
             };
 
-            // eslint-disable-next-line no-void -- the returned handle owns cancellation and async failures are reported
             void launch().catch(() => reportFailure('spawn_failed'));
 
             return {

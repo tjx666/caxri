@@ -50,7 +50,6 @@ terminal.open(stage);
  * Xterm measures the cell once at open, before the data-URL faces finish decoding. Reassigning the family after they
  * load makes it measure JetBrains Mono's cell instead of the fallback's.
  */
-// eslint-disable-next-line no-void -- The fallback face renders until this resolves; nothing awaits it.
 void Promise.all([
     document.fonts.load('400 14px "Caxri JetBrains Mono"'),
     document.fonts.load('700 14px "Caxri JetBrains Mono"'),

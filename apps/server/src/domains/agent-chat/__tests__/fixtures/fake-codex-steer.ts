@@ -20,6 +20,5 @@ export function answerSteeredMessage(io: FakeCodexIo, turn: FakeTurn, text: stri
         status: 'completed',
         exitCode: 0,
     });
-    // eslint-disable-next-line no-void -- the reply streams while the turn's own work continues
     void io.streamMessage(turn, `Answered in this turn: ${text}`, 0);
 }

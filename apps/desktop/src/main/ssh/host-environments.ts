@@ -446,7 +446,6 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
         environments.set(key, environment);
         environment.window.once('closed', () => {
             if (environments.get(key) === environment) environments.delete(key);
-            // eslint-disable-next-line no-void -- `dispose` never rejects; the remote Server keeps running regardless
             void environment.dispose();
         });
         try {
@@ -455,7 +454,6 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
             // A recents file that cannot be written must not block connecting.
         }
         // The window shows the connection progress itself; `sshHost.connect` returns once the window exists.
-        // eslint-disable-next-line no-void -- `start` reports failures through the window's environment state
         void environment.start();
     }
 

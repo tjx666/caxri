@@ -91,7 +91,6 @@ async function syncFilesChanged(sessionId: string, changedPaths: readonly string
 function onFilesChanged(sessionId: string, changedPaths: readonly string[]): void {
     // Fire-and-forget: `syncFilesChanged` has no synchronous caller waiting on it: watcher events
     // apply asynchronously and any failure surfaces through the normal request-rejection path.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void syncFilesChanged(sessionId, changedPaths);
 }
 
@@ -134,7 +133,6 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
     if (paths.length === 0) return;
     // Fire-and-forget: reconciliation has no synchronous caller waiting on it: a failed read
     // surfaces through the normal request-rejection path, and there is no result to return here.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void syncReconcileSelectedSession(sessionId, workbenchProjectId, cached, paths);
 }
 
@@ -195,7 +193,6 @@ function subscribeExternalDocumentWatch(): () => void {
         const key = documentIds.join('\0');
         if (key === published) return;
         published = key;
-        // eslint-disable-next-line no-void -- never rejects
         void watchExternalDocuments(documentIds);
     };
     publish();
@@ -225,7 +222,6 @@ export function subscribeExternalDocumentSync(): () => void {
         deferral.deferIfPending(projectId, useFileOperationStore.getState().operations);
     const unsubscribeEvents = caxri.onEvent((event) => {
         if (event.event === 'externalDocument.changed') {
-            // eslint-disable-next-line no-void -- failures are handled per document inside
             void syncExternalDocuments([event.payload.documentId]);
             return;
         }
@@ -278,7 +274,6 @@ export function subscribeExternalDocumentSync(): () => void {
             session.workbenchProjectId !== previousSession.workbenchProjectId;
         reconcileSelectedSession(session.id, shouldPreserveDirty);
         // Main watches only the selected Session's external documents, so another Session's may be stale.
-        // eslint-disable-next-line no-void -- failures are handled per document inside
         void syncExternalDocuments('all', shouldPreserveDirty);
     });
     const unsubscribeWatch = subscribeExternalDocumentWatch();

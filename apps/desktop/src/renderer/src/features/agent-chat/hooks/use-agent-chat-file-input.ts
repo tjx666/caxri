@@ -72,7 +72,6 @@ export function useAgentChatFileInput({
     const [isDragOver, setDragOver] = useState(false);
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const attach = (files: readonly File[]): void => {
-        // eslint-disable-next-line no-void -- add reports unreadable or rejected images through toasts
         if (isImageInputEnabled && files.length > 0) void add(files);
     };
     /**

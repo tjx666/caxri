@@ -47,7 +47,6 @@ export class MobileImageStore {
             const current = this.#uploads.get(attachmentId);
             this.#uploads.delete(attachmentId);
             if (current?.path) {
-                // eslint-disable-next-line no-void -- A later upload also sweeps files after a failed unlink.
                 void unlink(current.path).catch(() => {});
             }
         }, lifetimeMs);

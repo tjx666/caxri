@@ -111,7 +111,6 @@ async function shutdownIfOrphaned(): Promise<void> {
 }
 
 const orphanCheck = setInterval(() => {
-    // eslint-disable-next-line no-void -- fire-and-forget orphan probe; errors fall through to process.exit
     void shutdownIfOrphaned();
 }, ORPHAN_CHECK_INTERVAL_MS);
 orphanCheck.unref();

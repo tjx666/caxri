@@ -64,7 +64,6 @@ export function createTerminalLifecycleHandlers(
                 const sessionId = database.getTerminal(terminalId)?.sessionId;
                 coordinator.forgetTerminal(terminalId);
                 options.transcripts.forgetTerminal(terminalId);
-                // eslint-disable-next-line no-void -- the provider exits on its own; the record is removed now.
                 void agentChat.close(terminalId);
                 terminals.close(terminalId);
                 if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);

@@ -114,7 +114,6 @@ function AndroidTerminalLiveView({
                 />
                 <TerminalFloatingActions
                     onTakeOver={() => {
-                        // eslint-disable-next-line no-void -- The hook reports takeover failures in the UI.
                         void takeOver();
                     }}
                     terminal={terminal}

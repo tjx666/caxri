@@ -712,7 +712,6 @@ export class SessionPullRequestService {
         }
         if (isStale) {
             // Fire-and-forget: the sweep logs its own failure and emits the change event.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void this.refresh();
         }
         return {

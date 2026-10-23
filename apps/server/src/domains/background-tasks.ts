@@ -43,7 +43,6 @@ export function refreshWatchSessionInBackground(
     logger: StructuredLogger,
     sessionId: string,
 ): void {
-    // eslint-disable-next-line no-void -- root-change notification is synchronous; updateWatch owns error reporting
     void updateWatch(files, git, logger, sessionId, true);
 }
 
@@ -72,7 +71,6 @@ export function createBackgroundTasks(
      * setup failures) and must never delay a Server IPC response, so every call site fires this without awaiting it.
      */
     function watchSessionInBackground(sessionId: string | undefined): void {
-        // eslint-disable-next-line no-void -- selection notification is synchronous; updateWatch owns error reporting
         void updateWatch(files, git, logger, sessionId);
     }
 

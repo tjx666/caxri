@@ -385,7 +385,6 @@ export class TerminalHostRuntime {
                         const identity = this.identities.get(record.id)!;
                         identity.agentLaunchId = request.params.agent.launchId;
                         identity.agentProvider = request.params.agent.provider;
-                        // eslint-disable-next-line no-void -- Host events settle the managed launch asynchronously.
                         void preparedAgent.started.catch(() =>
                             this.projectManagedAgentStartFailure(
                                 record.id,

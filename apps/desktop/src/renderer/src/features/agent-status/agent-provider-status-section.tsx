@@ -29,7 +29,6 @@ import { ProviderStatusDot } from './provider-status-summary';
 import { formatUptimePercent, providerUptimeDays } from './provider-uptime';
 
 function openUrl(url: string) {
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 

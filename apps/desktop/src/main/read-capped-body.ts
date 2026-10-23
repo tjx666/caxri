@@ -27,7 +27,6 @@ export async function readCappedBody(
             if (bytes > maxBytes) return 'limit';
         }
     } finally {
-        // eslint-disable-next-line no-void -- cancelling the rest of the body has nothing to report
         void reader.cancel().catch(() => {});
     }
 }

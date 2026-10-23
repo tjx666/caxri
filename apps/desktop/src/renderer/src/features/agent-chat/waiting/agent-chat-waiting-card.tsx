@@ -37,7 +37,6 @@ export function AgentChatWaitingCard({
     // The read lists only Chats with at least one request (`agentChatWaitingChatSchema`).
     const request = chat.requests[0];
     const open = (): void => {
-        // eslint-disable-next-line no-void -- the command reports a failed selection through its own toast
         void openAgentChatWaiting(chat.sessionId, chat.terminalId);
     };
     return (

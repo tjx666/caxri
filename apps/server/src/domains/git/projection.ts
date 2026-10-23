@@ -25,7 +25,6 @@ export function registerGitProjection(
         /**
          * Watcher registration owns its fallback and must not delay summary responses.
          */
-        // eslint-disable-next-line no-void -- asynchronous subscription owns its failure recovery
         void watcher?.watch(
             topology.repositoryKey,
             primary.rootPath,

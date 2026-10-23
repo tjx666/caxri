@@ -190,7 +190,6 @@ export async function askQuestions({
             clearInterval(timer);
             resolve(undefined);
         }, 20);
-        // eslint-disable-next-line no-void -- the poll only needs to stop once the answer arrives
         void answer.then(() => clearInterval(timer));
     });
     const result = await Promise.race([answer, cancelled]);

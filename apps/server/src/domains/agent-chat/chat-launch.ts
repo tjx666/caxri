@@ -232,7 +232,6 @@ export function forwardChatLifecycle(
     options: Pick<AgentChatServiceOptions, 'logger' | 'observeLifecycleSignal'>,
     signal: AgentLifecycleSignal,
 ): void {
-    // eslint-disable-next-line no-void -- lifecycle delivery is ordered by the coordinator, not by this caller.
     void observeChatLifecycle(options, signal);
 }
 

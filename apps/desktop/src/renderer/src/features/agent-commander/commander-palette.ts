@@ -233,7 +233,6 @@ export function runCommanderPaletteAction(
             stopCommander();
             return;
         case 'switchAgent':
-            // eslint-disable-next-line no-void -- the switch reports its own failure through a toast
             void switchCommanderAgent(agent, action.agent);
     }
 }

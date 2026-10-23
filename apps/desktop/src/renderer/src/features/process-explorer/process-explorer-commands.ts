@@ -7,7 +7,6 @@ import { tryCommand } from '../../stores/toasts';
  * resource alert's "View details" follow-up.
  */
 export function openProcessExplorer(): void {
-    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
     void tryCommand(translate('processExplorer.openFailed'), () =>
         caxri.request('processExplorer.open'),
     );

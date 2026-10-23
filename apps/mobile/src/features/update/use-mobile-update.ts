@@ -83,7 +83,6 @@ export const useMobileUpdate = (): MobileUpdate => {
     const install = useCallback(() => {
         const current = mobileUpdateStore.get().phase.kind;
         if (current === 'downloading' || current === 'installing') return;
-        // eslint-disable-next-line no-void -- The workflow reports every outcome through the shared phase store.
         void installMobileUpdate(
             {
                 download: downloadMobileUpdate,
@@ -100,7 +99,6 @@ export const useMobileUpdate = (): MobileUpdate => {
     }, [recoverUpdate, request, t]);
     const { refetch } = check;
     const retryCheck = useCallback(() => {
-        // eslint-disable-next-line no-void -- The query result drives the banner; a failed retry shows up there.
         void refetch();
     }, [refetch]);
     const versionCode = update?.versionCode;

@@ -308,7 +308,6 @@ export function AgentChatComposer({
     });
     // The turn review's "Back to Chat and Send" sends the message from outside the composer.
     useAgentChatComposerCommand(terminalId, 'send', isSendable, () => {
-        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
         void submit();
     });
     const history = useAgentChatPromptHistory({

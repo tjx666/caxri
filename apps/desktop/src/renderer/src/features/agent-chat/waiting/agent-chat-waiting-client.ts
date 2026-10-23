@@ -21,6 +21,5 @@ export function isAgentChatWaitingPatch(patch: Pick<AgentChatPatch, 'operations'
  * this push is what keeps a Chat no pane shows current without a poll.
  */
 export function invalidateAgentChatWaiting(queryClient: QueryClient): void {
-    // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
     void queryClient.invalidateQueries({ queryKey: AGENT_CHAT_WAITING_QUERY_KEY });
 }

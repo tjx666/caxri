@@ -89,7 +89,6 @@ export class AgentLifecycleWatchdogs {
     private armRunningTurn(terminalId: string, identity: RunningTurnIdentity): void {
         const timeout = setTimeout(() => {
             identity.timeout = undefined;
-            // eslint-disable-next-line no-void -- a synchronous timer callback cannot await; failures are retried below
             void this.checkRunningTurn(terminalId, identity);
         }, this.runningTurnIntervalMs);
         timeout.unref();

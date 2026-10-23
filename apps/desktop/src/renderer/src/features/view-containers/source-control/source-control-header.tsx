@@ -89,7 +89,6 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                                 aria-disabled={controller.isRefreshing || action.disabled}
                                 onClick={() => {
                                     if (controller.isRefreshing || action.disabled) return;
-                                    // eslint-disable-next-line no-void -- the controller owns provider action errors
                                     void runAction(action);
                                 }}
                             >
@@ -106,7 +105,6 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                             aria-disabled={controller.isRefreshing || model.refreshAction.disabled}
                             onClick={() => {
                                 if (controller.isRefreshing || model.refreshAction.disabled) return;
-                                // eslint-disable-next-line no-void -- the controller owns provider action errors
                                 void runAction(model.refreshAction);
                             }}
                         >

@@ -108,11 +108,9 @@ export class ClaudeShellOutput {
     start(): void {
         if (this.pollTimer || this.isClosed || !this.outputReader()) return;
         this.pollTimer = setInterval(() => {
-            // eslint-disable-next-line no-void -- each poll reports through the task projection and swallows its errors.
             void this.poll();
         }, OUTPUT_POLL_MS);
         this.pollTimer.unref();
-        // eslint-disable-next-line no-void -- see above
         void this.poll();
     }
 
@@ -120,7 +118,6 @@ export class ClaudeShellOutput {
      * Reads an ended shell's output once more; this is its final tail.
      */
     readFinal(id: string): void {
-        // eslint-disable-next-line no-void -- the read reports through the task projection and swallows its errors.
         void this.readOutput(id);
     }
 

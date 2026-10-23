@@ -53,7 +53,6 @@ function UpdateActions({
         return isSkipped ? (
             <Button
                 onClick={() => {
-                    // eslint-disable-next-line no-void -- tryCommand reports its own failure
                     void clearSkippedUpdateVersion();
                 }}
             >
@@ -167,7 +166,6 @@ export function UpdateDialog() {
                             <Button
                                 variant="secondary"
                                 onClick={() => {
-                                    // eslint-disable-next-line no-void -- tryCommand reports its own failure
                                     void skipUpdateVersion(state.version);
                                 }}
                             >

@@ -301,7 +301,6 @@ export class SessionSearchEngine {
         if (this.indexer.progress().isRunning) return;
         if (this.now() - this.lastRefreshAt < REFRESH_INTERVAL_MS) return;
         this.lastRefreshAt = this.now();
-        // eslint-disable-next-line no-void -- a background pass reports through the callbacks, never to the search
         void this.refreshInBackground();
     }
 

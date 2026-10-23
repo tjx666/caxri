@@ -46,7 +46,6 @@ async function recordAcknowledgement(): Promise<void> {
  */
 function acknowledgeAvailableUpdate(): void {
     if (useUpdateStore.getState().state?.status !== 'available') return;
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see `recordAcknowledgement`
     void recordAcknowledgement();
 }
 
@@ -80,22 +79,18 @@ export function checkForUpdates(): void {
     useUpdateStore.getState().setOpen(true);
     // Fire-and-forget: `requestState` reports failures through `tryCommand`'s own toast, so this
     // synchronous-looking wrapper never needs to await the outcome.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void runManualCheck();
 }
 
 export function downloadUpdate(): void {
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void requestState(translate('updates.error.download'), () => caxri.request('updates.download'));
 }
 
 export function cancelUpdateDownload(): void {
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void requestState(translate('updates.error.cancel'), () => caxri.request('updates.cancel'));
 }
 
 export function openDownloadedUpdate(): void {
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void requestState(translate('updates.error.open'), () => caxri.request('updates.open'));
 }
 
@@ -169,7 +164,6 @@ export function subscribeUpdateState(): () => void {
             // the surfaces current even if this initial read fails.
         }
     }
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void loadState();
 
     const unsubscribeEvents = caxri.onEvent((event) => {

@@ -57,7 +57,6 @@ import { resetThemeImportWarningDismissals } from './theme-import-warnings';
 const onApplied = (): void => {
     // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so
     // callers of this synchronous-looking wrapper never need to await the outcome.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void refreshWorkbench();
 };
 /**
@@ -273,7 +272,6 @@ export function useSettingsPageController() {
                 reportSettingsError(error, translate('settings.page.loadFailed'));
             }
         }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void loadConfig();
     }, [dispatchConfig]);
 
@@ -285,7 +283,6 @@ export function useSettingsPageController() {
                 reportSettingsError(error, translate('settings.page.skillHealthFailed'));
             }
         }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void loadSkillHealth();
     }, []);
 
@@ -351,7 +348,6 @@ export function useSettingsPageController() {
                 event.payload.reason === 'unknown'
             ) {
                 for (const kind of CONFIG_KINDS) {
-                    // eslint-disable-next-line no-void -- each reconciliation reports its own read failure.
                     void coordinator.reconcile(kind);
                 }
                 return;
@@ -536,7 +532,6 @@ export function useSettingsPageController() {
         // out-of-order responses from rapid toggles, mirroring `writeGeneration`.
         setArgvConfig((current) => (current ? { ...current, ...changes } : current));
         const generation = ++argvWriteGeneration.current;
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, the IIFE below reports its own errors via reportSettingsError
         void (async (): Promise<void> => {
             try {
                 const result = await writeArgvConfig({ changes });

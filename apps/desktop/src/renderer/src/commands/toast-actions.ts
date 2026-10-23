@@ -63,7 +63,6 @@ export const toastActionHandlers: ToastActionHandlers = {
         unavailable: agentChatRedoUnavailableReason,
         run: (parameters) => {
             // Fire-and-forget: redoAgentChatTurn reports every failure through tryCommand.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void redoAgentChatTurn(parameters);
         },
     },
@@ -91,13 +90,11 @@ export const toastActionHandlers: ToastActionHandlers = {
     'clipboard.copyCommand': {
         run: ({ text }) => {
             // The button reports the outcome in place (Copied / Copy failed), so no failure toast stacks on the notice.
-            // eslint-disable-next-line no-void -- copyWithToastFeedback never rejects
             void copyWithToastFeedback(copyFeedbackKey('clipboard.copyCommand', text), text);
         },
     },
     'diagnostics.copyFailure': {
         run: ({ text }) => {
-            // eslint-disable-next-line no-void -- copyWithToastFeedback never rejects
             void copyWithToastFeedback(copyFeedbackKey('diagnostics.copyFailure', text), text);
         },
     },
@@ -111,7 +108,6 @@ export const toastActionHandlers: ToastActionHandlers = {
     },
     'github.open': {
         run: ({ url }) => {
-            // eslint-disable-next-line no-void -- openExternalUrl reports its own failures through the toast
             void openExternalUrl(url, (message) => pushToast('error', message));
         },
     },
@@ -131,7 +127,6 @@ export const toastActionHandlers: ToastActionHandlers = {
         // Fire-and-forget by the Toast contract: a follow-up is synchronous, and the confirmation plus the shared
         // command funnel own everything that can fail after the click.
         run: () => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void confirmTurnOffHardwareAcceleration();
         },
     },
@@ -141,7 +136,6 @@ export const toastActionHandlers: ToastActionHandlers = {
                 ? undefined
                 : translate('toasts.actionUnavailable.missingSession'),
         run: ({ cwd, kind, paneId, sessionId, split, surface }) => {
-            // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
             void createTerminalForSession(sessionId, kind, { cwd, paneId, split, surface });
         },
     },
@@ -168,7 +162,6 @@ export const toastActionHandlers: ToastActionHandlers = {
         },
         run: ({ projectId, sessionId }) => {
             // Fire-and-forget: undoFollowedWorkbenchRoot funnels every failure into its own error toast.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void undoFollowedWorkbenchRoot(sessionId, projectId);
         },
     },

@@ -88,7 +88,6 @@ export function createCommanderCompletionNotifier({
         write: (terminalId, text, launchId, onDelivered) => {
             const terminal = database.getTerminal(terminalId);
             if (terminal && isChatTerminal(terminal)) {
-                // eslint-disable-next-line no-void -- the outcome is reported through onDelivered
                 void sendChatNotice(agentChat, terminalId, text, onDelivered);
                 return true;
             }

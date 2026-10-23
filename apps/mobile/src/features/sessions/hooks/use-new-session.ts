@@ -96,7 +96,6 @@ export const useNewSession = () => {
             if (shouldFocusComposer) requestComposerFocus(sessionId);
             sessions.selectSession(sessionId);
             router.replace(`/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(sessionId)}`);
-            // eslint-disable-next-line no-void -- The detail route also has a grant-scoped Session read if refresh fails.
             void sessions.refresh().catch(() => {});
         },
         [hostId, requestComposerFocus, router, sessions, setNewSessionCreateState],

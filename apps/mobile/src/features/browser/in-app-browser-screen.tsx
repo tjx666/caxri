@@ -138,7 +138,6 @@ export const InAppBrowserScreen = () => {
     const runMenuAction = useCallback(
         (action: () => Promise<unknown> | void) => {
             menu.close();
-            // eslint-disable-next-line no-void -- Each action reports its own failure or has none worth reporting.
             void action();
         },
         [menu],
@@ -177,7 +176,6 @@ export const InAppBrowserScreen = () => {
                 onRenderProcessGone={() => setGeneration((current) => current + 1)}
                 onShouldStartLoadWithRequest={(request) => {
                     if (browserNavigation(request.url) === 'load') return true;
-                    // eslint-disable-next-line no-void -- openExternalLink reports a scheme no app handles.
                     void openExternalLink(request.url);
                     return false;
                 }}

@@ -123,7 +123,6 @@ export class MobileUpdateDownloads {
             'Content-Length': String(bundle.sizeBytes),
             'Content-Type': 'application/vnd.android.package-archive',
         });
-        // eslint-disable-next-line no-void -- The HTTP handler returns synchronously; the stream reports its own outcome.
         void (async () => {
             try {
                 await pipeline(createReadStream(apkPath), response);

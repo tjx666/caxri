@@ -132,7 +132,6 @@ export function scheduleCodeEditorPreload(): () => void {
         if (isCanceled) return;
         // Fire-and-forget: failures are already funneled into `preloadCodeEditorIgnoringFailure`
         // above, so there is nothing left for this scheduler to await or react to.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void preloadCodeEditorIgnoringFailure();
     };
     if (typeof requestIdleCallback === 'function') {

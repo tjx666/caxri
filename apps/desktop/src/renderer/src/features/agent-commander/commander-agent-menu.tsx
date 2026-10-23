@@ -48,7 +48,6 @@ export function CommanderAgentMenu({ agent }: { agent: CommanderAgent }) {
                     <MenuRadioGroup
                         value={agent}
                         onValueChange={(next: CommanderAgent) => {
-                            // eslint-disable-next-line no-void -- the switch reports its own failure through a toast
                             void switchCommanderAgent(agent, next);
                         }}
                     >

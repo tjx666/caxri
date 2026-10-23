@@ -35,7 +35,6 @@ function Welcome() {
             <p className="m-0 leading-relaxed">{t('workbench.welcome.description')}</p>
             <Button
                 onClick={() => {
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, chooseProjectFolder() reports its own errors via tryCommand
                     void chooseProjectFolder();
                 }}
             >

@@ -27,7 +27,6 @@ function Diagram({
         const element = reference.current;
         if (!element) return;
         const controller = new AbortController();
-        // eslint-disable-next-line no-void -- a failed render paints its own error into the element
         void diagrams.render(element, source, controller.signal, { isNatural });
         return () => controller.abort();
     }, [diagrams, isNatural, source]);

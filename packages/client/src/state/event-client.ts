@@ -177,7 +177,6 @@ export function createRecoveringEventClient(options: {
                  */
                 if (!didFail && isActive && generation === state.generation) {
                     if (isOverflowed) {
-                        // eslint-disable-next-line no-void -- fire-and-forget restart; the resulting promise self-handles its own errors via settleRecovery's try/catch, and this synchronous finally block cannot await it.
                         void scheduleRecovery();
                     } else {
                         for (const envelope of pending) acceptLive(envelope);
@@ -218,7 +217,6 @@ export function createRecoveringEventClient(options: {
         }
         if (envelope.cursor <= cursor) return;
         if (envelope.cursor !== cursor + 1) {
-            // eslint-disable-next-line no-void -- fire-and-forget restart; the resulting promise self-handles its own errors via settleRecovery's try/catch, and `acceptLive` is a synchronous event handler that cannot await it.
             void scheduleRecovery(envelope);
             return;
         }

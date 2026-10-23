@@ -85,7 +85,6 @@ export function runAgentTextCommand(options: AgentTextCommandOptions): Promise<s
             isSettled = true;
             clearTimeout(timeout);
             options.signal?.removeEventListener('abort', abort);
-            // eslint-disable-next-line no-void -- settlement owns subprocess reaping before resolving the outer promise
             void finishSettlement(error);
         }
 

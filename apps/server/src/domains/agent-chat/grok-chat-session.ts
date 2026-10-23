@@ -280,7 +280,6 @@ class GrokChatSession implements AgentChatProviderSession {
                 },
             },
         ]);
-        // eslint-disable-next-line no-void -- the prompt stays open for the whole turn and reports through finishTurn.
         void this.awaitPrompt(connection, turnId, text);
     }
 

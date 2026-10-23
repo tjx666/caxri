@@ -96,7 +96,6 @@ export const AgentChatSteerButton = ({
             accessibilityLabel={t('chat.queue.steerNow')}
             accessibilityRole="button"
             onPress={() => {
-                // eslint-disable-next-line no-void -- The composer reports a failed send itself.
                 void onSteer();
             }}
             style={({ pressed }) => [
@@ -160,7 +159,6 @@ export const AgentChatComposerButton = ({
             accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
             disabled={!canSubmit}
             onAccessibilityAction={({ nativeEvent }) => {
-                // eslint-disable-next-line no-void -- The composer reports a failed send itself.
                 if (nativeEvent.actionName === 'longpress') void onSteer();
             }}
             onLongPress={canSteer ? onSteer : undefined}

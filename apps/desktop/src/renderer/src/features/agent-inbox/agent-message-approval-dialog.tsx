@@ -82,7 +82,6 @@ export function AgentMessageApprovalDialog() {
         const messageId = currentMessageId;
         let isActive = true;
         if (messageId)
-            // eslint-disable-next-line no-void -- the loader owns error handling and the effect cleanup only flips isActive
             void loadHeldMessageDetail({
                 isActive: () => isActive,
                 onDetail: setDetail,
@@ -283,7 +282,6 @@ export function AgentMessageApprovalDialog() {
                                 onDefer={deferCurrent}
                                 onDismiss={dismissExpired}
                                 onSettle={(action) => {
-                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, settle() reports its own errors via toast
                                     void settle(action);
                                 }}
                             />

@@ -80,7 +80,6 @@ export function useEditorBreadcrumbPicker({
 
     const activateEntry = (entry: FileEntry): void => {
         const intent = ++activation.current;
-        // eslint-disable-next-line no-void -- tryCommand owns error presentation
         void tryCommand(t('editor.breadcrumbs.openPathFailed'), async () => {
             const kind = await resolveEntryKind(sessionId, entry);
             if (intent !== activation.current) return;

@@ -136,7 +136,6 @@ export class ClaudeContextRefresh {
         }
         this.isRunning = true;
         this.isRequestedAgain = false;
-        // eslint-disable-next-line no-void -- best effort; the context meter keeps its total without it
         void this.run();
     }
 }

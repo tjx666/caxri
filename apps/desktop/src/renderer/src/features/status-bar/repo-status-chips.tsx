@@ -122,7 +122,6 @@ function PullRequestWorktreeSwitch({ branch, sessionId }: { branch: string; sess
             onClick={() => {
                 if (isSwitching) return;
                 setIsSwitching(true);
-                // eslint-disable-next-line no-void -- `selectWorkbenchRoot` reports its own failure through a toast.
                 void selectWorkbenchRoot(sessionId, root).finally(() => setIsSwitching(false));
             }}
         >

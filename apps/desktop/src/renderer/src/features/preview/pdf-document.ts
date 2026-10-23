@@ -127,7 +127,6 @@ function handleLinkClick(event: MouseEvent): void {
     if (!(anchor instanceof HTMLAnchorElement)) return;
     if (!/^(?:https?|mailto):/i.test(anchor.href)) return;
     event.preventDefault();
-    // eslint-disable-next-line no-void -- `openExternalUrl` reports its own failure through the toast it is given
     void openExternalUrl(anchor.href, (message) => pushToast('error', message));
 }
 

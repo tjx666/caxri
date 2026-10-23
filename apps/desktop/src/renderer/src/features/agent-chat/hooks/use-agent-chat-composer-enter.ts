@@ -72,13 +72,11 @@ export function useAgentChatComposerEnter({
     const submitFromKey = (delivery: 'steer' | undefined): void => {
         const refusal = agentChatSendRefusal(sendAction, { ...sendState, isSendable }, t);
         if (refusal) refusalNotice.show(refusal);
-        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
         else void submit(delivery);
     };
     const onKeyDown = (event: AgentChatComposerKeyEvent): void => {
         if (isAgentChatPlainPasteKey(event)) {
             event.preventDefault();
-            // eslint-disable-next-line no-void -- pastePlainText reports its own failures
             void pastePlainText();
             return;
         }

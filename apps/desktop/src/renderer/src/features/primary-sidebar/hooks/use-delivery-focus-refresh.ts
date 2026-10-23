@@ -13,7 +13,6 @@ export function useDeliveryFocusRefresh(): void {
     const sessionId = useSelectedSessionId();
     useOnVisible(() => {
         // Fire-and-forget: the client swallows failures and the change events deliver the result.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         if (sessionId) void requestDeliveryFocusRefresh(sessionId);
     });
 }

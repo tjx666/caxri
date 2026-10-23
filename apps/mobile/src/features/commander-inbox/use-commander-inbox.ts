@@ -48,7 +48,6 @@ export const useCommanderInbox = () => {
         let isResyncRequired = false;
         let handle: Awaited<ReturnType<typeof subscribe>> | null = null;
         const invalidate = () => {
-            // eslint-disable-next-line no-void -- The query observer owns the resulting read and error state.
             void queryClient.invalidateQueries({ queryKey, exact: true });
         };
         const attach = async (): Promise<void> => {
@@ -78,18 +77,15 @@ export const useCommanderInbox = () => {
                 if (!isDisposed) setSubscription({ identity, active: false });
             }
         };
-        // eslint-disable-next-line no-void -- Cleanup releases the subscription.
         void attach();
         return () => {
             isDisposed = true;
             setSubscription({ identity, active: false });
-            // eslint-disable-next-line no-void -- The connection may already have closed.
             if (handle) void handle.unsubscribe();
         };
     }, [identity, isObservable, queryClient, queryKey, subscribe, subscriptionAvailable]);
     const { refetch } = query;
     const refresh = useCallback(() => {
-        // eslint-disable-next-line no-void -- The query observer owns refresh errors.
         if (isObservable) void refetch();
     }, [isObservable, refetch]);
     return { isObservable, query, refresh };

@@ -530,7 +530,6 @@ export class AgentHookManager {
         this.configReconcileTimer = setTimeout(() => {
             this.configReconcileTimer = undefined;
             const requested = this.requestedSettings;
-            // eslint-disable-next-line no-void -- synchronous timer callback cannot await; reconcileNow() never rejects (errors are caught and logged internally)
             if (requested) void this.reconcileQueue.run(() => this.reconcileNow(requested));
         }, CONFIG_WATCH_SETTLE_MS);
         this.configReconcileTimer.unref();

@@ -23,7 +23,6 @@ export function useAgentChatHandoff({
     const continueInNewChat = (): void => {
         if (!terminal || isContinuing) return;
         setIsContinuing(true);
-        // eslint-disable-next-line no-void -- every failure is reported through a toast inside the command
         void didContinueAgentChatInNewChat(terminal, { pendingRequest: draft, providerName })
             .then((isContinued) => {
                 if (isContinued) clearDraft();

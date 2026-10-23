@@ -130,7 +130,6 @@ function ScreenshotAnnotatorContent({
                         disabled={busy}
                         id="bug-report-annotator-done"
                         onClick={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, finish() reports its own errors
                             void finish();
                         }}
                     >

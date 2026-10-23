@@ -137,7 +137,6 @@ export function installSecondInstanceFocus(
             return;
         }
         // The Electron event emitter cannot await listeners; this task catches its own failure above.
-        // eslint-disable-next-line no-void -- intentionally detached event-listener work
         void focusExistingWindow();
     };
     app.on('second-instance', requestFocus);

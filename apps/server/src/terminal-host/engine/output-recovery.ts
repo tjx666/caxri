@@ -284,7 +284,6 @@ export class AgentOutputRecovery {
         if (this.outputRevision === this.matchedRevision || !this.handledPattern) return;
         const handledPattern = this.handledPattern;
         // Fire-and-forget from the timer callback: the parsed-screen barrier owns its own rejection path below.
-        // eslint-disable-next-line no-void -- asynchronous re-arm must not delay the fixed Continue timer
         void this.options
             .readTail(MAXIMUM_TAIL_CHARACTERS)
             .then((tail) => {

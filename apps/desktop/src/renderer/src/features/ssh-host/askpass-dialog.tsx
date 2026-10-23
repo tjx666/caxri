@@ -56,7 +56,6 @@ function AskpassPrompt({
         if (isAnswered) return;
         setIsAnswered(true);
         setResponse('');
-        // eslint-disable-next-line no-void -- the reply reports its own failure through a toast
         void didReplySshHostPrompt(request.requestId, value).then((isDelivered) => {
             // Main clears the prompt from the environment state once it has the answer; until then a failed
             // delivery hands the controls back so the user can answer again.

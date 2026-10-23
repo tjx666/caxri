@@ -60,7 +60,6 @@ function attachCopyButton(element: HTMLElement, code: string, signal: AbortSigna
             event.preventDefault();
             // Fire-and-forget: `writeToClipboardWithFeedback` resolves to a status instead of rejecting, and the
             // button itself is the only place that outcome is reported.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void copy();
         },
         { signal },
@@ -92,7 +91,6 @@ export function decorateCodeBlocks(
         element.querySelector('.caxri-markdown-copy')?.remove();
         attachCopyButton(element, block.code, signal);
         // Fire-and-forget: an unhighlightable block simply keeps its plain-text rendering.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void paintCodeBlock(element, block, theme, signal);
     }
 }

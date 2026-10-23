@@ -10,7 +10,6 @@ import { reportViewedSession } from '../window-viewing-commands';
 export function useReportViewedSession(selectedSessionId: string | undefined): void {
     useEffect(() => {
         // Fire-and-forget: the report is best effort and swallows its own failure.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard
         void reportViewedSession(selectedSessionId ?? null);
     }, [selectedSessionId]);
 }

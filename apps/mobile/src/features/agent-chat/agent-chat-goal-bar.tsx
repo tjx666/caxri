@@ -87,7 +87,6 @@ export const AgentChatGoalBar = ({
                     <AgentChatGoalActions
                         isBusy={isBusy}
                         onRun={(action) => {
-                            // eslint-disable-next-line no-void -- The bar reports a failed command itself.
                             void run(action);
                         }}
                         theme={theme}

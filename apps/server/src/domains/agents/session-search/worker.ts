@@ -84,11 +84,9 @@ async function main(): Promise<void> {
             }
             return;
         }
-        // eslint-disable-next-line no-void -- `inspect` posts its own reply, success or failure
         void inspect(message.id, message.provider, message.agentSessionId);
     });
     port.on('close', () => store.close());
 }
 
-// eslint-disable-next-line no-void -- the Worker entry has no caller to report to
 void main();

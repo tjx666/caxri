@@ -101,7 +101,6 @@ export function SessionRowTrigger({
             onClick={() => {
                 if (renaming) return;
                 // Fire-and-forget: selection reports its own failures through a toast.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard
                 if (!selected) void didSelectSession(session.id);
             }}
             onDoubleClick={onBeginRename}
@@ -117,7 +116,6 @@ export function SessionRowTrigger({
                 } else if (!renaming && event.key === ' ') {
                     event.preventDefault();
                     // Fire-and-forget: didSelectSession reports its own failures through a toast.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard
                     if (!selected) void didSelectSession(session.id);
                 }
             }}

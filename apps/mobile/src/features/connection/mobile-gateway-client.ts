@@ -308,7 +308,6 @@ export class MobileGatewayConnection {
             randomBytes: (size) => session.runtime.randomBytes(size),
             send: (payload) => sendSealed(session, payload),
         });
-        // eslint-disable-next-line no-void -- The connection lifetime owns its single inbound frame pump.
         void this.#readLoop();
     }
 

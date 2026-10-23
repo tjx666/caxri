@@ -108,7 +108,6 @@ export function MarkdownPreview({
             controller.signal,
         );
         decorateCodeBlocks(container, rendered.codeBlocks, theme, controller.signal);
-        // eslint-disable-next-line no-void -- diagram failures are rendered in their own placeholders
         void renderDiagrams(container, rendered.diagrams, theme, controller.signal);
         /**
          * A remembered preview position is more specific than the editor's last line, so it wins on the first attach;

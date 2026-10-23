@@ -44,7 +44,6 @@ export class PlanLimitRefresh {
     request(provider: AgentProvider, terminalId: string): void {
         if (!this.read || !ASKED_PROVIDERS.has(provider) || this.pending.has(provider)) return;
         this.pending.add(provider);
-        // eslint-disable-next-line no-void -- `ask` never rejects; the reading reaches the next poll through `observe`
         void this.ask(this.read, provider, terminalId);
     }
 }

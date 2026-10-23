@@ -156,7 +156,6 @@ export class MobileGatewayFrameRouter {
             case 'heartbeat': {
                 this.#options.reportHeartbeat?.();
                 this.#subscriptions.renewLeases();
-                // eslint-disable-next-line no-void -- An acknowledgement must not block the inbound frame reader.
                 void this.#acknowledgeHeartbeat(payload.nonce);
                 return;
             }
@@ -239,14 +238,12 @@ export class MobileGatewayFrameRouter {
         }
         if (this.#activeIds.size >= MAXIMUM_ACTIVE_OPERATIONS) {
             if (this.#options.isActive())
-                // eslint-disable-next-line no-void -- Capacity replies are independently sent on the authenticated socket.
                 void this.#reply(
                     errorReply(id, new CaxriError('CAPACITY', 'Too many mobile operations')),
                 );
             return;
         }
         this.#activeIds.add(id);
-        // eslint-disable-next-line no-void -- Operations complete independently so one slow command cannot block another frame.
         void (async (): Promise<void> => {
             try {
                 let reply: CommandReplyEnvelope | undefined;

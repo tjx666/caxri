@@ -78,7 +78,6 @@ export function useAgentChatHistory(
         scroll.scrollTo({ top: scroll.scrollTop + offset - hold.offset });
     }, [history.items, scrollReference]);
     const loadOlder = (): void => {
-        // eslint-disable-next-line no-void -- the loader records its own failure in the cached history
         void loadOlderAgentChatHistory({ terminalId, taskId }, holdViewTop);
     };
     return { history, hasMore: hasOlderAgentChatHistory(history, snapshot), loadOlder };

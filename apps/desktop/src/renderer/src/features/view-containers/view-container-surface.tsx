@@ -71,7 +71,6 @@ export function ViewContainerSurface({
                     aria-busy={catalogQuery.isFetching}
                     onClick={() => {
                         if (catalogQuery.isFetching) return;
-                        // eslint-disable-next-line no-void -- query state renders the retry outcome inline
                         void catalogQuery.refetch();
                     }}
                 >
@@ -149,7 +148,6 @@ export function ViewContainerSurface({
                                                               setRetryingExtensionIds((current) =>
                                                                   new Set(current).add(extensionId),
                                                               );
-                                                              // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
                                                               void tryCommand(
                                                                   t(
                                                                       'viewContainers.surface.retryExtensionFailed',

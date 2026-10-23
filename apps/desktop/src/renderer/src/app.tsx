@@ -110,7 +110,6 @@ function useRuntimeAttachment(): void {
             selectSession: didSelectSession,
         });
         // Fire-and-forget: initializeWorkbench() catches its own Server request failures.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initializeWorkbench();
         const unsubscribe = subscribeWorkbenchEvents({
             onCommand: (command, wasViaAccelerator) =>
@@ -138,7 +137,6 @@ function useRuntimeAttachment(): void {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
                 // established pattern for one-shot Server-triggered opens.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void desktopOpenQueue.enqueue({
                     sessionId,
                     ...(path && { path }),
@@ -149,7 +147,6 @@ function useRuntimeAttachment(): void {
             },
         });
         // Fire-and-forget: syncWindowFullScreen() swallows its own request failure.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void syncWindowFullScreen();
         return unsubscribe;
     }, []);

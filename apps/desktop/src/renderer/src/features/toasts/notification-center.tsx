@@ -50,7 +50,6 @@ function openNotificationSettings(): void {
 
 function muteEntry(entry: NotificationEntry): void {
     if (!entry.type || !canMuteNotification(entry)) return;
-    // eslint-disable-next-line no-void -- muteNotification reports failures through tryCommand
     void muteNotification(entry.type);
 }
 

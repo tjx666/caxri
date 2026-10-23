@@ -58,7 +58,6 @@ const AgentChatModelSheet = ({
     const effortHint = agentChatEffortHint(snapshot, t);
     const isDisabled = busy !== null || disabledReason !== undefined;
     const select = (change: AgentChatModelRequest, isSelected: boolean): void => {
-        // eslint-disable-next-line no-void -- `didConfigure` reports its own failure in the sheet.
         if (!isSelected) void selection.didConfigure(change);
     };
     return (

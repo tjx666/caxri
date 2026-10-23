@@ -153,7 +153,6 @@ process.on('message', (value: unknown) => {
     const parsed = extensionHostParentMessageSchema.safeParse(value);
     if (!parsed.success) {
         logProtocolRejection(logger, 'parent-envelope');
-        // eslint-disable-next-line no-void -- The lifecycle flushes diagnostics and exits the owned process.
         void processLifecycle.stopAfterProtocolViolation();
         return;
     }
@@ -163,11 +162,9 @@ process.on('message', (value: unknown) => {
         return;
     }
     const request = message;
-    // eslint-disable-next-line no-void -- Message handling is intentionally fire-and-forget; processRequest catches and replies.
     void processRequest(request);
 });
 process.once('disconnect', () => {
-    // eslint-disable-next-line no-void -- The lifecycle flushes diagnostics and exits the owned process.
     void processLifecycle.stopAfterParentDisconnect();
 });
 

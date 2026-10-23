@@ -214,7 +214,6 @@ export class ExtensionHostSupervisor extends EventTarget {
     private deliverProtocolFault(fault: ExtensionHostProtocolFault, child: ChildProcess): void {
         if (fault === 'reply-result') {
             this.corruptNextReplyResult = true;
-            // eslint-disable-next-line no-void -- The reply is the subject under test; its rejection is the expected outcome.
             void this.sendRequest('configure', {
                 extensions: this.options.registrations(),
             }).catch(() => {});

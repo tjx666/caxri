@@ -246,7 +246,6 @@ export function AgentActivityView() {
         );
         // Fire-and-forget: `tryCommand` turns any rejection into exactly one toast, and the Server keeps the same
         // generation unread so the next focus event can retry it.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void tryCommand(t('agentActivity.markReadFailed'), () =>
             markSessionRead(row.session.id, row.session.attentionEpoch),
         );

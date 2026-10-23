@@ -130,10 +130,8 @@ export function retainCommanderManagedSessionsFeed(): () => void {
     if (feed.holders === 1) {
         feed.unsubscribe = caxri.onEvent((event) => {
             // Fire-and-forget: a failed read keeps the last answer and the next event retries.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             if (isCommanderManagedSessionsEvent(event)) void refreshManagedSessions();
         });
-        // eslint-disable-next-line no-void -- the first read sets the baseline; failures retry on the next event
         void refreshManagedSessions();
     }
     let isReleased = false;

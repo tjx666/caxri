@@ -23,7 +23,6 @@ describe('WorkbenchRootService worktree attribution', () => {
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(1));
         const closing = context.service.close();
         let isClosed = false;
-        // eslint-disable-next-line no-void -- the test must observe close before the queued read settles.
         void closing.then(() => {
             isClosed = true;
         });

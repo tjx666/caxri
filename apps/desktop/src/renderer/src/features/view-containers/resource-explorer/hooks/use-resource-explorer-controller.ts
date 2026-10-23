@@ -46,7 +46,6 @@ import {
  * Every caller fires an already-tracked file action whose own `tryCommand` path reports failures via a toast.
  */
 function discard(promise: Promise<unknown>): void {
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void promise;
 }
 
@@ -280,7 +279,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
                               });
                               break;
                           case 'resource.refresh':
-                              // eslint-disable-next-line no-void -- React Query owns refetch errors
                               void queryClient.invalidateQueries({
                                   predicate: ({ queryKey }) =>
                                       queryKey[0] === CONTROLLED_VIEW_QUERY_METHOD &&

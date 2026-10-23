@@ -76,11 +76,9 @@ export const startDashboardSubscription = (
             if (!isDisposed) onMode('fallback');
         }
     };
-    // eslint-disable-next-line no-void -- The returned cleanup owns the asynchronous subscription lifecycle.
     void attach();
     return () => {
         isDisposed = true;
-        // eslint-disable-next-line no-void -- The old connection may already be closed; unsubscribe handles that case.
         if (handle) void unsubscribe(handle);
     };
 };

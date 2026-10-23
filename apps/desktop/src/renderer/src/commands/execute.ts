@@ -241,7 +241,6 @@ const commandContext: CommandContext = {
         create: () => {
             const project = selectSelectedProject(getBootstrap());
             if (project) beginSessionCreation(project.id);
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else void chooseProjectFolder();
         },
         archiveSelected: archiveSelectedSession,
@@ -328,9 +327,7 @@ const commandContext: CommandContext = {
             const tab = getActivePaneTab();
             if (tab?.resource.kind === 'terminal') {
                 closeTerminal(tab.resource.terminalId);
-            }
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            else if (tab) void closeDocumentTabs([tab.id]);
+            } else if (tab) void closeDocumentTabs([tab.id]);
             // With no Session there is no tab, only the Welcome view's Settings surface to close.
             else if (!getSelectedSession()) useDialogStore.getState().dismissSessionlessSettings();
         },
@@ -341,7 +338,6 @@ const commandContext: CommandContext = {
         },
         closeOtherTabs: () => {
             const tab = getActivePaneTab();
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, as for closeActiveTab
             if (tab) void closeDocumentTabFamily(tab.id, 'others');
         },
         cycleTab: cycleActiveTab,
@@ -453,13 +449,11 @@ const commandContext: CommandContext = {
     },
     windows: {
         openAgentCommander: () => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand(translate('core.commands.openAgentCommanderFailed'), () =>
                 caxri.request('agentCommander.open'),
             );
         },
         openBenchmark: () => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand reports failure
             void tryCommand(translate('core.commands.openBenchmarkFailed'), () =>
                 caxri.request('benchmark.open'),
             );
@@ -476,7 +470,6 @@ const commandContext: CommandContext = {
     },
     diagnostics: {
         export: () => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand(
                 translate('core.commands.diagnosticsExportFailed'),
                 async () => {
@@ -532,7 +525,6 @@ export function executeCommand(
     const definition = getRegisteredCommand(command);
     if (!definition) {
         // Fire-and-forget: the catalog dispatcher owns activation and the shared error path.
-        // eslint-disable-next-line no-void -- one command invocation owns one extension dispatch
         void executeViewCatalogShortcut(command, arguments_ === undefined ? [] : [arguments_]);
         return;
     }
@@ -574,7 +566,6 @@ export function runCommand(
                 if (cachedPermission === false) return;
                 if (cachedPermission === undefined) {
                     // Fire-and-forget: the manifest lookup is the fail-safe gate for a cold extension catalog.
-                    // eslint-disable-next-line no-void -- one native accelerator owns one asynchronous policy lookup
                     void executeEditableViewCatalogShortcut(
                         command,
                         arguments_ === undefined ? [] : [arguments_],

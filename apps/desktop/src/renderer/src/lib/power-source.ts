@@ -39,7 +39,6 @@ export function observePowerSource(): () => void {
         publish();
         state.addEventListener('chargingchange', publish);
     };
-    // eslint-disable-next-line no-void -- `subscribe` handles its own failure; nothing awaits the first reading.
     void subscribe();
     return () => {
         isStopped = true;

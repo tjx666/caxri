@@ -98,7 +98,6 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
 
 export function archiveSession(sessionId: string): void {
     // Fire-and-forget: `archiveSessionWithNotice` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void archiveSessionWithNotice(sessionId);
 }
 
@@ -155,7 +154,6 @@ export function unarchiveSession(
     placement: SessionRestorePlacement = 'top',
 ): void {
     // Fire-and-forget: `didRestoreSessionWithNotice` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didRestoreSessionWithNotice(sessionId, placement);
 }
 
@@ -182,6 +180,5 @@ async function unarchiveSessionsWithNotice(sessionIds: readonly string[]): Promi
 export function unarchiveSessions(sessionIds: readonly string[]): void {
     if (sessionIds.length === 0) return;
     // Fire-and-forget: `unarchiveSessionsWithNotice` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void unarchiveSessionsWithNotice(sessionIds);
 }

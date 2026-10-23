@@ -603,7 +603,6 @@ export class WatcherService {
         const ruleHandle = this.ruleWatchHandle;
         this.ruleWatchHandle = undefined;
         // Disposal never rejects and this synchronous reset path must not await it.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see comment above
         void ruleHandle?.dispose();
         this.gitIgnoreRulePollInFlight = false;
         this.pollingActive = false;
@@ -703,7 +702,6 @@ export class WatcherService {
             scope?.workbenchProjectId !== this.watchedScope?.workbenchProjectId
         ) {
             // Reset fences synchronously; hub disposal never rejects and must not delay root setup.
-            // eslint-disable-next-line no-void -- synchronous generation invalidation
             void this.externalLinks.reset(scope);
         }
         if (

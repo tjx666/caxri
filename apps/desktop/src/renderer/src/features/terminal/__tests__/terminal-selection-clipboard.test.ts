@@ -19,9 +19,7 @@ describe('TerminalSelectionClipboard', () => {
         const settled = selectionClipboard.copy('first');
         // Both intermediate copies are intentionally left unawaited: the test asserts that only the
         // latest selection ('latest') is the one actually written once the writes settle.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void selectionClipboard.copy('stale intermediate');
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void selectionClipboard.copy('latest');
         expect(writes).toEqual(['first']);
         firstWrite.resolve();

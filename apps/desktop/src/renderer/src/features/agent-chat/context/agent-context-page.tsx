@@ -62,7 +62,6 @@ function ContextReportView({ terminalId }: { terminalId: string }) {
     );
     const model = composition?.model ?? data?.requests.at(-1)?.model;
     const refresh = () => {
-        // eslint-disable-next-line no-void -- a failed refresh surfaces through the query's error state
         void report.refetch();
     };
     return (

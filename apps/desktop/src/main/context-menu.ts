@@ -187,7 +187,6 @@ export function showContextMenu(
     return new Promise((resolve) => {
         const outcome = menuOutcome(resolve);
         if (isE2E) {
-            // eslint-disable-next-line no-void -- a superseded menu closes without a choice; nothing awaits it
             void e2eScope.caxriE2EContextMenu?.choose();
             const probe: E2EContextMenuProbe = {
                 items,

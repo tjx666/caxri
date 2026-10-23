@@ -17,7 +17,6 @@ export function deleteProject(projectId?: string): void {
             : bootstrap?.projects.find((candidate) => candidate.id === projectId);
     if (!bootstrap || !project) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('session.errors.deleteProjectFailed'), async () => {
         const result = await caxri.request('project.delete', { projectId: project.id });
         if ('canceled' in result) return;
@@ -39,7 +38,6 @@ export function hideSelectedProject(projectId?: string): void {
             : bootstrap?.projects.find((candidate) => candidate.id === projectId);
     if (!bootstrap || !project) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('session.errors.hideProjectFailed'), async () => {
         await caxri.request('project.hide', { projectId: project.id });
         await dropProjectFromWorkbench(bootstrap, project.id);

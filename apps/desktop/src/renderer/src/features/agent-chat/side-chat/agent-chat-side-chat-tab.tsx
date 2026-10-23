@@ -58,7 +58,6 @@ function SideChatHeader({
                     variant="secondary"
                     onClick={() => {
                         if (!canConvert) return;
-                        // eslint-disable-next-line no-void -- convertAgentChatSideChatToSession reports its own failures through tryCommand
                         void convertAgentChatSideChatToSession(terminalId);
                     }}
                 >
@@ -87,7 +86,6 @@ function SideChatComposer({ isBusy, terminalId }: { isBusy: boolean; terminalId:
           : 'agentChat.sideChat.askFirst';
     const send = (): void => {
         if (!canSend) return;
-        // eslint-disable-next-line no-void -- the answer or its failure is recorded on the thread
         void askAgentChatSideQuestion(terminalId, draft);
         setDraft('');
     };
@@ -174,7 +172,6 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
                                 key={exchange.id}
                                 onOpenFile={openFile}
                                 onRetry={() => {
-                                    // eslint-disable-next-line no-void -- the outcome is recorded on the exchange
                                     void retryAgentChatSideQuestion(terminalId, exchange.id);
                                 }}
                             />

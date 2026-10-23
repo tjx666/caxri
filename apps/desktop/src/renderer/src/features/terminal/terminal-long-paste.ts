@@ -138,7 +138,6 @@ export class TerminalLongPasteController {
         this.isPendingValue = true;
         this.options.onPendingChange(true);
         // The DOM paste listener must return synchronously after claiming the event; this method owns both outcomes.
-        // eslint-disable-next-line no-void -- `prepare` reports failures and releases the input gate
         void this.prepare(text);
         return true;
     }

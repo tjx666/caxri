@@ -233,7 +233,6 @@ const CommanderInboxReplyComposer = ({
                     accessibilityState={{ busy: isSending, disabled: !body || isSending }}
                     disabled={!body || isSending}
                     onPress={() => {
-                        // eslint-disable-next-line no-void -- The reply hook renders send failures.
                         void send();
                     }}
                     style={[

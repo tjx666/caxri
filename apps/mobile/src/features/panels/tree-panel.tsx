@@ -50,7 +50,6 @@ const TreeChildren = ({
             <PanelStatus
                 message={t(isOtherSession ? 'panels.treeOtherSession' : 'panels.loadFailed')}
                 onRetry={() => {
-                    // eslint-disable-next-line no-void -- The query renders its own error state.
                     void children.refetch();
                 }}
                 testID={isOtherSession ? 'tree-panel-other-session' : 'tree-panel-error'}

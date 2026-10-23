@@ -83,7 +83,6 @@ export async function didSelectSession(sessionId: string): Promise<boolean> {
 export function openSession(sessionId: string): void {
     if (getBootstrap()?.selectedSessionId === sessionId) return;
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didSelectSession(sessionId);
 }
 
@@ -104,7 +103,6 @@ function selectMruSession(sessionId: string): void {
     if (!previousSessionId || previousSessionId === sessionId) return;
     mruNavigationState.pendingSelection = { currentSessionId: sessionId, previousSessionId };
     // Fire-and-forget: the request funnels failures into a toast and completion only reconciles optimistic MRU data.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didRequestSessionSelection(sessionId).then((selected) => {
         if (mruNavigationState.pendingSelection?.currentSessionId !== sessionId) return;
         if (!selected || getBootstrap()?.selectedSessionId === sessionId)
@@ -120,7 +118,6 @@ export function selectProject(projectId: string): void {
           )
         : undefined;
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     if (session) void didSelectSession(session.id);
 }
 
@@ -177,7 +174,6 @@ export async function didReorderPinnedSession(
  */
 export function setSessionPinned(sessionId: string, shouldPin: boolean): void {
     // Fire-and-forget: `tryCommand` funnels its own failures into a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         translate(shouldPin ? 'session.errors.pinFailed' : 'session.errors.unpinFailed'),
         () => caxri.request('session.setPinned', { sessionId, pinned: shouldPin }),
@@ -219,7 +215,6 @@ function cachedSessionPullRequest(sessionId: string): SessionPullRequest | undef
  */
 export function openSessionPullRequest(pullRequest: Pick<SessionPullRequest, 'url'>): void {
     // Fire-and-forget: `openExternalUrl` reports its own failure through the toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void openExternalUrl(pullRequest.url, (message) => pushToast('error', message));
 }
 
@@ -279,7 +274,6 @@ export function openProjectInExternalEditor(
         : undefined;
     const targetProject = workbenchProject ?? project;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('session.errors.openInEditorFailed'), () =>
         sessionId === undefined
             ? caxri.request('project.openRoot', { projectId: project.id, application: 'editor' })
@@ -292,7 +286,6 @@ export function openProjectInExternalEditor(
 
 export function deleteSession(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('session.errors.deleteFailed'), async () => {
         const result = await caxri.request('session.delete', { sessionId });
         if ('canceled' in result) return;
@@ -310,7 +303,6 @@ export function deleteSession(sessionId: string): void {
 export function deleteSessions(sessionIds: readonly string[]): void {
     if (sessionIds.length === 0) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('session.errors.deleteFailed'), async () => {
         const result = await caxri.request('session.deleteMany', { sessionIds: [...sessionIds] });
         if ('canceled' in result) return;
@@ -337,7 +329,6 @@ export function deleteSelectedSession(): void {
 export function moveTerminalToNewSession(terminalId: string, isOnlyWorkTab = false): void {
     if (isOnlyWorkTab) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         translate('session.errors.moveToNewSessionFailed'),
         () => caxri.request('terminal.moveToNewSession', { terminalId }),
@@ -357,7 +348,6 @@ export function selectAdjacentSession(delta: 1 | -1): void {
     const next =
         activeSessions[(selectedIndex + delta + activeSessions.length) % activeSessions.length];
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didSelectSession(next.id);
 }
 
@@ -389,7 +379,6 @@ export function navigateSessionHistory(direction: SessionNavigationDirection): v
     // left to do here is report the outcome back, so the history moves only for a navigation that actually happened.
     // The request already registered itself with the history, which is why this does not go through
     // `didRequestSessionSelection`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didRequestSelection(request.target).then((selected) => {
         const history = useSessionNavigationHistoryStore.getState();
         if (selected) history.confirm(request);

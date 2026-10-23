@@ -83,7 +83,6 @@ export function reportTerminalOsc52ClipboardWriteFailure(
                 name: 'clipboard-write' as PermissionName,
             })
         ).state;
-    // eslint-disable-next-line no-void -- intentionally detached best-effort diagnostic
     void (async () => {
         try {
             const diagnostic = await createTerminalOsc52ClipboardWriteFailureDiagnostic(

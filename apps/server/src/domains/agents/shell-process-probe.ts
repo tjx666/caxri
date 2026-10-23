@@ -152,7 +152,6 @@ export class ShellProcessProbe {
         const timer = setTimeout(() => {
             if (this.watches.get(terminalId) !== watch || watch.timer !== timer) return;
             watch.timer = undefined;
-            // eslint-disable-next-line no-void -- the bounded observer owns and logs its asynchronous failures
             void this.inspectWatch(terminalId, watch);
         }, this.intervalMs);
         timer.unref();
@@ -197,7 +196,6 @@ export class ShellProcessProbe {
         /**
          * Detection owns its recoverable error path; synchronous output observers cannot await it.
          */
-        // eslint-disable-next-line no-void -- see comment above
         void this.detect(terminalId, shellPid, candidate);
     }
 

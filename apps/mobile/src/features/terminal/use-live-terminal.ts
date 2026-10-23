@@ -201,11 +201,9 @@ export const useLiveTerminal = ({
             if (heldLease) {
                 setHasLease(false);
                 sendControl(false);
-                // eslint-disable-next-line no-void -- Unsubscribe and Server lease cleanup remain the final fallback.
                 void request('mobile.terminal.release', heldLease).catch(() => {});
             }
             if (ownedHandle) {
-                // eslint-disable-next-line no-void -- The old stream is invalid immediately after a gap.
                 void unsubscribeQuietly(ownedHandle);
                 ownedHandle = null;
                 subscription.current = null;
@@ -217,7 +215,6 @@ export const useLiveTerminal = ({
             else setRetry((current) => current + 1);
         };
         if (shouldObserveTerminal({ isStopped, subscriptionAvailable, visible, webviewReady })) {
-            // eslint-disable-next-line no-void -- The effect owns the bounded subscription and its cleanup.
             void subscribe({ kind: 'terminal', terminalId }, (message) => {
                 if (!isActive || !isStreamActive || !webviewValid.current) return;
                 if (message.kind === 'resync-required') {
@@ -251,7 +248,6 @@ export const useLiveTerminal = ({
             })
                 .then((handle) => {
                     if (!isActive || !isStreamActive) {
-                        // eslint-disable-next-line no-void -- The stale handle belongs to the completed subscription setup.
                         void unsubscribeQuietly(handle);
                         return;
                     }
@@ -282,13 +278,11 @@ export const useLiveTerminal = ({
             if (ownedLease) {
                 setHasLease(false);
                 sendControl(false);
-                // eslint-disable-next-line no-void -- Server also releases on unsubscribe and disconnect.
                 void request('mobile.terminal.release', ownedLease).catch(() => {});
             }
             const handle = subscription.current;
             subscription.current = null;
             if (handle) {
-                // eslint-disable-next-line no-void -- Server tears down the observer even if this best-effort ACK is lost.
                 void handle.unsubscribe().catch(() => {});
             }
         };
@@ -430,7 +424,6 @@ export const useLiveTerminal = ({
                     target,
                 })
             ) {
-                // eslint-disable-next-line no-void -- The Server also releases when the old subscription closes.
                 void request('mobile.terminal.release', target).catch(() => {});
                 return;
             }
@@ -495,7 +488,6 @@ export const useLiveTerminal = ({
                         const target = lease.current;
                         const next = size.current;
                         if (!target || !next) return;
-                        // eslint-disable-next-line no-void -- A failed resize keeps the previous lease size.
                         void request('mobile.terminal.takeOver', { ...target, ...next })
                             .then(() => {
                                 if (lease.current === target)
@@ -554,7 +546,6 @@ export const useLiveTerminal = ({
         )
             return;
         autoTakeOver.current.attemptedSubscriptionId = subscriptionId;
-        // eslint-disable-next-line no-void -- The hook reports takeover failures in the UI.
         void takeOverReference.current();
     }, [canTakeOver, hasSubscription, leased]);
     useEffect(() => {

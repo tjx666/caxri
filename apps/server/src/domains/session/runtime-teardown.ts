@@ -40,7 +40,6 @@ export function createSessionRuntimeForgetter(
         parts.transcripts.forgetSession(sessionId);
         parts.settlementWiring.forgetSession(sessionId);
         parts.terminals.terminateSession(sessionId);
-        // eslint-disable-next-line no-void -- Session teardown is synchronous; provider exit completes on its own.
         void parts.agentChat.closeSession(sessionId);
         parts.agentRuntime.revokeAutoAllow(sessionId, 'sessionDeleted'); // Archive keeps it (caxri#1295).
     };

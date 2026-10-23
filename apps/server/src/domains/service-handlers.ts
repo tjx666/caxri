@@ -464,10 +464,8 @@ export function createServiceHandlers(services: {
             const result = await git.mergePullRequest(parameters);
             // Fire-and-forget: the notice logs its own outcome. It runs before the refresh starts so the notice's
             // once-per-pull-request record is written before the refresh can detect this same merge.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard
             void noticeMergedPullRequest(parameters.sessionId, result.url, { origin: 'caxri' });
             // Fire-and-forget: the refresh logs its own failure, and the merge already succeeded.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard
             void refreshAfterMerge(sessionPullRequests, parameters.sessionId, parameters.number);
             return result;
         },
@@ -529,7 +527,6 @@ export function createServiceHandlers(services: {
         },
         'session.refreshDeliveryOnFocus': ({ sessionId }) => {
             // Fire-and-forget: the refresh logs its own outcome and the change events converge the UI.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void deliveryFocusRefresh.request(sessionId);
             return null;
         },

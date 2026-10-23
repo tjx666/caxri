@@ -51,7 +51,6 @@ export const createReadCache = (files: ReadCacheFiles, now: () => number = Date.
      * Writes everything still waiting, for an app moving to the background where timers may never fire.
      */
     const flush = (): void => {
-        // eslint-disable-next-line no-void -- the Expo backend is synchronous, so the writes already ran
         void store.flush();
     };
 

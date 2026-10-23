@@ -12,7 +12,6 @@ export function useAgentChatOpenFile(terminalId: string): (reference: string) =>
     return useCallback(
         (reference: string) => {
             const { target, location } = parseTerminalFileLocation(reference);
-            // eslint-disable-next-line no-void -- the opener reports its own failures as toasts
             void openTerminalFileTarget(terminalId, target, location, {
                 hasWorkbenchLinks: terminalPaneHost().hasWorkbenchLinks,
             });

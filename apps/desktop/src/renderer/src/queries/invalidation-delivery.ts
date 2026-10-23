@@ -24,7 +24,6 @@ export const PULL_REQUESTS_QUERY_KEY: readonly [CaxriMethod] = ['session.pullReq
  */
 export function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: string): void {
     // Fire-and-forget: the refreshed query surfaces any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -50,17 +49,14 @@ export function invalidateSessionPullRequestDependentQueries(
     sessionIds: readonly string[],
 ): void {
     // Fire-and-forget: the refreshed query surfaces any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
     // A pull request changing state (merged in Caxri or elsewhere) also moves the icon and text of every transcript link
     // and tracker card that previews it; only mounted readers refetch, and the Server's reference cache is short for an
     // open pull request.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         queryKey: ['terminal.reference.preview' satisfies CaxriMethod],
     });
     const sessionIdSet = new Set(sessionIds);
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -84,7 +80,6 @@ export function invalidateSessionPullRequestDependentQueries(
  */
 export function invalidateDeliveryStatusQueries(queryClient: QueryClient): void {
     // Fire-and-forget: the refreshed queries surface any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             return isQueryMethod(query.queryKey, 'projectStatus.summary', 'session.pullRequests');

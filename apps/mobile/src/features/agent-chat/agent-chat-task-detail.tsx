@@ -276,7 +276,6 @@ const TaskStatusRow = ({
                     onCancel={() => setConfirmingStop(false)}
                     onStop={() => {
                         setConfirmingStop(false);
-                        // eslint-disable-next-line no-void -- The detail reports a failed stop itself.
                         void stopper.stop(task.id);
                     }}
                     theme={theme}

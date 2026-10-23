@@ -91,7 +91,6 @@ export const ArchivedSessionsScreen = () => {
     const { refetch } = archived;
     const restore = useCallback(
         (sessionId: string): void => {
-            // eslint-disable-next-line no-void -- The hook renders restore failures.
             void management.restore(sessionId).then((done) => (done ? refetch() : undefined));
         },
         [management, refetch],
@@ -172,7 +171,6 @@ export const ArchivedSessionsScreen = () => {
                     ) : undefined
                 }
                 onRefresh={() => {
-                    // eslint-disable-next-line no-void -- The query renders refresh failures.
                     void refetch();
                 }}
                 refreshing={archived.isRefetching}

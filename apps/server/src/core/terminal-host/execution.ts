@@ -154,7 +154,6 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     private background(promise: Promise<unknown>, method: string, terminalId?: string): void {
-        // eslint-disable-next-line no-void -- Synchronous hot paths preserve acceptance while this observer records failure.
         void observeBackgroundFailure(this.logger, promise, method, terminalId);
     }
 

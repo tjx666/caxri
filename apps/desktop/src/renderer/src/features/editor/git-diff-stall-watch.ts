@@ -206,7 +206,6 @@ export class GitDiffStallWatch {
             return 'settled';
         })();
 
-        // eslint-disable-next-line no-void -- this watcher owns its observation and never reports failures upward.
         void (async (): Promise<void> => {
             const first = await Promise.race([settled, stalled]);
             if (timer !== undefined) clearTimeout(timer);

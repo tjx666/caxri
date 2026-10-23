@@ -108,7 +108,6 @@ export function useAgentChatComposerInput({
             return false;
         }
         // The card is reserved now: the folder probe holds Send until the card is attached.
-        // eslint-disable-next-line no-void -- addPathsWhenResolved reports nothing to wait for
         void images.addPathsWhenResolved(agentChatOsFileReferences(files));
         return true;
     };

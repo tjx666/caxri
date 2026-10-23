@@ -627,7 +627,6 @@ export class GitRepoService {
         this.retainReferencedRepositoryState();
         // Fire-and-forget: eviction must never block on watcher teardown; failures downgrade to
         // the watcher's own polling fallback and are logged there.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void this.metadataWatcher?.retainOnly(this.options.tracker.referencedRepositoryKeys());
     }
 

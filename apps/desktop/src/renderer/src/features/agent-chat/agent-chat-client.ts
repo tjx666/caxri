@@ -86,7 +86,6 @@ const taskChannel: RevisionChannel<AgentChatTaskPatch, AgentChatTaskSnapshot> = 
 };
 
 function invalidate(queryClient: QueryClient, queryKey: readonly unknown[]): void {
-    // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
     void queryClient.invalidateQueries({ queryKey, exact: true });
 }
 
@@ -216,7 +215,6 @@ export function createAgentChatTaskPatchCache(queryClient: QueryClient) {
  * its snapshot.
  */
 function invalidateAgentChatQueries(queryClient: QueryClient): void {
-    // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
     void queryClient.invalidateQueries({
         predicate: (query) => isQueryMethod(query.queryKey, 'agentChat.read', 'agentChat.readTask'),
     });

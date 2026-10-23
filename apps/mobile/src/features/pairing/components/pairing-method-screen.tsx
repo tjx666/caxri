@@ -91,7 +91,6 @@ const ScanControls = ({
                 <ActionButton
                     accessibilityHint={t('pairing.openSettingsHint')}
                     onPress={() => {
-                        // eslint-disable-next-line no-void -- Opening system Settings has no in-app result to await.
                         void Linking.openSettings();
                     }}
                     testID="pairing-camera-settings-button"
@@ -178,7 +177,6 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
         (source: string): void => {
             if (lastScannedValue.current === source) return;
             lastScannedValue.current = source;
-            // eslint-disable-next-line no-void -- The scanner owns this single in-flight pairing attempt.
             void pair(source);
         },
         [pair],

@@ -91,7 +91,6 @@ export function createExternalDocumentWatcher(options: ExternalDocumentWatcherOp
             documentId,
             setTimeout(() => {
                 timers.delete(documentId);
-                // eslint-disable-next-line no-void -- `check` never rejects
                 void check(documentId);
             }, settleMs),
         );

@@ -248,7 +248,6 @@ export class MobileGatewaySubscriptions {
 
     renewLeases(): void {
         for (const subscription of this.#subscriptions.values())
-            // eslint-disable-next-line no-void -- Each Host lease renews independently of heartbeat acknowledgement.
             if (subscription.terminal) void subscription.terminal.renewLease();
     }
 
@@ -263,7 +262,6 @@ export class MobileGatewaySubscriptions {
         subscription.active = false;
         this.#subscriptions.delete(id);
         subscription.closeWatch?.();
-        // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
         if (subscription.terminal) void subscription.terminal.close();
     }
 
@@ -272,7 +270,6 @@ export class MobileGatewaySubscriptions {
         for (const subscription of this.#subscriptions.values()) {
             subscription.active = false;
             subscription.closeWatch?.();
-            // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
             if (subscription.terminal) void subscription.terminal.close();
         }
         this.#subscriptions.clear();
@@ -367,7 +364,6 @@ export class MobileGatewaySubscriptions {
         if (!resolveRoot || !this.#isActive(subscription)) return;
         const refresh = Symbol('agentChatRootRefresh');
         subscription.agentChatRootRefresh = refresh;
-        // eslint-disable-next-line no-void -- the refresh catches its own failures; publish must not wait for it
         void this.#applyAgentChatProjectRoot(subscription, terminalId, resolveRoot, refresh);
     }
 
@@ -461,7 +457,6 @@ export class MobileGatewaySubscriptions {
             kind: 'resync-required',
             reason: 'capacity',
         };
-        // eslint-disable-next-line no-void -- Resync send handles its own failure and runs independently of other subscriptions.
         void this.#sendResync(subscription, payload);
     }
 

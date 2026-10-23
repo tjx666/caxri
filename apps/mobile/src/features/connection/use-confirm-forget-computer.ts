@@ -19,7 +19,6 @@ export const useConfirmForgetComputer = (hostDisplayName: string): (() => void) 
                 { style: 'cancel', text: t('common.cancel') },
                 {
                     onPress: () => {
-                        // eslint-disable-next-line no-void -- Forgetting redirects to pairing on success.
                         void forgetDevice();
                     },
                     style: 'destructive',

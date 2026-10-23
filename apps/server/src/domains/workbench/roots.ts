@@ -481,7 +481,6 @@ export class WorkbenchRootService {
         this.rememberObservedAgentCwd(signal.terminalId, reported);
         // The hook callback is synchronous; `runQueued` already logs the failure, and a lost reconciliation is retried
         // by the next divergent report.
-        // eslint-disable-next-line no-void -- the reconciliation owns and contains its asynchronous failure
         void this.runQueued(() => this.reconcileAgentCwd(signal, reported)).catch(() => {});
     }
 

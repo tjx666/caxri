@@ -105,7 +105,6 @@ export function StatusItem({
                         // Main denies every `window.open`/target=_blank navigation, so this anchor
                         // is semantic only; the actual navigation goes through `external.open`.
                         event.preventDefault();
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
                         void openExternalUrl(href, (message) => pushToast('error', message));
                     }}
                 >

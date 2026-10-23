@@ -111,9 +111,7 @@ export function useFileTreeRows({
     // `enabled: false` only blocks new fetches; a panel hidden mid-request cancels what is already in flight.
     useEffect(() => {
         if (isContainerActive) return;
-        for (const queryKey of queryKeys)
-            // eslint-disable-next-line no-void -- cancellation is best-effort against the shared cache
-            void cancelViewContainerQuery(queryClient, queryKey);
+        for (const queryKey of queryKeys) void cancelViewContainerQuery(queryClient, queryKey);
     }, [isContainerActive, queryClient, queryKeys]);
 
     // One toast per failure, the same contract `useToastOnQueryError` gives a single query.

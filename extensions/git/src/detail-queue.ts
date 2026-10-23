@@ -36,7 +36,6 @@ export class DetailQueue {
          * Start the async wrapper in the originating provider call's AsyncLocalStorage context. Deferring `task.run`
          * from a previous scope's completion callback would bind its authorized workspace requests to that scope.
          */
-        // eslint-disable-next-line no-void -- the bounded queue owns completion and cancellation
         void (async () => {
             await this.acquireSlot();
             try {

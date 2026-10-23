@@ -265,7 +265,6 @@ export class ControlServer {
         };
         if (shouldSettleOutsideLane) {
             // Admission is already ordered; this completion owns its own failure handling.
-            // eslint-disable-next-line no-void -- authoritative reply settles independently
             void settle();
         } else await settle();
     }

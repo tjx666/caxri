@@ -194,7 +194,6 @@ export function didExecuteViewCatalogCommand(
         return true;
     }
     // Fire-and-forget: dispatchExtensionViewAction() owns the shared error path for Renderer command entry points.
-    // eslint-disable-next-line no-void -- the command is dispatched exactly once and reports failures through a toast
     void dispatchExtensionViewAction(commandId, command.title, arguments_);
     return true;
 }

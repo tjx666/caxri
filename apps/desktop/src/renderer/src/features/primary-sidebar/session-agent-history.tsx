@@ -79,7 +79,6 @@ export function SessionAgentHistory({
                         entry={entry}
                         onReopen={() => {
                             onReopen();
-                            // eslint-disable-next-line no-void -- the command reports its own failure in a toast
                             void reopenSessionConversation(sessionId, entry);
                         }}
                     />

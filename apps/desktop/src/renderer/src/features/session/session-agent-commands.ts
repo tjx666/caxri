@@ -63,7 +63,6 @@ export function detachSession(sessionId: string): void {
     const failureTitle = translate('session.errors.detachFailed');
     const detach = (): void => {
         // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void tryCommand(failureTitle, () => caxri.request('session.detach', { sessionId }), {
             refresh: refreshWorkbench,
         });
@@ -72,7 +71,6 @@ export function detachSession(sessionId: string): void {
         detach();
         return;
     }
-    // eslint-disable-next-line no-void -- the confirmation and the detach report their own errors
     void confirmBeforeEndingTurn(
         terminalId,
         {
@@ -86,7 +84,6 @@ export function detachSession(sessionId: string): void {
 
 export function resumeSession(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         translate('session.errors.resumeFailed'),
         () => caxri.request('session.resume', { sessionId }),
@@ -113,7 +110,6 @@ export function resumeSelectedSession(): void {
  */
 export function copyAgentSessionId(agentSessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('session.errors.copyConversationIdFailed'), async () => {
         await navigator.clipboard.writeText(agentSessionId);
         pushToast('success', translate('session.agent.conversationIdCopied'));
@@ -127,7 +123,6 @@ export function copyAgentSessionId(agentSessionId: string): void {
  */
 export function copyAgentTranscriptPath(terminalId: string): void {
     // Fire-and-forget: `tryCommand` funnels the failure into a toast internally, and `copyFilePath` reports its own.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('session.errors.copyTranscriptPathFailed'), async () => {
         const transcript = await caxri.request('terminal.agentTranscript', {
             terminalId,

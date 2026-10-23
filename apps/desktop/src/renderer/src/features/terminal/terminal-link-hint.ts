@@ -324,7 +324,6 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
                         // basic card stays up rather than turning a hover into a notification.
                     }
                 };
-                // eslint-disable-next-line no-void -- the popup is fire-and-forget; `applyPreview` absorbs every failure
                 void applyPreview();
             }, TERMINAL_LINK_HINT_DELAY_MS);
         },

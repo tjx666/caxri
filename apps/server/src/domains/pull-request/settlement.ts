@@ -155,7 +155,6 @@ export class PullRequestSettlement {
             if (reason !== 'agent-busy') {
                 entry.timer = setTimeout(
                     () => {
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard
                         void this.attempt(sessionId);
                     },
                     reason === 'notice-turn'
@@ -199,7 +198,6 @@ export class PullRequestSettlement {
         if (!previous || !next || previous.url !== next.url) return;
         if (!isSettled(previous.state) && isSettled(next.state)) {
             // Fire-and-forget: the notice logs its own outcome and the archive decision runs when it settles.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void this.settle(sessionId, next);
             return;
         }
@@ -214,7 +212,6 @@ export class PullRequestSettlement {
         if (!entry) return;
         if (to === 'running') entry.quietUntil = 0;
         // Fire-and-forget: attempt() logs and swallows its own failures.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void this.attempt(sessionId);
     }
 

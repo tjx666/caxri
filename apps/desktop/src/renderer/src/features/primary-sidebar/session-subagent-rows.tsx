@@ -102,7 +102,6 @@ export function SessionSubagentRows({
         const title = subagent.title || t('agentChat.tasks.subagent');
         const open = (): void => {
             // Fire-and-forget: the selection reports its own failures through a toast.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard
             void openSessionSubagent(sessionId, terminalId, subagent.taskId);
         };
         const isSelected = subagent.taskId === activeTaskId;

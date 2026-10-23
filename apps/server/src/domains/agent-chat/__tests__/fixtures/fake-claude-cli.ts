@@ -343,7 +343,6 @@ const scenarioIo: FakeClaudeIo = {
     subagentDirectory: path.join(path.dirname(transcriptPath), sessionId, 'subagents'),
     startAutoTurn: () => {
         state.queued.push({ text: '', content: undefined, isAuto: true });
-        // eslint-disable-next-line no-void -- the turn loop reports through stdout
         void drain();
     },
 };
@@ -419,7 +418,6 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         await didStreamFully('Started the job in the background.', 0);
         result(startedAt, 'done');
         setTimeout(() => {
-            // eslint-disable-next-line no-void -- the follow-up turn reports through stdout
             void continueAfterBackgroundTask();
         }, 100);
         return;
@@ -591,7 +589,6 @@ lines.on('line', (line) => {
     }
     if (message.type === 'user') {
         state.queued.push(queuedTurn(message));
-        // eslint-disable-next-line no-void -- the turn loop reports through stdout
         void drain();
     }
 });

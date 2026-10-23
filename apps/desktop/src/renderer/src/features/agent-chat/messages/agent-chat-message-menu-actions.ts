@@ -23,7 +23,6 @@ export function agentChatSelectionInside(container: HTMLElement | null): string 
  * since a native menu entry, unlike the hover row's Copy button, has no check mark to turn into.
  */
 export function copyAgentChatMessageFromMenu(value: string, isSelection: boolean): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed copy through the toast
     void tryCommand(translate('agentChat.userMenu.copyFailed'), async () => {
         await navigator.clipboard.writeText(value);
         pushToast(

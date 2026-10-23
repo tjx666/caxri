@@ -23,6 +23,5 @@ export const openLink = (
         navigate(url);
         return;
     }
-    // eslint-disable-next-line no-void -- openExternalLink reports a refused link itself.
     void openExternal(url);
 };

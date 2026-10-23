@@ -31,7 +31,6 @@ const badgeToneClassNames: Record<NonNullable<RichTooltip['badge']>['tone'], str
 };
 
 function openTooltipUrl(url: string): void {
-    // eslint-disable-next-line no-void -- openExternalUrl reports failures through the shared toast path.
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 

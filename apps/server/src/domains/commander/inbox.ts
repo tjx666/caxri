@@ -231,11 +231,9 @@ export class CommanderInboxService {
     start(): void {
         this.announceUnacknowledged();
         this.timer = setInterval(() => {
-            // eslint-disable-next-line no-void -- the refresh logs its own failures
             void this.refresh();
         }, this.options.refreshIntervalMs ?? COMMANDER_INBOX_REFRESH_MS);
         this.timer.unref();
-        // eslint-disable-next-line no-void -- the refresh logs its own failures
         void this.refresh();
     }
 
@@ -295,7 +293,6 @@ export class CommanderInboxService {
         });
         this.changed([item.id]);
         if (item.kind === 'merge')
-            // eslint-disable-next-line no-void -- the refresh logs its own failures
             void this.refreshItem(item, true).then((changed) => changed && this.changed([item.id]));
         return this.present(item);
     }

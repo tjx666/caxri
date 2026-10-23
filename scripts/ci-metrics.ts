@@ -107,7 +107,6 @@ async function main(): Promise<void> {
         // Sampling failures must not crash the periodic timer; `sample()` already
         // swallows its own errors internally, so this async IIFE is a defensive
         // backstop against any unexpected rejection.
-        // eslint-disable-next-line no-void -- fire-and-forget periodic sampler tick; failures are non-fatal by design
         void (async (): Promise<void> => {
             try {
                 await sample();

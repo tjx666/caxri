@@ -106,7 +106,6 @@ export class ResidentPoll {
         const timer = clock.setTimer(() => {
             this.timer = undefined;
             // Fire-and-forget: `run` owns its own failure logging and re-arms the timer either way.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void this.run();
         }, delayMs);
         // Never hold the Server process open for a background refresh.

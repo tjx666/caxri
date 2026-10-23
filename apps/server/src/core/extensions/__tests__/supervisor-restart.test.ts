@@ -90,7 +90,6 @@ describe('ExtensionHostSupervisor restart', () => {
         const outcome = (promise: Promise<unknown>): { error?: unknown; settled: boolean } => {
             const state: { error?: unknown; settled: boolean } = { settled: false };
             // Observed without awaiting: the assertion is that the promise already settled, not that it eventually does.
-            // eslint-disable-next-line no-void -- the IIFE records the outcome; the test inspects `state` synchronously
             void (async () => {
                 try {
                     await promise;

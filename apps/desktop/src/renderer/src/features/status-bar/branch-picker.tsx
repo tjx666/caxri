@@ -77,7 +77,6 @@ export function BranchPicker({
                         disabled={Boolean(switching)}
                         className="items-center text-[13px]"
                         onSelect={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
                             void selectBranch(name);
                         }}
                     >

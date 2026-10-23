@@ -71,7 +71,6 @@ export function GitReviewSend({
                         variant="ghost"
                         aria-label={t('editor.reviewSend.clearResolved')}
                         onClick={() => {
-                            // eslint-disable-next-line no-void -- floating-promise discard: list refetches via `gitReview.changed`
                             void clearResolvedGitReviewComments(sessionId, repositoryId);
                         }}
                     >

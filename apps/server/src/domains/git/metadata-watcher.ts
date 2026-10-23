@@ -206,7 +206,6 @@ export class GitMetadataWatcher {
         if (worktreeNames.size === 0 && referenceNames.size === 0) return;
         // Fire-and-forget: the watcher callback is synchronous, and resolving worktree roots
         // must never block draining the next batch of native events.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void this.resolveAffectedRoots(repoKey, entry, worktreeNames, referenceNames).then(
             (roots) => {
                 if (roots.length > 0) this.options.onStatusChanged(repoKey, roots);

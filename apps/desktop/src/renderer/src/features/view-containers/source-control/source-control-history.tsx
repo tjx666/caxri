@@ -76,7 +76,6 @@ export function SourceControlHistory({
     const toggleExpanded = () => {
         setExpanded((value) => !value);
         if (!expanded) {
-            // eslint-disable-next-line no-void -- the shared catalog dispatcher owns command failures
             void executeViewCatalogShortcut(
                 descriptor.command.id,
                 descriptor.command.arguments ?? [],
@@ -278,7 +277,6 @@ export function SourceControlHistory({
                                         pushToast('warning', refreshingActionMessage());
                                         return;
                                     }
-                                    // eslint-disable-next-line no-void -- loadPage owns its loading and error state
                                     void loadPage(nextOffset, false);
                                 }}
                             >

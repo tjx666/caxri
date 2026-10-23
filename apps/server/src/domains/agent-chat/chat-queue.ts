@@ -533,7 +533,6 @@ export class ChatFollowUpQueue {
     dispatch(): void {
         if (this.isRetired || !this.isIdle()) return;
         this.isDispatching = true;
-        // eslint-disable-next-line no-void -- a failed dispatch pauses the queue and is logged; nobody awaits it.
         void this.dispatchNext();
     }
 }

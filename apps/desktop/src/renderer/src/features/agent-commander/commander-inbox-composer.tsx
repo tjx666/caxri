@@ -106,7 +106,6 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
                         }
                         onClick={() => {
                             // Fire-and-forget: the reply command reports its own failure through a toast.
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                             void composer.send();
                         }}
                     >

@@ -273,7 +273,6 @@ export class MobileTerminalObserver {
     #drain(): void {
         if (!this.#activated || !this.#observed || this.#sending || !this.#active) return;
         this.#sending = true;
-        // eslint-disable-next-line no-void -- The observer owns its independent bounded output task.
         void this.#run().finally(() => {
             this.#sending = false;
             if (

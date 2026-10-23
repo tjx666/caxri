@@ -79,7 +79,6 @@ export function WorkbenchRootPrompt() {
                 promptReference.current?.focus({ preventScroll: true });
                 return;
             }
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, the command reports its own errors
             void runOnce(() => dismissWorkbenchCandidate(sessionId, candidate));
         };
         addEventListener('keydown', onKeyDown, { capture: true });
@@ -117,7 +116,6 @@ export function WorkbenchRootPrompt() {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, the command reports its own errors
                         void runOnce(() => dismissWorkbenchCandidate(sessionId, candidate));
                     }}
                 >
@@ -127,7 +125,6 @@ export function WorkbenchRootPrompt() {
                     disabled={pending}
                     size="sm"
                     onClick={() => {
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, the command reports its own errors
                         void runOnce(() => continueSessionInWorktree(sessionId, candidate));
                     }}
                 >

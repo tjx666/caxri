@@ -169,7 +169,6 @@ export const useAgentChat = ({
     useEffect(() => {
         if (terminalId === null || connectionScopeKey === null) return;
         let isActive = true;
-        // eslint-disable-next-line no-void -- A missing or unreadable copy leaves the Chat loading as before.
         void readCache
             .load(connectionScopeKey, { kind: 'chat', terminalId }, cachedChatSchema)
             .then((entry) => {

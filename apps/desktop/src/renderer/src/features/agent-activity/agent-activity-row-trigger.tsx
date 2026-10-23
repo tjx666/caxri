@@ -148,7 +148,6 @@ export function AgentActivityRowTrigger({
             }}
             onClick={() => {
                 // Fire-and-forget: the selection reports its own failures through a toast.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard
                 if (!isRenaming && !selected) void didSelectSession(session.id);
             }}
             onDoubleClick={beginRename}
@@ -164,7 +163,6 @@ export function AgentActivityRowTrigger({
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     // Fire-and-forget: the selection reports its own failures through a toast.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard
                     if (!selected) void didSelectSession(session.id);
                     return;
                 }

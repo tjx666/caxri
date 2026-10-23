@@ -30,6 +30,12 @@ contract tests own anything that needs to walk the tree, compare multiple files,
 `package.json`/`pnpm-workspace.yaml` shape, the same split the pre-existing `workspace-contract`,
 Server `structure`, and Renderer `design-contract` tests already used.
 
+Intentional fire-and-forget calls are written as a `void promise;` statement, which satisfies
+oxlint's `typescript/no-floating-promises`. ESLint's `no-void` is configured with
+`allowAsStatement: true` so the statement form needs no disable comment; `void` inside an
+expression (for example an arrow body `() => void run()`) stays banned, so prefer a block body
+`() => { void run(); }` there.
+
 ## Where each convention is enforced
 
 ### Already enforced before this stage

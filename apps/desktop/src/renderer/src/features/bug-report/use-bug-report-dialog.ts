@@ -261,7 +261,6 @@ export function useBugReportDialog() {
                     });
             }
         }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void loadContext();
         return () => {
             isCurrent = false;
@@ -312,7 +311,6 @@ export function useBugReportDialog() {
     useEffect(() => {
         if (hasRequestedCapture.current) return;
         hasRequestedCapture.current = true;
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, captureScreenshot() reports its own errors
         void captureScreenshot(false);
     }, []);
 

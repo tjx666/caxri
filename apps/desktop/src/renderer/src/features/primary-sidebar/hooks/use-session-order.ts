@@ -201,7 +201,6 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
             });
             if (!target) return;
             // Keyboard reordering uses the same relative Server command and error reporting as dragging.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard
             void persist(sessionId, target);
         },
         [draggedId, groupOf, latestSessions, persist],
@@ -214,7 +213,6 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
             event.stopPropagation();
             setDropTarget(undefined);
             // The command owns error reporting; finally releases the frozen view even after failure.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard
             void persist(draggedId, target);
         },
         [targetAt, draggedId, persist],

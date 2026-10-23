@@ -193,7 +193,6 @@ export class SessionSearchIndex {
             case 'unavailable': {
                 logger.write('warn', logEventCatalog.sessionSearch.indexUnavailable, {});
                 this.unavailableUntil = this.now() + UNAVAILABLE_RETRY_MS;
-                // eslint-disable-next-line no-void -- termination is best-effort; pending requests already failed
                 void this.stop('unavailable');
                 return;
             }
@@ -253,7 +252,6 @@ export class SessionSearchIndex {
                 this.scheduleIdle();
                 return;
             }
-            // eslint-disable-next-line no-void -- termination is best-effort; nothing waits on an idle stop
             void this.stop('idle');
         }, this.options.idleTimeoutMs ?? IDLE_TIMEOUT_MS);
         this.idleTimer.unref();

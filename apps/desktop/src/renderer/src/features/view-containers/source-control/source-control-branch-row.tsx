@@ -76,7 +76,6 @@ export function SourceControlBranchRow({
                     event.target instanceof Element &&
                     event.target.closest('[data-branch-sync-badge]') !== null;
                 if (isOnBadge && syncAction) {
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, a declined confirmation is the only outcome to handle
                     void caxri.window
                         .showConfirm(branchSyncConfirmRequest(provider, syncAction, t))
                         .then((isConfirmed) => isConfirmed && runAction(syncAction));

@@ -38,6 +38,5 @@ export function saveRetryUnavailableReason(target: SaveRetryTarget): string | un
 export function retrySaveDocument(target: SaveRetryTarget): void {
     const resolved = retrySaveTarget(target);
     if (!resolved) return;
-    // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
     void didSaveDocumentAt(target.sessionId, resolved.path);
 }

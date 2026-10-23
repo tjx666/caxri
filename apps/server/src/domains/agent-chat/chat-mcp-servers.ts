@@ -290,7 +290,6 @@ export function createChatMcpServerWatch(options: {
         schedule(() => {
             state.isBusy = false;
             const current = options.lookup();
-            // eslint-disable-next-line no-void -- the retry publishes its own result and swallows its failure
             if (current && shouldLookUp(name)) void lookUp(name, current);
         }, RETRY_AFTER_MS);
     };
@@ -300,7 +299,6 @@ export function createChatMcpServerWatch(options: {
             const lookup = options.lookup();
             if (!lookup) return;
             for (const name of calledMcpServers(operations))
-                // eslint-disable-next-line no-void -- the lookup publishes its own result and swallows its failure
                 if (shouldLookUp(name)) void lookUp(name, lookup);
         },
     };

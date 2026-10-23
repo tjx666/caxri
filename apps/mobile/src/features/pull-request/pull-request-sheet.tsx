@@ -61,7 +61,6 @@ export const PullRequestSheet = ({
     const isMerging = state.merge.state === 'merging';
     const merge = (): void => {
         setConfirming(false);
-        // eslint-disable-next-line no-void -- The hook renders the merge outcome.
         void state.startMerge(pullRequest);
     };
     return (

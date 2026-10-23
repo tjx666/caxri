@@ -155,7 +155,6 @@ export function dispatchGlobalKeydown(
                 event.preventDefault();
                 event.stopPropagation();
                 // Fire-and-forget: the manifest lookup is the fail-safe gate for a cold extension catalog.
-                // eslint-disable-next-line no-void -- one keydown owns one asynchronous policy lookup
                 void executeEditableViewCatalogShortcut(
                     commandId,
                     binding.args ? [binding.args] : [],
@@ -177,7 +176,6 @@ export function dispatchGlobalKeydown(
         );
     else {
         // Fire-and-forget: the shared shortcut helper reports catalog and command failures through toasts.
-        // eslint-disable-next-line no-void -- one keydown owns one asynchronous extension command dispatch
         void executeViewCatalogShortcut(commandId, binding.args ? [binding.args] : []);
     }
 }

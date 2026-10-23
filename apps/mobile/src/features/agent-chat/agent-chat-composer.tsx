@@ -469,7 +469,6 @@ export const AgentChatComposer = ({
                 <ImageSourceSheet
                     onClose={() => setChoosingImage(false)}
                     onPick={(source) => {
-                        // eslint-disable-next-line no-void -- The hook reports attach failures itself.
                         void images.add(source);
                     }}
                     theme={theme}

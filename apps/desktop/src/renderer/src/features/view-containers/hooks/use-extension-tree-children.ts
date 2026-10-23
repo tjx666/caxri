@@ -241,7 +241,6 @@ export function useExtensionTreeChildren(
             });
             return;
         }
-        // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
         void loadChildren(ROOT_HANDLE);
         const unsubscribe = caxri.onEvent((event) => {
             if (
@@ -255,13 +254,11 @@ export function useExtensionTreeChildren(
                 return;
             if (!event.payload.handles) {
                 resetLoadedChildren();
-                // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
                 void loadChildren(ROOT_HANDLE);
                 return;
             }
             const handles = event.payload.handles;
             for (const handle of handles) {
-                // eslint-disable-next-line no-void -- each changed branch reports failures in the tree's error row
                 void loadChildren(handle);
             }
         });

@@ -71,7 +71,6 @@ export function beginSessionCreation(
     const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
     if (defaultAgent) {
         // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void createSession(projectId, defaultAgent);
         return;
     }
@@ -95,7 +94,6 @@ export function openSessionCreationMenu(projectId: string, anchor: CreateSession
 export function chooseSessionTerminalKind(projectId: string, kind: TerminalKind | null): void {
     useDialogStore.getState().closeCreateSessionMenu();
     // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void createSession(projectId, kind);
 }
 
@@ -143,7 +141,6 @@ export function cancelPendingSession(): void {
     if (pendingRoot) {
         // Fire-and-forget: revoking an abandoned folder-picker grant has no UI-visible outcome
         // to await, and a failure here has nothing left to affect besides the grant itself.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void caxri.request('project.cancelCreate', { rootPath: pendingRoot });
     }
     clearPendingSession();
@@ -154,10 +151,8 @@ export function confirmPendingSession(kind: TerminalKind | null): void {
     // Fire-and-forget: both `createProjectSession` and `createSession` funnel their own failures
     // into a toast via `tryCommand`.
     if (pendingRoot) {
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void createProjectSession(pendingRoot, kind);
     } else if (pendingProjectId) {
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void createSession(pendingProjectId, kind);
     }
 }

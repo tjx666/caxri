@@ -338,7 +338,6 @@ export const useImageAttachments = (
                     {
                         text: t('common.retry'),
                         onPress: () => {
-                            // eslint-disable-next-line no-void -- A failed retry marks the image failed again.
                             void retry(id);
                         },
                     },

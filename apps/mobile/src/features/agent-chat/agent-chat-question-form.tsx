@@ -232,7 +232,6 @@ const QuestionActions = ({
                 isPending={actions.pendingAction === 'agent-chat-question-skip'}
                 label={t('chat.question.skip')}
                 onPress={() => {
-                    // eslint-disable-next-line no-void -- The card reports a failed answer itself.
                     void actions.respond('agent-chat-question-skip', {
                         kind: 'decision',
                         decision: 'cancel',
@@ -270,7 +269,6 @@ const QuestionActions = ({
                     isPending={actions.pendingAction === 'agent-chat-question-submit'}
                     label={t('chat.question.submit')}
                     onPress={() => {
-                        // eslint-disable-next-line no-void -- The card reports a failed answer itself.
                         void actions.respond('agent-chat-question-submit', {
                             kind: 'answers',
                             answers,
@@ -384,7 +382,6 @@ export const AgentChatQuestionForm = ({
         const step = agentChatQuestionAdvance(request, nextAnswers, questionIndex, seen);
         if (step.kind === 'move') openQuestion(step.index);
         else if (actions.isShowsActions && !actions.isDisabled)
-            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
             void actions.respond('agent-chat-question-submit', {
                 kind: 'answers',
                 answers: nextAnswers,

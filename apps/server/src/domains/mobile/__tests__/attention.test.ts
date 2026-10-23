@@ -89,7 +89,6 @@ describe('mobile.attention.answerInternal', () => {
         const { handlers, attentionRequests } = handlersWith();
         // A view-role answer is rejected before it reaches `attentionRequests.answer()`, so this request's Promise
         // never resolves within the test; see `attention-requests.test.ts` for the resolution path this discards.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void attentionRequests.offer({
             sessionId: 'session-granted',
             terminalId: 'terminal-one',
@@ -118,7 +117,6 @@ describe('mobile.attention.answerInternal', () => {
         const offer = (): string => {
             // Deliberately discarded: each answer below resolves this Promise, but this test only checks whether
             // the answer grants auto-allow, not the resolution itself: already covered by attention-requests.test.ts.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void attentionRequests.offer({
                 sessionId: 'session-granted',
                 terminalId: 'terminal-one',

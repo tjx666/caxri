@@ -42,7 +42,6 @@ export const useAgentChatCommandRun = ({
     const choose = (action: AgentAction): void => {
         const choice = agentChatCommandChoice(action);
         if (choice.kind === 'complete') onDraftChange(choice.draft);
-        // eslint-disable-next-line no-void -- The composer reports a failed command itself.
         else void run(choice.command);
     };
     return { choose, isRunning, run };

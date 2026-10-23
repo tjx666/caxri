@@ -47,7 +47,6 @@ export function useAgentChatUserMessageMenu({
         const run = edit?.fork?.run;
         if (!run || isForking) return;
         setIsForking(true);
-        // eslint-disable-next-line no-void -- `forkAgentChat` reports its own failure through a toast
         void run(id, text).finally(() => setIsForking(false));
     };
     const onContextMenu = useContextMenu(() => {

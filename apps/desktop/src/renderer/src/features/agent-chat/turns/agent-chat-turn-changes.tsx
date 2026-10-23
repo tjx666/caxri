@@ -294,7 +294,6 @@ export function AgentChatTurnChanges({
                                 onOpen={
                                     sessionId !== undefined && file.kind !== 'delete'
                                         ? () => {
-                                              // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
                                               void openFileForSession(sessionId, file.path);
                                           }
                                         : undefined

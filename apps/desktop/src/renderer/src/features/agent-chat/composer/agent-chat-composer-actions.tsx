@@ -171,7 +171,6 @@ export function AgentChatComposerActions({
                     onPickPaths={
                         onPickPaths &&
                         (() => {
-                            // eslint-disable-next-line no-void -- pickAgentChatPaths reports its own failures through tryCommand
                             void onPickPaths().then(onPicked);
                         })
                     }

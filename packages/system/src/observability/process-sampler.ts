@@ -57,11 +57,9 @@ export function startProcessObservationSampler(
         }
     };
     const timer = setInterval(() => {
-        // eslint-disable-next-line no-void -- overlapping/failing samples are handled inside the bounded sampler.
         void sample();
     }, options.intervalMs ?? DEFAULT_PROCESS_SAMPLE_INTERVAL_MS);
     timer.unref();
-    // eslint-disable-next-line no-void -- the first best-effort sample must not block process startup.
     void sample();
     return {
         sample,

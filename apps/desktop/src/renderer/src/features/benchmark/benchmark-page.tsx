@@ -38,7 +38,6 @@ function RunBoard({ runId }: { runId: string }) {
                     size="sm"
                     variant="secondary"
                     onClick={() => {
-                        // eslint-disable-next-line no-void -- a failed retry surfaces through the same error state
                         void query.refetch();
                     }}
                 >
@@ -54,11 +53,9 @@ function RunBoard({ runId }: { runId: string }) {
             catalog={catalog.data}
             run={run}
             onCancel={() => {
-                // eslint-disable-next-line no-void -- tryCommand reports its own failure
                 void tryCommand(t('benchmark.run.cancel'), () => cancelBenchmark(runId));
             }}
             onDelete={() => {
-                // eslint-disable-next-line no-void -- tryCommand reports its own failure
                 void (async () => {
                     const isConfirmed = await caxri.window.showConfirm({
                         title: t('benchmark.run.deleteTitle'),
@@ -144,11 +141,9 @@ export function BenchmarkPage() {
                             isStarting={isStarting}
                             onChange={setDraft}
                             onRefreshCatalog={() => {
-                                // eslint-disable-next-line no-void -- tryCommand reports its own failure
                                 void tryCommand(t('benchmark.picker.refresh'), catalog.refresh);
                             }}
                             onStart={() => {
-                                // eslint-disable-next-line no-void -- tryCommand inside reports the failure
                                 void start();
                             }}
                         />

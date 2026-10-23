@@ -70,7 +70,6 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
             className="agent-surface-toggle gap-0.5 rounded border border-border p-0.5"
             value={[current]}
             onValueChange={(next) => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, the switch reports its own errors
                 if (!isSwitching && next[0]) void switchTerminalSurfaceTo(terminal, next[0]);
             }}
         >

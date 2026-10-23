@@ -478,7 +478,6 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
         this.pendingConnection = undefined;
         this.forgetRemoteState();
         for (const connection of connections)
-            // eslint-disable-next-line no-void -- best effort; the step using the master fails as cancelled either way
             if (connection) void bestEffort(() => connection.stop());
         // The window logs the phase change with its `cancelled` reason; a step this interrupted logs `attachFailed`.
         this.emit('failed', { failure: CANCELLED_FAILURE });

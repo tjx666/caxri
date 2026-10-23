@@ -60,7 +60,6 @@ export function AgentStatusPage({ terminalId }: { terminalId: string }) {
                 <AgentThroughputSection
                     state={state}
                     onRetry={() => {
-                        // eslint-disable-next-line no-void -- a failed retry surfaces through the same error state
                         void throughputQuery.refetch();
                     }}
                 />
@@ -71,7 +70,6 @@ export function AgentStatusPage({ terminalId }: { terminalId: string }) {
                         isError={providerStatusQuery.isError}
                         status={providerStatusQuery.data}
                         onRetry={() => {
-                            // eslint-disable-next-line no-void -- a failed retry surfaces through the same error state
                             void providerStatusQuery.refetch();
                         }}
                     />

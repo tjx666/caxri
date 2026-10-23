@@ -65,7 +65,6 @@ export function GitDiffSurface({
     const editorOptions = useEditorOptions();
     useEffect(() => {
         if (document.format !== 'contents') return;
-        // eslint-disable-next-line no-void -- floating-promise discard: outdated status refetches via `gitReview.changed`
         void refreshGitReviewComments(
             sessionId,
             repositoryId,
@@ -74,7 +73,6 @@ export function GitDiffSurface({
             'modified',
             document.modified,
         );
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void refreshGitReviewComments(
             sessionId,
             repositoryId,

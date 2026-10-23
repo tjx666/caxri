@@ -352,7 +352,6 @@ function SourceControlVirtualRow({
             // `openFile` (not `openEditorTab`) reads the file first and only creates the tab on
             // success, so a path that vanished since the last refresh toasts instead of leaving
             // a tab stuck on "Loading file…".
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void openFile(openablePath);
             return;
         }

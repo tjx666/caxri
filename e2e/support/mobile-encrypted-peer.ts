@@ -254,7 +254,6 @@ export async function pairMobileEncryptedPeer(pairingLink: string): Promise<Mobi
             const id = `mobile_${randomUUID().replaceAll('-', '')}`;
             return sendWithReply(id, { ...value, id });
         };
-        // eslint-disable-next-line no-void -- The peer owns this reader until close() is called.
         void (async () => {
             try {
                 while (!isClosed) {

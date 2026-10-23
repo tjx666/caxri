@@ -17,7 +17,6 @@ describe('confirmation store', () => {
     });
 
     it('publishes the request so the mounted dialog can render it', () => {
-        // eslint-disable-next-line no-void -- the pending promise is settled by a later assertion in other cases
         void showConfirm(request);
 
         expect(useConfirmationStore.getState().request).toEqual(request);

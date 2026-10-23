@@ -94,7 +94,6 @@ function SessionSearchBody() {
         }
         if (selected && event.key === 'Enter') {
             event.preventDefault();
-            // eslint-disable-next-line no-void -- the command reports its own failure through a toast
             void runSessionSearchAction(selected, search.searchedQuery);
         }
     };
