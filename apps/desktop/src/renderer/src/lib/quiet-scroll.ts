@@ -5,6 +5,32 @@
 const pendingRestores = new WeakMap<HTMLElement, { frame: number; scrollbarWidth: string }>();
 
 /**
+ * How long a settling scroller must go without moving or resizing before its scrollbar comes back.
+ */
+const SETTLE_QUIET_MS = 300;
+
+/**
+ * The longest a scroller keeps its scrollbar hidden while settling, so content that keeps growing (a reply still
+ * streaming) does not hide it for good.
+ */
+const SETTLE_MAX_MS = 2000;
+
+/**
+ * Input that starts a scroll by the user: from then on the scrollbar shows the motion as usual.
+ */
+const USER_SCROLL_EVENTS = ['wheel', 'pointerdown', 'touchstart', 'keydown'] as const;
+
+const settlingScrollers = new WeakMap<
+    HTMLElement,
+    {
+        deadline: number;
+        release: () => void;
+        scrollbarWidth: string;
+        timer?: ReturnType<typeof setTimeout>;
+    }
+>();
+
+/**
  * Whether the scroller's scrollbar takes layout space: a classic always-visible scrollbar rather than a macOS overlay.
  */
 function hasLayoutScrollbar(element: HTMLElement): boolean {
@@ -31,6 +57,11 @@ function pixels(length: string): number {
  * scroller is moved plainly.
  */
 export function scrollWithoutScrollbarFlash(element: HTMLElement, top: number): void {
+    if (settlingScrollers.has(element)) {
+        // The settling hold already keeps the scrollbar hidden and brings it back itself.
+        element.scrollTop = top;
+        return;
+    }
     const pending = pendingRestores.get(element);
     if (!pending && hasLayoutScrollbar(element)) {
         element.scrollTop = top;
@@ -51,4 +82,56 @@ export function scrollWithoutScrollbarFlash(element: HTMLElement, top: number): 
         });
     });
     pendingRestores.set(element, { frame, scrollbarWidth });
+}
+
+/**
+ * Whether {@link hideScrollbarWhileSettling} still holds the scroller's scrollbar hidden.
+ */
+export function isScrollbarSettling(element: HTMLElement): boolean {
+    return settlingScrollers.has(element);
+}
+
+/**
+ * Keeps a scroller's overlay scrollbar hidden while the content it just opened onto settles, then brings it back.
+ *
+ * A view opened at its end is not done moving after its first jump: rows finish laying out a few frames later (a font
+ * or highlighted code arriving grows a reply by a pixel or two), and the view either follows the new end or Chromium's
+ * scroll anchoring moves it. Neither is the user scrolling, yet each reveals the scrollbar like any other change of
+ * offset (see {@link scrollWithoutScrollbarFlash}). Call this after the first jump and again on every scroll or layout
+ * change while {@link isScrollbarSettling}: the scrollbar comes back once the scroller has gone `SETTLE_QUIET_MS`
+ * without either, after `SETTLE_MAX_MS` at most, or at once when the user starts scrolling.
+ */
+export function hideScrollbarWhileSettling(element: HTMLElement): void {
+    const now = Date.now();
+    let settling = settlingScrollers.get(element);
+    if (!settling) {
+        const pending = pendingRestores.get(element);
+        if (!pending && hasLayoutScrollbar(element)) return;
+        if (pending) {
+            cancelAnimationFrame(pending.frame);
+            pendingRestores.delete(element);
+        }
+        const release = (): void => {
+            const current = settlingScrollers.get(element);
+            if (!current) return;
+            settlingScrollers.delete(element);
+            clearTimeout(current.timer);
+            for (const type of USER_SCROLL_EVENTS) element.removeEventListener(type, release);
+            element.style.scrollbarWidth = current.scrollbarWidth;
+        };
+        settling = {
+            deadline: now + SETTLE_MAX_MS,
+            release,
+            scrollbarWidth: pending?.scrollbarWidth ?? element.style.scrollbarWidth,
+        };
+        settlingScrollers.set(element, settling);
+        element.style.scrollbarWidth = 'none';
+        for (const type of USER_SCROLL_EVENTS)
+            element.addEventListener(type, release, { once: true, passive: true });
+    }
+    clearTimeout(settling.timer);
+    settling.timer = setTimeout(
+        settling.release,
+        Math.min(SETTLE_QUIET_MS, settling.deadline - now),
+    );
 }

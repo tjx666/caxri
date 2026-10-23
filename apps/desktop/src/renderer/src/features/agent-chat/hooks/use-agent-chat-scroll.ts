@@ -2,7 +2,11 @@ import type { RefObject } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { motionSettleTimeoutMs } from '../../../lib/motion';
-import { scrollWithoutScrollbarFlash } from '../../../lib/quiet-scroll';
+import {
+    hideScrollbarWhileSettling,
+    isScrollbarSettling,
+    scrollWithoutScrollbarFlash,
+} from '../../../lib/quiet-scroll';
 
 /**
  * How close to the end still counts as "following" the conversation. A few pixels of slack absorbs sub-pixel layout and
@@ -288,6 +292,8 @@ export function useAgentChatScroll(
         (isViewResize = false) => {
             const element = scrollReference.current;
             if (!element) return;
+            // Rows still settling after the Chat opened move the view without the user; see `hideScrollbarWhileSettling`.
+            if (isScrollbarSettling(element)) hideScrollbarWhileSettling(element);
             sizeSpacer(lastScrollTopReference.current ?? element.scrollTop);
             const anchored = anchorReference.current;
             if (anchored && (performance.now() > anchored.until || !anchored.element.isConnected))
@@ -314,6 +320,9 @@ export function useAgentChatScroll(
                     }));
             if (isCatchUp) scrollWithoutScrollbarFlash(element, top);
             else element.scrollTop = top;
+            // The Chat just opened onto its end; its rows finish laying out over the next frames.
+            if (!hasMovedReference.current && element.scrollTop > 0)
+                hideScrollbarWhileSettling(element);
             if (element.scrollTop > 0) hasMovedReference.current = true;
             lastScrollTopReference.current = element.scrollTop;
         },
@@ -322,6 +331,7 @@ export function useAgentChatScroll(
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
+        if (isScrollbarSettling(element)) hideScrollbarWhileSettling(element);
         if (element.scrollTop > 0) hasMovedReference.current = true;
         // Scrolling back through a finished turn consumes the space below it, which leaves the view at the new end.
         sizeSpacer(element.scrollTop);

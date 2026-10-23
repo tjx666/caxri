@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { scrollWithoutScrollbarFlash } from './quiet-scroll';
+import {
+    hideScrollbarWhileSettling,
+    isScrollbarSettling,
+    scrollWithoutScrollbarFlash,
+} from './quiet-scroll';
 
 /**
  * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`). `scrollWithoutScrollbarFlash`
@@ -17,12 +21,16 @@ function runFrame(): void {
 }
 
 function scroller({ scrollbarWidth = 0, inlineScrollbarWidth = '' } = {}) {
+    const listeners = new Map<string, () => void>();
     return {
+        listeners,
+        addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+        removeEventListener: (type: string) => listeners.delete(type),
         offsetWidth: 400,
         clientWidth: 400 - scrollbarWidth,
         scrollTop: 0,
         style: { scrollbarWidth: inlineScrollbarWidth },
-    } as unknown as HTMLElement;
+    } as unknown as HTMLElement & { listeners: Map<string, () => void> };
 }
 
 beforeEach(() => {
@@ -39,6 +47,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
 });
 
 describe('scrollWithoutScrollbarFlash', () => {
@@ -73,5 +82,57 @@ describe('scrollWithoutScrollbarFlash', () => {
         expect(element.scrollTop).toBe(900);
         expect(element.style.scrollbarWidth).toBe('');
         expect(frames.size).toBe(0);
+    });
+});
+
+describe('hideScrollbarWhileSettling', () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    });
+
+    it('keeps the scrollbar hidden past the jump while the opened view settles, then brings it back', () => {
+        const element = scroller({ inlineScrollbarWidth: 'thin' });
+        scrollWithoutScrollbarFlash(element, 1200);
+        hideScrollbarWhileSettling(element);
+        runFrame();
+        runFrame();
+        // A reply growing by a pixel moves the view a frame later, and the scrollbar must still be hidden then.
+        expect(element.style.scrollbarWidth).toBe('none');
+        vi.advanceTimersByTime(200);
+        scrollWithoutScrollbarFlash(element, 1202);
+        hideScrollbarWhileSettling(element);
+        vi.advanceTimersByTime(200);
+        expect(element.style.scrollbarWidth).toBe('none');
+        vi.advanceTimersByTime(100);
+        expect(element.style.scrollbarWidth).toBe('thin');
+        expect(isScrollbarSettling(element)).toBe(false);
+        expect(element.listeners.size).toBe(0);
+    });
+
+    it('brings the scrollbar back at once when the user starts scrolling', () => {
+        const element = scroller();
+        hideScrollbarWhileSettling(element);
+        element.listeners.get('wheel')?.();
+        expect(element.style.scrollbarWidth).toBe('');
+        expect(isScrollbarSettling(element)).toBe(false);
+    });
+
+    it('stops hiding the scrollbar after a bounded time while the content keeps moving', () => {
+        const element = scroller();
+        hideScrollbarWhileSettling(element);
+        for (let elapsed = 0; elapsed < 1900; elapsed += 100) {
+            vi.advanceTimersByTime(100);
+            hideScrollbarWhileSettling(element);
+        }
+        expect(element.style.scrollbarWidth).toBe('none');
+        vi.advanceTimersByTime(100);
+        expect(element.style.scrollbarWidth).toBe('');
+    });
+
+    it('leaves a classic scrollbar alone, since hiding it would reflow the content', () => {
+        const element = scroller({ scrollbarWidth: 15 });
+        hideScrollbarWhileSettling(element);
+        expect(element.style.scrollbarWidth).toBe('');
+        expect(isScrollbarSettling(element)).toBe(false);
     });
 });
