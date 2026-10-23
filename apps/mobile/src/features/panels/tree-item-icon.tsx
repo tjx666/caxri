@@ -93,6 +93,11 @@ const DeploymentPreviewGlyph = ({ color, size }: GlyphProperties) => (
 type LinearStatusKind =
     'backlog' | 'canceled' | 'completed' | 'duplicate' | 'started' | 'triage' | 'unstarted';
 
+/**
+ * States drawn as an open ring; the rest are a filled disc with a cut-out mark.
+ */
+const RING_KINDS: ReadonlySet<LinearStatusKind> = new Set(['backlog', 'unstarted', 'started']);
+
 const LINEAR_CUTOUTS: Partial<Record<LinearStatusKind, string>> = {
     triage: 'M6.15 6.4C6.35 5.35 7.05 4.8 8.1 4.8c1.2 0 2 .65 2 1.65 0 .9-.55 1.35-1.2 1.75-.65.4-.9.75-.9 1.45M8 11.35h.01',
     completed: 'm4.75 8.15 2.25 2.1 4.4-4.55',
@@ -108,56 +113,17 @@ const LinearStatusGlyph = ({ color, kind, size }: GlyphProperties & { kind: Line
     const maskId = `linear-${kind}-cutout`;
     return (
         <Svg fill="none" height={size} viewBox="0 0 16 16" width={size}>
-            {kind === 'backlog' ? (
-                <>
-                    <Rect
-                        height="12"
-                        rx="3.5"
-                        stroke={color}
-                        strokeWidth="1.5"
-                        width="12"
-                        x="2"
-                        y="2"
-                    />
-                    <Path
-                        d="M5 5.5h6M5 8h6M5 10.5h4"
-                        stroke={color}
-                        strokeLinecap="round"
-                        strokeWidth="1.25"
-                    />
-                </>
-            ) : null}
-            {kind === 'unstarted' ? (
-                <Rect
-                    height="12"
-                    rx="3.5"
+            {RING_KINDS.has(kind) ? (
+                <SvgCircle
+                    cx="8"
+                    cy="8"
+                    r="6"
                     stroke={color}
+                    strokeDasharray={kind === 'backlog' ? '1.6 1.54' : undefined}
                     strokeWidth="1.5"
-                    width="12"
-                    x="2"
-                    y="2"
                 />
             ) : null}
-            {kind === 'started' ? (
-                <>
-                    <Rect
-                        height="12"
-                        rx="3.5"
-                        stroke={color}
-                        strokeWidth="1.5"
-                        width="12"
-                        x="2"
-                        y="2"
-                    />
-                    <Path
-                        d="M5 8h6M9 5.75 11.25 8 9 10.25"
-                        stroke={color}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.5"
-                    />
-                </>
-            ) : null}
+            {kind === 'started' ? <Path d="M8 5a3 3 0 0 1 0 6z" fill={color} /> : null}
             {cutout ? (
                 <>
                     <Defs>
@@ -181,15 +147,7 @@ const LinearStatusGlyph = ({ color, kind, size }: GlyphProperties & { kind: Line
                             </G>
                         </Mask>
                     </Defs>
-                    <Rect
-                        fill={color}
-                        height="12"
-                        mask={`url(#${maskId})`}
-                        rx="3.5"
-                        width="12"
-                        x="2"
-                        y="2"
-                    />
+                    <SvgCircle cx="8" cy="8" fill={color} mask={`url(#${maskId})`} r="6.75" />
                 </>
             ) : null}
         </Svg>
