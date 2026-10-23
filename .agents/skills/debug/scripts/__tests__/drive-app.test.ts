@@ -18,6 +18,14 @@ describe('drive-app', () => {
         expect(parseDriveCommand(['idle'], {}).step).toBe('idle');
     });
 
+    it('waits for a starting dev instance without an argument and opens a Session by id prefix or title', () => {
+        expect(parseDriveCommand(['ready'], {}).step).toBe('ready');
+        expect(parseDriveCommand(['ready', '90'], {}).argument).toBe('90');
+        expect(() => parseDriveCommand(['ready', 'soon'], {})).toThrow(/seconds/u);
+        expect(parseDriveCommand(['select-session', '810bc7fd'], {}).argument).toBe('810bc7fd');
+        expect(() => parseDriveCommand(['select-session'], {})).toThrow(/needs an argument/u);
+    });
+
     it('rejects an unknown step, a split argument, and a relative screenshot path', () => {
         expect(() => parseDriveCommand(['click', 'Save'], {})).toThrow(/Pass a step/u);
         expect(() => parseDriveCommand(['send', 'two', 'words'], {})).toThrow(/Quote/u);
