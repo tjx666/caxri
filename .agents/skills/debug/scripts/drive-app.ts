@@ -13,6 +13,9 @@
  * - `send <text>`: types into the visible Agent Chat message box and presses Enter.
  * - `search <query>`: opens Session search and types the query.
  * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply.
+ * - `ready [seconds]`: waits until a dev instance just started with `switch-worktree dev` answers over CDP as this
+ *   worktree's window, instead of a fixed sleep.
+ * - `select-session <id prefix|title>`: clicks that Session in the sidebar, as a user opening it would.
  * - `stub-folder-dialog <absolute path>`: makes Main's native folder picker return that path. Needs the dev instance
  *   started with `V8_INSPECTOR_PORT=<port>` exported; pass the same port as `--inspector-port` or in that variable.
  * - `screenshot <absolute path>`.
@@ -22,7 +25,7 @@ import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
-import type { Page } from '@playwright/test';
+import type { Browser, Page } from '@playwright/test';
 import { chromium } from '@playwright/test';
 
 import { CommandError } from '../../switch-worktree/scripts/process';
@@ -36,6 +39,8 @@ const STEPS = [
     'send',
     'search',
     'idle',
+    'ready',
+    'select-session',
     'stub-folder-dialog',
     'screenshot',
 ] as const;
@@ -54,6 +59,7 @@ const IDLE_POLL_MS = 1_000;
  */
 const IDLE_STABLE_POLLS = 3;
 const DEFAULT_IDLE_SECONDS = 120;
+const DEFAULT_READY_SECONDS = 120;
 /**
  * How long one `Cmd+O` gets to show the add-Project dialog, and how many presses `open-chat` makes.
  */
@@ -81,7 +87,7 @@ export function parseDriveCommand(
     if (rest.length > 0) {
         throw new CommandError('Quote a multi-word argument as one shell word', 2);
     }
-    const isArgumentRequired = step !== 'idle';
+    const isArgumentRequired = step !== 'idle' && step !== 'ready';
     if (isArgumentRequired && !argument) throw new CommandError(`\`${step}\` needs an argument`, 2);
     if (step === 'open-chat' && !Object.hasOwn(agentProviderCatalog, argument)) {
         throw new CommandError(
@@ -89,8 +95,8 @@ export function parseDriveCommand(
             2,
         );
     }
-    if (step === 'idle' && argument && !(Number(argument) > 0)) {
-        throw new CommandError(`\`idle\` takes a number of seconds, not ${argument}`, 2);
+    if (argument && (step === 'idle' || step === 'ready') && !(Number(argument) > 0)) {
+        throw new CommandError(`\`${step}\` takes a number of seconds, not ${argument}`, 2);
     }
     for (const path of [screenshot, step === 'screenshot' ? argument : undefined]) {
         // The page saves relative to the launcher's directory, which may be another checkout.
@@ -270,6 +276,18 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
         }
         case 'idle':
             return waitForIdle(page, argument ? Number(argument) : DEFAULT_IDLE_SECONDS);
+        case 'ready':
+            // `main` only reaches a step once the window answered, which is all `ready` waits for.
+            return;
+        case 'select-session': {
+            const rows = page.locator('[data-session-id]');
+            // A window that just became ready may not have drawn the sidebar's Sessions yet.
+            await rows.first().waitFor();
+            const byId = rows.and(page.locator(`[data-session-id^=${JSON.stringify(argument)}]`));
+            const row = (await byId.count()) > 0 ? byId : rows.filter({ hasText: argument });
+            await row.first().click();
+            return;
+        }
         case 'screenshot':
             await page.screenshot({ path: argument });
             return;
@@ -278,23 +296,12 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
     }
 }
 
-async function main(): Promise<void> {
-    const command = parseDriveCommand(process.argv.slice(2));
-    // Main is reached through its own inspector; the window may not even be open yet.
-    if (command.step === 'stub-folder-dialog') {
-        await stubFolderDialog(command.inspectorPort!, command.argument!);
-        return;
-    }
-    const { root, target } = await resolveTarget(process.cwd());
-    // Playwright's CDP connection would also follow a proxy for a loopback address.
-    const environment = browserEnvironment(process.env);
-    for (const name of Object.keys(process.env))
-        if (!(name in environment)) delete process.env[name];
+async function connect(root: string, cdpPort: number): Promise<{ browser: Browser; page: Page }> {
     const targets = (await (
-        await fetch(`http://127.0.0.1:${target.cdpPort}/json/list`)
+        await fetch(`http://127.0.0.1:${cdpPort}/json/list`)
     ).json()) as CdpTarget[];
     const rendererUrl = selectRendererTarget(targets).url;
-    const browser = await chromium.connectOverCDP(`http://127.0.0.1:${target.cdpPort}`);
+    const browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
     try {
         const page = browser
             .contexts()
@@ -306,9 +313,62 @@ async function main(): Promise<void> {
         );
         if (reached !== root) {
             throw new CommandError(
-                `CDP port ${target.cdpPort} answered for ${reached ?? 'an unknown window'}, not ${root}`,
+                `CDP port ${cdpPort} answered for ${reached ?? 'an unknown window'}, not ${root}`,
             );
         }
+        return { browser, page };
+    } catch (error) {
+        await browser.close();
+        throw error;
+    }
+}
+
+/**
+ * `ready` retries everything up to the window answering: the launcher records the dev process and its port before
+ * Electron opens a window, and the window loads the Renderer after that.
+ */
+async function connectWhenReady(
+    cwd: string,
+    seconds: number,
+): Promise<{ browser: Browser; page: Page }> {
+    const deadline = Date.now() + seconds * 1000;
+    for (;;) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- each attempt waits to see whether the window is up yet.
+            const { root, target } = await resolveTarget(cwd);
+            // eslint-disable-next-line no-await-in-loop
+            return await connect(root, target.cdpPort);
+        } catch (error) {
+            if (Date.now() > deadline) throw error;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => setTimeout(resolve, IDLE_POLL_MS));
+    }
+}
+
+async function main(): Promise<void> {
+    const command = parseDriveCommand(process.argv.slice(2));
+    // Main is reached through its own inspector; the window may not even be open yet.
+    if (command.step === 'stub-folder-dialog') {
+        await stubFolderDialog(command.inspectorPort!, command.argument!);
+        return;
+    }
+    // Playwright's CDP connection would also follow a proxy for a loopback address.
+    const environment = browserEnvironment(process.env);
+    for (const name of Object.keys(process.env))
+        if (!(name in environment)) delete process.env[name];
+    let connection: { browser: Browser; page: Page };
+    if (command.step === 'ready') {
+        connection = await connectWhenReady(
+            process.cwd(),
+            command.argument ? Number(command.argument) : DEFAULT_READY_SECONDS,
+        );
+    } else {
+        const { root, target } = await resolveTarget(process.cwd());
+        connection = await connect(root, target.cdpPort);
+    }
+    const { browser, page } = connection;
+    try {
         await runStep(page, command);
         if (command.screenshot) await page.screenshot({ path: command.screenshot });
     } finally {

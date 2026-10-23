@@ -163,8 +163,9 @@ tab bar's Chat toggle switches an open one. Run the repeated Caxri steps through
 (English labels for the E2E helpers), `open-chat <claude|codex|grok>` to add the test-root Project
 and open that Agent in Chat (driving the dialog by hand lets the root grant expire, and
 `project.create` then fails with `PATH_DENIED` and no Session), `send <text>` into the Chat message box, `idle` until a reply
-stops changing the window, `search <query>` in Session search, and `screenshot`, each with an
-optional `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
+stops changing the window, `search <query>` in Session search, `ready [seconds]` until a relaunched
+window answers (instead of a fixed sleep), `select-session <id prefix|title>` to open a sidebar
+Session, and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
 which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
 throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as a string, never a
 partial patch. If the fixture's test root does not cover the flow, export
@@ -231,7 +232,15 @@ bun run .agents/skills/debug/scripts/worktree-browser.ts eval "document.title"
 bun run .agents/skills/debug/scripts/worktree-browser.ts screenshot /tmp/<task>/panel.png
 ```
 
-Use the manual form below for a packaged app or another worktree's port.
+Pass `--packaged` first to reach the installed app on 9224 instead; the wrapper then requires a
+`Caxri/` user agent and no `__caxriWorktree`. Use the manual form below for another worktree's port.
+
+For a scrollbar that flashes or a transcript that moves by itself, record instead of hand-writing
+loggers: `scroll-trace.ts start|read|reset [--packaged] [--json]` patches every programmatic scroll
+on `[role="log"]`, records content-free scroll, write, and row-resize entries, and marks a scroll
+that showed the scrollbar without user input as `REVEAL`. A reload removes the recorder. For a
+cold-open case: select another Session, `switch-worktree stop`, relaunch `dev`, `drive-app.ts ready`,
+`scroll-trace.ts start`, `drive-app.ts select-session <target>`, then `scroll-trace.ts read`.
 
 Connect with `agent-browser`, always stripping proxy environment variables and passing the port
 through `--cdp` (not the `connect` subcommand, which can launch a fresh, disconnected browser

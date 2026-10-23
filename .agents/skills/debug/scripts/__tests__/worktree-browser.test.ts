@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { browserArguments, browserEnvironment, reportedWorktree } from '../worktree-browser';
+import {
+    browserArguments,
+    browserEnvironment,
+    packagedTarget,
+    parseBrowserArguments,
+    reportedWorktree,
+} from '../worktree-browser';
 
 describe('worktree-browser', () => {
     it('strips every proxy variable agent-browser would follow and keeps the rest', () => {
@@ -31,5 +37,21 @@ describe('worktree-browser', () => {
         // A window launched outside `switch-worktree dev` has no global.
         expect(reportedWorktree('"undefined"\n')).toBeUndefined();
         expect(reportedWorktree('Error: connection refused')).toBeUndefined();
+    });
+
+    it('reaches the installed app on its fixed port, or the override, with its own session', () => {
+        expect(parseBrowserArguments(['--packaged', 'eval', '1'])).toEqual({
+            commandArguments: ['eval', '1'],
+            isPackaged: true,
+        });
+        expect(parseBrowserArguments(['snapshot']).isPackaged).toBe(false);
+        expect(browserArguments(packagedTarget({}), ['snapshot'])).toEqual([
+            '--session',
+            'caxri-packaged',
+            '--cdp',
+            '9224',
+            'snapshot',
+        ]);
+        expect(packagedTarget({ CAXRI_DEV_CDP_PORT: '9300' }).cdpPort).toBe(9300);
     });
 });

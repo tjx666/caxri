@@ -4,7 +4,10 @@
  * from the `switch-worktree dev` process record. Before the command runs it checks that `globalThis.__caxriWorktree`
  * names this checkout, so a sibling worktree's window can never answer.
  *
- * Usage: `bun run .agents/skills/debug/scripts/worktree-browser.ts <agent-browser arguments...>`
+ * With `--packaged` it reaches the installed app instead: the fixed packaged CDP port (`CAXRI_DEV_CDP_PORT` overrides
+ * it), its own session, and a check that the window is a Caxri build no worktree launched.
+ *
+ * Usage: `bun run .agents/skills/debug/scripts/worktree-browser.ts [--packaged] <agent-browser arguments...>`
  */
 import process from 'node:process';
 
@@ -29,6 +32,35 @@ const PROXY_VARIABLES = [
 export interface BrowserTarget {
     cdpPort: number;
     worktreeId: string;
+}
+
+/**
+ * The installed app's Renderer CDP port; see the `debug` skill's Live CDP inspection.
+ */
+const PACKAGED_CDP_PORT = 9224;
+
+/**
+ * Stands in for the worktree identity, so the installed app gets its own `caxri-packaged` session.
+ */
+const PACKAGED_ID = 'packaged';
+
+export function packagedTarget(environment: NodeJS.ProcessEnv): BrowserTarget {
+    const port = Number(environment.CAXRI_DEV_CDP_PORT);
+    return {
+        cdpPort: Number.isSafeInteger(port) && port > 0 ? port : PACKAGED_CDP_PORT,
+        worktreeId: PACKAGED_ID,
+    };
+}
+
+/**
+ * Splits a leading `--packaged` off the command line.
+ */
+export function parseBrowserArguments(argv: string[]): {
+    commandArguments: string[];
+    isPackaged: boolean;
+} {
+    const isPackaged = argv[0] === '--packaged';
+    return { commandArguments: isPackaged ? argv.slice(1) : argv, isPackaged };
 }
 
 export function browserEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -94,21 +126,61 @@ async function probeWorktree(
     }
 }
 
-async function main(): Promise<number> {
-    const commandArguments = process.argv.slice(2);
-    if (commandArguments.length === 0) {
-        throw new CommandError('Pass the agent-browser command to run, e.g. `snapshot`', 2);
+async function probeUserAgent(
+    target: BrowserTarget,
+    environment: NodeJS.ProcessEnv,
+): Promise<string> {
+    try {
+        const { stdout } = await execFileAsync(
+            'agent-browser',
+            browserArguments(target, ['eval', 'navigator.userAgent']),
+            { encoding: 'utf8', env: environment },
+        );
+        return stdout;
+    } catch {
+        return '';
     }
-    const { root, target } = await resolveTarget(process.cwd());
+}
+
+/**
+ * Resolves and verifies the window a command may reach: this worktree's dev instance, or with `isPackaged` the
+ * installed app, which must report a Caxri build and no worktree.
+ */
+export async function verifiedTarget(
+    cwd: string,
+    isPackaged: boolean,
+): Promise<{ cwd: string; environment: NodeJS.ProcessEnv; target: BrowserTarget }> {
     const environment = browserEnvironment(process.env);
+    if (isPackaged) {
+        const target = packagedTarget(process.env);
+        // One after the other: two first calls racing on a new session can each find no daemon attached yet.
+        const userAgent = await probeUserAgent(target, environment);
+        const reached = await probeWorktree(target, environment);
+        if (reached !== undefined || !/\bCaxri\//u.test(userAgent)) {
+            throw new CommandError(
+                `CDP port ${target.cdpPort} did not answer as the installed Caxri app`,
+            );
+        }
+        return { cwd, environment, target };
+    }
+    const { root, target } = await resolveTarget(cwd);
     const reached = await probeWorktree(target, environment);
     if (reached !== root) {
         throw new CommandError(
             `CDP port ${target.cdpPort} answered for ${reached ?? 'an unknown window'}, not ${root}`,
         );
     }
+    return { cwd: root, environment, target };
+}
+
+async function main(): Promise<number> {
+    const { commandArguments, isPackaged } = parseBrowserArguments(process.argv.slice(2));
+    if (commandArguments.length === 0) {
+        throw new CommandError('Pass the agent-browser command to run, e.g. `snapshot`', 2);
+    }
+    const { cwd, environment, target } = await verifiedTarget(process.cwd(), isPackaged);
     return runInherited('agent-browser', browserArguments(target, commandArguments), {
-        cwd: root,
+        cwd,
         env: environment,
     });
 }
