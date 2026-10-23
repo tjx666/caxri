@@ -20,6 +20,16 @@ const SEND_GLYPHS = {
     steer: ArrowUpToLine,
 } as const;
 
+function sendGlyph(state: {
+    isQueueing: boolean;
+    isResume: boolean;
+    isSteering: boolean;
+}): keyof typeof SEND_GLYPHS {
+    if (state.isResume) return 'resume';
+    if (state.isSteering) return 'steer';
+    return state.isQueueing ? 'queue' : 'send';
+}
+
 /**
  * Sends the form. `aria-disabled` rather than `disabled`: a natively disabled button gets no pointer events in
  * Chromium, so its tooltip, the one place that says why Send is unavailable, would never open. The composer's `submit`
@@ -55,9 +65,13 @@ export function AgentChatSendButton({
     const { t } = useTranslation();
     const isChordHeld = useIsSteerChordHeld() && keys !== undefined;
     const isSteering = isChordHeld || sendAction.kind === 'steer';
-    const glyph = isResume ? 'resume' : isSteering ? 'steer' : isQueueing ? 'queue' : 'send';
-    const isAccent = isResume || isSteering;
+    const glyph = sendGlyph({ isQueueing, isResume, isSteering });
+    const isAccent = glyph === 'resume' || glyph === 'steer';
     const Glyph = SEND_GLYPHS[glyph];
+    // Continue names itself; otherwise a held chord turns the action into Steer.
+    const resumeOrSteerLabel = t(
+        glyph === 'resume' ? 'agentChat.composer.resume' : 'agentChat.queue.steer',
+    );
     return (
         <Tooltip
             content={keys ? <AgentChatSendKeys keys={keys} /> : tooltip}
@@ -66,11 +80,7 @@ export function AgentChatSendButton({
             <Button
                 aria-disabled={!isSendable || undefined}
                 aria-label={
-                    isResume
-                        ? t('agentChat.composer.resume')
-                        : isChordHeld
-                          ? t('agentChat.queue.steer')
-                          : sendAction.label
+                    glyph === 'resume' || isChordHeld ? resumeOrSteerLabel : sendAction.label
                 }
                 className={cn(
                     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,

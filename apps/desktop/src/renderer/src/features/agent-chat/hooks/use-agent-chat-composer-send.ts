@@ -1,3 +1,5 @@
+import type { SubmitEvent } from 'react';
+
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 import {
     AGENT_CHAT_GOAL_COMMAND,
@@ -9,7 +11,8 @@ import { useTranslation } from '../../../i18n';
 import { recordRecentAgentAction } from '../../agent-actions/agent-actions-commands';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../activity/agent-chat-goal-mode';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
-import { isAgentChatTurnResumable } from '../composer/send/agent-chat-resume';
+import { isAgentChatResumeOffered } from '../composer/send/agent-chat-resume';
+import { agentChatSubmitterDelivery } from '../composer/send/agent-chat-submitter-delivery';
 import {
     agentChatGoalModeDraft,
     isAgentChatGoalAction,
@@ -142,22 +145,30 @@ export function useAgentChatComposerSend({
             delivery ?? (editInput.isSteerDefault && editInput.isTurnRunning ? 'steer' : undefined);
         await edit.submit(draft, async () => submitDraft(draft, sentDelivery));
     };
-    const isResumable =
-        edit.canSend &&
-        !isSending &&
-        !isAttaching &&
-        !hasContent &&
-        !hasQueue &&
-        !isGoalMode &&
-        !edit.isEditing &&
-        isAgentChatTurnResumable(editInput.snapshot);
+    const isResume = isAgentChatResumeOffered({
+        canSend: edit.canSend,
+        hasContent,
+        hasQueue,
+        isAttaching,
+        isEditing: edit.isEditing,
+        isGoalMode,
+        isSending,
+        snapshot: editInput.snapshot,
+    });
     /**
-     * Sends "Continue" (in the interface language) after a stopped or failed turn, the message the user would otherwise
-     * type. Only the Send button offers it: Enter in an empty input stays inert, so a stray press never sends.
+     * The composer form's submit, which only the Send button triggers. While `isResume`, it sends "Continue" (in the
+     * interface language) after a stopped or failed turn, the message the user would otherwise type. Enter calls
+     * `submit` instead, so in an empty input it stays inert and a stray press never sends.
      */
-    const resume = isResumable
-        ? async (): Promise<void> => submitDraft(t('agentChat.composer.resumeMessage'))
-        : undefined;
+    const submitForm = (event: SubmitEvent<HTMLFormElement>): void => {
+        event.preventDefault();
+        // The Send button disables itself while the message is in flight, which would drop its focus.
+        focusInput();
+        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
+        void (isResume
+            ? submitDraft(t('agentChat.composer.resumeMessage'))
+            : submit(agentChatSubmitterDelivery(event.nativeEvent.submitter)));
+    };
     const compactCommand = agentChatCompactCommand(commands);
     /**
      * Runs the provider's compact command from the context alert or the meter's card, the same path a typed `/compact`
@@ -234,12 +245,13 @@ export function useAgentChatComposerSend({
         goalMode,
         hasContent,
         isSendable,
+        isResume,
         isSending,
-        resume,
         /**
          * Why a `/btw` question was held back, while the line shows.
          */
         sideChatNotice: sideChatNotice.notice,
         submit,
+        submitForm,
     };
 }

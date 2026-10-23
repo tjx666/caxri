@@ -42,7 +42,6 @@ import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { agentChatEnterQueuedId, agentChatNextQueuedId } from './agent-chat-queue';
 import type { agentChatSendBlock } from './send/agent-chat-send-tooltip';
 import { agentChatSendLabels } from './send/agent-chat-send-tooltip';
-import { agentChatSubmitterDelivery } from './send/agent-chat-submitter-delivery';
 
 /**
  * How many recent Sessions the composer's Add menu offers to cite, as the Codex app lists a handful of recent chats.
@@ -276,11 +275,12 @@ export function AgentChatComposer({
         edit,
         goalMode,
         hasContent,
+        isResume,
         isSendable,
         isSending,
-        resume,
         sideChatNotice,
         submit,
+        submitForm,
     } = useAgentChatComposerSend({
         canSend: sendBlock === undefined,
         commands,
@@ -326,15 +326,10 @@ export function AgentChatComposer({
         hasContent,
         isAttaching,
         isPreparingReference: sessionMenu.isPreparing,
+        isResume,
         isSending,
     };
-    const { sendKeys, sendShortcut, sendTooltip } = resume
-        ? {
-              sendKeys: undefined,
-              sendShortcut: undefined,
-              sendTooltip: t('agentChat.composer.resumeTooltip'),
-          }
-        : agentChatSendLabels(sendAction, sendState, t);
+    const { sendKeys, sendShortcut, sendTooltip } = agentChatSendLabels(sendAction, sendState, t);
     const composerKeys = useAgentChatComposerEnter({
         cancelEdit: edit.cancel,
         clearAttachments: () => images.clearSent(images.attachments),
@@ -409,15 +404,7 @@ export function AgentChatComposer({
                         'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] focus-within:border-muted',
                         fileInput.isDragOver && 'border-accent focus-within:border-accent',
                     )}
-                    onSubmit={(event) => {
-                        event.preventDefault();
-                        // The Send button disables itself while the message is in flight, which would drop its focus.
-                        focusInput();
-                        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                        void (resume
-                            ? resume()
-                            : submit(agentChatSubmitterDelivery(event.nativeEvent.submitter)));
-                    }}
+                    onSubmit={submitForm}
                 >
                     <AgentChatSuggestionMenu
                         commandMenu={menu}
@@ -468,8 +455,8 @@ export function AgentChatComposer({
                         caxriSkill={caxriSkill}
                         isAttaching={isAttaching || sessionMenu.isPreparing}
                         isQueueing={!edit.isEditing && !isSteerDefault && (isTurnRunning || isBusy)}
-                        isResume={resume !== undefined}
-                        isSendable={isSendable || resume !== undefined}
+                        isResume={isResume}
+                        isSendable={isSendable || isResume}
                         isStopping={isStopping}
                         onCompact={compact}
                         onGoal={goalMode.enter}

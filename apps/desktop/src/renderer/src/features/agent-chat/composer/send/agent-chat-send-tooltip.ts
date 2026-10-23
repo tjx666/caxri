@@ -37,6 +37,10 @@ export function agentChatSendTooltip(
          * A Session chosen from the `@` list is being condensed into a reference file.
          */
         isPreparingReference?: boolean;
+        /**
+         * The empty composer's Send continues a stopped or failed turn (`isAgentChatResumeOffered`).
+         */
+        isResume?: boolean;
         isSending: boolean;
     },
     t: Translate = translate,
@@ -80,6 +84,12 @@ export function agentChatSendLabels(
     sendShortcut: string | undefined;
     sendTooltip: string;
 } {
+    if (state.isResume)
+        return {
+            sendKeys: undefined,
+            sendShortcut: undefined,
+            sendTooltip: t('agentChat.composer.resumeTooltip'),
+        };
     return {
         sendKeys: agentChatSendTooltipKeys(action, state),
         sendShortcut: agentChatSendTooltipShortcut(action, state),
