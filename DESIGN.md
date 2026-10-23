@@ -929,7 +929,10 @@ Rows that were already settled when they mounted stay
 still. With Buddy chosen, Buddy also replaces the composer status line's spinner and acts out the
 turn's current tool (reads with its eyes sweeping, runs with a jog and a drop of sweat, yawns once one
 tool has run for 30 seconds), smiles with a heart when hovered, and wears a party hat in about one turn
-in fifty, picked from the turn id so it stays for the whole turn. These are character exceptions to
+in fifty, picked from the turn id so it stays for the whole turn. Buddy moves like a flip book: its
+loops step on a shared tick rather than easing at the display's refresh rate, 12.5fps for ambient
+motion (bob, glance, bubbles) and 25fps for the motion that carries a mood (the reading sweep, the
+jog), both halved on battery, and it holds still in a window without focus. These are character exceptions to
 "motion never decorates state", kept to the live turn: nothing in settled history moves. Hovered or
 keyboard-focused clipped sidebar titles may scroll solely to reveal their text, as described above.
 

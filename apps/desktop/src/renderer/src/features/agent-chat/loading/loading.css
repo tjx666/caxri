@@ -1395,6 +1395,15 @@
 
 /*
  * Buddy. Hovering boops it: the booped face replaces the idle one with a squish and a heart.
+ *
+ * Every moving part is an HTML layer (`buddy.tsx`), so its transform and opacity run on the compositor. The loops step
+ * on a shared 80 ms tick instead of easing at the display's refresh rate: each animation's moving segments last a whole,
+ * even number of ticks starting on an even tick, and `steps(calc(ticks * rate))` lands every change on the tick, so all
+ * of a mood's parts redraw in the same frame. Holds are separate keyframes, and an instant jump is a near-zero segment,
+ * so steps never stretch over them. Ambient loops (bob, glance, bubbles, Zz, yawn, hat) step at 12.5 fps; the motion
+ * that carries a mood (the reading sweep, the search hops, the jog and its sweat, the compaction squash) steps twice as
+ * often, 25 fps, where 12.5 fps read as jerky. On battery both rates halve, staying on the doubled tick.
+ * Buddy also stops in a window without focus, since it only tells the user something they are looking at.
  */
 @keyframes buddy-bob {
     0%,
@@ -1406,45 +1415,46 @@
     }
 }
 @keyframes buddy-blink {
-    0%,
-    90%,
-    100% {
+    0% {
         transform: scaleY(1);
     }
-    94% {
+    90% {
         transform: scaleY(0.1);
+    }
+    95%,
+    100% {
+        transform: scaleY(1);
     }
 }
 @keyframes buddy-look-think {
     0%,
-    10% {
+    8% {
         transform: translate(0, 0);
     }
     20%,
-    45% {
+    44% {
         transform: translate(2.4px, -2.6px);
     }
-    55%,
+    56%,
     80% {
         transform: translate(-2.2px, -2.4px);
     }
-    90%,
+    92%,
     100% {
         transform: translate(0, 0);
     }
 }
 @keyframes buddy-bubble {
     0%,
-    15% {
+    15.38% {
         opacity: 0;
         transform: scale(0.3);
     }
-    35%,
-    75% {
+    38.46%,
+    76.92% {
         opacity: 1;
         transform: scale(1);
     }
-    90%,
     100% {
         opacity: 0;
         transform: scale(1);
@@ -1454,34 +1464,32 @@
     0% {
         transform: translate(-2.6px, -0.6px);
     }
-    70% {
+    66.67%,
+    77.7% {
         transform: translate(2.6px, -0.6px);
     }
-    78% {
-        transform: translate(-2.6px, 0.9px);
-    }
+    77.78%,
     100% {
         transform: translate(-2.6px, 0.9px);
     }
 }
 @keyframes buddy-look-search {
     0%,
-    16% {
+    18.75% {
         transform: translate(-2.6px, -1px);
     }
-    22%,
-    38% {
+    25%,
+    43.75% {
         transform: translate(2.4px, 1.6px);
     }
-    44%,
-    60% {
+    50%,
+    68.75% {
         transform: translate(1px, -2.6px);
     }
-    66%,
-    82% {
+    75%,
+    93.75% {
         transform: translate(-1.6px, 2px);
     }
-    88%,
     100% {
         transform: translate(-2.6px, -1px);
     }
@@ -1502,10 +1510,15 @@
     }
     25% {
         opacity: 1;
+        transform: translateY(0.25px);
     }
-    80% {
+    50% {
         opacity: 1;
-        transform: translateY(3px);
+        transform: translateY(1.5px);
+    }
+    75% {
+        opacity: 1;
+        transform: translateY(2.75px);
     }
     100% {
         opacity: 0;
@@ -1526,8 +1539,21 @@
         opacity: 0;
         transform: translate(0, 0) scale(0.6);
     }
-    30% {
+    20% {
         opacity: 1;
+        transform: translate(0.5px, -1px) scale(0.7);
+    }
+    40% {
+        opacity: 0.75;
+        transform: translate(1px, -2px) scale(0.8);
+    }
+    60% {
+        opacity: 0.5;
+        transform: translate(1.5px, -3px) scale(0.9);
+    }
+    80% {
+        opacity: 0.25;
+        transform: translate(2px, -4px) scale(1);
     }
     100% {
         opacity: 0;
@@ -1541,7 +1567,7 @@
         transform: scale(0.35);
     }
     60%,
-    76% {
+    80% {
         transform: scale(1.15, 1.3);
     }
 }
@@ -1567,9 +1593,17 @@
         opacity: 0;
         transform: translateY(2px) scale(0.4);
     }
-    30% {
+    25% {
         opacity: 1;
         transform: translateY(0) scale(1.1);
+    }
+    50% {
+        opacity: 0.67;
+        transform: translateY(-1.33px) scale(1.03);
+    }
+    75% {
+        opacity: 0.33;
+        transform: translateY(-2.67px) scale(0.97);
     }
     100% {
         opacity: 0;
@@ -1577,14 +1611,60 @@
     }
 }
 
+.agent-chat-buddy {
+    /* Steps per 80 ms tick. */
+    --buddy-ambient-rate: 1;
+    --buddy-motion-rate: 2;
+}
+
+:root[data-power='battery'] .agent-chat-buddy {
+    --buddy-ambient-rate: 0.5;
+    --buddy-motion-rate: 1;
+}
+
+/* The parts are laid out in view-box units and scaled to the Buddy's size as one. */
+.agent-chat-buddy .buddy-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 24px;
+    height: 24px;
+    transform: scale(var(--buddy-scale));
+    transform-origin: 0 0;
+}
+
+.agent-chat-buddy .buddy-layer {
+    position: absolute;
+    inset: 0;
+}
+
+.agent-chat-buddy .buddy-art {
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: visible;
+}
+
+/* Each part turns around the same point of the view box its SVG group did. */
 .agent-chat-buddy .buddy-body,
 .agent-chat-buddy .buddy-squish {
-    transform-origin: center bottom;
+    transform-origin: 11px 21px;
 }
 
 .agent-chat-buddy .buddy-hat {
-    transform-box: view-box;
     transform-origin: 11px 5.4px;
+}
+
+.agent-chat-buddy .buddy-yawn {
+    transform-origin: 11px 16px;
+}
+
+.agent-chat-buddy .buddy-z {
+    transform-origin: 19.3px 5.5px;
+}
+
+.agent-chat-buddy .buddy-heart {
+    transform-origin: 20px 4.35px;
 }
 
 .agent-chat-buddy .buddy-booped,
@@ -1601,9 +1681,19 @@
     visibility: visible;
 }
 
+/*
+ * Freeze the parts nobody sees: everything in a window without focus (unless pointed at), the booped face until
+ * hovered, and the idle face while it is. `!important` because each animation shorthand below resets the play state.
+ */
+[data-window-active='false'] .agent-chat-buddy:not(:hover) *,
+.agent-chat-buddy:not(:hover) .buddy-booped *,
+.agent-chat-buddy:hover .buddy-idle * {
+    animation-play-state: paused !important;
+}
+
 @media (prefers-reduced-motion: no-preference) {
     .agent-chat-buddy .buddy-blink {
-        animation: buddy-blink 3.2s ease-in-out infinite;
+        animation: buddy-blink 3.2s step-end infinite;
     }
     .agent-chat-buddy:is(
             [data-mood='think'],
@@ -1612,46 +1702,48 @@
             [data-mood='wait']
         )
         .buddy-body {
-        animation: buddy-bob 2.4s ease-in-out infinite;
+        animation: buddy-bob 2.56s steps(calc(16 * var(--buddy-ambient-rate))) infinite;
     }
     .agent-chat-buddy[data-mood='think'] .buddy-look {
-        animation: buddy-look-think 4s ease-in-out infinite;
+        animation: buddy-look-think 4s steps(calc(6 * var(--buddy-ambient-rate))) infinite;
     }
     .agent-chat-buddy .buddy-bubble {
-        animation: buddy-bubble 2s ease-out calc(var(--i) * 0.3s) infinite;
+        animation: buddy-bubble 2.08s steps(calc(6 * var(--buddy-ambient-rate)))
+            calc(var(--i) * 0.32s) infinite;
     }
     .agent-chat-buddy[data-mood='read'] .buddy-look {
-        animation: buddy-look-read 1.4s cubic-bezier(0.3, 0, 0.7, 1) infinite;
+        animation: buddy-look-read 1.44s steps(calc(12 * var(--buddy-motion-rate))) infinite;
     }
     .agent-chat-buddy[data-mood='search'] .buddy-look {
-        animation: buddy-look-search 2.4s ease-in-out infinite;
+        animation: buddy-look-search 2.56s steps(calc(2 * var(--buddy-motion-rate))) infinite;
     }
     .agent-chat-buddy[data-mood='run'] .buddy-body {
-        animation: buddy-jog 0.5s ease-in-out infinite;
+        animation: buddy-jog 0.48s steps(calc(3 * var(--buddy-motion-rate))) infinite;
     }
     .agent-chat-buddy .buddy-sweat {
-        animation: buddy-sweat 1.2s ease-in infinite;
+        animation: buddy-sweat 0.96s steps(calc(3 * var(--buddy-motion-rate))) infinite;
     }
     .agent-chat-buddy[data-mood='compact'] .buddy-body {
-        animation: buddy-squash 1.8s ease-in-out infinite;
+        animation: buddy-squash 1.92s steps(calc(12 * var(--buddy-motion-rate))) infinite;
     }
     .agent-chat-buddy .buddy-z {
-        animation: buddy-z 2.4s ease-out calc(var(--i) * -1.2s) infinite;
+        animation: buddy-z 2.4s steps(calc(6 * var(--buddy-ambient-rate))) calc(var(--i) * -1.28s)
+            infinite;
     }
     .agent-chat-buddy[data-mood='tired'] .buddy-body {
-        animation: buddy-bob 3.2s ease-in-out infinite;
+        animation: buddy-bob 3.2s steps(calc(20 * var(--buddy-ambient-rate))) infinite;
     }
     .agent-chat-buddy .buddy-yawn {
-        animation: buddy-yawn 3.2s ease-in-out infinite;
+        animation: buddy-yawn 3.2s steps(calc(8 * var(--buddy-ambient-rate))) infinite;
     }
     .agent-chat-buddy .buddy-hat {
-        animation: buddy-hat 1.2s ease-in-out infinite;
+        animation: buddy-hat 1.28s steps(calc(8 * var(--buddy-ambient-rate))) infinite;
     }
     .agent-chat-buddy:hover .buddy-squish {
         animation: buddy-squish 0.4s cubic-bezier(0.3, 1.8, 0.5, 1) both;
     }
     .agent-chat-buddy:hover .buddy-heart {
-        animation: buddy-heart 1.2s ease-out infinite;
+        animation: buddy-heart 1.28s steps(calc(4 * var(--buddy-ambient-rate))) infinite;
     }
 }
 

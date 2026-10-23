@@ -56,8 +56,12 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    Renderer views; restore the bounded snapshot before replaying output buffered during attachment.
    Keep idle cost near zero:
    - Put a continuous `transform` or `opacity` animation on an HTML element, never on an inline
-     `<svg>` root: Chromium runs the SVG case on the main thread with a restyle every frame
-     (`features/primary-sidebar/running-arc.tsx` wraps its `<svg>` in a spinning `<span>`).
+     `<svg>` root or an SVG child: Chromium runs the SVG case on the main thread with a restyle every
+     frame (`features/primary-sidebar/running-arc.tsx` wraps its `<svg>` in a spinning `<span>`).
+     For a looping figure with several moving parts, give each part its own HTML layer over a shared
+     view box and step the loops with `steps()` on one common tick, so the parts redraw in the same
+     frame (thinking Buddy in `features/agent-chat/loading/buddy.tsx` went from 120 to 12.5 drawn
+     frames per second this way). Compositor-only motion alone still draws every frame on the GPU.
    - Bound decorative animations to the moment they convey something: a finite iteration count
      with `forwards`, replayed on a real trigger (the attention ripple replays on window `focus`).
    - Never hold a still phase inside the keyframes of a non-composited property such as
