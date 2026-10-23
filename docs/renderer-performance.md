@@ -178,7 +178,8 @@ prefetch would start Agent processes for Chats the user never opens.
 
 A kept-alive Session stays laid out off screen (`content-visibility: hidden`, see
 `apps/desktop/src/renderer/src/features/workbench/workbench.tsx`), which is why it returns on the
-first frame at the line the user left. The `cached` scenario's longest frame is the remount
+first frame at the line the user left. Its wrapper carries no `inert` and no descendant `[hidden] *` rule, because
+either one makes Chromium restyle the whole subtree when the Session shows again. The `cached` scenario's longest frame is the remount
 rendering the whole transcript at once.
 
 ## Development investigation

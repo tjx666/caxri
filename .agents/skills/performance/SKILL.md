@@ -76,8 +76,13 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      the rest (`features/agent-chat/activity/dwell-shimmer-rest.ts`).
    - A hidden `.workbench-session` uses `content-visibility: hidden`, so a transition started as it
      hides (the composer border fading on blur) never retires and keeps 120 Hz frames running.
-     `styles.css` pauses animations there and `hidden-session-transitions.ts` cancels transitions;
-     verify by switching away and counting `Scheduler::BeginFrame` in a trace, which should be 0.
+     `hidden-session-transitions.ts` cancels transitions and pauses running animations after the
+     switch paints; verify by switching away and counting `Scheduler::BeginFrame`, which should be 0.
+   - Unlocking a `content-visibility: hidden` subtree restyles all of it (about 26 ms for a 10-turn
+     Chat, 68 ms for 40 turns). Never toggle `inert` or style it through a descendant selector such
+     as `.workbench-session[hidden] *`: either invalidates the whole subtree on each Session
+     switch. Use JS (`getAnimations`) for pausing and rely on `content-visibility` for focus and
+     accessibility. Measure with a visible window and GPU on (the E2E default hides this cost).
    - Gate event-driven refetches and polling on `document.visibilityState`, then catch up once on
      reveal keyed by what changed, not by React Query's `isInvalidated`, which an in-flight fetch
      clears. Route every new Server-backed invalidation through

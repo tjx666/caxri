@@ -16,21 +16,17 @@
  * instead of `display: none`, so its layout and scroll offsets survive until the user switches back. Preflight hides
  * every `[hidden]` with an important `display: none` in `@layer base`, and an important declaration only loses to one
  * in the same or an earlier layer, so this override sits in `base` with a more specific selector.
+ *
+ * `content-visibility: hidden` skips painting but the wrapper's own box still takes hit tests, and every retained
+ * Session shares one grid cell. `z-index: -1` (not inherited, so only the wrapper restyles) keeps the box under the
+ * visible Session; `pointer-events: none` or `inert` would be inherited or toggle subtree-wide state and force a
+ * full-subtree restyle on every switch.
  */
 @layer base {
     .workbench-session[hidden] {
         display: block !important;
         content-visibility: hidden;
-    }
-
-    /*
-     * A skipped subtree still ticks its CSS animations: a Chat running in a hidden Session kept its buddy bobbing and
-     * blinking at 120 Hz. Pausing resumes each one where it stopped when the Session shows again.
-     */
-    .workbench-session[hidden] *,
-    .workbench-session[hidden] *::before,
-    .workbench-session[hidden] *::after {
-        animation-play-state: paused !important;
+        z-index: -1;
     }
 }
 
