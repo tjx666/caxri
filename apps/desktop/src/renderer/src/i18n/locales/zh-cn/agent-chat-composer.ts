@@ -5,6 +5,9 @@ import type { agentChatComposer as source } from '../en/agent-chat-composer';
 export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.composer.message': '消息',
     'agentChat.composer.stop': '停止',
+    'agentChat.composer.resume': '继续',
+    'agentChat.composer.resumeTooltip': '让 Agent 从中断的地方继续',
+    'agentChat.composer.resumeMessage': '继续',
     'agentChat.composer.stopping': '正在停止',
     'agentChat.composer.stopTooltip': '停止',
     'agentChat.composer.stoppingTooltip': '正在停止…',

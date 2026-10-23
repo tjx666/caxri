@@ -33,6 +33,7 @@ export function AgentChatComposerActions({
     canSaveProjectDefault,
     isAttaching,
     isQueueing,
+    isResume,
     isSendable,
     isStopping,
     onCompact,
@@ -78,6 +79,10 @@ export function AgentChatComposerActions({
      * rather than the action's label, which is translated display text.
      */
     isQueueing: boolean;
+    /**
+     * Send continues the stopped or failed turn (`isAgentChatTurnResumable`) instead of sending the empty draft.
+     */
+    isResume: boolean;
     isSendable: boolean;
     isStopping: boolean;
     /**
@@ -234,6 +239,7 @@ export function AgentChatComposerActions({
             ) : (
                 <AgentChatSendButton
                     isQueueing={isQueueing}
+                    isResume={isResume}
                     isSendable={isSendable}
                     keys={sendKeys}
                     sendAction={sendAction}

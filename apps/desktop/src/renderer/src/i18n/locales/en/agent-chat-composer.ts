@@ -5,6 +5,12 @@
 export const agentChatComposer = {
     'agentChat.composer.message': 'Message',
     'agentChat.composer.stop': 'Stop',
+    'agentChat.composer.resume': 'Continue',
+    'agentChat.composer.resumeTooltip': 'Continue where the Agent stopped',
+    /**
+     * Sent as the user's message when they press Continue after a stopped or failed turn.
+     */
+    'agentChat.composer.resumeMessage': 'Continue',
     'agentChat.composer.stopping': 'Stopping',
     'agentChat.composer.stopTooltip': 'Stop',
     'agentChat.composer.stoppingTooltip': 'Stopping…',

@@ -9,6 +9,7 @@ import { useTranslation } from '../../../i18n';
 import { recordRecentAgentAction } from '../../agent-actions/agent-actions-commands';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../activity/agent-chat-goal-mode';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
+import { isAgentChatTurnResumable } from '../composer/send/agent-chat-resume';
 import {
     agentChatGoalModeDraft,
     isAgentChatGoalAction,
@@ -26,7 +27,8 @@ import { useAgentChatUnsentReturns } from './use-agent-chat-unsent-returns';
  * message while "Edit from here" is in progress), a command picked from the slash menu, and the provider's compact
  * command offered by the context alert and meter. In Goal mode (`agent-chat-goal-mode.ts`) the draft is set as the
  * provider's goal instead, and the mode ends once Server Core accepts it; choosing `/goal` from the slash menu or Goal
- * from the Add menu enters the mode, and Backspace in an empty input leaves it.
+ * from the Add menu enters the mode, and Backspace in an empty input leaves it. After a stopped or failed turn, an
+ * empty composer's Send button continues it instead (`resume`).
  */
 export function useAgentChatComposerSend({
     canSend,
@@ -34,6 +36,7 @@ export function useAgentChatComposerSend({
     draft,
     edit: editInput,
     focusInput,
+    hasQueue,
     images,
     isAttaching,
     onSent,
@@ -60,6 +63,11 @@ export function useAgentChatComposerSend({
         | 'terminalId'
     >;
     focusInput: () => void;
+    /**
+     * Whether messages wait in the queue (listed or still pending), which then run on their own and leave nothing to
+     * continue.
+     */
+    hasQueue: boolean;
     images: Pick<
         ReturnType<typeof useAgentChatAttachments>,
         'addCards' | 'attachments' | 'clearSent' | 'removeCards' | 'restoreUnsent'
@@ -134,6 +142,22 @@ export function useAgentChatComposerSend({
             delivery ?? (editInput.isSteerDefault && editInput.isTurnRunning ? 'steer' : undefined);
         await edit.submit(draft, async () => submitDraft(draft, sentDelivery));
     };
+    const isResumable =
+        edit.canSend &&
+        !isSending &&
+        !isAttaching &&
+        !hasContent &&
+        !hasQueue &&
+        !isGoalMode &&
+        !edit.isEditing &&
+        isAgentChatTurnResumable(editInput.snapshot);
+    /**
+     * Sends "Continue" (in the interface language) after a stopped or failed turn, the message the user would otherwise
+     * type. Only the Send button offers it: Enter in an empty input stays inert, so a stray press never sends.
+     */
+    const resume = isResumable
+        ? async (): Promise<void> => submitDraft(t('agentChat.composer.resumeMessage'))
+        : undefined;
     const compactCommand = agentChatCompactCommand(commands);
     /**
      * Runs the provider's compact command from the context alert or the meter's card, the same path a typed `/compact`
@@ -211,6 +235,7 @@ export function useAgentChatComposerSend({
         hasContent,
         isSendable,
         isSending,
+        resume,
         /**
          * Why a `/btw` question was held back, while the line shows.
          */

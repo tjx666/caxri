@@ -278,6 +278,7 @@ export function AgentChatComposer({
         hasContent,
         isSendable,
         isSending,
+        resume,
         sideChatNotice,
         submit,
     } = useAgentChatComposerSend({
@@ -294,6 +295,7 @@ export function AgentChatComposer({
             snapshot,
         },
         focusInput,
+        hasQueue: (queue?.length ?? 0) + pendingQueue.length > 0,
         images,
         // A Session chosen from the `@` list is not in the draft until its reference is written.
         isAttaching: isAttaching || sessionMenu.isPreparing,
@@ -326,7 +328,13 @@ export function AgentChatComposer({
         isPreparingReference: sessionMenu.isPreparing,
         isSending,
     };
-    const { sendKeys, sendShortcut, sendTooltip } = agentChatSendLabels(sendAction, sendState, t);
+    const { sendKeys, sendShortcut, sendTooltip } = resume
+        ? {
+              sendKeys: undefined,
+              sendShortcut: undefined,
+              sendTooltip: t('agentChat.composer.resumeTooltip'),
+          }
+        : agentChatSendLabels(sendAction, sendState, t);
     const composerKeys = useAgentChatComposerEnter({
         cancelEdit: edit.cancel,
         clearAttachments: () => images.clearSent(images.attachments),
@@ -406,7 +414,9 @@ export function AgentChatComposer({
                         // The Send button disables itself while the message is in flight, which would drop its focus.
                         focusInput();
                         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                        void submit(agentChatSubmitterDelivery(event.nativeEvent.submitter));
+                        void (resume
+                            ? resume()
+                            : submit(agentChatSubmitterDelivery(event.nativeEvent.submitter)));
                     }}
                 >
                     <AgentChatSuggestionMenu
@@ -458,7 +468,8 @@ export function AgentChatComposer({
                         caxriSkill={caxriSkill}
                         isAttaching={isAttaching || sessionMenu.isPreparing}
                         isQueueing={!edit.isEditing && !isSteerDefault && (isTurnRunning || isBusy)}
-                        isSendable={isSendable}
+                        isResume={resume !== undefined}
+                        isSendable={isSendable || resume !== undefined}
                         isStopping={isStopping}
                         onCompact={compact}
                         onGoal={goalMode.enter}
