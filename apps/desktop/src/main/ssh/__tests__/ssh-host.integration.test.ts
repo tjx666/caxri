@@ -11,8 +11,8 @@ import { computeBuildFingerprint } from '@caxri/system';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { parseSshDestination } from '../destination';
-import type { RemoteArchitecture, RemoteLayerDescriptor } from '../layers';
-import { readRemoteLayer } from '../layers';
+import type { RemoteLayerDescriptor, RemoteTarget } from '../layers';
+import { readRemoteLayer, REMOTE_TARGETS } from '../layers';
 import { parseSshHostResult } from '../scripts';
 import { SshHostServerSupervisor } from '../server-supervisor';
 import type { SshHostStateUpdate } from '../server-supervisor-options';
@@ -58,7 +58,7 @@ printf '%s\n' '__CAXRI_${marker}_BEGIN__'
 printf 'builds=%s\n' "$(ls -1 "$HOME/.caxri-server/builds" 2>/dev/null | grep -v '^\.' | sort | tr '\n' ',')"
 printf 'runtimes=%s\n' "$(ls -1 "$HOME/.caxri-server/runtimes" 2>/dev/null | grep -v '^\.' | sort | tr '\n' ',')"
 if kill -0 ${pid} 2>/dev/null; then printf 'alive=1\n'; else printf 'alive=0\n'; fi
-printf 'pidBuild=%s\n' "$(tr '\000' '\n' < /proc/${pid}/cmdline 2>/dev/null | sed -n 's|.*/\.caxri-server/builds/\([^/]*\)/.*|\1|p' | head -n 1)"
+printf 'pidBuild=%s\n' "$({ tr '\000' '\n' < /proc/${pid}/cmdline || ps -ww -o command= -p ${pid}; } 2>/dev/null | sed -n 's|.*/\.caxri-server/builds/\([^/]*\)/.*|\1|p' | head -n 1)"
 printf '%s\n' '__CAXRI_${marker}_END__'
 `;
 }
@@ -100,7 +100,7 @@ async function waitFor(isDone: () => boolean, timeoutMs: number, label: string):
 describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () => {
     let root: string;
     let control: SshConnection | undefined;
-    let architecture: RemoteArchitecture;
+    let target: RemoteTarget;
     let baseDescriptor: RemoteLayerDescriptor;
     let firstPid = 0;
     const events: Array<{ event: string; fields?: Record<string, unknown> }> = [];
@@ -171,15 +171,10 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
     async function deriveLayer(name: string): Promise<{ buildId: string; root: string }> {
         const work = join(root, `layer-${name}`);
         const tree = join(work, 'tree');
-        const layerDirectory = join(work, 'layers', `linux-${architecture}`);
+        const layerDirectory = join(work, 'layers', target);
         await mkdir(tree, { recursive: true });
         await mkdir(layerDirectory, { recursive: true });
-        await execFileAsync('tar', [
-            '-xzf',
-            join(layersRoot, `linux-${architecture}`, 'app.tar.gz'),
-            '-C',
-            tree,
-        ]);
+        await execFileAsync('tar', ['-xzf', join(layersRoot, target, 'app.tar.gz'), '-C', tree]);
         const marker = `integration layer ${name}\n`;
         await writeFile(join(tree, 'integration-marker.txt'), marker);
         const sums = await readFile(join(tree, 'SHA256SUMS'), 'utf8');
@@ -205,9 +200,7 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
 
     beforeAll(async () => {
         const descriptors = await Promise.allSettled(
-            ['linux-arm64', 'linux-x64'].map((target) =>
-                access(join(layersRoot, target, 'descriptor.json')),
-            ),
+            REMOTE_TARGETS.map((layer) => access(join(layersRoot, layer, 'descriptor.json'))),
         );
         if (descriptors.every((outcome) => outcome.status === 'rejected'))
             throw new Error(`No remote Server layers in ${layersRoot}; build apps/server first`);
@@ -246,11 +239,12 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
             const { manifest } = await first.supervisor.discoverDesktop();
             expect(status.pid).toBe(manifest.pid);
             firstPid = status.pid;
-            const probedArchitecture = first.states.findLast((state) => state.platform)?.platform
-                ?.architecture;
-            expect(probedArchitecture).toBeDefined();
-            architecture = probedArchitecture ?? 'arm64';
-            const layer = await readRemoteLayer(layersRoot, architecture);
+            const platform = first.states.findLast((state) => state.platform)?.platform;
+            expect(platform).toBeDefined();
+            target = platform
+                ? (`${platform.system === 'macos' ? 'darwin' : 'linux'}-${platform.architecture}` as RemoteTarget)
+                : 'linux-arm64';
+            const layer = await readRemoteLayer(layersRoot, target);
             baseDescriptor = layer.descriptor;
             expect(status.buildId).toBe(layer.descriptor.fingerprint);
             expect(status.buildId).toBe(await computeBuildFingerprint(localBundles));
@@ -260,7 +254,7 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
             expect(installed).toBeDefined();
             if (expectedRuntimeSource) expect(installed?.runtimeSource).toBe(expectedRuntimeSource);
             report.cold = {
-                architecture,
+                target,
                 installed,
                 stdinBytes: first.stdinBytes(),
                 launched: eventsSince(eventIndex, 'ssh_host.launched'),
@@ -383,11 +377,15 @@ CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
         report.desktopCommands = desktopCommands;
         await desktop.request('terminal.close', { terminalId: terminal.id });
 
-        // Main moves an SSH Host window's entry into that host's freedesktop.org Trash after its dialog.
-        const trashed = `${project.rootPath}/agent-made.txt`;
-        await control!.exec(`printf draft > '${trashed}' && rm -rf "$HOME/.local/share/Trash"`, {
-            timeoutMs: 10_000,
-        });
+        // Main moves an SSH Host window's entry into that host's own Trash after its dialog: freedesktop.org on Linux,
+        // `~/.Trash` on macOS. The macOS name is unique because that Trash may hold the account's own files.
+        const isMacos = target === 'darwin-arm64';
+        const name = isMacos ? `caxri-integration-${Date.now()}.txt` : 'agent-made.txt';
+        const trashed = `${project.rootPath}/${name}`;
+        await control!.exec(
+            `printf draft > '${trashed}'${isMacos ? '' : ' && rm -rf "$HOME/.local/share/Trash"'}`,
+            { timeoutMs: 10_000 },
+        );
         const sessionId = created.session.id;
         const approved = await desktop.requestServerOperation('files.authorizeTrash', {
             sessionId,
@@ -400,10 +398,12 @@ CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
             inode: approved.inode,
         });
         const { stdout: trash } = await control!.exec(
-            `test ! -e '${trashed}' && cat "$HOME/.local/share/Trash/files/agent-made.txt" && grep '^Path=' "$HOME/.local/share/Trash/info/agent-made.txt.trashinfo"`,
+            isMacos
+                ? `test ! -e '${trashed}' && cat "$HOME/.Trash/${name}" && rm -f "$HOME/.Trash/${name}"`
+                : `test ! -e '${trashed}' && cat "$HOME/.local/share/Trash/files/${name}" && grep '^Path=' "$HOME/.local/share/Trash/info/${name}.trashinfo"`,
             { timeoutMs: 10_000 },
         );
-        expect(trash).toBe(`draftPath=${trashed}\n`);
+        expect(trash).toBe(isMacos ? 'draft' : `draftPath=${trashed}\n`);
     }, 60_000);
 
     it('stops the Server with host.stop and waits for its exit', async () => {
@@ -432,7 +432,7 @@ CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
             expect(installed?.runtimeSource).toBe('cached');
             // Only the application layer travels; the 120 MB runtime stays cached on the host.
             expect(updater.stdinBytes()).toBe(
-                (await readRemoteLayer(second.root, architecture)).descriptor.app.bytes,
+                (await readRemoteLayer(second.root, target)).descriptor.app.bytes,
             );
             report.update = { installed, stdinBytes: updater.stdinBytes() };
             let remote = await inventory(status.pid);

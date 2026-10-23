@@ -4,7 +4,9 @@ export const sshHost = {
     'sshHost.status.ariaLabel': 'This window runs on the SSH Host {{destination}}',
     'sshHost.status.tooltip':
         "This window's Projects, Terminals, and Agents run on the SSH Host {{destination}}.",
-    'sshHost.status.platform': '{{hostname}} · Linux {{architecture}} · glibc {{glibc}}',
+    'sshHost.status.platformLinux':
+        '{{hostname}} · Linux {{architecture}} · glibc {{systemVersion}}',
+    'sshHost.status.platformMacos': '{{hostname}} · macOS {{systemVersion}} · {{architecture}}',
     'sshHost.status.stopServer': 'Stop Server on SSH Host…',
 
     // Connect to SSH Host dialog
@@ -45,7 +47,7 @@ export const sshHost = {
     'sshHost.failure.unreachable':
         'The SSH Host could not be reached. Check the network, VPN, and the host name in ~/.ssh/config.',
     'sshHost.failure.unsupportedPlatform':
-        'Caxri Server runs only on Linux x64 and arm64. This SSH Host runs a different system.',
+        'Caxri Server runs on Linux x64 and arm64, and on macOS 13.5 or newer on Apple silicon. This SSH Host runs a different system.',
     'sshHost.failure.unsupportedGlibc':
         'Caxri Server needs glibc 2.28 or newer, such as Ubuntu 20.04, Debian 10, or RHEL 8. This SSH Host has an older version.',
     'sshHost.failure.missingTool':

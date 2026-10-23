@@ -14,11 +14,11 @@ import type { DesktopServerSupervisor } from '../server-attachment';
 import { AskpassBridge } from './askpass';
 import type { SshDestination } from './destination';
 import { parseSshDestination } from './destination';
-import { validateSshHostProbe } from './host-requirements';
+import { remoteTargetOf, validateSshHostProbe } from './host-requirements';
 import { installSshHostBuild } from './install';
 import { parseLaunchOutput } from './launch-output';
-import type { RemoteArchitecture, RemoteLayer } from './layers';
-import { readRemoteLayer } from './layers';
+import type { RemoteLayer, RemoteTarget } from './layers';
+import { readRemoteLayer, REMOTE_TARGETS } from './layers';
 import type { SeedableConfigFile, SshHostProbe } from './scripts';
 import { launchScript, parseProbe, probeScript, seedConfigScript, stopWaitScript } from './scripts';
 import type {
@@ -132,11 +132,12 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
             this.emit(phase);
             const layers = await this.readLayers();
             const probe = await this.ensureProbe(connection, layers);
-            const layer = layers.get(probe.architecture as RemoteArchitecture);
+            const target = remoteTargetOf(probe);
+            const layer = target && layers.get(target);
             if (!layer)
                 throw new SshHostSetupError(
                     'installFailed',
-                    `This Caxri build has no remote Server for linux-${probe.architecture}`,
+                    `This Caxri build has no remote Server for ${target ?? `${probe.os} ${probe.architecture}`}`,
                 );
             if (!probe.builds.has(layer.descriptor.buildId)) {
                 phase = 'installing';
@@ -286,24 +287,21 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
         });
     }
 
-    private async readLayers(): Promise<Map<RemoteArchitecture, RemoteLayer>> {
-        const layers = new Map<RemoteArchitecture, RemoteLayer>();
-        const architectures = ['x64', 'arm64'] as const;
+    private async readLayers(): Promise<Map<RemoteTarget, RemoteLayer>> {
+        const layers = new Map<RemoteTarget, RemoteLayer>();
         const settled = await Promise.allSettled(
-            architectures.map((architecture) =>
-                readRemoteLayer(this.options.remoteLayersRoot, architecture),
-            ),
+            REMOTE_TARGETS.map((target) => readRemoteLayer(this.options.remoteLayersRoot, target)),
         );
-        // A build may carry only one architecture; the probe decides whether the missing one matters.
-        for (const [index, outcome] of settled.entries())
+        // A build may carry only some targets; the probe decides whether a missing one matters.
+        for (const outcome of settled)
             if (outcome.status === 'fulfilled')
-                layers.set(architectures[index] ?? 'x64', outcome.value);
+                layers.set(outcome.value.descriptor.target, outcome.value);
         return layers;
     }
 
     private async ensureProbe(
         connection: SshHostTransport,
-        layers: Map<RemoteArchitecture, RemoteLayer>,
+        layers: Map<RemoteTarget, RemoteLayer>,
     ): Promise<SshHostProbe> {
         if (this.probe) return this.probe;
         const startedAt = Date.now();
@@ -324,19 +322,27 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
             );
         }
         const probe = parseProbe(result);
-        if (probe.architecture === 'x64' || probe.architecture === 'arm64')
+        const target = remoteTargetOf(probe);
+        const isMacos = probe.os === 'Darwin';
+        const systemVersion = (isMacos ? probe.macos : probe.glibc).slice(0, 32);
+        if (
+            (isMacos || probe.os === 'Linux') &&
+            (probe.architecture === 'x64' || probe.architecture === 'arm64')
+        )
             this.platform = {
                 architecture: probe.architecture,
-                glibc: probe.glibc.slice(0, 32),
                 hostname: probe.hostname,
+                system: isMacos ? 'macos' : 'linux',
+                systemVersion,
             };
-        const layer = layers.get(probe.architecture as RemoteArchitecture);
-        validateSshHostProbe(probe, layer?.descriptor.glibcBaseline);
+        const layer = target && layers.get(target);
+        validateSshHostProbe(probe, layer?.descriptor.systemBaseline);
         this.options.logger.write('info', logEventCatalog.sshHost.probed, {
             fields: {
                 architecture: probe.architecture,
                 durationMs: Date.now() - startedAt,
-                glibc: probe.glibc.slice(0, 32),
+                os: probe.os.slice(0, 32),
+                systemVersion,
                 hasBuild: layer ? probe.builds.has(layer.descriptor.buildId) : false,
                 hasServer: probe.server !== undefined,
             },

@@ -122,8 +122,12 @@ const sshHostFailureSchema = z.object({
 
 const sshHostPlatformSchema = z.object({
     architecture: z.enum(['x64', 'arm64']),
-    glibc: z.string().max(32),
     hostname: z.string().max(255),
+    system: z.enum(['linux', 'macos']),
+    /**
+     * The glibc version on Linux, the macOS version on macOS.
+     */
+    systemVersion: z.string().max(32),
 });
 
 export const environmentStateSchema = z.discriminatedUnion('kind', [

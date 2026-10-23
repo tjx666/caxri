@@ -7,7 +7,9 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.windowTitle': 'SSH: {{destination}}',
     'sshHost.status.ariaLabel': '此窗口运行在 SSH Host {{destination}} 上',
     'sshHost.status.tooltip': '此窗口中的项目、终端和 Agent 都运行在 SSH Host {{destination}} 上。',
-    'sshHost.status.platform': '{{hostname}} · Linux {{architecture}} · glibc {{glibc}}',
+    'sshHost.status.platformLinux':
+        '{{hostname}} · Linux {{architecture}} · glibc {{systemVersion}}',
+    'sshHost.status.platformMacos': '{{hostname}} · macOS {{systemVersion}} · {{architecture}}',
     'sshHost.status.stopServer': '停止 SSH Host 上的 Server…',
 
     // 连接到 SSH Host 对话框
@@ -47,7 +49,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.failure.unreachable':
         '无法访问 SSH Host。请检查网络、VPN，以及 ~/.ssh/config 中的主机名。',
     'sshHost.failure.unsupportedPlatform':
-        'Caxri Server 只能运行在 Linux x64 和 arm64 上，这台 SSH Host 的系统不受支持。',
+        'Caxri Server 可以运行在 Linux x64 和 arm64，以及 Apple 芯片上的 macOS 13.5 或更高版本，这台 SSH Host 的系统不受支持。',
     'sshHost.failure.unsupportedGlibc':
         'Caxri Server 需要 glibc 2.28 或更高版本（例如 Ubuntu 20.04、Debian 10 或 RHEL 8），这台 SSH Host 的版本过旧。',
     'sshHost.failure.missingTool':

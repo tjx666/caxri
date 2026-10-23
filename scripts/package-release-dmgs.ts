@@ -193,7 +193,7 @@ async function packageFlavor(
     const environment = { ...process.env, CAXRI_SOURCE_MAPS: flavor };
     await runRequired('bun', ['run', 'build'], cwd, environment);
     await verifyBuildSourceMaps(cwd, flavor);
-    // The remote layers use the freshly built Server bundles but are flavor-independent because Linux targets always
+    // The remote layers use the freshly built Server bundles but are flavor-independent because remote targets always
     // omit Source Maps. Build them once before packaging the first flavor; the second build preserves dist/remote.
     if (flavor === 'include') await runRequired('bun', ['run', 'build:remote-layers'], cwd);
     await runRequired(

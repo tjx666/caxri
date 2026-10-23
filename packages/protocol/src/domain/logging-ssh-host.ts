@@ -40,7 +40,8 @@ export const sshHostLogEvents = {
      */
     phaseChanged: 'ssh_host.phase_changed',
     /**
-     * The SSH Host was probed: architecture, glibc version, and whether the build and runtime were already present.
+     * The SSH Host was probed: system, architecture, system version (glibc or macOS), and whether the build and runtime
+     * were already present.
      */
     probed: 'ssh_host.probed',
 } as const;

@@ -1,14 +1,24 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+    copyFile,
+    mkdir,
+    mkdtemp,
+    readFile,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { LinuxRuntimeSource } from '../linux-target';
-import { extractLinuxNode, resolveHostNodeLicense } from '../linux-target';
+import type { NodeRuntimeSource } from '../remote-target';
+import { assertMacosBaseline, extractNodeRuntime, resolveHostNodeLicense } from '../remote-target';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
@@ -18,7 +28,7 @@ async function fixtureFile(path: string, contents: string): Promise<void> {
     await writeFile(path, contents);
 }
 
-async function runtimeTarball(root: string, hasLicense: boolean): Promise<LinuxRuntimeSource> {
+async function runtimeTarball(root: string, hasLicense: boolean): Promise<NodeRuntimeSource> {
     /**
      * Keeps extraction fixtures from becoming a second source for the repository toolchain version.
      */
@@ -46,14 +56,14 @@ afterEach(async () => {
     await Promise.all(paths.map((path) => rm(path, { force: true, recursive: true })));
 });
 
-describe('Linux Node runtime extraction', () => {
+describe('Node runtime extraction', () => {
     it('extracts the runtime and LICENSE from the same verified tarball', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-linux-runtime-'));
         temporaryDirectories.push(root);
         const source = await runtimeTarball(root, true);
         const destination = join(root, 'output', 'node');
 
-        const license = await extractLinuxNode(source, destination, join(root, 'cache'));
+        const license = await extractNodeRuntime(source, destination, join(root, 'cache'));
 
         expect(await readFile(destination, 'utf8')).toBe('matching node runtime');
         expect(await readFile(license, 'utf8')).toBe('matching node license');
@@ -65,7 +75,7 @@ describe('Linux Node runtime extraction', () => {
         const source = await runtimeTarball(root, false);
 
         await expect(
-            extractLinuxNode(source, join(root, 'output', 'node'), join(root, 'cache')),
+            extractNodeRuntime(source, join(root, 'output', 'node'), join(root, 'cache')),
         ).rejects.toThrow();
     });
 });
@@ -85,5 +95,34 @@ describe('host Node runtime license', () => {
         await symlink(executable, linkedExecutable);
 
         expect(await resolveHostNodeLicense(linkedExecutable)).toBe(await realpath(license));
+    });
+});
+
+describe.skipIf(process.platform !== 'darwin')('darwin-arm64 macOS baseline', () => {
+    async function compile(output: string, minimum: string): Promise<void> {
+        await mkdir(dirname(output), { recursive: true });
+        const source = `${output}.c`;
+        await writeFile(source, 'int main(void) { return 0; }\n');
+        await execFileAsync('cc', [`-mmacosx-version-min=${minimum}`, '-o', output, source]);
+        await rm(source);
+    }
+
+    it('accepts binaries at the baseline and ignores non-Mach-O files', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-macos-baseline-'));
+        temporaryDirectories.push(root);
+        await fixtureFile(join(root, 'bundles', 'server-core.js'), 'console.log(1);');
+        await compile(join(root, 'runtime', 'bin', 'node'), '13.5');
+        // System binaries also carry linker-tool `version` lines far above any macOS number.
+        await copyFile('/bin/ls', join(root, 'runtime', 'bin', 'ls'));
+
+        await expect(assertMacosBaseline(root)).resolves.toBeUndefined();
+    });
+
+    it('names a binary that needs a newer macOS', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-macos-baseline-'));
+        temporaryDirectories.push(root);
+        await compile(join(root, 'native', 'addon.node'), '15.0');
+
+        await expect(assertMacosBaseline(root)).rejects.toThrow('native/addon.node (15.0)');
     });
 });

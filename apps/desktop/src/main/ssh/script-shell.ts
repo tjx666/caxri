@@ -92,25 +92,33 @@ caxri_unlock() {
 `;
 
 /**
- * Reads the pid and process identity out of a one-line Server discovery JSON document without a JSON parser.
+ * Reads the pid and process identity out of a one-line Server discovery JSON document without a JSON parser, and reads
+ * a process's command line from `/proc` (Linux) or `ps` (macOS, which has no `/proc`). Without `ps -o command=` a macOS
+ * SSH Host could not tell its Server from a reused pid or name the build a running Server came from.
  */
-export const DISCOVERY_FUNCTIONS = String.raw`caxri_json_pid() {
+export const DISCOVERY_FUNCTIONS = String.raw`caxri_cmdline() {
+    if [ -r "/proc/$1/cmdline" ]; then
+        tr '\000' '\n' < "/proc/$1/cmdline" 2>/dev/null || true
+    elif [ ! -d /proc/self ] && command -v ps >/dev/null 2>&1; then
+        ps -ww -o command= -p "$1" 2>/dev/null || true
+    else
+        return 1
+    fi
+}
+caxri_json_pid() {
     sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" 2>/dev/null | head -n 1
 }
 caxri_json_identity() {
     sed -n 's/.*"processIdentity"[[:space:]]*:[[:space:]]*"\([0-9a-f]*\)".*/\1/p' "$1" 2>/dev/null | head -n 1
 }
 caxri_process_build() {
-    if [ -r "/proc/$1/cmdline" ]; then
-        tr '\000' '\n' < "/proc/$1/cmdline" 2>/dev/null | sed -n 's|.*/\.caxri-server/builds/\([^/]*\)/.*|\1|p' | head -n 1
-    fi
+    caxri_cmdline "$1" | sed -n 's|.*/\.caxri-server/builds/\([^/]*\)/.*|\1|p' | head -n 1
 }
 caxri_is_server_pid() {
     [ -n "$1" ] || return 1
     kill -0 "$1" 2>/dev/null || return 1
-    if [ -r "/proc/$1/cmdline" ]; then
-        tr '\000' '\n' < "/proc/$1/cmdline" 2>/dev/null | grep -q 'server-core' || return 1
-    fi
+    caxri_command=$(caxri_cmdline "$1") || return 0
+    printf '%s\n' "$caxri_command" | grep -q 'server-core' || return 1
     return 0
 }
 CAXRI_PROFILE="$CAXRI_ROOT/profile"

@@ -456,7 +456,7 @@ jobs:
             cmp out/mobile-update/caxri-mobile.apk "${resources}/caxri-mobile.apk"
             cmp out/mobile-update/manifest.json "${resources}/manifest.json"
             remote="release.noindex/${flavor}/mac-arm64/Caxri.app/Contents/Resources/remote"
-            for target in linux-x64 linux-arm64; do
+            for target in linux-x64 linux-arm64 darwin-arm64; do
               cmp "apps/server/dist/remote/${target}/descriptor.json" "${remote}/${target}/descriptor.json"
               cmp "apps/server/dist/remote/${target}/app.tar.gz" "${remote}/${target}/app.tar.gz"
             done

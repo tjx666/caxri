@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -17,8 +17,8 @@ import {
     buildLayerFixture,
     captureRejection,
     hostEnvironment,
+    hostShims,
     killRemoteServer,
-    linuxShims,
     LocalTransport,
     makeShortTemporaryDirectory,
     writeShims,
@@ -45,7 +45,7 @@ describe('remote server supervisor', () => {
         shims = join(root, 'shims');
         layers = join(root, 'layers');
         await mkdir(home);
-        await writeShims(shims, linuxShims());
+        await writeShims(shims, hostShims());
         fixture = await buildLayerFixture(layers, { remotePort: REMOTE_PORT });
         // Pre-populate Desktop's runtime cache so the upload fallback needs no network.
         const cached = join(root, 'runtimes', fixture.descriptor.runtime.sha256);
@@ -123,7 +123,12 @@ describe('remote server supervisor', () => {
                 failure: undefined,
                 needsUserAction: false,
                 phase: 'connected',
-                platform: { architecture: 'x64', glibc: '2.36', hostname: 'test-host' },
+                platform: {
+                    architecture: 'x64',
+                    hostname: 'test-host',
+                    system: 'linux',
+                    systemVersion: '2.36',
+                },
             });
 
             const { credential, manifest } = await supervisor.discoverDesktop();
@@ -292,10 +297,12 @@ describe('remote server supervisor', () => {
 
         it.each([
             [{ glibc: '2.17' }, 'unsupportedGlibc', /glibc 2\.17/u],
-            [{ os: 'Darwin' }, 'unsupportedPlatform', /Darwin/u],
+            [{ os: 'Darwin' }, 'unsupportedPlatform', /Darwin x64/u],
+            [{ os: 'Darwin', arch: 'arm64', macos: '13.4' }, 'unsupportedPlatform', /macOS 13\.4/u],
+            [{ os: 'Darwin', arch: 'arm64' }, 'unsupportedPlatform', /unknown version/u],
             [{ arch: 'riscv64' }, 'unsupportedPlatform', /riscv64/u],
         ])('refuses an unsupported host %j', async (shimOptions, reason, message) => {
-            await writeShims(shims, linuxShims(shimOptions));
+            await writeShims(shims, hostShims(shimOptions));
             const supervisor = createSupervisor();
             const ensured = supervisor.ensure();
             await expect(ensured).rejects.toMatchObject({ reason });
@@ -305,8 +312,38 @@ describe('remote server supervisor', () => {
             expect(transports[0]?.execs).toHaveLength(1);
         });
 
+        it('installs the darwin-arm64 layer on an Apple silicon Mac', async () => {
+            await writeShims(shims, hostShims({ arch: 'arm64', macos: '15.1', os: 'Darwin' }));
+            const darwin = await buildLayerFixture(layers, {
+                buildId: 'fedcba9876543210',
+                remotePort: REMOTE_PORT,
+                target: 'darwin-arm64',
+            });
+            const cached = join(root, 'runtimes', darwin.descriptor.runtime.sha256);
+            await mkdir(cached, { recursive: true });
+            await writeFile(join(cached, 'node'), darwin.runtimeContent, { mode: 0o755 });
+            const supervisor = createSupervisor();
+            await supervisor.ensure();
+
+            expect(states.at(-1)).toMatchObject({
+                phase: 'connected',
+                platform: {
+                    architecture: 'arm64',
+                    hostname: 'test-host',
+                    system: 'macos',
+                    systemVersion: '15.1',
+                },
+            });
+            await stat(
+                join(home, '.caxri-server/builds', darwin.descriptor.buildId, '.caxri-complete'),
+            );
+            await expect(
+                stat(join(home, '.caxri-server/builds', fixture.descriptor.buildId)),
+            ).rejects.toMatchObject({ code: 'ENOENT' });
+        });
+
         it('fails clearly when the build has no layer for the host architecture', async () => {
-            await writeShims(shims, linuxShims({ arch: 'aarch64' }));
+            await writeShims(shims, hostShims({ arch: 'aarch64' }));
             const supervisor = createSupervisor();
             await expect(supervisor.ensure()).rejects.toMatchObject({ reason: 'installFailed' });
         });

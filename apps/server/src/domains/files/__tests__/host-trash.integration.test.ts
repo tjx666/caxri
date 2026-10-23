@@ -10,6 +10,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -29,7 +30,9 @@ describe('FileService.trashOnHost', () => {
         directory = await mkdtemp(join(tmpdir(), 'caxri-trash-on-host-'));
         await mkdir(join(directory, 'project'));
         root = await realpath(join(directory, 'project'));
+        // Both roots of the host Trash point into the fixture, so no run touches the developer's own Trash.
         vi.stubEnv('XDG_DATA_HOME', join(directory, 'data'));
+        vi.stubEnv('HOME', directory);
         database = new CaxriDatabase(join(directory, 'state.db'));
         sessionId = database.createSession(database.createProject(root).id, 'shell').session.id;
         logger = new StructuredLogger(join(directory, 'logs'));
@@ -58,7 +61,12 @@ describe('FileService.trashOnHost', () => {
 
         await expect(access(target)).rejects.toMatchObject({ code: 'ENOENT' });
         expect(
-            await readFile(join(directory, 'data', 'Trash', 'files', 'agent-made.txt'), 'utf8'),
+            await readFile(
+                process.platform === 'darwin'
+                    ? join(directory, '.Trash', 'agent-made.txt')
+                    : join(directory, 'data', 'Trash', 'files', 'agent-made.txt'),
+                'utf8',
+            ),
         ).toBe('created by an Agent');
     });
 

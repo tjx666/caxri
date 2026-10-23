@@ -9,21 +9,22 @@ import { promisify } from 'node:util';
 import { computeBuildFingerprint } from '@caxri/system';
 
 import { verifyServerArtifact } from './artifact';
-import type { LinuxArchitecture } from './linux-target';
-import { LINUX_GLIBC_BASELINE, parseLinuxTargets } from './linux-target';
+import { LINUX_GLIBC_BASELINE } from './linux-target';
 import type { RemoteLayerDescriptor } from './remote-layer';
 import { APP_LAYER_FILE, buildAppLayer, REMOTE_RUNTIME_PATH } from './remote-layer';
+import type { RemoteTarget } from './remote-target';
+import { MACOS_BASELINE, parseRemoteTargets } from './remote-target';
 
 const execFileAsync = promisify(execFile);
 const serverRoot = resolve(import.meta.dirname, '..');
 
 /**
- * Builds the SSH Host upload layers: for each Linux target, assembles the target Server artifact and writes
- * `dist/remote/linux-<arch>/{app.tar.gz,descriptor.json}`, which packaging embeds under `Contents/Resources/remote`.
- * Usage: `bun run scripts/build-remote-layers.ts [--target linux-x64] [--target linux-arm64]` (default: both).
+ * Builds the SSH Host upload layers: for each target, assembles the target Server artifact and writes
+ * `dist/remote/<target>/{app.tar.gz,descriptor.json}`, which packaging embeds under `Contents/Resources/remote`. Usage:
+ * `bun run scripts/build-remote-layers.ts [--target linux-x64] [--target linux-arm64] [--target darwin-arm64]`
+ * (default: both Linux targets, plus `darwin-arm64` on an Apple silicon Mac).
  */
-async function buildTarget(architecture: LinuxArchitecture): Promise<RemoteLayerDescriptor> {
-    const target = `linux-${architecture}` as const;
+async function buildTarget(target: RemoteTarget): Promise<RemoteLayerDescriptor> {
     process.stdout.write(`Building ${target} Server artifact\n`);
     await execFileAsync('bun', ['run', 'scripts/build-artifact.ts', '--target', target], {
         cwd: serverRoot,
@@ -56,7 +57,7 @@ async function buildTarget(architecture: LinuxArchitecture): Promise<RemoteLayer
         fingerprint,
         version: manifest.version,
         commit: manifest.commit,
-        glibcBaseline: LINUX_GLIBC_BASELINE,
+        systemBaseline: target === 'darwin-arm64' ? MACOS_BASELINE : LINUX_GLIBC_BASELINE,
         app: { file: APP_LAYER_FILE, sha256: app.sha256, bytes: app.bytes },
         runtime: {
             sha256: runtime.sha256,
@@ -76,12 +77,13 @@ async function buildTarget(architecture: LinuxArchitecture): Promise<RemoteLayer
 }
 
 if (import.meta.main) {
-    const targets = parseLinuxTargets(process.argv.slice(2));
-    // Packaging copies all of `dist/remote`; a full build starts clean so a layer from another commit cannot ship.
-    if (targets.length === 2)
+    const explicit = process.argv.includes('--target');
+    const targets = parseRemoteTargets(process.argv.slice(2));
+    // Packaging copies all of `dist/remote`; any multi-target build starts clean so a layer from another commit cannot ship.
+    if (!explicit || targets.length > 1)
         await rm(resolve(serverRoot, 'dist/remote'), { force: true, recursive: true });
-    for (const architecture of targets) {
+    for (const target of targets) {
         // eslint-disable-next-line no-await-in-loop -- targets share the native staging cache and Docker
-        await buildTarget(architecture);
+        await buildTarget(target);
     }
 }

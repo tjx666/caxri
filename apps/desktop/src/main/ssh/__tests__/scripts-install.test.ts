@@ -1,5 +1,7 @@
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -296,6 +298,44 @@ describe('remote install scripts', () => {
             expect(await host.listRemote('builds')).toEqual([current, previous]);
             expect(await host.listRemote('runtimes')).toEqual([runtimes.keep, runtimes.previous]);
         });
+
+        it('keeps an older build a running Server still executes from', async () => {
+            // A process whose command line names the older build, as a Server started from it would; on macOS this is
+            // read from \`ps\`, on Linux from /proc. The script is written before \`makeBuild\` ages the directory, because
+            // GC ranks builds by modification time.
+            const script = join(host.serverRoot(), 'builds', older, 'server-core.sh');
+            await mkdir(join(host.serverRoot(), 'builds', older), { recursive: true });
+            await writeFile(script, 'while :; do sleep 1; done\n');
+            await makeBuild(current, runtimes.keep, 0);
+            await makeBuild(previous, runtimes.previous, 100);
+            await makeBuild(older, runtimes.orphan, 200);
+            const running: ChildProcess = spawn('/bin/sh', [script], { stdio: 'ignore' });
+            try {
+                const collected = await host.run(
+                    gcScript({ buildId: current, runtimeSha256: runtimes.keep }),
+                );
+                expect(collected.result?.get('removedBuilds')).toBe('0');
+                expect(await host.listRemote('builds')).toEqual([current, previous, older]);
+                expect(await host.listRemote('runtimes')).toEqual(Object.values(runtimes));
+            } finally {
+                running.kill('SIGKILL');
+            }
+        });
+
+        it.skipIf(existsSync('/proc/self'))(
+            'skips without /proc when ps cannot list processes',
+            async () => {
+                await makeBuild(current, runtimes.keep, 0);
+                await makeBuild(previous, runtimes.previous, 100);
+                await makeBuild(older, runtimes.orphan, 200);
+                await writeShims(host.shims, { ps: 'exit 1' });
+                const collected = await host.run(
+                    gcScript({ buildId: current, runtimeSha256: runtimes.keep }),
+                );
+                expect(collected.result?.get('status')).toBe('no-process-list');
+                expect(await host.listRemote('builds')).toHaveLength(3);
+            },
+        );
 
         it('skips while an install holds the lock', async () => {
             await makeBuild(current, runtimes.keep, 0);

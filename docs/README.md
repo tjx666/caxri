@@ -92,6 +92,7 @@ rewritten, only superseded.
 | [0015](adr/0015-chat-primary-agent-surface.md)                | Agent Chat is the primary Agent surface; Terminal stays supported  |
 | [0016](adr/0016-github-hosted-ci.md)                          | GitHub-hosted CI with explicitly authorized full E2E               |
 | [0017](adr/0017-per-window-session-presence.md)               | Per-window Open Sessions and presence replace one selected Session |
+| [0018](adr/0018-macos-ssh-hosts.md)                           | macOS on Apple silicon is a supported SSH Host                     |
 
 ## Historical
 

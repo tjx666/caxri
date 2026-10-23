@@ -26,22 +26,34 @@ describe('remote layers', () => {
 
     describe('readRemoteLayer', () => {
         it('reads a valid descriptor and its application tarball', async () => {
-            const fixture = await buildLayerFixture(root, { architecture: 'arm64' });
-            const layer = await readRemoteLayer(root, 'arm64');
+            const fixture = await buildLayerFixture(root, { target: 'linux-arm64' });
+            const layer = await readRemoteLayer(root, 'linux-arm64');
             expect(layer.descriptor).toEqual(fixture.descriptor);
             expect(layer.appPath).toBe(join(root, 'linux-arm64', 'app.tar.gz'));
         });
 
-        it('reports a missing architecture as not found', async () => {
-            await buildLayerFixture(root, { architecture: 'arm64' });
-            await expect(readRemoteLayer(root, 'x64')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        it('reports a missing target as not found', async () => {
+            await buildLayerFixture(root, { target: 'linux-arm64' });
+            await expect(readRemoteLayer(root, 'linux-x64')).rejects.toMatchObject({
+                code: 'NOT_FOUND',
+            });
+        });
+
+        it('reads a darwin-arm64 layer beside the Linux ones', async () => {
+            const fixture = await buildLayerFixture(root, { target: 'darwin-arm64' });
+            const layer = await readRemoteLayer(root, 'darwin-arm64');
+            expect(layer.descriptor).toEqual(fixture.descriptor);
+            expect(layer.descriptor.systemBaseline).toBe('13.5');
+            await expect(readRemoteLayer(root, 'linux-arm64')).rejects.toMatchObject({
+                code: 'NOT_FOUND',
+            });
         });
 
         it('refuses invalid descriptors and size mismatches', async () => {
             const fixture = await buildLayerFixture(root);
             const path = join(root, 'linux-x64', 'descriptor.json');
             await writeFile(path, JSON.stringify({ ...fixture.descriptor, target: 'linux-arm64' }));
-            await expect(readRemoteLayer(root, 'x64')).rejects.toMatchObject({
+            await expect(readRemoteLayer(root, 'linux-x64')).rejects.toMatchObject({
                 code: 'VALIDATION',
             });
             await writeFile(
@@ -51,7 +63,7 @@ describe('remote layers', () => {
                     runtime: { ...fixture.descriptor.runtime, path: '../node' },
                 }),
             );
-            await expect(readRemoteLayer(root, 'x64')).rejects.toMatchObject({
+            await expect(readRemoteLayer(root, 'linux-x64')).rejects.toMatchObject({
                 code: 'VALIDATION',
             });
             await writeFile(
@@ -67,7 +79,7 @@ describe('remote layers', () => {
                     },
                 }),
             );
-            await expect(readRemoteLayer(root, 'x64')).rejects.toMatchObject({
+            await expect(readRemoteLayer(root, 'linux-x64')).rejects.toMatchObject({
                 code: 'VALIDATION',
             });
             await writeFile(
@@ -77,7 +89,9 @@ describe('remote layers', () => {
                     app: { ...fixture.descriptor.app, bytes: fixture.descriptor.app.bytes + 1 },
                 }),
             );
-            await expect(readRemoteLayer(root, 'x64')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+            await expect(readRemoteLayer(root, 'linux-x64')).rejects.toMatchObject({
+                code: 'NOT_FOUND',
+            });
         });
     });
 

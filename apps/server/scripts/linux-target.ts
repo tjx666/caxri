@@ -1,11 +1,20 @@
-import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
+
+import type { NodeRuntimeSource } from './remote-target';
+import {
+    download,
+    ensureNodeRuntime,
+    hasPath,
+    parseRemoteTargets,
+    pinnedRuntimeVersion,
+    sha256,
+} from './remote-target';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -14,8 +23,6 @@ const serverRoot = resolve(import.meta.dirname, '..');
 const cacheRoot = resolve(root, '.cache/server-linux-target');
 
 export type LinuxArchitecture = 'arm64' | 'x64';
-
-const linuxArchitectures: ReadonlySet<LinuxArchitecture> = new Set(['x64', 'arm64']);
 
 /**
  * The manylinux 2.28 images build against glibc 2.28 with a toolchain that links newer libstdc++ symbols statically,
@@ -33,147 +40,10 @@ const MANYLINUX_IMAGES: Record<LinuxArchitecture, { image: string; platform: str
  */
 export const LINUX_GLIBC_BASELINE = '2.28';
 
-export interface LinuxRuntimeSource {
-    /**
-     * Official Node.js tarball URL; an SSH Host downloads it directly when it has network access.
-     */
-    url: string;
-    sha256: string;
-    /**
-     * Path of the `node` binary inside the tarball.
-     */
-    member: string;
-    /**
-     * Local cached copy of the tarball, uploaded when the SSH Host cannot reach nodejs.org itself.
-     */
-    tarballPath: string;
-}
-
 export interface LinuxNatives {
     betterSqlite: string;
     nodePty: string;
     watcherPackage: string;
-}
-
-/**
- * Locates the LICENSE at the root of the Node installation that owns a host runtime executable. Resolving links first
- * keeps a mise or package-manager shim from selecting an unrelated license beside the shim itself.
- */
-export async function resolveHostNodeLicense(executable: string): Promise<string> {
-    const resolvedExecutable = await realpath(executable);
-    return resolve(dirname(resolvedExecutable), '..', 'LICENSE');
-}
-
-async function hasPath(path: string): Promise<boolean> {
-    try {
-        await lstat(path);
-        return true;
-    } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
-        throw error;
-    }
-}
-
-async function download(url: string): Promise<Buffer> {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Download failed (${response.status}): ${url}`);
-    return Buffer.from(await response.arrayBuffer());
-}
-
-async function writeAtomically(path: string, contents: Buffer | string): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, contents);
-    await rename(temporary, path);
-}
-
-function sha256(contents: Buffer | string): string {
-    return createHash('sha256').update(contents).digest('hex');
-}
-
-/**
- * Downloads the official Node.js Linux tarball once and verifies it against the release's published SHASUMS256.
- */
-export async function ensureLinuxRuntime(
-    architecture: LinuxArchitecture,
-    version: string,
-): Promise<LinuxRuntimeSource> {
-    // gzip rather than xz: an SSH Host fetches this tarball itself, and slim images often lack `xz`.
-    const name = `node-v${version}-linux-${architecture}.tar.gz`;
-    const url = `https://nodejs.org/dist/v${version}/${name}`;
-    const tarballPath = join(cacheRoot, 'runtime', name);
-    const checksumPath = `${tarballPath}.sha256`;
-    if ((await hasPath(tarballPath)) && (await hasPath(checksumPath))) {
-        const expected = (await readFile(checksumPath, 'utf8')).trim();
-        if (sha256(await readFile(tarballPath)) === expected)
-            return {
-                url,
-                sha256: expected,
-                member: `node-v${version}-linux-${architecture}/bin/node`,
-                tarballPath,
-            };
-    }
-    const checksums = (
-        await download(`https://nodejs.org/dist/v${version}/SHASUMS256.txt`)
-    ).toString('utf8');
-    const expected = checksums
-        .split('\n')
-        .map((line) => line.trim().split(/\s+/u))
-        .find(([, file]) => file === name)?.[0];
-    if (!expected || !/^[\da-f]{64}$/u.test(expected))
-        throw new Error(`SHASUMS256.txt has no entry for ${name}`);
-    const tarball = await download(url);
-    if (sha256(tarball) !== expected) throw new Error(`Checksum mismatch for ${name}`);
-    await writeAtomically(tarballPath, tarball);
-    await writeAtomically(checksumPath, `${expected}\n`);
-    return {
-        url,
-        sha256: expected,
-        member: `node-v${version}-linux-${architecture}/bin/node`,
-        tarballPath,
-    };
-}
-
-/**
- * Extracts the `node` binary and its top-level LICENSE from the same verified official runtime tarball. The optional
- * extraction root lets focused tests isolate their cache without changing production behavior.
- */
-export async function extractLinuxNode(
-    source: LinuxRuntimeSource,
-    destination: string,
-    extractionRoot = join(cacheRoot, 'runtime'),
-): Promise<string> {
-    const memberMatch = /^([^/]+)\/bin\/node$/u.exec(source.member);
-    if (!memberMatch) throw new Error(`Invalid Node runtime member: ${source.member}`);
-    if (sha256(await readFile(source.tarballPath)) !== source.sha256)
-        throw new Error(`Runtime tarball checksum no longer matches ${source.sha256}`);
-    const licenseMember = `${memberMatch[1]}/LICENSE`;
-    const directory = join(extractionRoot, `${source.sha256}-extract`);
-    const extracted = join(directory, source.member);
-    const extractedLicense = join(directory, licenseMember);
-    if (!(await hasPath(extracted)) || !(await hasPath(extractedLicense))) {
-        await rm(directory, { force: true, recursive: true });
-        await mkdir(directory, { recursive: true });
-        await execFileAsync('tar', [
-            '-xzf',
-            source.tarballPath,
-            '-C',
-            directory,
-            source.member,
-            licenseMember,
-        ]);
-    }
-    const [runtimeMetadata, licenseMetadata] = await Promise.all([
-        lstat(extracted),
-        lstat(extractedLicense),
-    ]);
-    if (!runtimeMetadata.isFile() || runtimeMetadata.isSymbolicLink())
-        throw new Error(`Extracted Node runtime is not a regular file: ${source.member}`);
-    if (!licenseMetadata.isFile() || licenseMetadata.isSymbolicLink())
-        throw new Error(`Extracted Node runtime license is not a regular file: ${licenseMember}`);
-    await mkdir(dirname(destination), { recursive: true });
-    await cp(extracted, destination);
-    return extractedLicense;
 }
 
 function packageDirectory(name: string): string {
@@ -328,7 +198,7 @@ const NATIVES_RECEIPT = 'natives.json';
  */
 async function nativesCacheKey(
     architecture: LinuxArchitecture,
-    runtime: LinuxRuntimeSource,
+    runtime: NodeRuntimeSource,
 ): Promise<string> {
     const inputs = {
         builder: CONTAINER_BUILD_SCRIPT,
@@ -377,7 +247,7 @@ async function prebuiltNatives(
  */
 export async function ensureLinuxNatives(
     architecture: LinuxArchitecture,
-    runtime: LinuxRuntimeSource,
+    runtime: NodeRuntimeSource,
 ): Promise<LinuxNatives> {
     const [key, watcherPackage] = await Promise.all([
         nativesCacheKey(architecture, runtime),
@@ -452,7 +322,7 @@ async function exportLinuxNatives(
     version: string,
     directory: string,
 ): Promise<string> {
-    const runtime = await ensureLinuxRuntime(architecture, version);
+    const runtime = await ensureNodeRuntime(`linux-${architecture}`, version);
     const [key, natives] = await Promise.all([
         nativesCacheKey(architecture, runtime),
         ensureLinuxNatives(architecture, runtime),
@@ -469,30 +339,6 @@ async function exportLinuxNatives(
     return output;
 }
 
-/**
- * Reads the Node.js version mise pins; the Server runtime and every Linux target follow it.
- */
-export async function pinnedRuntimeVersion(): Promise<string> {
-    const miseSource = await readFile(resolve(root, 'mise.toml'), 'utf8');
-    const version = /^node\s*=\s*"([^"]+)"$/mu.exec(miseSource)?.[1];
-    if (!version) throw new Error('mise.toml must pin the Server runtime version');
-    return version;
-}
-
-/**
- * Parses `--target linux-<arch>` values; returns every architecture when none is given.
- */
-export function parseLinuxTargets(argv: readonly string[]): LinuxArchitecture[] {
-    const values = argv.flatMap((value, index) => (argv[index - 1] === '--target' ? [value] : []));
-    if (values.length === 0) return [...linuxArchitectures];
-    return values.map((value) => {
-        const architecture = value.startsWith('linux-') ? value.slice('linux-'.length) : '';
-        if (!linuxArchitectures.has(architecture as LinuxArchitecture))
-            throw new Error(`Unsupported --target ${value}; expected linux-x64 or linux-arm64`);
-        return architecture as LinuxArchitecture;
-    });
-}
-
 if (import.meta.main) {
     const [command, ...rest] = process.argv.slice(2);
     const outputIndex = rest.indexOf('--output');
@@ -502,7 +348,11 @@ if (import.meta.main) {
             'Usage: bun run apps/server/scripts/linux-target.ts export-natives --output <dir> [--target linux-x64|linux-arm64]',
         );
     const version = await pinnedRuntimeVersion();
-    for (const architecture of parseLinuxTargets(rest)) {
+    // Only Linux targets have natives to export; `darwin-arm64` uses the build host's own.
+    const architectures = parseRemoteTargets(rest).flatMap((target) =>
+        target.startsWith('linux-') ? [target.slice('linux-'.length) as LinuxArchitecture] : [],
+    );
+    for (const architecture of architectures) {
         // eslint-disable-next-line no-await-in-loop -- one Docker build at a time keeps memory bounded
         const output = await exportLinuxNatives(architecture, version, directory);
         process.stdout.write(`Exported Linux ${architecture} natives to ${output}\n`);

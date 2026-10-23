@@ -7,7 +7,7 @@ import process from 'node:process';
 import type { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 
-import type { RemoteLayerDescriptor } from '../../layers';
+import type { RemoteLayerDescriptor, RemoteTarget } from '../../layers';
 import { shellQuote } from '../../shell-quote';
 import type { SshExecOptions, SshExecResult } from '../../ssh-connection';
 
@@ -42,12 +42,14 @@ export async function writeShims(directory: string, shims: Record<string, string
  * `uname`/`getconf` that make a macOS test machine look like the given Linux SSH Host to the probe script, and a `curl`
  * that always fails so the runtime is uploaded rather than fetched from the internet.
  */
-export function linuxShims(
-    options: { arch?: string; glibc?: string; os?: string } = {},
+export function hostShims(
+    options: { arch?: string; glibc?: string; macos?: string; os?: string } = {},
 ): Record<string, string> {
     return {
         curl: 'exit 22',
         getconf: `[ "$1" = GNU_LIBC_VERSION ] && echo "glibc ${options.glibc ?? '2.36'}"`,
+        // Shadows the test machine's own `sw_vers` so only `macos` decides what a Darwin probe reports.
+        sw_vers: options.macos ? `echo ${options.macos}` : 'exit 1',
         uname: `case "$1" in -s) echo ${options.os ?? 'Linux'} ;; -m) echo ${options.arch ?? 'x86_64'} ;; -n) echo test-host ;; *) echo ${options.os ?? 'Linux'} ;; esac`,
         wget: 'exit 1',
     };
@@ -135,15 +137,15 @@ export interface LayerFixture {
 export async function buildLayerFixture(
     root: string,
     options: {
-        architecture?: 'arm64' | 'x64';
+        target?: RemoteTarget;
         buildId?: string;
         extraFiles?: Record<string, string>;
         remotePort?: number;
     } = {},
 ): Promise<LayerFixture> {
-    const architecture = options.architecture ?? 'x64';
-    const directory = join(root, `linux-${architecture}`);
-    const staging = join(root, `staging-${architecture}`);
+    const target = options.target ?? 'linux-x64';
+    const directory = join(root, target);
+    const staging = join(root, `staging-${target}`);
     const files: Record<string, string> = {
         'bundles/server-core.js': 'console.log("server");\n',
         'cli/caxri.cjs': 'module.exports = {};\n',
@@ -164,24 +166,24 @@ export async function buildLayerFixture(
     const appPath = join(directory, 'app.tar.gz');
     await execFileAsync('tar', ['-czf', appPath, '-C', staging, '.']);
     const app = await readFile(appPath);
-    const runtimeContent = Buffer.from(`#!/bin/sh\necho fake-node-${architecture}\n`);
+    const runtimeContent = Buffer.from(`#!/bin/sh\necho fake-node-${target}\n`);
     const descriptor: RemoteLayerDescriptor = {
         schemaVersion: 1,
-        target: `linux-${architecture}`,
+        target,
         buildId: options.buildId ?? '0123456789abcdef',
         fingerprint: 'fixture-fingerprint',
         version: '0.0.1',
         commit: 'fixture',
-        glibcBaseline: '2.28',
+        systemBaseline: target === 'darwin-arm64' ? '13.5' : '2.28',
         app: { file: 'app.tar.gz', sha256: sha256(app), bytes: app.length },
         runtime: {
             sha256: sha256(runtimeContent),
             bytes: runtimeContent.length,
             path: 'runtime/bin/node',
             source: {
-                url: `https://nodejs.org/dist/v0.0.0/node-v0.0.0-linux-${architecture}.tar.gz`,
+                url: `https://nodejs.org/dist/v0.0.0/node-v0.0.0-${target}.tar.gz`,
                 sha256: sha256('archive-not-used'),
-                member: `node-v0.0.0-linux-${architecture}/bin/node`,
+                member: `node-v0.0.0-${target}/bin/node`,
             },
         },
     };

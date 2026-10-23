@@ -12,15 +12,16 @@ import { binPathFor } from '@vscode/ripgrep-universal';
 
 import { selectNodePtyNativeDirectory } from '../../../scripts/node-pty-layout';
 import { assembleServerArtifact, verifyServerArtifact } from './artifact';
-import type { LinuxNatives } from './linux-target';
+import type { LinuxArchitecture, LinuxNatives } from './linux-target';
+import { ensureLinuxNatives } from './linux-target';
 import {
-    ensureLinuxNatives,
-    ensureLinuxRuntime,
-    extractLinuxNode,
-    parseLinuxTargets,
+    assertMacosBaseline,
+    ensureNodeRuntime,
+    extractNodeRuntime,
+    parseRemoteTargets,
     pinnedRuntimeVersion,
     resolveHostNodeLicense,
-} from './linux-target';
+} from './remote-target';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -34,8 +35,9 @@ const directNativePackageNames = ['@parcel/watcher', 'better-sqlite3', 'node-pty
 const buildOnlyDependencies = new Set(['node-addon-api']);
 
 /**
- * The machine the artifact targets. The default is the build host; `--target linux-<arch>` cross-assembles the Server
- * an SSH Host runs, with natives built in a manylinux container (`linux-target.ts`).
+ * The machine the artifact targets. The default is the build host; `--target <target>` assembles the Server an SSH Host
+ * runs (`remote-target.ts`). Linux targets cross-assemble natives built in a manylinux container (`linux-target.ts`);
+ * `darwin-arm64` keeps the host's natives and swaps in the official Node.js binary an SSH Host downloads.
  */
 interface StagingTarget {
     arch: string;
@@ -272,25 +274,28 @@ async function runtimeExecutable(version: string): Promise<string> {
 const workspaceManifest = await packageManifest(resolve(root, 'package.json'));
 const runtimeVersion = await pinnedRuntimeVersion();
 const targetArguments = process.argv.slice(2);
-const linuxTarget = targetArguments.includes('--target')
-    ? parseLinuxTargets(targetArguments)[0]
+const remoteTarget = targetArguments.includes('--target')
+    ? parseRemoteTargets(targetArguments)[0]
+    : undefined;
+const linuxArchitecture = remoteTarget?.startsWith('linux-')
+    ? (remoteTarget.slice('linux-'.length) as LinuxArchitecture)
     : undefined;
 const commit = (await commandOutputOrEmpty('git', ['rev-parse', '--short=8', 'HEAD'])) || 'unknown';
-const linuxRuntime = linuxTarget
-    ? await ensureLinuxRuntime(linuxTarget, runtimeVersion)
+const remoteRuntime = remoteTarget
+    ? await ensureNodeRuntime(remoteTarget, runtimeVersion)
     : undefined;
-const target: StagingTarget = linuxTarget
+const target: StagingTarget = linuxArchitecture
     ? {
-          arch: linuxTarget,
-          linuxNatives: await ensureLinuxNatives(linuxTarget, linuxRuntime!),
+          arch: linuxArchitecture,
+          linuxNatives: await ensureLinuxNatives(linuxArchitecture, remoteRuntime!),
           platform: 'linux',
       }
     : { arch: process.arch, platform: process.platform };
 let executable: string;
 let runtimeLicense: string;
-if (linuxRuntime) {
-    executable = resolve(root, `.cache/server-linux-target/runtime/node-${linuxTarget}`);
-    runtimeLicense = await extractLinuxNode(linuxRuntime, executable);
+if (remoteRuntime) {
+    executable = resolve(root, `.cache/server-remote-target/runtime/node-${remoteTarget}`);
+    runtimeLicense = await extractNodeRuntime(remoteRuntime, executable);
 } else {
     executable = await runtimeExecutable(runtimeVersion);
     runtimeLicense = await resolveHostNodeLicense(executable);
@@ -311,8 +316,8 @@ const nativePackages: Array<{ name: string; source: string; version: string }> =
 );
 const ripgrepExecutable = binPathFor({ arch: target.arch, os: target.platform });
 
-const artifactRoot = linuxTarget
-    ? resolve(serverRoot, 'dist/targets', `linux-${linuxTarget}`, 'server')
+const artifactRoot = remoteTarget
+    ? resolve(serverRoot, 'dist/targets', remoteTarget, 'server')
     : resolve(serverRoot, 'dist/server');
 const extensions = [
     { id: 'caxri.git', source: resolve(root, 'extensions/git') },
@@ -339,7 +344,7 @@ const manifest = await assembleServerArtifact({
     architecture: target.arch,
     artifactRoot,
     bundleSource: resolve(serverRoot, 'dist/bundles'),
-    ...(linuxTarget && { cliBundle: await ensureCliBundle(), omitSourceMaps: true }),
+    ...(remoteTarget && { cliBundle: await ensureCliBundle(), omitSourceMaps: true }),
     commit,
     extensions,
     nativePackages,
@@ -350,11 +355,11 @@ const manifest = await assembleServerArtifact({
         projectLicense: resolve(root, 'LICENSE'),
         thirdPartyNotices: resolve(root, 'THIRD_PARTY_NOTICES.md'),
     },
-    ...(linuxRuntime && {
+    ...(remoteRuntime && {
         runtimeSource: {
-            url: linuxRuntime.url,
-            sha256: linuxRuntime.sha256,
-            member: linuxRuntime.member,
+            url: remoteRuntime.url,
+            sha256: remoteRuntime.sha256,
+            member: remoteRuntime.member,
         },
     }),
     ripgrep: { executable: ripgrepExecutable },
@@ -362,6 +367,7 @@ const manifest = await assembleServerArtifact({
     version: workspaceManifest.version,
 });
 await verifyServerArtifact(artifactRoot);
+if (remoteTarget === 'darwin-arm64') await assertMacosBaseline(artifactRoot);
 await rm(nativeStageRoot, { force: true, recursive: true });
 process.stdout.write(
     `Built standalone Server artifact ${manifest.integrity.aggregateSha256} (${manifest.integrity.files.length} files)\n`,
