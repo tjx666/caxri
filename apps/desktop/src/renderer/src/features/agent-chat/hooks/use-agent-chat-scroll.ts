@@ -83,7 +83,7 @@ const AGENT_CHAT_TURN_TOP_GAP_PX = 112;
  * The empty space kept below the latest turn so it can rest at the top of the view, as ChatGPT and the Codex app show a
  * sent message: `turnHeight` runs from that turn's user message to the end of the content. A reply then grows into the
  * space instead of pushing the message up from the bottom, and once it outgrows the view the space is gone and
- * following the end takes over. The space is kept only while the turn is live; see `useAgentChatScroll`.
+ * following the end takes over. Once the turn ends the space only shrinks; see {@link agentChatSettledSpacerHeight}.
  */
 export function agentChatTurnSpacerHeight(
     viewHeight: number,
@@ -91,6 +91,26 @@ export function agentChatTurnSpacerHeight(
     topGap = AGENT_CHAT_TURN_TOP_GAP_PX,
 ): number {
     return Math.max(viewHeight - turnHeight - topGap, 0);
+}
+
+/**
+ * The space kept below the latest turn once it is no longer live: `turnSpaceHeight` ({@link agentChatTurnSpacerHeight}),
+ * trimmed to the part still at or above the view's bottom (`viewBottom - contentEnd`, both in the scroll content's
+ * coordinates). Like the Codex app, a turn ending neither moves the view nor drops the space under it; scrolling back
+ * through history consumes the space by as much as the view moved, and it never grows back. A Chat opened idle starts
+ * at its end, below which nothing is kept. Measuring against the turn's height rather than the previous space keeps the
+ * view still when the finished turn folds its work rows: the turn shrinks, and the space grows by the same amount.
+ */
+export function agentChatSettledSpacerHeight({
+    contentEnd,
+    turnSpaceHeight,
+    viewBottom,
+}: {
+    contentEnd: number;
+    turnSpaceHeight: number;
+    viewBottom: number;
+}): number {
+    return Math.max(Math.min(turnSpaceHeight, viewBottom - contentEnd), 0);
 }
 
 /**
@@ -139,9 +159,10 @@ function offsetInView(view: HTMLElement, element: HTMLElement): number {
  * content is observed too. So is the scroll view itself: a dock below it growing shrinks the view without changing the
  * content, and the end must stay in sight. With `turnSelector` (the Chat's user messages), the space below the latest
  * turn keeps it at the top of the view at the end, so a sent message rises to the top and its reply fills in below it.
- * Like the Codex app, that space lasts only while the turn is live (`isTurnLive`): once it ends, and in a Chat opened
- * idle, the content rests on the view's bottom instead of leaving a blank view to scroll through. `isLatestInView`
- * hides the "Jump to latest" control while following or while the latest entry is still on screen.
+ * Like the Codex app, that space follows the turn only while it is live (`isTurnLive`): once it ends, the view stays
+ * where it is and scrolling back through history consumes the space (see {@link agentChatSettledSpacerHeight}), while a
+ * Chat opened idle rests on the view's bottom instead of leaving a blank view to scroll through. `isLatestInView` hides
+ * the "Jump to latest" control while following or while the latest entry is still on screen.
  *
  * Expanding or collapsing a row is the user reading, not the conversation moving: `anchor` stops following and keeps
  * the clicked row where it is while the disclosure animates, instead of pinning the end and sliding the row away.
@@ -158,7 +179,7 @@ export function useAgentChatScroll(
     }: {
         /**
          * Whether the latest turn is still on its way: sent and not yet answered, streaming, or waiting on the user.
-         * The space below it is kept only while it is.
+         * The space below it follows the turn only while it is; afterwards it only shrinks.
          */
         isTurnLive?: boolean;
         /**
@@ -223,6 +244,43 @@ export function useAgentChatScroll(
      * Whether the view has ever left its top, by the user or by following; see {@link isAgentChatCatchUpScroll}.
      */
     const hasMovedReference = useRef(false);
+    const sizeSpacer = useCallback(
+        /**
+         * @param scrollTop Where the view was last put or seen, not where it is now: a finished turn folding shrinks
+         *   the content first, and the browser has already clamped the view up by as much before the space grows back.
+         */
+        (scrollTop: number) => {
+            const element = scrollReference.current;
+            const content = contentReference.current;
+            const spacer = spacerReference.current;
+            // A hidden Chat measures a zero-height view; sizing against it would drop the space a finished turn kept.
+            if (!element || !content || !spacer || !turnSelector || element.clientHeight === 0)
+                return;
+            const turns = content.querySelectorAll<HTMLElement>(turnSelector);
+            const turn = turns.item(turns.length - 1) as HTMLElement | null;
+            const contentRect = content.getBoundingClientRect();
+            const turnSpaceHeight = turn
+                ? agentChatTurnSpacerHeight(
+                      element.clientHeight,
+                      contentRect.bottom - turn.getBoundingClientRect().top,
+                  )
+                : 0;
+            const height = isTurnLive
+                ? turnSpaceHeight
+                : agentChatSettledSpacerHeight({
+                      contentEnd:
+                          contentRect.bottom -
+                          element.getBoundingClientRect().top +
+                          element.scrollTop,
+                      turnSpaceHeight,
+                      viewBottom: scrollTop + element.clientHeight,
+                  });
+            // Runs on every scroll event, so an unchanged height is not written back to invalidate layout.
+            const next = `${height}px`;
+            if (spacer.style.height !== next) spacer.style.height = next;
+        },
+        [isTurnLive, turnSelector],
+    );
     const pin = useCallback(
         /**
          * @param isViewResize Only the view changed size, not the content; see {@link isAgentChatCatchUpScroll}.
@@ -230,21 +288,7 @@ export function useAgentChatScroll(
         (isViewResize = false) => {
             const element = scrollReference.current;
             if (!element) return;
-            const content = contentReference.current;
-            const spacer = spacerReference.current;
-            if (turnSelector && content && spacer) {
-                const turns = content.querySelectorAll<HTMLElement>(turnSelector);
-                const turn = turns.item(turns.length - 1) as HTMLElement | null;
-                const height =
-                    turn && isTurnLive
-                        ? agentChatTurnSpacerHeight(
-                              element.clientHeight,
-                              content.getBoundingClientRect().bottom -
-                                  turn.getBoundingClientRect().top,
-                          )
-                        : 0;
-                spacer.style.height = `${height}px`;
-            }
+            sizeSpacer(lastScrollTopReference.current ?? element.scrollTop);
             const anchored = anchorReference.current;
             if (anchored && (performance.now() > anchored.until || !anchored.element.isConnected))
                 anchorReference.current = undefined;
@@ -273,19 +317,21 @@ export function useAgentChatScroll(
             if (element.scrollTop > 0) hasMovedReference.current = true;
             lastScrollTopReference.current = element.scrollTop;
         },
-        [isTurnLive, turnSelector],
+        [sizeSpacer],
     );
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
         if (element.scrollTop > 0) hasMovedReference.current = true;
+        // Scrolling back through a finished turn consumes the space below it, which leaves the view at the new end.
+        sizeSpacer(element.scrollTop);
         isFollowingReference.current = isFollowingAfterScroll(element, {
             isFollowing: isFollowingReference.current,
             lastScrollTop: lastScrollTopReference.current,
         });
         lastScrollTopReference.current = element.scrollTop;
         syncLatestInView();
-    }, [syncLatestInView]);
+    }, [sizeSpacer, syncLatestInView]);
     const jumpToLatest = useCallback(() => {
         anchorReference.current = undefined;
         isFollowingReference.current = true;
