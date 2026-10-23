@@ -242,6 +242,31 @@ describe('public E2E receipts', () => {
         ]);
     });
 
+    it('accepts a test that passed on retry and keeps its first failure private', async () => {
+        const { outputDirectory, sourceDirectory } = await fixtureDirectories();
+        const receipt = failingPoolReceipt();
+        receipt.tests[0].firstFailure = {
+            errorIdentity: receipt.tests[0].errorIdentity,
+            verdict: 'fail',
+        };
+        receipt.tests[0].errorIdentity = null;
+        receipt.tests[0].verdict = 'pass';
+        receipt.failureGroups = [];
+        receipt.pool = 'release-packaged';
+        await writeFile(
+            join(sourceDirectory, 'release-packaged.json'),
+            JSON.stringify(receipt),
+            'utf8',
+        );
+
+        await expect(
+            preparePublicE2EReceipts({ outputDirectory, sourceDirectory }),
+        ).resolves.toEqual(['release-packaged.json']);
+        const raw = await readFile(join(outputDirectory, 'release-packaged.json'), 'utf8');
+        expect(publicE2EPoolReceiptSchema.parse(JSON.parse(raw)).failures).toEqual([]);
+        expect(raw).not.toContain('firstFailure');
+    });
+
     it('rejects extra text fields, absolute paths, traversal, and malformed JSON', async () => {
         const receipt = failingPoolReceipt();
         const invalid: unknown[] = [
