@@ -154,7 +154,6 @@ export function useCommanderInboxComposer(
                 return;
             }
             // Fire-and-forget: the reply command reports its own failure through a toast.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void send();
         }
     }

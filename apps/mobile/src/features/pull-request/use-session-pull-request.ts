@@ -62,7 +62,6 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
      * re-enabling it refetches once the 10 second stale window has passed.
      */
     const refresh = useCallback(() => {
-        // eslint-disable-next-line no-void -- The read renders into the query.
         if (isObservable) void refetch();
     }, [isObservable, refetch]);
     const [merge, setMerge] = useState<

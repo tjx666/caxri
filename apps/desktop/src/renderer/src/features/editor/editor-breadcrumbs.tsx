@@ -102,7 +102,6 @@ export function EditorBreadcrumbs({
     const openFileFromPicker = (targetPath: string): void => {
         setPicker(undefined);
         // `openFileForSession` reports read failures and queues Editor focus when the new model has not mounted yet.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void openFileForSession(sessionId, targetPath, {
             focus: true,
             paneId,

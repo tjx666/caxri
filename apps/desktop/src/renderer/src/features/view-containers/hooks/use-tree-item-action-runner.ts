@@ -22,7 +22,6 @@ export function useTreeItemActionRunner(): {
         const { id } = action.command;
         if (runningCommandIds.has(id)) return;
         setRunningCommandIds((current) => new Set(current).add(id));
-        // eslint-disable-next-line no-void -- dispatch failures surface through the shared toast path
         void runTreeItemAction(action).finally(() =>
             setRunningCommandIds((current) => {
                 const next = new Set(current);

@@ -110,7 +110,6 @@ const FilePreview = ({
         setDraft(null);
         expectedContentHash.current = null;
         setSaveError(null);
-        // eslint-disable-next-line no-void -- Query state owns the refreshed file result.
         void file.refetch();
     };
     const save = async () => {
@@ -161,7 +160,6 @@ const FilePreview = ({
                 <PanelStatus
                     message={t('panels.openFileFailed')}
                     onRetry={() => {
-                        // eslint-disable-next-line no-void -- The query renders its own error state.
                         void file.refetch();
                     }}
                     theme={theme}
@@ -360,7 +358,6 @@ export const FilesPanel = ({
                         <PanelStatus
                             message={t('panels.listFailed')}
                             onRetry={() => {
-                                // eslint-disable-next-line no-void -- The query renders its own error state.
                                 void listing.refetch();
                             }}
                             testID="files-error"
@@ -380,7 +377,6 @@ export const FilesPanel = ({
                     ) : undefined
                 }
                 onRefresh={() => {
-                    // eslint-disable-next-line no-void -- The query renders its own error state.
                     void listing.refetch();
                 }}
                 refreshing={listing.isRefetching}

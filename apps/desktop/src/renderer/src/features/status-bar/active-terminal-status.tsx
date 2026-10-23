@@ -65,7 +65,6 @@ function TerminalRendererStatus({ terminalId }: { terminalId: string }) {
                     openHardwareAccelerationSettings();
                     return;
                 }
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, confirmTerminalRendererSwitch() reports its own errors via tryCommand
                 void confirmTerminalRendererSwitch(action, terminalId);
             }}
         >

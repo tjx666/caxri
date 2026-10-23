@@ -138,7 +138,6 @@ export function bindGitReviewCommentEditor(
         if (!model) return;
         const id = crypto.randomUUID();
         revealOnCreateId = id;
-        // eslint-disable-next-line no-void -- floating-promise discard: new comment appears via `gitReview.changed`
         void createGitReviewComment({
             id,
             ...scope,
@@ -206,7 +205,6 @@ export function bindGitReviewCommentEditor(
             add(event.target.position.lineNumber);
     });
     const content = editor.onDidChangeModelContent(() => {
-        // eslint-disable-next-line no-void -- floating-promise discard: outdated status refetches via `gitReview.changed`
         void refreshGitReviewComments(
             scope.sessionId,
             scope.repositoryId,

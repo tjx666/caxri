@@ -31,7 +31,6 @@ export function installTerminationSignalHandlers(
 ): void {
     const graceMs = options.graceMs ?? TERMINATION_SIGNAL_GRACE_MS;
     const onSignal = (): void => {
-        // eslint-disable-next-line no-void -- Signal fallback uses the same bounded owner shutdown.
         void (async () => {
             if (options.isConnected()) await options.waitForShutdownRequest(graceMs);
             await options.stop(0);

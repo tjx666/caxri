@@ -248,7 +248,6 @@ export class AgentChatService {
             state.projection.snapshot.status !== 'failed'
         ) {
             leaseReadStart(this.options.database, state, terminalId);
-            // eslint-disable-next-line no-void -- the read returns the starting projection; patches follow.
             void this.startQuietly(terminalId, state);
         }
         state.projection.flush();
@@ -307,7 +306,6 @@ export class AgentChatService {
             const config = resolveAgentChatModelChange(state.projection.snapshot, change);
             if (Object.keys(config).length === 0) return;
             await session.configure?.(config);
-            // eslint-disable-next-line no-void -- logs its own failure and never rejects; the switch already applied
             void saveChatDefaults(session, config, this.options, terminalId);
         });
     }
@@ -522,7 +520,6 @@ export class AgentChatService {
      */
     resumeSession(sessionId: string): void {
         for (const terminalId of this.states.clearDetachedSession(sessionId))
-            // eslint-disable-next-line no-void -- a failed start is recorded in the projection every Client reads
             void this.startQuietly(terminalId, this.states.open(terminalId));
     }
 
@@ -577,7 +574,6 @@ export class AgentChatService {
         for (const terminal of this.options.database.listTerminals(sessionId)) {
             const state = this.states.get(terminal.id);
             if (!state || state.session || terminal.lastProcessState !== 'suspended') continue;
-            // eslint-disable-next-line no-void -- a failed start is recorded in the projection every Client reads
             void this.startQuietly(terminal.id, state);
         }
     }

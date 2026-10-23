@@ -108,7 +108,6 @@ export async function beginMobileAgentChatWatch(
     await agentChatTerminalForPrincipal(domainService, principal, terminalId);
     await domainService.request('mobile.chatWatch.watchInternal', { terminalId });
     return () => {
-        // eslint-disable-next-line no-void -- Connection teardown cannot block on a Server IPC reply.
         void domainService
             .request('mobile.chatWatch.unwatchInternal', { terminalId })
             .catch(() => {});

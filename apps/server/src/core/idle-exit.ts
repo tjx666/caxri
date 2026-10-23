@@ -80,7 +80,7 @@ export function createIdleExitMonitor(options: IdleExitMonitorOptions): IdleExit
         timer = setTimeout(() => {
             // `arm` and `check` are mutually recursive (arm schedules check via setTimeout; check re-arms itself
             // after a deferral), so one of the two must reference the other before its declaration.
-            // eslint-disable-next-line no-void, no-use-before-define, @typescript-eslint/no-use-before-define -- the timer callback cannot await; `check` owns its own failure handling
+            // eslint-disable-next-line no-use-before-define, @typescript-eslint/no-use-before-define -- the timer callback cannot await; `check` owns its own failure handling
             void check();
         }, threshold());
         timer.unref();

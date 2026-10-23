@@ -201,9 +201,7 @@ export function useSessionRename(
         }
         finishRename(sessionId, true);
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
-        if (decision.kind === 'rename')
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void didRenameSession(sessionId, decision.displayTitle);
+        if (decision.kind === 'rename') void didRenameSession(sessionId, decision.displayTitle);
     }, [renameValue, finishRename]);
 
     const blurRename = useCallback((): void => {
@@ -218,9 +216,7 @@ export function useSessionRename(
          */
         if (suggestionReference.current?.sessionId === sessionId) return;
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
-        if (decision.kind === 'rename')
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void didRenameSession(sessionId, decision.displayTitle);
+        if (decision.kind === 'rename') void didRenameSession(sessionId, decision.displayTitle);
     }, [renameValue, finishRename]);
 
     const suggestRename = useCallback(
@@ -233,7 +229,6 @@ export function useSessionRename(
             setRenameSuggestingSessionId(sessionId);
             setRenameError(undefined);
             // Fire-and-forget: `suggestSessionTitle` funnels its own failures into a toast.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void suggestSessionTitle(sessionId).then((suggestion) => {
                 if (suggestionReference.current !== request) return;
                 suggestionReference.current = undefined;

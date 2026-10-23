@@ -69,14 +69,12 @@ export function BenchmarkShareMenu({
         });
     };
     const copy = () => {
-        // eslint-disable-next-line no-void -- tryCommand reports its own failure
         void tryCommand(t('benchmark.share.copyFailed'), async () => {
             await copyShareCard(card());
             pushToast('success', t('benchmark.share.copied'));
         });
     };
     const save = () => {
-        // eslint-disable-next-line no-void -- tryCommand reports its own failure
         void tryCommand(t('benchmark.share.saveFailed'), async () => {
             const path = await saveShareCard(card(), shareCardFileName(run));
             if (path) pushToast('success', t('benchmark.share.saved'));

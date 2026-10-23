@@ -42,7 +42,6 @@ export function useContextMenu(
             isOpen.current = false;
             latest.current.onOpenChange?.(false);
         };
-        // eslint-disable-next-line no-void -- intentional floating-promise discard; both steps report their own errors
         void awaitThenCleanup(
             (async () => {
                 const entries = await tryCommand(translate('core.contextMenu.showFailed'), () =>

@@ -232,7 +232,6 @@ export function createCaxriClient(
         const requestId = crypto.randomUUID();
         const cancel = (): void => {
             // Cancellation is best-effort because the authoritative request reply owns the caller-visible result.
-            // eslint-disable-next-line no-void -- the original request owns caller-visible settlement
             void bridge.request('requests.cancel', { requestId }).catch(() => {});
         };
         signal.addEventListener('abort', cancel, { once: true });

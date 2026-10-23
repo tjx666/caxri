@@ -190,7 +190,6 @@ export function useFileTreeItemInteractions({
         });
     };
     const openEntry = (): void => {
-        // eslint-disable-next-line no-void -- activateEntry owns error presentation
         void activateEntry();
     };
     const pasteIntoEntry = async (): Promise<void> => {
@@ -259,7 +258,6 @@ export function useFileTreeItemInteractions({
             // Collapsed -> expand in place; already expanded -> move focus into the first child,
             // matching the standard ARIA treeview keyboard pattern.
             if (!expanded) {
-                // eslint-disable-next-line no-void -- activateEntry owns error presentation
                 void activateEntry({ directoriesOnly: true });
             } else navigator.move(entry.path, 'next');
             return;
@@ -285,7 +283,6 @@ export function useFileTreeItemInteractions({
             case 'backspace': {
                 // confirmTrash funnels its own failures into a toast via didTrashFile, nothing to
                 // await here.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void confirmTrash();
                 break;
             }
@@ -300,9 +297,7 @@ export function useFileTreeItemInteractions({
             default: {
                 // pasteIntoEntry funnels its own failures into a toast via pasteFile, nothing to
                 // await here.
-                if (!isPasteBlocked)
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                    void pasteIntoEntry();
+                if (!isPasteBlocked) void pasteIntoEntry();
             }
         }
     };

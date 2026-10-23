@@ -63,7 +63,6 @@ function ClearDataBody() {
                             variant="secondary"
                             onClick={() => {
                                 // Fire-and-forget: a failed retry lands back in this same error state.
-                                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                                 void summary.refetch();
                             }}
                         >
@@ -85,7 +84,6 @@ function ClearDataBody() {
                     className="commander-clear-data-submit"
                     disabled={!state.request || state.isSubmitting}
                     onClick={() => {
-                        // eslint-disable-next-line no-void -- the submission reports its own failures through a toast
                         void state.submit();
                     }}
                 >

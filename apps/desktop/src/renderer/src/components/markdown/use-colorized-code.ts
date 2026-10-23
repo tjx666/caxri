@@ -39,7 +39,6 @@ export function useColorizedCode(
                 // An unpaintable block keeps its plain-text rendering.
             }
         };
-        // eslint-disable-next-line no-void -- `paint` handles its own failure
         void paint();
         return () => {
             isCurrent = false;

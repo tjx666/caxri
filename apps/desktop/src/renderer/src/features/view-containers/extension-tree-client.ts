@@ -106,7 +106,6 @@ export function requestTreeChildren(
 }
 
 export function cancelTreeChildrenRequest(requestId: string): void {
-    // eslint-disable-next-line no-void -- cancellation is best-effort; the superseding request owns the outcome
     void caxri.request('viewContainers.cancelRequest', { requestId });
 }
 

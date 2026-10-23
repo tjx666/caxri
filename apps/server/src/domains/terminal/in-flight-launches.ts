@@ -20,7 +20,6 @@ export class InFlightLaunches {
         const pending = registry.get(key) ?? new Set();
         pending.add(launch);
         registry.set(key, pending);
-        // eslint-disable-next-line no-void -- settlement bookkeeping never rejects
         void this.forgetWhenSettled(registry, key, launch);
     }
 

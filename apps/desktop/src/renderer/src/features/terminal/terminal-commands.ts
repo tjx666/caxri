@@ -160,7 +160,6 @@ export async function createTerminalForSession(
 
 export function closeTerminal(terminalId: string): void {
     // This is a sync UI handler; tryCommand already routes any failure into a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         translate('terminal.errors.closeFailed'),
         async () => {
@@ -178,14 +177,12 @@ export function closeTerminal(terminalId: string): void {
  * the Terminal pane.
  */
 export function stopTerminal(terminalId: string): void {
-    // eslint-disable-next-line no-void -- tryCommand reports stop failures through the toast
     void tryCommand(translate('terminal.errors.stopFailed'), () =>
         caxri.request('terminal.suspend', { terminalId }),
     );
 }
 
 export function refreshTerminalState(): void {
-    // eslint-disable-next-line no-void -- tryCommand reports refresh failures through the toast
     void tryCommand(translate('terminal.errors.refreshFailed'), refreshWorkbench);
 }
 
@@ -221,7 +218,6 @@ export function restartTerminalWithRecovery(
     // Captured before the attempt: the offer stays in the notification center indefinitely, and the handler refuses it
     // once this Terminal is running something else, so the number has to describe the failure rather than the present.
     const processId = getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.processId;
-    // eslint-disable-next-line no-void -- tryCommand reports restart failures through the toast
     void tryCommand(
         translate(failureTitle),
         () =>
@@ -253,7 +249,6 @@ export function restartTerminal(terminalId: string): void {
         getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.provider,
     );
     const failureTitle = isAgent ? RESTART_AGENT_FAILED : TERMINAL_RESTART_FAILED;
-    // eslint-disable-next-line no-void -- the confirmation and the restart report their own errors
     void confirmBeforeEndingTurn(
         terminalId,
         {
@@ -287,7 +282,6 @@ export function startNewAgentSession(terminalId: string): void {
         return;
     }
     const failureTitle = translate('terminal.newConversation.failed');
-    // eslint-disable-next-line no-void -- the confirmation and the restart report their own errors
     void confirmBeforeEndingTurn(
         terminalId,
         {
@@ -316,7 +310,6 @@ export function startNewAgentSession(terminalId: string): void {
 export function sendTerminalSequence(terminalId: string, text: string): void {
     if (!canSendTerminalInput(terminalId)) return;
     // This is a sync command handler; tryCommand already routes any failure into a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('terminal.errors.inputFailed'), () =>
         caxri.request('terminal.input', { terminalId, data: text }),
     );

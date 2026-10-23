@@ -82,7 +82,6 @@ export function useCancelViewContainerQueryWhenHidden(
     const serializedQueryKey = JSON.stringify(queryKey);
     useEffect(() => {
         if (isActive) return;
-        // eslint-disable-next-line no-void -- cancellation is best-effort against the shared cache
         void cancelViewContainerQuery(
             queryClient,
             JSON.parse(serializedQueryKey) as readonly unknown[],

@@ -14,7 +14,6 @@ import { useAgentCommanderStore } from './commander-client';
  */
 export function revealCommanderSession(sessionId: string): void {
     // Fire-and-forget: tryCommand reports a failed hand-off through a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('agentCommander.commands.revealFailed'), () =>
         caxri.request('agentCommander.revealSession', { sessionId }),
     );
@@ -27,7 +26,6 @@ export function revealCommanderSession(sessionId: string): void {
  */
 export function openCommanderInbox(): void {
     // Fire-and-forget: tryCommand reports a failed open through a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('core.commands.openAgentCommanderFailed'), () =>
         caxri.request('agentCommander.open', { target: 'inbox' }),
     );
@@ -41,7 +39,6 @@ export function openWorkbenchSettings(provider?: AgentProvider): void {
     // Fire-and-forget: tryCommand reports a failed hand-off through a toast. Omit the params entirely for the
     // untargeted case, matching every other zero-argument Commander request (e.g. `agentCommander.stop` below),
     // rather than always sending an empty `{}` body.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(translate('agentCommander.commands.openSettingsFailed'), () =>
         provider
             ? caxri.request('agentCommander.openSettings', {
@@ -69,7 +66,6 @@ export function stopCommander(): void {
     const failureTitle = translate('agentCommander.commands.stopFailed');
     const stop = (): void => {
         // Fire-and-forget: tryCommand reports a failed stop through a toast.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void tryCommand(failureTitle, () => caxri.request('agentCommander.stop'));
     };
     const terminalId = useAgentCommanderStore.getState().identity?.terminalId;
@@ -77,7 +73,6 @@ export function stopCommander(): void {
         stop();
         return;
     }
-    // eslint-disable-next-line no-void -- the confirmation and the stop report their own errors
     void confirmBeforeEndingTurn(
         terminalId,
         {
@@ -91,6 +86,5 @@ export function stopCommander(): void {
 
 export function openCommanderPullRequest(url: string): void {
     // Fire-and-forget: openExternalUrl reports its own rejection through the callback.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void openExternalUrl(url, (message) => pushToast('error', message));
 }

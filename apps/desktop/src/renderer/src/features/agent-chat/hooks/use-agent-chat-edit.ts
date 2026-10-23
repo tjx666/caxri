@@ -94,7 +94,6 @@ export function useAgentChatEditActions(
                     run: (itemId) => {
                         const restore = table.get(itemId)?.restore;
                         if (typeof restore !== 'number') return;
-                        // eslint-disable-next-line no-void -- tryCommand reports a failure through the toast
                         void restoreAgentChatFiles(terminalId, {
                             itemId,
                             providerName,

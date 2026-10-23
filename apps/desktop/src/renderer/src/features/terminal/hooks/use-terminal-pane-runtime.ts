@@ -210,7 +210,6 @@ export function useTerminalPaneRuntime({
             if (!isCanceled) setFontsReady(true);
         };
         // Effects cannot be async themselves; the failure path above already reports the error.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void load();
         return () => {
             isCanceled = true;
@@ -424,13 +423,11 @@ export function useTerminalPaneRuntime({
             if (!latestReference.current.copyOnSelect) return;
             // xterm's onSelectionChange callback cannot be async; TerminalSelectionClipboard already
             // reports its own write failures through the onFailure callback given to its constructor.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void selectionClipboard.copy(xterm.getSelection());
         });
         const unregisterSelectionHandlers = registerTerminalSelectionHandlers(terminalId, {
             copySelection: () => {
                 const selection = xterm.getSelection();
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 if (selection) void selectionClipboard.copy(selection);
             },
             hasSelection: () => xterm.hasSelection(),
@@ -598,7 +595,6 @@ export function useTerminalPaneRuntime({
             });
         };
         // Effects cannot be async themselves; initialize already reports its own failure via onError.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initialize();
         return () => {
             isDisposed = true;
@@ -642,7 +638,6 @@ export function useTerminalPaneRuntime({
             if (replayReference.current === replay) replayReference.current = undefined;
             // A cleanup function cannot be async; a Server restart racing this teardown has no view
             // left to notify, so the detach failure is intentionally unobserved.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void detachTerminalQuietly(terminalId);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
@@ -685,7 +680,6 @@ export function useTerminalPaneRuntime({
         if (!replay || !xterm) return;
         // Server-owned attachment state is lost with the utility process even though this pane remains mounted.
         // Effects cannot be async themselves; `reattachTerminalView` reports its own failure.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void reattachTerminalView(
             terminalId,
             replay,
@@ -724,7 +718,6 @@ export function useTerminalPaneRuntime({
          * persisted snapshot ahead of later live output.
          */
         // Effects cannot be async themselves; `reattachTerminalView` reports its own failure.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void reattachTerminalView(
             terminalId,
             replay,
@@ -764,7 +757,6 @@ export function useTerminalPaneRuntime({
     );
     const pasteFromClipboard = useCallback((): void => {
         // Sync command handlers float this promise; its own path reports failures through onError.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void pasteReference.current?.();
     }, []);
     return {

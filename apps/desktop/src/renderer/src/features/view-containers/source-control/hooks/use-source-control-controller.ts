@@ -257,7 +257,6 @@ export function useSourceControlController(
     });
     useEffect(() => {
         if (refresh === 0) return;
-        // eslint-disable-next-line no-void -- invalidateQueries reports through the snapshot observer
         void invalidateControlledViewSnapshot(viewId);
     }, [refresh, viewId]);
     useToastOnQueryError(
@@ -354,7 +353,6 @@ export function useSourceControlController(
     const selectMode = useCallback(
         (mode: SourceControlMode): void => {
             updateNavigation({ modeId: mode.id });
-            // eslint-disable-next-line no-void -- the shared catalog dispatcher owns extension command failures
             void executeViewCatalogShortcut(mode.command.id, mode.command.arguments ?? []);
         },
         [updateNavigation],

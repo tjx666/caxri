@@ -156,7 +156,6 @@ function PdfDocumentView({
         if (!container || !viewerElement) return;
         let isDisposed = false;
         const remembered = readPreviewViewState(viewStateKey);
-        // eslint-disable-next-line no-void -- a failure to load the viewer chunk or mount the document is caught below
         void createPdfViewerSession({
             container,
             viewerElement,

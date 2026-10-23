@@ -178,7 +178,6 @@ export function autoSaveDocument(sessionId: string, path: string): void {
     const key = `${sessionId}\u{0}${path}`;
     if (pendingAutoSaves.has(key)) return;
     pendingAutoSaves.add(key);
-    // eslint-disable-next-line no-void -- tryCommand inside didSaveDocumentAt reports failures through the toast
     void didSaveDocumentAt(sessionId, path, { isAutomatic: true }).finally(() =>
         pendingAutoSaves.delete(key),
     );
@@ -260,7 +259,6 @@ export function subscribeUnsavedEditorRequests(): () => void {
         if (event.event !== 'editor.unsavedRequest') return;
         // Fire-and-forget: Main times out an unanswered request and fails open, and a failed save already surfaced its
         // own toast.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void handleUnsavedEditorsRequest(event.payload);
     });
 }

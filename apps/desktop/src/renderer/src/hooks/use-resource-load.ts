@@ -69,7 +69,6 @@ export function useResourceLoad({ target, enabled, load }: Omit<ResourceLoadScop
             }
             if (!isDisposed) setOutcome({ scope, failure });
         };
-        // eslint-disable-next-line no-void -- expected and unexpected read failures become the recoverable outcome
         void run();
         return () => {
             isDisposed = true;

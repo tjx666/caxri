@@ -273,7 +273,6 @@ function CommandPaletteBody() {
                                     value={`session:${session.id}`}
                                     onSelect={() => {
                                         onOpenChange(false);
-                                        // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
                                         void didSelectSession(session.id);
                                     }}
                                 >

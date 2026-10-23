@@ -21,7 +21,6 @@ export function useAgentContextReport(terminalId: string) {
     useEffect(() => {
         if (totalTokens === undefined) return;
         // A read already in flight answers for this total too, so it is joined instead of restarted.
-        // eslint-disable-next-line no-void -- a failed refresh surfaces through the query's error state
         void refetch({ cancelRefetch: false });
     }, [totalTokens, refetch]);
     return { chat, report };

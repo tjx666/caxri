@@ -73,7 +73,6 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
         intentTrackerReference.current?.set({ displayTitle, movedProjectId, projectIds });
         // Fire-and-forget: the queue's async worker persists this order and settles the intent
         // tracker internally; this handler has no UI result to await here.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queueReference.current?.enqueue(projectIds);
     };
 

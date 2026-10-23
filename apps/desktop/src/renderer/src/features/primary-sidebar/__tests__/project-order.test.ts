@@ -60,9 +60,7 @@ describe('Project ordering', () => {
         const settled = queue.enqueue(['a', 'b', 'c']);
         // Fire-and-forget: only the final queued permutation's returned promise is awaited below:
         // the queue's "latest wins" contract makes these intermediate results irrelevant.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.enqueue(['b', 'a', 'c']);
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.enqueue(['b', 'c', 'a']);
         expect(persisted).toEqual([['a', 'b', 'c']]);
 
@@ -101,7 +99,6 @@ describe('Project ordering', () => {
         });
         // Fire-and-forget: this test only asserts on the first `settled` promise and the tracker's
         // final state, not on this superseding enqueue's own returned promise.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.enqueue(secondProjectIds);
 
         releaseFirst();

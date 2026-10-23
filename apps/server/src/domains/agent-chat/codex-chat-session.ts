@@ -132,7 +132,6 @@ class CodexChatSession implements AgentChatProviderSession {
         this.options.apply(historyOperations(thread, model));
         this.tasks.replay(thread);
         if (this.connection && this.threadId)
-            // eslint-disable-next-line no-void -- best effort: an item Codex has no time for stays undated
             void loadCodexItemTimes(this.connection, this.threadId, this.options);
     }
 
@@ -177,7 +176,6 @@ class CodexChatSession implements AgentChatProviderSession {
         if (snapshot.operation === 'compacting')
             operations.push({ op: 'state', state: { operation: null } });
         this.options.apply(operations);
-        // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
         void this.tasks.reconcileTerminals();
         this.options.onTurnFinished(status, durationMs);
         this.options.lifecycle(
@@ -398,7 +396,6 @@ class CodexChatSession implements AgentChatProviderSession {
         this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS, ...modelState } }]);
         await this.goals.load(this.requireConnection());
         await this.usage.loadSignIn(this.requireConnection());
-        // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
         void this.tasks.reconcileTerminals();
         return outcome;
     }

@@ -130,7 +130,6 @@ class DevelopmentProcesses {
         process.exitCode = exitCode;
         const forceExit = setTimeout(() => process.exit(exitCode), 5000);
         forceExit.unref();
-        // eslint-disable-next-line no-void -- fire-and-forget graceful drain; the setTimeout above is the hard fallback
         void this.#exitAfterChildren(exitCode);
     }
 }

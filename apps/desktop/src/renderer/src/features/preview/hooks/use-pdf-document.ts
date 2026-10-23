@@ -137,11 +137,9 @@ export function usePdfDocument(
                 requestConfirmation();
             }
         };
-        // eslint-disable-next-line no-void -- every failure is caught above and becomes the failed state or a confirmation
         void open();
         return () => {
             controller.abort();
-            // eslint-disable-next-line no-void -- teardown has nothing to report; a destroyed task cannot fail usefully
             if (!isAdopted) void task?.destroy();
         };
     }, [externalDirectory, externalDocumentId, path, readPath, request, sessionId, source]);
@@ -153,7 +151,6 @@ export function usePdfDocument(
     const settledTask = settled?.task;
     useEffect(
         () => () => {
-            // eslint-disable-next-line no-void -- teardown has nothing to report; a destroyed task cannot fail usefully
             void settledTask?.destroy();
         },
         [settledTask],

@@ -44,7 +44,6 @@ export function createExtensionHostProcessLifecycle(
         scheduleRequestedShutdown() {
             prepare();
             options.schedule(() => {
-                // eslint-disable-next-line no-void -- The scheduled lifecycle owns its terminal process exit.
                 void exit(0);
             });
         },

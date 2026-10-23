@@ -167,7 +167,6 @@ export class TerminalReplayBuffer {
         if (this.restored)
             // This is a sync buffer API; once restored, output is written straight through and any
             // failure is already surfaced by `write`'s own caller-side handling.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void this.write(value);
         else this.enqueue(value);
     }
@@ -224,7 +223,6 @@ export class TerminalBackpressureRecovery {
         if (this.active) return;
         this.active = true;
         // This synchronous API owns failure reporting through `onFailure`.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void this.recover();
     }
 }

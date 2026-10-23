@@ -69,7 +69,6 @@ export function quiesceAgentInput(
  */
 export function stopTerminalAfterInputQuiescence(live: LiveTerminal, shouldDestroy: boolean): void {
     const ready = live.process.quiesceInput?.() ?? Promise.resolve();
-    // eslint-disable-next-line no-void -- The PTY callback owns this asynchronous descriptor-close barrier.
     void ready
         .then(() => {
             live.process.kill();

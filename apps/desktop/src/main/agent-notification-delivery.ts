@@ -144,7 +144,6 @@ export function createAgentNotificationDelivery({
                     reportOperationFailure('delivery_start_failed');
                 }
             };
-            // eslint-disable-next-line no-void -- the synchronous handle below owns the asynchronously selected backend
             void startAfterModeResolution();
 
             return {

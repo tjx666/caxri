@@ -21,7 +21,6 @@ export const useSavedDrafts = (
     useEffect(() => {
         if (connectionScopeKey === null) return;
         let isActive = true;
-        // eslint-disable-next-line no-void -- An unreadable copy restores nothing; typing continues as before.
         void readCache
             .load(connectionScopeKey, { kind: 'drafts' }, savedDraftsSchema)
             .then((entry) => {

@@ -115,7 +115,6 @@ export function createWindowZoomController(options: {
         refresh() {
             // A synchronous event listener; `read` already falls back on failure, so this is deliberately
             // fire-and-forget rather than awaited.
-            // eslint-disable-next-line no-void -- see comment above
             void read().then((level) => {
                 if (level === applied) return;
                 applied = level;

@@ -132,12 +132,10 @@ async function stop(exitCode: number): Promise<void> {
 }
 
 process.on('message', (message: unknown) => {
-    // eslint-disable-next-line no-void -- Runtime accepts and replies to each private request independently.
     void runtime.accept(message);
 });
 
 process.once('disconnect', () => {
-    // eslint-disable-next-line no-void -- Parent loss intentionally tears down every owned PTY.
     void stop(0);
 });
 installTerminationSignalHandlers({

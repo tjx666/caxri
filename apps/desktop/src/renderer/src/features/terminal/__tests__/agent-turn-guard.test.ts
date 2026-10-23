@@ -121,7 +121,6 @@ describe('confirmBeforeEndingTurn', () => {
             bootstrapWith(agentTerminal(), session({ lastActivityState: 'idle' })),
         );
         const proceed = vi.fn();
-        // eslint-disable-next-line no-void -- the synchronous path is what is under test
         void confirmBeforeEndingTurn('terminal-1', COPY, proceed);
         expect(proceed).toHaveBeenCalledOnce();
         expect(mocks.showConfirm).not.toHaveBeenCalled();
@@ -135,7 +134,6 @@ describe('confirmBeforeEndingTurn', () => {
             ),
         );
         const proceed = vi.fn();
-        // eslint-disable-next-line no-void -- the synchronous path is what is under test
         void confirmBeforeEndingTurn('terminal-1', COPY, proceed);
         expect(proceed).toHaveBeenCalledOnce();
     });

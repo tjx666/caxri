@@ -90,7 +90,6 @@ export const startPairingRoute = ({
             if (isCurrent) onError(pairingErrorMessage(error, t));
         }
     };
-    // eslint-disable-next-line no-void -- The route owns this bounded operation and its cleanup.
     void complete();
     return () => {
         if (!isCurrent) return;

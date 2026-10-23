@@ -376,7 +376,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     private reportAppliedSettings(stream: Query): void {
-        // eslint-disable-next-line no-void -- best effort; each turn's hooks still report the effort it ran with
         void readClaudeAppliedSettings(stream)
             .then((operations) => !this.isEnded && this.options.apply(operations))
             .catch(() => {});
@@ -448,7 +447,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }),
         });
         this.query = stream;
-        // eslint-disable-next-line no-void -- the read loop runs for the process lifetime and reports through onEnd.
         void this.consume(stream);
         try {
             const initialized = await withTimeout(

@@ -365,7 +365,7 @@ if (ownsProfileInstance) {
         mainWindow = window;
         registerWorkbenchWindow(PRIMARY_WINDOW_KEY, window);
         // Startup and a dock reopen share this path, so torn-off windows come back in both.
-        void tearOffWindows.restore(window); // eslint-disable-line no-void -- failures log themselves
+        void tearOffWindows.restore(window);
     }
 
     /**
@@ -470,7 +470,6 @@ if (ownsProfileInstance) {
             onEventsReady: (sender) => {
                 if (workbenchWindows.keyOf(sender) === PRIMARY_WINDOW_KEY)
                     startupProfile.mark('rendererReady');
-                // eslint-disable-next-line no-void -- replays the synchronous handshake once Server Core is attached
                 void serverReady.promise.then(() => completeRendererHandshake(sender));
             },
             isWorkbenchSender: (sender) => workbenchWindows.isWorkbenchSender(sender),
@@ -493,7 +492,6 @@ if (ownsProfileInstance) {
                 isZoomingWithApp(window, [agentCommander, benchmarkWindow]),
             dispatchToSshHostWindow: sshHostWindowMenu.dispatch,
             focusWorkbench: () => {
-                // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
                 void focusMainWindow().catch(() => {});
             },
         });
@@ -538,7 +536,6 @@ if (ownsProfileInstance) {
             });
             gpuRecovery.recordBoot();
             // GPU collection is asynchronous and must never delay window startup.
-            // eslint-disable-next-line no-void -- snapshot failures write their own bounded diagnostic
             void gpuDiagnostics.captureBaseline();
             if (process.env.CAXRI_E2E === '1')
                 mainLogger.write('info', logEventCatalog.e2e.launch, {
@@ -621,7 +618,7 @@ if (ownsProfileInstance) {
                 resourcesPath: process.resourcesPath,
                 supervisor,
             });
-            void notifications.initialize(); // eslint-disable-line no-void -- background-only startup state
+            void notifications.initialize();
             processExplorer.installIpc();
             serverReady.resolve();
             // `openMainWindow` alone only creates the window; wait for its Renderer too (see `reopenAuxiliaryWindowsAtStartup`).

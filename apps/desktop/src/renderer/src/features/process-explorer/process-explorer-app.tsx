@@ -123,7 +123,6 @@ export function ProcessExplorerApp() {
             refreshInFlight.current = false;
             setRefreshing(false);
         }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void runRefresh();
     }, []);
     useEffect(() => {
@@ -144,7 +143,6 @@ export function ProcessExplorerApp() {
                 // Theme sync is best-effort; the process tree still renders with the default theme.
             }
         }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void loadTheme();
         return () => {
             clearTimeout(initialRefresh);
@@ -175,7 +173,6 @@ export function ProcessExplorerApp() {
             }
             refresh();
         }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, runStop reports its own failure
         void runStop();
     };
     const { handleRowKeyDown, handleRowsFocus, rovingId, rows, toggle } = useProcessTreeNavigation({

@@ -233,7 +233,6 @@ function reopenConversationMenuEntry(
                     agent: resolveAgentIcon(entry.provider).label,
                 }),
             onSelect: () => {
-                // eslint-disable-next-line no-void -- the command reports its own failure in a toast
                 void reopenSessionConversation(sessionId, entry);
             },
         })),
@@ -390,7 +389,6 @@ async function sessionRowMenu({
         canOpenSessionInNewWindow(getBootstrap(), session.id) && {
             label: translate('primarySidebar.sessionMenu.openInNewWindow'),
             onSelect: () => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, reports its own failure
                 void openSessionInNewWindow(session.id);
             },
         },

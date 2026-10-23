@@ -106,7 +106,6 @@ export function useSourceControlHistory(
             return;
         }
         const timer = setTimeout(() => {
-            // eslint-disable-next-line no-void -- loadPage owns its loading and error state
             void loadPage(0, true);
         }, 0);
         return () => {

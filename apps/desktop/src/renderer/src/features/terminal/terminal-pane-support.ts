@@ -138,12 +138,10 @@ export function registerTerminalInputHandlers(
     const dataDisposable = terminal.onData((data) => {
         if (!isInputOpen()) return;
         // xterm's onData callback cannot be async; sendInput already reports its own failure.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void sendInput(data);
     });
     const binaryDisposable = terminal.onBinary((data) => {
         if (!isInputOpen()) return;
-        // eslint-disable-next-line no-void -- the request reports its own failure.
         void sendTerminalBinaryInput(terminalId, data, expectedAgentLaunchId()).catch((error) => {
             if (!isDisposed) reportTerminalOperationError(error, 'terminal.errors.inputFailed');
         });
@@ -223,7 +221,6 @@ export function registerTerminalPaneLinks(
                         repository: candidate.repositoryName,
                     }),
                     activate: () => {
-                        // eslint-disable-next-line no-void -- this helper owns user-visible failure reporting
                         void openCommitCandidate(candidate.repositoryId, candidate.sha);
                     },
                     bufferLine: 0,

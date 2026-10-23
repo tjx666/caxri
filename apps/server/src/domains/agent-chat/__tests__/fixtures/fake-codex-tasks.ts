@@ -135,7 +135,6 @@ export async function runSubagent(
         durationMs: 3,
     });
     if (isHeld) {
-        // eslint-disable-next-line no-void -- the child keeps working after the parent turn ends
         void io
             .streamMessage(childTurn, 'still working '.repeat(400), 50)
             .then(() => finishChildTurn(io, child, childTurn));

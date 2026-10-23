@@ -49,7 +49,6 @@ export function CommanderBoardView() {
                     variant="secondary"
                     onClick={() => {
                         // Fire-and-forget: a failed retry lands back in this same error state.
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                         void board.refetch();
                     }}
                 >

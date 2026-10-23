@@ -195,7 +195,6 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
              * Closing only detaches: the SSH Host keeps its Terminals and Agents. Unsaved Editor buffers are the one
              * thing that would be lost, so they get the same decision as the local window.
              */
-            // eslint-disable-next-line no-void -- the decision settles the window's fate itself
             void unsavedEditors
                 .decide('close')
                 .catch(() => 'continue' as const)
@@ -213,7 +212,6 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
                 isRecovering: () => connection.isRecovering(),
                 onEventsReady: () => {
                     relay.rendererReady(PRIMARY_WINDOW_KEY);
-                    // eslint-disable-next-line no-void -- readiness is re-announced on every reattach
                     void options
                         .whenAttached(window)
                         .then(() => connection.markDesktopReady())

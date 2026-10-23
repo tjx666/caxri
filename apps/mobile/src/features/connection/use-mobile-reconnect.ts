@@ -36,7 +36,6 @@ export const useMobileReconnect = ({
         let isActive = true;
         const timer = setTimeout(
             () => {
-                // eslint-disable-next-line no-void -- The timeout owns this bounded reconnect attempt.
                 void runReconnectAttempt({
                     connect: () => connect(credential),
                     isActive: () => isActive,

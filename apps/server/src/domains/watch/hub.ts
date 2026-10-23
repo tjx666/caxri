@@ -163,7 +163,6 @@ class Registration implements WatchHandle {
 
     startFallback(error: unknown): void {
         // Server watcher callbacks are synchronous; activation continues independently after mode changes to polling.
-        // eslint-disable-next-line no-void -- runtime fallback cannot block the native callback
         void this.hub.activateFallback(this, error);
     }
 
@@ -270,7 +269,6 @@ export class WatchHub {
     private tick(entry: Registration): void {
         if (entry.mode !== 'polling' || entry.pollInFlight || !entry.fallback) return;
         entry.pollInFlight = true;
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see method docstring
         void Promise.resolve(entry.fallback.pollOnce())
             .catch((error: unknown) => {
                 this.logger?.write('warn', logEventCatalog.watchHub.pollFailed, {
@@ -321,7 +319,6 @@ export class WatchHub {
         const delay = entry.nativeRetryDelayMs;
         entry.nativeRetryTimer = setTimeout(() => {
             entry.nativeRetryTimer = undefined;
-            // eslint-disable-next-line no-void -- fire-and-forget retry attempt driven by a timer callback
             void this.attemptNativeRestore(entry);
         }, delay);
         entry.nativeRetryTimer.unref();
@@ -560,7 +557,6 @@ export class WatchHub {
         this.registrations.add(entry);
         this.recordWatcherCount();
         // Intentional pollers expose a synchronous registration contract; activation owns its own failure handling.
-        // eslint-disable-next-line no-void -- registerPoller cannot await by contract
         void this.activateFallback(entry, undefined);
         return entry;
     }
@@ -584,7 +580,6 @@ export class WatchHub {
         const subscription = entry.subscription;
         entry.subscription = undefined;
         // The native subscription already failed or is being replaced; releasing it must never block the fallback.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see comment above
         if (subscription) void this.releaseSubscription(subscription);
         const { groupKey } = entry.fallback;
         try {

@@ -64,7 +64,6 @@ export function NewTerminalButton({
     const [iconMenuOpen, setIconMenuOpen] = useState(false);
     const newTerminalShortcut = useCommandShortcut('terminal.new');
     const create = (kind: TerminalKind, surface: TerminalSurface): void => {
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
         void createTerminal(kind, {
             ...(paneId && { paneId }),
             ...(surface === 'chat' && { surface }),

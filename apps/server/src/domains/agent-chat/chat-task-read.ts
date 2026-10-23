@@ -56,7 +56,6 @@ export async function readChatTask(
     );
     // Opening a running shell's tab confirms the provider still runs it; the list patch follows.
     if (listed?.kind === 'shell' && listed.status === 'running' && state.session?.isOpen)
-        // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
         void state.session.refreshTasks?.().catch(() => {});
     if (live) return agentChatTaskSnapshotSchema.parse(live);
     let session: AgentChatProviderSession;

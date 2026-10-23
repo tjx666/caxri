@@ -172,7 +172,6 @@ export function SessionSearchResults({
                         role="option"
                         onClick={() => {
                             onSelect(index);
-                            // eslint-disable-next-line no-void -- the command reports its own failure through a toast
                             void runSessionSearchAction(entry, query);
                         }}
                         onMouseMove={() => {

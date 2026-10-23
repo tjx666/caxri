@@ -85,7 +85,6 @@ async function commitDismissal(itemId: string): Promise<void> {
 export function flushCommanderInboxDismissals(): void {
     for (const itemId of pendingDismissals.keys())
         // Fire-and-forget: the window may be going away, and tryCommand reports a failure while it still can.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void commitDismissal(itemId);
 }
 
@@ -123,7 +122,6 @@ export function dismissCommanderInboxItem(item: CommanderInboxItem): void {
     pendingDismissals.set(item.id, {
         timer: setTimeout(() => {
             // Fire-and-forget: commitDismissal reports its own failure through a toast.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void commitDismissal(item.id);
         }, COMMANDER_INBOX_DISMISS_UNDO_MS),
     });

@@ -60,7 +60,6 @@ const FolderRow = memo(
                         accessibilityRole="button"
                         disabled={isAdding}
                         onPress={() => {
-                            // eslint-disable-next-line no-void -- The hook renders add failures.
                             void onAdd(entry.relativePath);
                         }}
                         style={[styles.addPill, { borderColor: theme.primary }]}
@@ -108,7 +107,6 @@ const AddProjectFooter = ({
                     disabled={browser.addingPath !== null || !browser.isConnected}
                     onPress={() => {
                         const { path } = browser.level;
-                        // eslint-disable-next-line no-void -- The hook renders add failures.
                         if (path !== null) void onAdd(path);
                     }}
                     style={[

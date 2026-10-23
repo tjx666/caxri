@@ -108,7 +108,6 @@ export function createAgentChatService({
      * Provider process groups a previous Server Core lifetime left behind when it was killed. The records are read
      * synchronously, before any Chat can start and record a group of this lifetime.
      */
-    // eslint-disable-next-line no-void -- the sweep never rejects and must not delay startup
     void reapStaleProviderGroups({
         ledger: () => chatStateStore(database).processGroups,
         logger,

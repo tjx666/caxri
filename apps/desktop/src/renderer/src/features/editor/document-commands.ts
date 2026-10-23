@@ -132,7 +132,6 @@ export function didOpenEditorTabForSession(
      * Fire-and-forget: the caller already sees this tab optimistically. Persisting continues in the background,
      * retrying once against a refreshed snapshot on a lost revision race (see `persistOpenedEditorTab`).
      */
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void persistOpenedEditorTab(
         sessionId,
         path,

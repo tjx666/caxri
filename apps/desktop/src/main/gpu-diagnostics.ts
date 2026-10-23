@@ -550,7 +550,6 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         const timer = setTimeout(() => {
             pendingIncidentTimers.delete(incidentId);
             // The event listener cannot await; a failed snapshot writes its own bounded diagnostic.
-            // eslint-disable-next-line no-void -- intentionally asynchronous timeout fallback
             void captureSnapshot(incidentId, false);
         }, GPU_INFO_UPDATE_TIMEOUT_MS);
         pendingIncidentTimers.set(incidentId, timer);

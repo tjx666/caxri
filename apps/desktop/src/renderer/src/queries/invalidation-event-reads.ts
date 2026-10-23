@@ -29,7 +29,6 @@ export function invalidatePermissionAutoAllowQuery(
     sessionId: string,
 ): void {
     // Fire-and-forget: the refreshed query surfaces any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -55,7 +54,6 @@ export function invalidateGitReviewQueries(
     repoId: string,
 ): void {
     // Fire-and-forget: the refreshed queries surface any error through React Query state.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -69,7 +67,6 @@ export function invalidateGitReviewQueries(
             );
         },
     });
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({ queryKey: GIT_REVIEW_PENDING_QUERY_KEY });
 }
 
@@ -78,6 +75,5 @@ export function invalidateGitReviewQueries(
  * window or device changed it.
  */
 export function invalidateCommanderInboxQuery(queryClient: QueryClient): void {
-    // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
     void queryClient.invalidateQueries({ queryKey: COMMANDER_INBOX_QUERY_KEY });
 }

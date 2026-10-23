@@ -116,7 +116,6 @@ export class LongPasteService {
         await this.mutations.run(() => pruneLongPastes(this.directory, this.now(), 0));
         if (this.isClosed || this.cleanupTimer) return;
         this.cleanupTimer = setInterval(() => {
-            // eslint-disable-next-line no-void -- pruning is content-free, internally best-effort, and timer-owned
             void this.mutations.run(() => pruneLongPastes(this.directory, this.now(), 0));
         }, this.cleanupIntervalMs);
         this.cleanupTimer.unref();

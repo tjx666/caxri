@@ -62,7 +62,6 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
     for (const projectSessionId of getProjectSessionIds(sessionId))
         // Fire-and-forget: the non-durable remap only touches in-memory Renderer state and never
         // rejects, so there is nothing for this loop to await or react to.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void remapOpenEditorsInSession(
             projectSessionId,
             workbenchProjectId,

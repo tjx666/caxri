@@ -84,12 +84,10 @@ function BugReportDialogContent() {
                         targets={targets}
                         onBack={backToForm}
                         onCopyReport={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, copyReport() reports its own errors
                             void copyReport();
                         }}
                         onSelectedTargetChange={setSelectedTargetId}
                         onSend={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, send() reports its own errors
                             void send();
                         }}
                     />
@@ -109,15 +107,12 @@ function BugReportDialogContent() {
                         updateDraft={updateDraft}
                         onAnnotate={openAnnotator}
                         onCapture={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, captureScreenshot() reports its own errors
                             void captureScreenshot();
                         }}
                         onDiscardDraft={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, discardDraft() only awaits the confirmation
                             void discardDraft();
                         }}
                         onPreview={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, preview() reports its own errors
                             void preview();
                         }}
                         onRemoveScreenshot={removeScreenshot}

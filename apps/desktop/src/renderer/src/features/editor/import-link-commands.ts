@@ -121,7 +121,6 @@ export function registerImportLinks(monaco: ImportLinkMonaco): IDisposable[] {
                 if (!specifier) return false;
                 // Opened against the Session the link was resolved in, not the selected one, so a link clicked in a
                 // background pane cannot land in another Session's editor.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, resolveAndOpenImport reports errors
                 void resolveAndOpenImport(resource.authority, resource.path, specifier);
                 return true;
             },

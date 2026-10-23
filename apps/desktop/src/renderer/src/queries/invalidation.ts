@@ -182,7 +182,6 @@ function invalidateFileDependentQueries(
     const changes = batch.changes.keys().toArray();
     // Fire-and-forget: the invalidated queries surface their own errors through React Query's
     // per-query error state, so the caller never needs to await or handle this rejection.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -244,7 +243,6 @@ function invalidateGitChangedQueries(
     refetchType: 'active' | 'none',
 ): void {
     // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -270,7 +268,6 @@ function invalidateViewChange(
     change: ViewChange,
     refetchType: 'active' | 'none',
 ): void {
-    // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
     void queryClient.invalidateQueries({
         predicate: (query) =>
             isControlledOperationMatch(
@@ -284,7 +281,6 @@ function invalidateViewChange(
 
 function invalidateAgentTranscriptQuery(queryClient: QueryClient, terminalId?: string): void {
     // Fire-and-forget: an active transcript viewer renders the refetch result through its query state.
-    // eslint-disable-next-line no-void -- targeted query invalidation owns its own error state
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -339,7 +335,6 @@ export function removeSessionQueries(
  */
 function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient>): void {
     // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
@@ -361,7 +356,6 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
 function invalidateControlledViewQueries(queryClient: QueryClient): void {
     // A reconnect or catalog generation change retires provider registrations. Refetching generic controlled queries
     // lets active observers resolve the new generation instead of reusing an old provider result.
-    // eslint-disable-next-line no-void -- invalidation is intentionally fire-and-forget
     void queryClient.invalidateQueries({
         predicate: (query) => isQueryMethod(query.queryKey, CONTROLLED_VIEW_QUERY_METHOD),
     });
@@ -419,7 +413,6 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
     });
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'viewContainers.catalogChanged') {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, React Query owns invalidation errors
             void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
             invalidateControlledViewQueries(queryClient);
             return;
@@ -447,7 +440,6 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event === 'state.changed') {
-            // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
             void queryClient.invalidateQueries({ queryKey: COMMANDER_STATUS_QUERY_KEY });
             if (event.payload.kind === 'full') invalidateAgentTranscriptQuery(queryClient);
             else {
@@ -461,7 +453,6 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
                  * converge without persisting the original configuration source, path, or failure message.
                  */
                 removeAgentActionQueries(queryClient);
-                // eslint-disable-next-line no-void -- React Query owns each refetch result and error state.
                 void queryClient.invalidateQueries();
             }
             /**
@@ -472,7 +463,6 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
                 event.payload.kind === 'full' &&
                 PULL_REQUEST_MEMBERSHIP_REASONS.has(event.payload.reason)
             ) {
-                // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
                 void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
             }
             return;
@@ -484,14 +474,12 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
              * journal.
              */
             invalidateAgentTranscriptQuery(queryClient);
-            // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
             void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
             invalidateControlledViewQueries(queryClient);
             return;
         }
         if (event.event === 'workbench.changed') {
             removeSessionQueries(queryClient, [event.payload.sessionId]);
-            // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle.
             void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
             return;
         }

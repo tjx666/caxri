@@ -23,21 +23,17 @@ import { benchmarkWindowEventEffect } from './benchmark-window-events';
  */
 function useBenchmarkWindowState(): void {
     useEffect(() => {
-        // eslint-disable-next-line no-void -- initializeWorkbench() reports its own failure
         void initializeWorkbench();
         const unsubscribe = caxri.onEvent((event) => {
             const effect = benchmarkWindowEventEffect(event);
             if (effect.isFullScreen !== undefined)
                 useWorkbenchStore.setState({ isFullScreen: effect.isFullScreen });
-            // eslint-disable-next-line no-void -- refreshWorkbench() reports its own failure
             if (effect.snapshot) void refreshWorkbench();
             if (effect.runs)
-                // eslint-disable-next-line no-void -- a failed refetch surfaces in the query that owns it
                 void queryClient.invalidateQueries({
                     predicate: (query) => String(query.queryKey[0]).startsWith('benchmark.'),
                 });
         });
-        // eslint-disable-next-line no-void -- syncWindowFullScreen() swallows its own request failure
         void syncWindowFullScreen();
         return unsubscribe;
     }, []);

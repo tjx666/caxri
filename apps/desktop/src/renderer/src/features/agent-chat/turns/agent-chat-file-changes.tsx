@@ -270,7 +270,6 @@ function FileChangeBlock({
                             )}
                             type="button"
                             onClick={() => {
-                                // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
                                 void openFileForSession(sessionId, change.path, {
                                     location:
                                         firstLine === undefined

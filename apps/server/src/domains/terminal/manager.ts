@@ -91,7 +91,6 @@ export class TerminalManager {
         this.executionListeners = [
             this.execution.onEvent((event) => this.projectExecutionEvent(event)),
             this.execution.onExit((event) => {
-                // eslint-disable-next-line no-void -- Exit finalization owns and reports its asynchronous failures.
                 void this.onExecutionExit(event);
             }),
             this.execution.onHostExit((terminalIds) => this.onExecutionHostExit(terminalIds)),
@@ -139,12 +138,10 @@ export class TerminalManager {
                 return;
             }
             case 'agentStarted': {
-                // eslint-disable-next-line no-void -- Agent activation is fenced by launch ID and reports failures itself.
                 void this.onAgentStarted(event.terminalId, event.launchId);
                 return;
             }
             case 'agentExit': {
-                // eslint-disable-next-line no-void -- Agent retirement must not block Host event projection.
                 void this.onAgentExit(event);
                 return;
             }

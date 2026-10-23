@@ -40,7 +40,6 @@ export function PickerQueryStatus({
                     aria-busy={query.isFetching}
                     onClick={() => {
                         if (query.isFetching) return;
-                        // eslint-disable-next-line no-void -- query refetch reports failures through the inline query state
                         void query.refetch();
                     }}
                 >

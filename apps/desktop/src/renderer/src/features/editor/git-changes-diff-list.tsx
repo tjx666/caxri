@@ -32,7 +32,6 @@ function showExcludedGitDiffFiles(tabPath: string, showExcludedTabPath: string):
     if (!hidingTabId) return;
     // Fire-and-forget: a Git diff tab is virtual, so the close has no dirty-buffer confirmation to
     // report back, and `closeDocumentTabs` funnels any failure into its own toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void closeDocumentTabs([hidingTabId]);
 }
 

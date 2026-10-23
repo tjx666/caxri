@@ -112,7 +112,6 @@ export function useSessionAttentionAcknowledgement(): void {
         };
         // Fire-and-forget: failures reset `isPendingReference` above so the next focus/visibility
         // event retries; there is nothing left for this handler to await.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void acknowledgeAsync();
     }, [session, hasUnseenChatRequest]);
 

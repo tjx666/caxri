@@ -58,7 +58,6 @@ export const useSessionShow = (sessionId: string | null, shouldFetch: boolean) =
         if (invalidationTimer.current !== null) clearTimeout(invalidationTimer.current);
         invalidationTimer.current = setTimeout(() => {
             invalidationTimer.current = null;
-            // eslint-disable-next-line no-void -- The active query owns the refreshed Session read.
             void queryClient.invalidateQueries({ queryKey, exact: true });
         }, 0);
     }, [queryClient, queryKey]);

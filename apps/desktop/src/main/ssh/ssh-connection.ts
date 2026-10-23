@@ -373,13 +373,11 @@ export class SshConnection {
                 }),
             );
         });
-        // eslint-disable-next-line no-void -- close notification is observed independently of readiness.
         void exited.then((info) => this.handleMasterExit(master, info));
 
         const deadline = Date.now() + (this.options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
         const interval = this.options.readyPollIntervalMs ?? 100;
         let hasExited = false;
-        // eslint-disable-next-line no-void -- flag only; the exit itself is handled above.
         void exited.then(() => {
             hasExited = true;
         });

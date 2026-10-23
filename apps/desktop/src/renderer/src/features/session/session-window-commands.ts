@@ -75,7 +75,6 @@ export function openPinnedSessionAtPosition(position: number): void {
         return;
     pinnedNavigation.pendingTarget = target;
     // Fire-and-forget: didSelectSession reports its own failures through a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard
     void didSelectSession(target).finally(() => {
         if (pinnedNavigation.pendingTarget === target) delete pinnedNavigation.pendingTarget;
     });

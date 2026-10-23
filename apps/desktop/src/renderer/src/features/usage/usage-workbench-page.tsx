@@ -268,7 +268,6 @@ export function UsageWorkbenchPage() {
      */
     const isShowingPreviousSelection = query.isPlaceholderData;
     const retry = () => {
-        // eslint-disable-next-line no-void -- a failed retry surfaces through the same error state.
         void query.refetch();
     };
 

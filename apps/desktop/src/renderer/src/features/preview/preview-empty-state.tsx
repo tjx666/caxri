@@ -63,7 +63,6 @@ export function PreviewEmptyState({
                         <Button
                             size="sm"
                             onClick={() => {
-                                // eslint-disable-next-line no-void -- the helper reports its own failure through a toast
                                 void openFileWithDefaultApp(path);
                             }}
                         >
@@ -76,7 +75,6 @@ export function PreviewEmptyState({
                             // Secondary weight only when it is the one way forward; beside a stronger action it steps back.
                             variant={showSource || hasOpenWithDefaultApp ? 'ghost' : 'secondary'}
                             onClick={() => {
-                                // eslint-disable-next-line no-void -- revealFile reports its own failure through a toast
                                 void revealFile(path);
                             }}
                         >

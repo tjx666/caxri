@@ -47,7 +47,6 @@ export function MermaidPreview({
         const element = diagramReference.current;
         if (!element || isEmpty) return;
         const controller = new AbortController();
-        // eslint-disable-next-line no-void -- a failed render paints its own error into the element
         void renderMermaidDiagram(element, deferredSource, theme, controller.signal).then(() => {
             sizeDiagramNaturally(element);
             labelDiagram(element, label);

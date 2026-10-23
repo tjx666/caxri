@@ -28,7 +28,6 @@ export function AgentChatIssueHandoffButton({
     const label = t('agentChat.handoff.startIssue', { reference });
     const start = () => {
         setSending(true);
-        // eslint-disable-next-line no-void -- startAgentChatHandoff reports its own failures
         void awaitThenCleanup(
             startAgentChatHandoff(terminalId, agentChatIssueHandoffDraft({ reference, url })),
             () => setSending(false),

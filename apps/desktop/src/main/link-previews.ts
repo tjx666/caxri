@@ -165,7 +165,6 @@ async function fetchPreview(
         const { response } = result;
         const type = response.headers.get('content-type')?.toLowerCase() ?? '';
         if (!response.ok || !(type.includes('text/html') || type.includes('xhtml'))) {
-            // eslint-disable-next-line no-void -- the body of a page that will not be previewed is never read
             void response.body?.cancel().catch(() => {});
             return {};
         }
@@ -205,7 +204,6 @@ export function createLinkPreviews(fetch: ManualRedirectFetch, resolveHost: Reso
         if (cache.size >= MAX_CACHED_URLS) cache.delete(cache.keys().next().value!);
         const entry = Promise.withResolvers<LinkPreview>();
         cache.set(url, entry.promise);
-        // eslint-disable-next-line no-void -- the entry's promise carries the outcome; settling has nothing else to report
         void settle(url, entry);
         return entry.promise;
     };

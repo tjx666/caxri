@@ -217,7 +217,6 @@ function GitChangesDiffItem({
                             // the tab on success, so a missing path toasts instead of leaving a tab
                             // stuck on "Loading file…".
                             onClick={() => {
-                                // eslint-disable-next-line no-void -- intentional floating-promise discard; openFile toasts internally
                                 void openFile(`${repositoryRootPath}/${file.path}`);
                             }}
                         >

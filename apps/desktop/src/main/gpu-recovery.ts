@@ -98,7 +98,6 @@ export function createGpuRecoveryCoordinator(options: GpuRecoveryCoordinatorOpti
         install(): void {
             options.app.on('gpu-info-update', () => {
                 // Electron emits this synchronously; snapshot failures are logged by the collector.
-                // eslint-disable-next-line no-void -- asynchronous post-crash evidence collection
                 void options.diagnostics.handleGpuInfoUpdate();
             });
             // `powerMonitor` is unusable before `ready`. A wake is recorded, not acted on: it only explains a later

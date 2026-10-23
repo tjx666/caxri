@@ -131,7 +131,6 @@ function StructuredTooltipAnchor({ href, label }: { href: string; label: string 
             onClick={(event) => {
                 // Main denies every window navigation, so the anchor is semantic only; `external.open` navigates.
                 event.preventDefault();
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
                 void openExternalUrl(href, (message) => pushToast('error', message));
             }}
         >

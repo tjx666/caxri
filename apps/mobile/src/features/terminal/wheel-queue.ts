@@ -43,7 +43,6 @@ export const createTerminalWheelQueue = (
             pending.lines += wheel.lines;
             pending.col = wheel.col;
             pending.row = wheel.row;
-            // eslint-disable-next-line no-void -- Failures are reported through `onError`.
             if (!isSending) void drain();
         },
     };

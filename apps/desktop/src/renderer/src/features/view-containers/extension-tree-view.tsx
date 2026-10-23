@@ -65,7 +65,6 @@ function runTreeCommand(item: TreeItemDto): void {
         executeCommand('panel.showLogs');
         return;
     }
-    // eslint-disable-next-line no-void -- the shared runner reports failures through the toast path
     void runTreeItemCommand(command);
 }
 
@@ -223,7 +222,6 @@ function ExtensionTreeViewContent({
         const id = crypto.randomUUID();
         refreshLock.current = id;
         setPendingRefresh({ afterRootLoad: rootLoads.started, id });
-        // eslint-disable-next-line no-void -- the header remains busy until the provider's resulting root load completes
         void dispatchExtensionViewAction(
             refreshAction.commandId,
             t('viewContainers.extensionTree.refresh', { title }),
@@ -262,7 +260,6 @@ function ExtensionTreeViewContent({
             (item) => isTreeItemExpanded(treeState, item),
         );
         for (const handle of handles) {
-            // eslint-disable-next-line no-void -- restored/provider expansion reports failures in its tree branch
             void loadChildren(handle);
         }
     }, [children, errors, loadChildren, loading, requests, treeState]);
@@ -318,7 +315,6 @@ function ExtensionTreeViewContent({
                 : toggleTreeItem(current, row.item),
         );
         if (willExpand && !children.has(row.item.handle)) {
-            // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
             void loadChildren(row.item.handle);
         }
         if (!willExpand) {
@@ -439,7 +435,6 @@ function ExtensionTreeViewContent({
                                         <ExtensionTreePlaceholderRow
                                             row={row}
                                             onRetry={() => {
-                                                // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
                                                 void loadChildren(row.parentHandle);
                                             }}
                                         />

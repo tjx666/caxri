@@ -98,6 +98,5 @@ export function foldEditorOnOpen(
         cursorLine: position.lineNumber,
     });
     if (!isFoldedOnOpen) return;
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see `foldIgnoringFailure`
     void foldIgnoringFailure(editor, foldOnOpenAction(model.getLanguageId()));
 }

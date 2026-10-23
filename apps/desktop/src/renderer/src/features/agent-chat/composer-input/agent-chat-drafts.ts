@@ -555,7 +555,6 @@ export function returnUnsentAgentChatMessage(
 function hydrateAgentChatAttachments(): void {
     if (!attachmentPersistence || attachmentHydration.started) return;
     attachmentHydration.started = true;
-    // eslint-disable-next-line no-void -- hydrate swallows storage failures; an unreadable store restores nothing
     void attachmentPersistence.hydrate().then((restored) => {
         for (const [terminalId, list] of restored) {
             if (returnListeners.has(terminalId)) returnUnsentAgentChatMessage(terminalId, '', list);

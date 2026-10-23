@@ -176,7 +176,6 @@ export const useMobileAccessController = () => {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            // eslint-disable-next-line no-void -- This effect owns the initial settings request.
             void load();
         }, 0);
         return () => clearTimeout(timer);
@@ -212,7 +211,6 @@ export const useMobileAccessController = () => {
             isLoading = false;
         };
         const poll = (): void => {
-            // eslint-disable-next-line no-void -- This effect owns one bounded pairing-status poll.
             void refreshPairing();
         };
         poll();

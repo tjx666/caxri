@@ -246,7 +246,6 @@ export class ManagedAgentLauncherServer {
             this.finishLostDrain(state);
             return;
         }
-        // eslint-disable-next-line no-void -- The exact launch owns its asynchronous fail-closed cleanup.
         void this.terminate(state);
     }
 
@@ -255,7 +254,6 @@ export class ManagedAgentLauncherServer {
         state.handoffLost = true;
         if (!state.handoff) return;
         const handoff = state.handoff;
-        // eslint-disable-next-line no-void -- The completed PTY callback is the close and FD-reuse barrier.
         void handoff.ready
             .then(() => {
                 state.handoffComplete = true;
@@ -397,7 +395,6 @@ export class ManagedAgentLauncherServer {
                     this.failConnection(exitedState, socket);
                     return;
                 }
-                // eslint-disable-next-line no-void -- Observe the exact launch's asynchronous PTY input barrier.
                 void exitedState.handoff.ready
                     .then(() => {
                         if (socket.destroyed || exitedState.handoffLost) {

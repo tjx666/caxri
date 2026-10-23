@@ -141,7 +141,6 @@ export const useSessionPolling = (isVisible = true) => {
         if (invalidationTimer.current !== null) clearTimeout(invalidationTimer.current);
         invalidationTimer.current = setTimeout(() => {
             invalidationTimer.current = null;
-            // eslint-disable-next-line no-void -- The query observer owns the resulting read and error state.
             void queryClient.invalidateQueries({ queryKey, exact: true });
         }, 0);
     }, [queryClient, queryKey]);
@@ -170,7 +169,6 @@ export const useSessionPolling = (isVisible = true) => {
             invalidationTimer.current = null;
             if (resubscribeTimer.current !== null) clearTimeout(resubscribeTimer.current);
             resubscribeTimer.current = null;
-            // eslint-disable-next-line no-void -- Disabled queries retain the last authenticated snapshot.
             void queryClient.cancelQueries({ queryKey, exact: true });
         };
     }, [

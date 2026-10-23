@@ -39,7 +39,6 @@ export class DiscardStops {
         );
         const settled = settle(stop);
         this.pending.set(terminalId, settled);
-        // eslint-disable-next-line no-void -- The caller observes the stop's failure; this only forgets it once settled.
         void this.forget(terminalId, settled);
         return stop;
     }

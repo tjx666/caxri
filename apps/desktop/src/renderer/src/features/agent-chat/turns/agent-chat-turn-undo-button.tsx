@@ -60,7 +60,6 @@ export function AgentChatTurnUndoButton({
                             onClick={() => {
                                 if (isRedoing) return;
                                 setRedoing(true);
-                                // eslint-disable-next-line no-void -- redoAgentChatTurn reports failures through tryCommand
                                 void redoAgentChatTurn({ sessionId, turnId }).finally(() =>
                                     setRedoing(false),
                                 );
@@ -96,7 +95,6 @@ export function AgentChatTurnUndoButton({
                 variant="ghost"
                 onClick={() => {
                     if (isUnavailable) return;
-                    // eslint-disable-next-line no-void -- undoAgentChatTurn reports failures through tryCommand
                     void undoAgentChatTurn({ sessionId, turnId, files, displayPath });
                 }}
             >

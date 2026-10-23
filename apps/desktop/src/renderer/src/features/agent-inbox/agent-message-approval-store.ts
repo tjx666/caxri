@@ -93,7 +93,6 @@ export function subscribeHeldMessageQueue(): () => void {
                 );
         }
     }
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, loadHeldMessages reports its own failure
     void loadHeldMessages();
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'agent.message.held')

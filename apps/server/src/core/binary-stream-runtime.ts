@@ -437,7 +437,6 @@ class TerminalBinarySession extends BaseBinarySession {
             if (this.claim.operation.method !== 'terminal.attach') this.close('completed');
         });
         // `observe` converts the detached command failure into a typed stream close.
-        // eslint-disable-next-line no-void
         void this.observe(this.commandChain);
     }
 
@@ -455,7 +454,6 @@ class TerminalBinarySession extends BaseBinarySession {
         this.gapScheduled = true;
         const sequence = (this.outputSequence += 1);
         // `queueOutbound` owns transport failure handling.
-        // eslint-disable-next-line no-void
         void this.queueOutbound(async () => {
             this.gapScheduled = false;
             const droppedBytes = this.droppedBytes;
@@ -491,7 +489,6 @@ class TerminalBinarySession extends BaseBinarySession {
             this.queuedOutputBytes -= payload.byteLength;
         };
         // This observer only releases the byte reservation; `queueOutbound` owns transport failure handling.
-        // eslint-disable-next-line no-void
         void (async () => {
             try {
                 await task;
@@ -515,7 +512,6 @@ class TerminalBinarySession extends BaseBinarySession {
             this.close('completed');
         })();
         // `observe` converts any pending transport failure into the typed stream close.
-        // eslint-disable-next-line no-void
         void this.observe(completion);
     }
 }
@@ -536,7 +532,6 @@ class FileBinarySession extends BaseBinarySession {
         socket.on('message', (data, isBinary) => this.receive(data, isBinary));
         if (claim.operation.method === 'files.read') {
             // `startRead` owns transport failure handling and closes the one-shot stream.
-            // eslint-disable-next-line no-void
             void this.startRead();
         }
     }
@@ -613,7 +608,6 @@ class FileBinarySession extends BaseBinarySession {
             if (frame.final) {
                 this.isSubmitted = true;
                 // `finishWrite` owns transport failure handling and closes the one-shot stream.
-                // eslint-disable-next-line no-void
                 void this.finishWrite();
             }
         } catch (error) {

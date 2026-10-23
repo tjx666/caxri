@@ -322,7 +322,6 @@ export function subscribeEditorBackups(): () => void {
     let stopFollowing: (() => void) | undefined;
     let isActive = true;
     const flush = (): void => {
-        // eslint-disable-next-line no-void -- best effort while the page goes away
         void current.backups?.flush();
     };
     const onVisibilityChange = (): void => {
@@ -339,7 +338,6 @@ export function subscribeEditorBackups(): () => void {
             scope,
         });
         current.backups = backups;
-        // eslint-disable-next-line no-void -- `start` handles its own read failures
         void backups.start().then((stop) => {
             if (isActive) stopFollowing = stop;
             else stop();

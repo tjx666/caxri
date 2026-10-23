@@ -242,7 +242,6 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
                     persistedSessionPatches.delete(patchKey);
                 // This writer reports its own outcome now; the refreshed snapshot is what every later render reads.
                 if (isLatestAttempt) {
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard
                     void refreshWorkbench();
                     onStaleWrite?.();
                 }
@@ -398,7 +397,6 @@ async function runRecordRefresh(
         if (pendingSessionRecordIds.size > 0 || pendingTerminalRecordIds.size > 0)
             // Genuinely fire-and-forget: this kicks off the next coalesced refresh round, and
             // scheduleRecordRefresh() already catches its own failures internally.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void scheduleRecordRefresh();
     }
 }
@@ -517,7 +515,6 @@ export function patchSessionState(
     if (isSessionStatePersisted(next)) return;
     // Fire-and-forget: the store method already funnels every failure into a toast internally and
     // never rejects, so this synchronous-looking wrapper never needs to await the outcome.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void useWorkbenchStore.getState().patchSessionState(next, failureLabel, onLatestFailure);
 }
 
@@ -571,7 +568,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 )
                     resolveNextSessionCommandConvergence(event.payload.reason, refresh);
                 // Fire-and-forget: applyStateChange() catches its own Server request failures.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void refresh;
                 return;
             }
@@ -587,7 +583,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                      * pane can still look running and silently discard keystrokes before its replacement PTY exists.
                      */
                     // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                     void refreshWorkbench();
                     return;
                 }
@@ -613,7 +608,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     attachEpoch: current.attachEpoch + 1,
                 }));
                 // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void refreshWorkbench();
                 return;
             }
@@ -622,7 +616,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'theme.changed':
                 if (event.payload.error) pushToast('error', event.payload.error);
                 // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 else void refreshWorkbench();
                 return;
             case 'command.execute':

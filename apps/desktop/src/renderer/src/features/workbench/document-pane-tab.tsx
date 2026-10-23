@@ -87,7 +87,6 @@ export function DocumentPaneTab({
                 if (session) pinDocumentTab(session.id, tab.id);
             }}
             onClose={() => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, closeDocumentTabs() reports its own errors
                 void closeDocumentTabs([tab.id]);
             }}
             onDragStart={(event) => {

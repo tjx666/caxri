@@ -91,7 +91,6 @@ export function switchTerminalSurfaceTo(
  */
 export function switchTerminalToOtherSurface(terminalId: string): void {
     const terminal = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, switchTerminalSurfaceTo reports its own errors
     if (terminal) void switchTerminalSurfaceTo(terminal, otherTerminalSurface(terminal));
 }
 

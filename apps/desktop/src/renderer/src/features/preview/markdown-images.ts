@@ -65,7 +65,6 @@ export function attachImages(
     }
     return () => {
         // Fire-and-forget: nothing observes when the release lands, only that it happens after the reads.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void releaseImages(reads, source, held);
     };
 }

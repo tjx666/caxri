@@ -68,7 +68,6 @@ async function fetchJson(fetch: Fetch, url: string): Promise<unknown> {
         throw new StatusReadError('network');
     }
     if (!response.ok) {
-        // eslint-disable-next-line no-void -- an error page's body is never read
         void response.body?.cancel().catch(() => {});
         throw new StatusReadError('http');
     }

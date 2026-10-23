@@ -570,7 +570,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     logger.write('info', logEventCatalog.serverCore.idleExitTriggered, {
                         fields: { deferralCount, idleDurationMs, reason },
                     });
-                    // eslint-disable-next-line no-void -- fire-and-forget shutdown from an internal timer callback
                     void stop(reason);
                 },
             }),
@@ -617,7 +616,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             },
             onDesktopAttached: () => {
                 // Starting is idempotent and logs its own failure; the handshake callback cannot await it.
-                // eslint-disable-next-line no-void -- fire-and-forget Extension Host start on Desktop attach
                 void extensionService?.startHost('desktop-attached');
             },
             ...createServerCoreControlCallbacks({

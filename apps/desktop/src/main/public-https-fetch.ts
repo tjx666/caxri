@@ -112,7 +112,6 @@ export function createPublicHttpsFetch(fetch: ManualRedirectFetch, resolveHost: 
             if (location === null || !REDIRECT_STATUSES.has(response.status)) {
                 return { response, url: current.href };
             }
-            // eslint-disable-next-line no-void -- a redirect body carries nothing the caller reads
             void response.body?.cancel().catch(() => {});
             if (hop === MAX_REDIRECTS) return undefined;
             try {

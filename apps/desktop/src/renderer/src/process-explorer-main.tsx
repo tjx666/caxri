@@ -29,7 +29,6 @@ async function applyInitialLanguage(): Promise<void> {
 }
 
 globalThis.processExplorer.onLanguageChanged(applyLanguagePreference);
-// eslint-disable-next-line no-void -- applyInitialLanguage() never rejects, and render must wait for it
 void applyInitialLanguage().then(render);
 
 function render(): void {

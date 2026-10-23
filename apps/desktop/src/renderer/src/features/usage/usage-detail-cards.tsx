@@ -41,7 +41,6 @@ import { UsageSessionTitle } from './usage-session-title';
 import { UsageShareBar } from './usage-share-bar';
 
 function openPullRequest(url: string): void {
-    // eslint-disable-next-line no-void -- openExternalUrl reports failures through the shared toast path.
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 

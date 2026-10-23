@@ -361,7 +361,6 @@ export const ConversationList = <Entry extends { id: string }>({
          * FlashList resolves `scrollToEnd` before its native scroll, which it defers by one task; reveal one frame
          * after that task has run.
          */
-        // eslint-disable-next-line no-void -- Reveal failures leave a readable list; there is nothing to report.
         void Promise.resolve(list.current?.scrollToEnd({ animated: false })).finally(() => {
             setTimeout(() => requestAnimationFrame(reveal), 0);
         });
@@ -392,13 +391,11 @@ export const ConversationList = <Entry extends { id: string }>({
         });
     }, [followKey, jumpToLatest]);
     const onLoadOlder = useCallback((): void => {
-        // eslint-disable-next-line no-void -- The timeline hook owns the bounded page request.
         void latest.current.timeline.loadOlder();
     }, []);
     const onStartReached = useCallback((): void => {
         const { timeline: current } = latest.current;
         if (isPositionedReference.current && current.olderCursor && !current.isLoadingOlder) {
-            // eslint-disable-next-line no-void -- The timeline hook serializes older-page reads.
             void current.loadOlder();
         }
     }, []);

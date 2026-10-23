@@ -80,7 +80,6 @@ const LINEAR_STATUS_ICONS: Record<AgentChatTrackerStatusType, { icon: LucideIcon
     };
 
 function openTrackerUrl(url: string): void {
-    // eslint-disable-next-line no-void -- openExternalUrl reports its own failures through the callback
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 

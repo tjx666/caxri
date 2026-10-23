@@ -55,7 +55,6 @@ export function subscribeEnvironment(): () => void {
         subscription.hasReceivedEvent = true;
         useEnvironmentStore.setState({ state: event.payload });
     });
-    // eslint-disable-next-line no-void -- the read handles its own failure below
     void (async () => {
         try {
             const state = await caxri.request('environment.get');

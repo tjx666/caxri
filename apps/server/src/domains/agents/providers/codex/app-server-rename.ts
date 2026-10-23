@@ -128,7 +128,6 @@ async function callCodexAppServer(
             isSettled = true;
             clearTimeout(timeout);
             context.signal?.removeEventListener('abort', abort);
-            // eslint-disable-next-line no-void -- settlement owns both outcomes
             void finalizeSettlement(error, result);
         }
 

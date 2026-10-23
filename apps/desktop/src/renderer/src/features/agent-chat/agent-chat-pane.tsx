@@ -96,7 +96,6 @@ const AGENT_CHAT_TURN_SELECTOR = `[${AGENT_CHAT_USER_MESSAGE_ATTRIBUTE}], [data-
 function openAsTerminalAction(terminal: ReturnType<typeof useTerminal>): (() => void) | undefined {
     if (!terminal || !canSwitchTerminalSurface(terminal)) return undefined;
     return () => {
-        // eslint-disable-next-line no-void -- the switch reports its own failures as toasts
         void switchTerminalSurfaceTo(terminal, 'pty');
     };
 }

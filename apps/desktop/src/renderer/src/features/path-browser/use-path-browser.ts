@@ -72,7 +72,6 @@ async function settleDetached(operation: Promise<unknown>): Promise<void> {
 }
 
 export function runPathBrowserDetached(operation: Promise<unknown>): void {
-    // eslint-disable-next-line no-void -- this is the single explicit detached-promise boundary for dialog actions
     void settleDetached(operation);
 }
 

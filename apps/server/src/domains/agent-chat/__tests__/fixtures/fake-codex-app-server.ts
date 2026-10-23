@@ -484,7 +484,6 @@ function handle(message: RpcMessage) {
                 result: { turn: { id: turn.id, items: [], status: 'inProgress' } },
             });
             notify('turn/started', { turn: { id: turn.id, items: [], status: 'inProgress' } });
-            // eslint-disable-next-line no-void -- the turn streams its own notifications after this response
             void runTurn(turn, input, clientId);
             return;
         }

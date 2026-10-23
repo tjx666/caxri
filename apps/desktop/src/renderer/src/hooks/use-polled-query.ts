@@ -71,7 +71,6 @@ export function usePolledQuery<M extends CaxriMethod>(
         // sites), so this resume-triggered refresh has nothing further to await.
         // Showing a window fires both `visibilitychange` and `focus`; `cancelRefetch: false` lets the second join the
         // first read instead of cancelling and reissuing it.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         if (enabled) void query.refetch({ cancelRefetch: false });
     });
 

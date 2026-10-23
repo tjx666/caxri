@@ -164,7 +164,6 @@ export function useAgentChatComposerSend({
         event.preventDefault();
         // The Send button disables itself while the message is in flight, which would drop its focus.
         focusInput();
-        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
         void (isResume
             ? submitDraft(t('agentChat.composer.resumeMessage'))
             : submit(agentChatSubmitterDelivery(event.nativeEvent.submitter)));
@@ -179,7 +178,6 @@ export function useAgentChatComposerSend({
             ? (): void => {
                   focusInput();
                   if (isSending) return;
-                  // eslint-disable-next-line no-void -- runCommand reports its own failures through tryCommand
                   void runCommand(
                       `/${compactCommand.name}`,
                       { name: compactCommand.name },
@@ -193,7 +191,6 @@ export function useAgentChatComposerSend({
      * carries it is early enough and nothing waits for it.
      */
     const recordRecent = (action: AgentAction): void => {
-        // eslint-disable-next-line no-void -- recordRecentAgentAction reports its own failures through tryCommand
         void recordRecentAgentAction(terminalId, action.invocation);
     };
     /**
@@ -220,7 +217,6 @@ export function useAgentChatComposerSend({
         focusInput();
         // A command without arguments has nothing left to type, so choosing it runs it; a skill waits for the request.
         if (!canSend || isSending || completed !== action.invocation) return;
-        // eslint-disable-next-line no-void -- runCommand reports its own failures through tryCommand
         void runCommand(completed, { name: action.invocation.slice(1) });
     };
     const goalMode = {

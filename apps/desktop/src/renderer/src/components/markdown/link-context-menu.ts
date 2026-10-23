@@ -27,7 +27,6 @@ export function linkContextMenu({
  * turn into.
  */
 function copyLinkFromMenu(url: string): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed copy through the toast
     void tryCommand(translate('agentChat.link.copyFailed'), async () => {
         await navigator.clipboard.writeText(url);
         pushToast('success', translate('agentChat.link.copied'));

@@ -162,7 +162,6 @@ export function useAgentChatSessionMenu({
         if (!mention || isPreparing || !row) return;
         const typed = draft.slice(mention.start, mention.end);
         if (row.kind === 'file') insertText(formatAgentChatFileMention(row.path), mention, typed);
-        // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
         else void insertReference(row.candidate, mention, typed);
     };
 
@@ -213,7 +212,6 @@ export function useAgentChatSessionMenu({
             const input = inputReference.current;
             if (isPreparing || !input) return;
             const range = { start: input.selectionStart, end: input.selectionEnd };
-            // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
             void insertReference(candidate, range, input.value.slice(range.start, range.end));
         },
         highlight: (index: number) => setActive({ query: mention?.query, index }),

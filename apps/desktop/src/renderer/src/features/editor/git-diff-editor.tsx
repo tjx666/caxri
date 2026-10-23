@@ -165,7 +165,6 @@ function WorkingFileDiffEditor({
                 onAction={() => {
                     // Fire-and-forget: the query's own state drives the label and the result, and a rejected refetch
                     // already surfaces through `isError` above.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                     void refetch();
                 }}
             />
@@ -182,7 +181,6 @@ function WorkingFileDiffEditor({
             sessionId={sessionId}
             tab={tab}
             onRetry={() => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard; `isError` reports a rejected refetch
                 void refetch();
             }}
         />
@@ -221,7 +219,6 @@ function PullRequestFileDiffEditor({
             sessionId={sessionId}
             tab={tab}
             onRetry={() => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard; `isError` reports a rejected refetch
                 void refetch();
             }}
         />
@@ -266,7 +263,6 @@ function CommitFileDiffEditor({
             sessionId={sessionId}
             tab={tab}
             onRetry={() => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard; `isError` reports a rejected refetch
                 void refetch();
             }}
         />

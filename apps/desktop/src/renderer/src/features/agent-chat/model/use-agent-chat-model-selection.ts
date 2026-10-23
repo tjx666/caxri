@@ -45,7 +45,6 @@ export function useAgentChatModelSelection(
             isAccepted: false,
         };
         setPending(request);
-        // eslint-disable-next-line no-void -- didConfigureAgentChat reports a failed switch through the toast
         void didConfigureAgentChat(terminalId, change).then((isConfigured) =>
             setPending((current) => {
                 // A later choice replaced this one; it owns the pending state now.

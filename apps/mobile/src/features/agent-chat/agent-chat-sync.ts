@@ -116,28 +116,23 @@ export const startAgentChatReader = ({
             ? convergence.receivePatch(snapshot, parsed.data, isReading)
             : convergence.receiveUntrustedPatch();
         if (requiresRead(decision)) {
-            // eslint-disable-next-line no-void -- readLatest serializes recovery reads.
             void readLatest();
         }
     };
 
     const startPolling = (): void => {
         if (poll !== null) return;
-        // eslint-disable-next-line no-void -- The reader disposer owns the interval and pending read.
         void readLatest();
         poll = setInterval(() => {
-            // eslint-disable-next-line no-void -- Polling ends with the visible reader.
             void readLatest();
         }, POLL_INTERVAL_MS);
     };
 
     const release = (subscription: AgentChatSubscription): void => {
-        // eslint-disable-next-line no-void -- Connection teardown also retires this subscription.
         void subscription.unsubscribe().catch(() => {});
     };
 
     if (subscribe) {
-        // eslint-disable-next-line no-void -- The returned disposer owns the pending ACK and eventual handle.
         void subscribe((event) => {
             if (!isActive || isResyncRequired) return;
             switch (event.kind) {
@@ -155,7 +150,6 @@ export const startAgentChatReader = ({
                 }
                 case 'agentChat.changed': {
                     // Before the ACK, the first read already covers this change.
-                    // eslint-disable-next-line no-void -- readLatest serializes event-triggered reads.
                     if (isReady) void readLatest();
                     return;
                 }
@@ -169,7 +163,6 @@ export const startAgentChatReader = ({
                 }
                 handle = subscribed;
                 isReady = true;
-                // eslint-disable-next-line no-void -- Initial read follows the subscription ACK.
                 void readLatest();
             })
             .catch(() => {

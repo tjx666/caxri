@@ -135,7 +135,6 @@ export class BoundedSerialBatcher<Key> {
         this.pending.clear();
         this.active = true;
         // The lifecycle callback is synchronous; the batch owns and contains its asynchronous failure.
-        // eslint-disable-next-line no-void -- the finally block exclusively schedules the next bounded batch
         void this.options
             .run(keys)
             .catch(() => {})

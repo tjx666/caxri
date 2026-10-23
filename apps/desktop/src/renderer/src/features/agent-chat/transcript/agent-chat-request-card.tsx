@@ -247,7 +247,6 @@ export function AgentChatRequestCard({
     const respond = (response: AgentChatResponse): void => {
         if (isAnswering) return;
         setAnswering(true);
-        // eslint-disable-next-line no-void -- the command reports its own failure through tryCommand
         void answerAgentChatRequest(terminalId, request, response);
         // The card leaves with this click; focus inside it moves on rather than dropping to the document body.
         const focused = document.activeElement;

@@ -402,7 +402,6 @@ export class ClipboardSnapshot {
                 return;
             }
             request.resume();
-            // eslint-disable-next-line no-void -- Node's request callback cannot await the serialized restore promise
             void this.restore()
                 .then(() => {
                     response.statusCode = 204;
@@ -473,7 +472,6 @@ export async function armClipboardRestoreOnQuit(
     await app.evaluate(({ app: electronApp }, url) => {
         electronApp.once('before-quit', (event) => {
             event.preventDefault();
-            // eslint-disable-next-line no-void -- Electron quit resumes from the promise finalizer after the one-shot listener is removed
             void fetch(url, {
                 method: 'POST',
                 signal: AbortSignal.timeout(10_000),

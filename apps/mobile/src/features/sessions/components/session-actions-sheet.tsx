@@ -85,7 +85,6 @@ const SessionActionsBody = ({
                                     isPinned ? 'sessions.actions.unpin' : 'sessions.actions.pin',
                                 )}
                                 onPress={() => {
-                                    // eslint-disable-next-line no-void -- The hook renders pin failures.
                                     void management
                                         .setPinned(session.id, !isPinned)
                                         .then((done) => {
@@ -108,7 +107,6 @@ const SessionActionsBody = ({
                                 icon={Archive}
                                 label={t('sessions.actions.archive')}
                                 onPress={() => {
-                                    // eslint-disable-next-line no-void -- The hook renders archive failures.
                                     void management.archive(session.id).then((done) => {
                                         if (done) onClose();
                                     });
@@ -130,7 +128,6 @@ const SessionActionsBody = ({
                                 maxLength={200}
                                 onChangeText={setDraft}
                                 onSubmitEditing={() => {
-                                    // eslint-disable-next-line no-void -- The hook renders rename failures.
                                     void submitRename();
                                 }}
                                 placeholder={t('sessions.actions.nameLabel')}
@@ -164,7 +161,6 @@ const SessionActionsBody = ({
                                     accessibilityState={{ disabled: nextTitle === null || isBusy }}
                                     disabled={nextTitle === null || isBusy}
                                     onPress={() => {
-                                        // eslint-disable-next-line no-void -- The hook renders rename failures.
                                         void submitRename();
                                     }}
                                     style={[

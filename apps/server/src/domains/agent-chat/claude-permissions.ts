@@ -136,7 +136,6 @@ export class ClaudePermissions {
             this.planMode = false;
             const target = this.level && claudePermissionMode(this.current(), this.launchMode);
             if (!target || target === reported) this.level = permissionMode;
-            // eslint-disable-next-line no-void -- best effort: a refused switch leaves the mode Claude Code reported
             else if (query) void query.setPermissionMode(target).catch(() => {});
         } else {
             if (permissionMode === this.level) return;

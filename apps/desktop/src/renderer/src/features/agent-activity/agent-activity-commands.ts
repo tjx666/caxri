@@ -29,6 +29,5 @@ export function focusNextAttentionSession(): void {
     if (!sessionId || sessionId === bootstrap.selectedSessionId) return;
     useChromeLayoutStore.getState().showPrimarySidebarActivity();
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didSelectSession(sessionId);
 }

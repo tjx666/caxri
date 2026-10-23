@@ -249,7 +249,6 @@ export class AgentTranscriptWatcher {
         const entry = this.entries.get(terminalId);
         this.entries.delete(terminalId);
         // Fire-and-forget: lifecycle handlers are synchronous and WatchHub disposal is idempotent.
-        // eslint-disable-next-line no-void -- synchronous lifecycle boundary, see comment above
         if (entry) void entry.handle.dispose();
         this.pruneGeneration(terminalId);
     }
@@ -290,7 +289,6 @@ export class AgentTranscriptWatcher {
                 this.stopMobileDiscovery(terminalId);
                 return;
             }
-            // eslint-disable-next-line no-void -- The next bounded discovery tick handles a transient lookup miss.
             void this.ensureWatch(terminalId)
                 .then(() => {
                     if (this.entries.has(terminalId)) this.stopMobileDiscovery(terminalId);

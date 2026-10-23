@@ -142,7 +142,6 @@ export class WindowPresenceRegistry {
      */
     private fireAndForget(task: () => Promise<unknown>): void {
         // `Promise.try` makes a synchronous throw (the connection object not existing yet) a rejection too.
-        // eslint-disable-next-line no-void -- failures are routed to `onSendError`
         void Promise.try(task).catch((error: unknown) => {
             if (!isUnavailable(error)) this.options.onSendError?.(error);
         });

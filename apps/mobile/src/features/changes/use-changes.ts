@@ -63,7 +63,6 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
                         (message.kind !== 'changes.changed' && message.kind !== 'resync-required')
                     )
                         return;
-                    // eslint-disable-next-line no-void -- The query observer owns the resulting read and error state.
                     void queryClient.invalidateQueries({ queryKey, exact: false });
                     if (message.kind === 'resync-required') {
                         isResyncRequired = true;
@@ -77,18 +76,15 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
                 handle = acquired;
                 setSubscription({ identity, active: !isResyncRequired });
                 // Close the subscribe-before-snapshot gap.
-                // eslint-disable-next-line no-void -- The query observer owns the resulting read and error state.
                 void queryClient.invalidateQueries({ queryKey, exact: false });
             } catch {
                 if (!isDisposed) setSubscription({ identity, active: false });
             }
         };
-        // eslint-disable-next-line no-void -- Cleanup releases the subscription.
         void attach();
         return () => {
             isDisposed = true;
             setSubscription({ identity, active: false });
-            // eslint-disable-next-line no-void -- The connection may already have closed.
             if (handle) void handle.unsubscribe();
         };
     }, [identity, observable, queryClient, queryKey, sessionId, subscribe, subscriptionAvailable]);
@@ -127,7 +123,6 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
                     );
                 }
             };
-            // eslint-disable-next-line no-void -- The hook captures the forced-read failure in its UI state.
             void force();
         },
     };
@@ -172,7 +167,6 @@ export const useChangesDiff = (isEnabled: boolean, sessionId: string, file: Chan
             unavailable: query.data?.status === 'binary' || query.data?.status === 'oversized',
         },
         refresh: () => {
-            // eslint-disable-next-line no-void -- The query observer owns refresh errors.
             if (observable) void query.refetch();
         },
     };

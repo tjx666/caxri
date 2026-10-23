@@ -164,7 +164,6 @@ function CommanderInboxOptions({ item }: { item: CommanderInboxItem }) {
                     variant="secondary"
                     onClick={() => {
                         // Fire-and-forget: the reply command reports its own failure through a toast.
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                         void answerCommanderInboxItem(item, option);
                     }}
                 >
@@ -200,7 +199,6 @@ function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
                             disabled={!merge.canMerge || isMerging}
                             onClick={() => {
                                 // Fire-and-forget: the merge command reports its own failure through a toast.
-                                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                                 void mergeCommanderInboxItem(item);
                             }}
                         >

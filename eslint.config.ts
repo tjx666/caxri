@@ -185,6 +185,11 @@ export default defineConfig(
             '@typescript-eslint/no-namespace': 'error',
             '@typescript-eslint/no-unused-vars': 'error',
             '@typescript-eslint/triple-slash-reference': 'error',
+            /**
+             * Oxlint's `typescript/no-floating-promises` requires an explicit `void promise;` for intentional
+             * fire-and-forget calls, so the statement form must be allowed. `void` inside an expression stays banned.
+             */
+            'no-void': ['error', { allowAsStatement: true }],
         },
     },
     {

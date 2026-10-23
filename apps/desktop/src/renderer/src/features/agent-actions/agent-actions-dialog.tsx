@@ -192,7 +192,6 @@ export function AgentActionsDialog() {
         runInputSequence: (task) => {
             if (inputSequenceInFlightReference.current) return;
             inputSequenceInFlightReference.current = true;
-            // eslint-disable-next-line no-void -- each request owns its user-visible failure path
             void task().finally(() => {
                 inputSequenceInFlightReference.current = false;
                 closePicker();
@@ -223,7 +222,6 @@ export function AgentActionsDialog() {
          * user's keystroke interleave with Codex's invocation and completion keys during the settle window.
          */
         inputSequenceInFlightReference.current = true;
-        // eslint-disable-next-line no-void -- each request owns its user-visible failure path
         void (async () => {
             const inputSucceeded = await didSendAgentActionInputSteps(
                 current.id,

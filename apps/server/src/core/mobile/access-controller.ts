@@ -160,7 +160,6 @@ export const openMobileAccessController = async (options: {
                     });
                     const close = () => {
                         if (!watched.terminalId) return;
-                        // eslint-disable-next-line no-void -- Connection teardown cannot block on a Server IPC reply.
                         void domainService
                             .request('mobile.timeline.unwatchInternal', {
                                 terminalId: watched.terminalId,
@@ -182,7 +181,6 @@ export const openMobileAccessController = async (options: {
                 ...(options.selectAddress && { selectAddress: options.selectAddress }),
                 updateSource: updateRequests.readSource,
             });
-            // eslint-disable-next-line no-void -- Reopening binds a socket and must not hold back startup; it logs its outcome.
             void withAuthority(() => accessPersistence.restore(isClosed ? undefined : gateway));
         },
         close: () =>

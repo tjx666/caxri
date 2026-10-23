@@ -134,7 +134,6 @@ export function createOnDemandWindows(options: {
      * no key, so every settings change re-sends the current value.
      */
     supervisor.onEvent((event) => {
-        // eslint-disable-next-line no-void -- refreshLanguage() keeps the current language on failure
         if (event.event === 'settings.changed') void processExplorer.refreshLanguage();
     });
     return { agentCommander, benchmarkWindow: benchmark, processExplorer };

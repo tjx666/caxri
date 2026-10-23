@@ -178,7 +178,6 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
         description: type
             ? presentation.render?.({
                   onMute: () => {
-                      // eslint-disable-next-line no-void -- muteNotification reports write failures through tryCommand
                       void muteNotification(type);
                   },
                   onOpenChange: (isOpen) => {

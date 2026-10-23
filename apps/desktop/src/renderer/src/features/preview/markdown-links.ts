@@ -60,7 +60,6 @@ function runLinkAction(
      * under the folder grant the linking document already holds.
      */
     if ((action.kind === 'open' || action.kind === 'preview') && 'externalDocumentId' in source) {
-        // eslint-disable-next-line no-void -- `openLinkedExternalDocument` reports its own failure through a toast
         void openLinkedExternalDocument(source, action.path, action.kind === 'preview');
         return;
     }
@@ -71,13 +70,11 @@ function runLinkAction(
         }
         case 'external': {
             // Fire-and-forget: `openExternalUrl` reports its own failure through the shared toast.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void openExternalUrl(action.url, (message) => pushToast('error', message));
             return;
         }
         case 'open': {
             // Fire-and-forget: `openFile` funnels its failures into a toast.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void openFile(action.path);
             return;
         }

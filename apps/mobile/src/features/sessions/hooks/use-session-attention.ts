@@ -34,7 +34,6 @@ export const useSessionAttention = ({
                 markedRead.current.delete(key);
             }
         };
-        // eslint-disable-next-line no-void -- The ref makes this effect idempotent while the request settles.
         void markRead();
     }, [enabled, onRefresh, request, session]);
 };

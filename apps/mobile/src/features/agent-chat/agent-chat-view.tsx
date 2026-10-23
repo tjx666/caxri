@@ -404,7 +404,6 @@ export const AgentChatView = ({
                         )
                     }
                     onAction={() => {
-                        // eslint-disable-next-line no-void -- The banner reports a failed restart itself.
                         void restart();
                     }}
                     testID="agent-chat-failed"

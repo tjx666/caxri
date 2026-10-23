@@ -20,7 +20,6 @@ import { agentChoiceMarker } from '../terminal/new-terminal-agent';
  * the page always show one value.
  */
 function setOpenAgentsInChat(isOn: boolean): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed write through the toast
     void tryCommand(translate('session.openInChat.failed'), async () => {
         const { source } = await getSettings();
         await updateSettings({

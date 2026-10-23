@@ -43,12 +43,10 @@ async function run(label: string, request: () => Promise<ShellCommandResult>): P
 }
 
 export function installShellCommand(): void {
-    // eslint-disable-next-line no-void -- floating-promise discard: `tryCommand` reports failures through its own toast
     void run(translate('shellCommand.installFailed'), () => caxri.request('shellCommand.install'));
 }
 
 export function uninstallShellCommand(): void {
-    // eslint-disable-next-line no-void -- floating-promise discard: `tryCommand` reports failures through its own toast
     void run(translate('shellCommand.uninstallFailed'), () =>
         caxri.request('shellCommand.uninstall'),
     );

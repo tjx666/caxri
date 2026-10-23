@@ -310,7 +310,6 @@ export class DesktopServerConnection extends EventTarget {
         const task = this.reconnectUntilAttached();
         this.reconnectTask = task;
         // The loop handles attempt failures internally; this finalizer only releases the task ownership.
-        // eslint-disable-next-line no-void
         void task.finally(() => {
             if (this.reconnectTask === task) this.reconnectTask = undefined;
         });

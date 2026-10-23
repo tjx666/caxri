@@ -85,7 +85,6 @@ const AgentChatPermissionSheet = ({
                                     onPress={() => {
                                         // Custom only explains the launch settings; there is nothing to switch back to.
                                         if (option.value === 'custom' || option.isSelected) return;
-                                        // eslint-disable-next-line no-void -- `didConfigure` reports its own failure in the sheet.
                                         void chooseLevel(option.value);
                                     }}
                                     testID={option.testID}
@@ -100,7 +99,6 @@ const AgentChatPermissionSheet = ({
                                     isOn={planMode.isOn}
                                     label={planMode.label}
                                     onToggle={(isOn) => {
-                                        // eslint-disable-next-line no-void -- `didConfigure` reports its own failure in the sheet.
                                         void selection.didConfigure({ planMode: isOn });
                                     }}
                                     testID="agent-chat-plan-mode"

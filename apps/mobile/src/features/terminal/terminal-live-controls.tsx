@@ -40,15 +40,12 @@ export const TerminalKeyboardInput = ({
             editable={terminal.canControl}
             keyboardType={Platform.OS === 'android' ? 'visible-password' : 'ascii-capable'}
             onChangeText={(text) => {
-                // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
                 if (text) void terminal.typeText(text);
             }}
             onKeyPress={({ nativeEvent }) => {
-                // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
                 if (nativeEvent.key === 'Backspace') void terminal.typeText('\u{7F}');
             }}
             onSubmitEditing={() => {
-                // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
                 void terminal.typeText('\r');
             }}
             spellCheck={false}
@@ -222,7 +219,6 @@ export const TerminalControlBar = ({
 }) => {
     const { t } = useTranslation();
     const onKey = (key: TerminalKey): void => {
-        // eslint-disable-next-line no-void -- The hook owns the visible error state for failed input.
         void terminal.pressKey(key);
     };
     return (
@@ -232,7 +228,6 @@ export const TerminalControlBar = ({
                 ctrl={terminal.ctrl}
                 onKey={onKey}
                 onPaste={() => {
-                    // eslint-disable-next-line no-void -- Clipboard errors are rendered by the hook.
                     void terminal.paste();
                 }}
                 theme={theme}
@@ -250,7 +245,6 @@ export const TerminalControlBar = ({
                 accessibilityLabel={t('terminal.release')}
                 icon={X}
                 onPress={() => {
-                    // eslint-disable-next-line no-void -- The hook reports release failures in the UI.
                     void terminal.release();
                 }}
                 size={20}

@@ -92,7 +92,6 @@ export async function openTerminalFileTarget(
                         project: candidate.projectTitle,
                     }),
                     activate: () => {
-                        // eslint-disable-next-line no-void -- this helper owns user-visible failure reporting
                         void openTerminalFileTarget(terminalId, candidate.path, location, {
                             hasWorkbenchLinks,
                         });

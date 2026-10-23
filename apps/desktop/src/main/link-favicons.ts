@@ -54,7 +54,6 @@ async function fetchFavicon(
         const type = iconType(response.headers.get('content-type'));
         const declared = Number(response.headers.get('content-length'));
         if (!type || !response.ok || declared > MAX_FAVICON_BYTES) {
-            // eslint-disable-next-line no-void -- a body that cannot become an icon is never read
             void response.body?.cancel().catch(() => {});
             return {};
         }
@@ -103,7 +102,6 @@ export function createLinkFavicons(fetch: ManualRedirectFetch, resolveHost: Reso
         if (cache.size >= MAX_CACHED_ICONS) cache.delete(cache.keys().next().value!);
         const entry = Promise.withResolvers<LinkFavicon>();
         cache.set(url, entry.promise);
-        // eslint-disable-next-line no-void -- the entry's promise carries the outcome; settling has nothing else to report
         void settle(url, entry);
         return entry.promise;
     };

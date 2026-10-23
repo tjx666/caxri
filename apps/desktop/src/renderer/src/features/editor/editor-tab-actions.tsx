@@ -175,7 +175,6 @@ function GitDiffTabActions({
                         const selection = paneId
                             ? getDiffEditorFileSelection(tabPath, paneId)
                             : undefined;
-                        // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
                         void openFileForSession(session.id, openPath, {
                             focus: true,
                             paneId,

@@ -36,10 +36,8 @@ export const observeConversation = (
     let isResyncRequired = false;
     let handle: ConversationSubscription | null = null;
     const unsubscribe = (subscription: ConversationSubscription): void => {
-        // eslint-disable-next-line no-void -- Connection teardown also retires this observer.
         void subscription.unsubscribe().catch(() => {});
     };
-    // eslint-disable-next-line no-void -- The returned disposer owns the pending ACK and eventual handle.
     void subscribe((event) => {
         if (!isActive || isResyncRequired) return;
         if (event.kind === 'resync-required') {
@@ -121,10 +119,8 @@ export const startConversationReader = <Result>({
     };
     const startPolling = (): void => {
         if (poll !== null) return;
-        // eslint-disable-next-line no-void -- The reader disposer owns the interval and pending read.
         void readLatest();
         poll = setInterval(() => {
-            // eslint-disable-next-line no-void -- Polling ends with the visible reader.
             void readLatest();
         }, 2_500);
     };
@@ -132,12 +128,10 @@ export const startConversationReader = <Result>({
         ? observeConversation(
               subscribe,
               () => {
-                  // eslint-disable-next-line no-void -- Initial read follows the subscription ACK.
                   void readLatest();
               },
               () => {
                   eventVersion += 1;
-                  // eslint-disable-next-line no-void -- readLatest serializes event-triggered reads.
                   void readLatest();
               },
               startPolling,

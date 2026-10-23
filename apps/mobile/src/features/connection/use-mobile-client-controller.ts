@@ -137,7 +137,6 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 return;
             }
             activeProbe.current = current;
-            // eslint-disable-next-line no-void -- A single bounded probe belongs to the current connection.
             void current
                 .probe()
                 .then(() => {
@@ -199,7 +198,6 @@ export const useMobileClientController = (): MobileClientContextValue => {
             setCredential(result.credential);
             setStatus(result.credential ? 'stale' : 'unpaired');
         };
-        // eslint-disable-next-line no-void -- React effects cannot return the credential-loading promise.
         void loadCredential();
         return () => {
             isActive = false;

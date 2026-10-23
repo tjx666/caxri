@@ -68,7 +68,6 @@ export function didAcceptDelegationChatWrite(
             onDelivered?.(false);
         }
     };
-    // eslint-disable-next-line no-void -- admission is synchronous; delivery reports through `onDelivered`.
     void deliver();
     return true;
 }

@@ -64,7 +64,6 @@ export function useWorkbenchRootPicker(
             setAll(false);
             setSearch('');
             // The menu must never offer a worktree removed since the last read, whatever the cache says.
-            // eslint-disable-next-line no-void -- the query surfaces its own error state.
             void rootsQuery.refetch();
         }
     };

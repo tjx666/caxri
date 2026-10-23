@@ -107,7 +107,6 @@ export function scheduleUntitledLanguageDetection(key: string, content: string):
         key,
         setTimeout(() => {
             timers.delete(key);
-            // eslint-disable-next-line no-void -- detection reports nothing on failure; the buffer stays Plain Text
             void detectLanguageCandidates(content).then((candidates) => {
                 if (latestContent.get(key) !== content || candidates.length === 0) return;
                 useUntitledLanguageStore.getState().setCandidates(key, candidates);

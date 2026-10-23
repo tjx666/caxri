@@ -137,7 +137,6 @@ export function stopTerminalGeneration(
         result: runSealedStop(context, envelope, identity, isPersistingSnapshot, inFlight?.result),
     };
     identity.stopping = stopping;
-    // eslint-disable-next-line no-void -- The requester awaits `stopping.result`; this only forgets it once settled.
     void forgetWhenSettled(identity, stopping);
     return stopping.result;
 }

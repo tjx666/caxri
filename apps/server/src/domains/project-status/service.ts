@@ -571,7 +571,6 @@ export class ProjectStatusService {
         if (isForceRefresh) await this.refreshSummary(sessionId, prepared, sessionGeneration, true);
         else if (source !== 'fresh') {
             // The cache event owns UI convergence for automatic stale-while-revalidate loads.
-            // eslint-disable-next-line no-void -- background refresh logs its own failure
             void this.refreshSummary(sessionId, prepared, sessionGeneration, false);
         }
         this.logger.write('info', logEventCatalog.projectStatus.summary, {

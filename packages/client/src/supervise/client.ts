@@ -305,7 +305,6 @@ export class ServerClient {
                     // `receive` is a synchronous socket data handler; the reply is written
                     // asynchronously from within `handleDesktopCommand` itself, so this call is
                     // intentionally fire-and-forget here.
-                    // eslint-disable-next-line no-void
                     void this.handleDesktopCommand(desktopCommand.data);
                     return;
                 }

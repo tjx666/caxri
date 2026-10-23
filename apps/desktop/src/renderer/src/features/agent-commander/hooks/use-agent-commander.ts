@@ -42,7 +42,6 @@ function refreshCommanderSnapshot(): void {
         return;
     }
     // Fire-and-forget: refreshWorkbench() reports its own Server request failures.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void refreshWorkbench();
 }
 
@@ -64,7 +63,6 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
     useEffect(() => {
         const refetchBoard = debounce(() => {
             // Fire-and-forget: the board query surfaces its own failure in the board.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void queryClient.invalidateQueries({
                 queryKey: caxriQueryKey('commander.board', undefined),
             });
@@ -84,7 +82,6 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
             }
         }
         const patchPullRequestRows = debounce(() => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, the patch swallows its own failure
             void patchPendingPullRequestRows();
         }, BOARD_REFRESH_DEBOUNCE_MS);
         const unsubscribe = caxri.onEvent((event) => {
@@ -98,7 +95,6 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
             if (effect.snapshot) refreshCommanderSnapshot();
             if (effect.board) refetchBoard();
             // Fire-and-forget: the Inbox query surfaces its own failure in the Inbox column.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             if (effect.inbox) void invalidateCommanderInbox();
             if (effect.revealInbox) revealCommanderInbox();
             if (effect.openPalette) requestCommanderPalette();
@@ -111,7 +107,6 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
             if (effect.ensure) setAttempt((current) => current + 1);
         });
         // Fire-and-forget: syncWindowFullScreen() swallows its own request failure.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void syncWindowFullScreen();
         return () => {
             unsubscribe();
@@ -141,7 +136,6 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
             flushDeferredSnapshot();
         };
         // Fire-and-forget: start() turns its own failure into the error state.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void start();
         return () => {
             run.isCurrent = false;

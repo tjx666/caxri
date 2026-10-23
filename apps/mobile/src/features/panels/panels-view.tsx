@@ -70,7 +70,6 @@ export const ProjectPanelView = ({
             <PanelStatus
                 message={t('panels.loadFailed')}
                 onRetry={() => {
-                    // eslint-disable-next-line no-void -- The query renders its own error state.
                     void query.refetch();
                 }}
                 testID="panels-error"

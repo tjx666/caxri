@@ -55,7 +55,6 @@ function didOpenExternalLink(
     link: SourceControlExternalLink | undefined,
 ): boolean {
     if (!link || !event.metaKey) return false;
-    // eslint-disable-next-line no-void -- intentional floating-promise discard; failures surface as a toast
     void openExternalUrl(link.url, (message) => pushToast('error', message));
     return true;
 }
@@ -125,7 +124,6 @@ function GroupActionButtons({
                         aria-label={action.accessibilityLabel ?? action.label}
                         disabled={action.disabled}
                         onClick={() => {
-                            // eslint-disable-next-line no-void -- the controller owns provider action errors
                             void controller.runAction(action);
                         }}
                     >
@@ -217,7 +215,6 @@ function ProviderHeader({
               ]
             : []),
         ...sourceControlActionMenuItems(provider.actions, (action) => {
-            // eslint-disable-next-line no-void -- run owns progress and the controller owns errors
             void run(action);
         }),
         ...(foldedGroup
@@ -348,7 +345,6 @@ function ProviderHeader({
                             aria-busy={isRunning || undefined}
                             disabled={action.disabled === true || runningActionId !== undefined}
                             onClick={() => {
-                                // eslint-disable-next-line no-void -- run owns progress and the controller owns errors
                                 void run(action);
                             }}
                         >

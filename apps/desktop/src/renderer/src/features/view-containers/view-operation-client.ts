@@ -128,7 +128,6 @@ export async function viewOperation<Result>(
     const requestId = crypto.randomUUID();
     const cancel = (): void => {
         // The provider owns request cancellation; an already-authorized action may still complete exactly once.
-        // eslint-disable-next-line no-void -- cancellation is best-effort and the original request owns errors
         void caxri.request('viewContainers.cancelRequest', { requestId });
     };
     signal?.addEventListener('abort', cancel, { once: true });

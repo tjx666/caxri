@@ -77,7 +77,6 @@ function HandoverDialogBody({
         if (isImeComposing(event) || event.key !== 'Enter' || !(event.metaKey || event.ctrlKey))
             return;
         event.preventDefault();
-        // eslint-disable-next-line no-void -- the submission reports its own failures through a toast
         void picker.submit();
     };
     return (
@@ -190,7 +189,6 @@ function HandoverDialogBody({
                             picker.isSubmitting
                         }
                         onClick={() => {
-                            // eslint-disable-next-line no-void -- the submission reports its own failures through a toast
                             void picker.submit();
                         }}
                     >
@@ -250,7 +248,6 @@ function HandoverCandidates({ picker }: { picker: ReturnType<typeof useCommander
                     variant="secondary"
                     onClick={() => {
                         // Fire-and-forget: a failed retry lands back in this same error state.
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                         void source.refetch();
                     }}
                 >

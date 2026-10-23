@@ -87,7 +87,6 @@ export function SourceControlTreeRow({
                      */
                     const bounds = event.currentTarget.getBoundingClientRect();
                     // `showContextMenu` reports its own failures through a toast; nothing to await in a key handler.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                     void showContextMenu(menu(), { x: bounds.left, y: bounds.bottom });
                 }
             }}

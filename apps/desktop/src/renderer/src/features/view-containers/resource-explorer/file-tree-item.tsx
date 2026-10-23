@@ -66,7 +66,6 @@ export interface FileTreeItemProperties {
  * the returned promise instead of awaiting it.
  */
 function discard(promise: Promise<unknown>): void {
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void promise;
 }
 

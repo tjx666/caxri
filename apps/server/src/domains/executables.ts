@@ -321,7 +321,6 @@ export function agentProcessEnvironment(variables?: NodeJS.ProcessEnv): Promise<
  * already catches its own failures and resolves `undefined`, so this can never produce an unhandled rejection.
  */
 export function warmServerExecutablePath(): void {
-    // eslint-disable-next-line no-void -- deliberate fire-and-forget; readLoginSnapshot already catches its own failures
     void serverProcessEnvironment();
 }
 

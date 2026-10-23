@@ -697,7 +697,6 @@ export class AgentCoordinator {
     }
 
     probeTerminal(terminalId: string): void {
-        // eslint-disable-next-line no-void -- probe handles failures; synchronous callers cannot await it.
         void this.probes.probe(terminalId);
     }
 

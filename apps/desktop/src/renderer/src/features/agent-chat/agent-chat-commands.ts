@@ -251,7 +251,6 @@ export function changeAgentChatGoal(
     terminalId: string,
     change: Exclude<AgentChatGoalChange, { action: 'set' }>,
 ): void {
-    // eslint-disable-next-line no-void -- didRunAgentChatCommand reports its own failures through tryCommand
     void didRunAgentChatCommand(terminalId, {
         name: AGENT_CHAT_GOAL_COMMAND,
         arguments: agentChatGoalArguments(change),
@@ -300,7 +299,6 @@ export function interruptAgentChat(terminalId: string, turnId: string): void {
     const { stopping } = useAgentChatStopStore.getState();
     if (isAgentChatStopping(stopping, terminalId, turnId)) return;
     setAgentChatStopping(terminalId, turnId, true);
-    // eslint-disable-next-line no-void -- tryCommand reports interrupt failures through the toast
     void tryCommand(translate('agentChat.commands.stopAgentFailed'), async () => {
         await caxri.request('agentChat.interrupt', { terminalId });
         return true;
@@ -359,7 +357,6 @@ export function setAgentChatProjectDefault(
     provider: AgentProvider,
     chatDefault: AgentChatDefault | null,
 ): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed save through the toast
     void tryCommand(
         translate(
             chatDefault
@@ -400,7 +397,6 @@ export function stopAgentChatTask(terminalId: string, taskId: string): void {
             stopping: withKey(stopping, key, isStopping),
         }));
     setStopping(true);
-    // eslint-disable-next-line no-void -- tryCommand reports stop failures through the toast
     void tryCommand(translate('agentChat.commands.stopTaskFailed'), async () => {
         await caxri.request('agentChat.stopTask', { terminalId, taskId });
         return true;
@@ -414,7 +410,6 @@ export function stopAgentChatTask(terminalId: string, taskId: string): void {
  * puts it back where it was (`restoreAgentChatQueued`).
  */
 export function removeAgentChatQueued(terminalId: string, id: string): void {
-    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
     void tryCommand(translate('agentChat.commands.removeQueuedFailed'), () =>
         caxri.request('agentChat.removeQueued', { terminalId, id }),
     ).then((removed) => {
@@ -438,7 +433,6 @@ export function restoreAgentChatQueued({
     terminalId: string;
     id: string;
 }): void {
-    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
     void tryCommand(translate('agentChat.commands.restoreQueuedFailed'), () =>
         caxri.request('agentChat.restoreQueued', { terminalId, id }),
     );
@@ -479,7 +473,6 @@ export async function editAgentChatQueued(
  * Opens a file or folder chip from a sent message: a folder in Finder, a file revealed in its folder.
  */
 export function openAgentChatPathReference(path: string): void {
-    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
     void tryCommand(translate('agentChat.pathReference.openFailed'), () =>
         caxri.request('agentChat.openPathReference', { path }),
     );
@@ -503,7 +496,6 @@ export function sendAgentChatQueuedNow(terminalId: string, id: string): void {
             imageCount: steered.imageCount,
             delivery: 'steer',
         });
-    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
     void tryCommand(translate('agentChat.commands.sendQueuedFailed'), async () => {
         await caxri.request('agentChat.sendQueuedNow', { terminalId, id });
         return true;
@@ -519,7 +511,6 @@ export function sendAgentChatQueuedNow(terminalId: string, id: string): void {
  * Resumes a queue an interrupt paused.
  */
 export function resumeAgentChatQueue(terminalId: string): void {
-    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
     void tryCommand(translate('agentChat.commands.resumeQueueFailed'), () =>
         caxri.request('agentChat.resumeQueue', { terminalId }),
     );
@@ -577,7 +568,6 @@ export function recoverAgentChat(
         else restartTerminalWithRecovery(terminalId, RESTART_AGENT_FAILED);
         return;
     }
-    // eslint-disable-next-line no-void -- the query owns the refetch result and error state
     void refetch();
 }
 

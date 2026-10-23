@@ -67,7 +67,6 @@ function useImageObjectUrl(
         );
         return () => {
             controller.abort();
-            // eslint-disable-next-line no-void -- the read never rejects; see readImage
             void read.then((objectUrl) => objectUrl && URL.revokeObjectURL(objectUrl));
         };
     }, [path, requestKey, sessionId]);

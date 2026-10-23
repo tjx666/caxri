@@ -415,7 +415,6 @@ function handle(message: RpcMessage) {
                 .join('');
             const meta = (parameters._meta ?? {}) as Record<string, unknown>;
             const promptId = typeof meta.promptId === 'string' ? meta.promptId : undefined;
-            // eslint-disable-next-line no-void -- the turn streams its own updates before the prompt resolves
             void runPrompt(message.id, text, promptId);
             return;
         }

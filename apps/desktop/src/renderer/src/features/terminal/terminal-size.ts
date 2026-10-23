@@ -308,7 +308,6 @@ export class TerminalPaneResizeController {
         });
         if (!requestSent) return;
         this.lastSentSize = result.requestedSize;
-        // eslint-disable-next-line no-void -- request owns its bounded retry-state repair
         void this.request(result.requestedSize);
     }
 

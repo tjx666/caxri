@@ -138,7 +138,6 @@ function QueueTextEditor({
                     }
                     if (event.key === 'Enter' && !event.shiftKey) {
                         event.preventDefault();
-                        // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
                         void save();
                     }
                 }}
@@ -157,7 +156,6 @@ function QueueTextEditor({
                         aria-disabled={isSaving || (!value.trim() && imageCount === 0) || undefined}
                         size="sm"
                         onClick={() => {
-                            // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
                             void save();
                         }}
                     >
@@ -249,7 +247,6 @@ function QueueCard({
                             setIsEditingText(true);
                             return;
                         }
-                        // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
                         void editAgentChatQueued(terminalId, entry.id, onEdit);
                     }}
                 >

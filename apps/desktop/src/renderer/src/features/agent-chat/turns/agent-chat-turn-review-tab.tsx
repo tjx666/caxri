@@ -57,7 +57,6 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
                         size="sm"
                         variant="secondary"
                         onClick={() => {
-                            // eslint-disable-next-line no-void -- the query owns the refetch result and error state
                             if (!chat.isFetching) void chat.refetch();
                         }}
                     >

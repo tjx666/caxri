@@ -166,7 +166,6 @@ describe('ExecutableResolver', () => {
         );
 
         // Fire-and-forget, exactly how `warmServerExecutablePath` calls it: the caller never awaits this promise.
-        // eslint-disable-next-line no-void -- see comment above
         void resolver.environment();
 
         await expect(resolver.environment()).resolves.toEqual(

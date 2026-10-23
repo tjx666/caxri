@@ -188,7 +188,6 @@ export class AskpassBridge {
             const newline = buffer.indexOf(0x0a);
             if (newline === -1) return;
             isHandled = true;
-            // eslint-disable-next-line no-void -- failures are answered on the socket inside `respond`.
             void this.respond(socket, buffer.subarray(0, newline).toString('utf8'));
         });
     }

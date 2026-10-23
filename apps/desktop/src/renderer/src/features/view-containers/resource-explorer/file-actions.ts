@@ -208,7 +208,6 @@ export async function createItem(
     if (!created) return undefined;
     if (kind === 'file' && getSelectedSession()?.id === sessionId) {
         // openFile funnels its own failures into a toast via tryCommand, nothing to await here.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void openFile(created.path);
     }
     return created;

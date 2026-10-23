@@ -162,7 +162,6 @@ const QueueRowActions = ({
                 // clips to the parent's bounds.
                 hitSlop={STEER_HIT_SLOP}
                 onPress={() => {
-                    // eslint-disable-next-line no-void -- The queue card reports a failed send itself.
                     void onSendNow(entry.id);
                 }}
                 style={({ pressed }) => [
@@ -191,7 +190,6 @@ const QueueRowActions = ({
                         : () => Alert.alert(t('chat.queue.cannotEdit'), imagesUnsupported)
                 }
                 onPress={() => {
-                    // eslint-disable-next-line no-void -- The queue card reports a failed edit itself.
                     void onEdit(entry.id);
                 }}
                 size={18}
@@ -272,7 +270,6 @@ const QueueRow = ({
                     accessibilityActions={canAct ? [{ name: 'delete', label: deleteLabel }] : []}
                     accessible
                     onAccessibilityAction={({ nativeEvent }) => {
-                        // eslint-disable-next-line no-void -- The queue card reports a failed delete itself.
                         if (nativeEvent.actionName === 'delete') void remove();
                     }}
                     style={styles.rowText}
@@ -376,7 +373,6 @@ export const AgentChatQueueList = ({
                 isExpanded={isExpanded}
                 isResuming={isResuming}
                 onResume={() => {
-                    // eslint-disable-next-line no-void -- The queue card reports a failed resume itself.
                     void resume();
                 }}
                 onToggle={() => setExpanded((current) => !current)}

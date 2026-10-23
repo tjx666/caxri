@@ -9,7 +9,6 @@ import { caxriQueryKey, queryClient } from '../../queries/client';
  */
 export async function startBenchmark(parameters: BenchmarkStartParameters): Promise<string> {
     const { runId } = await caxri.request('benchmark.start', parameters);
-    // eslint-disable-next-line no-void -- React Query owns invalidation errors
     void queryClient.invalidateQueries({ queryKey: caxriQueryKey('benchmark.list', {}) });
     return runId;
 }

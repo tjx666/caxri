@@ -169,7 +169,6 @@ export function createSettingsWriteCoordinator(
         } finally {
             retireOwnWritesThrough(kind, generation);
             if (shouldRunFollowUpReconciliation(kind)) {
-                // eslint-disable-next-line no-void -- the queued read reports failures through onError.
                 void reconcile(kind);
             }
         }
@@ -203,7 +202,6 @@ export function createSettingsWriteCoordinator(
         } finally {
             retireOwnWritesThrough(kind, writeGeneration);
             if (shouldRunFollowUpReconciliation(kind)) {
-                // eslint-disable-next-line no-void -- the queued read reports failures through onError.
                 void reconcile(kind);
             }
         }
@@ -212,7 +210,6 @@ export function createSettingsWriteCoordinator(
     const handleChanged = (kind: ConfigKind, payload: ConfigChangedPayload): void => {
         if (payload.error) {
             options.onExternalChange?.(kind, payload);
-            // eslint-disable-next-line no-void -- the synchronous event boundary reports read failures through onError.
             void reconcile(kind);
             return;
         }
@@ -233,7 +230,6 @@ export function createSettingsWriteCoordinator(
             return;
         }
         if (hasRemovedUntrustedSource(kind, payload.source)) {
-            // eslint-disable-next-line no-void -- the synchronous event boundary reports read failures through onError.
             void reconcile(kind);
             return;
         }
@@ -246,7 +242,6 @@ export function createSettingsWriteCoordinator(
         cancelTimer(kind);
         const generation = ++generations[kind];
         recordOwnWrite(kind, source, generation);
-        // eslint-disable-next-line no-void -- this boundary owns and reports its asynchronous write failures.
         void (async (): Promise<void> => {
             try {
                 const apply = await options.persist(kind, source);

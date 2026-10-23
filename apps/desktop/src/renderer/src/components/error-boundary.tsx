@@ -101,7 +101,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
     private handleCopy = (): void => {
         if (this.copyResetTimeout !== undefined) clearTimeout(this.copyResetTimeout);
         const text = formatErrorDetails(this.state.error, this.state.componentStack);
-        // eslint-disable-next-line no-void -- resolved via the .then below, never rejects
         void writeToClipboardWithFeedback(navigator.clipboard, text).then((status) => {
             this.setState({ copyStatus: status });
             this.copyResetTimeout = setTimeout(() => {

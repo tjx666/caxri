@@ -112,7 +112,6 @@ function WorktreeOptions({
             current={root.projectId === currentProjectId}
             disabled={picker.switching}
             onSelect={() => {
-                // eslint-disable-next-line no-void -- the action owns its error toast and pending state.
                 void picker.select(root);
             }}
         />

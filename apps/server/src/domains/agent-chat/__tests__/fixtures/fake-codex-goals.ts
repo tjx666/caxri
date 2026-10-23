@@ -63,7 +63,6 @@ async function pursueGoal(io: FakeCodexIo, turn: FakeTurn) {
  */
 function continueIfIdle(io: FakeCodexIo) {
     if (io.currentThread().goal?.status !== 'active' || io.hasActiveTurn()) return;
-    // eslint-disable-next-line no-void -- the goal's turn streams its own notifications
     void pursueGoal(io, io.beginTurn());
 }
 

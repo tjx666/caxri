@@ -118,7 +118,6 @@ export function useAgentChatLongPaste({
             else if (disposition === 'no-room')
                 pushToast('error', translate('agentChat.composer.pasteNoRoom'));
             else
-                // eslint-disable-next-line no-void -- saveAgentChatLongPaste reports its own failures through tryCommand
                 void save(
                     pasted,
                     { end: selectionEnd, start: selectionStart, value },

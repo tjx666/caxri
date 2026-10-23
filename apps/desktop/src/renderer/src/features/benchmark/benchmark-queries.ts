@@ -25,11 +25,9 @@ export function useBenchmarkEvents(): void {
             caxri.onEvent((event) => {
                 if (event.event !== 'benchmark.changed') return;
                 if (event.payload.kind !== 'progress')
-                    // eslint-disable-next-line no-void -- React Query owns invalidation errors
                     void queryClient.invalidateQueries({
                         queryKey: caxriQueryKey('benchmark.list', {}),
                     });
-                // eslint-disable-next-line no-void -- React Query owns invalidation errors
                 void queryClient.invalidateQueries({
                     queryKey: caxriQueryKey('benchmark.get', { runId: event.payload.runId }),
                 });

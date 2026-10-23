@@ -29,7 +29,6 @@ export const RouteErrorScreen = ({ retry }: ErrorBoundaryProps) => {
                     <ActionButton
                         accessibilityHint={t('components.routeError.retryHint')}
                         onPress={() => {
-                            // eslint-disable-next-line no-void -- A failed retry renders this screen again.
                             void retry();
                         }}
                         testID="route-error-retry"

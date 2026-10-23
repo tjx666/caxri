@@ -18,7 +18,6 @@ import { attemptStatusLabel } from './benchmark-presentation';
 import { isAttemptFinished } from './benchmark-results';
 
 function openUrl(url: string): void {
-    // eslint-disable-next-line no-void -- openExternalUrl reports its own rejection through the callback
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 
@@ -128,7 +127,6 @@ export function BenchmarkAttemptDetail({
                         size="sm"
                         variant="secondary"
                         onClick={() => {
-                            // eslint-disable-next-line no-void -- tryCommand reports its own failure
                             void tryCommand(t('benchmark.detail.stop'), () =>
                                 cancelBenchmark(runId, attempt.id),
                             );

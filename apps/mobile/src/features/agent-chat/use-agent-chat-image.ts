@@ -75,7 +75,6 @@ export const useAgentChatImage = (target: AgentChatImageTarget, isEnabled = true
         isError: query.isError,
         progress,
         retry: () => {
-            // eslint-disable-next-line no-void -- The query owns the resulting state.
             void query.refetch();
         },
     };

@@ -118,7 +118,6 @@ const ApprovalContent = ({
                                         isPending={actions.pendingAction === testID}
                                         label={choice.label}
                                         onPress={() => {
-                                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
                                             void actions.respond(testID, {
                                                 kind: 'decision',
                                                 decision: choice.decision,

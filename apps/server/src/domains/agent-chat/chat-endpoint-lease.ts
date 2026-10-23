@@ -39,7 +39,6 @@ export class ChatEndpointLease {
      * `AgentEndpointLifecycle.retire`), and the next start prepares a fresh one, so it is logged, not thrown.
      */
     retire(terminalId: string): void {
-        // eslint-disable-next-line no-void -- retirement runs in the background and logs its own failure
         void this.retireNow(terminalId);
     }
 }

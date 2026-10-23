@@ -132,7 +132,6 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
         let isDisposed = false;
         // Fire-and-forget: the outcome is reported through the reducer rather than awaited. A failed dynamic import
         // leaves `CodeEditor` unset, so without this the "Loading editor…" fallback stayed on screen forever.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void loadCodeEditor().catch(() => {
             // Only the failure is recorded: success arrives through the `getLoadedCodeEditor` subscription above, which
             // renders the editor before this state is ever consulted.

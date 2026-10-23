@@ -97,7 +97,6 @@ function reportHandover(summary: HandoverSummary, isFromWorkbench: boolean): voi
  * Takes one Session back from the Commander. Its Agents keep running; only the Commander's right to work there ends.
  */
 export function takeBackFromCommander(sessionId: string): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed take-back through a toast
     void tryCommand(
         translate('agentCommander.handover.takeBackFailed'),
         () => caxri.request('commander.session.takeBack', { sessionId }),
