@@ -22,6 +22,16 @@
         display: block !important;
         content-visibility: hidden;
     }
+
+    /*
+     * A skipped subtree still ticks its CSS animations: a Chat running in a hidden Session kept its buddy bobbing and
+     * blinking at 120 Hz. Pausing resumes each one where it stopped when the Session shows again.
+     */
+    .workbench-session[hidden] *,
+    .workbench-session[hidden] *::before,
+    .workbench-session[hidden] *::after {
+        animation-play-state: paused !important;
+    }
 }
 
 /** Sonner supplies layout and lifecycle; these overrides follow the live Caxri theme. */

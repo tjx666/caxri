@@ -14,6 +14,7 @@ import { useReportViewedSession } from '../session/hooks/use-report-viewed-sessi
 import { chooseProjectFolder } from '../session/session-creation-commands';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
+import { cancelHiddenSessionTransitions } from './hidden-session-transitions';
 import { PaneView } from './pane-view';
 import { useSessionFocusHandoff } from './session-focus-handoff';
 import {
@@ -162,6 +163,11 @@ export function Workbench() {
             new Set(chatTerminalKey ? chatTerminalKey.split('\u{0}') : []),
         );
     }, [chatTerminalKey]);
+    useEffect(() => {
+        // One frame later, so the blur that hiding causes has started its transitions.
+        const frame = requestAnimationFrame(() => cancelHiddenSessionTransitions(document));
+        return () => cancelAnimationFrame(frame);
+    }, [selectedSessionId]);
     return (
         <section className="workbench grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-background">
             {session ? (

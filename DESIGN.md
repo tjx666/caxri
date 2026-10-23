@@ -877,7 +877,9 @@ an inline `<svg>` root, which Chromium animates on the main thread (`RunningArc`
 loop after a few iterations and replay it on a real trigger instead of looping (the attention
 ripple); and never hold a still phase inside the keyframes of a property such as
 `background-position`, which restyles every frame of the hold, but end the animation and restart it
-after the rest (the dwell shimmer). See the `performance` skill for how to measure idle cost. The Terminal and Agent Chat find bars fade in (the floating
+after the rest (the dwell shimmer). A hidden Workbench Session skips style updates, so motion left
+in it never settles: its CSS animations stay paused and its transitions are cancelled when it
+hides (`features/workbench/hidden-session-transitions.ts`). See the `performance` skill for how to measure idle cost. The Terminal and Agent Chat find bars fade in (the floating
 Terminal bar also drops 4px) and close instantly; the pane split drop preview fades in once and
 then glides between zones on `--motion-chrome-switch` so the target split stays legible.
 The Agent Chat composer's attachment row follows its content's height (`useContentHeightTransition`):

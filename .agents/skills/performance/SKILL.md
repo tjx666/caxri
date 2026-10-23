@@ -63,6 +63,10 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    - Never hold a still phase inside the keyframes of a non-composited property such as
      `background-position`; the hold restyles every frame. End the animation and restart it after
      the rest (`features/agent-chat/activity/dwell-shimmer-rest.ts`).
+   - A hidden `.workbench-session` uses `content-visibility: hidden`, so a transition started as it
+     hides (the composer border fading on blur) never retires and keeps 120 Hz frames running.
+     `styles.css` pauses animations there and `hidden-session-transitions.ts` cancels transitions;
+     verify by switching away and counting `Scheduler::BeginFrame` in a trace, which should be 0.
    - Gate event-driven refetches and polling on `document.visibilityState`, then catch up once on
      reveal keyed by what changed, not by React Query's `isInvalidated`, which an in-flight fetch
      clears. Route every new Server-backed invalidation through
