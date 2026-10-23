@@ -238,10 +238,13 @@ function invalidateFileDependentQueries(
  * A refreshing `git.overview` read (`refresh: true`) is skipped. Every one of its fetches forces a new generation, and
  * a forced production announces itself with `git.changed` (#1321); invalidating the reader on its own announcement
  * would refetch, force, and announce again for as long as it stays mounted. Its freshness is its `staleTime` instead.
+ *
+ * `refetchType: 'none'` only marks the reads stale; the caller uses it while the window is hidden.
  */
 function invalidateGitChangedQueries(
     queryClient: QueryClient,
     sessionIds: readonly string[],
+    refetchType: 'active' | 'none',
 ): void {
     // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -258,6 +261,7 @@ function invalidateGitChangedQueries(
                 !(isQueryMethod(query.queryKey, 'git.overview') && parameters.refresh === true)
             );
         },
+        refetchType,
     });
 }
 
@@ -379,6 +383,27 @@ export function useRuntimeQueryInvalidation(): void {
 export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () => void {
     const pendingTimers = new Map<string, number>();
     const pendingBatches = new Map<string, PendingFileChangeBatch>();
+    /**
+     * An Agent working while the window is minimized or covered emits `git.changed` for every burst of writes, and each
+     * refetch costs the Server a `git status` or diff. Nobody sees those results until the window shows again, so a
+     * hidden window only marks the reads stale and records the Sessions, then invalidates those Sessions once more with
+     * an active refetch on reveal. The reveal pass keys on Sessions rather than `isInvalidated`, because a fetch
+     * already in flight when the window hid resolves with pre-change data and clears that flag. A visible but unfocused
+     * window (a second monitor) still refetches immediately.
+     */
+    const deferredGitSessionIds = new Set<string>();
+    /**
+     * Absent only in node-environment unit tests, which never hide a window.
+     */
+    const page = 'document' in globalThis ? document : undefined;
+    const isPageHidden = (): boolean => page?.visibilityState === 'hidden';
+    const handleVisibilityChange = (): void => {
+        if (deferredGitSessionIds.size === 0 || isPageHidden()) return;
+        const sessionIds = [...deferredGitSessionIds];
+        deferredGitSessionIds.clear();
+        invalidateGitChangedQueries(queryClient, sessionIds, 'active');
+    };
+    page?.addEventListener('visibilitychange', handleVisibilityChange);
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'viewContainers.catalogChanged') {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, React Query owns invalidation errors
@@ -472,7 +497,16 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event === 'git.changed') {
-            invalidateGitChangedQueries(queryClient, event.payload.sessionIds);
+            const isHidden = isPageHidden();
+            if (isHidden) {
+                for (const sessionId of event.payload.sessionIds)
+                    deferredGitSessionIds.add(sessionId);
+            }
+            invalidateGitChangedQueries(
+                queryClient,
+                event.payload.sessionIds,
+                isHidden ? 'none' : 'active',
+            );
             return;
         }
         if (event.event === 'projectStatus.changed') {
@@ -538,6 +572,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
     });
     return () => {
         unsubscribe();
+        page?.removeEventListener('visibilitychange', handleVisibilityChange);
         for (const timer of pendingTimers.values()) clearTimeout(timer);
         pendingBatches.clear();
     };
