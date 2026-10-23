@@ -106,14 +106,40 @@ describe('decideUnsavedEditors', () => {
 
     it('saves under auto save without prompting', async () => {
         const target = decision({
-            inspect: vi.fn().mockResolvedValue({ ...twoFiles, autoSave: true }),
+            inspect: vi
+                .fn()
+                .mockResolvedValueOnce({ ...twoFiles, autoSave: true })
+                .mockResolvedValueOnce({ kind: 'summary', count: 0, names: [], autoSave: true }),
         });
 
         await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
 
         expect(target.confirm).not.toHaveBeenCalled();
-        expect(target.saveAll).toHaveBeenCalledOnce();
+        expect(target.saveAll).toHaveBeenCalledExactlyOnceWith('autoSave');
         expect(target.log).toHaveBeenCalledWith('autoSaved', 2);
+    });
+
+    it('still prompts for untitled buffers that auto save leaves unsaved', async () => {
+        const target = decision({
+            inspect: vi
+                .fn()
+                .mockResolvedValueOnce({ ...twoFiles, autoSave: true })
+                .mockResolvedValueOnce({
+                    kind: 'summary',
+                    count: 1,
+                    names: ['Untitled-1'],
+                    autoSave: true,
+                }),
+        });
+
+        await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
+
+        expect(target.log).toHaveBeenCalledWith('autoSaved', 2);
+        expect(target.confirm).toHaveBeenCalledWith(
+            expect.objectContaining({ count: 1, names: ['Untitled-1'] }),
+        );
+        expect(target.saveAll).toHaveBeenNthCalledWith(1, 'autoSave');
+        expect(target.saveAll).toHaveBeenNthCalledWith(2, 'saveAll');
     });
 
     it('prompts for what auto save could not write', async () => {
@@ -238,6 +264,24 @@ describe('createUnsavedEditorsBridge', () => {
         const assertion = expect(pending).rejects.toThrow('Workbench did not answer inspect');
         await vi.advanceTimersByTimeAsync(10);
         await assertion;
+    });
+
+    it('waits on Save As dialogs far longer than on an automatic save', async () => {
+        vi.useFakeTimers();
+        const bridge = createUnsavedEditorsBridge({
+            send: () => true,
+            createRequestId: () => 'request-1',
+        });
+
+        const autoSave = bridge.saveAll('autoSave');
+        const autoSaveAssertion = expect(autoSave).rejects.toThrow('Workbench did not answer');
+        await vi.advanceTimersByTimeAsync(60_000);
+        await autoSaveAssertion;
+
+        const saveAll = bridge.saveAll('saveAll');
+        await vi.advanceTimersByTimeAsync(5 * 60_000);
+        bridge.reply({ requestId: 'request-1', reply: { kind: 'saved' } });
+        await expect(saveAll).resolves.toEqual({ kind: 'saved' });
     });
 });
 

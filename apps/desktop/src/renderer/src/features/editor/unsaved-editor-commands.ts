@@ -1,5 +1,5 @@
 import type { BootstrapState, ServerEvent } from '@caxri/protocol';
-import { findResourceTabs, parseExternalEditorTab } from '@caxri/protocol';
+import { findResourceTabs, isUntitledEditorTabPath, parseExternalEditorTab } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import type { SessionDocuments } from '@desktop-shared/editor-state';
 
@@ -23,6 +23,7 @@ import {
 } from './editor-auto-save-commands';
 import { discardEditorBackups } from './editor-backups';
 import { focusEditor } from './editor-reveal';
+import { untitledDisplayName } from './untitled/names';
 
 type UnsavedEditorsRequest = Extract<ServerEvent, { event: 'editor.unsavedRequest' }>['payload'];
 
@@ -65,7 +66,12 @@ export function listUnsavedEditorDocuments(
     return unsaved.toSorted((left, right) => rank(left) - rank(right));
 }
 
-export function unsavedEditorName(path: string): string {
+/**
+ * The name a prompt shows for one unsaved buffer. `content` names an untitled buffer by its first line, as its tab
+ * does.
+ */
+export function unsavedEditorName(path: string, content = ''): string {
+    if (isUntitledEditorTabPath(path)) return untitledDisplayName(path, content);
     return parseExternalEditorTab(path)?.name ?? pathBasename(path);
 }
 
@@ -75,15 +81,24 @@ export function unsavedEditorName(path: string): string {
  * are found across every path, not only the listed ones, because "index.ts and 2 more" is just as ambiguous when the
  * other `index.ts` is among the unlisted.
  */
-export function unsavedEditorNames(paths: readonly string[], limit: number): string[] {
+export function unsavedEditorNames(
+    paths: readonly string[],
+    limit: number,
+    contentOf: (path: string) => string = () => '',
+): string[] {
     const counts = new Map<string, number>();
     for (const path of paths) {
-        const name = unsavedEditorName(path);
+        const name = unsavedEditorName(path, contentOf(path));
         counts.set(name, (counts.get(name) ?? 0) + 1);
     }
     return paths.slice(0, limit).map((path) => {
-        const name = unsavedEditorName(path);
-        if ((counts.get(name) ?? 0) < 2 || parseExternalEditorTab(path)) return name;
+        const name = unsavedEditorName(path, contentOf(path));
+        if (
+            (counts.get(name) ?? 0) < 2 ||
+            parseExternalEditorTab(path) ||
+            isUntitledEditorTabPath(path)
+        )
+            return name;
         const parent = pathBasename(path.slice(0, path.lastIndexOf('/')));
         return parent ? `${name} (${parent})` : name;
     });
@@ -121,13 +136,25 @@ function currentUnsavedEditorDocuments(): UnsavedEditorDocument[] {
     );
 }
 
-async function saveAllUnsavedEditors(): Promise<'inactiveRoot' | 'saved' | 'writeFailed'> {
-    const unsaved = currentUnsavedEditorDocuments();
+/**
+ * Saves every unsaved buffer for Main's quit or close. `autoSave` (the `files.autoSave` path) leaves untitled buffers
+ * alone for the prompt that follows; the user's own Save asks where to save each of them, and dismissing that dialog
+ * keeps the app open like Cancel.
+ */
+async function saveAllUnsavedEditors(
+    mode: 'autoSave' | 'saveAll',
+): Promise<'canceled' | 'inactiveRoot' | 'saved' | 'writeFailed'> {
+    const unsaved = currentUnsavedEditorDocuments().filter(
+        ({ path }) => mode === 'saveAll' || !isUntitledEditorTabPath(path),
+    );
     const savable = unsaved.filter(({ isActiveRoot }) => isActiveRoot);
     for (const entry of savable) {
-        // Sequential like a bulk tab close: stop at the first failure so its toast is the one the user reads.
+        // Sequential like a bulk tab close: stop at the first failure so its toast is the one the user reads. Save As
+        // dialogs must also come one at a time.
         // eslint-disable-next-line no-await-in-loop -- intentional sequential save, see comment above
-        if (!(await didSaveDocumentAt(entry.sessionId, entry.path))) return 'writeFailed';
+        if (!(await didSaveDocumentAt(entry.sessionId, entry.path)))
+            // A failed Save As write already raised its own toast; either way the user is back at the buffer.
+            return isUntitledEditorTabPath(entry.path) ? 'canceled' : 'writeFailed';
     }
     const unreachable = unsaved.filter(({ isActiveRoot }) => !isActiveRoot).map(({ path }) => path);
     if (unreachable.length === 0) return 'saved';
@@ -196,6 +223,12 @@ async function handleUnsavedEditorsRequest(request: UnsavedEditorsRequest): Prom
                 names: unsavedEditorNames(
                     unsaved.map(({ path }) => path),
                     MAX_PROMPT_NAMES,
+                    (path) => {
+                        const entry = unsaved.find((candidate) => candidate.path === path);
+                        return entry
+                            ? (getSessionDocuments(entry.sessionId)?.[path]?.content ?? '')
+                            : '';
+                    },
                 ),
                 autoSave: isAutoSaveOnFocusChange(),
             },
@@ -210,7 +243,9 @@ async function handleUnsavedEditorsRequest(request: UnsavedEditorsRequest): Prom
         });
         return;
     }
-    const outcome = await saveAllUnsavedEditors();
+    const outcome = await saveAllUnsavedEditors(
+        request.action === 'autoSave' ? 'autoSave' : 'saveAll',
+    );
     await caxri.request('editor.unsavedReply', {
         requestId: request.requestId,
         reply: outcome === 'saved' ? { kind: 'saved' } : { kind: 'saveFailed', reason: outcome },

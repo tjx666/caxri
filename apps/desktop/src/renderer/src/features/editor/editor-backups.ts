@@ -1,5 +1,10 @@
 import type { DeviceStoreBackend, EnvironmentState } from '@caxri/protocol';
-import { createDeviceStore, isVirtualEditorTabPath } from '@caxri/protocol';
+import {
+    createDeviceStore,
+    findResourceTabs,
+    isUntitledEditorTabPath,
+    isVirtualEditorTabPath,
+} from '@caxri/protocol';
 import type { EditorDocument, SessionDocuments } from '@desktop-shared/editor-state';
 import { z } from 'zod';
 
@@ -7,7 +12,9 @@ import { indexedDatabaseDeviceStoreBackend } from '../../lib/indexed-database-de
 import { environmentStorageScope, useEnvironmentStore } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
+import { useWorkbenchStore } from '../../stores/workbench';
 import { announceDiscardedBuffers } from './discarded-buffers';
+import { emptyUntitledDocument } from './untitled/names';
 
 /**
  * Hot exit for Editor buffers, as VS Code backs up dirty working copies: each unsaved buffer is copied to this device's
@@ -52,13 +59,15 @@ export function editorBackupName(viewScope: string, path: string): string {
     return JSON.stringify([viewScope, path]);
 }
 
+/**
+ * Project files and untitled buffers are backed up. An external document is not: its authority is an ID Main issued for
+ * this launch only, so a restored buffer could never be saved back. An untitled buffer needs no such authority, and its
+ * backup is the only copy of its text.
+ */
 function isBackedUp(document: EditorDocument): boolean {
-    return (
-        document.dirty &&
-        !document.readOnly &&
-        !document.ephemeral &&
-        !isVirtualEditorTabPath(document.path)
-    );
+    if (!document.dirty || document.readOnly) return false;
+    if (isUntitledEditorTabPath(document.path)) return true;
+    return !document.ephemeral && !isVirtualEditorTabPath(document.path);
 }
 
 /**
@@ -144,6 +153,37 @@ export function editorBackupRestore(
         : 'conflict';
 }
 
+/**
+ * An untitled tab a restored Session still shows has no document until its editor mounts, and an inactive tab may never
+ * mount before the next quit. Its backup therefore recreates the empty buffer as soon as the tab is in the layout, so
+ * the restore below fills it and the quit prompt counts it.
+ */
+function isUntitledTabOpen(backup: EditorBackup): boolean {
+    if (!isUntitledEditorTabPath(backup.path)) return false;
+    const state = useWorkbenchStore
+        .getState()
+        .bootstrap?.sessionStates.find(
+            (candidate) =>
+                candidate.sessionId === backup.sessionId &&
+                candidate.workbenchProjectId === backup.workbenchProjectId,
+        );
+    return Boolean(
+        state && findResourceTabs(state.paneLayout, { kind: 'file', path: backup.path }).length > 0,
+    );
+}
+
+/**
+ * An empty buffer for an untitled tab whose backup is about to fill it, or `undefined` when the document cache refuses
+ * it; the backup then stays on the device for the next launch.
+ */
+function restoredUntitledDocument(backup: EditorBackup): EditorDocument | undefined {
+    const document = emptyUntitledDocument(backup.path);
+    const isCached = useSessionViewStore
+        .getState()
+        .cacheDocument(backup.sessionId, document, backup.workbenchProjectId);
+    return isCached ? document : undefined;
+}
+
 export interface EditorBackupsOptions {
     backend: DeviceStoreBackend;
     scope: string;
@@ -172,10 +212,13 @@ export function createEditorBackups(options: EditorBackupsOptions) {
 
     function restoreOne(name: string, backup: EditorBackup, documents: SessionDocuments): void {
         const viewScope = sessionViewScope(backup.sessionId, backup.workbenchProjectId);
-        const document = documentAt(documents, viewScope, backup.path);
+        const existing = documentAt(documents, viewScope, backup.path);
         // An unsaved document already holds newer typing from this launch; its own backup replaces this one.
-        if (!document || document.dirty) return;
+        if (existing?.dirty || (!existing && !isUntitledTabOpen(backup))) return;
+        // Taken before `restoredUntitledDocument` updates the store, whose change re-enters this restore.
         restorable.delete(name);
+        const document = existing ?? restoredUntitledDocument(backup);
+        if (!document) return;
         const outcome = editorBackupRestore(backup, document);
         if (outcome === 'restore') {
             useSessionViewStore
@@ -198,6 +241,7 @@ export function createEditorBackups(options: EditorBackupsOptions) {
     }
 
     function restoreLoaded(documents: SessionDocuments): void {
+        // A snapshot, because restoring one backup changes the store and re-enters `apply`, which edits `restorable`.
         for (const [name, backup] of restorable) restoreOne(name, backup, documents);
     }
 

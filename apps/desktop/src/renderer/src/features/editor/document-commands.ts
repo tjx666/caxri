@@ -12,6 +12,7 @@ import {
     findResourceTabs,
     findTab,
     isBinaryFileReadError,
+    isUntitledEditorTabPath,
     isVirtualEditorTabPath,
     openResource,
     paneTabIdsToClose,
@@ -29,6 +30,7 @@ import {
 } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState } from '../../stores/workbench';
+import { recordClosedTabs } from '../closed-items/recording';
 import { previewOnlyTabPath } from '../preview/preview-registry';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
@@ -47,12 +49,18 @@ import {
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 import { focusEditor, queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
 import { finishDocumentOperation, trackDocumentOperation } from './pending-document-operations';
+import { isRecordableRecentFile } from './recent-files';
+import { rememberRecentFile } from './recent-files-store';
 import {
     createSaveFailureTracker,
     saveFailedLabel,
     writeReportingNewFailures,
 } from './save-failure-tracker';
 import { persistOpenedEditorTab, sessionStateOf } from './session-pane-state';
+import { forgetUntitledLanguage } from './untitled/language-detection-client';
+import { untitledLanguageKey } from './untitled/language-store';
+import { untitledDisplayName } from './untitled/names';
+import { saveUntitledDocument } from './untitled/save-commands';
 
 interface OpenFileOptions {
     focus?: boolean;
@@ -235,6 +243,17 @@ export async function openFile(
 }
 
 /**
+ * Adds a file that just opened as an editor tab to its Workbench Root's recent-files history (see `recent-files.ts`).
+ */
+function rememberOpenedFile(session: { workbenchProjectId: string }, path: string): void {
+    const root = getBootstrap()?.projects.find(
+        (project) => project.id === session.workbenchProjectId,
+    )?.rootPath;
+    if (root && isRecordableRecentFile(root, path))
+        rememberRecentFile(session.workbenchProjectId, path);
+}
+
+/**
  * Opens a Server-routed target against its exact Session rather than the transient selected Session.
  */
 export async function openFileForSession(
@@ -256,6 +275,7 @@ export async function openFileForSession(
             paneId: options.paneId,
             preview: options.preview,
         });
+        if (didOpen) rememberOpenedFile(session, path);
         return didOpen ? path : false;
     }
     const intent = beginFileOpenIntent();
@@ -319,6 +339,7 @@ export async function openFileForSession(
                 );
             return currentPath;
         });
+        if (opened) rememberOpenedFile(session, opened);
         return opened ?? false;
     } finally {
         finishDocumentOperation(operation);
@@ -364,6 +385,18 @@ export function pinDocumentTab(sessionId: string, tabId: string): void {
 const saveFailures = createSaveFailureTracker();
 
 /**
+ * Save As for an untitled buffer, reported like any other save: a failed write gets the save-failure toast, and a
+ * dismissed dialog is a quiet "not saved" that keeps the buffer and its tab.
+ */
+async function didSaveUntitledDocument(sessionId: string, path: string): Promise<boolean> {
+    const name = untitledDisplayName(path, getSessionDocuments(sessionId)?.[path]?.content ?? '');
+    const outcome = await tryCommand(translate('editor.document.saveFailedFile', { name }), () =>
+        saveUntitledDocument(sessionId, path),
+    );
+    return outcome === 'saved';
+}
+
+/**
  * Writes one document's current content to disk; returns false only when the write itself failed. An automatic save
  * (`isAutomatic`) stays quiet about a failure the user was already told about for this file; a manual save always shows
  * its failure.
@@ -375,6 +408,8 @@ export async function didSaveDocumentAt(
 ): Promise<boolean> {
     const document = getSessionDocuments(sessionId)?.[path];
     if (!document || document.readOnly) return true;
+    if (isUntitledEditorTabPath(path))
+        return !options.isAutomatic && (await didSaveUntitledDocument(sessionId, path));
     const operation = trackDocumentOperation(sessionId, path);
     const retryState = sessionStateOf(sessionId);
     const retryTab = retryState
@@ -473,7 +508,10 @@ async function didConfirmDirtyEditorCloses(
         // Intentionally sequential: macOS only ever shows one modal "Do you want to save…" sheet, so
         // each confirmation must resolve before the next one is requested.
         // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
-        const choice = await resolveDirtyEditorClose(path);
+        const choice = await resolveDirtyEditorClose(
+            path,
+            getSessionDocuments(sessionId)?.[path]?.content,
+        );
         if (choice === 'cancel') return false;
         // Intentionally sequential: a bulk close must never end up half applied, so each save
         // completes before the next tab is confirmed.
@@ -504,12 +542,24 @@ export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void
     if (remaining.length === 0) return;
     const remainingIds = remaining.map((tab) => tab.id);
     const next = closeTabs(current.paneLayout, remainingIds);
+    // Before the eviction below, which drops an external document's only copy.
+    recordClosedTabs(session.id, current.paneLayout, remainingIds, (path) =>
+        isDocumentDirty(session.id, path),
+    );
     const survivingPaths = survivingCachedDocumentPaths(next, (path) =>
         isDocumentDirty(session.id, path),
     );
     for (const path of layoutCachedDocumentPaths(current.paneLayout))
-        if (!survivingPaths.has(path))
+        if (!survivingPaths.has(path)) {
             useSessionViewStore.getState().evictDocument(session.id, path);
+            if (isUntitledEditorTabPath(path))
+                forgetUntitledLanguage(
+                    untitledLanguageKey(
+                        sessionViewScope(session.id, session.workbenchProjectId),
+                        path,
+                    ),
+                );
+        }
     patchSessionState({ ...current, paneLayout: next });
     for (const tab of remaining)
         if (tab.resource.kind === 'terminal') closeTerminal(tab.resource.terminalId);

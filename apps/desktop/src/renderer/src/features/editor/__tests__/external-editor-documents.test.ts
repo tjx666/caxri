@@ -2,11 +2,18 @@ import type { BootstrapState, SessionState } from '@caxri/protocol';
 import { findResourceTabs, MAX_TABS_PER_PANE } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type * as EditorReveal from '../editor-reveal';
+
 const mocks = vi.hoisted(() => ({
+    focusEditor: vi.fn<(path: string) => void>(),
     request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(() => Promise.resolve(null)),
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
+vi.mock('../editor-reveal', async (importOriginal) => ({
+    ...(await importOriginal<typeof EditorReveal>()),
+    focusEditor: mocks.focusEditor,
+}));
 
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
@@ -53,6 +60,7 @@ function installSession(tabCount = 0): void {
 }
 
 afterEach(() => {
+    mocks.focusEditor.mockClear();
     mocks.request.mockClear();
     resetExternalEditorStateForTests();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
@@ -110,6 +118,35 @@ describe('external editor documents', () => {
         await closeDocumentTabs([occurrence!.tab.id]);
         expect(getSessionDocuments('session-1', 'project-1')?.[path]).toBeUndefined();
         expect(mocks.request).not.toHaveBeenCalled();
+    });
+
+    it('focuses the opened editor only when the opener asks for it', () => {
+        installSession();
+        const document = {
+            id: 'external-1',
+            name: 'notes.txt',
+            displayPath: '/tmp/notes.txt',
+            content: 'notes',
+            mtimeMs: 10,
+            size: 5,
+        };
+
+        openExternalEditorDocument({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            document,
+        });
+        expect(mocks.focusEditor).not.toHaveBeenCalled();
+
+        openExternalEditorDocument({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            document,
+            focus: true,
+        });
+        expect(mocks.focusEditor).toHaveBeenCalledWith(
+            'caxri://session/session-1/external/external-1/notes.txt',
+        );
     });
 
     it('asks before closing an external tab with unsaved edits', async () => {

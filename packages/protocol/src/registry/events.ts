@@ -361,14 +361,19 @@ export const serverEventPayloads = {
     /**
      * Main-originated, one-shot question about the Workbench's unsaved Editor buffers before quitting or closing the
      * window (issue caxri#1631). Dirty buffers live only in the Renderer's document cache, so Main asks for a
-     * content-free summary (`inspect`), asks the Renderer to write them through the Editor's own save path (`saveAll`),
-     * or to reveal the first one after the user cancels (`reveal`). After the user chose Don't Save, `discardAll` drops
-     * the Renderer's on-device backups of those buffers so a later launch does not restore them. The Renderer answers
-     * `inspect`, `saveAll`, and `discardAll` through `editor.unsavedReply` with the same `requestId`.
+     * content-free summary (`inspect`), asks the Renderer to write them through the Editor's own save path (`saveAll`,
+     * or `autoSave` under `files.autoSave`), or to reveal the first one after the user cancels (`reveal`). After the
+     * user chose Don't Save, `discardAll` drops the Renderer's on-device backups of those buffers so a later launch
+     * does not restore them. The Renderer answers `inspect`, `autoSave`, `saveAll`, and `discardAll` through
+     * `editor.unsavedReply` with the same `requestId`.
      */
     'editor.unsavedRequest': z.object({
         requestId: z.string().min(1).max(64),
-        action: z.enum(['inspect', 'saveAll', 'discardAll', 'reveal']),
+        /**
+         * `autoSave` is the save `files.autoSave` performs on quit: it writes every buffer that has a file and leaves
+         * untitled ones for the prompt, while the user's own `saveAll` asks where to save each untitled buffer.
+         */
+        action: z.enum(['inspect', 'autoSave', 'saveAll', 'discardAll', 'reveal']),
     }),
     /**
      * Main's accepted native notification decision, without Agent transcript or notification body.

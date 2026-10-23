@@ -4,6 +4,7 @@ import {
     parseExternalEditorTab,
     parseFilePreviewTab,
     parseGitDiffTab,
+    parseUntitledEditorTab,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
@@ -35,6 +36,14 @@ export interface VirtualTabPresentationOptions {
      * The Agent Chat task an `agentTaskTabPath` tab shows, when the Chat still lists it.
      */
     task?: { kind: 'agent' | 'shell'; title: string };
+    /**
+     * Name an untitled buffer takes from its first line, when that line has one.
+     */
+    untitledName?: string;
+    /**
+     * File extension of the language detected in an untitled buffer, so its tab shows that language's file icon.
+     */
+    untitledLanguageExtension?: string;
 }
 
 /**
@@ -204,6 +213,21 @@ export const virtualTabDescriptors: Record<VirtualEditorTabScheme, VirtualTabDes
                 fileIconName: name,
                 label: name,
                 labelTooltip: options.displayPath ?? name,
+            };
+        },
+        loading: undefined,
+        statusBar: 'cursorOnly',
+    },
+    // Named like VS Code's untitled editors: the first line once it has text, `Untitled-N` before that.
+    untitled: {
+        present: (path, options, t) => {
+            const fallback = t('editor.tab.untitled', { index: parseUntitledEditorTab(path) ?? 1 });
+            const extension = options.untitledLanguageExtension;
+            return {
+                icon: 'file',
+                fileIconName: extension ? `${fallback}.${extension}` : fallback,
+                label: options.untitledName ?? fallback,
+                labelTooltip: fallback,
             };
         },
         loading: undefined,

@@ -1,6 +1,7 @@
 import {
     agentProviderCatalog,
     isExternalEditorTabPath,
+    isUntitledEditorTabPath,
     parseAgentContextTab,
     parseAgentSideChatTab,
     parseAgentStatusTab,
@@ -15,6 +16,8 @@ import { sessionViewScope, useSessionViewStore } from '../../../stores/session-v
 import { useCachedAgentChatTask } from '../../agent-chat/hooks/use-agent-chat-task';
 import { usePaneViewSession } from '../../workbench/pane-view-session';
 import { documentTabPresentation } from '../document-tab-presentation';
+import { untitledLanguageKey, useUntitledLanguageStore } from '../untitled/language-store';
+import { untitledFirstLineName } from '../untitled/names';
 
 const noDisplayPaths: readonly string[] = [];
 
@@ -56,6 +59,22 @@ export function useDocumentTabPresentation(path: string, displayPath: string | u
                 .filter((value): value is string => Boolean(value));
         }),
     );
+    const isUntitled = isUntitledEditorTabPath(path);
+    /**
+     * Derived inside the selector so a keystroke re-renders the tab only when the first line's name actually changes.
+     */
+    const untitledName = useSessionViewStore((state) => {
+        const content =
+            documentScope && isUntitled
+                ? state.documents[documentScope]?.[path]?.content
+                : undefined;
+        return content === undefined ? undefined : untitledFirstLineName(content);
+    });
+    const untitledLanguageExtension = useUntitledLanguageStore((state) =>
+        documentScope && isUntitled
+            ? state.candidates[untitledLanguageKey(documentScope, path)]?.[0]
+            : undefined,
+    );
     return documentTabPresentation(
         path,
         {
@@ -68,6 +87,8 @@ export function useDocumentTabPresentation(path: string, displayPath: string | u
             previewSourceDisplayPath,
             transcriptTitle: transcriptTerminal?.title,
             task,
+            untitledLanguageExtension,
+            untitledName,
         },
         t,
     );

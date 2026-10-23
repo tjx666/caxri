@@ -88,8 +88,12 @@ export const commandDescriptions = {
     'commands.description.workbench.closeActiveTab': 'Close the active Terminal or file tab',
     'commands.description.workbench.closeOtherTabs':
         'Close the other Terminal or file tabs in the active pane',
+    'commands.description.workbench.reopenClosedItem':
+        'Reopen the most recently closed file tab or archived Session; repeat to go further back',
     'commands.description.workbench.nextTab': 'Activate the next Terminal or file tab',
     'commands.description.workbench.previousTab': 'Activate the previous Terminal or file tab',
+    'commands.description.editor.newUntitledFile':
+        'Open an empty untitled editor whose language is detected from what you type; it asks to save before closing',
     'commands.description.editor.save': 'Save the active file',
     'commands.description.editor.sendReferenceToTerminal':
         'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal or Agent Chat message',

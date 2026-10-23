@@ -84,6 +84,10 @@ const environmentMethodScopes = {
     'externalDocument.openWithDefaultApp': 'local-only',
     'externalDocument.openInTerminal': 'local-only',
     'editor.confirmDiscard': 'any',
+    /**
+     * Writes the local disk, which an SSH window's Session does not live on.
+     */
+    'editor.saveUntitled': 'local-only',
     'editor.unsavedReply': 'any',
     'links.favicon': 'any',
     'agentProviderStatus.read': 'any',

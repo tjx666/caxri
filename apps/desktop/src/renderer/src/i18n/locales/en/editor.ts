@@ -130,6 +130,10 @@ export const editor = {
     'editor.tab.agentContext': 'Context',
     'editor.tab.agentSideChat': 'Side chat',
     'editor.tab.preview': 'Preview: {{name}}',
+    'editor.tab.untitled': 'Untitled-{{index}}',
+    'editor.untitled.openFailed': "Couldn't open a new untitled file",
+    'editor.untitled.savedButNotReopened':
+        'Saved to {{path}}, but the file is too large to reopen here. The untitled buffer stays open.',
     'editor.tab.settings': 'Settings',
     'editor.tab.usage': 'Usage',
 

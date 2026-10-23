@@ -21,6 +21,7 @@ import { takeBackFromCommander } from '../features/agent-commander/commander-han
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
+import { reopenClosedItem } from '../features/closed-items/commands';
 import {
     closeDocumentTabFamily,
     closeDocumentTabs,
@@ -44,6 +45,7 @@ import {
     canSendActiveFileReference,
     sendActiveFileReference,
 } from '../features/editor/send-file-reference';
+import { openUntitledEditor } from '../features/editor/untitled/commands';
 import {
     canOpenActivePreview,
     openActiveFilePreview,
@@ -343,6 +345,8 @@ const commandContext: CommandContext = {
             if (tab) void closeDocumentTabFamily(tab.id, 'others');
         },
         cycleTab: cycleActiveTab,
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, reopening reports its own failures
+        reopenClosedItem: () => void reopenClosedItem(),
         /**
          * Splitting is a pane operation, so it is offered for a Terminal tab exactly as it is for a document: the two
          * differ only in what the new pane renders.
@@ -384,6 +388,7 @@ const commandContext: CommandContext = {
     editor: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         saveActive: () => void saveActiveEditor(),
+        newUntitledFile: openUntitledEditor,
         canSendReferenceToTerminal: canSendActiveFileReference,
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         sendReferenceToTerminal: () => void sendActiveFileReference(),

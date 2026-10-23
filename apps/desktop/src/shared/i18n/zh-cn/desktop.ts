@@ -208,6 +208,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.themeImport.themeFiles': '主题文件',
     'desktop.fileFilter.allFiles': '所有文件',
     'desktop.diagnosticsExport.title': '导出诊断信息',
+    'desktop.untitledSave.title': '另存为',
     'desktop.diagnosticsExport.zipArchive': 'ZIP 压缩包',
     'desktop.benchmarkShare.title': '保存分享图片',
     'desktop.benchmarkShare.pngImage': 'PNG 图片',

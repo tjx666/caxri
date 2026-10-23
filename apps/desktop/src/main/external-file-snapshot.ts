@@ -1,18 +1,21 @@
 import { Buffer } from 'node:buffer';
 import { constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import { lstat, open, realpath, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
-import type { MethodResult } from '@caxri/protocol';
+import type { MainRequest, MethodResult } from '@caxri/protocol';
 import {
     binaryFileReadError,
     CaxriError,
     MAX_CONFIGURABLE_FILE_BYTES,
     previewAssetMediaType,
 } from '@caxri/protocol';
+import type { SaveDialogOptions, SaveDialogReturnValue } from 'electron';
 
 import { rememberExternalDocument } from './external-documents';
 import { EXTERNAL_FILE_SIZE_LIMIT_LABEL } from './external-file-limits';
+import { untitledEditorSaveDialogOptions } from './native-file-dialogs';
 import type { EntrySnapshot, RootIdentity } from './path-browser-identity';
 import {
     authorizeCandidate,
@@ -150,4 +153,25 @@ export async function readExternalFile(
     } finally {
         await file.close();
     }
+}
+
+/**
+ * Main's half of `editor.saveUntitled`: the native Save As dialog, the write, and a read back that registers the saved
+ * file as an external document (ADR 0013). The user's choice in the dialog is what authorizes the write, so no Project
+ * root check applies; the Renderer decides afterwards whether the file belongs to the Session's Project.
+ *
+ * A suggestion that is not absolute keeps only its name and starts in the home folder, so a malformed suggestion never
+ * resolves against Main's working directory.
+ */
+export async function saveUntitledEditor(
+    showSaveDialog: (options: SaveDialogOptions) => Promise<SaveDialogReturnValue>,
+    parameters: Extract<MainRequest, { method: 'editor.saveUntitled' }>['params'],
+): Promise<MethodResult<'editor.saveUntitled'>> {
+    const defaultPath = isAbsolute(parameters.defaultPath)
+        ? parameters.defaultPath
+        : join(homedir(), basename(parameters.defaultPath));
+    const result = await showSaveDialog(untitledEditorSaveDialogOptions(defaultPath));
+    if (result.canceled || !result.filePath) return { canceled: true };
+    await writeFile(result.filePath, parameters.content, 'utf8');
+    return { document: await readExternalFileSnapshot(result.filePath) };
 }

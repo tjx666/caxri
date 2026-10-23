@@ -27,6 +27,8 @@ function label(row: PathBrowserRow): string {
             return `group:${translate(row.label)}`;
         case 'notice':
             return `notice:${translate(row.text)}`;
+        case 'recent':
+            return `recent:${row.file.name}`;
     }
 }
 
@@ -248,5 +250,74 @@ describe('Path browser rows', () => {
         expect(rows.some((row) => isSelectablePathBrowserRow(row))).toBe(false);
         expect(nextSelectablePathBrowserIndex(rows, 0, 1)).toBe(0);
         expect(firstSelectablePathBrowserIndex(rows)).toBe(0);
+    });
+
+    describe('recent files', () => {
+        const recentApp = { directoryLabel: '', name: 'app.ts', path: '/p/app.ts' };
+        const recentDeep = { directoryLabel: 'src/ui', name: 'view.ts', path: '/p/src/ui/view.ts' };
+
+        it('leads an empty-query list with a Recently opened group and drops listed duplicates', () => {
+            const rows = pathBrowserRows({
+                candidateToCreate: undefined,
+                directoryLabel: '',
+                entries: [here, entry('readme.md', 'directory')],
+                isDirectoryTruncated: false,
+                query: '',
+                recent: [recentDeep, recentApp],
+                searchStatus: 'skipped',
+            });
+
+            expect(labels(rows)).toEqual([
+                `group:${translate('pathBrowser.rows.recentGroup')}`,
+                'recent:view.ts',
+                'recent:app.ts',
+                'entry:readme.md',
+            ]);
+            expect(rows.at(1) && isSelectablePathBrowserRow(rows[1])).toBe(true);
+        });
+
+        it('puts recent matches above search groups and removes the repeated project hit', () => {
+            const projectHit: PathBrowserEntry = {
+                ...entry('view.ts', 'projectSearch'),
+                directoryLabel: 'src/ui',
+            };
+            const rows = pathBrowserRows({
+                candidateToCreate: undefined,
+                directoryLabel: '',
+                entries: [projectHit, elsewhere],
+                isDirectoryTruncated: false,
+                query: 'view',
+                recent: [recentDeep],
+                searchStatus: 'complete',
+            });
+
+            expect(labels(rows)).toEqual([
+                `group:${translate('pathBrowser.rows.recentGroup')}`,
+                'recent:view.ts',
+                `group:${translate('pathBrowser.rows.directoryGroup')}`,
+                `notice:${translate('pathBrowser.rows.noMatch')}`,
+                `group:${translate('pathBrowser.rows.projectGroup')}`,
+                'entry:app-menu.ts',
+            ]);
+        });
+
+        it('omits a group whose only rows moved into the recent group', () => {
+            const rows = pathBrowserRows({
+                candidateToCreate: undefined,
+                directoryLabel: '',
+                entries: [here],
+                isDirectoryTruncated: false,
+                query: 'app',
+                recent: [recentApp],
+                searchStatus: 'complete',
+            });
+
+            expect(labels(rows)).toEqual([
+                `group:${translate('pathBrowser.rows.recentGroup')}`,
+                'recent:app.ts',
+                `group:${translate('pathBrowser.rows.projectGroup')}`,
+                `notice:${translate('pathBrowser.rows.noMatch')}`,
+            ]);
+        });
     });
 });

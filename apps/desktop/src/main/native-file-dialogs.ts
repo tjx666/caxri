@@ -52,3 +52,15 @@ export function benchmarkShareImageDialogOptions(fileName: string): SaveDialogOp
         filters: [{ name: translateMain('desktop.benchmarkShare.pngImage'), extensions: ['png'] }],
     };
 }
+
+/**
+ * Save As for an untitled Editor buffer. `defaultPath` is the Renderer's suggestion (the Session's Project folder and a
+ * name drawn from the first line); the user confirms or replaces it, and macOS asks before overwriting.
+ */
+export function untitledEditorSaveDialogOptions(defaultPath: string): SaveDialogOptions {
+    return {
+        title: translateMain('desktop.untitledSave.title'),
+        defaultPath,
+        properties: ['createDirectory', 'showOverwriteConfirmation'],
+    };
+}

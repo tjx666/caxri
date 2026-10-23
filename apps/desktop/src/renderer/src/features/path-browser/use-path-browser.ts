@@ -12,7 +12,12 @@ import { isDirectoryEntry } from '../../lib/file-entry';
 import { isImeComposing } from '../../lib/ime';
 import { setPathBrowserOpen } from '../../stores/dialogs';
 import { isSshHost } from '../../stores/environment';
+import { getBootstrap, selectActiveFilePath } from '../../stores/selectors';
+import { openFileForSession } from '../editor/document-commands';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
+import type { RecentFileMatch } from '../editor/recent-files';
+import { forgetRecentFile, matchRecentFiles } from '../editor/recent-files';
+import { dropRecentFile, readRecentFiles } from '../editor/recent-files-store';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
 import type { PathBrowserInputState } from './path-browser';
@@ -46,6 +51,7 @@ import {
 } from './path-browser-view';
 
 const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
+const EMPTY_RECENT_FILES: readonly RecentFileMatch[] = [];
 
 type PathBrowserSnapshot = MethodResult<'pathBrowser.start'>;
 
@@ -98,6 +104,12 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
     const [isNavigating, setIsNavigating] = useState(false);
     const [isStarting, setIsStarting] = useState(true);
     const [isFetching, setIsFetching] = useState(false);
+    /**
+     * Read once per open: the dialog is modal, so the history cannot change under it, and the active file is left out
+     * of the list (see `matchRecentFiles`).
+     */
+    const [recentPaths, setRecentPaths] = useState(() => readRecentFiles(workbenchProjectId));
+    const [activeFilePath] = useState(() => selectActiveFilePath(getBootstrap()));
     const debouncedInputState = useDebouncedValue(inputState, PATH_BROWSER_QUERY_DEBOUNCE_MS);
     const inputReference = useRef<HTMLInputElement>(null);
     const inputRevision = useRef(0);
@@ -106,8 +118,10 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
     const listboxId = useId();
 
     let syntaxError: Error | undefined;
+    let parsedInput: ReturnType<typeof parsePathBrowserInput> | undefined;
+    // React Compiler cannot compile a conditional inside `try`, so the parse result is read after it.
     try {
-        parsePathBrowserInput(inputState.input);
+        parsedInput = parsePathBrowserInput(inputState.input);
     } catch (error_) {
         syntaxError =
             error_ instanceof PathBrowserInputError
@@ -116,6 +130,11 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                   ? error_
                   : new Error(t('pathBrowser.errors.invalidPath'));
     }
+    // Only a bare filter can mean "a recent file": a typed path or anchor names a place, not a name.
+    const recentFilter =
+        parsedInput?.kind === 'filter' && inputState.mode === 'project'
+            ? parsedInput.filter
+            : undefined;
 
     useEffect(() => {
         let isDisposed = false;
@@ -217,6 +236,18 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         snapshot?.mode,
     ]);
 
+    const recentFiles = useMemo(
+        () =>
+            recentFilter === undefined
+                ? EMPTY_RECENT_FILES
+                : matchRecentFiles({
+                      excludePath: activeFilePath,
+                      filter: recentFilter,
+                      paths: recentPaths,
+                      root: projectRoot,
+                  }),
+        [activeFilePath, projectRoot, recentFilter, recentPaths],
+    );
     const { candidateToCreate, directoryMatches, isResultsReady, isTruncated, rows } = useMemo(
         () =>
             derivePathBrowserView({
@@ -225,9 +256,10 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 isFetching,
                 isNavigating,
                 isStarting,
+                recentFiles,
                 snapshot,
             }),
-        [hasSyntaxError, inputState, isFetching, isNavigating, isStarting, snapshot],
+        [hasSyntaxError, inputState, isFetching, isNavigating, isStarting, recentFiles, snapshot],
     );
     const isListboxRendered = isResultsReady && !error;
     /**
@@ -332,6 +364,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 isOpened = Boolean(
                     openExternalEditorDocument({
                         document: result.document,
+                        focus: true,
                         sessionId,
                         workbenchProjectId,
                     }),
@@ -346,6 +379,24 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
             setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
         }
         // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
+        setIsNavigating(false);
+    };
+
+    /**
+     * Reopens a recent file through the same Session-authorized read as a Files-tree click. A file that no longer opens
+     * keeps the dialog open, and leaves the list and the history, so the dead row cannot be picked again.
+     */
+    const openRecent = async (file: RecentFileMatch): Promise<void> => {
+        if (isNavigating) return;
+        requestGeneration.current += 1;
+        setIsNavigating(true);
+        setIsFetching(false);
+        const opened = await openFileForSession(sessionId, file.path, { focus: true });
+        // `openFileForSession` already reported the failure with a toast.
+        if (opened === false) {
+            dropRecentFile(workbenchProjectId, file.path);
+            setRecentPaths((current) => forgetRecentFile(current, file.path));
+        } else closePathBrowser();
         setIsNavigating(false);
     };
 
@@ -447,8 +498,21 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                     return;
                 }
                 if (!selectedRow) return;
-                if (selectedRow.kind === 'create') runPathBrowserDetached(createFromQuery());
-                else if (selectedRow.kind === 'entry') choose(selectedRow.entry);
+                switch (selectedRow.kind) {
+                    case 'create':
+                        runPathBrowserDetached(createFromQuery());
+                        break;
+                    case 'entry':
+                        choose(selectedRow.entry);
+                        break;
+                    case 'recent':
+                        runPathBrowserDetached(openRecent(selectedRow.file));
+                        break;
+                    case 'group':
+                    case 'notice':
+                        // Headings and notices are never selectable; see `isSelectablePathBrowserRow`.
+                        break;
+                }
             },
             close: closePathBrowser,
             complete: applyCompletion,
@@ -500,6 +564,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         isStarting,
         isTruncated,
         listboxId,
+        openRecent,
         mode: inputState.mode,
         rows,
         selectedRow,

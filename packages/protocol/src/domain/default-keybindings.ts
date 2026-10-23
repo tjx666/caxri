@@ -121,7 +121,17 @@ export const defaultKeybindings: Keybinding[] = [
      * Close Others), since `Cmd+W` already closes the active one.
      */
     { key: 'cmd+k cmd+w', command: 'workbench.closeOtherTabs' },
+    /**
+     * The browser and VS Code "reopen closed tab/editor" chord. It must reach through a focused Terminal or Chat
+     * composer, and no editable surface binds `Cmd+Shift+T`.
+     */
+    { key: 'cmd+shift+t', command: 'workbench.reopenClosedItem' },
     { key: 'cmd+s', command: 'editor.save' },
+    /**
+     * VS Code's New Untitled Text File is `Cmd+N`, which Caxri gives to New Session, so this takes the free `Alt`
+     * variant.
+     */
+    { key: 'cmd+alt+n', command: 'editor.newUntitledFile' },
     /**
      * `Cmd+Alt+K` mirrors the "copy selection reference" chord used with VS Code agent extensions. It must fire while
      * Monaco owns focus, so the command opts into `allowInEditable`.
@@ -412,5 +422,13 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+k cmd+w', command: 'workbench.closeOtherTabs' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+shift+t', command: 'workbench.reopenClosedItem' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+alt+n', command: 'editor.newUntitledFile' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

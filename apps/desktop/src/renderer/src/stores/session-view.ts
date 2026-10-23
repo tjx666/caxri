@@ -1,5 +1,5 @@
 import type { ViewContainerId } from '@caxri/protocol';
-import { isPathAtOrBelow } from '@caxri/protocol';
+import { isPathAtOrBelow, isUntitledEditorTabPath } from '@caxri/protocol';
 import type { EditorDocument, SessionDocuments } from '@desktop-shared/editor-state';
 import { setSessionDocument } from '@desktop-shared/editor-state';
 import { omit, omitBy } from 'es-toolkit';
@@ -124,6 +124,12 @@ function canRetainEphemeralDocument(
 ): boolean {
     const scopedDocuments = readScopedDocuments(documents, scope);
     const existing = scopedDocuments?.[document.path];
+    /**
+     * The budget bounds read copies that could be fetched again. An open untitled buffer's store copy is the only
+     * record of its text, the one Save As and on-device backups read, so an edit that outgrows the budget must still
+     * replace it; dropping the edit would save the text from before it.
+     */
+    if (existing && isUntitledEditorTabPath(document.path)) return true;
     const existingEphemeralCount = Object.values(scopedDocuments ?? {}).filter(
         (candidate) => candidate.ephemeral,
     ).length;
@@ -246,7 +252,16 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
     updateDocumentContent(sessionId, path, content, workbenchProjectId) {
         const existing = getSessionDocuments(sessionId, workbenchProjectId)?.[path];
         if (!existing || existing.readOnly) return;
-        get().cacheDocument(sessionId, { ...existing, content, dirty: true }, workbenchProjectId);
+        /**
+         * An untitled buffer has no file to differ from, so it is unsaved exactly while it holds text: emptying it
+         * makes it clean again, and closing it then asks nothing, as in VS Code.
+         */
+        const isDirty = isUntitledEditorTabPath(path) ? content !== '' : true;
+        get().cacheDocument(
+            sessionId,
+            { ...existing, content, dirty: isDirty },
+            workbenchProjectId,
+        );
     },
 
     /**

@@ -15,6 +15,7 @@ import {
     beginPendingSessionTitle,
     settlePendingSessionTitle,
 } from '../../stores/workbench-session-titles';
+import { forgetDeletedSessions } from '../closed-items/recording';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
@@ -296,6 +297,7 @@ export function deleteSession(sessionId: string): void {
         const result = await caxri.request('session.delete', { sessionId });
         if ('canceled' in result) return;
         useSessionViewStore.getState().dropSessions([sessionId]);
+        forgetDeletedSessions([sessionId]);
         removeSessionQueries(queryClient, [sessionId]);
         await refreshWorkbench();
     });
@@ -313,6 +315,7 @@ export function deleteSessions(sessionIds: readonly string[]): void {
         const result = await caxri.request('session.deleteMany', { sessionIds: [...sessionIds] });
         if ('canceled' in result) return;
         useSessionViewStore.getState().dropSessions([...sessionIds]);
+        forgetDeletedSessions(sessionIds);
         removeSessionQueries(queryClient, [...sessionIds]);
         await refreshWorkbench();
     });

@@ -63,8 +63,12 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.terminal.close': '关闭当前终端',
     'commands.description.workbench.closeActiveTab': '关闭当前终端或文件标签页',
     'commands.description.workbench.closeOtherTabs': '关闭当前窗格中的其他终端或文件标签页',
+    'commands.description.workbench.reopenClosedItem':
+        '重新打开最近关闭的文件标签页或已归档的会话，重复执行可继续回溯',
     'commands.description.workbench.nextTab': '激活下一个终端或文件标签页',
     'commands.description.workbench.previousTab': '激活上一个终端或文件标签页',
+    'commands.description.editor.newUntitledFile':
+        '打开一个空的未命名编辑器，根据输入内容识别语言，关闭前会询问是否保存',
     'commands.description.editor.save': '保存当前文件',
     'commands.description.editor.sendReferenceToTerminal':
         '将当前文件路径和光标所在行（`@path#L12`）输入到最近打开的终端或 Agent 对话消息',

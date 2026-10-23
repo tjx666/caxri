@@ -370,6 +370,18 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.14.21
         version: 3.14.21(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@tensorflow/tfjs-backend-cpu':
+        specifier: ^3.21.0
+        version: 3.21.0(@tensorflow/tfjs-core@3.21.0)
+      '@tensorflow/tfjs-converter':
+        specifier: ^3.21.0
+        version: 3.21.0(@tensorflow/tfjs-core@3.21.0)
+      '@tensorflow/tfjs-core':
+        specifier: ^3.21.0
+        version: 3.21.0
+      '@vscode/vscode-languagedetection':
+        specifier: ^1.0.23
+        version: 1.0.23
       '@xterm/addon-clipboard':
         specifier: 0.3.0-beta.313
         version: 0.3.0-beta.313(@xterm/xterm@6.1.0-beta.315)
@@ -4196,6 +4208,21 @@ packages:
   '@tanstack/virtual-core@3.19.6':
     resolution: {integrity: sha512-CsTW892z23gy7IyxYTTorVu1uZWB+0N349rSMgKz4rFLPpLza7F7TpcCKeI5iUAwYQCt8QUlOU67J+KXCxtpGw==}
 
+  '@tensorflow/tfjs-backend-cpu@3.21.0':
+    resolution: {integrity: sha512-88S21UAdzyK0CsLUrH17GPTD+26E85OP9CqmLZslaWjWUmBkeTQ5Zqyp6iK+gELnLxPx6q7JsNEeFuPv4254lQ==}
+    engines: {yarn: '>= 1.3.2'}
+    peerDependencies:
+      '@tensorflow/tfjs-core': 3.21.0
+
+  '@tensorflow/tfjs-converter@3.21.0':
+    resolution: {integrity: sha512-12Y4zVDq3yW+wSjSDpSv4HnpL2sDZrNiGSg8XNiDE4HQBdjdA+a+Q3sZF/8NV9y2yoBhL5L7V4mMLDdbZBd9/Q==}
+    peerDependencies:
+      '@tensorflow/tfjs-core': 3.21.0
+
+  '@tensorflow/tfjs-core@3.21.0':
+    resolution: {integrity: sha512-YSfsswOqWfd+M4bXIhT3hwtAb+IV8+ODwIxwdFR/7jTAPZP1wMVnSlpKnXHAN64HFOiP+Tm3HmKusEZ0+09A0w==}
+    engines: {yarn: '>= 1.3.2'}
+
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
 
@@ -4364,6 +4391,9 @@ packages:
   '@types/keyv@3.1.4':
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
 
+  '@types/long@4.0.2':
+    resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
+
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
 
@@ -4378,6 +4408,9 @@ packages:
 
   '@types/node@26.6.5':
     resolution: {integrity: sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==}
+
+  '@types/offscreencanvas@2019.3.0':
+    resolution: {integrity: sha512-esIJx9bQg+QYF0ra8GnvfianIY8qWB0GBx54PK5Eps6m+xTj86KLavHv6qDhzKcu5UUOgNfJ2pWaIIV7TRUd9Q==}
 
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
@@ -4402,6 +4435,9 @@ packages:
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
 
+  '@types/seedrandom@2.4.34':
+    resolution: {integrity: sha512-ytDiArvrn/3Xk6/vtylys5tlY6eo7Ane0hvcx++TKo6RxQXuVfW0AF/oeWqAj9dN29SyhtawuXstgmPlwNcv/A==}
+
   '@types/semver@7.8.0':
     resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
@@ -4413,6 +4449,9 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
+
+  '@types/webgl-ext@0.0.30':
+    resolution: {integrity: sha512-LKVgNmBxN0BbljJrVUwkxwRYqzsAEPcZOe6S2T6ZaBDIrFp0qu4FNlpc5sM1tGbXUYFgdVQIoeLk1Y1UoblyEg==}
 
   '@types/ws@8.18.2':
     resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
@@ -4772,6 +4811,13 @@ packages:
 
   '@vscode/ripgrep-universal@1.18.0':
     resolution: {integrity: sha512-kgrAVy1L/v/8erAjo+I720ifTf7o4rvYUwgsuEu97XAEBtPT9sk3HhcSgFpxMydvNmwdJtXo9/AVee7JjocTrg==}
+
+  '@vscode/vscode-languagedetection@1.0.23':
+    resolution: {integrity: sha512-Ywk6vXC81nUHvc9WX3uFJG/UHFLXDYJgNeUVirBLJGvmchXHdapsGeAYclNqO1thQLmykmJhSouIZV+JJS8o1A==}
+    hasBin: true
+
+  '@webgpu/types@0.1.16':
+    resolution: {integrity: sha512-9E61voMP4+Rze02jlTXud++Htpjyyk8vw5Hyw9FGRrmhHQg2GqbuOfwf5Klrb8vTxc2XWI3EfO7RUHMpxTj26A==}
 
   '@xml-tools/parser@1.0.11':
     resolution: {integrity: sha512-aKqQ077XnR+oQtHJlrAflaZaL7qZsulWc/i/ZEooar5JiWj1eLt0+Wg28cpa+XLney107wXqneC+oG1IZvxkTA==}
@@ -7759,6 +7805,9 @@ packages:
     resolution: {integrity: sha512-ja1E3yCr9i/0hmBVaM0bfwDjnGy8I/s6PP4DFp+yP+a+mrHO4Rm7DtmnqROTUkHIkqffC84YY7AeqX6oFk0WFg==}
     engines: {node: '>=18'}
 
+  long@4.0.0:
+    resolution: {integrity: sha512-XsP+KhQif4bjX1kbuSiySJFNAehNxgLb6hPRGJ9QsUr8ajHkuXGdrHmFUTUUXhDwVX2R5bY4JNZEwbUiMhV+MA==}
+
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
 
@@ -8365,6 +8414,15 @@ packages:
 
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
+
+  node-fetch@2.6.13:
+    resolution: {integrity: sha512-StxNAxh15zr77QvvkmveSQ8uCQ4+v5FkvNTj0OESmiHu+VRi/gXArXtkWMElOsOUNLtUEvI4yS+rdtOHZTwlQA==}
+    engines: {node: 4.x || >=6.0.0}
+    peerDependencies:
+      encoding: ^0.1.0
+    peerDependenciesMeta:
+      encoding:
+        optional: true
 
   node-forge@1.4.0:
     resolution: {integrity: sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==}
@@ -9387,6 +9445,9 @@ packages:
     resolution: {integrity: sha512-3A6sD0WYP7+QrjbfNA2FN3FsOaGGFoekCVgTyypy53gPxhbkCIjtO6YWgdrfM+n/8sI8JeXZOIxsHjMTNxQ4nQ==}
     engines: {node: ^14.0.0 || >=16.0.0}
 
+  seedrandom@3.0.5:
+    resolution: {integrity: sha512-8OwmbklUNzwezjGInmZ+2clQmExQPvomqjL7LFqOYqtmuxRgQYqOD3mHaU+MvZn5FLUeVxVfQjwLZW/n/JFuqg==}
+
   semver-compare@1.0.0:
     resolution: {integrity: sha512-YM3/ITh2MJ5MtzaM429anh+x2jiLVjqILF4m4oyQB18W7Ggea7BfqdH/wGMK7dDiMghv/6WG7znWMwUDzJiXow==}
 
@@ -9818,6 +9879,9 @@ packages:
 
   toqr@0.1.1:
     resolution: {integrity: sha512-FWAPzCIHZHnrE/5/w9MPk0kK25hSQSH2IKhYh9PyjS3SG/+IEMvlwIHbhz+oF7xl54I+ueZlVnMjyzdSwLmAwA==}
+
+  tr46@0.0.3:
+    resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
 
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
@@ -10272,6 +10336,9 @@ packages:
   webcrypto-core@1.9.2:
     resolution: {integrity: sha512-gsXecm82UQNlTBURJGuqOWy1Ww08S3kZUcr3aOJS02Pk0xLtkfeUAVC0u0xhgdonFme80edSJUIJyuvL/7250Q==}
 
+  webidl-conversions@3.0.1:
+    resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
+
   webpack-virtual-modules@0.6.2:
     resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
 
@@ -10280,6 +10347,9 @@ packages:
 
   whatwg-url-minimum@0.2.0:
     resolution: {integrity: sha512-BtjXU1caNcCFfETP2DhqSeVPfRDl2MTUitI107RE34rJXjR/izfUtR5IoTFOK1WqjNLXbbeqaCH/mQAOLjpc8g==}
+
+  whatwg-url@5.0.0:
+    resolution: {integrity: sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==}
 
   when-exit@2.1.5:
     resolution: {integrity: sha512-VGkKJ564kzt6Ms1dbgPP/yuIoQCrsFAnRbptpC5wOEsDaNsbCB2bnfnaA8i/vRs5tjUSEOtIuvl9/MyVsvQZCg==}
@@ -13928,6 +13998,29 @@ snapshots:
 
   '@tanstack/virtual-core@3.19.6': {}
 
+  '@tensorflow/tfjs-backend-cpu@3.21.0(@tensorflow/tfjs-core@3.21.0)':
+    dependencies:
+      '@tensorflow/tfjs-core': 3.21.0
+      '@types/seedrandom': 2.4.34
+      seedrandom: 3.0.5
+
+  '@tensorflow/tfjs-converter@3.21.0(@tensorflow/tfjs-core@3.21.0)':
+    dependencies:
+      '@tensorflow/tfjs-core': 3.21.0
+
+  '@tensorflow/tfjs-core@3.21.0':
+    dependencies:
+      '@types/long': 4.0.2
+      '@types/offscreencanvas': 2019.3.0
+      '@types/seedrandom': 2.4.34
+      '@types/webgl-ext': 0.0.30
+      '@webgpu/types': 0.1.16
+      long: 4.0.0
+      node-fetch: 2.6.13
+      seedrandom: 3.0.5
+    transitivePeerDependencies:
+      - encoding
+
   '@tybys/wasm-util@0.10.4':
     dependencies:
       tslib: 2.8.1
@@ -14138,6 +14231,8 @@ snapshots:
     dependencies:
       '@types/node': 24.19.2
 
+  '@types/long@4.0.2': {}
+
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
@@ -14153,6 +14248,8 @@ snapshots:
   '@types/node@26.6.5':
     dependencies:
       undici-types: 8.9.0
+
+  '@types/offscreencanvas@2019.3.0': {}
 
   '@types/parse-json@4.0.2': {}
 
@@ -14178,6 +14275,8 @@ snapshots:
     dependencies:
       '@types/node': 24.19.2
 
+  '@types/seedrandom@2.4.34': {}
+
   '@types/semver@7.8.0': {}
 
   '@types/trusted-types@2.0.7': {}
@@ -14185,6 +14284,8 @@ snapshots:
   '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
+
+  '@types/webgl-ext@0.0.30': {}
 
   '@types/ws@8.18.2':
     dependencies:
@@ -14455,6 +14556,10 @@ snapshots:
   '@vitest/spy@5.0.5': {}
 
   '@vscode/ripgrep-universal@1.18.0': {}
+
+  '@vscode/vscode-languagedetection@1.0.23': {}
+
+  '@webgpu/types@0.1.16': {}
 
   '@xml-tools/parser@1.0.11':
     dependencies:
@@ -17751,6 +17856,8 @@ snapshots:
       is-unicode-supported: 2.1.0
       yoctocolors: 2.2.0
 
+  long@4.0.0: {}
+
   longest-streak@3.1.0: {}
 
   loose-envify@1.4.0:
@@ -18827,6 +18934,10 @@ snapshots:
   node-api-version@0.2.1:
     dependencies:
       semver: 7.8.5
+
+  node-fetch@2.6.13:
+    dependencies:
+      whatwg-url: 5.0.0
 
   node-forge@1.4.0(patch_hash=50d8e3f38443736858c2c81dc2b569c18083e687f81acc5f9c17a568a7e4f6f6): {}
 
@@ -20086,6 +20197,8 @@ snapshots:
       refa: 0.12.1
       regexp-ast-analysis: 0.7.1
 
+  seedrandom@3.0.5: {}
+
   semver-compare@1.0.0:
     optional: true
 
@@ -20547,6 +20660,8 @@ snapshots:
 
   toqr@0.1.1: {}
 
+  tr46@0.0.3: {}
+
   trim-lines@3.0.1: {}
 
   trough@2.2.0: {}
@@ -20911,12 +21026,19 @@ snapshots:
       asn1js: 3.0.10
       tslib: 2.8.1
 
+  webidl-conversions@3.0.1: {}
+
   webpack-virtual-modules@0.6.2:
     optional: true
 
   whatwg-fetch@3.6.20: {}
 
   whatwg-url-minimum@0.2.0: {}
+
+  whatwg-url@5.0.0:
+    dependencies:
+      tr46: 0.0.3
+      webidl-conversions: 3.0.1
 
   when-exit@2.1.5: {}
 

@@ -55,6 +55,31 @@ describe('Session document cache', () => {
         expect(paths).toContain(`/file-${total - 1}.ts`);
     });
 
+    it('keeps recording an open untitled buffer after it outgrows the read-copy budget', () => {
+        const store = useSessionViewStore.getState();
+        const path = 'caxri-untitled://1';
+        store.cacheDocument(
+            'session-1',
+            {
+                path,
+                content: '',
+                mtimeMs: 0,
+                size: 0,
+                dirty: false,
+                ephemeral: true,
+            },
+            'project-1',
+        );
+        const pasted = 'x'.repeat(MAX_CACHED_DOCUMENT_BYTES_GLOBAL / 2 + 1);
+
+        store.updateDocumentContent('session-1', path, pasted, 'project-1');
+
+        expect(getSessionDocuments('session-1', 'project-1')?.[path]).toMatchObject({
+            content: pasted,
+            dirty: true,
+        });
+    });
+
     it('never evicts a dirty buffer, because that would lose unsaved edits', () => {
         const store = useSessionViewStore.getState();
         store.cacheDocument('session-1', document('/unsaved.ts', true));

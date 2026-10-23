@@ -4,6 +4,7 @@ import { isAgentStatusTabPath } from './agent-status-tab.js';
 import { isAgentTaskTabPath } from './agent-task-tab.js';
 import { isAgentTranscriptTabPath } from './agent-transcript.js';
 import { isAgentTurnReviewTabPath } from './agent-turn-review-tab.js';
+import { isUntitledEditorTabPath } from './editor/untitled.js';
 import { isExternalEditorTabPath } from './external-editor-tab.js';
 import { isFilePreviewTabPath } from './file-preview.js';
 import { isGitDiffTabPath } from './git-diff.js';
@@ -26,6 +27,7 @@ const virtualEditorTabMatchers = {
     external: isExternalEditorTabPath,
     filePreview: isFilePreviewTabPath,
     settings: isSettingsTabPath,
+    untitled: isUntitledEditorTabPath,
     usage: isUsageTabPath,
 } as const satisfies Record<string, (path: string) => boolean>;
 
@@ -51,8 +53,9 @@ export function virtualEditorTabScheme(path: string): VirtualEditorTabScheme | u
 /**
  * Editor tab paths that name a virtual surface instead of a Project file. Virtual tabs are never read or written
  * through `files.*` and keep their encoded path across file renames. Save and dirty-close confirmation skip them,
- * except an external document, which saves through Main's `externalDocument.write` instead. Every new virtual tab
- * scheme is registered in `virtualEditorTabMatchers` so all of those guards stay in one place.
+ * except an external document, which saves through Main's `externalDocument.write` instead, and an untitled buffer,
+ * which saves through Main's `editor.saveUntitled` Save As dialog. Every new virtual tab scheme is registered in
+ * `virtualEditorTabMatchers` so all of those guards stay in one place.
  */
 export function isVirtualEditorTabPath(path: string): boolean {
     return virtualEditorTabScheme(path) !== undefined;

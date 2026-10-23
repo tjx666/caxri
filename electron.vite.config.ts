@@ -155,10 +155,17 @@ export default defineConfig(async ({ command }) => {
             publicDir: resolve('apps/desktop/node_modules/@yutengjing/vscode-icons/assets'),
             /**
              * Pdf.js's binary CMaps and Type 1 standard fonts, which the PDF preview imports with `?inline`
-             * (`features/preview/pdf-binary-data.ts`). Vite inlines only file types it knows as assets; any other
-             * `?inline` import is loaded as a module and fails.
+             * (`features/preview/pdf-binary-data.ts`), and the language detection model's weights, which the untitled
+             * editor's detection Worker imports the same way (`features/editor/untitled/language-detection.worker.ts`).
+             * Vite inlines only file types it knows as assets; any other `?inline` import is loaded as a module and
+             * fails.
              */
-            assetsInclude: ['**/*.bcmap', '**/*.pfb', '**/*.wasm'],
+            assetsInclude: [
+                '**/*.bcmap',
+                '**/*.pfb',
+                '**/*.wasm',
+                '**/vscode-languagedetection/model/*.bin',
+            ],
             build: {
                 sourcemap: IS_SOURCEMAP_ENABLED,
                 /**
