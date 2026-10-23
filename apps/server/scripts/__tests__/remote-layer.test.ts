@@ -16,8 +16,8 @@ import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { parseLinuxTargets } from '../linux-target';
 import { buildAppLayer, REMOTE_CHECKSUMS_FILE, REMOTE_RUNTIME_PATH } from '../remote-layer';
+import { parseRemoteTargets } from '../remote-target';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
@@ -114,12 +114,36 @@ describe('remote application layer', () => {
     });
 });
 
-describe('Linux target arguments', () => {
-    it('defaults to both architectures and validates explicit targets', () => {
-        expect(parseLinuxTargets([])).toEqual(['x64', 'arm64']);
-        expect(parseLinuxTargets(['--target', 'linux-arm64'])).toEqual(['arm64']);
-        expect(() => parseLinuxTargets(['--target', 'linux-riscv64'])).toThrow(
+describe('remote target arguments', () => {
+    const appleSilicon = { arch: 'arm64', platform: 'darwin' as const };
+    const linuxHost = { arch: 'x64', platform: 'linux' as const };
+
+    it('defaults to both Linux targets, plus darwin-arm64 only on an Apple silicon host', () => {
+        expect(parseRemoteTargets([], appleSilicon)).toEqual([
+            'linux-x64',
+            'linux-arm64',
+            'darwin-arm64',
+        ]);
+        expect(parseRemoteTargets([], linuxHost)).toEqual(['linux-x64', 'linux-arm64']);
+        expect(parseRemoteTargets([], { arch: 'x64', platform: 'darwin' })).toEqual([
+            'linux-x64',
+            'linux-arm64',
+        ]);
+    });
+
+    it('validates explicit targets', () => {
+        expect(parseRemoteTargets(['--target', 'linux-arm64'], linuxHost)).toEqual(['linux-arm64']);
+        expect(parseRemoteTargets(['--target', 'darwin-arm64'], appleSilicon)).toEqual([
+            'darwin-arm64',
+        ]);
+        expect(() => parseRemoteTargets(['--target', 'linux-riscv64'], linuxHost)).toThrow(
             'Unsupported --target linux-riscv64',
+        );
+        expect(() => parseRemoteTargets(['--target', 'darwin-x64'], appleSilicon)).toThrow(
+            'Unsupported --target darwin-x64',
+        );
+        expect(() => parseRemoteTargets(['--target', 'darwin-arm64'], linuxHost)).toThrow(
+            'needs an Apple silicon Mac',
         );
     });
 });

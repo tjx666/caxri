@@ -18,7 +18,7 @@ import {
 } from '../scripts';
 import { launchFailureDetail } from '../setup';
 import type { LayerFixture } from './support/fixtures';
-import { buildLayerFixture, runLocalScript, writeShims } from './support/fixtures';
+import { buildLayerFixture, hostShims, runLocalScript, writeShims } from './support/fixtures';
 import { SshHostScriptHost } from './support/script-host';
 
 /**
@@ -127,6 +127,15 @@ describe('remote scripts', () => {
             );
             expect(probe.architecture).toBe('arm64');
             expect(probe.glibc).toBe('');
+        });
+
+        it('reports the macOS version of a Darwin host', async () => {
+            await writeShims(host.shims, hostShims({ arch: 'arm64', macos: '15.1', os: 'Darwin' }));
+            const probe = parseProbe(
+                (await host.run(probeScript({ buildIds: [], runtimeSha256s: [] }))).result ??
+                    new Map<string, string>(),
+            );
+            expect(probe).toMatchObject({ architecture: 'arm64', macos: '15.1', os: 'Darwin' });
         });
 
         it('reads glibc from ldd when getconf is missing', async () => {

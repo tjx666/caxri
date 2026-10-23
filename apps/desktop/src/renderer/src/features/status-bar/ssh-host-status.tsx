@@ -26,7 +26,18 @@ export function SshHostStatus() {
                 content={
                     <StructuredTooltip
                         title={t('sshHost.status.tooltip', { destination })}
-                        notes={platform ? [t('sshHost.status.platform', platform)] : []}
+                        notes={
+                            platform
+                                ? [
+                                      t(
+                                          platform.system === 'macos'
+                                              ? 'sshHost.status.platformMacos'
+                                              : 'sshHost.status.platformLinux',
+                                          platform,
+                                      ),
+                                  ]
+                                : []
+                        }
                     />
                 }
             >

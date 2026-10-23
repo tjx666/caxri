@@ -12,8 +12,8 @@ import { describe, expect, it } from 'vitest';
  * Out of scope on purpose, so they never need an entry here: Git remotes (`git remote`, `remoteHost`, `remoteBranch`),
  * remote debugging (`remoteDebugging*`), and transport-accurate words that describe the machine on the far end of the
  * SSH connection: `remotePort`, `remotePid`, `remoteShellCommand`, `RemoteCommand`, `RemoteForward`, the remote layer
- * artifact (`RemoteLayer*`, `RemoteArchitecture`, `remoteLayersRoot`, `build:remote-layers`), and the remote Server
- * process (`killRemoteServer`, `LaunchedRemoteServer`).
+ * artifact (`RemoteLayer*`, `RemoteTarget`, `remoteLayersRoot`, `build:remote-layers`), and the remote Server process
+ * (`killRemoteServer`, `LaunchedRemoteServer`).
  */
 
 const SCANNED_ROOTS = [

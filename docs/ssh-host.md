@@ -6,9 +6,10 @@ status: current
 # SSH Host
 
 Desktop can open a window whose Projects, Terminals, and Agents run on an **SSH Host**: a Linux
-machine reached with the user's own OpenSSH configuration. The SSH Host runs the same standalone
+machine or a Mac reached with the user's own OpenSSH configuration. The SSH Host runs the same standalone
 Server artifact Desktop supervises locally, so Files, Git, Search, Diff, Attention, and Agent hooks
-behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) records why.
+behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) records why, and
+[ADR 0018](adr/0018-macos-ssh-hosts.md) why macOS hosts are included.
 
 ## Using it
 
@@ -33,7 +34,7 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
 - **Reconnect**: a dropped connection retries with backoff, and the overlay keeps showing the cause
   while it does. A failure only the user can resolve (authentication, a changed host key) or a
   cancel stops retrying and shows a Reconnect button; the same action is the `Reconnect to SSH Host`
-  command. A host that fails Caxri Server's requirements (platform, glibc, a missing tool) offers
+  command. A host that fails Caxri Server's requirements (platform, glibc or macOS version, a missing tool) offers
   only Close Window, because reconnecting would fail the same way. Copy Details copies OpenSSH's or
   the SSH Host's own message, and a changed host key adds Copy Command for the `ssh-keygen -R`
   command that removes the stale `known_hosts` entry.
@@ -55,7 +56,7 @@ Renderer hides the matching commands through the `localMachine` command conditio
 | Refused or hidden                                         | Remote replacement                      |
 | --------------------------------------------------------- | --------------------------------------- |
 | Native folder picker when adding a Project                | Folder browser served by the SSH Host   |
-| Move to Trash                                             | The SSH Host's freedesktop.org Trash    |
+| Move to Trash                                             | The SSH Host's own Trash                |
 | Open File by Path outside the Project, or `~`             | Paths inside the remote Project only    |
 | Reveal in Finder, open with default app                   | None yet                                |
 | Open in external editor                                   | None yet                                |
@@ -67,7 +68,10 @@ confirmation. After it, the remote Server moves the entry into the SSH Host's ho
 (`$XDG_DATA_HOME/Trash`, by default `~/.local/share/Trash`) with a `.trashinfo` record, so `gio trash
 --restore` or a desktop file manager on that machine can recover it. The Server rechecks the
 device and inode the user approved, so a path replaced after the dialog is refused. A Project on
-another filesystem than the home directory is copied into the Trash and then removed.
+another filesystem than the home directory is copied into the Trash and then removed. On a Mac SSH
+Host the entry goes to `~/.Trash` instead, renamed `name 2.ext` when the name is taken, as Finder
+does; Finder lists it, but Put Back is unavailable because only Finder records where an entry came
+from.
 
 Open File by Path (Cmd+P) browses, searches, and opens files inside the Session's remote Project. It
 identifies each directory through the remote Server's `files.authorizeOpen` instead of this Mac's
@@ -84,9 +88,9 @@ local window's external-file snapshot would read this Mac's disk.
 - About 131 MiB of disk under `~/.caxri-server` for the first install and about 256 MiB of free
   memory for the Server; [server-footprint.md](server-footprint.md) has the measured numbers, the
   long-running bounds, and the benchmark that holds them.
-- Linux x64 or arm64 with glibc 2.28 or newer (Debian 10, Ubuntu 18.10, RHEL 8 and later). An
-  older glibc, musl (Alpine), macOS, or Windows host fails with a clear `unsupportedGlibc` or
-  `unsupportedPlatform` reason.
+- Linux x64 or arm64 with glibc 2.28 or newer (Debian 10, Ubuntu 18.10, RHEL 8 and later), or
+  macOS 13.5 or newer on Apple silicon. An older glibc, musl (Alpine), an older macOS, an Intel Mac,
+  or Windows fails with a clear `unsupportedGlibc` or `unsupportedPlatform` reason.
 - `sh`, `tar`, `gzip`, `base64`, and `sha256sum` (or `shasum`). A missing tool fails with
   `missingTool`. `curl` or `wget` with internet access is optional: without them, Desktop streams the
   Node runtime over SSH (slower, about 120 MB once).
@@ -116,6 +120,17 @@ local window's external-file snapshot would read this Mac's disk.
   create one, so before the Server's first native watch it checks from a short-lived child process
   that an instance can still be created. If not, watching starts in polling mode with the same kind
   of warning, offering `fs.inotify.max_user_instances=512`, and the check repeats on each retry.
+- On a Mac, Remote Login must be on (System Settings > General > Sharing). Its Full Disk Access
+  option covers Projects in protected folders such as Desktop, Documents, or Downloads; without it,
+  the Server cannot read them, because macOS cannot show a privacy prompt over SSH.
+- On a Mac, the login Keychain is locked to SSH sessions, so an Agent CLI that keeps its login there
+  may report that it is not logged in. Log in with a method that does not need the Keychain, such as
+  an API key or token in the shell environment, or run `security unlock-keychain` in that session.
+- On a Mac, the Server loses Local Network access once the SSH session that started it ends: Agents
+  and Terminals it started then fail to reach addresses on the LAN with `EHOSTUNREACH`, while the
+  internet stays reachable. macOS grants Local Network access to a process through the session that
+  launched it, and a detached Server has none. Agents that only reach internet services are not
+  affected.
 - On hosts whose `systemd-logind` sets `KillUserProcesses=yes`, the Server dies with the last SSH
   session unless lingering is enabled for the user: `sudo loginctl enable-linger "$USER"`.
 
@@ -167,8 +182,10 @@ destination, a prompt answer, or remote file contents. The SSH Host Server's own
 
 ## Building the remote layers
 
-`bun run build:remote-layers` writes `apps/server/dist/remote/linux-{x64,arm64}/` (an `app.tar.gz`
-and its `descriptor.json`). `bun run package` runs it first and ships the result as
+`bun run build:remote-layers` writes `apps/server/dist/remote/<target>/` (an `app.tar.gz` and its
+`descriptor.json`) for `linux-x64` and `linux-arm64`, plus `darwin-arm64` on an Apple silicon Mac;
+`--target <target>` builds one. The `darwin-arm64` layer reuses the build machine's native addons and
+the official Node tarball, and fails if any bundled binary requires a macOS newer than 13.5. `bun run package` runs it first and ships the result as
 `Contents/Resources/remote`; unpackaged dev builds read `apps/server/dist/remote` directly, so run it
 once before connecting from a dev instance.
 
@@ -206,6 +223,7 @@ coming from the jump container's address, which proves the traffic did not bypas
 ## Known gaps
 
 - Reveal, open with the default app, and external editors have no remote equivalent yet.
+- Intel Macs are not supported as SSH Hosts: the build has no `darwin-x64` layer.
 - Remote stack traces carry no source maps (they are dropped from the remote layer to keep it small).
 - A directory created after a watch started, while the inotify limit is already exhausted, is
   silently left unwatched: `@parcel/watcher` drops it without reporting an error, so no warning

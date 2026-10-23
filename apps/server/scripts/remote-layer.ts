@@ -8,7 +8,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { constants as zlibConstants, createGzip } from 'node:zlib';
 
-import type { LinuxArchitecture } from './linux-target';
+import type { RemoteTarget } from './remote-target';
 
 /**
  * Path of the Node runtime inside the artifact. The application layer never carries it: an SSH Host caches the runtime
@@ -31,7 +31,7 @@ const FIXED_MTIME = 0;
  */
 export interface RemoteLayerDescriptor {
     schemaVersion: 1;
-    target: `linux-${LinuxArchitecture}`;
+    target: RemoteTarget;
     /**
      * First 16 hex digits of the artifact's aggregate SHA-256; names `~/.caxri-server/builds/<buildId>/`.
      */
@@ -42,7 +42,10 @@ export interface RemoteLayerDescriptor {
     fingerprint: string;
     version: string;
     commit: string;
-    glibcBaseline: string;
+    /**
+     * Oldest supported system: the glibc version on Linux targets, the macOS version on `darwin-arm64`.
+     */
+    systemBaseline: string;
     app: { file: string; sha256: string; bytes: number };
     runtime: {
         sha256: string;

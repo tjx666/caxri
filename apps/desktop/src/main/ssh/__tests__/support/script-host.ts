@@ -10,8 +10,8 @@ import { installAppScript, parseSshHostResult, uploadRuntimeScript } from '../..
 import type { LayerFixture } from './fixtures';
 import {
     hostEnvironment,
+    hostShims,
     killRemoteServer,
-    linuxShims,
     makeShortTemporaryDirectory,
     runLocalScript,
     writeShims,
@@ -33,7 +33,7 @@ export class SshHostScriptHost {
         const home = join(root, 'home');
         const shims = join(root, 'shims');
         await mkdir(home);
-        await writeShims(shims, linuxShims());
+        await writeShims(shims, hostShims());
         return new SshHostScriptHost(root, home, shims);
     }
 

@@ -29,13 +29,19 @@ const runtimeSourceSchema = z.object({
 });
 
 /**
- * `descriptor.json` written by the Server build next to each Linux application layer
- * (`apps/server/dist/remote/linux-<arch>/`, `<resources>/remote/linux-<arch>/` when packaged). The application tarball
- * excludes the Node runtime and source maps and carries a top-level `SHA256SUMS` for every file it contains.
+ * Every SSH Host target a Desktop build may carry a layer for: `<platform>-<architecture>`.
+ */
+export const REMOTE_TARGETS = ['linux-x64', 'linux-arm64', 'darwin-arm64'] as const;
+export type RemoteTarget = (typeof REMOTE_TARGETS)[number];
+
+/**
+ * `descriptor.json` written by the Server build next to each application layer (`apps/server/dist/remote/<target>/`,
+ * `<resources>/remote/<target>/` when packaged). The application tarball excludes the Node runtime and source maps and
+ * carries a top-level `SHA256SUMS` for every file it contains.
  */
 const remoteLayerDescriptorSchema = z.object({
     schemaVersion: z.literal(1),
-    target: z.enum(['linux-x64', 'linux-arm64']),
+    target: z.enum(REMOTE_TARGETS),
     /**
      * Remote install identity (`builds/<buildId>`).
      */
@@ -46,7 +52,10 @@ const remoteLayerDescriptorSchema = z.object({
     fingerprint: z.string().min(1).max(200),
     version: z.string().min(1).max(100),
     commit: z.string().max(100),
-    glibcBaseline: z.string().regex(/^\d+\.\d+$/u),
+    /**
+     * Oldest supported system: the glibc version on Linux targets, the macOS version on Darwin targets.
+     */
+    systemBaseline: z.string().regex(/^\d+\.\d+$/u),
     app: z.object({
         file: z.string().regex(/^[\w.-]+$/u),
         sha256: sha256Schema,
@@ -61,7 +70,6 @@ const remoteLayerDescriptorSchema = z.object({
 });
 
 export type RemoteLayerDescriptor = z.infer<typeof remoteLayerDescriptorSchema>;
-export type RemoteArchitecture = 'x64' | 'arm64';
 
 export interface RemoteLayer {
     appPath: string;
@@ -70,14 +78,10 @@ export interface RemoteLayer {
 }
 
 /**
- * Reads and validates the application layer for one Linux architecture. A missing layer means this Desktop build was
- * packaged without remote support for that architecture.
+ * Reads and validates the application layer for one target. A missing layer means this Desktop build was packaged
+ * without remote support for that target.
  */
-export async function readRemoteLayer(
-    root: string,
-    architecture: RemoteArchitecture,
-): Promise<RemoteLayer> {
-    const target = `linux-${architecture}` as const;
+export async function readRemoteLayer(root: string, target: RemoteTarget): Promise<RemoteLayer> {
     const directory = join(root, target);
     let source: string;
     try {
@@ -96,7 +100,7 @@ export async function readRemoteLayer(
         throw new CaxriError('VALIDATION', 'Remote Server descriptor is invalid');
     }
     if (descriptor.target !== target)
-        throw new CaxriError('VALIDATION', 'Remote Server descriptor targets another architecture');
+        throw new CaxriError('VALIDATION', 'Remote Server descriptor targets another platform');
     const appPath = join(directory, descriptor.app.file);
     const appMetadata = await lstatOrUndefined(appPath);
     if (!appMetadata?.isFile() || appMetadata.size !== descriptor.app.bytes)

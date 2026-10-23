@@ -7,6 +7,7 @@ status: accepted
 
 - Date: 2026-10-12
 - Refs: issue #1885
+- Amended by: [ADR 0018](0018-macos-ssh-hosts.md) (macOS on Apple silicon is a supported SSH Host)
 - Amends: [ADR 0007](0007-remote-access-and-project-authorization.md) (adds an SSH access path beside local, direct, and Relay)
 
 Developers run Agents on Linux machines they reach over SSH. A remote Agent must survive the laptop sleeping or the

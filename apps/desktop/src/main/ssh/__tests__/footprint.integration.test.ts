@@ -7,6 +7,7 @@ import { connectDesktopWithCredential } from '@caxri/client/supervise';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { parseSshDestination } from '../destination';
+import type { RemoteTarget } from '../layers';
 import { readRemoteLayer } from '../layers';
 import { SshHostServerSupervisor } from '../server-supervisor';
 import type { SshHostStateUpdate } from '../server-supervisor-options';
@@ -359,9 +360,14 @@ describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on a
             let startedAt = Date.now();
             openClients.push(await supervisor.ensure(30_000));
             timings.coldInstallMs = Date.now() - startedAt;
-            const architecture = states.findLast((state) => state.platform)?.platform?.architecture;
-            expect(architecture).toBeDefined();
-            const { descriptor } = await readRemoteLayer(layersRoot, architecture ?? 'arm64');
+            const platform = states.findLast((state) => state.platform)?.platform;
+            expect(platform).toBeDefined();
+            const { descriptor } = await readRemoteLayer(
+                layersRoot,
+                platform
+                    ? (`${platform.system === 'macos' ? 'darwin' : 'linux'}-${platform.architecture}` as RemoteTarget)
+                    : 'linux-arm64',
+            );
             metrics['transfer.appLayerKiB'] = toKiB(descriptor.app.bytes);
             metrics['transfer.uploadKiB'] = toKiB(uploadBytes);
 

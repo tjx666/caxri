@@ -55,8 +55,10 @@ caxri_glibc=$(getconf GNU_LIBC_VERSION 2>/dev/null | sed -n 's/^glibc[[:space:]]
 if [ -z "$caxri_glibc" ]; then
     caxri_glibc=$(ldd --version 2>&1 | head -n 1 | grep -i -e glibc -e 'gnu libc' | sed -n 's/.*[[:space:]]\([0-9][0-9]*\.[0-9][0-9]*\)[[:space:]]*$/\1/p' || true)
 fi
+caxri_macos=
+if [ "$caxri_os" = Darwin ]; then caxri_macos=$(sw_vers -productVersion 2>/dev/null || true); fi
 caxri_host=$(uname -n 2>/dev/null || echo unknown)
-set -- "os=$caxri_os" "arch=$caxri_arch" "glibc=$caxri_glibc" "hostname=$caxri_host" "home=$HOME"
+set -- "os=$caxri_os" "arch=$caxri_arch" "glibc=$caxri_glibc" "macos=$caxri_macos" "hostname=$caxri_host" "home=$HOME"
 for caxri_tool in curl wget tar gzip base64 sha256sum shasum setsid nohup xz; do
     if command -v "$caxri_tool" >/dev/null 2>&1; then set -- "$@" "tool.$caxri_tool=1"; else set -- "$@" "tool.$caxri_tool=0"; fi
 done
@@ -422,9 +424,17 @@ if ! caxri_try_lock; then
     exit 0
 fi
 trap 'caxri_unlock' EXIT
-caxri_running=$(for caxri_cmdline in /proc/[0-9]*/cmdline; do
-    if [ -r "$caxri_cmdline" ]; then tr '\000' '\n' < "$caxri_cmdline" 2>/dev/null || true; fi
-done | sed -n 's|.*/\.caxri-server/builds/\([^/]*\)/.*|\1|p' | sort -u)
+# macOS has no /proc, so its running builds come from \`ps\`. Without either source the running set would be empty and GC
+# could remove a live build, so it skips instead.
+if [ -d /proc/self ]; then
+    caxri_processes=$(for caxri_cmdline in /proc/[0-9]*/cmdline; do
+        if [ -r "$caxri_cmdline" ]; then tr '\000' '\n' < "$caxri_cmdline" 2>/dev/null || true; fi
+    done)
+elif ! caxri_processes=$(ps -ww -axo command= 2>/dev/null); then
+    caxri_result status=no-process-list
+    exit 0
+fi
+caxri_running=$(printf '%s\n' "$caxri_processes" | sed -n 's|.*/\.caxri-server/builds/\([^/]*\)/.*|\1|p' | sort -u)
 caxri_previous=
 caxri_removed_builds=0
 for caxri_name in $(ls -1t "$caxri_builds"); do
@@ -515,10 +525,14 @@ export interface SshHostProbe {
     builds: ReadonlySet<string>;
     configPresent: boolean;
     /**
-     * Empty when no glibc was found (for example musl).
+     * Empty when no glibc was found (for example musl or macOS).
      */
     glibc: string;
     home: string;
+    /**
+     * `sw_vers -productVersion` on macOS, such as `15.1`; empty elsewhere or when `sw_vers` failed.
+     */
+    macos: string;
     hostname: string;
     os: string;
     runtimes: ReadonlySet<string>;
@@ -552,6 +566,7 @@ export function parseProbe(result: Map<string, string>): SshHostProbe {
         configPresent: result.get('config') === '1',
         glibc: result.get('glibc') ?? '',
         home: result.get('home') ?? '',
+        macos: result.get('macos') ?? '',
         hostname: (result.get('hostname') ?? '').slice(0, 255),
         os: result.get('os') ?? '',
         runtimes,
