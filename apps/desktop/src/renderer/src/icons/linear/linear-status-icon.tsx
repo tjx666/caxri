@@ -4,12 +4,19 @@ import { useId } from 'react';
 export type LinearStatusKind =
     'backlog' | 'canceled' | 'completed' | 'duplicate' | 'started' | 'triage' | 'unstarted';
 
+/**
+ * States drawn as an open ring; the rest are a filled disc with a cut-out mark.
+ */
+const RING_KINDS: ReadonlySet<LinearStatusKind> = new Set(['backlog', 'unstarted', 'started']);
+
 type LinearStatusIconProperties = SVGProps<SVGSVGElement> & {
     size?: number;
 };
 
 /**
- * Caxri-owned workflow glyphs for Linear states.
+ * Caxri-owned workflow glyphs for Linear states, drawn from plain circle geometry so they read like the state icons a
+ * Linear user already knows (ring, half-filled ring, filled check) without reusing Linear's own artwork. Done,
+ * Canceled, Duplicate, and Triage share one filled disc and differ only by the cut-out mark.
  */
 export function LinearStatusIcon({
     kind,
@@ -38,59 +45,18 @@ export function LinearStatusIcon({
             aria-hidden="true"
             {...properties}
         >
-            {kind === 'backlog' && (
-                <>
-                    <rect
-                        x="2"
-                        y="2"
-                        width="12"
-                        height="12"
-                        rx="3.5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                    />
-                    <path
-                        d="M5 5.5h6M5 8h6M5 10.5h4"
-                        stroke="currentColor"
-                        strokeWidth="1.25"
-                        strokeLinecap="round"
-                    />
-                </>
-            )}
-            {kind === 'unstarted' && (
-                <rect
-                    x="2"
-                    y="2"
-                    width="12"
-                    height="12"
-                    rx="3.5"
-                    fill="none"
+            {RING_KINDS.has(kind) && (
+                <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
                     stroke="currentColor"
                     strokeWidth="1.5"
+                    // Twelve dashes around the ring (circumference 12π) read as "not planned yet".
+                    strokeDasharray={kind === 'backlog' ? '1.6 1.54' : undefined}
                 />
             )}
-            {kind === 'started' && (
-                <>
-                    <rect
-                        x="2"
-                        y="2"
-                        width="12"
-                        height="12"
-                        rx="3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                    />
-                    <path
-                        d="M5 8h6M9 5.75 11.25 8 9 10.25"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </>
-            )}
+            {kind === 'started' && <path d="M8 5a3 3 0 0 1 0 6z" fill="currentColor" />}
             {cutout && (
                 <>
                     <defs>
@@ -114,15 +80,7 @@ export function LinearStatusIcon({
                             </g>
                         </mask>
                     </defs>
-                    <rect
-                        x="2"
-                        y="2"
-                        width="12"
-                        height="12"
-                        rx="3.5"
-                        fill="currentColor"
-                        mask={`url(#${maskId})`}
-                    />
+                    <circle cx="8" cy="8" r="6.75" fill="currentColor" mask={`url(#${maskId})`} />
                 </>
             )}
         </svg>
