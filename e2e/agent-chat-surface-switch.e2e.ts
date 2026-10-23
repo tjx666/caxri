@@ -201,10 +201,19 @@ if (process.argv.includes('app-server')) {
         await expect(
             session.getByRole('status').filter({ hasText: /^[A-Z][\w -]+…$/u }),
         ).toHaveCount(1);
-        await expect(session.locator('.activity-shimmer').first()).toHaveCSS(
-            'animation-name',
-            'activity-dwell-shimmer',
-        );
+        // Between sweeps the shimmer rests with no animation (`dwell-shimmer-rest.ts`), so accept either phase.
+        await expect
+            .poll(() =>
+                session
+                    .locator('.activity-shimmer')
+                    .first()
+                    .evaluate(
+                        (element) =>
+                            Object.hasOwn(element.dataset, 'activityShimmerResting') ||
+                            getComputedStyle(element).animationName === 'activity-dwell-shimmer',
+                    ),
+            )
+            .toBe(true);
         // The seconds roll through NumberFlow, whose shadow root holds every digit, so read the time the row shows.
         await expect(session.locator('[data-agent-chat-elapsed-time]')).toHaveAttribute(
             'data-value',

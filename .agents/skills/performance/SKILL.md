@@ -68,11 +68,13 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      clears (`git.changed` in `queries/invalidation.ts`).
    - Long-lived caches must not retain a view over a larger allocation: copy a truncated string out
      of its V8 parent and copy a sync zlib result, which is a slice of Node's shared buffer pool
-     (`chat-history-archive.ts`, the agent timeline projection).
-     Measure idle cost over CDP in a frontmost dev window: `SystemInfo.getProcessInfo` CPU time for
-     the Renderer and GPU processes plus `Performance.getMetrics` `RecalcStyleCount` and
-     `TaskDuration`, comparing before and after in the same instance. Discard samples during which
-     `visibilitychange` fired, since an occluded window stops rendering.
+     (`apps/server/src/domains/agent-chat/chat-history-archive.ts`, the agent timeline projection).
+
+   Measure idle cost over CDP in a frontmost dev window: `SystemInfo.getProcessInfo` CPU time for
+   the Renderer and GPU processes plus `Performance.getMetrics` `RecalcStyleCount` and
+   `TaskDuration`, comparing before and after in the same instance. Discard samples during which
+   `visibilitychange` fired, since an occluded window stops rendering.
+
 6. Add a focused unit or integration test for the optimized boundary and extend the performance E2E
    assertion when a regression can be observed there. Keep React render-count and total-duration
    budgets per stable surface. Browser frame, Long Animation Frame, and Event Timing metrics remain
