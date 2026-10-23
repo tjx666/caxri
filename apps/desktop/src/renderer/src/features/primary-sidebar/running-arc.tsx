@@ -5,26 +5,31 @@
  * slot, so it shares one vertical line with the attention and pull request glyphs. The dash covers three quarters of
  * the circumference and its round caps eat into the rest, leaving about the opening Codex shows. Reduced motion leaves
  * it still.
+ *
+ * The spin sits on an HTML wrapper, not the `<svg>`: Chromium runs a transform animation on an inline SVG root on the
+ * main thread, restyling every frame (ten running rows cost about 35 ms of main thread per second on a 120 Hz display),
+ * while the same animation on an HTML element runs on the compositor (about 3 ms).
  */
 export function RunningArc() {
     return (
-        <svg
+        <span
             aria-hidden="true"
-            className="size-2.5 flex-none motion-safe:animate-spin"
+            className="inline-flex size-2.5 flex-none motion-safe:animate-spin"
             data-session-status-arc=""
-            viewBox="0 0 20 20"
         >
-            <circle
-                cx="10"
-                cy="10"
-                fill="none"
-                r="8.5"
-                stroke="currentColor"
-                strokeDasharray="40 13.4"
-                strokeLinecap="round"
-                strokeWidth="3"
-            />
-        </svg>
+            <svg className="size-full" viewBox="0 0 20 20">
+                <circle
+                    cx="10"
+                    cy="10"
+                    fill="none"
+                    r="8.5"
+                    stroke="currentColor"
+                    strokeDasharray="40 13.4"
+                    strokeLinecap="round"
+                    strokeWidth="3"
+                />
+            </svg>
+        </span>
     );
 }
 
@@ -35,22 +40,23 @@ export function RunningArc() {
  */
 export function BackgroundArc() {
     return (
-        <svg
+        <span
             aria-hidden="true"
-            className="size-2.5 flex-none motion-safe:animate-spin motion-safe:[animation-duration:3s]"
+            className="inline-flex size-2.5 flex-none motion-safe:animate-spin motion-safe:[animation-duration:3s]"
             data-session-status-background=""
-            viewBox="0 0 20 20"
         >
-            <circle
-                cx="10"
-                cy="10"
-                fill="none"
-                r="8.5"
-                stroke="currentColor"
-                strokeDasharray="0.01 6.67"
-                strokeLinecap="round"
-                strokeWidth="3"
-            />
-        </svg>
+            <svg className="size-full" viewBox="0 0 20 20">
+                <circle
+                    cx="10"
+                    cy="10"
+                    fill="none"
+                    r="8.5"
+                    stroke="currentColor"
+                    strokeDasharray="0.01 6.67"
+                    strokeLinecap="round"
+                    strokeWidth="3"
+                />
+            </svg>
+        </span>
     );
 }
