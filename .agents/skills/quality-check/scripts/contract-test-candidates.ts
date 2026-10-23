@@ -40,8 +40,22 @@ function rendererContractTestCandidates(files: readonly string[]): string[] {
     return [
         'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
         'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
+        ...reactCompilerContractTestCandidates(files),
         ...prototypeRuntimeContractTestCandidates(files),
     ];
+}
+
+const RENDERER_SOURCE_ROOT = 'apps/desktop/src/renderer/src/';
+
+/**
+ * The React Compiler coverage test compiles every Renderer source and compares the bailouts with its ledger, so the
+ * import graph never selects it. A conditional inside a hook's `try` block once passed every local gate and failed
+ * first in the `guards` job.
+ */
+function reactCompilerContractTestCandidates(files: readonly string[]): string[] {
+    return files.some((file) => file.replaceAll('\\', '/').startsWith(RENDERER_SOURCE_ROOT))
+        ? ['scripts/__tests__/react-compiler-coverage.test.ts']
+        : [];
 }
 
 /**
