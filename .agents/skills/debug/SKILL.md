@@ -347,6 +347,21 @@ returns all of them. Actions are omitted because a function survives neither `JS
 `createStore(name, initializer)` from `apps/desktop/src/renderer/src/lib/store.ts`; calling zustand's
 `create` directly leaves the store invisible here.
 
+### Renderer query cache: dev-only snapshot injection
+
+To verify how the Renderer reacts to external state a fixture cannot produce (a newly opened pull
+request, a CI result, a deployment), import the same query client the app uses and publish a
+synthetic snapshot. Vite serves the dev Renderer from source, so the dynamic import resolves to the
+app's own module instance:
+
+```bash
+bun run .agents/skills/debug/scripts/worktree-browser.ts eval "(async () => { const m = await import('/src/queries/client.ts'); const id = __caxriStores.getState('workbench').bootstrap.selectedSessionId; m.queryClient.setQueryData(m.caxriQueryKey('session.pullRequests', undefined), { pullRequests: { [id]: { number: 1, title: 'Example', url: 'https://github.com/owner/example/pull/1', state: 'open', source: 'agent' } }, refreshedAt: Date.now() }); })()"
+```
+
+This works only in a `switch-worktree dev` instance; a packaged Renderer has no `/src` modules. The
+next poll or invalidation replaces the injected value, so capture the screenshot right away. It
+proves the Renderer's reaction only; the Server-side detection still needs its own test.
+
 ### Node inspector on the Hosts: always on
 
 Each Node Host runs with its own inspector port, so all three can be attached at once without
