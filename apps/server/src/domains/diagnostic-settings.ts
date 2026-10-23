@@ -151,6 +151,7 @@ const settingsProjection: SettingsProjection = {
     'notifications.agentRecovery': exportAsIs,
     'session.defaultAgent': exportAsIs,
     'session.openAgentsInChat': exportAsIs,
+    'agentChat.idleCompaction.enabled': exportAsIs,
     'agentChat.longPasteThreshold': exportAsIs,
     'agentChat.workingIndicator': exportAsIs,
     'agentChat.animatedToolIcons': exportAsIs,

@@ -1,7 +1,9 @@
 import type { AgentChatService } from './agent-chat';
+import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
 import type { createRootServices } from './root-services';
+import { ChatIdleCompaction } from './session';
 import type { TerminalManager } from './terminal';
 import {
     createTerminalHandlers,
@@ -13,15 +15,16 @@ import type { WindowPresence } from './window-presence';
 type RootServices = Awaited<ReturnType<typeof createRootServices>>;
 
 /**
- * Owns the background Terminal supervision slice: idle suspension and the resource monitor. Create: builds both
- * services and publishes the suspension service through `suspensionState` for the launch hooks wired before it exists.
- * Register: the returned `handlers` are the Terminal methods that read them. Start: `start` begins both pollers once
- * every handler is registered. Close: `close` stops suspension before the resource monitor; the composition root calls
- * it after Chats and benchmarks shut down and before Terminals do.
+ * Owns the background Agent supervision slice: idle suspension, Chat idle compaction, and the resource monitor. Create:
+ * builds the services and publishes the suspension service through `suspensionState` for the launch hooks wired before
+ * it exists. Register: the returned `handlers` are the Terminal methods that read them. Start: `start` begins every
+ * poller once every handler is registered. Close: `close` stops suspension and idle compaction before the resource
+ * monitor; the composition root calls it after Chats and benchmarks shut down and before Terminals do.
  */
 export function createTerminalSupervision({
     agentChat,
     configuration,
+    coordinator,
     database,
     dependencies,
     presence,
@@ -31,6 +34,7 @@ export function createTerminalSupervision({
     watchHub,
 }: Pick<RootServices, 'configuration' | 'transcripts' | 'watchHub'> & {
     agentChat: AgentChatService;
+    coordinator: Pick<AgentCoordinator, 'maintenanceTurns'>;
     database: CaxriDatabase;
     dependencies: DomainDependencies;
     presence: Pick<WindowPresence, 'isSettled' | 'visibleSessionIds'>;
@@ -52,6 +56,14 @@ export function createTerminalSupervision({
         watchHub,
     });
     suspensionState.service = terminalSuspension;
+    const idleCompaction = new ChatIdleCompaction({
+        agentChat,
+        database,
+        maintenanceTurns: coordinator.maintenanceTurns,
+        logger,
+        settings: () => configuration.getSettings().value,
+        watchHub,
+    });
     const resourceMonitor = new TerminalResourceMonitor({
         database,
         logger,
@@ -70,10 +82,12 @@ export function createTerminalSupervision({
         terminalSuspension,
         start: (): void => {
             terminalSuspension.start();
+            idleCompaction.start();
             resourceMonitor.start();
         },
         close: async (): Promise<void> => {
             await terminalSuspension.close();
+            await idleCompaction.close();
             await resourceMonitor.close();
         },
     };

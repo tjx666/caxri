@@ -48,6 +48,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.message.contextCompactedSizes': '上下文已压缩 · {{before}} → {{after}}',
     'agentChat.message.contextCompactedAuto': '上下文接近上限，已自动压缩',
     'agentChat.message.contextCompactedManual': '已按你的要求压缩',
+    'agentChat.message.contextCompactedIdle': '空闲时已在提示缓存过期前自动压缩',
     'agentChat.message.contextCompactedDetail':
         '{{before}} tokens → {{after}} tokens，缩小 {{percent}}',
     'agentChat.message.retrying': '正在重试',

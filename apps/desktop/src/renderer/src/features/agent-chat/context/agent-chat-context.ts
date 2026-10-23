@@ -120,9 +120,10 @@ interface AgentChatContextAlert {
 
 interface AgentChatCacheAlert extends AgentChatContextAlert {
     /**
-     * `expiring` while the cache is still warm but within the warning lead of its TTL; `expired` once it is gone.
+     * `expiring` while the cache is still warm but within the warning lead of its TTL; `compacting` in that same span
+     * when idle compaction will compact the Chat before it expires; `expired` once it is gone.
      */
-    state: 'expiring' | 'expired';
+    state: 'compacting' | 'expiring' | 'expired';
 }
 
 export interface AgentChatContextAlerts {
@@ -130,9 +131,14 @@ export interface AgentChatContextAlerts {
     pressure?: AgentChatContextAlert;
 }
 
+/**
+ * `idleCompactionAt` is when idle compaction will compact this Chat (`agentChatIdleCompactionAt`), or `undefined` when
+ * it will not (the provider or context does not qualify, or the setting is off).
+ */
 export function agentChatContextAlerts(
     usage: AgentChatUsage | undefined,
     now: number,
+    idleCompactionAt?: number,
 ): AgentChatContextAlerts {
     if (!usage || usage.totalTokens <= 0) return {};
     const alerts: AgentChatContextAlerts = {};
@@ -161,9 +167,17 @@ export function agentChatContextAlerts(
                 }),
                 detail: `${translate('agentChat.context.cacheDetail', { minutes: cacheTtlMinutes, tokens })}${costNote}`,
             };
+        } else if (idleCompactionAt !== undefined && now < idleCompactionAt) {
+            if (idleMs >= ttlMs - CACHE_EXPIRY_LEAD_MS) {
+                const remaining = roundedUpDuration(idleCompactionAt - now);
+                alerts.cache = {
+                    state: 'compacting',
+                    text: translate('agentChat.context.cacheCompactingText', { remaining }),
+                    detail: `${translate('agentChat.context.cacheCompactingDetail', { minutes: cacheTtlMinutes, remaining, tokens })}${costNote}`,
+                };
+            }
         } else if (idleMs >= ttlMs - Math.min(CACHE_EXPIRY_LEAD_MS, ttlMs / 2)) {
-            // Rounded up so the countdown never claims `0m` while the cache is still warm.
-            const remaining = localizedDuration(Math.ceil((ttlMs - idleMs) / 60_000) * 60_000);
+            const remaining = roundedUpDuration(ttlMs - idleMs);
             alerts.cache = {
                 state: 'expiring',
                 text: translate('agentChat.context.cacheExpiringText', { remaining, cost }),
@@ -184,6 +198,13 @@ export function agentChatContextAlerts(
             }),
         };
     return alerts;
+}
+
+/**
+ * A countdown rounded up to the minute, so it never claims `0m` while there is still time left.
+ */
+function roundedUpDuration(ms: number): string {
+    return localizedDuration(Math.ceil(ms / 60_000) * 60_000);
 }
 
 /**
@@ -228,9 +249,13 @@ export function agentChatContextAnnouncement(alerts: AgentChatContextAlerts): st
     if (alerts.cache)
         parts.push(
             translate(
-                alerts.cache.state === 'expired'
-                    ? 'agentChat.context.cacheExpiredAnnouncement'
-                    : 'agentChat.context.cacheExpiringAnnouncement',
+                (
+                    {
+                        compacting: 'agentChat.context.cacheCompactingAnnouncement',
+                        expired: 'agentChat.context.cacheExpiredAnnouncement',
+                        expiring: 'agentChat.context.cacheExpiringAnnouncement',
+                    } as const
+                )[alerts.cache.state],
             ),
         );
     if (alerts.pressure) parts.push(translate('agentChat.context.pressureAnnouncement'));

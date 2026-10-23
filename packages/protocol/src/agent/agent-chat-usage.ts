@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { AgentProvider } from './agents.js';
+
 export const MAX_AGENT_CHAT_USAGE_BREAKDOWN = 16;
 
 /**
@@ -68,3 +70,52 @@ export const agentChatTurnUsageSchema = z.strictObject({
 });
 
 export type AgentChatTurnUsage = z.infer<typeof agentChatTurnUsageSchema>;
+
+/**
+ * The smallest context idle compaction acts on. Compaction trades detail for a cheaper re-read, so a context that is
+ * cheap to re-read is left whole. The figure is Claude Code's own idle-compaction default
+ * (`CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`).
+ *
+ * @see https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+ */
+export const AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS = 200_000;
+
+/**
+ * The shortest prompt cache lifetime idle compaction acts on. A five-minute cache would compact a Chat whose user is
+ * still reading its reply; Claude Code likewise compacts only before the one-hour cache expires.
+ */
+const IDLE_COMPACTION_MIN_TTL_MINUTES = 60;
+
+/**
+ * The share of the cache lifetime a Chat waits before it is compacted: 54 minutes of a one-hour cache, as Claude Code
+ * does. The rest leaves time for the compaction request to reach the provider while the cache still holds.
+ */
+const IDLE_COMPACTION_FIRE_FRACTION = 0.9;
+
+/**
+ * The providers whose Chats are compacted while idle. Codex is left out: a ChatGPT sign-in keeps its cache with no
+ * expiry, so there is nothing to save (see `codexCacheTtlMinutes` in Server Core).
+ */
+const IDLE_COMPACTION_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'grok']);
+
+/**
+ * When an idle Chat becomes due for idle compaction, in epoch milliseconds, or `undefined` when it never will on this
+ * usage: the provider is not covered, the cache lifetime is unknown or too short, the context is too small, or no
+ * response started the cache. It is due from that moment until the cache expires (`lastResponseAt + cacheTtlMinutes`);
+ * a compaction resets `lastResponseAt`, so one response is compacted at most once.
+ */
+export function agentChatIdleCompactionAt(
+    usage: Pick<AgentChatUsage, 'cacheTtlMinutes' | 'lastResponseAt' | 'totalTokens'> | undefined,
+    provider: AgentProvider | undefined,
+): number | undefined {
+    if (!usage || !provider || !IDLE_COMPACTION_PROVIDERS.has(provider)) return undefined;
+    const { cacheTtlMinutes, lastResponseAt, totalTokens } = usage;
+    if (
+        lastResponseAt === undefined ||
+        cacheTtlMinutes === undefined ||
+        cacheTtlMinutes < IDLE_COMPACTION_MIN_TTL_MINUTES ||
+        totalTokens < AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS
+    )
+        return undefined;
+    return lastResponseAt + Math.round(cacheTtlMinutes * 60_000 * IDLE_COMPACTION_FIRE_FRACTION);
+}

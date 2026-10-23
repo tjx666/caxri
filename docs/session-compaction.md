@@ -3,7 +3,13 @@ kind: living
 status: current
 ---
 
-# Batch Session compaction
+# Session compaction
+
+Caxri compacts Agent conversations in two ways: a batch command the user runs, and idle compaction
+that Server Core runs for a large Claude Code or Grok Build Chat shortly before its prompt cache
+expires ([Idle Chat compaction](#idle-chat-compaction)).
+
+## Batch command
 
 Run **Session: Compact Recently Idle Sessions** from the Desktop command palette (it is also
 found by searching `warm cache`) before leaving
@@ -78,3 +84,31 @@ human input remains available; the command does not take over the user's keyboar
 
 Each request checks at most 200 Sessions and reports any deferred count. Reads are sequential to bound
 memory use. A delivered command proceeds in the provider independently of the batch notification.
+
+## Idle Chat compaction
+
+A primary Agent Chat on Claude Code or Grok Build is compacted automatically when it sits idle long
+enough that its prompt cache is about to expire, so the next message re-reads a summary instead of the
+whole conversation. This mirrors Claude Code's own idle compaction, which covers its terminal sessions
+and therefore PTY Agents; Caxri does not compact PTY Terminals itself.
+
+`ChatIdleCompaction` (`apps/server/src/domains/session/idle-compaction.ts`) sweeps live Chats every 30
+seconds. A Chat is due when `agentChatIdleCompactionAt` (`packages/protocol/src/agent/agent-chat-usage.ts`)
+returns a time and that time has passed:
+
+- the provider is Claude Code or Grok Build; Codex is excluded because a ChatGPT sign-in keeps its cache
+  with no expiry, and its API-key cache is cheap to rebuild;
+- the context holds at least 200,000 tokens and the cache lifetime is at least 60 minutes (Claude's
+  observed lifetime; Grok Build uses a 60-minute estimate because xAI publishes none);
+- 90% of the lifetime has passed since the latest response (54 minutes of a one-hour cache).
+
+The compaction goes through the same `AgentChatService.compactIdle` path and maintenance window as the
+batch command, so it never wakes a stopped Chat and never reaches Session state. Each response is tried
+once: a compaction resets the response time, and a refused or failed attempt waits for the next
+response. A Chat that stays busy through the whole window is given up as `cache_expired`. Every attempt
+logs `session.idle_compaction` with its closed `outcome`, provider, context size, and idle time.
+
+The composer's cache row says `Auto-compacts in N min` while a compaction is pending, and the resulting
+transcript notice says it was compacted while idle. That label is live only: a history replay shows it
+as a manual compaction. The `agentChat.idleCompaction.enabled` setting (on by default) turns the feature
+off for both the Server sweep and the composer row.

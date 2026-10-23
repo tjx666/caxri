@@ -6,6 +6,7 @@ import {
     grokModelState,
     grokPermissionOutcome,
     grokQuestionAnswers,
+    grokUsage,
     mapGrokPermission,
     mapGrokQuestion,
     mapGrokToolCall,
@@ -255,5 +256,17 @@ describe('Grok Build questions', () => {
             outcome: 'accepted',
             answers: { 'Which tools?': ['Lint', 'Test'], 'Which mode?': 'Fast' },
         });
+    });
+});
+
+describe('grokUsage', () => {
+    it('reports the context with the estimated hour of cache from the response time', () => {
+        expect(grokUsage({ _meta: { totalTokens: 1234.5 } }, 200_000, 42)).toEqual({
+            totalTokens: 1234,
+            contextWindow: 200_000,
+            cacheTtlMinutes: 60,
+            lastResponseAt: 42,
+        });
+        expect(grokUsage({ _meta: {} }, 200_000)).toBeUndefined();
     });
 });

@@ -153,6 +153,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.terminal.idleSuspension.afterMinutes.description':
         'Agent 在你未查看的会话中等待多久后被挂起。仅在“在后台挂起空闲的 Agent”开启时生效。',
 
+    'settings.agentChat.idleCompaction.enabled.title': '在提示缓存过期前压缩空闲的 Chat',
+    'settings.agentChat.idleCompaction.enabled.description':
+        'Claude 或 Grok Build 的 Chat 上下文较大且空闲到提示缓存快要过期时，自动压缩对话，这样你下一条消息只需重新读取摘要，而不是整段对话。',
+
     'settings.terminal.osc52ClipboardWrite.title': '允许终端中的程序复制到剪贴板',
     'settings.terminal.osc52ClipboardWrite.description':
         'tmux 或远程 Shell 等程序可以通过 OSC 52 将文本复制到你的剪贴板，但永远无法读取它',

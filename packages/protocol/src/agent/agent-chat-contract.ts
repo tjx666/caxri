@@ -224,13 +224,14 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         /**
          * For `compacted`: how large the context was before and after, and whether the user or the provider started it,
          * when the provider reports them (Claude Code's `compact_metadata`) or Caxri can read them off the usage on
-         * both sides of the compaction (Codex).
+         * both sides of the compaction (Codex). `idle` is Caxri's own idle compaction before the prompt cache expired;
+         * it is known only to the Server Core that ran it, so a history replayed later reports it as `manual`.
          */
         compaction: z
             .strictObject({
                 beforeTokens: z.number().int().nonnegative().optional(),
                 afterTokens: z.number().int().nonnegative().optional(),
-                trigger: z.enum(['manual', 'auto']).optional(),
+                trigger: z.enum(['manual', 'auto', 'idle']).optional(),
             })
             .optional(),
         /**

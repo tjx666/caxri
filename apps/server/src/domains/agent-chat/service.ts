@@ -557,8 +557,8 @@ export class AgentChatService {
         return this.maintenance.idleLaunchId(terminalId);
     }
 
-    compactIdle(terminalId: string, launchId: string): Promise<void> {
-        return this.maintenance.compactIdle(terminalId, launchId);
+    compactIdle(terminalId: string, launchId: string, reason?: 'batch' | 'idle'): Promise<void> {
+        return this.maintenance.compactIdle(terminalId, launchId, reason);
     }
 
     suspendIdle(

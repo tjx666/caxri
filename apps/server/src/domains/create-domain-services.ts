@@ -210,6 +210,7 @@ export async function createDomainServices(
     const terminalSupervision = createTerminalSupervision({
         agentChat,
         configuration,
+        coordinator,
         database,
         dependencies,
         presence,

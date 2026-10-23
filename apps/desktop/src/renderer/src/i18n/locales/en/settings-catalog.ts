@@ -161,6 +161,11 @@ export const settingsCatalog = {
     'settings.terminal.idleSuspension.afterMinutes.description':
         'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on.',
 
+    'settings.agentChat.idleCompaction.enabled.title':
+        'Compact idle Chats before the prompt cache expires',
+    'settings.agentChat.idleCompaction.enabled.description':
+        'Compacts a Claude or Grok Build Chat that holds a large context and has waited long enough that its prompt cache is about to expire, so your next message re-reads the summary instead of the whole conversation.',
+
     'settings.terminal.osc52ClipboardWrite.title':
         'Let programs in the Terminal copy to your clipboard',
     'settings.terminal.osc52ClipboardWrite.description':

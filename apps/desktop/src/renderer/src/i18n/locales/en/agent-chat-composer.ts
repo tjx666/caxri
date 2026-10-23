@@ -208,10 +208,16 @@ export const agentChatComposer = {
         'Reply within {{remaining}} to skip a full re-read{{cost}}',
     'agentChat.context.cacheExpiringDetail':
         'The Agent keeps a conversation ready for {{minutes}} minutes after each reply. A message sent within {{remaining}} picks up where it left off; after that, the next reply reads the whole conversation ({{tokens}}) again.',
+    'agentChat.context.cacheCompactingText':
+        'Auto-compacts in {{remaining}}, before the cache expires',
+    'agentChat.context.cacheCompactingDetail':
+        'The Agent keeps a conversation ready for {{minutes}} minutes after each reply. Unless you reply first, Caxri compacts this conversation ({{tokens}}) in {{remaining}}, so your next reply reads a summary instead of the whole conversation. You can turn this off in Settings.',
     'agentChat.context.pressureText': 'Context {{tokens}} / {{window}} · consider compacting',
     'agentChat.context.pressureDetail':
         'The conversation fills {{percent}}% of the window the Agent compacts at. Compacting now keeps answers sharp.',
     'agentChat.context.cacheExpiringAnnouncement': 'Reply soon to skip a full re-read',
+    'agentChat.context.cacheCompactingAnnouncement':
+        'The conversation compacts soon, before the cache expires',
     'agentChat.context.cacheExpiredAnnouncement': 'The next reply re-reads the whole conversation',
     'agentChat.context.pressureAnnouncement': 'Context nearly full, consider compacting',
     'agentChat.context.title': 'Context',
