@@ -1,3 +1,5 @@
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
+
 import type { AgentChatItem, AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
 import {
     agentChatItemTextLength,
@@ -18,6 +20,41 @@ const MAX_AGENT_CHAT_ARCHIVE_TEXT_LENGTH = 32 * 1024 * 1024;
  * Chat's own archive.
  */
 export const TASK_ARCHIVE_LIMITS = { maxItems: 5000, maxTextLength: 8 * 1024 * 1024 } as const;
+
+/**
+ * Items whose text is at least this long are kept compressed. Command and tool output fill most of an archive (a heap
+ * snapshot of a day-long Chat showed 27 MB of archived `output` strings, stored as two-byte strings once they hold any
+ * non-Latin-1 character) and is only read again when a Client pages back through history. Measured over 2,200 real
+ * Claude Code tool results, the default deflate level kept 27% of their in-heap size (level 1 kept 36%) at roughly 0.1
+ * ms per typical item and about 8 ms per MiB. Shorter items stay as objects, where compression would save little.
+ */
+const PACK_MIN_TEXT_LENGTH = 2048;
+
+/**
+ * One archived item. The budget is charged by `textLength`, the uncompressed length, so compression changes how much
+ * memory the archive costs, never how much history it keeps.
+ */
+type ArchivedItem = { id: string; textLength: number; turnId: string | undefined } & (
+    { item: AgentChatItem; packed?: never } | { item?: never; packed: Uint8Array }
+);
+
+function archiveItem(item: AgentChatItem): ArchivedItem {
+    const textLength = agentChatItemTextLength(item);
+    const base = { id: item.id, textLength, turnId: item.turnId };
+    if (textLength < PACK_MIN_TEXT_LENGTH) return { ...base, item };
+    /**
+     * The copy matters: a sync zlib result is a slice of Node's shared 64 KiB buffer pool, so keeping it would pin the
+     * whole pool chunk and cost more memory than the uncompressed item.
+     */
+    // oxlint-disable-next-line node/no-sync -- eviction runs inside the synchronous reducer; a 64 KiB item takes ~0.5 ms.
+    return { ...base, packed: new Uint8Array(deflateRawSync(JSON.stringify(item))) };
+}
+
+function unarchiveItem(entry: ArchivedItem): AgentChatItem {
+    if (entry.item) return entry.item;
+    // oxlint-disable-next-line node/no-sync -- a history page is read synchronously and holds at most 200 items.
+    return JSON.parse(inflateRawSync(entry.packed).toString('utf8')) as AgentChatItem;
+}
 
 export interface ChatHistoryArchiveLimits {
     maxItems: number;
@@ -40,10 +77,14 @@ export interface ChatHistorySlice {
  * The newest items of `items` that fit one history page, always at least one.
  */
 export function chatHistoryPageStart(items: readonly AgentChatItem[], end: number): number {
+    return pageStart(items, end, agentChatItemTextLength);
+}
+
+function pageStart<T>(items: readonly T[], end: number, textLength: (item: T) => number): number {
     let start = end;
     let text = 0;
     while (start > 0 && end - start < MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS) {
-        text += agentChatItemTextLength(items[start - 1]);
+        text += textLength(items[start - 1]);
         if (text > MAX_AGENT_CHAT_HISTORY_PAGE_TEXT_LENGTH && start < end) break;
         start -= 1;
     }
@@ -72,7 +113,7 @@ export function chatHistoryTurns(
  * conversation while the projection every Client mirrors stays small.
  */
 export class ChatHistoryArchive {
-    private items: AgentChatItem[] = [];
+    private items: ArchivedItem[] = [];
     private readonly turns = new Map<string, AgentChatTurn>();
     /**
      * How many archived items reference each turn, so a turn is kept exactly while one of its items is.
@@ -99,7 +140,7 @@ export class ChatHistoryArchive {
                 this.textLength > this.limits.maxTextLength)
         ) {
             const item = this.items[drop];
-            this.textLength -= agentChatItemTextLength(item);
+            this.textLength -= item.textLength;
             if (item.turnId !== undefined) {
                 const count = (this.turnReferences.get(item.turnId) ?? 1) - 1;
                 if (count > 0) this.turnReferences.set(item.turnId, count);
@@ -147,8 +188,9 @@ export class ChatHistoryArchive {
         if (evicted.length === 0) return [];
         const turnOf = new Map((before.turns ?? []).map((turn) => [turn.id, turn]));
         for (const item of evicted) {
-            this.items.push(item);
-            this.textLength += agentChatItemTextLength(item);
+            const entry = archiveItem(item);
+            this.items.push(entry);
+            this.textLength += entry.textLength;
             if (item.turnId === undefined) continue;
             this.turnReferences.set(item.turnId, (this.turnReferences.get(item.turnId) ?? 0) + 1);
             const turn = turnOf.get(item.turnId);
@@ -177,8 +219,8 @@ export class ChatHistoryArchive {
                 ? this.items.length
                 : this.items.findIndex((item) => item.id === beforeItemId);
         if (end === -1) return undefined;
-        const start = chatHistoryPageStart(this.items, end);
-        const items = this.items.slice(start, end);
+        const start = pageStart(this.items, end, (entry) => entry.textLength);
+        const items = this.items.slice(start, end).map(unarchiveItem);
         return {
             items,
             turns: chatHistoryTurns(items, (turnId) => this.turns.get(turnId)),
