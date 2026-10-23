@@ -16,6 +16,8 @@ describe('drive-app', () => {
             inspectorPort: undefined,
         });
         expect(parseDriveCommand(['idle'], {}).step).toBe('idle');
+        expect(parseDriveCommand(['paste-image'], {}).step).toBe('paste-image');
+        expect(parseDriveCommand(['paste-image', '2'], {}).argument).toBe('2');
     });
 
     it('waits for a starting dev instance without an argument and opens a Session by id prefix or title', () => {
@@ -31,6 +33,7 @@ describe('drive-app', () => {
         expect(() => parseDriveCommand(['send', 'two', 'words'], {})).toThrow(/Quote/u);
         expect(() => parseDriveCommand(['screenshot', 'shot.png'], {})).toThrow(/absolute/u);
         expect(() => parseDriveCommand(['idle', 'soon'], {})).toThrow(/seconds/u);
+        expect(() => parseDriveCommand(['paste-image', 'many'], {})).toThrow(/count/u);
     });
 
     it('opens a Chat only for a known Agent provider', () => {

@@ -873,6 +873,11 @@ so a bare `transition-*` utility is already on-token: never add a literal `durat
 `ease-in`/`ease-out` utility. The Terminal and Agent Chat find bars fade in (the floating
 Terminal bar also drops 4px) and close instantly; the pane split drop preview fades in once and
 then glides between zones on `--motion-chrome-switch` so the target split stays legible.
+The Agent Chat composer's attachment row follows its content's height (`useContentHeightTransition`):
+it expands on `--motion-expand` when the first image or file arrives and collapses on `--motion-collapse`
+after the last one leaves, while each attachment fades in from 92% on `--motion-overlay-enter` and, when
+removed, fades and gives back its width on `--motion-collapse`. Attachments restored with a draft appear
+without motion, and the transcript keeps its scrollbar hidden while the composer resizes it.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
 state transitions, sidebar and Panel visibility (animating their width would reflow every

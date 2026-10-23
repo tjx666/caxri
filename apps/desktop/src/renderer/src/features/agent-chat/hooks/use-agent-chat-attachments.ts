@@ -239,10 +239,6 @@ export function useAgentChatAttachments(terminalId: string) {
         attachments,
         readingCount,
         isReading: readingCount > 0,
-        /**
-         * Whether the attachment row shows: an attached image, or one still being read and resized.
-         */
-        hasAttachmentRow: attachments.length > 0 || readingCount > 0,
         add,
         addCards,
         addPaths,
