@@ -160,9 +160,14 @@ setInterval(() => {
         expect(rowBox.x + rowBox.width - (statusBox.x + statusBox.width)).toBeLessThanOrEqual(10);
         /**
          * Captured while the Agent is running so the settled assertion further down can prove an empty status track
-         * returns exactly the visible glyph's width to the title.
+         * returns the visible glyph's width plus the row gap in front of it to the title: the track hides entirely once
+         * it holds nothing (#2303), because a zero-width flex item would still cost that gap.
          */
-        const runningStatusWidth = statusBox.width;
+        const runningStatusWidth =
+            statusBox.width +
+            (await firstRow.evaluate((element) =>
+                Number(getComputedStyle(element).columnGap.replace(/px$/u, '')),
+            ));
         const runningTitleWidth = await firstRow
             .locator('.session-copy')
             .evaluate((element) => element.getBoundingClientRect().width);
