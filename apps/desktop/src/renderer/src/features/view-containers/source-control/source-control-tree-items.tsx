@@ -71,9 +71,10 @@ function Decoration({
 function handleResourceDragStart(
     event: DragEvent<HTMLButtonElement>,
     resourcePath: string | undefined,
+    isDirectory = false,
 ): void {
     if (!resourcePath) return;
-    startFilePathDrag(event.dataTransfer, resourcePath, false);
+    startFilePathDrag(event.dataTransfer, resourcePath, false, isDirectory);
 }
 
 /**
@@ -301,7 +302,7 @@ function SourceControlVirtualRow({
                     data-path={node.path}
                     {...setInfo}
                     draggable={Boolean(directoryPath)}
-                    onDragStart={(event) => handleResourceDragStart(event, directoryPath)}
+                    onDragStart={(event) => handleResourceDragStart(event, directoryPath, true)}
                     onClick={(event) =>
                         setDirectoriesExpanded(
                             event.altKey
