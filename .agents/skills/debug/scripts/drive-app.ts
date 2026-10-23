@@ -11,6 +11,8 @@
  * - `language <en|zh-CN|system>`: sets `workbench.language`, so English-label E2E helpers match.
  * - `open-chat <claude|codex|grok>`: adds the fixture's test-root Project (`Cmd+O`) and opens that Agent in Chat.
  * - `send <text>`: types into the visible Agent Chat message box and presses Enter.
+ * - `paste-image [count]`: pastes that many synthetic PNGs (default 1) into the visible Agent Chat message box, as a
+ *   screenshot paste would, without touching the system clipboard.
  * - `search <query>`: opens Session search and types the query.
  * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply.
  * - `ready [seconds]`: waits until a dev instance just started with `switch-worktree dev` answers over CDP as this
@@ -37,6 +39,7 @@ const STEPS = [
     'language',
     'open-chat',
     'send',
+    'paste-image',
     'search',
     'idle',
     'ready',
@@ -87,7 +90,7 @@ export function parseDriveCommand(
     if (rest.length > 0) {
         throw new CommandError('Quote a multi-word argument as one shell word', 2);
     }
-    const isArgumentRequired = step !== 'idle' && step !== 'ready';
+    const isArgumentRequired = step !== 'idle' && step !== 'ready' && step !== 'paste-image';
     if (isArgumentRequired && !argument) throw new CommandError(`\`${step}\` needs an argument`, 2);
     if (step === 'open-chat' && !Object.hasOwn(agentProviderCatalog, argument)) {
         throw new CommandError(
@@ -97,6 +100,9 @@ export function parseDriveCommand(
     }
     if (argument && (step === 'idle' || step === 'ready') && !(Number(argument) > 0)) {
         throw new CommandError(`\`${step}\` takes a number of seconds, not ${argument}`, 2);
+    }
+    if (argument && step === 'paste-image' && !Number.isSafeInteger(Number(argument))) {
+        throw new CommandError(`\`paste-image\` takes a count, not ${argument}`, 2);
     }
     for (const path of [screenshot, step === 'screenshot' ? argument : undefined]) {
         // The page saves relative to the launcher's directory, which may be another checkout.
@@ -155,6 +161,32 @@ async function request<T>(page: Page, method: string, parameters?: unknown): Pro
     )) as { ok: true; result: T } | { ok: false; error: { code: string; message: string } };
     if (!reply.ok) throw new Error(`${method} failed: ${reply.error.code}: ${reply.error.message}`);
     return reply.result;
+}
+
+/**
+ * Pastes gradient PNGs the way `e2e/agent-chat-input.e2e.ts` does: a `paste` event carrying files, so the system
+ * clipboard the user may be holding stays untouched. Each image gets its own hue and name so several stay apart.
+ */
+async function pasteImages(page: Page, count: number): Promise<void> {
+    const message = page.locator('.cm-content').filter({ visible: true }).last();
+    await message.evaluate(async (element, total) => {
+        const draw = async (index: number): Promise<File> => {
+            const canvas = new OffscreenCanvas(320, 200);
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('2D canvas unavailable');
+            const gradient = context.createLinearGradient(0, 0, 320, 200);
+            gradient.addColorStop(0, `hsl(${(index * 70 + 210) % 360} 80% 55%)`);
+            gradient.addColorStop(1, `hsl(${(index * 70 + 20) % 360} 90% 55%)`);
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 320, 200);
+            const blob = await canvas.convertToBlob({ type: 'image/png' });
+            return new File([blob], `pasted-${index + 1}.png`, { type: 'image/png' });
+        };
+        const files = await Promise.all(Array.from({ length: total }, (_, index) => draw(index)));
+        const clipboardData = new DataTransfer();
+        for (const file of files) clipboardData.items.add(file);
+        element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData }));
+    }, count);
 }
 
 /**
@@ -268,6 +300,8 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
             await page.keyboard.press('Enter');
             return;
         }
+        case 'paste-image':
+            return pasteImages(page, argument ? Number(argument) : 1);
         case 'search': {
             await page.keyboard.press('Meta+Shift+S');
             // Matched by role alone so the step works in either interface language.
