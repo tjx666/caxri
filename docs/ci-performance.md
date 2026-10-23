@@ -394,9 +394,10 @@ cold Android Gradle build that only started after the Linux natives finished. Th
   With the Gradle cache warm (v0.0.128), the Android build took 10 minutes against 18.8 cold, and
   the release finished 19.7 minutes after its trigger. About four of those minutes were CMake
   compiles the Gradle build cache does not cover, so the shared setup routes CMake through a per-run
-  `ccache` cache: with a warm cache, the build reached R8 in 5.1 minutes instead of 6.4. A 4 GiB
-  Gradle heap did not shorten R8 (3.6 minutes at 2 GiB, then 3.7 and 5.7 at 4 GiB), so the project
-  heap stays.
+  `ccache` cache: with a warm cache, the build reached R8 in 5.1 minutes instead of 6.4 in a
+  rehearsal, and in 4.9 minutes in the v0.0.129 release, which finished 18.6 minutes after its
+  trigger. A 4 GiB Gradle heap did not shorten R8 (3.6 minutes at 2 GiB, then 3.7 and 5.7 at
+  4 GiB), so the project heap stays.
 - `scripts/ci-platform-gates.ts` marks the gates that need macOS (`vitest`, `bundle-budget`). A
   contract test requires the Linux full-scope `checks` command to skip each of them, and
   `ci-platform-checks.ts` refuses such a selection off macOS before any gate runs.

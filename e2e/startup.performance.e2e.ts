@@ -110,6 +110,18 @@ async function measureServerOwnerResources(serverCorePid: number): Promise<{
     };
 }
 
+/**
+ * Release pools that gate a published or rehearsed package on this spec. On those hosted runners the 3 s budget has
+ * failed on runner jitter alone (3355 ms Runtime ready, then a green run on the same commit), and each failure costs a
+ * full Release rerun. This is the only spec allowed one retry, and only here: a real regression still fails both
+ * attempts, and the receipt keeps the first failure as `firstFailure` (issue #1418). PR CI and local benchmarks never
+ * retry it.
+ */
+const releaseRetryPools = new Set(['release-packaged', 'release-rehearsal']);
+test.describe.configure({
+    retries: releaseRetryPools.has(process.env.CAXRI_E2E_POOL ?? '') ? 1 : 0,
+});
+
 test('large Project opens Runtime, Terminal, files, and Git within three seconds', async () => {
     const testInfo = test.info();
     // This is a machine-load-sensitive performance assertion, not a functional

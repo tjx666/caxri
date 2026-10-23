@@ -45,6 +45,47 @@ it('leaves an interrupted test unknown so the pool census executes it independen
     }
 });
 
+it('keeps the first failed attempt when a retried test passes', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-receipt-flaky-'));
+    const path = join(directory, 'receipt.json');
+    vi.stubEnv('CAXRI_E2E_POOL', 'release-packaged');
+    vi.stubEnv('CAXRI_E2E_RECEIPT_PATH', path);
+    try {
+        const reporter = new E2EReceiptReporter();
+        const flaky = {
+            id: 'flaky',
+            expectedStatus: 'passed',
+            location: { file: resolve('e2e/startup.performance.e2e.ts'), line: 1, column: 1 },
+            titlePath: () => ['', 'startup', 'budget'],
+        } as TestCase;
+        reporter.onBegin({} as FullConfig, { allTests: () => [flaky] } as Suite);
+        reporter.onTestEnd(flaky, {
+            status: 'failed',
+            retry: 0,
+            duration: 100,
+            attachments: [],
+            errors: [{ message: 'expected 3355 to be less than 3000' }],
+        } as unknown as TestResult);
+        reporter.onTestEnd(flaky, {
+            status: 'passed',
+            retry: 1,
+            duration: 50,
+            attachments: [],
+            errors: [],
+        } as unknown as TestResult);
+        await reporter.onEnd();
+        const result = JSON.parse(await readFile(path, 'utf8')) as E2EPoolReceipt;
+        expect(result.status).toBe('passed');
+        const [test] = result.tests;
+        expect(test).toMatchObject({ durationMs: 150, errorIdentity: null, verdict: 'pass' });
+        expect(test.firstFailure?.verdict).toBe('fail');
+        expect(test.firstFailure?.errorIdentity).toMatch(/^[a-f\d]{64}$/u);
+    } finally {
+        vi.unstubAllEnvs();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
 function receipt(overrides: Partial<E2ETestReceipt> = {}): E2ETestReceipt {
     return {
         artifacts: [],
