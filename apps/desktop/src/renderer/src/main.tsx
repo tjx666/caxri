@@ -9,6 +9,8 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './app';
 import { toastActionHandlers } from './commands/toast-actions';
+import { installDwellShimmerRest } from './features/agent-chat/activity/dwell-shimmer-rest';
+import { replayAttentionRipplesOnFocus } from './features/primary-sidebar/attention-ripple-replay';
 import { installRendererPerformanceMonitoring } from './features/renderer-performance/controller';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
@@ -21,6 +23,8 @@ installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
 installRendererPerformanceMonitoring();
 installStoreInspector();
 observeWindowActive();
+installDwellShimmerRest();
+replayAttentionRipplesOnFocus();
 syncWorkbenchLocale();
 // Before the first render, because a notification raised during boot has to know what its button does the moment it is
 // shown; the store that records notifications may not reach the feature modules that answer for them.
