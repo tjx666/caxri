@@ -335,9 +335,11 @@ only way a CDP session reads UI state: walking React fibers from the DOM reaches
 stores behind them.
 
 ```bash
-env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u ALL_PROXY -u all_proxy \
-  agent-browser eval "JSON.stringify(__caxriStores.getState('workbench'), null, 2)"
+bun run .agents/skills/debug/scripts/worktree-browser.ts eval "JSON.stringify(__caxriStores.getState('workbench'), null, 2)"
 ```
+
+Add `--packaged` before `eval` to read the installed app. Do not hand-write the `env -u` proxy
+prefix for this checkout's dev instance or the installed app; the wrapper owns it.
 
 `names()` lists the stores imported so far, `getState(name)` returns one store's values, `snapshot()`
 returns all of them. Actions are omitted because a function survives neither `JSON.stringify` nor CDP's
