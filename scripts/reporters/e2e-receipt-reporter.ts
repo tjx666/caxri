@@ -16,6 +16,11 @@ export interface E2ETestReceipt {
      */
     durationMs: number;
     errorIdentity: string | null;
+    /**
+     * The first failed attempt of a test that Playwright retried, so a retry that ends green cannot erase the failure.
+     * Only `e2e/startup.performance.e2e.ts` retries, and only in the Release pools (see that spec and issue #1418).
+     */
+    firstFailure?: { errorIdentity: string | null; verdict: 'fail' | 'timeout' };
     id: string;
     location: string;
     title: string;
@@ -399,6 +404,15 @@ class E2EReceiptReporter implements Reporter {
             this.appendProgress({ test: planned, type: 'end' });
             return;
         }
+        if (
+            result.retry > 0 &&
+            !planned.firstFailure &&
+            (planned.verdict === 'fail' || planned.verdict === 'timeout')
+        )
+            planned.firstFailure = {
+                errorIdentity: planned.errorIdentity,
+                verdict: planned.verdict,
+            };
         planned.errorIdentity = error ? stableErrorIdentity(error) : null;
         planned.verdict =
             result.status === 'passed'

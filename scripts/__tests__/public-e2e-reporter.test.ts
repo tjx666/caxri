@@ -96,6 +96,35 @@ describe('public E2E reporter policy', () => {
         expect(output).not.toContain('terminalEchoMs');
     });
 
+    it('warns on the run summary when a retried test passes', () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const reporter = new PublicE2EReporter();
+        const test = {
+            location: {
+                file: join(process.cwd(), 'e2e/startup.performance.e2e.ts'),
+                line: 1,
+                column: 1,
+            },
+        } as TestCase;
+        for (const [retry, status] of [
+            [0, 'failed'],
+            [1, 'passed'],
+        ] as const)
+            reporter.onTestEnd(test, {
+                annotations: [],
+                duration: 5,
+                errors: [],
+                retry,
+                status,
+            } as unknown as TestResult);
+        const warnings = log.mock.calls
+            .flat()
+            .filter((line) => String(line).startsWith('::warning'));
+        expect(warnings).toEqual([
+            '::warning title=Flaky E2E pass::e2e/startup.performance.e2e.ts:1:1 passed on retry 1 after a failed attempt',
+        ]);
+    });
+
     it('revalidates dedicated annotations and collapses unknown error strings without exposing them', () => {
         const result = readPublicE2EDiagnostics([
             {

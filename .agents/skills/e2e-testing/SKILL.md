@@ -164,7 +164,12 @@ evidence rather than automated test or Acceptance evidence.
 - Publish repository and desktop ownership only after complete owner metadata is durable. Await
   launch finalization and lease cleanup so one worker failure cannot poison later specs.
 - Preserve the first causal failure, its content-safe Actions log, and its public receipt. Do not use
-  retries to turn an original red result green or allow a lock/lease cascade to hide it.
+  retries to turn an original red result green or allow a lock/lease cascade to hide it. The one
+  exception is `e2e/startup.performance.e2e.ts` in the `release-packaged` and `release-rehearsal`
+  pools: it may retry once because hosted-runner jitter alone has failed its 3 s budget. The receipt
+  keeps the first attempt as `firstFailure`, the run shows a `Flaky E2E pass` warning, and each such
+  pass is recorded on issue #1418. `scripts/__tests__/e2e-retry-exception.test.ts` rejects any other
+  spec or pool that configures retries.
 - Map a CI failure to the repository-relative location and closed status in that run's public log,
   plus the receipt's spec and stable error classification, before naming the failed stage. Inspect
   the assertion text only from the checked-out source or a focused local reproduction; the public

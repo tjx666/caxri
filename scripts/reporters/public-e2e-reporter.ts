@@ -121,6 +121,12 @@ class PublicE2EReporter implements Reporter {
                 ...readPublicE2EDiagnostics(result.annotations),
             })}`,
         );
+        // Playwright retries only after a failed attempt, so a passing retry is a flaky pass. Surface it on the run
+        // summary instead of leaving the earlier failed attempt visible only in the step log (issue #1418).
+        if (result.retry > 0 && result.status === 'passed')
+            console.log(
+                `::warning title=Flaky E2E pass::${repoLocation(test)} passed on retry ${result.retry} after a failed attempt`,
+            );
     }
 
     onEnd(result: FullResult): void {
