@@ -4,6 +4,7 @@ import {
     AGENT_CHAT_FOLLOW_THRESHOLD_PX,
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
+    agentChatSettledSpacerHeight,
     agentChatTurnSpacerHeight,
     isAgentChatCatchUpScroll,
     isFollowingAfterScroll,
@@ -146,6 +147,57 @@ describe('agentChatTurnSpacerHeight', () => {
     it('needs no room once the turn fills the view', () => {
         expect(agentChatTurnSpacerHeight(800, 688)).toBe(0);
         expect(agentChatTurnSpacerHeight(800, 2000)).toBe(0);
+    });
+});
+
+describe('agentChatSettledSpacerHeight', () => {
+    it('keeps the whole space when a turn ends with the view at its end', () => {
+        // Content ends at 2000 with 568px kept below it, and the view sits on the end of that space.
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                turnSpaceHeight: 568,
+                viewBottom: 2568,
+            }),
+        ).toBe(568);
+    });
+
+    it('consumes the space by as much as the view scrolled back', () => {
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                turnSpaceHeight: 568,
+                viewBottom: 2368,
+            }),
+        ).toBe(368);
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                turnSpaceHeight: 568,
+                viewBottom: 1500,
+            }),
+        ).toBe(0);
+    });
+
+    it('keeps no space in a Chat opened at its end', () => {
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                turnSpaceHeight: 568,
+                viewBottom: 2000,
+            }),
+        ).toBe(0);
+    });
+
+    it('grows the space as a finished turn folds, so the view stays where it was', () => {
+        // The turn folded 200px of work rows: the content now ends at 1800 and the turn needs 768px to rest at the top.
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 1800,
+                turnSpaceHeight: 768,
+                viewBottom: 2568,
+            }),
+        ).toBe(768);
     });
 });
 

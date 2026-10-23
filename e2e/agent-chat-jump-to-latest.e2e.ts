@@ -25,7 +25,7 @@ function topInView(entry: Locator): Promise<number> {
 }
 
 /**
- * The height of the empty space kept below the latest turn while it is live.
+ * The height of the empty space kept below the latest turn.
  */
 function turnSpaceHeight(transcript: Locator): Promise<number> {
     return transcript.evaluate(
@@ -36,7 +36,7 @@ function turnSpaceHeight(transcript: Locator): Promise<number> {
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('Jump to latest shows only while the latest turn is out of view, and the space below a turn lasts only while it is live', async ({}, testInfo) => {
+test('Jump to latest shows only while the latest turn is out of view, and a finished turn keeps its space until scrolled away', async ({}, testInfo) => {
     const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-jump-'));
     const directory = await realpath(created);
     const userData = join(directory, 'user-data');
@@ -95,20 +95,29 @@ test('Jump to latest shows only while the latest turn is out of view, and the sp
         await jump.click();
         await expect(jump).toHaveCount(0);
 
-        // Once the turn ends the space goes, so the finished turn rests on the view's bottom instead of a blank view.
+        // Like the Codex app, a turn ending does not move the view: the finished turn keeps its place and its space.
         await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0, {
             timeout: 30_000,
         });
-        await expect.poll(() => turnSpaceHeight(transcript)).toBe(0);
-        await expect
-            .poll(() =>
-                transcript.evaluate(
-                    (element) => element.scrollHeight - element.scrollTop - element.clientHeight,
-                ),
-            )
-            .toBeLessThan(2);
-        await expect.poll(() => topInView(sent)).toBeGreaterThan(200);
-        await page.screenshot({ path: testInfo.outputPath('finished-turn-rests-on-bottom.png') });
+        await page.waitForTimeout(400);
+        await expect.poll(() => topInView(sent)).toBeGreaterThan(100);
+        await expect.poll(() => topInView(sent)).toBeLessThan(200);
+        const keptSpace = await turnSpaceHeight(transcript);
+        expect(keptSpace).toBeGreaterThan(120);
+        await page.screenshot({ path: testInfo.outputPath('finished-turn-keeps-its-place.png') });
+
+        // Scrolling back through history consumes the space by as much as the view moved, and it never grows back.
+        await transcript.evaluate((element) => {
+            element.scrollTop -= 100;
+        });
+        await expect.poll(() => turnSpaceHeight(transcript)).toBeLessThanOrEqual(keptSpace - 99);
+        const consumedSpace = await turnSpaceHeight(transcript);
+        await transcript.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+        });
+        await page.waitForTimeout(200);
+        expect(await turnSpaceHeight(transcript)).toBeLessThanOrEqual(consumedSpace + 1);
+        await page.screenshot({ path: testInfo.outputPath('finished-turn-space-consumed.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

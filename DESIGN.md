@@ -1363,9 +1363,10 @@ tooltip. While the reader follows the end, the transcript stays pinned when a do
 shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 112px below the
 top of the view at the end, leaving the last lines of the previous reply in view as context: the transcript keeps empty space below the latest turn, so a sent
 message rises to the top and its reply fills in below it; once the turn outgrows the view the space
-is gone and following the end takes over. The space lasts only while the turn is live, as in the
-Codex app: once the turn ends, and in a Chat opened idle, the content rests on the view's bottom
-rather than leaving a blank view to scroll through.
+is gone and following the end takes over. As in the Codex app, a turn ending never moves the view:
+the finished turn keeps its place and the space below it, and scrolling back through history
+consumes the space by as much as the view moved, without it ever growing back. A Chat opened idle
+rests on the view's bottom rather than leaving a blank view to scroll through.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the Codex app's
