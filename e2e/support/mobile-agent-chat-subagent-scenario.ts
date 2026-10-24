@@ -4,7 +4,7 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { typeChatDraft, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
-import { centerOf, waitForStop } from './mobile-agent-chat-tasks-scenario';
+import { centerOf, isConfirmation, waitForStop } from './mobile-agent-chat-tasks-scenario';
 import {
     adbShell,
     mobileDisplayState,
@@ -20,8 +20,8 @@ const subagent = (snapshot: AgentChatSnapshot): AgentChatTask | undefined =>
 /**
  * `MOB-CHAT-26`: a background subagent the Agent started from a phone message. Its timeline row says what it is doing
  * (`Using Grep`) and keeps its own status after the tool call that started it returned; the row opens the subagent with
- * its type, model, usage, transcript, and Stop. The fake Claude Code reports the same `task_started` and
- * `task_progress` frames as the real CLI.
+ * its type, model, usage, transcript, and Stop behind a confirmation. The fake Claude Code reports the same
+ * `task_started` and `task_progress` frames as the real CLI.
  *
  * While the subagent runs, its sheet counts the elapsed time up every second, so UIAutomator never finds the idle
  * window it needs; Stop is found by its color, as in `MOB-CHAT-16`, and semantics are read once the subagent ended.
@@ -87,10 +87,19 @@ export async function executeMobileChatSubagentScenario(
             right: screen.width,
             top: Math.floor(screen.height * 0.2),
         };
-        const stop = centerOf(await waitForStop(serial, sheetRegion));
+        const stopBounds = await waitForStop(serial, sheetRegion);
+        const stop = centerOf(stopBounds);
         await capture(environment, 'subagent-detail-running', artifacts);
 
         await adbShell(serial, ['input', 'tap', String(stop.x), String(stop.y)]);
+        // Stop asks first; its confirmation button is the only other thing drawn in the danger color.
+        const confirm = centerOf(
+            await waitForStop(serial, sheetRegion, (candidate) =>
+                isConfirmation(candidate, stopBounds),
+            ),
+        );
+        await capture(environment, 'subagent-stop-confirmation', artifacts);
+        await adbShell(serial, ['input', 'tap', String(confirm.x), String(confirm.y)]);
         await waitForMobile(
             () => chat.read(),
             (snapshot) =>
