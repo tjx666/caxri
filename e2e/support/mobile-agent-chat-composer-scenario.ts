@@ -74,6 +74,8 @@ export async function executeMobileChatComposerScenario(
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-status-empty');
         await waitForCheck(serial, 'agent-chat-permission-button');
+        // The Full access trigger reads in the ordinary text color, as Desktop's; only the sheet's option warns.
+        await capture(environment, 'permission-trigger-full-access', artifacts);
 
         // Permissions (#1773): the sheet, the fixture's Full access in the warning tone, and Plan mode on the trigger.
         await tapMobileCheckByBounds(serial, 'agent-chat-permission-button');
