@@ -124,6 +124,44 @@ test('returning to a Chat counts the turns that finished while away', async ({},
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('scrolling up from the return hint settles instead of shaking', async ({}) => {
+    const { directory, running } = await launchWithChat();
+    try {
+        const { page } = running;
+        await returnAfterTwoTurns(page);
+        const hint = page.getByRole('status').filter({ hasText: 'new replies' });
+        await expect(hint).toContainText('2 new replies');
+        const transcript = page.locator(VISIBLE_SESSION).getByRole('log');
+        /**
+         * Scrolls the transcript up by `delta` and counts how often the view resized over the next second. The
+         * observer's first callback reports the initial size, so a view that holds still reports 1.
+         */
+        const scrollUp = (delta: number) =>
+            transcript.evaluate(async (view, by) => {
+                let count = 0;
+                const observer = new ResizeObserver(() => {
+                    count += 1;
+                });
+                observer.observe(view);
+                view.scrollTop -= by;
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                observer.disconnect();
+                return count;
+            }, delta);
+        // A scroll just past the follow threshold but inside the band the hint reserves used to hide the hint, give
+        // the view its band back, bring the latest entry into view, and show the hint again, so the view shook.
+        expect(await scrollUp(32)).toBe(1);
+        await expect(hint).toBeVisible();
+        // Scrolling on past the latest entry hides the hint once and lets the view keep its full height.
+        expect(await scrollUp(300)).toBe(2);
+        await expect(hint).toBeHidden();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('sending a message retires the return hint', async ({}) => {
     const { directory, running } = await launchWithChat();
     try {
