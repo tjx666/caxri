@@ -28,6 +28,15 @@ const CACHE_NOTICE_MIN_USD = 0.25;
 const CACHE_NOTICE_MIN_TOKENS = 40_000;
 
 /**
+ * The share of the context limit a cache notice needs. A conversation filling a small part of the window re-reads about
+ * as much as any ordinary turn does once a conversation grows, so a notice about it is noise. On a 1M window this lands
+ * near idle compaction's floor (`AGENT_CHAT_IDLE_COMPACTION_MIN_TOKENS`): a larger Chat is compacted before its cache
+ * expires and a smaller one is not worth interrupting about. On a 200k window it stays below the cost floor above, so
+ * nothing changes there.
+ */
+const CACHE_NOTICE_MIN_SHARE = 0.2;
+
+/**
  * How long before the prompt cache expires the composer starts counting down, so the user can still reply (or compact)
  * while the context is cached instead of learning about the expiry after it already cost a full re-read. A short cache
  * (Claude's 5m default) warns for its second half only, or the notice would appear the moment a reply lands.
@@ -210,11 +219,26 @@ function roundedUpDuration(ms: number): string {
 /**
  * Whether an expiring or expired prompt cache is worth a notice: the estimated rewrite costs at least
  * {@link CACHE_NOTICE_MIN_USD}, or, for a model with no price, the context holds at least {@link CACHE_NOTICE_MIN_TOKENS}
- * tokens. A small conversation re-reads for cents, and a permanent notice about it is noise.
+ * tokens; and, when the window is known, the context fills at least {@link CACHE_NOTICE_MIN_SHARE} of its limit. A small
+ * conversation re-reads for cents, and a permanent notice about it is noise.
  */
 export function isAgentChatCacheRewriteNoticeable(
-    usage: Pick<AgentChatUsage, 'cacheRewriteUsd' | 'totalTokens'>,
+    usage: Pick<
+        AgentChatUsage,
+        | 'autoCompactThreshold'
+        | 'cacheRewriteUsd'
+        | 'compactWindow'
+        | 'contextWindow'
+        | 'totalTokens'
+    >,
 ): boolean {
+    const window = usage.compactWindow ?? usage.contextWindow;
+    if (
+        window &&
+        usage.totalTokens / agentChatContextLimit(window, usage.autoCompactThreshold) <
+            CACHE_NOTICE_MIN_SHARE
+    )
+        return false;
     return usage.cacheRewriteUsd === undefined
         ? usage.totalTokens >= CACHE_NOTICE_MIN_TOKENS
         : usage.cacheRewriteUsd >= CACHE_NOTICE_MIN_USD;
