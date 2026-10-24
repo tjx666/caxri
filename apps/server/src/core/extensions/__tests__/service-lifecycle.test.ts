@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     observationIdentity,
     resetSupervisorHarness,
+    sessionContextOf,
     supervisorHarness,
 } from './service-harness.fixture';
 
@@ -30,12 +31,14 @@ describe('ExtensionService generation lifecycle', () => {
             extensionRoots: ['/extensions'],
             includeTestOnly: true,
             logger,
-            activeContext: () =>
-                Promise.resolve({
+            sessionContext: sessionContextOf(
+                () => ({
                     ownerProjectId: 'project-1',
                     sessionId: 'session-1',
                     workbenchProjectId: 'project-1',
                 }),
+                ['project-1'],
+            ),
             projectIds: () => Promise.resolve(['project-1']),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -95,12 +98,14 @@ describe('ExtensionService generation lifecycle', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () =>
-                Promise.resolve({
+            sessionContext: sessionContextOf(
+                () => ({
                     ownerProjectId: 'project-2',
                     sessionId: 'session-2',
                     workbenchProjectId: 'project-2',
                 }),
+                ['project-2'],
+            ),
             projectIds: () => Promise.resolve(['project-2']),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -145,7 +150,7 @@ describe('ExtensionService generation lifecycle', () => {
                     'server-core',
                     'error',
                 ),
-                activeContext: () => Promise.resolve(active),
+                sessionContext: sessionContextOf(() => active, ['project-1', 'project-2']),
                 projectIds: () => Promise.resolve(['project-1', 'project-2']),
                 projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
                 workspaceRequest: () => Promise.resolve(null),
@@ -199,12 +204,14 @@ describe('ExtensionService generation lifecycle', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () =>
-                Promise.resolve({
+            sessionContext: sessionContextOf(
+                () => ({
                     ownerProjectId: 'project-1',
                     sessionId: 'session-1',
                     workbenchProjectId: 'project-1',
                 }),
+                ['project-1'],
+            ),
             projectIds: () => Promise.resolve(['project-1']),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -315,7 +322,7 @@ describe('ExtensionService generation lifecycle', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve({}),
+            sessionContext: sessionContextOf(() => ({}), []),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -361,7 +368,7 @@ describe('ExtensionService generation lifecycle', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve({}),
+            sessionContext: sessionContextOf(() => ({}), []),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -423,7 +430,7 @@ describe('ExtensionService generation lifecycle', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve({}),
+            sessionContext: sessionContextOf(() => ({}), []),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),

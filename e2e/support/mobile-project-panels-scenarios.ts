@@ -125,13 +125,18 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
             mkdir(removedFolder, { recursive: true }),
         ]);
         await fixture.pair();
-        if (!fixture.allowedSessionId) throw new Error('Panels Session is unavailable');
+        if (!fixture.allowedSessionId || !fixture.deniedSessionId)
+            throw new Error('Panels Sessions are unavailable');
+        /**
+         * Desktop focuses another Session on purpose: the phone's panels, including the Extension Host Status tree,
+         * must serve the Session the phone opened rather than the one Desktop is showing.
+         */
         await pageRequest(fixture.running.page, 'session.select', {
-            sessionId: fixture.allowedSessionId,
+            sessionId: fixture.deniedSessionId,
         });
         await waitForMobile(
             () => pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap'),
-            (state) => state.selectedSessionId === fixture.allowedSessionId,
+            (state) => state.selectedSessionId === fixture.deniedSessionId,
         );
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
         await waitForMobile(
@@ -172,12 +177,22 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         await capture(environment, 'files-error', artifacts);
         await tapMobileCheck(environment.serial, 'files-up');
         await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.project-status');
-        await waitForMobile(
+        const statusNodes = await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>
                 hasCheck(nodes, 'tree-panel-caxri.project-status.overview') &&
-                (hasCheck(nodes, 'tree-row') || hasCheck(nodes, 'tree-panel-empty')),
+                (hasCheck(nodes, 'tree-row') ||
+                    hasCheck(nodes, 'tree-panel-empty') ||
+                    hasCheck(nodes, 'tree-panel-error')),
         );
+        if (hasCheck(statusNodes, 'tree-panel-error'))
+            throw new Error('Status failed to load for a Session Desktop is not focused on');
+        const statusDesktopState = await pageRequest<BootstrapState>(
+            fixture.running.page,
+            'app.bootstrap',
+        );
+        if (statusDesktopState.selectedSessionId === fixture.allowedSessionId)
+            throw new Error('Desktop must stay focused on another Session while Status loads');
         await capture(environment, 'status', artifacts);
         await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.fixture');
         await waitForMobile(
@@ -196,6 +211,9 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
             panels: ['Files', 'Status', 'Fixture tree'],
             filesStates: ['empty', 'error'],
             git: 'Changes segment',
+            desktopFocusedOtherSession:
+                statusDesktopState.selectedSessionId !== fixture.allowedSessionId,
+            statusState: hasCheck(statusNodes, 'tree-row') ? 'rows' : 'empty',
             status: 'passed',
         });
     } finally {

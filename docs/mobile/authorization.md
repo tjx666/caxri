@@ -47,9 +47,9 @@ pre-authentication exchange outside the dispatcher and method set, so it authori
 The read-only panel methods (`mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`,
 `mobile.files.read`, and `mobile.files.search`) are granted starting at `view`, since they only project state a device with
 access to the Session can already see on the dashboard. Each request re-validates the Session
-against the principal's granted Project IDs; `mobile.tree.children` additionally requires the
-Session to match Desktop's own `app.activeContext`, because the underlying Extension Host tree is
-scoped to whichever Session Desktop currently has focused, not to the requesting device. None of the
+against the principal's granted Project IDs; `mobile.tree.children` reads the extension tree in that
+Session's own scope, so it works whether or not Desktop has the Session focused
+([ADR 0019](../adr/0019-extension-view-request-scope.md)). None of the
 reads can execute a command or otherwise mutate state. The dispatcher capabilities per role
 (`apps/server/src/core/mobile/gateway/role-capabilities.ts`) must cover every allowed method's
 required capabilities; a unit test enforces that invariant.

@@ -15,7 +15,10 @@ describe('ProjectStatusProvider', () => {
         const getProjectStatus = vi.fn<
             (options?: ProjectStatusRequestOptions) => Promise<ProjectStatusSummary>
         >(() => summary.promise);
-        const provider = new ProjectStatusProvider({ getProjectStatus });
+        const provider = new ProjectStatusProvider({
+            getCurrentContext: () => ({ scopeId: 'session-a:project-1' }),
+            getProjectStatus,
+        });
         const changed = vi.fn();
         const subscription = provider.onDidChangeTreeData(changed);
         const cancellation = new CancellationTokenSource();
@@ -37,6 +40,37 @@ describe('ProjectStatusProvider', () => {
         provider.projectStatusChanged();
         expect(changed).toHaveBeenCalledTimes(2);
 
+        subscription.dispose();
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('keeps a forced refresh from suppressing another scope', async () => {
+        let scopeId = 'session-a:project-1';
+        const summary = Promise.withResolvers<ProjectStatusSummary>();
+        const getProjectStatus = vi.fn<
+            (options?: ProjectStatusRequestOptions) => Promise<ProjectStatusSummary>
+        >(() => summary.promise);
+        const provider = new ProjectStatusProvider({
+            getCurrentContext: () => ({ scopeId }),
+            getProjectStatus,
+        });
+        const changed = vi.fn();
+        const subscription = provider.onDidChangeTreeData(changed);
+        const cancellation = new CancellationTokenSource();
+
+        provider.refresh(true);
+        const pending = provider.getChildren(undefined, cancellation.token);
+        expect(typeof getProjectStatus.mock.calls[0]?.[0]?.refreshToken).toBe('string');
+
+        scopeId = 'session-b:project-1';
+        provider.projectStatusChanged();
+        expect(changed).toHaveBeenCalledTimes(2);
+        void provider.getChildren(undefined, cancellation.token);
+        expect(getProjectStatus.mock.calls[1]?.[0]).toBeUndefined();
+
+        summary.resolve(emptySummary);
+        await pending;
         subscription.dispose();
         cancellation.dispose();
         provider.dispose();

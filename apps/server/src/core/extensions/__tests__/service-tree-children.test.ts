@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     observationIdentity,
     resetSupervisorHarness,
+    sessionContextOf,
     supervisorHarness,
 } from './service-harness.fixture';
 
@@ -29,7 +30,7 @@ describe('ExtensionService tree children', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve({}),
+            sessionContext: sessionContextOf(() => ({}), []),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -69,7 +70,7 @@ describe('ExtensionService tree children', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve({}),
+            sessionContext: sessionContextOf(() => ({}), []),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -108,7 +109,7 @@ describe('ExtensionService tree children', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve({}),
+            sessionContext: sessionContextOf(() => ({}), []),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),
@@ -131,7 +132,7 @@ describe('ExtensionService tree children', () => {
         ).rejects.toMatchObject({ code: 'CANCELLED' });
     });
 
-    it('cancels a tree read when the active Session changes while the request is in flight', async () => {
+    it('cancels a tree read when its Session stops resolving while the request is in flight', async () => {
         let active: { ownerProjectId?: string; sessionId?: string; workbenchProjectId?: string } = {
             ownerProjectId: 'project-1',
             sessionId: 'session-1',
@@ -149,7 +150,7 @@ describe('ExtensionService tree children', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve(active),
+            sessionContext: sessionContextOf(() => active, ['project-1', 'project-2']),
             projectIds: () => Promise.resolve(['project-1', 'project-2']),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
             workspaceRequest: () => Promise.resolve(null),

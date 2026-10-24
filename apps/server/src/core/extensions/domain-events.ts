@@ -20,7 +20,7 @@ const ACTIVE_CONTEXT_REASONS: ReadonlySet<FullStateChangeReason> = new Set([
     'session.workbenchRoot',
 ]);
 
-export async function readActiveExtensionContext(
+async function readActiveExtensionContext(
     domainService: DomainContextReader,
 ): Promise<ExtensionViewEventContext> {
     return toExtensionViewEventContext(await domainService.request('app.activeContext'));
@@ -38,10 +38,19 @@ export async function routeActiveContextChange(
     await extensionService.activeContextChanged(await readActiveExtensionContext(domainService));
 }
 
+async function readSessionExtensionContext(
+    domainService: DomainContextReader,
+    sessionId: string,
+): Promise<ExtensionViewEventContext> {
+    return toExtensionViewEventContext(
+        await domainService.request('app.sessionContext', { sessionId }),
+    );
+}
+
 /**
- * Routes domain invalidations into the Extension Host with the exact scope that produced them. Server Core does not
- * synthesize an active-root scope for an unrelated Git or Status event, which would make a hidden view refresh the
- * wrong Session after a context switch.
+ * Routes domain invalidations into the Extension Host with the exact scope that produced them: every Session a Git or
+ * Status change names, not only the focused window's, because a second window or a phone may be showing any of them.
+ * Server Core does not synthesize a scope for an unrelated event, and a Session that is gone or hidden is skipped.
  */
 export async function routeExtensionDomainEvent(
     extensionService: ExtensionService | undefined,
@@ -62,12 +71,17 @@ export async function routeExtensionDomainEvent(
         );
         return;
     }
-    const context = await readActiveExtensionContext(domainService);
     if (event.event === 'projectStatus.changed') {
-        if (context.kind !== 'session' || context.sessionId !== event.payload.sessionId) return;
-        await extensionService.projectStatusChanged(context);
+        const context = await readSessionExtensionContext(domainService, event.payload.sessionId);
+        if (context.kind === 'session') await extensionService.projectStatusChanged(context);
         return;
     }
-    if (context.kind !== 'session' || !event.payload.sessionIds.includes(context.sessionId)) return;
-    await extensionService.gitChanged(context);
+    // Each named Session refreshes its own view scope independently, so the scopes are notified concurrently.
+    const sessionIds = [...new Set(event.payload.sessionIds)];
+    await Promise.all(
+        sessionIds.map(async (sessionId) => {
+            const context = await readSessionExtensionContext(domainService, sessionId);
+            if (context.kind === 'session') await extensionService.gitChanged(context);
+        }),
+    );
 }

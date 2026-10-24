@@ -24,7 +24,6 @@ export const panels = {
     'panels.saveFailed': 'Unable to save this file. Try again.',
     'panels.saveFile': 'Save file',
     'panels.treeEmpty': 'Nothing to show.',
-    'panels.treeOtherSession': 'Open this Session on your computer to view its details here.',
     'panels.upOneFolder': 'Up one folder',
     'panels.viewOnComputerOnly': '{{title}} is only available on your computer.',
     'panels.viewUnavailable': 'This view is not available on your phone. Choose another tab.',

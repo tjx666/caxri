@@ -539,6 +539,21 @@ export const internalMethods = {
             workbenchProjectId: identifierSchema.optional(),
         }),
     },
+    /**
+     * The same slice as `app.activeContext` for one named Session. Extension views are scoped to the Session the caller
+     * is viewing, not to the focused window, so each view request and nested Extension API call resolves its own
+     * Session's identities here. An unknown or hidden Session returns only `projectIds`.
+     */
+    'app.sessionContext': {
+        ...serverRead,
+        params: z.object({ sessionId: identifierSchema }),
+        result: z.object({
+            ownerProjectId: identifierSchema.optional(),
+            projectIds: z.array(identifierSchema),
+            sessionId: identifierSchema.optional(),
+            workbenchProjectId: identifierSchema.optional(),
+        }),
+    },
     ...windowStateInternalMethods,
     ...bugReportInternalMethods,
     'config.paths': {

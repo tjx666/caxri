@@ -100,6 +100,7 @@ vi.mock('../supervisor', () => ({
 }));
 
 import { ExtensionService } from '../service';
+import { sessionContextOf } from './service-harness.fixture';
 
 const observationIdentity = {
     bootId: 'b'.repeat(32),
@@ -117,7 +118,7 @@ function service(): ExtensionService {
         extensionRoots: ['/extensions'],
         includeTestOnly: true,
         logger: new StructuredLogger('/tmp/caxri-extension-retry-test', 'server-core', 'error'),
-        activeContext: () => Promise.resolve({}),
+        sessionContext: sessionContextOf(() => ({}), []),
         projectIds: () => Promise.resolve([]),
         projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
         workspaceRequest: () => Promise.resolve(null),

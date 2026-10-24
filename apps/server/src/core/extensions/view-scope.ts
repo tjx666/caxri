@@ -19,15 +19,19 @@ export function extensionForView(
     return extension;
 }
 
-export function assertActiveViewContext(
+/**
+ * Confirms a view request's scope still names a live Session bound to the same Workbench Root. `resolved` is that
+ * Session's own context (`app.sessionContext`), not the focused window's: a phone or a second window may view any
+ * Session, so only deletion, hiding, or a Workbench Root change retires the scope.
+ */
+export function assertViewContextCurrent(
     expected: ExtensionViewEventContext,
-    active: { sessionId?: string; workbenchProjectId?: string },
+    resolved: { sessionId?: string; workbenchProjectId?: string },
 ): void {
-    if (expected.kind === 'no-session' && !active.sessionId && !active.workbenchProjectId) return;
+    if (expected.kind === 'no-session') return;
     if (
-        expected.kind !== 'session' ||
-        expected.sessionId !== active.sessionId ||
-        expected.workbenchProjectId !== active.workbenchProjectId
+        expected.sessionId !== resolved.sessionId ||
+        expected.workbenchProjectId !== resolved.workbenchProjectId
     )
-        throw new CaxriError('CANCELLED', 'Controlled view scope is no longer active');
+        throw new CaxriError('CANCELLED', 'Controlled view scope is no longer current');
 }

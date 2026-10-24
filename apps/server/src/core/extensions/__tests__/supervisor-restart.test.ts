@@ -137,7 +137,7 @@ describe('ExtensionHostSupervisor restart', () => {
             generation: 1,
             apiToken: 'fixture-token-1',
             method: 'workspace.getProjectStatus',
-            params: {},
+            params: { context: { kind: 'no-session' } },
         });
         await vi.waitFor(() => expect(signals).toHaveLength(1));
 

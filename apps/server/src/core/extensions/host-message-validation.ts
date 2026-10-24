@@ -78,6 +78,7 @@ export function isExtensionHostMessage(value: unknown): value is ExtensionHostMe
                 observationContextSchema.safeParse(value.observation).success) &&
             isRecord(value.params) &&
             ((value.method === 'workspace.getProjectStatus' &&
+                extensionViewEventContextSchema.safeParse(value.params.context).success &&
                 (value.params.refreshToken === undefined ||
                     isBoundedString(
                         value.params.refreshToken,

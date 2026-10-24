@@ -7,6 +7,7 @@ status: accepted
 
 - Date: 2026-10-21
 - Amends: [ADR 0005](./0005-multi-client-state-ownership.md)
+- Amended by: [ADR 0019](./0019-extension-view-request-scope.md) (extension views and mobile panels use their request's Session, not Current)
 
 [ADR 0005](./0005-multi-client-state-ownership.md) gave a Server one "selected Session" and treated a
 Connection's focus as transient. That cannot describe a Desktop with a Session tab strip, or later two

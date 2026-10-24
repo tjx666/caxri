@@ -5,6 +5,7 @@ import { ExtensionHostStartGate } from '../host-start-gate';
 import {
     observationIdentity,
     resetSupervisorHarness,
+    sessionContextOf,
     supervisorHarness,
     supervisorModule,
 } from './service-harness.fixture';
@@ -30,12 +31,14 @@ function createService(): ExtensionService {
         extensionRoots: ['/extensions'],
         includeTestOnly: true,
         logger: new StructuredLogger('/tmp/caxri-extension-deferred-test', 'server-core', 'error'),
-        activeContext: () =>
-            Promise.resolve({
+        sessionContext: sessionContextOf(
+            () => ({
                 ownerProjectId: 'project-1',
                 sessionId: 'session-1',
                 workbenchProjectId: 'project-1',
             }),
+            ['project-1'],
+        ),
         projectIds: () => Promise.resolve(['project-1']),
         projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
         workspaceRequest: () => Promise.resolve(null),

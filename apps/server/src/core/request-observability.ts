@@ -8,6 +8,7 @@ import { isCallerHandledFailure } from '@caxri/protocol';
 const POLLED_READ_METHODS = [
     'app.activeContext',
     'app.records',
+    'app.sessionContext',
     'session.refreshDeliveryOnFocus',
     'terminal.agentThroughput',
     'terminal.agentUsage',

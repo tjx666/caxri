@@ -27,7 +27,6 @@ export const panels: TranslatedNamespace<typeof source> = {
     'panels.saveFailed': '无法保存此文件，请重试。',
     'panels.saveFile': '保存文件',
     'panels.treeEmpty': '没有可显示的内容。',
-    'panels.treeOtherSession': '在电脑上打开此会话以在这里查看其详情。',
     'panels.upOneFolder': '返回上一级文件夹',
     'panels.viewOnComputerOnly': '{{title}} 仅能在电脑上查看。',
     'panels.viewUnavailable': '此视图在手机上不可用。请选择其他标签页。',

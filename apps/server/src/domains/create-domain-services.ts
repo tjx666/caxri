@@ -430,6 +430,7 @@ export async function createDomainServices(
         ...agentCommands.handlers,
         'app.bootstrap': ({ windowKey }) => snapshots.bootstrap(windowKey),
         'app.activeContext': () => readActiveContext(database, () => presence.currentSessionId()),
+        'app.sessionContext': ({ sessionId }) => readActiveContext(database, () => sessionId),
         'app.records': ({ sessionIds, terminalIds }) => snapshots.records(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
