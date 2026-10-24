@@ -4,7 +4,8 @@ import {
     isExtensionViewReadOperation,
 } from '@caxri/protocol';
 
-import type { ControlSocketTerminationReason, OrderedQueueTiming } from './control-server-support';
+import type { OrderedQueueTiming } from './control-request-timing';
+import type { ControlSocketTerminationReason } from './control-server-support';
 
 const SELF_SERIALIZED_OPERATIONS = new Set([
     'agentChat.saveLongPaste',
@@ -159,6 +160,77 @@ export class LaneRegistry {
 }
 
 /**
+ * A request that held a lane from `startedAt` to `endedAt` (monotonic milliseconds). Only requests that actually occupy
+ * a lane are recorded: a read leaves the ordered lane right after admission, so it never appears here and cannot be
+ * blamed for a wait it did not cause.
+ */
+export interface LaneHold {
+    endedAt: number;
+    lane: 'background' | 'ordered' | 'repository';
+    method: string;
+    requestId: string;
+    startedAt: number;
+}
+
+/**
+ * The earlier request that held a lane for the longest part of a later request's queue wait.
+ */
+export interface LaneBlocker {
+    method: string;
+    /**
+     * Milliseconds of the wait this request overlapped, not its total duration.
+     */
+    overlapMs: number;
+    requestId: string;
+}
+
+/**
+ * Lanes whose holders delay a request that settles in `lane`. Every request is admitted through the ordered lane first,
+ * so an ordered holder delays all of them; a repository or background request additionally waits behind its own chain.
+ */
+const BLOCKING_LANES: Record<ControlLane, ReadonlySet<LaneHold['lane']>> = {
+    'background': new Set(['ordered', 'background']),
+    'ordered': new Set(['ordered']),
+    'read': new Set(['ordered']),
+    'repository': new Set(['ordered', 'repository']),
+    'self-serialized': new Set(['ordered']),
+};
+
+/**
+ * Names the lane holder that overlapped the wait the longest: ordered holders within `[enqueuedAt, admittedAt]` and
+ * holders of the request's own repository or background lane within `[admittedAt, startedAt]`, or `undefined` when
+ * nothing recorded overlaps it (the wait came from event-loop delay or from a holder older than the ledger). Ties go to
+ * the later holder, which is the one the request was directly queued behind.
+ */
+export function attributeLaneBlocker(
+    holds: readonly LaneHold[],
+    wait: { admittedAt: number; enqueuedAt: number; lane: ControlLane; startedAt: number },
+): LaneBlocker | undefined {
+    const blocking = BLOCKING_LANES[wait.lane];
+    let best: LaneBlocker | undefined;
+    for (const hold of holds) {
+        if (!blocking.has(hold.lane)) continue;
+        // An ordered holder only delays the request until its ordered admission; after that the request waits in its
+        // own lane's chain, so an ordered request that arrived later cannot have delayed it.
+        const [from, to] =
+            hold.lane === 'ordered'
+                ? [wait.enqueuedAt, wait.admittedAt]
+                : [wait.admittedAt, wait.startedAt];
+        const overlapMs = Math.min(hold.endedAt, to) - Math.max(hold.startedAt, from);
+        if (overlapMs <= 0 || (best && overlapMs < best.overlapMs)) continue;
+        best = { method: hold.method, overlapMs, requestId: hold.requestId };
+    }
+    return best;
+}
+
+/**
+ * Waits shorter than this are ordinary scheduling jitter and are not attributed, so the common path does no extra work.
+ */
+const LANE_BLOCKER_MIN_WAIT_MS = 100;
+const LANE_HOLD_CAPACITY = 64;
+const LANE_HOLD_RETENTION_MS = 60_000;
+
+/**
  * One control connection's request lanes. The ordered lane preserves handshake, control, and mutation order across
  * repeated invocations of the socket's synchronous 'data' handler, so Promise chaining stands in for `await`, which
  * cannot span callbacks. After ordered admission a read settles independently, a repository mutation moves on to the
@@ -169,11 +241,60 @@ export class ControlConnectionLanes {
     private repo = Promise.resolve();
     private background = Promise.resolve();
     private orderedBacklog = 0;
+    private holds: LaneHold[] = [];
 
     constructor(
         private readonly fail: (reason: ControlSocketTerminationReason) => void,
         private readonly registry: LaneRegistry,
     ) {}
+
+    /**
+     * Adds the blocking request to `timing` once the wait crossed {@link LANE_BLOCKER_MIN_WAIT_MS}.
+     */
+    private annotate(
+        request: { id: string; method: string },
+        timing: OrderedQueueTiming,
+        lane: ControlLane,
+        admittedAt: number,
+    ): OrderedQueueTiming {
+        const startedAt = performance.now();
+        if (startedAt - timing.enqueuedAt < LANE_BLOCKER_MIN_WAIT_MS) return timing;
+        const blockedBy = attributeLaneBlocker(this.holds, {
+            admittedAt,
+            enqueuedAt: timing.enqueuedAt,
+            lane,
+            startedAt,
+        });
+        return blockedBy && blockedBy.requestId !== request.id ? { ...timing, blockedBy } : timing;
+    }
+
+    /**
+     * Runs `work` and records the span it occupied `lane`, newest last, bounded in count and age.
+     */
+    private async hold(
+        request: { id: string; method: string },
+        lane: LaneHold['lane'],
+        work: () => Promise<void>,
+    ): Promise<void> {
+        const startedAt = performance.now();
+        try {
+            await work();
+        } finally {
+            const endedAt = performance.now();
+            this.holds.push({
+                endedAt,
+                lane,
+                method: request.method,
+                requestId: request.id,
+                startedAt,
+            });
+            if (this.holds.length > LANE_HOLD_CAPACITY)
+                this.holds = this.holds.slice(-LANE_HOLD_CAPACITY);
+            const oldest = endedAt - LANE_HOLD_RETENTION_MS;
+            if (this.holds[0] && this.holds[0].endedAt < oldest)
+                this.holds = this.holds.filter((candidate) => candidate.endedAt >= oldest);
+        }
+    }
 
     /**
      * Runs `handle` once every frame that arrived earlier on this connection has been admitted.
@@ -200,38 +321,61 @@ export class ControlConnectionLanes {
      * after the ordered lane let go of it.
      */
     async settle(
-        request: { method: string; params?: unknown },
+        request: { id: string; method: string; params?: unknown },
         timing: OrderedQueueTiming,
         dispatch: (timing: OrderedQueueTiming) => Promise<void>,
         failure: ControlSocketTerminationReason,
     ): Promise<void> {
-        if (isConcurrentRead(request.method)) {
+        const lane = classifyControlLane(request);
+        // The ordered lane reached this request now: everything it waited for in the ordered lane has settled.
+        const admittedAt = performance.now();
+        if (lane === 'read') {
             // eslint-disable-next-line unicorn/prefer-await -- reads settle outside the ordered lane
-            dispatch(timing).catch(() => this.fail(failure));
+            dispatch(this.annotate(request, timing, lane, admittedAt)).catch(() =>
+                this.fail(failure),
+            );
             return;
         }
-        if (isRepoMutation(request)) {
-            const repoTiming: OrderedQueueTiming = { ...timing, lane: 'repository' };
+        if (lane === 'repository') {
             this.repo = this.repo
                 // eslint-disable-next-line unicorn/prefer-await -- see the class note on callback chaining
-                .then(() => dispatch(repoTiming))
+                .then(() =>
+                    this.hold(request, 'repository', () =>
+                        dispatch({
+                            ...this.annotate(request, timing, lane, admittedAt),
+                            lane: 'repository',
+                        }),
+                    ),
+                )
                 // eslint-disable-next-line unicorn/prefer-await -- see the class note on callback chaining
                 .catch(() => this.fail(failure));
             return;
         }
-        if (isBackgroundSweep(request)) {
-            const backgroundTiming: OrderedQueueTiming = { ...timing, lane: 'background' };
+        if (lane === 'background') {
             // Registered the moment it is queued, not when it starts, so `drain()` also waits for a sweep that is still
             // behind an earlier one on this connection.
             this.background = this.registry.track(
                 this.background
                     // eslint-disable-next-line unicorn/prefer-await -- see the class note on callback chaining
-                    .then(() => dispatch(backgroundTiming))
+                    .then(() =>
+                        this.hold(request, 'background', () =>
+                            dispatch({
+                                ...this.annotate(request, timing, lane, admittedAt),
+                                lane: 'background',
+                            }),
+                        ),
+                    )
                     // eslint-disable-next-line unicorn/prefer-await -- see the class note on callback chaining
                     .catch(() => this.fail(failure)),
             );
             return;
         }
-        await dispatch(timing);
+        if (lane === 'self-serialized') {
+            await dispatch(this.annotate(request, timing, lane, admittedAt));
+            return;
+        }
+        await this.hold(request, 'ordered', () =>
+            dispatch(this.annotate(request, timing, lane, admittedAt)),
+        );
     }
 }

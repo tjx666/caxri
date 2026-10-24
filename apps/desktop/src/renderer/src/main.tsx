@@ -12,6 +12,7 @@ import { toastActionHandlers } from './commands/toast-actions';
 import { installDwellShimmerRest } from './features/agent-chat/activity/dwell-shimmer-rest';
 import { replayAttentionRipplesOnFocus } from './features/primary-sidebar/attention-ripple-replay';
 import { installRendererPerformanceMonitoring } from './features/renderer-performance/controller';
+import { installRendererJankMonitor } from './features/renderer-performance/jank-monitor';
 import { observePowerSource } from './lib/power-source';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
@@ -22,6 +23,7 @@ import { syncWorkbenchLocale } from './stores/workbench-locale';
 
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
 installRendererPerformanceMonitoring();
+installRendererJankMonitor();
 installStoreInspector();
 observeWindowActive();
 observePowerSource();

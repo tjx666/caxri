@@ -363,6 +363,13 @@ later `session.select`. The `ipc.request` log records `queueMs` and `queueDepth`
 lane shows up as queue time on the requests behind it. A slow sweep (200 ms or more) also writes a
 `workbench_root.sweep_slow` event with its listing, Git topology, and root-identity phases.
 
+Each connection remembers the last minute of lane holders (method, request id, start and end), and a request
+that waited 100 ms or more records the holder that overlapped its wait the longest as `blockedByMethod`,
+`blockedByRequestId`, and `blockedByOverlapMs`. A concurrent read leaves the ordered lane right after
+admission and is never recorded as a holder, so it cannot be blamed for a wait it did not cause. A wait of
+250 ms or more is logged at `info`, and one of 1 s or more at `warn`. No `blockedBy*` fields on a long
+`queueMs` means the ledger held no overlapping holder, which points at event-loop delay rather than a lane.
+
 A new write defaults into the ordered lane, so every non-read method is listed with its lane in
 `apps/server/src/core/__tests__/control-server-lane.test.ts`; adding a method fails that test until the
 author chooses `ordered`, `repository`, `background`, or `self-serialized` on purpose. Move a method out of

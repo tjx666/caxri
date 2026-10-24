@@ -42,8 +42,8 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    `pty.throughput_summary` to locate the owner. Add timing logs at operation boundaries for new
    non-trivial work so regressions remain attributable.
    A slow Session switch is usually a `session.select` whose `ipc.request` `queueMs` is large: some
-   earlier write still holds the connection's ordered lane. Name that write from the requests ahead
-   of it in the same log, then check its lane in `docs/server-architecture.md`. When a new or
+   earlier write still holds the connection's ordered lane. The record's `blockedByMethod` and
+   `blockedByRequestId` name that write (no need to infer it from overlapping time windows); check its lane in `docs/server-architecture.md`. When a new or
    existing write is slow and its caller does not need later requests to wait on it, give it a lane
    deliberately and list it in `apps/server/src/core/__tests__/control-server-lane.test.ts`; that
    test fails for any unlisted non-read method, so a new write cannot default into the ordered lane
@@ -54,6 +54,35 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    process spends CPU without relaunching it, sample it over the always-on inspector:
    `bun run .agents/skills/performance/scripts/cpu-profile.ts --port 9229 --seconds 10`
    (9230 Extension Host, 9231 Terminal Host, `--renderer --port 9224` for the packaged Renderer).
+   **Diagnose a reported Session switch lag or frame drop from logs alone.** Every signal below is
+   threshold-gated, so a healthy profile writes none of it. Query with `caxri logs query --event <name>`.
+
+   - `renderer.jank` (`info`, `warn` from 1 s): `switches` (`total`, `request`, `converge`, `paint`)
+     and `frames` (`duration`, `blocking`, `styleLayout`, `duringSwitch`, `topInvoker`,
+     `topMs`, `topFile`, `topFunction`), each with `endedAgo`. Answers whether the user waited in the
+     Renderer and which script made the frame long.
+   - `ipc.request` for `session.select` (`info` from 250 ms of queue): `queueMs`, `queueDepth`, `lane`,
+     `blockedByMethod`, `blockedByRequestId`, `blockedByOverlapMs`. Answers which earlier request it
+     waited behind.
+   - `process.event_loop_stall` (`warn`/`error`): `stallKind`, `inFlightCount`, `inFlightRequests`,
+     `finishedRequests` as `method=ms` pairs, longest first. Answers whether the Server loop was blocked
+     and by which handlers.
+   - `git.command` (`info` when `queueMs` is 250 ms or more or `execMs` is 1 s or more): `operation`,
+     `callerMethod`, `repository`. Answers whether Git queued or ran long and for which request.
+
+   Recipe: (1) Find the `renderer.jank` record near the reported time. `total` splits into `request`
+   (Server round trip), `converge` (state applied in the Renderer), and `paint` (next frame). Large
+   `request` means the Server; large `paint` or a `frames` entry with `duringSwitch=true` means Renderer
+   work, and `topFile`/`topFunction` name the bundle chunk and function that spent the most time.
+   (2) For a large `request`, read the `ipc.request` record of that `session.select` by `requestId`.
+   `blockedByMethod` names the write that held the lane; check its lane in `docs/server-architecture.md`.
+   A long `queueMs` with no `blockedBy*` fields and a `process.event_loop_stall` at the same time means the
+   loop itself was blocked: `inFlightRequests` and `finishedRequests` name the handlers. (3) If the
+   handler ran long, look for `git.command` records with the same `requestId` (`callerMethod` repeats its
+   method). (4) Only when the logs name nothing, take a CPU profile as above. A `renderer.jank` entry's
+   `endedAgo` is milliseconds before the record's own timestamp, so subtract it to place the hitch against
+   Server records.
+
 4. Preserve privacy: timings, counts, IDs, relative paths, and byte totals are allowed; terminal
    output, source contents, prompts, credentials, environment values, and agent transcripts are
    not.

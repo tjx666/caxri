@@ -40,7 +40,15 @@ import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
 import type { BinaryStreamControlOptions } from './binary-stream-control';
+import type { OrderedQueueTiming } from './control-request-timing';
+import {
+    REQUEST_QUEUE_NOTICE_MS,
+    REQUEST_QUEUE_WARN_MS,
+    REQUEST_TOTAL_WARN_MS,
+} from './control-request-timing';
 import { delegationRequestLogFields, shouldLogSuccessfulRequest } from './request-observability';
+
+export type { OrderedQueueTiming } from './control-request-timing';
 
 const MAX_IN_FLIGHT_REQUESTS = 64;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
@@ -169,31 +177,6 @@ export function reserveControlRequest(state: ClientState): (() => void) | undefi
 }
 
 /**
- * Queue metadata captured before an authenticated frame enters the ordered admission lane.
- */
-export interface OrderedQueueTiming {
-    enqueuedAt: number;
-    queueDepth: number;
-    /**
-     * Set when the request waited in the connection's repository or background lane after ordered admission, so a long
-     * `queueMs` names which lane held it: an earlier repository mutation or sweep rather than an ordinary ordered
-     * write.
-     */
-    lane?: 'background' | 'repository';
-}
-
-/**
- * Ordered-queue wait above this threshold escalates the per-request log to `warn`: it is the direct signature of
- * head-of-line blocking on the per-connection command queue, which the default `info` log level must surface.
- */
-const REQUEST_QUEUE_WARN_MS = 1_000;
-/**
- * Queue wait plus handler time above this threshold also escalates to `warn`; the Desktop client gives up at 15s, so a
- * request this slow is about to become a user-visible timeout.
- */
-const REQUEST_TOTAL_WARN_MS = 5_000;
-
-/**
  * Structural subset of `StructuredLogger` so tests can observe per-request log writes without touching the filesystem.
  */
 interface ControlRequestLogSink {
@@ -268,12 +251,19 @@ export function logControlRequestOutcome(
     const isSlow =
         queueMs > (options.requestQueueWarnMs ?? REQUEST_QUEUE_WARN_MS) ||
         queueMs + durationMs > (options.requestTotalWarnMs ?? REQUEST_TOTAL_WARN_MS);
+    // A successful `logs.query` stays unlogged unless it is slow: its cursor follower would otherwise read its own record.
+    const isNoticeable = queueMs >= REQUEST_QUEUE_NOTICE_MS && request.method !== 'logs.query';
     const fields: Record<string, string | number | boolean | null> = {
         method: request.method,
         principal: context.principal.kind,
         queueMs,
         ...(timing && { queueDepth: timing.queueDepth }),
         ...(timing?.lane && { lane: timing.lane }),
+        ...(timing?.blockedBy && {
+            blockedByMethod: timing.blockedBy.method,
+            blockedByRequestId: timing.blockedBy.requestId,
+            blockedByOverlapMs: Math.round(timing.blockedBy.overlapMs),
+        }),
         ...delegationRequestLogFields(
             request.method,
             request.params,
@@ -299,13 +289,17 @@ export function logControlRequestOutcome(
             outcome: reply.ok ? 'success' : 'failure',
         });
     if (reply.ok) {
-        if (isSlow || shouldLogSuccessfulRequest('control', request.method))
-            logger.write(isSlow ? 'warn' : 'debug', logEventCatalog.ipc.request, {
-                correlationId: request.id,
-                context: observationContext,
-                durationMs,
-                fields,
-            });
+        if (isSlow || isNoticeable || shouldLogSuccessfulRequest('control', request.method))
+            logger.write(
+                isSlow ? 'warn' : isNoticeable ? 'info' : 'debug',
+                logEventCatalog.ipc.request,
+                {
+                    correlationId: request.id,
+                    context: observationContext,
+                    durationMs,
+                    fields,
+                },
+            );
         return;
     }
     if (reply.error.code === 'CANCELLED') {

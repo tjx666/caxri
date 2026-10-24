@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 
 import type { AsyncSemaphore, StructuredLogger } from '@caxri/system';
-import { execFileAsync, logEventCatalog } from '@caxri/system';
+import { currentObservationContext, execFileAsync, logEventCatalog } from '@caxri/system';
 
+import { requestActivity } from '../../observability/request-activity';
 import { classifyGitFailure, gitFailureLogLevel, resolveGitLaunch, toGitError } from './errors';
 import { gitSignalOptions } from './request-signal';
 
@@ -72,6 +73,23 @@ function gitFailureFields(error: unknown): {
 }
 
 /**
+ * A command that waited this long for a slot in the shared Git budget, or ran this long, is the kind of delay a
+ * reported Session switch lag traces back to. Faster commands stay at `debug`: `git.command` filled most of a real log
+ * generation when every one was recorded.
+ */
+const SLOW_GIT_QUEUE_MS = 250;
+const SLOW_GIT_EXEC_MS = 1_000;
+
+/**
+ * `info` (kept by the default log level) for a slow or long-queued successful command, `debug` otherwise.
+ */
+export function gitCommandLogLevel(timing: { execMs: number; queueMs: number }): 'debug' | 'info' {
+    return timing.queueMs >= SLOW_GIT_QUEUE_MS || timing.execMs >= SLOW_GIT_EXEC_MS
+        ? 'info'
+        : 'debug';
+}
+
+/**
  * Runs one Git command under the shared concurrency budget with a non-interactive, locale-stable environment, and
  * records it as a `git.command` (or `git.commandFailed`) event that never carries a path or ref. A failure is explained
  * by the closed `GitFailureReason` plus the exit status from {@link gitFailureFields}, never by the fault message.
@@ -115,11 +133,22 @@ export async function runGitCommand(
                 execution.child.stdin?.end(options.input);
             }
             const { stdout } = await execution;
-            // Debug, not info: on a real profile `git.command` plus `git.summary` filled 87% of a 5MB generation
-            // and cut retention to ~38h, rotating out the lifecycle evidence incidents need. Failures stay at warn.
-            logger.write('debug', logEventCatalog.git.command, {
+            // Debug, not info, for a fast command: on a real profile `git.command` plus `git.summary` filled 87% of a
+            // 5MB generation and cut retention to ~38h, rotating out the lifecycle evidence incidents need. A slow or
+            // long-queued one is `info` and names the Server request that issued it. Failures stay at warn.
+            const finished = timing();
+            const level = gitCommandLogLevel(finished);
+            const callerMethod =
+                level === 'info'
+                    ? requestActivity.methodOf(currentObservationContext().requestId)
+                    : undefined;
+            logger.write(level, logEventCatalog.git.command, {
                 durationMs: performance.now() - queuedAt,
-                fields: { operation: classifyGitOperation(arguments_), ...timing() },
+                fields: {
+                    operation: classifyGitOperation(arguments_),
+                    ...finished,
+                    ...(callerMethod && { callerMethod }),
+                },
             });
             return stdout;
         } catch (error) {
