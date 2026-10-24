@@ -33,6 +33,12 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'adapter',
             scenario: 'crypto-vector',
         });
+        expect(mobileAndroidAcceptanceCase('MOB-PAIR-04')).toEqual({
+            desktopProfile: 'not-required',
+            media: [],
+            recordingOwner: 'adapter',
+            scenario: 'barcode-vector',
+        });
         expect(mobileAndroidAcceptanceCase('MOB-RENDER-01').scenario).toBe('render-retry');
         expect(mobileAndroidAcceptanceCase('MOB-STORAGE-01').scenario).toBe(
             'credential-storage-retry',

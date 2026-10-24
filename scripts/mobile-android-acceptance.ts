@@ -33,6 +33,7 @@ import {
     writeMobileAcceptanceArtifact,
     writeMobileAcceptanceReceipt,
 } from './mobile-acceptance-runtime';
+import { executeAndroidBuiltInScenario } from './mobile-android-built-in-scenarios';
 import type { MobileAndroidAcceptanceCaseId } from './mobile-android-cases';
 import {
     mobileAndroidAcceptanceCase,
@@ -41,6 +42,11 @@ import {
     shouldCollectAndroidVideo,
 } from './mobile-android-cases';
 import { createAndroidAcceptanceDesktopLease } from './mobile-android-desktop-lease';
+import {
+    androidNativeInitLogcatArguments,
+    findAndroidNativeInitFailures,
+    parseAndroidPackageUid,
+} from './mobile-android-native-init';
 import { readAndroidScenarioArtifacts } from './mobile-android-scenario-artifacts';
 
 const root = resolve(import.meta.dirname, '..');
@@ -154,105 +160,47 @@ async function writeScenarioReceipt(
     });
 }
 
-async function executeBuiltInScenario(
+async function executeScenario(
     caseId: MobileAndroidAcceptanceCaseId,
     launchId: string,
     remoteVideoPath: string,
     sourceCommit: string,
 ): Promise<void> {
-    const { scenario } = mobileAndroidAcceptanceCase(caseId);
-    switch (scenario) {
-        case 'foundation-layout':
-            adbRun(['shell', 'am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-            await waitForCheck('pairing-entry-screen');
-            await writeScenarioReceipt(caseId, {
-                package: packageIdentity(),
-                semanticCheckIds: semanticCheckIds(),
-                status: 'passed',
-            });
-            return;
-        case 'foundation-cold-start': {
-            adbRun(['shell', 'am', 'force-stop', 'com.caxri.mobile']);
-            const startedAt = Date.now();
-            const launch = adbRead([
-                'shell',
-                'am',
-                'start',
-                '-W',
-                'com.caxri.mobile/.MainActivity',
-            ]);
-            await waitForCheck('pairing-entry-screen');
-            await writeScenarioReceipt(caseId, {
-                interactiveDurationMs: Date.now() - startedAt,
-                package: packageIdentity(),
-                platformReportedTotalTimeMs: Number(/TotalTime:\s*(\d+)/u.exec(launch)?.[1] ?? -1),
-                status: 'passed',
-            });
-            return;
-        }
-        case 'foundation-inspect':
-            adbRun(['shell', 'am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-            await waitForCheck('pairing-entry-screen');
-            await writeScenarioReceipt(caseId, {
-                device: {
-                    apiLevel: Number(adbRead(['shell', 'getprop', 'ro.build.version.sdk'])),
-                    model: adbRead(['shell', 'getprop', 'ro.product.model']),
-                    release: adbRead(['shell', 'getprop', 'ro.build.version.release']),
-                    serial,
-                },
-                package: packageIdentity(),
-                semanticCheckIds: semanticCheckIds(),
-                status: 'passed',
-            });
-            return;
-        case 'crypto-vector':
-            adbRun([
-                'shell',
-                'am',
-                'start',
-                '-W',
-                '-a',
-                'android.intent.action.VIEW',
-                '-d',
-                'caxri://acceptance/crypto',
-                'com.caxri.mobile',
-            ]);
-            await waitForCheck('acceptance-crypto-vector-passed');
-            await writeScenarioReceipt(caseId, {
-                algorithms: ['X25519', 'HKDF-SHA256', 'AES-256-GCM'],
-                platform: 'android-release',
-                protocolVersion: 1,
-                status: 'passed',
-                vectorId: 'caxri-mobile-transport-v1',
-            });
-            return;
-        case 'adapter-lifecycle':
-            adbRun(['shell', 'am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-            await waitForCheck('pairing-entry-screen');
-            run(
-                'bun',
-                [
-                    'run',
-                    'apps/mobile/scripts/android-device.ts',
-                    'tap',
-                    '--serial',
-                    serial,
-                    '--check-id',
-                    'pairing-paste-button',
-                ],
-                DEVICE_TIMEOUT_MS,
-            );
-            await waitForCheck('pairing-paste-screen');
-            await writeScenarioReceipt(caseId, {
-                interaction: 'first-connect-to-paste',
-                launchId,
-                sourceCommit,
-                status: 'passed',
-            });
-            return;
-        default:
-            return executePlaywrightScenario(caseId, launchId, remoteVideoPath, sourceCommit);
-    }
+    await executeAndroidBuiltInScenario(
+        {
+            adbRead,
+            adbRun: (arguments_) => adbRun(arguments_),
+            executePlaywrightScenario: () =>
+                executePlaywrightScenario(caseId, launchId, remoteVideoPath, sourceCommit),
+            packageIdentity,
+            semanticCheckIds,
+            serial,
+            tap: (checkId) =>
+                run(
+                    'bun',
+                    [
+                        'run',
+                        'apps/mobile/scripts/android-device.ts',
+                        'tap',
+                        '--serial',
+                        serial,
+                        '--check-id',
+                        checkId,
+                    ],
+                    DEVICE_TIMEOUT_MS,
+                ),
+            waitForCheck: (checkId) => waitForCheck(checkId),
+            writeScenarioReceipt: (value) => writeScenarioReceipt(caseId, value),
+        },
+        caseId,
+        { launchId, sourceCommit },
+    );
+    const uid = parseAndroidPackageUid(
+        adbRead(['shell', 'cmd', 'package', 'list', 'packages', '-U', 'com.caxri.mobile']),
+    );
+    const failures = findAndroidNativeInitFailures(adbRead(androidNativeInitLogcatArguments(uid)));
+    if (failures.length > 0)
+        throw new Error(`Android release build failed to instantiate ${failures.join(', ')}`);
 }
 
 function executePlaywrightScenario(
@@ -323,6 +271,8 @@ async function executeCase(
     const caseSettingRestores: Array<() => void> = [];
     try {
         adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile']);
+        // The native-init guard reads only warnings logged after this point.
+        adbRun(['logcat', '-c']);
         // The same commands later restore the settings during cleanup, which may use the cleanup reserve.
         const deviceCommands = {
             readDevice: adbRead,
@@ -363,7 +313,7 @@ async function executeCase(
             });
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
-        await executeBuiltInScenario(caseId, launchId, remoteVideoPath, sourceCommit);
+        await executeScenario(caseId, launchId, remoteVideoPath, sourceCommit);
         const scenarioArtifacts = await readAndroidScenarioArtifacts(reportDirectory, caseId);
         for (const artifactPath of scenarioArtifacts) {
             // Sequential hashing preserves frozen artifact order and bounds device evidence memory.
