@@ -94,6 +94,8 @@ const environmentMethodScopes = {
     'links.preview': 'any',
     'external.open': 'any',
     'processExplorer.open': 'local-only',
+    'performanceMonitor.window': 'local-only',
+    'performanceMonitor.metrics': 'local-only',
     'dialog.selectDirectory': 'local-only',
     /**
      * The panel lists this Mac's disk, whose paths mean nothing to an Agent on the SSH Host; that window's `+` keeps

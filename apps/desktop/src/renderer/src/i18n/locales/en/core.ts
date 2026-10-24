@@ -17,6 +17,10 @@ export const core = {
     'core.errorBoundary.benchmark.description':
         'Reload Benchmark to show your runs again. Runs already started keep going meanwhile.',
     'core.errorBoundary.benchmark.reload': 'Reload Benchmark',
+    'core.errorBoundary.performanceMonitor.title': 'Performance Monitor stopped rendering',
+    'core.errorBoundary.performanceMonitor.description':
+        'Reload the Performance Monitor to resume live readings.',
+    'core.errorBoundary.performanceMonitor.reload': 'Reload Performance Monitor',
     'core.errorBoundary.processExplorer.title': 'Process Explorer stopped rendering',
     'core.errorBoundary.processExplorer.description':
         'Reload Process Explorer to resume live diagnostics.',

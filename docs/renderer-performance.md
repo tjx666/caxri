@@ -243,3 +243,9 @@ validated Caxri bundle chunk file name and function identifier, never a path or 
 Frame timestamps and per-render samples exist only in Renderer memory during the active scenario. Main
 persists the finished aggregate as flat scalar fields so `logs query` remains directly usable by
 agents.
+
+## Timing a reload with the Performance Monitor
+
+Open `Open Performance Monitor Window`, then press `Reload` or `Hard reload`. The timeline lists
+DOM ready, loaded, loader removed, and first frame in milliseconds from the navigation start. See
+[performance-monitor.md](performance-monitor.md).

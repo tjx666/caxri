@@ -15,6 +15,9 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.errorBoundary.benchmark.description':
         '重新加载 Benchmark 以重新显示运行记录。已开始的运行会继续进行。',
     'core.errorBoundary.benchmark.reload': '重新加载 Benchmark',
+    'core.errorBoundary.performanceMonitor.title': '性能监视器已停止渲染',
+    'core.errorBoundary.performanceMonitor.description': '重新加载性能监视器以恢复实时读数。',
+    'core.errorBoundary.performanceMonitor.reload': '重新加载性能监视器',
     'core.errorBoundary.processExplorer.title': '进程资源管理器已停止渲染',
     'core.errorBoundary.processExplorer.description': '重新加载进程资源管理器以恢复实时诊断。',
     'core.errorBoundary.processExplorer.reload': '重新加载进程资源管理器',

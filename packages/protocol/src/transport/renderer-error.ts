@@ -1,4 +1,5 @@
 export const RENDERER_ERROR_CHANNELS = {
+    performanceMonitor: 'caxri:performance-monitor:renderer-error',
     processExplorer: 'caxri:process-explorer:renderer-error',
     workbench: 'caxri:renderer-error',
 } as const;

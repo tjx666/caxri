@@ -217,7 +217,9 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 zoom: record('windows.zoom'),
             },
             developer: {
+                openPerformanceMonitorWindow: record('developer.openPerformanceMonitorWindow'),
                 reportBug: record('developer.reportBug'),
+                togglePerformanceMonitor: record('developer.togglePerformanceMonitor'),
                 toggleScreencastMode: record('developer.toggleScreencastMode'),
             },
             diagnostics: { export: record('diagnostics.export') },

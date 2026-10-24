@@ -352,6 +352,22 @@ export const logEventCatalog = {
         unresponsive: 'benchmark_window.unresponsive',
     },
     sshHost: sshHostLogEvents,
+    /**
+     * The Performance Monitor window's own Renderer lifecycle, kept apart from the Workbench's it measures. `reload`
+     * records one observed Workbench load (its kind, outcome, and stage durations) so a slow reload is explained by
+     * stage, not guessed from the total.
+     */
+    performanceMonitor: {
+        consoleError: 'performance_monitor.console_error',
+        pageException: 'performance_monitor.page_exception',
+        preloadError: 'performance_monitor.preload_error',
+        reload: 'performance_monitor.reload',
+        renderProcessCrashLoop: 'performance_monitor.render_process_crash_loop',
+        renderProcessGone: 'performance_monitor.render_process_gone',
+        responsive: 'performance_monitor.responsive',
+        unhandledRejection: 'performance_monitor.unhandled_rejection',
+        unresponsive: 'performance_monitor.unresponsive',
+    },
     processExplorer: {
         consoleError: 'process_explorer.console_error',
         pageException: 'process_explorer.page_exception',

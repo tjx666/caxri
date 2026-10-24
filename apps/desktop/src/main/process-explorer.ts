@@ -12,7 +12,7 @@ const SERVER_CHILD_PROCESS_MARKERS = [
     { marker: '/bundles/terminal-host.js', name: 'Terminal Host' },
 ] as const;
 
-interface ElectronProcessSample {
+export interface ElectronProcessSample {
     cpuPercent: number;
     memoryMb: number;
     name?: string;
@@ -159,6 +159,7 @@ export function processDisplayName(command: string): string {
 
 const RENDERER_ROLE_NAMES: Readonly<Record<string, string>> = {
     'agent commander': 'Agent Commander',
+    'performance monitor': 'Performance Monitor',
     'process explorer': 'Process Explorer',
     'workbench': 'Workbench',
 };

@@ -480,6 +480,23 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Show clicks and Caxri shortcuts for external screen recording',
     },
     {
+        id: 'developer.togglePerformanceMonitor',
+        title: 'Toggle Performance Monitor',
+        category: 'Developer',
+        description: 'Show or hide the draggable frame rate and resource monitor',
+        keywords: ['fps', 'frame rate', 'performance', 'profiler', 'hud'],
+        nativeMenu: { menu: 'help', group: 1, order: 1 },
+        when: 'localMachine',
+    },
+    {
+        id: 'developer.openPerformanceMonitorWindow',
+        title: 'Open Performance Monitor Window',
+        category: 'Developer',
+        description: 'Open the performance monitor in its own window, which survives reloading',
+        keywords: ['fps', 'reload', 'performance', 'profiler', 'startup'],
+        when: 'localMachine',
+    },
+    {
         id: 'developer.reportBug',
         title: 'Report Bug to Agent',
         category: 'Help',

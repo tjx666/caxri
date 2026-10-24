@@ -170,6 +170,10 @@ export const commandDescriptions = {
     'commands.description.processExplorer.open': 'Inspect Caxri process resource usage',
     'commands.description.developer.toggleScreencastMode':
         'Show clicks and Caxri shortcuts for external screen recording',
+    'commands.description.developer.togglePerformanceMonitor':
+        'Show or hide the draggable frame rate and resource monitor',
+    'commands.description.developer.openPerformanceMonitorWindow':
+        'Open the performance monitor in its own window, which survives reloading',
     'commands.description.developer.reportBug':
         'Preview and send a privacy-safe local bug report to a running Agent',
     'commands.description.diagnostics.export': 'Export a privacy-safe diagnostics bundle',

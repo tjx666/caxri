@@ -16,6 +16,7 @@ import {
     settlePendingSessionTitle,
 } from '../../stores/workbench-session-titles';
 import { forgetDeletedSessions } from '../closed-items/recording';
+import { recordSessionSwitchLatency } from '../performance-monitor/collector';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { beginSessionSwitchTiming } from '../renderer-performance/jank-monitor';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
@@ -37,6 +38,7 @@ const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {}
  */
 async function didRequestSelection(sessionId: string): Promise<boolean> {
     const convergence = registerSessionCommandConvergence('session.select');
+    const startedAtMs = performance.now();
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
     const switchTiming = beginSessionSwitchTiming();
     const selected = await tryCommand(translate('session.errors.selectFailed'), async () => {
@@ -54,6 +56,7 @@ async function didRequestSelection(sessionId: string): Promise<boolean> {
     }
     await convergence.promise;
     switchTiming.converged();
+    recordSessionSwitchLatency(performance.now() - startedAtMs);
     // Another window owns the Session: the Server activated it there and left this window as it was, so there is no
     // selection here to record in the visit history.
     return selected.ownerWindowKey === undefined;

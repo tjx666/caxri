@@ -456,6 +456,22 @@ export const commandDefinitions: CommandDefinition[] = [
             allowInEditable: true,
         },
     ),
+    fromCatalog(
+        'developer.togglePerformanceMonitor',
+        (context) => context.developer.togglePerformanceMonitor(),
+        {
+            allowInEditable: true,
+            when: (context) => context.sshHost.isLocalOnlyAvailable(),
+        },
+    ),
+    fromCatalog(
+        'developer.openPerformanceMonitorWindow',
+        (context) => context.developer.openPerformanceMonitorWindow(),
+        {
+            allowInEditable: true,
+            when: (context) => context.sshHost.isLocalOnlyAvailable(),
+        },
+    ),
     fromCatalog('developer.reportBug', (context) => context.developer.reportBug(), {
         allowInEditable: true,
         when: (context) => context.sshHost.isLocalOnlyAvailable(),

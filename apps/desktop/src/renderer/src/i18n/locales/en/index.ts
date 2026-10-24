@@ -18,6 +18,7 @@ import { keyboardShortcuts } from './keyboard-shortcuts';
 import { palette } from './palette';
 import { panel } from './panel';
 import { pathBrowser } from './path-browser';
+import { performanceMonitor } from './performance-monitor';
 import { preview } from './preview';
 import { primarySidebar } from './primary-sidebar';
 import { processExplorer } from './process-explorer';
@@ -65,6 +66,7 @@ export const enResources = {
     ...pathBrowser,
     ...preview,
     ...primarySidebar,
+    ...performanceMonitor,
     ...processExplorer,
     ...projectSearch,
     ...rendererPerformance,

@@ -131,6 +131,9 @@ export default defineConfig(async ({ command }) => {
                 rollupOptions: {
                     input: {
                         'index': resolve('apps/desktop/src/preload/index.ts'),
+                        'performance-monitor': resolve(
+                            'apps/desktop/src/preload/performance-monitor.ts',
+                        ),
                         'process-explorer': resolve('apps/desktop/src/preload/process-explorer.ts'),
                     },
                     output: {
@@ -192,6 +195,9 @@ export default defineConfig(async ({ command }) => {
                             'apps/desktop/src/renderer/agent-commander.html',
                         ),
                         'benchmark': resolve('apps/desktop/src/renderer/benchmark.html'),
+                        'performance-monitor': resolve(
+                            'apps/desktop/src/renderer/performance-monitor.html',
+                        ),
                         'process-explorer': resolve(
                             'apps/desktop/src/renderer/process-explorer.html',
                         ),

@@ -470,6 +470,7 @@ describe('application menu', () => {
             'command.help.showKeyboardShortcuts',
             'separator',
             'command.processExplorer.open',
+            'command.developer.togglePerformanceMonitor',
             'separator',
             'command.developer.reportBug',
             'command.diagnostics.export',

@@ -198,6 +198,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'pathBrowser.navigate': 'ordered',
     'pathBrowser.open': 'ordered',
     'pathBrowser.start': 'ordered',
+    'performanceMonitor.window': 'ordered',
     'processExplorer.open': 'ordered',
     'project.add': 'ordered',
     'project.cancelCreate': 'ordered',
