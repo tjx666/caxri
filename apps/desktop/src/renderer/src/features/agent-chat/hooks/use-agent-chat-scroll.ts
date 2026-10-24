@@ -53,6 +53,18 @@ export function isLatestInView(
 }
 
 /**
+ * How far a positioned view's bottom is pulled up from its container's, such as the Chat pane's view ending above the
+ * return hint. The latest entry counts as in view against the view's full slot: measured against the shortened view, a
+ * scroll just past the threshold hid the hint, which gave the view its slot back and brought the latest entry into
+ * view, which showed the hint again, so the view shook while the user tried to scroll up.
+ */
+function viewBottomInset(view: HTMLElement): number {
+    // A computed inset reads as pixels (`40px`), or `auto` for a view that is not positioned.
+    const inset = Number(getComputedStyle(view).bottom.replace(/px$/u, ''));
+    return Number.isFinite(inset) && inset > 0 ? inset : 0;
+}
+
+/**
  * Where a following view scrolls to after a layout change: the end of its content, or `null` while the user reads
  * history. The end moves both when the content grows and when the view itself shrinks (a dock below it expanding a diff
  * or the plan), and either one would otherwise leave the latest entry clipped under the dock.
@@ -232,7 +244,7 @@ export function useAgentChatScroll(
                 isLatestInView({
                     contentBottom:
                         content.getBoundingClientRect().bottom - view.getBoundingClientRect().top,
-                    viewHeight: view.clientHeight,
+                    viewHeight: view.clientHeight + viewBottomInset(view),
                 }),
         );
     }, []);
