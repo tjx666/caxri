@@ -1,7 +1,6 @@
 import type { AgentChatActivity, AgentChatSnapshot } from '@caxri/protocol';
 import { Info } from 'lucide-react';
-import { AnimatePresence, domMax, LazyMotion, MotionConfig } from 'motion/react';
-import * as m from 'motion/react-m';
+import { domMax, LazyMotion, MotionConfig } from 'motion/react';
 
 import { useHasLasted } from '../../../hooks/use-has-lasted';
 import { useShouldReduceMotion } from '../../../hooks/use-should-reduce-motion';
@@ -9,7 +8,6 @@ import { useTranslation } from '../../../i18n';
 import { useIsAgentChatStopping } from '../hooks/use-agent-chat-stop';
 import { useAgentChatSeenFailures } from './status-row/agent-chat-seen-failures';
 import { AgentChatStatusRow } from './status-row/agent-chat-status-row';
-import { STATUS_ROW_SPRING } from './status-row/agent-chat-status-row-motion';
 import {
     agentChatLatestTurnStart,
     agentChatStatusRowAnnouncement,
@@ -29,8 +27,10 @@ const STARTING_ROW_DELAY_MS = 1000;
  * `/` draft as text) while one lasts, so a refused Enter is never silent. The strip sits on top of the card rather than
  * inside it, so the Chat's state never reads as part of what the user is typing. The status row unfolds when it has
  * something to say and folds away once nothing is left, instead of popping. The polite live region stays mounted so
- * transitions are announced, while the ticking time and figures never are. Motion honors the system's reduced-motion
- * preference: positions and sizes snap while fades remain.
+ * transitions are announced, while the ticking time and figures never are. The row appears and leaves at once: an
+ * unfolding and folding row pushed the transcript up and back down whenever a turn started or ended, and with several
+ * rows trading places the strip read as jumping. Motion inside the row (the verb swap) honors the system's
+ * reduced-motion preference: positions and sizes snap while fades remain.
  */
 export function AgentChatActivityBar({
     activity,
@@ -85,33 +85,23 @@ export function AgentChatActivityBar({
                 <span aria-live="polite" className="sr-only" role="status">
                     {notice ?? (view && agentChatStatusRowAnnouncement(view, activityText, t))}
                 </span>
-                <AnimatePresence initial={false}>
-                    {view && (
-                        // react-doctor-disable-next-line react-doctor/no-layout-property-animation -- the row unfolds and folds so the transcript above eases out of its way; a transform would leave the space jumping.
-                        <m.div
-                            animate={{ height: 'auto', opacity: 1 }}
-                            className="overflow-hidden border-0 border-b border-solid border-border"
-                            data-agent-chat-composer-strip-row=""
-                            exit={{ height: 0, opacity: 0 }}
-                            initial={{ height: 0, opacity: 0 }}
-                            key="status"
-                            // `MotionConfig reducedMotion` only drops transform and layout animation; height and opacity
-                            // still tweened, so Reduce Motion snaps the row instead.
-                            transition={isReducedMotion ? { duration: 0 } : STATUS_ROW_SPRING}
-                        >
-                            <AgentChatStatusRow
-                                isStopping={isStopping}
-                                isTurnRunning={turnId !== undefined}
-                                terminalId={terminalId}
-                                turnId={turnId}
-                                usage={activity?.kind === 'working' ? activity.usage : undefined}
-                                view={view}
-                                onOpenTask={onOpenTask}
-                                onPopoverClosed={onPopoverClosed}
-                            />
-                        </m.div>
-                    )}
-                </AnimatePresence>
+                {view && (
+                    <div
+                        className="border-0 border-b border-solid border-border"
+                        data-agent-chat-composer-strip-row=""
+                    >
+                        <AgentChatStatusRow
+                            isStopping={isStopping}
+                            isTurnRunning={turnId !== undefined}
+                            terminalId={terminalId}
+                            turnId={turnId}
+                            usage={activity?.kind === 'working' ? activity.usage : undefined}
+                            view={view}
+                            onOpenTask={onOpenTask}
+                            onPopoverClosed={onPopoverClosed}
+                        />
+                    </div>
+                )}
             </MotionConfig>
             {notice && (
                 <div

@@ -2,7 +2,7 @@ import { useDeferredValue, useMemo, useRef, useState } from 'react';
 
 import type { MarkdownBlockOptions } from '@caxri/markdown';
 import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
-import type { AgentChatItem, AgentChatTurnArtifacts } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatTurnArtifacts, AgentChatTurnMetrics } from '@caxri/protocol';
 import { agentChatNoticeMessage, agentChatRetryHeadline } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import { Check, CircleAlert, Hourglass, RotateCw, ServerCrash, WifiOff } from 'lucide-react';
@@ -21,7 +21,7 @@ import { AgentChatCompactedNotice } from '../transcript/agent-chat-compacted-not
 import { openAgentChatLink } from '../transcript/agent-chat-links';
 import { AgentChatTurnArtifactList } from '../turns/agent-chat-turn-artifact-list';
 import { AgentChatFeedback } from './agent-chat-feedback';
-import { AgentChatMessageTime } from './agent-chat-message-time';
+import { AgentChatMessageTime, AgentChatTurnMetricsLabel } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
@@ -73,28 +73,33 @@ export function AgentChatMessage({
 }
 
 /**
- * An Agent reply, with a Copy action and the time it was sent underneath when it is the reply that ends a turn.
- * Commentary between tool calls carries no action row, so a long turn does not reserve empty space under every reply.
- * Every reply, the latest included, mounts its row only while the pointer is over it or keyboard focus is inside it
- * (`AgentChatReplyFrame`), so neither a finished turn nor a scrolled transcript is lined with copy icons and times. The
- * row keeps its height either way, so revealing it never shifts the transcript. Copy takes the Markdown source, which
- * pastes back into an issue, a document, or another Agent intact. The reply text is selectable in an otherwise
- * `select-none` transcript, as are the user's messages, notice text, reasoning, and code and diff bodies; a native
- * Cmd+C copies silently, as macOS apps do, and releasing a selection floats Copy and Add to message over it
- * (`AgentChatSelectionToolbar`). A right-click offers the same native menu a user message leads with (Copy for a
- * selection inside the reply, Copy Message for its Markdown source, and Add to Message), on every reply including
- * commentary that carries no action row. A reply that ends a turn which changed files or filed an issue or pull request
- * carries those cards between its text and the action row, as the Codex app does.
+ * An Agent reply, with a Copy action, the time it was sent, and the turn's speed and cost underneath when it is the
+ * reply that ends a turn. Commentary between tool calls carries no action row, so a long turn does not reserve empty
+ * space under every reply. Every reply, the latest included, mounts its row only while the pointer is over it or
+ * keyboard focus is inside it (`AgentChatReplyFrame`), so neither a finished turn nor a scrolled transcript is lined
+ * with copy icons and times. The row keeps its height either way, so revealing it never shifts the transcript. Copy
+ * takes the Markdown source, which pastes back into an issue, a document, or another Agent intact. The reply text is
+ * selectable in an otherwise `select-none` transcript, as are the user's messages, notice text, reasoning, and code and
+ * diff bodies; a native Cmd+C copies silently, as macOS apps do, and releasing a selection floats Copy and Add to
+ * message over it (`AgentChatSelectionToolbar`). A right-click offers the same native menu a user message leads with
+ * (Copy for a selection inside the reply, Copy Message for its Markdown source, and Add to Message), on every reply
+ * including commentary that carries no action row. A reply that ends a turn which changed files or filed an issue or
+ * pull request carries those cards between its text and the action row, as the Codex app does.
  */
 export function AgentChatReply({
     artifacts,
     canCopy,
     item,
+    metrics,
     onOpenFile,
 }: {
     artifacts?: AgentChatTurnArtifacts;
     canCopy: boolean;
     item: Extract<AgentChatItem, { type: 'agentMessage' }>;
+    /**
+     * The finished turn's speed and cost, shown after the time on the reply that ends it.
+     */
+    metrics?: AgentChatTurnMetrics;
     onOpenFile?: (target: string) => void;
 }) {
     const { t } = useTranslation();
@@ -111,6 +116,7 @@ export function AgentChatReply({
                   {item.createdAt !== undefined && (
                       <AgentChatMessageTime timestamp={item.createdAt} />
                   )}
+                  <AgentChatTurnMetricsLabel metrics={metrics} />
               </>
           )
         : null;

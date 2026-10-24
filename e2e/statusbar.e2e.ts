@@ -113,9 +113,6 @@ exec /bin/zsh -l
         const pullRequest = running.page.getByRole('link', {
             name: 'Open pull request #11',
         });
-        const changes = running.page.getByRole('button', {
-            name: 'Open changes: 2 lines added, 1 removed',
-        });
         await expect(project).toHaveText('status-project');
         await expect(
             running.page.getByRole('button', { name: 'Open project files: status-project' }),
@@ -132,18 +129,12 @@ exec /bin/zsh -l
             'href',
             'https://github.com/tjx666/status-project/pull/11',
         );
-        await expect(changes).toHaveText('+2 -1');
-        await expect(changes).toHaveCSS('font-feature-settings', '"case"');
-        const [projectColor, branchColor, changesColor] = await Promise.all(
-            [project, branch, changes].map((item) =>
+        const [projectColor, branchColor] = await Promise.all(
+            [project, branch].map((item) =>
                 item.evaluate((element) => getComputedStyle(element).color),
             ),
         );
-        expect([projectColor, branchColor, changesColor]).toEqual([
-            branchColor,
-            branchColor,
-            branchColor,
-        ]);
+        expect(projectColor).toBe(branchColor);
 
         await branch.click();
         const branchPopup = running.page.getByRole('dialog', { name: 'Branches', exact: true });
@@ -173,7 +164,9 @@ exec /bin/zsh -l
             .toBe('feature/local-picker');
 
         await running.page.keyboard.press('Meta+]');
-        await changes.click();
+        // The bar carries no local change counter; the Git panel is the one place that lists changed lines.
+        await expect(running.page.getByRole('button', { name: /^Open changes:/ })).toHaveCount(0);
+        await running.page.keyboard.press('Meta+Alt+2');
         await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
         /**
          * The View chrome intentionally repeats the title in the tab and panel caption.
@@ -183,12 +176,6 @@ exec /bin/zsh -l
             'true',
         );
 
-        await writeFile(join(root, 'untracked.txt'), 'new\n', 'utf8');
-        await expect(
-            running.page.getByRole('button', {
-                name: 'Open changes: 2 lines added, 1 removed',
-            }),
-        ).toBeVisible();
         /**
          * One pull-request read per Session, not one per poll: the status bar follows the Session's own projection,
          * which finds #11 through `pr list` and then shares one record by number with the sidebar row.
@@ -199,7 +186,7 @@ exec /bin/zsh -l
         expect(ghArguments.filter((line) => line.startsWith('api graphql -f'))).toHaveLength(1);
 
         // The status bar no longer offers an "open Files" chip, so reach the file tree through
-        // the secondarySidebar's own Files tab (the secondarySidebar is already open from `changes.click()`).
+        // the secondarySidebar's own Files tab (the secondarySidebar is already open from `Meta+Alt+2`).
         await running.page.getByRole('tab', { name: 'Files', exact: true }).click();
         await running.page.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(

@@ -19,6 +19,7 @@ import {
     AgentCoordinator,
     AgentHookManager,
     AgentService,
+    AgentThroughputService,
     createLocalAgentAdapters,
     createPermissionAutoAllowController,
     defaultAgentEnvironment,
@@ -286,6 +287,11 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         agentLaunchSettings,
         agentOutputRecoverySettings,
         agents,
+        /**
+         * Transcript output-speed reads, one instance shared by `terminal.agentThroughput` and the Chat's end-of-turn
+         * metrics so a transcript is scanned incrementally once rather than by two independent readers.
+         */
+        agentThroughput: new AgentThroughputService(database, agentEnvironment),
         // "Always allow in this Session" (issue caxri#1295): read-only status, plus grant/revoke.
         attentionAutoAllowStatus: (sessionId: string) => attentionAutoAllow.status(sessionId),
         awaitSettingsReconcile: () => settingsReconcile,

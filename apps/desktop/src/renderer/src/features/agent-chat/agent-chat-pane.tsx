@@ -310,10 +310,10 @@ export function AgentChatPane({
                         aria-live="off"
                         className={cn(
                             'absolute inset-x-0 top-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent',
-                            // While Jump to latest or the return hint in its slot shows, the transcript ends above
-                            // it instead of scrolling under it, so neither covers a line of text in a narrow pane. The
-                            // top stays anchored, so nothing the user is reading moves.
-                            isLatestInView && !returnHint ? 'bottom-0' : 'bottom-10',
+                            // The transcript runs on under Jump to latest (DESIGN.md "Scroll edge cues"). The return
+                            // hint shows only at the latest entry, so the transcript ends above it instead of covering
+                            // the last line; the top stays anchored, so nothing the user is reading moves.
+                            returnHint ? 'bottom-10' : 'bottom-0',
                         )}
                         ref={scrollReference}
                         role="log"

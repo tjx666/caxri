@@ -119,6 +119,7 @@ export async function createDomainServices(
         agentHooks,
         agentLaunchSettings,
         agentOutputRecoverySettings,
+        agentThroughput,
         coordinator,
         dispatchState,
         sessionRenames,
@@ -530,6 +531,7 @@ export async function createDomainServices(
             acknowledgeFileMutation,
             agentChat,
             agentEnvironment,
+            agentThroughput,
             agentHooks,
             agentRuntime,
             commander: commanderHostOptions({

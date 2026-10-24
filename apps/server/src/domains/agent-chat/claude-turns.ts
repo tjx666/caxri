@@ -84,7 +84,7 @@ export class ClaudeTurns {
                     state: { usage: { ...snapshot.usage, contextWindow: this.contextWindowSize } },
                 },
             ]);
-        host.onTurnFinished(status, finished.durationMs);
+        host.onTurnFinished(status, finished.durationMs, id);
         const agentSessionId = this.options.sessionId();
         const isWaitingOnBackground =
             status === 'completed' && hasWakingBackgroundWork(host.read());

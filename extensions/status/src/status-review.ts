@@ -36,16 +36,30 @@ function codexReviewNode(
     review: ProjectStatusCodexReview,
     pullRequest: PullRequest,
     id: string,
+    /**
+     * The Review group's own word (`No comments`, `All resolved`, `Review failed`) when this row stands in for the
+     * whole group (see {@link reviewNode}).
+     */
+    groupDescription?: string,
 ): StatusNode {
     const label = `Codex ${review.name}`;
     const isStale = isBehindHead(review, pullRequest);
-    const description = [review.status, review.commit, isStale ? 'older commit' : undefined]
-        .filter(Boolean)
-        .join(' · ');
+    /**
+     * The state icon already says running, completed, or failed, so the row repeats only what the icon cannot: an
+     * unrecognized status word, and that the review is behind the head. The short SHA stays out of the panel and its
+     * hover card: a reader cannot tell which commit a bare hash is, and "older commit" is the fact it was standing
+     * for.
+     */
+    const ownDescription = isStale
+        ? 'older commit'
+        : review.state === 'unknown'
+          ? review.status
+          : undefined;
+    const description = [groupDescription, ownDescription].filter(Boolean).join(' · ') || undefined;
     return item(id, label, {
         description,
         icon: codexReviewIcons[review.state],
-        accessibilityLabel: [label, review.status, review.commit && `commit ${review.commit}`]
+        accessibilityLabel: [label, review.status]
             .concat(isStale ? 'not the latest commit' : [])
             .filter(Boolean)
             .join(', '),
@@ -57,7 +71,6 @@ function codexReviewNode(
             }),
             rows: [
                 { label: 'status', value: review.status },
-                review.commit ? { label: 'commit', value: review.commit } : undefined,
                 review.trigger ? { label: 'trigger', value: review.trigger } : undefined,
                 review.updatedAt === undefined
                     ? undefined
@@ -75,9 +88,10 @@ function reviewDescription(
     unresolved: number,
     threadCount: number,
     codexReviews: readonly ProjectStatusCodexReview[],
-): string {
+): string | undefined {
     if (unresolved > 0) return `${unresolved} unresolved`;
-    if (codexReviews.some((review) => review.state === 'running')) return 'Reviewing';
+    // The group's spinning icon already says a review is running; a `Reviewing` word beside it only repeated it.
+    if (codexReviews.some((review) => review.state === 'running')) return undefined;
     if (codexReviews.some((review) => review.state === 'failed')) return 'Review failed';
     if (threadCount > 0) return 'All resolved';
     return 'No comments';
@@ -121,8 +135,17 @@ export function reviewNode(repo: ProjectStatusRepository, prefix: string): Statu
     const codexReviews = pullRequest.codexReviews ?? [];
     const threadCount = pullRequest.reviewThreadCount ?? threads.length;
     const description = reviewDescription(threads.length, threadCount, codexReviews);
+    if (threads.length === 0 && codexReviews.length === 1) {
+        /**
+         * One Codex review and no threads made a group that expanded to a single row saying the same thing. The review
+         * row takes the group's place instead, carrying the group's word, so the panel spends one line on it.
+         */
+        return codexReviewNode(codexReviews[0], pullRequest, `${prefix}:review`, description);
+    }
     const summary =
-        threads.length > 0 ? unresolvedCommentsLabel(threads.length) : description.toLowerCase();
+        threads.length > 0
+            ? unresolvedCommentsLabel(threads.length)
+            : (description ?? 'reviewing').toLowerCase();
     return item(`${prefix}:review`, 'Review', {
         description,
         icon: reviewIcon(threads.length, codexReviews),

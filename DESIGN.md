@@ -333,7 +333,7 @@ a Commander chip, a debugging disclosure) changes how much room the rest needs; 
 still measured off screen, so it returns once its current width fits again, and one whose data goes
 away stops crowding out chips that fit. Everything else (the bell, degraded and update
 chips, Terminal progress, the debugging disclosure, the Commander chips including `N need you`,
-pending peer approvals, the change counter, and the Project root and branch pickers) is never
+pending peer approvals, and the Project root and branch pickers) is never
 dropped; the pickers cap their own width instead.
 Acceptance outranks Linear because it reports whether the current work passed, which changes what
 the reviewer does next; the pull request survives longest because it is the branch's identity.
@@ -808,6 +808,27 @@ the Renderer cannot perform. The metrics, icon placement, and horizontal scrolli
 interactive rail exactly, so switching between a file and its diff never moves the first line of
 content. An external file gets no last-change annotation: blame needs a Project-scoped repository.
 
+**Scroll edge cues**: a scroller whose content continues past an edge that meets fixed or
+floating chrome marks that edge, and only while content is actually hidden there; at rest at the
+edge the cue is gone. This is one rule for every scroller, not a per-surface addition, and a new
+scroller picks one of the three sanctioned cues instead of hand-rolling a gradient:
+
+- A list scrolling under its own header (the PrimarySidebar Session list, Files, Source Control,
+  extension trees, Activity) wears the VS Code-style 6px inset `--shadow` on its top edge:
+  `.scroll-edge-shell` around a scroller bound with `useScrollEdge`.
+- Content that runs on under floating chrome (the Agent Chat transcript and task output under Jump
+  to latest) or past a sideways edge (pane tab strips, wide report tables) dissolves into a
+  `ScrollFade` gradient toward the fill it sits on: 40px for a vertical edge, since a shorter fade
+  over 20px lines reads as a cut line, and 24px for a sideways one. Vertical fades stay inset off
+  the 8px scrollbar rail. Reference: the Codex app's transcript fading into its composer.
+- A scroller nested in content whose background varies (a Chat work group's capped list) masks
+  its own edges with a `mask-image` gradient instead, since no single fill matches what is behind it.
+
+Never end a scroller above floating chrome to keep it from overlapping: the blank band that leaves
+reads as the chrome hiding the conversation. Let the content run under the chrome and fade. The
+Chat's return hint is the one exception: it shows only while the latest entry is in view, where
+nothing is left to scroll under it, so the transcript ends above it rather than covering the last line.
+
 **Motion**: motion explains structure; it never decorates state. Motion is a layered stack. Pick
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:
@@ -890,7 +911,8 @@ removed, fades and gives back its width on `--motion-collapse`. Attachments rest
 without motion, and the transcript keeps its scrollbar hidden while the composer resizes it.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
-state transitions, sidebar and Panel visibility (animating their width would reflow every
+state transitions, the Agent Chat composer strip and its rows appearing or leaving, sidebar detail
+cards closing (and swapping as the pointer moves from one row to the next), sidebar and Panel visibility (animating their width would reflow every
 xterm on each frame), Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
 disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
@@ -1320,9 +1342,10 @@ stays only while something still needs the user, leading with it instead of the 
 task inline with its Stop, `N background tasks running`, unseen failures in `--danger`, or `Plan
 stopped at 2/5` with the current step. A failure counts as seen once the user opened the task list
 and closed the popover; opening the plan does not clear it, and only failures that ended during the
-latest turn count. The row unfolds and folds rather than popping, and the strip's frame fades in
-with its first row instead of drawing ahead of it; badges pop in and out, numbers
-roll, and all of it honors reduced motion. References: the Codex app's and Mux's compact turn
+latest turn count. The row and the strip's frame appear and leave at once, with no fade or
+unfolding height: animating them pushed the transcript up and back down whenever a turn started or
+ended, and with several rows trading places the composer's top edge read as jumping. Inside the
+row, badges pop in and out, numbers roll, and all of it honors reduced motion. References: the Codex app's and Mux's compact turn
 summaries, Warp's and VS Code's one-line agent status. While the provider pursues a goal, a goal row leads the strip, after the Codex
 app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
 `Goal paused`, `Goal stalled`, `Goal hit usage limits`, `Goal budget reached`, `Goal achieved`), the

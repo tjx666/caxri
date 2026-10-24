@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { memo } from 'react';
 
-import type { AgentChatTurnArtifacts } from '@caxri/protocol';
+import type { AgentChatTurnArtifacts, AgentChatTurnMetrics } from '@caxri/protocol';
 
 import { AgentChatNotice, AgentChatReply } from '../messages/agent-chat-message';
 import { AgentChatUserMessage } from '../messages/agent-chat-user-message';
@@ -22,11 +22,13 @@ const AgentChatMessageItem = memo(
         artifacts,
         isFinalReply,
         item,
+        metrics,
         onOpenFile,
     }: {
         artifacts?: AgentChatTurnArtifacts;
         isFinalReply?: boolean;
         item: MessageItem;
+        metrics?: AgentChatTurnMetrics;
         onOpenFile?: (target: string) => void;
     }) => {
         switch (item.type) {
@@ -49,6 +51,7 @@ const AgentChatMessageItem = memo(
                         artifacts={artifacts}
                         canCopy={isFinalReply === true}
                         item={item}
+                        metrics={metrics}
                         onOpenFile={onOpenFile}
                     />
                 );
@@ -87,6 +90,7 @@ const MemoizedTimelineEntry = memo(
                         artifacts={entry.artifacts}
                         isFinalReply={entry.isFinalReply}
                         item={entry.item}
+                        metrics={entry.metrics}
                         onOpenFile={onOpenFile}
                     />
                 );

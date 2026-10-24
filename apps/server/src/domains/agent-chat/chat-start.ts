@@ -5,6 +5,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
 import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../agents';
+import { recordChatTurnMetrics } from '../usage';
 import type { ChatDelegationLinks } from './chat-delegation';
 import { agentChatDrivers } from './chat-drivers';
 import type { ChatExitHost } from './chat-exit';
@@ -105,6 +106,7 @@ export async function startChat(
         delegation.bindLaunch(terminalId, launchId, delegated.delegationId);
         // Stored by a rewind, so it survives a Server Core restart before the first new turn.
         const resumeAt = chatStateStore(database).resumeAt(terminalId);
+        const logCallbacks = chatSessionLogCallbacks(options, terminalId);
         session = driver.create({
             terminalId,
             cwd,
@@ -151,7 +153,20 @@ export async function startChat(
                 isCurrent,
                 onRebound: () => states.publish(terminalId),
             }),
-            ...chatSessionLogCallbacks(options, terminalId),
+            ...logCallbacks,
+            onTurnFinished: (status, durationMs, turnId) => {
+                logCallbacks.onTurnFinished(status, durationMs, turnId);
+                void recordChatTurnMetrics(
+                    {
+                        apply: (operations) => states.apply(terminalId, operations),
+                        isCurrent,
+                        read: () => state.projection.snapshot,
+                        readThroughput: async () =>
+                            (await options.readThroughput?.(terminalId)) ?? null,
+                    },
+                    turnId,
+                );
+            },
             onExit: (exit) => handleChatExit(host, terminalId, provider, state, launchId, exit),
             readTranscript: () => readChatTranscript(options, terminalId),
         });

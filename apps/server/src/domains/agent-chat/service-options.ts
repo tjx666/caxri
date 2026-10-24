@@ -1,6 +1,7 @@
 import type {
     AgentLaunchSettings,
     AgentProvider,
+    AgentThroughput,
     ProcessState,
     ServerEvent,
     TerminalRecord,
@@ -69,6 +70,11 @@ export interface AgentChatServiceOptions {
      * without a prepared Endpoint.
      */
     endpoint?: AgentChatEndpoint;
+    /**
+     * Reads the Terminal's transcript throughput (`AgentThroughputService.read`), so a finished turn can record how
+     * fast its replies were generated. Optional so a test can omit it; the turn then records its cost alone.
+     */
+    readThroughput?(terminalId: string): Promise<AgentThroughput | null>;
     /**
      * Reports Chat launches, exits, and human input to Agent delegation; see {@link ChatDelegationHooks}. Optional so a
      * test can omit it.

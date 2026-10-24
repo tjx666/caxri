@@ -341,6 +341,24 @@ export const agentChatTurnSchema = z.strictObject({
      * history.
      */
     stoppedBy: z.enum(['user', 'agent']).optional(),
+    /**
+     * What the finished turn produced and cost, recorded once when it ends so its reply can show them. Absent for a
+     * turn still running, one replayed from provider history, or a provider that reports neither.
+     */
+    metrics: z
+        .strictObject({
+            /**
+             * Output tokens over the time the model spent generating them, summed across the turn's responses (tool
+             * runs excluded), from the provider's transcript; both absent when it records no timing.
+             */
+            outputTokens: z.number().int().nonnegative().optional(),
+            generationMs: z.number().nonnegative().optional(),
+            /**
+             * Estimated list-price cost of every response in the turn; absent when a response's model has no price.
+             */
+            costUsd: z.number().nonnegative().optional(),
+        })
+        .optional(),
 });
 
 export const agentChatPlanSchema = z.strictObject({
@@ -559,6 +577,7 @@ export type AgentChatTask = z.infer<typeof agentChatTaskSchema>;
 export type AgentChatQueuedMessage = z.infer<typeof agentChatQueuedMessageSchema>;
 export type AgentChatItemStatus = z.infer<typeof agentChatItemStatusSchema>;
 export type AgentChatTurn = z.infer<typeof agentChatTurnSchema>;
+export type AgentChatTurnMetrics = NonNullable<AgentChatTurn['metrics']>;
 export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;
 export type AgentChatFailureReason = z.infer<typeof agentChatFailureReasonSchema>;
 export type AgentChatStatus = z.infer<typeof agentChatStatusSchema>;

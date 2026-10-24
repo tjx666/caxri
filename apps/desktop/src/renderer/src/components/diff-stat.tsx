@@ -41,8 +41,8 @@ export function DiffStat({
 }
 
 /**
- * A dimmed `+` or `-`, shared with the status bar's worded counts so every sign reads the same.
+ * A dimmed `+` or `-`.
  */
-export function DiffStatSign({ sign }: { sign: '+' | '-' }) {
+function DiffStatSign({ sign }: { sign: '+' | '-' }) {
     return <span className="opacity-60">{sign}</span>;
 }

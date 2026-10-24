@@ -20,7 +20,10 @@ import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
 import type { SourceControlTreeNode } from './source-control-tree';
-import { sourceControlDirectoryExpansionKeys } from './source-control-tree';
+import {
+    sourceControlDirectoryExpansionKeys,
+    sourceControlDirectoryVisibleLineStats,
+} from './source-control-tree';
 import { useSourceControlTreeFocus } from './source-control-tree-focus';
 import { treeNavigationAction } from './source-control-tree-navigation';
 import { SourceControlTreeRow } from './source-control-tree-row';
@@ -289,6 +292,7 @@ function SourceControlVirtualRow({
         const isExpanded = row.isExpanded;
         const expansionKey = row.expansionKey ?? `${providerKey}:${node.path}`;
         const directoryPath = resolveRepoFilePath(repositoryRootPath, node.path);
+        const visibleLineStats = sourceControlDirectoryVisibleLineStats(node, isExpanded);
         return (
             <div className={virtualRowClassName} style={position}>
                 <SourceControlTreeRow
@@ -326,9 +330,9 @@ function SourceControlVirtualRow({
                         expanded={isExpanded}
                     />
                     <span className="min-w-0 flex-1 truncate">{node.name}</span>
-                    {node.lineStats && (
+                    {visibleLineStats && (
                         <>
-                            <DiffStat {...node.lineStats} className="text-[11px]" />
+                            <DiffStat {...visibleLineStats} className="text-[11px]" />
                             {/*
                              * Stands in for a file row's status letter (`gap-2` + `min-w-4`) so directory counts line
                              * up in the same column as the file counts beneath them.

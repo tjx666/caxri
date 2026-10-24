@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useEffect, useId, useState } from 'react';
+import { useId } from 'react';
 
 import type {
     ProjectRecord,
@@ -22,6 +22,7 @@ import { openSessionPullRequest } from '../session/session-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-label';
 import { useSessionChanges } from './hooks/use-session-changes';
+import { useSidebarDetailCard } from './hooks/use-sidebar-detail-card';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
@@ -35,7 +36,6 @@ import { SessionCreatorRow } from './session-creator-row';
 import { SessionExcerpt } from './session-excerpt';
 import { sessionPullRequestPresentation } from './session-pull-request';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
-import { sidebarDetailCardDismissal } from './sidebar-detail-card-dismissal';
 
 /**
  * The detail card keeps the exact attention kind and its explanatory tone even though the list's compact status slot
@@ -212,7 +212,8 @@ export function SessionActivityCard({
 }) {
     const accessibleDescriptionId = useId();
     const { t } = useTranslation();
-    const [open, setOpen] = useState(false);
+    const { closeDelay, delay, motionClassName, setOpen, visible } =
+        useSidebarDetailCard(suppressed);
     const agent = terminal?.kind ?? 'shell';
     const activity = currentSessionActivityPresentation(session, {
         agentOperation: terminal?.agentOperation,
@@ -227,7 +228,6 @@ export function SessionActivityCard({
     const pullRequestPresentation = pullRequest
         ? sessionPullRequestPresentation(pullRequest)
         : undefined;
-    const visible = open && !suppressed;
     const changes = useSessionChanges(session, visible);
     const accessibleDescription = sessionCardDescription(t, {
         agentLabel,
@@ -241,17 +241,12 @@ export function SessionActivityCard({
     });
     const unreadSentence = unread ? t('primarySidebar.card.sentence', { text: unread }) : undefined;
 
-    useEffect(() => {
-        if (!visible) return;
-        return sidebarDetailCardDismissal(() => setOpen(false));
-    }, [visible]);
-
     return (
         <HoverCard open={visible} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
             <HoverCardTrigger
                 aria-describedby={accessibleDescriptionId}
-                closeDelay={80}
-                delay={450}
+                closeDelay={closeDelay}
+                delay={delay}
                 onFocus={(event) => {
                     event.preventBaseUIHandler();
                     setOpen(
@@ -267,7 +262,10 @@ export function SessionActivityCard({
             </span>
             <HoverCardContent
                 align="start"
-                className="session-activity-card w-72 max-w-[calc(100vw-16px)] p-3"
+                className={cn(
+                    'session-activity-card w-72 max-w-[calc(100vw-16px)] p-3',
+                    motionClassName,
+                )}
                 collisionAvoidance={{ align: 'shift', fallbackAxisSide: 'end', side: 'flip' }}
                 collisionBoundary={document.documentElement}
                 collisionPadding={8}
