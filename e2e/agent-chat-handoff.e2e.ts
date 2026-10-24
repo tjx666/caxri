@@ -66,7 +66,11 @@ test('an expired Claude Code Chat continues in a new Chat that reads its transcr
             /^Continue the unfinished work from a previous Agent conversation/u,
         );
         await expect(handoff).toBeVisible();
-        await expect(chat.getByText(/Previous transcript: \/.+\.jsonl/u)).toBeVisible();
+        // A typed path in a sent message renders as a path pill that shows the file name only.
+        await expect(chat.getByText('Previous transcript:')).toBeVisible();
+        await expect(chat.getByText(/^[\w-]+\.jsonl$/u)).toBeVisible();
+        // The long handoff message is clamped; the user's draft sits below the fold.
+        await chat.getByRole('button', { name: 'Show more' }).click();
         await expect(chat.getByText(/after catching up:\s*also add a test/u)).toBeVisible();
         // The fake Claude answers a prompt that asks for a subagent by running one.
         await expect(chat.getByText('The subagent finished.')).toBeVisible();
