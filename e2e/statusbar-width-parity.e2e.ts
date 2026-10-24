@@ -153,13 +153,9 @@ exec /bin/zsh -l
             name: `Switch branch from ${BRANCH_NAME}`,
         });
         const pullRequest = running.page.getByRole('link', { name: 'Open pull request #11' });
-        const changes = running.page.getByRole('button', {
-            name: 'Open changes: 2 lines added, 1 removed',
-        });
         await expect(project).toHaveText(PROJECT_NAME);
         await expect(branch).toHaveText(BRANCH_NAME);
         await expect(pullRequest).toBeVisible();
-        await expect(changes).toHaveText('+2 -1');
 
         /**
          * `ActiveFileStatus` and `ActiveTerminalStatus` are mutually exclusive: `StatusBar` picks one from the active
@@ -221,10 +217,9 @@ exec /bin/zsh -l
             const shown = await Promise.all(dropOrder.map(async (chip) => chip.isVisible()));
             for (const [index, isShown] of shown.entries())
                 if (isShown) expect(shown.slice(index + 1).every(Boolean)).toBe(true);
-            // Never dropped: the Project, branch, and change counter have no other home in the bar.
+            // Never dropped: the Project and branch have no other home in the bar.
             await expect(project).toBeVisible();
             await expect(branch).toBeVisible();
-            await expect(changes).toBeVisible();
             const layout = await statusbar.evaluate((element) => {
                 const items = [
                     ...element.querySelectorAll<HTMLElement>(

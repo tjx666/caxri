@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildSourceControlResourceTree,
     sourceControlDirectoryExpansionKeys,
+    sourceControlDirectoryVisibleLineStats,
     sourceControlGroupExpansionKeys,
     sumSourceControlLineStats,
 } from '../source-control-tree';
@@ -99,5 +100,34 @@ describe('sumSourceControlLineStats', () => {
 
     it('reports nothing when no entry was measured', () => {
         expect(sumSourceControlLineStats([undefined, undefined])).toBeUndefined();
+    });
+});
+
+describe('sourceControlDirectoryVisibleLineStats', () => {
+    const measured = (path: string, additions: number): SourceControlResource => ({
+        ...resource(path),
+        lineStats: { additions, deletions: 0 },
+    });
+
+    it('leaves the counts off an expanded single-child chain and keeps them where they add information', () => {
+        const [source] = buildSourceControlResourceTree([
+            measured('src/business/client/hooks/use-thing.ts', 1),
+            measured('src/store/chat.ts', 2),
+        ]);
+        if (source.kind !== 'directory') throw new Error('expected src to be a directory');
+        const [business] = source.children;
+        if (business.kind !== 'directory') throw new Error('expected business to be a directory');
+        // `src` sums two branches, so its total is new even while expanded.
+        expect(sourceControlDirectoryVisibleLineStats(source, true)).toEqual({
+            additions: 3,
+            deletions: 0,
+        });
+        // `business` holds only `client`, whose row right below prints the same `+1`.
+        expect(sourceControlDirectoryVisibleLineStats(business, true)).toBeUndefined();
+        // Collapsed, nothing beneath it says the figure, so it shows again.
+        expect(sourceControlDirectoryVisibleLineStats(business, false)).toEqual({
+            additions: 1,
+            deletions: 0,
+        });
     });
 });

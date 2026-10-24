@@ -118,3 +118,18 @@ export function sourceControlDirectoryExpansionKeys(
         directory.children.filter(isSourceControlTreeDirectory),
     ).map((directory) => `${providerKey}:${directory.path}`);
 }
+
+/**
+ * The line counts a directory row shows, or undefined to leave them off. An expanded directory with a single child
+ * repeats exactly the figure printed on the row right beneath it, so a deep single-file path (`src` > `business` >
+ * `client` > `hooks` > one file) stacked the same `+1` five times. Its counts return once it collapses (nothing below
+ * says them then) or gains a sibling (the sum is new information). The row's accessible description keeps the counts
+ * either way.
+ */
+export function sourceControlDirectoryVisibleLineStats(
+    directory: Pick<SourceControlTreeDirectory, 'children' | 'lineStats'>,
+    isExpanded: boolean,
+): SourceControlResource['lineStats'] {
+    if (isExpanded && directory.children.length === 1) return undefined;
+    return directory.lineStats;
+}

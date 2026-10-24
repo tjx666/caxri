@@ -8,9 +8,10 @@ import { cn } from '../lib/utilities';
  * Which fill the scroll cue has to blend into. A pane tab bar names them in its own precedence order: the drop-target
  * tint covers everything, then the Workbench bar's title-bar fill, then an ordinary surface (also a report card's).
  */
-export type ScrollFadeFill = 'dropTarget' | 'surface' | 'titleBar';
+export type ScrollFadeFill = 'background' | 'dropTarget' | 'surface' | 'titleBar';
 
 const SCROLL_FADE_FILL_CLASS_NAME: Record<ScrollFadeFill, string> = {
+    background: 'from-background',
     dropTarget: 'from-elevated',
     surface: 'from-surface',
     // Tracks the root bar's own two states, so the cue stays seamless when the window loses focus.
@@ -18,20 +19,48 @@ const SCROLL_FADE_FILL_CLASS_NAME: Record<ScrollFadeFill, string> = {
 };
 
 /**
- * The gradient cue for one end of a horizontal scroller. Render it only on an edge that actually hides content; it
- * fades to the background the scroller sits on so the cue never draws a visible seam against it. `motion-safe:` keeps
- * the appear/disappear crossfade off entirely under reduced motion (DESIGN.md's motion layer contract), leaving an
- * instant show/hide. Its parent must be the positioned box that frames the scroller.
+ * Each edge's placement, size, and gradient direction. The vertical cues are taller than the sideways ones (40px
+ * against 24px) because they fade whole lines of text, and a 24px fade over 20px lines reads as a cut line rather than
+ * a fade.
  */
-export function ScrollFade({ edge, fill }: { edge: 'end' | 'start'; fill: ScrollFadeFill }) {
+const SCROLL_FADE_EDGE_CLASS_NAME: Record<ScrollFadeEdge, string> = {
+    start: 'inset-y-0 left-0 w-6 bg-gradient-to-r',
+    end: 'inset-y-0 right-0 w-6 bg-gradient-to-l',
+    top: 'inset-x-0 top-0 h-10 bg-gradient-to-b',
+    bottom: 'inset-x-0 bottom-0 h-10 bg-gradient-to-t',
+};
+
+export type ScrollFadeEdge = 'bottom' | 'end' | 'start' | 'top';
+
+/**
+ * The gradient cue for one edge of a scroller (DESIGN.md "Scroll edge cues"). Render it only on an edge that actually
+ * hides content; it fades to the background the scroller sits on so the cue never draws a visible seam against it, and
+ * content passing under floating chrome (Jump to latest over the Chat transcript) dissolves instead of being cut. It
+ * fades in when it mounts; `motion-safe:` keeps that crossfade off entirely under reduced motion (DESIGN.md's motion
+ * layer contract), leaving an instant show/hide. Its parent must be the positioned box that frames the scroller.
+ */
+export function ScrollFade({
+    className,
+    edge,
+    fill,
+}: {
+    /**
+     * Placement overrides, such as an inset that keeps a vertical cue off the scrollbar.
+     */
+    className?: string;
+    edge: ScrollFadeEdge;
+    fill: ScrollFadeFill;
+}) {
     return (
         <div
             aria-hidden="true"
             className={cn(
-                'pointer-events-none absolute inset-y-0 z-[4] w-6 to-transparent motion-safe:transition-opacity',
-                edge === 'start' ? 'left-0 bg-gradient-to-r' : 'right-0 bg-gradient-to-l',
+                'pointer-events-none absolute z-[4] to-transparent motion-safe:transition-opacity motion-safe:starting:opacity-0',
+                SCROLL_FADE_EDGE_CLASS_NAME[edge],
                 SCROLL_FADE_FILL_CLASS_NAME[fill],
+                className,
             )}
+            data-scroll-fade={edge}
         />
     );
 }

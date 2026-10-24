@@ -28,7 +28,7 @@ export function AgentChatJumpToLatest({
     return (
         <Button
             className={cn(
-                'absolute bottom-2 left-1/2 -translate-x-1/2 shadow-[0_8px_24px_var(--shadow)] transition-[background,opacity,translate] motion-reduce:transition-none',
+                'absolute bottom-2 left-1/2 z-10 -translate-x-1/2 shadow-[0_8px_24px_var(--shadow)] transition-[background,opacity,translate] motion-reduce:transition-none',
                 isLatestInView
                     ? 'pointer-events-none translate-y-1 opacity-0 duration-(--motion-overlay-exit) ease-(--motion-ease-exit)'
                     : 'translate-y-0 opacity-100 duration-(--motion-overlay-enter) ease-(--motion-ease-enter)',

@@ -1,6 +1,6 @@
 import { CodeView } from '../../../components/markdown/code-view';
+import { ScrollFade } from '../../../components/scroll-fade';
 import { useTranslation } from '../../../i18n';
-import { cn } from '../../../lib/utilities';
 import { useAgentChatScroll } from '../hooks/use-agent-chat-scroll';
 import { AgentChatJumpToLatest } from '../transcript/agent-chat-jump-to-latest';
 
@@ -50,11 +50,7 @@ export function AgentChatTaskOutput({
                 </div>
             )}
             <div
-                className={cn(
-                    'min-h-0 flex-1 overflow-auto outline-none',
-                    // Ends above Jump to latest while it shows, as the Chat pane does, so it never covers a line.
-                    !isLatestInView && 'mb-10',
-                )}
+                className="min-h-0 flex-1 overflow-auto outline-none"
                 ref={scrollReference}
                 tabIndex={-1}
                 onScroll={onScroll}
@@ -80,6 +76,11 @@ export function AgentChatTaskOutput({
                     )}
                 </div>
             </div>
+            {!isLatestInView && (
+                // The output runs on under Jump to latest and dissolves into this fade, as the Chat pane's transcript
+                // does (DESIGN.md "Scroll edge cues").
+                <ScrollFade className="right-2" edge="bottom" fill="background" />
+            )}
             <AgentChatJumpToLatest
                 focusTarget={scrollReference}
                 isLatestInView={isLatestInView}

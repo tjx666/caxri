@@ -90,7 +90,7 @@ describe('Status extension review group', () => {
                     unresolvedReviewThreads: [],
                     ...pullRequest,
                 },
-            }).children?.find((node) => node.item.label === 'Review');
+            }).children?.find((node) => node.item.id?.endsWith(':review'));
         const codexReview = {
             name: 'Code Review',
             status: 'Completed',
@@ -104,33 +104,52 @@ describe('Status extension review group', () => {
         expect(untouched?.item.description).toBe('No comments');
         expect(untouched?.item.actions).toBeUndefined();
 
+        // One Codex review and no threads: the review row takes the group's place instead of expanding to itself.
         const resolved = repo({ reviewThreadCount: 3, codexReviews: [codexReview] });
-        expect(resolved?.item.description).toBe('All resolved');
-        const [codex] = resolved?.children ?? [];
-        expect(codex.item).toMatchObject({
+        expect(resolved?.item).toMatchObject({
             label: 'Codex Code Review',
-            description: 'Completed · 9e912c5',
+            description: 'All resolved',
             command: { arguments: [summaryUrl] },
         });
-        expect(codex.item.iconPath?.id).toBe('circle-check');
+        expect(resolved?.children).toBeUndefined();
+        expect(resolved?.item.iconPath?.id).toBe('circle-check');
+        // The icon carries the state, and a bare short SHA tells a reader nothing, so neither repeats as text.
+        expect(JSON.stringify(resolved?.item)).not.toContain('9e912c5');
 
         const reviewing = repo({
             reviewThreadCount: 0,
             codexReviews: [{ ...codexReview, status: 'In progress', state: 'running' }],
         });
-        expect(reviewing?.item.description).toBe('Reviewing');
+        // The spinner says it; a `Reviewing` or `In progress` word beside it only repeated it.
+        expect(reviewing?.item.description).toBeUndefined();
         expect(reviewing?.item.iconPath?.id).toBe('loading');
+
+        // Two reviews keep the group, and neither child spells out its state or commit.
+        const twoReviews = repo({
+            reviewThreadCount: 0,
+            codexReviews: [
+                { ...codexReview, status: 'In progress', state: 'running' },
+                { ...codexReview, name: 'Security Review' },
+            ],
+        });
+        expect(twoReviews?.item.label).toBe('Review');
+        expect(twoReviews?.item.description).toBeUndefined();
+        expect(twoReviews?.children?.map((child) => child.item.description)).toEqual([
+            undefined,
+            undefined,
+        ]);
 
         const failed = repo({
             reviewThreadCount: 2,
+            unresolvedReviewThreads: [{ url: `${pullRequestUrl}#discussion_r1`, body: 'Fix' }],
             codexReviews: [{ ...codexReview, status: 'Failed', state: 'failed' }],
         });
-        expect(failed?.item.description).toBe('Review failed');
-        expect(failed?.item.iconPath?.id).toBe('circle-x');
+        expect(failed?.item.description).toBe('1 unresolved');
+        expect(failed?.children).toHaveLength(2);
 
         // A push after the review leaves the review row naming the older commit it covered.
         const stale = repo({ headSha: 'a'.repeat(40), codexReviews: [codexReview] });
-        expect(stale?.children?.[0]?.item.description).toBe('Completed · 9e912c5 · older commit');
+        expect(stale?.item.description).toBe('No comments · older commit');
     });
 
     it('reports a failed read instead of a clean review when the field is missing on an open pull request', () => {

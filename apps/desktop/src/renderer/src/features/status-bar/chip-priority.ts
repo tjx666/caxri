@@ -23,13 +23,13 @@
  * - The pull request chip duplicates the Git panel, so it goes after that.
  * - Everything else is never included here: the notification bell, degraded-backend/runtime chips, active Terminal
  *   progress, the update chip, the open debugging channel chip, the Agent Commander chips, the count of peer messages
- *   awaiting approval, the change counter, and the Project root + branch pickers. They have no other on-screen home and
- *   must never disappear silently. The update chip is the only persistent trace of a download in flight or an install
- *   waiting. The debugging chip is a security disclosure: a window narrow enough to hide it is not a reason to stop
- *   telling the user that anything on this Mac can attach to Caxri. The approval count and the Commander's "Needs you"
- *   count stand for questions still waiting on the user. The pickers cap their own width instead (a long branch name
- *   truncates at that cap), and the overflow scrollbar stays as the absolute last resort for the pathological case
- *   where even that never-hide set doesn't fit.
+ *   awaiting approval, and the Project root + branch pickers. They have no other on-screen home and must never
+ *   disappear silently. The update chip is the only persistent trace of a download in flight or an install waiting. The
+ *   debugging chip is a security disclosure: a window narrow enough to hide it is not a reason to stop telling the user
+ *   that anything on this Mac can attach to Caxri. The approval count and the Commander's "Needs you" count stand for
+ *   questions still waiting on the user. The pickers cap their own width instead (a long branch name truncates at that
+ *   cap), and the overflow scrollbar stays as the absolute last resort for the pathological case where even that
+ *   never-hide set doesn't fit.
  *
  * The chips are dropped by measured width rather than at fixed window-width breakpoints: which chips are present (an
  * Agent's two chips, a Commander chip, a debugging disclosure) changes how much room the rest needs, and a fixed
