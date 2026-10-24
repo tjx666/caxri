@@ -168,7 +168,7 @@ no background of its own keeps its default dark text readable.
   `Show 10 more` row, stepping by ten with Desktop's sidebar window
   (`packages/protocol/src/domain/session/session-list-window.ts`); a tablet keeps the selected
   Session in sight below the window. The groups that ask for the user always list everything. The
-  choices last while the app stays on that computer (`MOB-CHAT-27`).
+  choices last while the app stays on that computer (`MOB-CHAT-28`).
 - Pin and Unpin live in the row's long-press sheet beside Rename and Archive, for control devices
   only; they write the same pin Desktop shows.
 - Rows lead with the Agent's brand glyph and carry one status glyph that mirrors Desktop's Session
@@ -184,7 +184,7 @@ no background of its own keeps its default dark text readable.
   interaction ends.
 - On a control device, swiping a row left reveals its `Archive` action. The swipe starts only after
   `24dp` of sideways travel and a closed row ignores a rightward drag, so a vertical scroll that
-  drifts sideways keeps scrolling. At most one row shows its action: starting to swipe another row, tapping a different row, or scrolling the list closes the
+  drifts sideways keeps scrolling (`MOB-CHAT-27`). At most one row shows its action: starting to swipe another row, tapping a different row, or scrolling the list closes the
   open row, and the tap that closes a row does not open that Session. Android Acceptance
   `MOB-MOTION-02` records this.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
@@ -362,6 +362,8 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   what the Chat is doing with Desktop's
   words under the same sweep (`Mapping the terrain…`, `Compacting context…`) and, after a second, how long
   the turn has run; waiting on the user shows a still question glyph in the warning color instead.
+  Since that line already spins, the Session header's status slot stays empty for a running Chat
+  while its Chat tab is open; the other tabs keep the header spinner.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
   echoes, local command output) renders as a compact event row: status icon and a short title,
   expandable detail, never as the user's own bubble. Reminder-only turns are hidden.

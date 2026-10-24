@@ -258,7 +258,8 @@ export const SessionDetailHeader = ({
                             {sessionTitleForDisplay(session.displayTitle, t)}
                         </Text>
                         <SessionStatusGlyph
-                            isCompacting={isCompacting}
+                            // The Chat tab's status row already spins for the run, so the title does not spin too.
+                            isRunShownBelow={isCompacting || (isChat && segment === 'conversation')}
                             isSaved={savedAt !== null}
                             label={sessionStateLabel(session.stateLabel, savedAt, now, t)}
                             session={session}
