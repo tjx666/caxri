@@ -70,7 +70,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    A diff that rewrites user-visible text or removes or renames a control also breaks specs that
    assert the old text or accessible name, and nothing selects them: search `e2e/` for each old
    string, then list and run every match. Rewording the return hint to "since you left" left
-   `session-return-context.e2e.ts` asserting "since you last looked" on `main`.
+   `session-return-context.e2e.ts` asserting "since you last looked" on `main`. A diff that changes
+   how existing content renders (a path becoming a pill, a long message clamped behind "Show more")
+   breaks text assertions the same way: search `e2e/` for specs reading that content and run them.
+   Rendering sent paths as pills left `agent-chat-handoff.e2e.ts` matching the full path on `main`.
    Run `bun run scripts/surface-matrix.ts` against the pushed diff (`--base origin/main` is the
    default) and paste its Markdown output into the PR body. It reports which product surfaces the
    diff touches (Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,
