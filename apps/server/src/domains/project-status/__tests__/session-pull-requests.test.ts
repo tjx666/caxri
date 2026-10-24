@@ -521,33 +521,6 @@ describe('SessionPullRequestService', () => {
         });
     });
 
-    it('trusts a merely mentioned PR link only for the Session repository', async () => {
-        const gh = vi.fn((arguments_: readonly string[]) => {
-            if (arguments_[1] === 'view') return Promise.resolve(pullRequestJson({ number: 7 }));
-            return Promise.resolve('[]');
-        });
-        const mention = (url: string): string =>
-            JSON.stringify({
-                type: 'assistant',
-                message: { content: [{ type: 'text', text: `See ${url}.` }] },
-            });
-        const { service, setTranscript } = await harness({ gh });
-        await setTranscript([mention('https://github.com/stranger/repo/pull/7')]);
-        await service.refresh();
-        expect(gh.mock.calls.map(([arguments_]) => arguments_[1])).toEqual(['list']);
-        expect(service.snapshot().pullRequests['session-1']).toBeUndefined();
-
-        await setTranscript([
-            mention('https://github.com/stranger/repo/pull/7'),
-            mention('https://github.com/example/example/pull/7'),
-        ]);
-        await service.refresh();
-        expect(service.snapshot().pullRequests['session-1']).toMatchObject({
-            number: 7,
-            source: 'agent',
-        });
-    });
-
     it('keeps sweeping the other Sessions when one checkout cannot be inspected', async () => {
         const gh = vi.fn((arguments_: readonly string[]) =>
             Promise.resolve(

@@ -1,7 +1,8 @@
 import type { PullRequestUnavailable, SessionPullRequest } from '@caxri/protocol';
 
 /**
- * Entry shapes the Session pull-request service caches, split out so the service file stays reviewable.
+ * Entry shapes the Session pull-request service caches, and the pure predicates over them, split out so the service
+ * file stays reviewable.
  */
 
 export interface GitHubRemote {
@@ -51,4 +52,22 @@ export interface ScopedSessionEntry extends SessionEntry {
 export interface SessionUpdate {
     lookedUp: boolean;
     outcome: 'changed' | 'gone' | 'rebound' | 'unchanged';
+}
+
+export function pullRequestKey(reference: PullRequestReference): string {
+    return `${reference.owner}/${reference.repo}#${reference.number}`;
+}
+
+export function isSettled(value: SessionPullRequest | undefined): value is SessionPullRequest {
+    return value?.state === 'merged' || value?.state === 'closed';
+}
+
+/**
+ * Whether `value` merged before `createdAt`. A Session cannot have delivered a pull request that landed before it
+ * existed, so a merely mentioned one is background the Agent cited (a related fix, an earlier change), not this
+ * Session's delivery. Attributing it would also attach that merge's production deployment and Linear issues to an
+ * unrelated branch, including a days-old failed deployment with a Fix action.
+ */
+export function wasMergedBefore(value: SessionPullRequest | undefined, createdAt: number): boolean {
+    return value?.state === 'merged' && value.mergedAt !== undefined && value.mergedAt < createdAt;
 }
