@@ -34,6 +34,19 @@ surface procedure stays in `.agents/skills/acceptance/surfaces/`.
   invokes a host Agent provider or publishes reply text, Terminal output, Session names, source, or
   Project paths.
 
+## QR decoding
+
+- Android release builds decode QR codes through ML Kit, which instantiates its component
+  registrars by reflection. If R8 strips their constructors, scanning silently finds nothing while
+  every screen still renders. `MOB-PAIR-04` decodes a bundled pairing-sized vector through the
+  same decoder in the release APK, and the Android runner fails any case whose app logged
+  `Could not instantiate com.google.mlkit...` (`scripts/mobile-android-native-init.ts`).
+- The emulator's virtual camera scene does not show its wall or table posters in the default view,
+  so pointing the scan screen at a host-generated QR there proves nothing. To reproduce a decode by
+  hand, push a QR image to `/sdcard/Pictures`, index it with
+  `adb shell content call --method scan_volume --uri content://media --arg external_primary`, and
+  use the scan screen's Choose from Photos action. Camera optics still need a real device.
+
 ## Current product limitation
 
 Phase one stores the Mac addresses captured during pairing. When the Mac changes networks or its

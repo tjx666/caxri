@@ -90,6 +90,12 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'pairing-revocation',
     },
+    'MOB-PAIR-04': {
+        desktopProfile: 'not-required',
+        media: [],
+        recordingOwner: 'adapter',
+        scenario: 'barcode-vector',
+    },
     'MOB-PAIR-05': {
         desktopProfile: 'not-required',
         media: [],
