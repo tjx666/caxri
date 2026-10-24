@@ -78,7 +78,7 @@ describe('agentChatContextUsage', () => {
 describe('agentChatContextAlerts', () => {
     const usage = {
         totalTokens: 113_000,
-        contextWindow: 1_000_000,
+        contextWindow: 200_000,
         cacheTtlMinutes: 60,
         lastResponseAt: 0,
         cacheRewriteUsd: 0.69,
@@ -176,6 +176,23 @@ describe('isAgentChatCacheRewriteNoticeable', () => {
         expect(isAgentChatCacheRewriteNoticeable({ totalTokens: 39_999 })).toBe(false);
         expect(isAgentChatCacheRewriteNoticeable({ totalTokens: 40_000 })).toBe(true);
     });
+
+    it('needs the context to fill 20% of its limit when the window is known', () => {
+        const priced = { cacheRewriteUsd: 0.71, contextWindow: 1_000_000 };
+        expect(isAgentChatCacheRewriteNoticeable({ ...priced, totalTokens: 113_000 })).toBe(false);
+        expect(isAgentChatCacheRewriteNoticeable({ ...priced, totalTokens: 200_000 })).toBe(true);
+        // The limit is where the provider compacts on its own, when it says so.
+        expect(
+            isAgentChatCacheRewriteNoticeable({
+                ...priced,
+                totalTokens: 113_000,
+                autoCompactThreshold: 500_000,
+            }),
+        ).toBe(true);
+        expect(
+            isAgentChatCacheRewriteNoticeable({ totalTokens: 50_000, contextWindow: 400_000 }),
+        ).toBe(false);
+    });
 });
 
 describe('agentChatUndismissedContextAlerts', () => {
@@ -208,7 +225,7 @@ describe('agentChatCompactCommand', () => {
 describe('agentChatContextAnnouncement', () => {
     const usage = {
         totalTokens: 113_000,
-        contextWindow: 1_000_000,
+        contextWindow: 200_000,
         cacheTtlMinutes: 60,
         lastResponseAt: 0,
     };
