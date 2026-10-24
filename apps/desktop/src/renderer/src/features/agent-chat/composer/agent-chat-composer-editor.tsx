@@ -11,6 +11,7 @@ import { LinkFavicon } from '../../../components/markdown/link-favicon';
 import { useTranslation } from '../../../i18n';
 import { linkSummary } from '../../../lib/link-summary';
 import { queryClient } from '../../../queries/client';
+import { AgentChatVideoPlayerDialog } from '../attachments/agent-chat-message-videos';
 import type { AgentChatPathPill } from '../attachments/agent-chat-path-pills';
 import type { useAgentChatCommandMenu } from '../hooks/use-agent-chat-command-menu';
 import type { useAgentChatComposerEnter } from '../hooks/use-agent-chat-composer-enter';
@@ -91,8 +92,9 @@ interface ComposerHandlers {
  * list's highlighted prompt replaces the placeholder while it is open. An attached image's `[Image #N]` placeholder
  * shows as a pill (`imagePlaceholders.pills`); clicking one opens its preview, and `imagePlaceholders.onEdit` hears
  * every edit the user makes so a deleted pill takes its image along. A dropped Files entry's path shows as a pill with
- * its icon and name (`pathPills`). A pasted URL takes the accent color and its site icon, a pull request's tinted by
- * its state, as it will in the sent message. Ctrl+C empties the input (`composerKeys`).
+ * its icon and name (`pathPills`); a video's pill shows its poster frame and plays it on click. A pasted URL takes the
+ * accent color and its site icon, a pull request's tinted by its state, as it will in the sent message. Ctrl+C empties
+ * the input (`composerKeys`).
  */
 export function AgentChatComposerEditor({
     composerKeys,
@@ -151,6 +153,10 @@ export function AgentChatComposerEditor({
      */
     const mountedDraft = useRef(draft);
     const handlers = useRef<ComposerHandlers>(null);
+    /**
+     * The video whose pill was clicked, playing in a dialog.
+     */
+    const [playingVideo, setPlayingVideo] = useState<string>();
     const [compartments] = useState(() => ({
         attributes: new Compartment(),
         imagePills: new Compartment(),
@@ -302,7 +308,9 @@ export function AgentChatComposerEditor({
     }, [compartments, imagePills]);
 
     useLayoutEffect(() => {
-        const effects = compartments.pathPills.reconfigure(agentChatPathPills.of(pathPills));
+        const effects = compartments.pathPills.reconfigure(
+            agentChatPathPills.of({ pills: pathPills, openVideo: setPlayingVideo }),
+        );
         viewReference.current?.dispatch({ effects });
     }, [compartments, pathPills]);
 
@@ -313,5 +321,13 @@ export function AgentChatComposerEditor({
         viewReference.current?.dispatch({ effects });
     }, [compartments, terminalId]);
 
-    return <div ref={hostReference} data-slot="agent-chat-composer-editor" />;
+    return (
+        <>
+            <div ref={hostReference} data-slot="agent-chat-composer-editor" />
+            <AgentChatVideoPlayerDialog
+                path={playingVideo}
+                onClose={() => setPlayingVideo(undefined)}
+            />
+        </>
+    );
 }

@@ -8,7 +8,7 @@ import { readBoundedRegularFile } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { dialog, shell } from 'electron';
 
-import { agentChatPathPickerOptions } from './native-file-dialogs';
+import { agentChatPathPickerOptions } from '../native-file-dialogs';
 
 /**
  * Image extensions the composer can attach, by the media type it sends them as. A file whose content does not match its

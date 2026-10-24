@@ -141,7 +141,7 @@ calls carry the user's own CLI credentials and are not covered by the Node `fetc
 ## Renderer-requested path opener
 
 `agentChat.openPathReference` lets the Renderer ask Main to open a path from a file or folder chip
-in a sent message (`apps/desktop/src/main/agent-chat-path-picker.ts`, dispatched in
+in a sent message (`apps/desktop/src/main/agent-chat/path-picker.ts`, dispatched in
 `apps/desktop/src/main/main-methods.ts`). The Renderer can supply only an absolute path string.
 Main resolves it with `realpath`; a folder opens in Finder, while a file, an `.app`, or any
 executable bundle (including a symlink resolving to one) is only revealed in its folder, so a click
@@ -152,6 +152,18 @@ and the action is limited to reveal or open-folder, which grants no read or writ
 It is classified `local-only` in `apps/desktop/src/main/environment-method-policy.ts`: an SSH Host
 window cannot trigger it, because the path would name a file on the remote machine, not the
 machine whose Finder opens. User-facing behavior is in [Agent Chat](../../../../docs/agent-chat.md).
+
+## Chat video media scheme
+
+`caxri-media:` (`apps/desktop/src/main/agent-chat/media-protocol.ts`) serves a video a Chat
+message cites to the Renderer: its QuickLook poster frame and the file itself, streamed with range
+requests so `<video>` can seek. The Renderer CSP forbids `file:` and a screen recording exceeds the
+file channel's read cap, which is why a scheme exists at all. Main serves a path only when the
+requested path and its `realpath` both end in a video extension (`isAgentChatVideoPath`) and the
+target is a regular file; anything else answers 400 or 404, so the scheme cannot read arbitrary
+files, including through a symlink named like a video. Like the path opener, the path is not held
+to a Project root because it is the user's own drop or pick. An SSH Host window never builds these
+URLs (`isAgentChatPlayableVideo`), since its paths name files on the remote machine.
 
 ## Accepted test seams
 

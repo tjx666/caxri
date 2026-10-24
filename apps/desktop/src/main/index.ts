@@ -15,9 +15,10 @@ import type { BrowserWindow, WebContents } from 'electron';
 import { app, dialog, Menu, powerMonitor, screen } from 'electron';
 
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
+import { installAgentChatMediaProtocol } from './agent-chat/media-protocol';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { agentCommanderMenuOptions } from './agent-commander-window';
-import { resolveDevelopmentDockIconPath } from './app-icon';
+import { applyDevelopmentAppIdentity, resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { createAppQuitHandler, createAppQuitPromptOptions, readAppQuitStatus } from './app-quit';
 import { installBeforeQuitTrigger, installSignalQuitTriggers } from './app-quit-triggers';
@@ -93,22 +94,13 @@ import { installActivationHandlers } from './workbench-windows/activation-handle
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const caxriVersion = stampBuildIdentity();
-/**
- * Electron derives automatic native role labels such as `About` and `Hide` from `app.name`, while macOS derives the
- * unpackaged process identity from `process.title`. Configure both so development menus expose product names instead of
- * the workspace package name without making the dev process indistinguishable from the packaged app.
- *
- * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
- */
-if (process.platform === 'darwin' && !app.isPackaged) {
-    app.setName('Caxri Desktop');
-    process.title = 'Caxri Dev';
-}
+applyDevelopmentAppIdentity(app);
 // Must settle before Chromium, logging, Server attachment, or the single-instance lock captures launch identity.
 const desktopProfile = configureDesktopProfile(app, process.env);
 const gpuBoot = prepareGpuBoot(app, desktopProfile.userDataPath);
 const ownsProfileInstance = hasProfileSingleInstanceLock(app, desktopProfile);
 if (!ownsProfileInstance) app.quit();
+installAgentChatMediaProtocol();
 
 // Scoped in a bare block (rather than left at module top level) so the mutable Desktop bootstrap
 // state below is a block-scoped variable, not a Program-scope one: the lifecycle callbacks that

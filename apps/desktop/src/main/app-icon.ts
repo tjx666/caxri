@@ -1,6 +1,24 @@
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
+import type { App } from 'electron';
+
+/**
+ * Electron derives automatic native role labels such as `About` and `Hide` from `app.name`, while macOS derives the
+ * unpackaged process identity from `process.title`. Configure both so development menus expose product names instead of
+ * the workspace package name without making the dev process indistinguishable from the packaged app.
+ *
+ * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
+ */
+export function applyDevelopmentAppIdentity(
+    app: Pick<App, 'isPackaged' | 'setName'>,
+    platform: NodeJS.Platform = process.platform,
+): void {
+    if (platform !== 'darwin' || app.isPackaged) return;
+    app.setName('Caxri Desktop');
+    process.title = 'Caxri Dev';
+}
+
 interface DevelopmentDockIconPathOptions {
     currentDirectory: string;
     isPackaged: boolean;

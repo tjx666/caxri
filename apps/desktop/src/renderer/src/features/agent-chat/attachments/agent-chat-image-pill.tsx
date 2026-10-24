@@ -1,3 +1,6 @@
+import { useState } from 'react';
+
+import { agentChatMediaUrl } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { ImageIcon } from 'lucide-react';
 
@@ -7,7 +10,8 @@ import { resolveFileIcon } from '../../../icons/files/file-icon-resolver';
 import { useCaxriQuery } from '../../../queries/client';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
-import { isPathInsideProject } from './agent-chat-path-pills';
+import { AgentChatVideoPlayerDialog } from './agent-chat-message-videos';
+import { isAgentChatPlayableVideo, isPathInsideProject } from './agent-chat-path-pills';
 
 /**
  * The inline pills a sent message draws where the composer drew them while it was written.
@@ -65,7 +69,8 @@ function useIsFolderPath(path: string, hasTrailingSlash: boolean): boolean {
 /**
  * An absolute path in a sent message, drawn as the pill the composer showed while it was written: the entry's file-type
  * icon and name, with the full path on hover. When the Chat can open files the pill opens it; it is an anchor so a pill
- * at the end of a line wraps with the text around it, as the file links beside it do.
+ * at the end of a line wraps with the text around it, as the file links beside it do. A video's pill shows its poster
+ * frame instead and plays it (`VideoPathPill`).
  */
 export function AgentChatPathPill({
     isDirectory,
@@ -78,6 +83,8 @@ export function AgentChatPathPill({
 }) {
     const name = pathBasename(path) || path;
     const isFolder = useIsFolderPath(path, isDirectory);
+    if (!isDirectory && isAgentChatPlayableVideo(path))
+        return <VideoPathPill name={name} path={path} />;
     const content = (
         <>
             <img
@@ -109,5 +116,44 @@ export function AgentChatPathPill({
                 </span>
             )}
         </Tooltip>
+    );
+}
+
+/**
+ * A video's path in a sent message: the pill the composer showed, its poster frame and name, which plays the video
+ * rather than opening it in the editor, as the tile under the message does (`AgentChatMessageVideos`).
+ */
+function VideoPathPill({ name, path }: { name: string; path: string }) {
+    const { t } = useTranslation();
+    const [isPlaying, setPlaying] = useState(false);
+    const [hasPoster, setHasPoster] = useState(true);
+    return (
+        <>
+            <Tooltip content={path}>
+                <button
+                    aria-label={t('agentChat.message.playVideo', { name })}
+                    className={`${PILL_CLASS_NAME} cursor-pointer border-0 text-foreground hover:bg-border/75 focus-visible:outline focus-visible:outline-accent`}
+                    data-agent-chat-path-pill={path}
+                    type="button"
+                    onClick={() => setPlaying(true)}
+                >
+                    <img
+                        alt=""
+                        className="size-3.5 shrink-0 rounded-xs object-cover"
+                        src={
+                            hasPoster
+                                ? agentChatMediaUrl('poster', path)
+                                : resolveFileIcon({ kind: 'file', name }).src
+                        }
+                        onError={() => setHasPoster(false)}
+                    />
+                    {name}
+                </button>
+            </Tooltip>
+            <AgentChatVideoPlayerDialog
+                path={isPlaying ? path : undefined}
+                onClose={() => setPlaying(false)}
+            />
+        </>
     );
 }

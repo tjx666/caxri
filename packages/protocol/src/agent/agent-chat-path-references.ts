@@ -199,3 +199,59 @@ export function agentChatPathReferencePreview(text: string): string {
         })
         .join(', ');
 }
+
+/**
+ * A video the user cites in a Chat message by its absolute path. The Agent reads the file itself; Desktop serves the
+ * same path to the Renderer through `AGENT_CHAT_MEDIA_SCHEME` so the message can show the video's poster frame and play
+ * it, because the Renderer's Content-Security-Policy forbids `file:` and a screen recording is far larger than an asset
+ * read may be.
+ */
+export const AGENT_CHAT_MEDIA_SCHEME = 'caxri-media';
+
+/**
+ * Extensions Chromium plays in a `<video>` on macOS. A format it cannot decode (`.avi`, `.mkv` with HEVC) stays an
+ * ordinary file reference, so a pill never promises playback it cannot give.
+ */
+const VIDEO_EXTENSIONS = new Set(['m4v', 'mov', 'mp4', 'ogv', 'webm']);
+
+/**
+ * What a media URL asks for: the video itself, streamed with range requests, or its poster frame as a PNG.
+ */
+export type AgentChatMediaKind = 'poster' | 'video';
+
+/**
+ * Whether `path` names a video the Chat previews and plays, judged by its extension.
+ */
+export function isAgentChatVideoPath(path: string): boolean {
+    const name = path.slice(path.lastIndexOf('/') + 1);
+    const dot = name.lastIndexOf('.');
+    return dot > 0 && VIDEO_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+}
+
+/**
+ * The URL that serves the video at the absolute `path`, or its poster frame.
+ */
+export function agentChatMediaUrl(kind: AgentChatMediaKind, path: string): string {
+    return `${AGENT_CHAT_MEDIA_SCHEME}://local/${kind}?path=${encodeURIComponent(path)}`;
+}
+
+/**
+ * The request a media URL makes, or `undefined` when it is not one `agentChatMediaUrl` writes for a video path.
+ */
+export function parseAgentChatMediaUrl(
+    url: string,
+): { kind: AgentChatMediaKind; path: string } | undefined {
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return undefined;
+    }
+    if (parsed.protocol !== `${AGENT_CHAT_MEDIA_SCHEME}:` || parsed.host !== 'local')
+        return undefined;
+    const kind = parsed.pathname.slice(1);
+    const path = parsed.searchParams.get('path');
+    if ((kind !== 'poster' && kind !== 'video') || !path?.startsWith('/')) return undefined;
+    if (!isAgentChatVideoPath(path)) return undefined;
+    return { kind, path };
+}

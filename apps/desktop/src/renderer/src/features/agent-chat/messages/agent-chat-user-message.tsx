@@ -12,6 +12,7 @@ import { linkSummary } from '../../../lib/link-summary';
 import { cn } from '../../../lib/utilities';
 import { AgentChatImagePill, AgentChatPathPill } from '../attachments/agent-chat-image-pill';
 import { AgentChatMessageImages } from '../attachments/agent-chat-message-images';
+import { AgentChatMessageVideos } from '../attachments/agent-chat-message-videos';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
 import { AgentChatInvocationChip } from '../composer/agent-chat-invocation-chip';
 import { agentChatLeadingInvocation } from '../composer-input/agent-chat-slash-commands';
@@ -144,9 +145,10 @@ export function AgentChatUserMessage({
 
 /**
  * The message bubble, shared with a message still on its way (`AgentChatPendingTimeline`): the text, then the images it
- * carried, in one bubble as LobeHub's chat lays a message out. A long message clamps to twelve lines with Show more
- * (the images stay visible under it); the message being edited keeps a `--muted` outline, which marks it without
- * competing with the edit banner's accent for attention. With no text, skills, or images it renders nothing.
+ * carried and the videos its text cites, in one bubble as LobeHub's chat lays a message out. A long message clamps to
+ * twelve lines with Show more (the images stay visible under it); the message being edited keeps a `--muted` outline,
+ * which marks it without competing with the edit banner's accent for attention. With no text, skills, or images it
+ * renders nothing.
  */
 export function AgentChatUserMessageBubble({
     images,
@@ -223,6 +225,7 @@ export function AgentChatUserMessageBubble({
                     message={imageRecord}
                 />
             )}
+            <AgentChatMessageVideos className="mt-2 first:mt-0" text={text} />
         </div>
     );
 }

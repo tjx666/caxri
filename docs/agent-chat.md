@@ -1306,7 +1306,16 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   message carries the path itself (`agent-chat-path-pills.ts`), a folder's with a trailing `/`.
   The sent bubble draws each whole-word absolute path as the same pill (a trailing `/` picks the
   folder icon) and opens it like a file link; a path with a `:line` suffix stays a file link. A
-  Terminal drop still writes the path relative to where the Terminal stands.
+  Terminal drop still writes the path relative to where the Terminal stands. A video (`.mov`,
+  `.mp4`, `.m4v`, `.webm`, `.ogv`) dropped, pasted, or picked from Finder is the exception to the
+  card rule: it is cited at the caret as such a pill, drawn with its poster frame, so the video sits
+  in the sentence where the user put it. The sent bubble keeps the pill in the text and adds a
+  poster tile with a play button under any images, and clicking either opens a player dialog that
+  plays and seeks the file, with Show in Finder when Chromium cannot decode it. Main serves the
+  poster (a QuickLook thumbnail) and the video's byte ranges over the `caxri-media:` scheme only
+  for an existing regular file whose path and resolved path both end in a video extension
+  (`main/agent-chat/media-protocol.ts`). An SSH Host window treats a video like any other local
+  file, since the Agent there cannot read it.
 - **Caxri skill.** Caxri skill in `+` attaches a skill card to the tray (an icon tile, `Caxri
 skill`, and `Skill`), so a request such as "open a Session for this" needs no prompt about the
   CLI. The row is a checkbox: choosing it again removes the card, and one message carries the card

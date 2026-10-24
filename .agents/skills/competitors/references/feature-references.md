@@ -93,6 +93,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Background wait status**: A quiet monitoring sub-mode of running instead of a separate idle or done state. Evidence: `docs/activity-view.md`.
 - **Chat image numbers**: `#N` badge on each attached thumbnail, matching the image's place in the message. Evidence: `docs/agent-chat.md`.
 - **Usage chip weekly window name**: Compact `wk` (Chinese `本周`) instead of `7d`, which reads as days until reset. Evidence: `apps/desktop/src/renderer/src/lib/usage-format.ts`.
+- **Chat video player**: Metadata-only preload until playback, and an unplayable state instead of a broken player. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/attachments/agent-chat-message-videos.tsx`.
 
 ## Wake (MIT)
 
@@ -120,6 +121,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Caxri skill card**: A picked skill shown as a chip in the composer instead of typed text. Evidence: `docs/agent-chat.md`; `apps/desktop/src/renderer/src/features/agent-chat/tools/agent-chat-skill-card.tsx`.
 - **Chat `@` file completion**: Workspace files offered from the composer's `@` trigger. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-file-mentions.ts`.
 - **Agent Chat Session switch**: Frame-by-frame switch measurement; 16 remembered conversations; hidden Chats skip rendering their stream. Evidence: `docs/renderer-performance.md`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-cache-retention.ts`.
+- **Chat message video tile**: A cited video shown as its poster frame with a centered play button and its name, opening a player on click. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/attachments/agent-chat-message-videos.tsx`.
 
 ## Paseo (Apache-2.0)
 

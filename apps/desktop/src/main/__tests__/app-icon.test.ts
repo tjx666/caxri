@@ -1,6 +1,30 @@
-import { describe, expect, it } from 'vitest';
+import process from 'node:process';
 
-import { resolveDevelopmentDockIconPath, resolveNotificationAppIconPath } from '../app-icon';
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+    applyDevelopmentAppIdentity,
+    resolveDevelopmentDockIconPath,
+    resolveNotificationAppIconPath,
+} from '../app-icon';
+
+describe('applyDevelopmentAppIdentity', () => {
+    it('names an unpackaged macOS launch and leaves a packaged one alone', () => {
+        const title = process.title;
+        try {
+            const development = { isPackaged: false, setName: vi.fn() };
+            applyDevelopmentAppIdentity(development, 'darwin');
+            expect(development.setName).toHaveBeenCalledWith('Caxri Desktop');
+            expect(process.title).toBe('Caxri Dev');
+
+            const packaged = { isPackaged: true, setName: vi.fn() };
+            applyDevelopmentAppIdentity(packaged, 'darwin');
+            expect(packaged.setName).not.toHaveBeenCalled();
+        } finally {
+            process.title = title;
+        }
+    });
+});
 
 describe('resolveDevelopmentDockIconPath', () => {
     it('loads the repository icon for a macOS development launch', () => {
