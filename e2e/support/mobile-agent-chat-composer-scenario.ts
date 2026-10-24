@@ -214,6 +214,23 @@ export async function executeMobileChatComposerScenario(
         if (!steeredTurnId) throw new Error('The steered turn is incomplete');
         await waitForCheck(serial, `agent-chat-turn-${steeredTurnId}:1`);
         await capture(environment, 'steered-segments', artifacts);
+        // The steer's segment ran one settled command, so unfolding it shows that call as its own row, not a summary.
+        const answerCommand = findItem(
+            steered,
+            (item) =>
+                item.type === 'command' &&
+                item.turnId === steeredTurnId &&
+                item.command.includes('git status --short'),
+        );
+        if (!answerCommand) throw new Error('The steered segment ran no command');
+        await tapMobileCheckByBounds(serial, `agent-chat-turn-${steeredTurnId}:1`);
+        const unfolded = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => hasCheck(nodes, `agent-chat-work-${answerCommand.id}`),
+        );
+        if (unfolded.some(({ checkId }) => checkId.startsWith('agent-chat-work-group-')))
+            throw new Error('A lone settled call must not sit in a run summary');
+        await capture(environment, 'lone-call-row', artifacts);
 
         // Slash commands (#1708): typing `/` lists the provider's commands, and choosing one runs it.
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');

@@ -40,6 +40,13 @@ const isSameBounds = (a: ScreenBounds, b: ScreenBounds): boolean =>
     a.top === b.top && a.bottom === b.bottom && a.left === b.left && a.right === b.right;
 
 /**
+ * Whether the danger color now draws the stop confirmation's filled button rather than Stop itself: the button spans
+ * half the sheet, far wider than Stop, so a Stop that only moved as output grew the sheet never passes for it.
+ */
+export const isConfirmation = (candidate: ScreenBounds, stop: ScreenBounds): boolean =>
+    candidate.right - candidate.left > 2 * (stop.right - stop.left);
+
+/**
  * Waits until `color` is drawn in `region` at the same place on two reads in a row, and returns where. A sheet slides
  * in before it settles, and a running task's output grows it, which moves what it draws. `isWanted` rejects a place the
  * screen showed before.
@@ -149,7 +156,9 @@ export async function exerciseChatBackgroundWork(
     await adbShell(serial, ['input', 'tap', String(stop.x), String(stop.y)]);
     // Stop gives way to a confirmation whose Stop button is the danger color's only other use.
     const confirm = centerOf(
-        await waitForStop(serial, sheetRegion, (candidate) => !isSameBounds(candidate, stopBounds)),
+        await waitForStop(serial, sheetRegion, (candidate) =>
+            isConfirmation(candidate, stopBounds),
+        ),
     );
     await capture(environment, 'task-stop-confirmation', artifacts);
     await adbShell(serial, ['input', 'tap', String(confirm.x), String(confirm.y)]);

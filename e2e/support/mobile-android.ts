@@ -266,13 +266,29 @@ export async function copyMobileFramebufferRecording(
     await runMobileDeviceCommand(adb, ['-s', serial, 'pull', remotePath, localPath]);
 }
 
+/**
+ * Reads the sanitized semantic checks. Under heavy host load a single UIAutomator read once failed with no closed
+ * reason in the middle of a case, so an unclassified driver failure is retried a few times; a closed reason such as a
+ * lost foreground still fails at once, since a retry cannot fix it.
+ */
 export async function mobileSemantics(serial: string): Promise<MobileSemanticNode[]> {
-    const source = await runMobileDeviceCommand(
-        'bun',
-        ['run', androidDeviceScript, 'semantics', '--serial', serial],
-        'capture',
-    );
-    return (JSON.parse(source) as { checks: MobileSemanticNode[] }).checks;
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- a retry only follows a failed read.
+            const source = await runMobileDeviceCommand(
+                'bun',
+                ['run', androidDeviceScript, 'semantics', '--serial', serial],
+                'capture',
+            );
+            return (JSON.parse(source) as { checks: MobileSemanticNode[] }).checks;
+        } catch (error) {
+            const isUnclassified =
+                error instanceof Error && error.message.endsWith('(driver-failed)');
+            if (!isUnclassified || attempt >= 3) throw error;
+        }
+        // eslint-disable-next-line no-await-in-loop -- see above.
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
 }
 
 /**
