@@ -75,15 +75,16 @@ export function agentChatTurnMetrics(
 }
 
 /**
- * What a finished turn's reply footer reads after its time, the way LobeHub's message footer does: `62 tok/s · $0.42`,
- * with the measured totals and the estimate caveat as tooltip lines. Undefined when the turn recorded neither a rate
- * nor a cost; a turn too short to rate (below the throughput floor) or whose models have no price shows the other
- * figure alone.
+ * What a finished turn's reply footer reads after its time, the way LobeHub's message footer does: the speed (`62
+ * tok/s`), then the cost as a bare figure (`0.42`) the footer puts behind the same dollar glyph the composer's metric
+ * strip uses, with the measured totals and the estimate caveat as tooltip lines. Undefined when the turn recorded
+ * neither a rate nor a cost; a turn too short to rate (below the throughput floor) or whose models have no price shows
+ * the other figure alone.
  */
 export function agentChatReplyMetrics(
     metrics: AgentChatTurnMetrics | undefined,
     t: Translate = translate,
-): { label: string; details: string[] } | undefined {
+): { cost?: string; details: string[]; rate?: string } | undefined {
     if (!metrics) return undefined;
     const generated =
         metrics.outputTokens === undefined || metrics.generationMs === undefined
@@ -94,17 +95,18 @@ export function agentChatReplyMetrics(
                   responseCount: 1,
               };
     const rate = generated && throughputRate(generated);
-    const cost =
-        metrics.costUsd !== undefined && metrics.costUsd > 0
-            ? formatUsd(metrics.costUsd)
-            : undefined;
-    const label = [rate === undefined ? undefined : formatThroughputRate(rate), cost]
-        .filter(Boolean)
-        .join(' · ');
-    if (!label) return undefined;
+    const costUsd =
+        metrics.costUsd !== undefined && metrics.costUsd > 0 ? metrics.costUsd : undefined;
+    if (rate === undefined && costUsd === undefined) return undefined;
     const details = [
         rate === undefined || !generated ? undefined : describeThroughputAggregate(generated, t),
-        cost && t('agentChat.message.turnCost', { cost }),
+        costUsd === undefined
+            ? undefined
+            : t('agentChat.message.turnCost', { cost: formatUsd(costUsd) }),
     ].filter((line) => line !== undefined);
-    return { label, details };
+    return {
+        cost: costUsd === undefined ? undefined : formatAgentChatTurnCost(costUsd),
+        details,
+        rate: rate === undefined ? undefined : formatThroughputRate(rate),
+    };
 }
