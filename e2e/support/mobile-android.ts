@@ -397,23 +397,27 @@ interface FramebufferBounds {
 
 /**
  * Reads one raw framebuffer. Raw `screencap` output is a small header followed by RGBA pixels; the header length
- * differs across Android releases, so it is derived from the size.
+ * differs across Android releases, so it is derived from the size. A capture taken while a bottom sheet animates in
+ * once came back short of a full frame, so a malformed read is retried a few times before failing.
  */
 async function readRawFramebuffer(
     serial: string,
 ): Promise<{ frame: Buffer; header: number; height: number; width: number }> {
-    const result = await execFileAsync(adb, ['-s', serial, 'exec-out', 'screencap'], {
-        cwd: projectRoot,
-        encoding: 'buffer',
-        maxBuffer: 32 * 1024 * 1024,
-    });
-    const frame = result.stdout;
-    const width = frame.readUInt32LE(0);
-    const height = frame.readUInt32LE(4);
-    const header = frame.length - width * height * 4;
-    if (header < 12 || header > 16)
-        throw new Error('Android raw framebuffer has an unknown layout');
-    return { frame, header, height, width };
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        // eslint-disable-next-line no-await-in-loop -- a retry only follows a malformed capture.
+        const result = await execFileAsync(adb, ['-s', serial, 'exec-out', 'screencap'], {
+            cwd: projectRoot,
+            encoding: 'buffer',
+            maxBuffer: 32 * 1024 * 1024,
+        });
+        const frame = result.stdout;
+        if (frame.length < 8) continue;
+        const width = frame.readUInt32LE(0);
+        const height = frame.readUInt32LE(4);
+        const header = frame.length - width * height * 4;
+        if (header >= 12 && header <= 16) return { frame, header, height, width };
+    }
+    throw new Error('Android raw framebuffer has an unknown layout');
 }
 
 /**
