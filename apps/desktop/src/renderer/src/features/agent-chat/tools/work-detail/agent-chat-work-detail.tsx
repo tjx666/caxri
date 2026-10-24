@@ -73,6 +73,78 @@ function OutputView({
 }
 
 /**
+ * A command's full text when the row title cannot show it, then its output, exit code, and background note.
+ */
+function CommandDetail({
+    isRunning,
+    item,
+}: {
+    isRunning: boolean;
+    item: Extract<AgentChatWorkItem, { type: 'command' }>;
+}) {
+    const { t } = useTranslation();
+    const command = unwrapShellCommand(item.command);
+    return (
+        <>
+            {(item.description !== undefined ||
+                describeAgentChatWorkRow(item).kind !== 'command' ||
+                command.length > COMMAND_TITLE_LENGTH ||
+                command.includes('\n')) && (
+                <CodeView
+                    className={OUTPUT_CLASS_NAME}
+                    code={command}
+                    label={t('agentChat.workGroup.command')}
+                    language="shell"
+                />
+            )}
+            <OutputView
+                isRunning={isRunning}
+                language={agentChatOutputLanguage(item)}
+                text={item.output}
+            />
+            {item.exitCode !== undefined && (
+                <p className={cn('m-0', item.exitCode === 0 ? 'text-muted' : 'text-danger')}>
+                    {t('agentChat.workGroup.exitCode', { code: item.exitCode })}
+                </p>
+            )}
+            {item.background && (
+                <p className="m-0 text-muted">{t('agentChat.workGroup.movedToBackground')}</p>
+            )}
+        </>
+    );
+}
+
+/**
+ * A tool call's arguments, unless the row title already names them in full, then its output.
+ */
+function ToolCallDetail({
+    isRunning,
+    item,
+}: {
+    isRunning: boolean;
+    item: Extract<AgentChatWorkItem, { type: 'toolCall' }>;
+}) {
+    const language = agentChatOutputLanguage(item);
+    const output = item.output ?? '';
+    const argumentsText = agentChatToolCallArguments(item);
+    const { kind, subject } = describeAgentChatWorkRow(item);
+    return (
+        <>
+            {/* Arguments the row title already names in full (a `wait` call's Agent) would only repeat it. */}
+            {argumentsText && argumentsText !== subject && (
+                <AgentChatToolArguments text={argumentsText} />
+            )}
+            <OutputView
+                isRunning={isRunning}
+                isWrapped={kind === 'mcp'}
+                language={language}
+                text={kind === 'read' ? stripLineNumberGutter(output) : output}
+            />
+        </>
+    );
+}
+
+/**
  * What an expanded work row shows: the reasoning text, the full command and its output, a tool's arguments and output
  * painted in the output's language, or the diff.
  */
@@ -83,7 +155,6 @@ export function AgentChatWorkDetail({
     item: AgentChatWorkItem;
     onOpenFile?: (target: string) => void;
 }) {
-    const { t } = useTranslation();
     const isRunning = isAgentChatWorkRunning(item);
     switch (item.type) {
         case 'reasoning': {
@@ -100,62 +171,10 @@ export function AgentChatWorkDetail({
             );
         }
         case 'command': {
-            const command = unwrapShellCommand(item.command);
-            return (
-                <>
-                    {(item.description !== undefined ||
-                        describeAgentChatWorkRow(item).kind !== 'command' ||
-                        command.length > COMMAND_TITLE_LENGTH ||
-                        command.includes('\n')) && (
-                        <CodeView
-                            className={OUTPUT_CLASS_NAME}
-                            code={command}
-                            label={t('agentChat.workGroup.command')}
-                            language="shell"
-                        />
-                    )}
-                    <OutputView
-                        isRunning={isRunning}
-                        language={agentChatOutputLanguage(item)}
-                        text={item.output}
-                    />
-                    {item.exitCode !== undefined && (
-                        <p
-                            className={cn(
-                                'm-0',
-                                item.exitCode === 0 ? 'text-muted' : 'text-danger',
-                            )}
-                        >
-                            {t('agentChat.workGroup.exitCode', { code: item.exitCode })}
-                        </p>
-                    )}
-                    {item.background && (
-                        <p className="m-0 text-muted">
-                            {t('agentChat.workGroup.movedToBackground')}
-                        </p>
-                    )}
-                </>
-            );
+            return <CommandDetail isRunning={isRunning} item={item} />;
         }
         case 'toolCall': {
-            const language = agentChatOutputLanguage(item);
-            const output = item.output ?? '';
-            const argumentsText = agentChatToolCallArguments(item);
-            const { kind, subject } = describeAgentChatWorkRow(item);
-            return (
-                <>
-                    {/* Arguments the row title already names in full (a `wait` call's Agent) would only repeat it. */}
-                    {argumentsText && argumentsText !== subject && (
-                        <AgentChatToolArguments text={argumentsText} />
-                    )}
-                    <OutputView
-                        isRunning={isRunning}
-                        isWrapped={kind === 'mcp'}
-                        language={language}
-                        text={kind === 'read' ? stripLineNumberGutter(output) : output}
-                    />
-                </>
-            );
+            return <ToolCallDetail isRunning={isRunning} item={item} />;
         }
         case 'fileChange': {
             // Diff text is selectable; the diff's own line-number and marker gutters stay `select-none`.
