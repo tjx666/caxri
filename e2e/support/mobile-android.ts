@@ -397,26 +397,38 @@ interface FramebufferBounds {
 
 /**
  * Reads one raw framebuffer. Raw `screencap` output is a small header followed by RGBA pixels; the header length
- * differs across Android releases, so it is derived from the size. A capture taken while a bottom sheet animates in
- * once came back short of a full frame, so a malformed read is retried a few times before failing.
+ * differs across Android releases, so it is derived from the size. Under heavy host load a capture taken while a sheet
+ * animated came back short of a full frame, and the emulator once dropped offline for a moment, so a malformed or
+ * failed read is retried a few times before failing.
  */
 async function readRawFramebuffer(
     serial: string,
 ): Promise<{ frame: Buffer; header: number; height: number; width: number }> {
+    let failure: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-        // eslint-disable-next-line no-await-in-loop -- a retry only follows a malformed capture.
-        const result = await execFileAsync(adb, ['-s', serial, 'exec-out', 'screencap'], {
-            cwd: projectRoot,
-            encoding: 'buffer',
-            maxBuffer: 32 * 1024 * 1024,
-        });
-        const frame = result.stdout;
+        if (attempt > 0)
+            // eslint-disable-next-line no-await-in-loop -- a retry only follows a malformed or failed capture.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+        let frame: Buffer;
+        try {
+            // eslint-disable-next-line no-await-in-loop -- see above.
+            const result = await execFileAsync(adb, ['-s', serial, 'exec-out', 'screencap'], {
+                cwd: projectRoot,
+                encoding: 'buffer',
+                maxBuffer: 32 * 1024 * 1024,
+            });
+            frame = result.stdout;
+        } catch (error) {
+            failure = error;
+            continue;
+        }
         if (frame.length < 8) continue;
         const width = frame.readUInt32LE(0);
         const height = frame.readUInt32LE(4);
         const header = frame.length - width * height * 4;
         if (header >= 12 && header <= 16) return { frame, header, height, width };
     }
+    if (failure instanceof Error) throw failure;
     throw new Error('Android raw framebuffer has an unknown layout');
 }
 
