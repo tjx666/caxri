@@ -4,7 +4,6 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
-import { ScrollFade } from '../../components/scroll-fade';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
@@ -311,12 +310,9 @@ export function AgentChatPane({
                         aria-live="off"
                         className={cn(
                             'absolute inset-x-0 top-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent',
-                            // Jump to latest floats over the transcript, which runs on under it and dissolves into
-                            // the bottom scroll fade (DESIGN.md "Scroll edge cues"): ending the transcript above the
-                            // button left a blank band that read as the button hiding the conversation. The return
-                            // hint shows only at the latest entry, where nothing scrolls under it, so the transcript
-                            // still ends above it there instead of covering the last line. The top stays anchored, so
-                            // nothing the user is reading moves.
+                            // The transcript runs on under Jump to latest (DESIGN.md "Scroll edge cues"). The return
+                            // hint shows only at the latest entry, so the transcript ends above it instead of covering
+                            // the last line; the top stays anchored, so nothing the user is reading moves.
                             returnHint ? 'bottom-10' : 'bottom-0',
                         )}
                         ref={scrollReference}
@@ -396,10 +392,6 @@ export function AgentChatPane({
                         marks={railMarks}
                         onJump={jumpToMessage}
                     />
-                    {!isLatestInView && (
-                        // Inset by the 8px scrollbar rail so the fade never dims the thumb.
-                        <ScrollFade className="right-2" edge="bottom" fill="background" />
-                    )}
                     <AgentChatJumpToLatest
                         focusTarget={inputReference}
                         isLatestInView={isLatestInView}
