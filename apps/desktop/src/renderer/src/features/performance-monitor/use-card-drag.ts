@@ -68,6 +68,8 @@ export function useCardDrag(
 
     useEffect(() => {
         const refit = (): void => {
+            // A drag owns the card's transform until release; refitting to the pre-drag position would make it jump.
+            if (drag.current) return;
             const fitted = fitToViewport(cardReference.current, live.current);
             if (fitted.x === live.current.x && fitted.y === live.current.y) return;
             live.current = fitted;
