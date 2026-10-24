@@ -77,6 +77,21 @@ describe('Agent Chat older history', () => {
         expect(retainEvictedAgentChatItems(unread, previous, next)).toBe(unread);
     });
 
+    it('keeps what the projection evicts before any read when asked to keep unread items', () => {
+        const unread = emptyAgentChatOlderHistory('h1');
+        const previous = {
+            items: [item('m1', 't1'), item('m2', 't1'), item('m3', 't1')],
+            turns: [{ id: 't1', status: 'running' as const }],
+        };
+        const next = { items: [item('m3', 't1'), item('m4', 't1')] };
+        const retained = retainEvictedAgentChatItems(unread, previous, next, { keepUnread: true });
+        expect(retained.items.map((entry) => entry.id)).toEqual(['m1', 'm2']);
+        expect(retained.turns.map((turn) => turn.id)).toEqual(['t1']);
+        // The next scroll-back reads before the oldest kept item, not before the projection.
+        expect(agentChatHistoryCursor(retained, next)).toBe('m1');
+        expect(hasOlderAgentChatHistory(retained, { truncated: true })).toBe(true);
+    });
+
     it('keeps what the projection evicts while the first page is on its way', () => {
         const loading = { ...emptyAgentChatOlderHistory('h1'), status: 'loading' as const };
         const previous = { items: [item('m1', 't1'), item('m2', 't2')], turns: [] };

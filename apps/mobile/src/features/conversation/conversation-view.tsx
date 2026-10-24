@@ -28,6 +28,7 @@ import {
     conversationTurnSpacerHeight,
     createConversationFollower,
     latestConversationTurnStart,
+    shouldFillConversationWithOlder,
 } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
 import type { ConversationTimelineState } from './use-conversation-timeline';
@@ -309,13 +310,35 @@ export const ConversationList = <Entry extends { id: string }>({
         follower.request();
     }, [follower, measureSpacer]);
     /**
+     * Reads an older page while the rows are shorter than the viewport (`shouldFillConversationWithOlder`), so a window
+     * holding only a long turn's last few rows does not open as a blank band above them.
+     */
+    const fillWithOlder = useCallback((): void => {
+        const { timeline: current } = latest.current;
+        const reference = list.current;
+        if (
+            !reference ||
+            !shouldFillConversationWithOlder({
+                contentHeight: reference.getChildContainerDimensions().height,
+                // A failed page waits for the reader's Retry; reading again on every layout would loop on it.
+                hasOlder: current.olderCursor !== undefined && current.error === null,
+                isLoadingOlder: current.isLoadingOlder,
+                isPositioned: isPositionedReference.current,
+                viewportHeight: viewportHeight.current,
+            })
+        )
+            return;
+        void current.loadOlder();
+    }, []);
+    /**
      * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
      * `startRenderingFromBottom`'s top margin shrinks by the same amount, so `onContentSizeChange` stays silent and the
      * rows slid up under the header. Every layout commit re-measures the spacer instead.
      */
     const onCommitLayout = useCallback((): void => {
         if (measureSpacer()) follower.request();
-    }, [follower, measureSpacer]);
+        fillWithOlder();
+    }, [fillWithOlder, follower, measureSpacer]);
     const onScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
@@ -355,6 +378,7 @@ export const ConversationList = <Entry extends { id: string }>({
             revealProgress.set(
                 enterFrom === null ? 1 : withTiming(1, { duration: PANEL_ENTER_MS }),
             );
+            fillWithOlder();
         };
         measureSpacer();
         /**
@@ -364,7 +388,7 @@ export const ConversationList = <Entry extends { id: string }>({
         void Promise.resolve(list.current?.scrollToEnd({ animated: false })).finally(() => {
             setTimeout(() => requestAnimationFrame(reveal), 0);
         });
-    }, [enterFrom, measureSpacer, revealProgress]);
+    }, [enterFrom, fillWithOlder, measureSpacer, revealProgress]);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => (
             <View style={styles.entry}>{renderEntry(item)}</View>
