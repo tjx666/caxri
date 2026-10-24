@@ -41,7 +41,10 @@ interface PerformanceMonitorWindowOptions {
     isPackaged: boolean;
     language: () => Promise<AppLocale | null>;
     logger: StructuredLogger;
-    metrics: () => Promise<PerformanceMonitorMetrics>;
+    /**
+     * `workbenchProcessId` names the Renderer to report as the Workbench; omitted, it is the monitored window's.
+     */
+    metrics: (workbenchProcessId?: number) => Promise<PerformanceMonitorMetrics>;
     rendererUrl?: string;
     theme: () => Promise<ThemeTokens>;
     /**
@@ -326,23 +329,28 @@ export class PerformanceMonitorWindowController {
 
     /**
      * Feeds the Workbench's own startup-frame diagnostic to the reload timeline; see
-     * `ReloadTimeline.recordStartupFrame`.
+     * `ReloadTimeline.recordStartupFrame`. Only the monitored window's own frame counts: another Workbench window (a
+     * tear-off, opened or reloaded mid-reload) reports the same diagnostic and must not close this timeline entry.
      */
-    recordStartupFrame(frame: {
-        firstFrameMs: number;
-        loaderRemovedMs: number;
-        timeOriginEpochMs: number;
-    }): void {
-        if (!this.window) return;
+    recordStartupFrame(
+        frame: {
+            firstFrameMs: number;
+            loaderRemovedMs: number;
+            timeOriginEpochMs: number;
+        },
+        sender: WebContents,
+    ): void {
+        if (!this.window || sender !== this.attached?.webContents) return;
         this.timeline.recordStartupFrame(frame);
         this.publishState();
     }
 
     /**
-     * Process and GPU readings for the in-window overlay, which has no Main window of its own to ask.
+     * Process and GPU readings for the in-window overlay, which has no Main window of its own to ask. The overlay
+     * describes the Workbench window it is drawn in, which may be a tear-off rather than the monitored primary one.
      */
-    readMetrics(): Promise<PerformanceMonitorMetrics> {
-        return this.options.metrics();
+    readMetrics(workbenchProcessId?: number): Promise<PerformanceMonitorMetrics> {
+        return this.options.metrics(workbenchProcessId);
     }
 
     toggle(): void {

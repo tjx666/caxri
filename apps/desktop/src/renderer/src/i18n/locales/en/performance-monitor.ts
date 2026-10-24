@@ -8,6 +8,7 @@ export const performanceMonitor = {
     'performanceMonitor.low': '1% low {{value}}',
     'performanceMonitor.frameGraph': 'Frame time for the last {{count}} frames',
     'performanceMonitor.waiting': 'Waiting for frames…',
+    'performanceMonitor.stale': 'No frames received. The Workbench may be blocked.',
     'performanceMonitor.paused': 'Window hidden, frames paused',
     'performanceMonitor.gpuRaster': 'GPU raster',
     'performanceMonitor.gpuRaster.on': 'on',

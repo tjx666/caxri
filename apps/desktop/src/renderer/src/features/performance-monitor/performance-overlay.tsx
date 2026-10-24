@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { PerformanceMonitorMetrics } from '@caxri/protocol';
@@ -42,11 +43,11 @@ function useOverlayReadings(): {
                 // Process readings are secondary; the frame readout keeps working without them.
             }
         }
-        // eslint-disable-next-line no-void -- pollMetrics() never rejects
+
         void pollMetrics();
         const metricsTimer = setInterval(() => {
             // Hidden windows stop sampling frames, and Main's process read would only burn CPU for nobody.
-            // eslint-disable-next-line no-void -- pollMetrics() never rejects
+
             if (document.visibilityState === 'visible') void pollMetrics();
         }, METRICS_INTERVAL_MS);
         return () => {
@@ -59,6 +60,25 @@ function useOverlayReadings(): {
     return { frames, metrics };
 }
 
+/**
+ * Escape closes the card when focus is inside it or nowhere in particular (the state right after the command palette
+ * hands focus back). Focus in a Terminal, editor, or field keeps Escape for that surface, as does a handler that
+ * already consumed the key.
+ */
+function useEscapeToClose(card: RefObject<HTMLElement | null>, close: () => void): void {
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent): void => {
+            if (event.key !== 'Escape' || event.defaultPrevented) return;
+            const { target } = event;
+            const isInsideCard = target instanceof Node && card.current?.contains(target) === true;
+            const isUnfocused = target === document.body || target === document.documentElement;
+            if (isInsideCard || isUnfocused) close();
+        };
+        addEventListener('keydown', onKeyDown);
+        return () => removeEventListener('keydown', onKeyDown);
+    }, [card, close]);
+}
+
 function ActivePerformanceOverlay() {
     const { t } = useTranslation();
     const cardReference = useRef<HTMLDivElement>(null);
@@ -67,18 +87,19 @@ function ActivePerformanceOverlay() {
     const closeOverlay = useMonitorStore((state) => state.closeOverlay);
     const { handleProperties, position } = useCardDrag(cardReference, saved, setPosition);
     const { frames, metrics } = useOverlayReadings();
+    useEscapeToClose(cardReference, closeOverlay);
     return (
         // The layer spans the window but only the card takes pointer input, so nothing underneath is blocked.
         <div className="pointer-events-none fixed inset-0 z-[100]" data-performance-overlay>
             <div
                 ref={cardReference}
                 aria-label={t('performanceMonitor.title')}
-                className="pointer-events-auto absolute top-0 left-0 w-64 rounded-md border border-border bg-elevated text-foreground shadow-[0_8px_24px_var(--shadow)] will-change-transform"
+                className="pointer-events-auto absolute top-0 left-0 flex max-h-full w-64 max-w-full flex-col overflow-hidden rounded-md border border-border bg-elevated text-foreground shadow-[0_8px_24px_var(--shadow)] will-change-transform"
                 role="dialog"
                 style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
             >
                 <div
-                    className="flex h-6 cursor-grab touch-none items-center justify-between rounded-t-md border-b border-border pr-1 pl-2 text-muted select-none active:cursor-grabbing"
+                    className="flex h-6 shrink-0 cursor-grab touch-none items-center justify-between rounded-t-md border-b border-border pr-1 pl-2 text-muted select-none active:cursor-grabbing"
                     data-performance-drag-handle
                     {...handleProperties}
                 >
@@ -97,7 +118,7 @@ function ActivePerformanceOverlay() {
                         </Button>
                     </Tooltip>
                 </div>
-                <div className="p-3">
+                <div className="min-h-0 overflow-y-auto p-3">
                     <MonitorPanel frames={frames} metrics={metrics} />
                     <div className="mt-3 flex justify-end">
                         <ModeSwitch current="overlay" onSelect={openPerformanceMonitorWindow} />

@@ -17,6 +17,10 @@ export interface MainWindowMethodOptions {
      * Absent in an SSH Host window and in handler tests that do not exercise the monitor.
      */
     getPerformanceMonitor?(): PerformanceMonitorWindowController | undefined;
+    /**
+     * The Renderer process of the Workbench window making the current request; the in-window monitor reports that one.
+     */
+    requestWorkbenchProcessId?(): number | undefined;
     getAgentCommander(): AgentCommanderWindowController | undefined;
     /**
      * Absent in an SSH Host window, which has no Benchmark window of its own.
@@ -77,7 +81,7 @@ export async function handleWindowRequest(
             const monitor = options.getPerformanceMonitor?.();
             if (!monitor)
                 throw new CaxriError('FORBIDDEN', 'The Performance Monitor is not available here');
-            return monitor.readMetrics();
+            return monitor.readMetrics(options.requestWorkbenchProcessId?.());
         }
         case 'performanceMonitor.window': {
             const monitor = options.getPerformanceMonitor?.();

@@ -52,4 +52,4 @@ closed 0.00%, overlay 0.13 to 0.18%, detached window 0.13 to 0.21%. Monitor fram
   budget. The monitor shows the GPU process memory instead.
 - fps is the main thread's frame callback rate, not the compositor's presented rate (that needs the
   debugger protocol). An idle page therefore reads the display refresh rate.
-- The Window mode's bounds are not persisted. Only the primary Workbench window is monitored.
+- The Window mode's bounds are not persisted. Only the primary Workbench window is monitored for fps and reloads; the overlay in a tear-off window describes that window itself. Escape closes the overlay when focus is inside it or nowhere in particular. A detached window that stops receiving frames reads "No frames received" instead of the last value.

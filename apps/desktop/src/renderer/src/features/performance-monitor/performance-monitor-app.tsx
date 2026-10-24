@@ -26,11 +26,15 @@ async function run(call: () => Promise<unknown>): Promise<void> {
 }
 
 function attempt(call: () => Promise<unknown>): void {
-    // eslint-disable-next-line no-void -- run() never rejects
     void run(call);
 }
 
 const METRICS_INTERVAL_MS = 2_000;
+/**
+ * The Workbench publishes four snapshots a second, so this long without one means it stopped, not that it is idle.
+ */
+const STALE_AFTER_MS = 1_500;
+const STALE_CHECK_INTERVAL_MS = 500;
 const NO_RELOADS: PerformanceMonitorState['reloads'] = [];
 
 /**
@@ -42,6 +46,7 @@ export function PerformanceMonitorApp() {
     const [frames, setFrames] = useState<PerformanceFrameSnapshot>();
     const [metrics, setMetrics] = useState<PerformanceMonitorMetrics>();
     const [state, setState] = useState<PerformanceMonitorState>();
+    const [isStale, setIsStale] = useState(false);
     const title = t('performanceMonitor.title');
     // Electron mirrors `document.title` onto the hidden-inset window, so the Window menu and Dock stay localized.
     useEffect(() => {
@@ -49,7 +54,16 @@ export function PerformanceMonitorApp() {
     }, [title]);
     useEffect(() => {
         const bridge = globalThis.performanceMonitor;
-        const offSnapshot = bridge.onSnapshot(setFrames);
+        let lastReceivedAt = Date.now();
+        const offSnapshot = bridge.onSnapshot((snapshot) => {
+            lastReceivedAt = Date.now();
+            setIsStale(false);
+            setFrames(snapshot);
+        });
+        const staleTimer = setInterval(
+            () => setIsStale(Date.now() - lastReceivedAt > STALE_AFTER_MS),
+            STALE_CHECK_INTERVAL_MS,
+        );
         const offState = bridge.onState(setState);
         attempt(async () => setState(await bridge.getState()));
         async function poll(): Promise<void> {
@@ -59,16 +73,16 @@ export function PerformanceMonitorApp() {
                 // Process readings are secondary.
             }
         }
-        // eslint-disable-next-line no-void -- poll() never rejects
+
         void poll();
         const timer = setInterval(() => {
-            // eslint-disable-next-line no-void -- poll() never rejects
             void poll();
         }, METRICS_INTERVAL_MS);
         return () => {
             offSnapshot();
             offState();
             clearInterval(timer);
+            clearInterval(staleTimer);
         };
     }, []);
     const target = state?.target ?? 'visible';
@@ -90,7 +104,7 @@ export function PerformanceMonitorApp() {
                     </p>
                 )}
                 <div className="p-3">
-                    <MonitorPanel frames={frames} metrics={metrics} />
+                    <MonitorPanel frames={frames} isStale={isStale} metrics={metrics} />
                 </div>
                 <section className="border-t border-border">
                     <div className="flex items-center justify-between gap-2 px-3 py-2">

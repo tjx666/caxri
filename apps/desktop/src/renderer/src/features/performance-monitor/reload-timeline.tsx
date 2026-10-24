@@ -68,7 +68,7 @@ function ReloadRow({ entry }: { entry: ReloadEntry }) {
                             <span>{t(label)}</span>
                             <span className="h-1 rounded-sm bg-border">
                                 <span
-                                    className="block h-full rounded-sm bg-accent"
+                                    className="block h-full rounded-sm bg-chart"
                                     style={{ width: `${Math.min(100, (value / scale) * 100)}%` }}
                                 />
                             </span>

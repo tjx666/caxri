@@ -43,6 +43,6 @@ export function installPerformanceMonitorHostLink(): void {
             // Main is still starting; its `start` control reaches this window once the load finishes.
         }
     }
-    // eslint-disable-next-line no-void -- resumeIfActive() never rejects
+
     void resumeIfActive();
 }

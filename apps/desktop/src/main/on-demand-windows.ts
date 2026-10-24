@@ -100,7 +100,7 @@ export function createOnDemandWindows(options: {
             language: async () =>
                 (await supervisor.request('settings.get')).value['workbench.language'],
             logger: options.logger,
-            metrics: async () => {
+            metrics: async (workbenchProcessId) => {
                 const mainWindow = options.mainWindow();
                 const serverPid = supervisor.serverProcessId();
                 const server =
@@ -110,9 +110,10 @@ export function createOnDemandWindows(options: {
                     gpuRaster: gpuRasterState(app.getGPUFeatureStatus()),
                     processes: summarizeProcesses(
                         readElectronProcesses(),
-                        mainWindow && !mainWindow.isDestroyed()
-                            ? mainWindow.webContents.getOSProcessId()
-                            : undefined,
+                        workbenchProcessId ??
+                            (mainWindow && !mainWindow.isDestroyed()
+                                ? mainWindow.webContents.getOSProcessId()
+                                : undefined),
                         server,
                     ),
                 };

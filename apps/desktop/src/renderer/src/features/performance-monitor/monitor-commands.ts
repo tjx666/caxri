@@ -15,7 +15,6 @@ async function requestWindow(action: 'close' | 'open' | 'toggle'): Promise<void>
 export function togglePerformanceMonitor(): void {
     const { closeOverlay, isOverlayOpen, mode, openOverlay } = useMonitorStore.getState();
     if (mode === 'window') {
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand reports failure
         void requestWindow('toggle');
         return;
     }
@@ -30,7 +29,7 @@ export function openPerformanceMonitorWindow(): void {
     const { closeOverlay, setMode } = useMonitorStore.getState();
     setMode('window');
     closeOverlay();
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand reports failure
+
     void requestWindow('open');
 }
 

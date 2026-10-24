@@ -54,6 +54,7 @@ import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
 import { companionWindowFor, createOnDemandWindows, isZoomingWithApp } from './on-demand-windows';
+import type { PerformanceMonitorWindowController } from './performance-monitor/window';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { RendererReadiness } from './renderer-readiness';
@@ -152,8 +153,7 @@ if (ownsProfileInstance) {
         processName: 'desktop',
     });
     let processExplorer: ProcessExplorerWindowController;
-    let performanceMonitor:
-        ReturnType<typeof createOnDemandWindows>['performanceMonitor'] | undefined;
+    let performanceMonitor: PerformanceMonitorWindowController | undefined;
     let agentCommander: AgentCommanderWindowController | undefined;
     let benchmarkWindow: BenchmarkWindowController | undefined;
     let updateService: UpdateService;
@@ -408,6 +408,7 @@ if (ownsProfileInstance) {
             logger: () => mainLogger,
             getProcessExplorer: () => processExplorer,
             getPerformanceMonitor: () => performanceMonitor,
+            requestWorkbenchProcessId: () => requestWorkbenchWindow()?.webContents.getOSProcessId(),
             getAgentCommander: () => agentCommander,
             getBenchmarkWindow: () => benchmarkWindow,
             onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
@@ -470,9 +471,9 @@ if (ownsProfileInstance) {
             logger: () => mainLogger,
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             readEventLoopStalls: () => eventLoopMonitor?.summary(),
-            onStartupFrame: (frame) => {
+            onStartupFrame: (frame, sender) => {
                 startupProfile.complete(frame);
-                performanceMonitor?.recordStartupFrame(frame);
+                performanceMonitor?.recordStartupFrame(frame, sender);
             },
             sshHost: (sender) => sshHostEnvironments?.route(sender),
             onEventsReady: (sender) => {
@@ -641,9 +642,6 @@ if (ownsProfileInstance) {
         app,
         openMainWindow,
         validateWorkbenchRoots: () => supervisor.request('session.validateWorkbenchRoots'),
-    });
-    app.on('window-all-closed', () => {
-        // macOS keeps the Desktop client alive; the independently supervised Server survives either way.
     });
     installBeforeQuitTrigger(quitTriggers);
 }

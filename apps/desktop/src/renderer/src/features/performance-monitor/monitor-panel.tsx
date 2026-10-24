@@ -43,15 +43,21 @@ function Row({ children, hint, label }: { children: ReactNode; hint?: string; la
  */
 export function MonitorPanel({
     frames,
+    isStale = false,
     metrics,
 }: {
     frames: PerformanceFrameSnapshot | undefined;
+    /**
+     * The latest snapshot stopped arriving, e.g. the monitored Workbench is blocked; its numbers are no longer current.
+     */
+    isStale?: boolean;
     metrics: PerformanceMonitorMetrics | undefined;
 }) {
     const { t } = useTranslation();
     const processes = metrics?.processes ?? [];
     const gpu = processes.find((process) => process.role === 'gpu');
-    const tone = frames && !frames.paused ? fpsTone(frames.fps) : 'idle';
+    const isLive = frames !== undefined && !frames.paused && !isStale;
+    const tone = isLive ? fpsTone(frames.fps) : 'idle';
     return (
         <div className="grid gap-2 text-[11px] leading-[1.45]" data-performance-panel>
             <div className="flex items-baseline justify-between gap-2">
@@ -63,13 +69,13 @@ export function MonitorPanel({
                         )}
                         data-performance-fps
                     >
-                        {frames && !frames.paused ? formatFps(frames.fps) : '–'}
+                        {isLive ? formatFps(frames.fps) : '–'}
                         <span className="ml-1 text-[11px] font-normal text-muted">
                             {t('performanceMonitor.fps')}
                         </span>
                     </span>
                 </Tooltip>
-                {frames && !frames.paused && frames.fps > 0 && (
+                {isLive && frames.fps > 0 && (
                     <span className="text-right text-muted tabular-nums">
                         {t('performanceMonitor.min', { value: formatFps(frames.minFps) })}
                         {' · '}
@@ -83,7 +89,10 @@ export function MonitorPanel({
                     count: PERFORMANCE_MONITOR_FRAME_CAPACITY,
                 })}
             />
-            {frames?.paused && <p className="m-0 text-muted">{t('performanceMonitor.paused')}</p>}
+            {frames?.paused && !isStale && (
+                <p className="m-0 text-muted">{t('performanceMonitor.paused')}</p>
+            )}
+            {isStale && <p className="m-0 text-warning">{t('performanceMonitor.stale')}</p>}
             {!frames && <p className="m-0 text-muted">{t('performanceMonitor.waiting')}</p>}
             <div className="grid gap-0.5">
                 <Row

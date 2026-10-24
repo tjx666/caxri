@@ -55,6 +55,11 @@ test('Performance Monitor opens in-window, moves to its own window, and times a 
         // The detached window can hand the monitor back to the Workbench.
         await monitor.locator('[data-performance-mode="overlay"]').click();
         await expect(running.page.locator('[data-performance-overlay]')).toBeVisible();
+
+        // Escape closes the overlay.
+        await running.page.locator('[data-performance-drag-handle]').focus();
+        await running.page.keyboard.press('Escape');
+        await expect(running.page.locator('[data-performance-overlay]')).toHaveCount(0);
     } finally {
         try {
             await running.app.close();

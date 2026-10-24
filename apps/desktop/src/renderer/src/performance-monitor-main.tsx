@@ -30,7 +30,7 @@ async function applyInitialLanguage(): Promise<void> {
 }
 
 globalThis.performanceMonitor.onLanguageChanged(applyLanguagePreference);
-// eslint-disable-next-line no-void -- applyInitialLanguage() never rejects, and render must wait for it
+
 void Promise.all([applyInitialLanguage(), applyInitialTheme()]).then(render);
 
 /**
