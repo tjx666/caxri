@@ -5,11 +5,8 @@ import type { AgentChatTask, AgentChatWorkItem } from '@caxri/protocol';
 import {
     agentChatActiveWork,
     agentChatFileChangesStat,
-    agentChatOutputLanguage,
-    agentChatReasoningTitle,
     agentChatTaskActivity,
     agentChatTaskGlyphStatus,
-    agentChatToolCallArguments,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
     agentChatWorkSummaryGlyph,
@@ -20,14 +17,11 @@ import {
     isAgentChatWorkRunning,
     mergeAgentChatReasoning,
     splitAgentChatWork,
-    stripLineNumberGutter,
-    unwrapShellCommand,
 } from '@caxri/protocol';
 import { ChevronRight } from 'lucide-react';
 
 import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
-import { CodeView } from '../../../components/markdown/code-view';
 import { useHasLasted } from '../../../hooks/use-has-lasted';
 import { useScrollEdges } from '../../../hooks/use-scroll-edges';
 import { useTranslation } from '../../../i18n';
@@ -35,7 +29,6 @@ import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { cn } from '../../../lib/utilities';
 import { useAgentChatExpansion } from '../hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from '../hooks/use-agent-chat-task-link';
-import { AgentChatMessage } from '../messages/agent-chat-message';
 import { AgentChatTaskElapsed } from '../tasks/agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from '../tasks/agent-chat-task-open-button';
 import { agentChatChevronMotion } from '../transcript/agent-chat-disclosure';
@@ -43,26 +36,11 @@ import {
     agentChatItemExpansionKey,
     agentChatSummaryExpansionKey,
 } from '../transcript/agent-chat-expansion';
-import { AgentChatFileChanges } from '../turns/agent-chat-file-changes';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
-import { AgentChatToolArguments } from './agent-chat-tool-arguments';
 import { AgentChatWorkFileLink } from './agent-chat-work-file-link';
 import { AgentChatWorkGlyph } from './agent-chat-work-glyph';
+import { AgentChatWorkDetail } from './work-detail/agent-chat-work-detail';
 import { AgentChatWorkSummaryTitle } from './work-summary/agent-chat-work-summary-title';
-
-/**
- * An expanded file change shows every file's diff when it touches only a few files; a wider change starts as headers.
- */
-const TIMELINE_EXPANDED_FILE_LIMIT = 3;
-
-/**
- * Output taller than this scrolls inside its block, so one long log never pushes the conversation off screen.
- */
-/**
- * Output and command bodies are content in an otherwise `select-none` transcript, so they opt back into selection; the
- * code view's header stays chrome.
- */
-const OUTPUT_CLASS_NAME = 'max-h-80 overflow-y-auto select-text';
 
 /**
  * Work still running animates its tool glyph (`AgentChatWorkGlyph`) and sweeps a highlight across its whole title
@@ -202,138 +180,6 @@ function DisclosureRow({
 }
 
 /**
- * A command the row title can show in full is not repeated as its own block; a long or multi-line one is.
- */
-const COMMAND_TITLE_LENGTH = 80;
-
-/**
- * A tool's output. `isWrapped` starts it soft-wrapped: an MCP server answers in prose more often than in code, and a
- * paragraph on one scrolling line is unreadable.
- */
-function OutputView({
-    isPaintable,
-    isWrapped,
-    language,
-    text,
-}: {
-    /**
-     * False while the output still grows: re-tokenizing the whole block on every append costs more than the colors
-     * show, so a running item stays plain text and is painted once when it settles (as Markdown code blocks do).
-     */
-    isPaintable?: boolean;
-    isWrapped?: boolean;
-    language: string | undefined;
-    text: string;
-}) {
-    const { t } = useTranslation();
-    const output = text.replace(/\n+$/u, '');
-    if (!output) return <p className="m-0 text-muted">{t('agentChat.workGroup.noOutput')}</p>;
-    return (
-        <CodeView
-            className={OUTPUT_CLASS_NAME}
-            code={output}
-            defaultWrapped={isWrapped}
-            isPaintable={isPaintable}
-            label={t('agentChat.workGroup.output')}
-            language={language}
-        />
-    );
-}
-
-function WorkDetail({
-    item,
-    onOpenFile,
-}: {
-    item: AgentChatWorkItem;
-    onOpenFile?: (target: string) => void;
-}) {
-    const { t } = useTranslation();
-    const isPaintable = !isAgentChatWorkRunning(item);
-    switch (item.type) {
-        case 'reasoning': {
-            // Codex titles each summary part in bold; at full contrast those titles outshone the muted 12px row they
-            // sit under, so they keep the thought's color and size and stand out by weight alone, as the Codex TUI dims
-            // its whole reasoning cell.
-            return (
-                <AgentChatMessage
-                    className="gap-2 text-[12px] text-muted select-text [&_strong]:text-inherit"
-                    isStreaming={item.streaming}
-                    text={agentChatReasoningTitle(item.text).body}
-                    onOpenFile={onOpenFile}
-                />
-            );
-        }
-        case 'command': {
-            const command = unwrapShellCommand(item.command);
-            return (
-                <>
-                    {(item.description !== undefined ||
-                        describeAgentChatWorkRow(item).kind !== 'command' ||
-                        command.length > COMMAND_TITLE_LENGTH ||
-                        command.includes('\n')) && (
-                        <CodeView
-                            className={OUTPUT_CLASS_NAME}
-                            code={command}
-                            label={t('agentChat.workGroup.command')}
-                            language="shell"
-                        />
-                    )}
-                    <OutputView
-                        isPaintable={isPaintable}
-                        language={agentChatOutputLanguage(item)}
-                        text={item.output}
-                    />
-                    {item.exitCode !== undefined && (
-                        <p
-                            className={cn(
-                                'm-0',
-                                item.exitCode === 0 ? 'text-muted' : 'text-danger',
-                            )}
-                        >
-                            {t('agentChat.workGroup.exitCode', { code: item.exitCode })}
-                        </p>
-                    )}
-                    {item.background && (
-                        <p className="m-0 text-muted">
-                            {t('agentChat.workGroup.movedToBackground')}
-                        </p>
-                    )}
-                </>
-            );
-        }
-        case 'toolCall': {
-            const language = agentChatOutputLanguage(item);
-            const output = item.output ?? '';
-            const argumentsText = agentChatToolCallArguments(item);
-            const { kind } = describeAgentChatWorkRow(item);
-            return (
-                <>
-                    {argumentsText && <AgentChatToolArguments text={argumentsText} />}
-                    <OutputView
-                        isPaintable={isPaintable}
-                        isWrapped={kind === 'mcp'}
-                        language={language}
-                        text={kind === 'read' ? stripLineNumberGutter(output) : output}
-                    />
-                </>
-            );
-        }
-        case 'fileChange': {
-            // Diff text is selectable; the diff's own line-number and marker gutters stay `select-none`.
-            return (
-                <div className="select-text">
-                    <AgentChatFileChanges
-                        changes={item.changes}
-                        expandAtMost={TIMELINE_EXPANDED_FILE_LIMIT}
-                        status={item.status}
-                    />
-                </div>
-            );
-        }
-    }
-}
-
-/**
  * What a settled command's row says beyond its status glyph: a non-zero exit code, and a background hand-off, whose
  * exit code and duration belong to a later notification.
  */
@@ -444,7 +290,7 @@ const AgentChatWorkRow = memo(
                 }
                 trailing={<AgentChatWorkTrailing item={item} task={task} />}
             >
-                <WorkDetail item={item} onOpenFile={onOpenFile} />
+                <AgentChatWorkDetail item={item} onOpenFile={onOpenFile} />
             </DisclosureRow>
         );
     },
@@ -545,11 +391,18 @@ function AgentChatWorkSummary({
                 </>
             }
         >
-            <WorkList>
-                {items.map((item) => (
-                    <AgentChatWorkRow item={item} key={item.id} onOpenFile={onOpenFile} />
-                ))}
-            </WorkList>
+            {/* A run of one call would list a row repeating this title, so it shows that call's detail instead. */}
+            {items.length === 1 && items[0] ? (
+                <div className="mt-1 mb-2 space-y-2">
+                    <AgentChatWorkDetail item={items[0]} onOpenFile={onOpenFile} />
+                </div>
+            ) : (
+                <WorkList>
+                    {items.map((item) => (
+                        <AgentChatWorkRow item={item} key={item.id} onOpenFile={onOpenFile} />
+                    ))}
+                </WorkList>
+            )}
         </DisclosureRow>
     );
 }

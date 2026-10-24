@@ -35,6 +35,18 @@ export const settingsForms: TranslatedNamespace<typeof source> = {
     'settings.ignoredChecksForm.duplicate': '该检查已被忽略。',
     'settings.ignoredChecksForm.maximum': '已忽略检查最多支持 {{maximum}} 条规则。',
     'settings.ignoredChecksForm.remove': '移除已忽略检查 {{rule}}',
+    'settings.longRunningCommandsForm.ariaLabel': '长期运行的后台命令编辑器',
+    'settings.longRunningCommandsForm.description':
+        '每个模式匹配命令的开头，所以 bun run dev 也会匹配 bun run dev --port 3000。* 匹配任意字符，只写命令名时匹配任意目录下的该命令，/regex/ 为正则表达式。用 &&、; 或 | 连接的命令会逐段检查。',
+    'settings.longRunningCommandsForm.inputLabel': '长期运行命令模式',
+    'settings.longRunningCommandsForm.listLabel': '长期运行命令模式列表',
+    'settings.longRunningCommandsForm.empty':
+        '没有模式。所有后台命令都会让 Session 保持工作中，直到命令结束。',
+    'settings.longRunningCommandsForm.invalid':
+        '请输入命令（如 npm run dev）或有效的 /正则表达式/。',
+    'settings.longRunningCommandsForm.duplicate': '该模式已在列表中。',
+    'settings.longRunningCommandsForm.maximum': '长期运行的后台命令最多支持 {{maximum}} 个模式。',
+    'settings.longRunningCommandsForm.remove': '移除模式 {{rule}}',
     'settings.referenceLinksForm.ariaLabel': '终端引用链接编辑器',
     'settings.referenceLinksForm.descriptionBeforeToken':
         '匹配固定前缀，并将其标识符替换到 HTTP(S) URL 中的 ',

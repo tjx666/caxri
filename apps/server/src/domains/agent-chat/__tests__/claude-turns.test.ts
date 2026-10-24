@@ -18,7 +18,7 @@ function backgroundTask(fields: Partial<AgentChatTask> = {}): AgentChatTask {
     };
 }
 
-function harness() {
+function harness(longRunning?: readonly string[], commands: Record<string, string> = {}) {
     let snapshot: AgentChatSnapshot = emptyAgentChatSnapshot('terminal-1');
     const events: ChatLifecycleEvent[] = [];
     const host = {
@@ -28,12 +28,17 @@ function harness() {
         },
         lifecycle: (event) => events.push(event),
         onTurnFinished: () => {},
-    } as Pick<AgentChatSessionHost, 'apply' | 'lifecycle' | 'onTurnFinished' | 'read'>;
+        ...(longRunning && { longRunningShellCommands: () => longRunning }),
+    } as Pick<
+        AgentChatSessionHost,
+        'apply' | 'lifecycle' | 'longRunningShellCommands' | 'onTurnFinished' | 'read'
+    >;
     const turns = new ClaudeTurns({
         host: host as AgentChatSessionHost,
         bindSession: () => 'agent-session',
         sessionId: () => 'agent-session',
         settleRequests: () => {},
+        shellCommand: (taskId) => commands[taskId],
     });
     const setTasks = (tasks: AgentChatTask[]) => host.apply([{ op: 'state', state: { tasks } }]);
     return { events, host, setTasks, turns };
@@ -89,10 +94,57 @@ describe('ClaudeTurns background work', () => {
     });
 
     it.each([
-        ['a background shell', backgroundTask({ kind: 'shell' })],
-        ['a foreground subagent', backgroundTask({ isBackground: false })],
-    ])('does not wait on %s', (_label, task) => {
-        const { events, setTasks, turns } = harness();
+        [
+            'a background shell whose command is not long-running',
+            backgroundTask({ kind: 'shell', title: 'bun run check' }),
+            'bun run check',
+        ],
+        [
+            'a described background shell',
+            backgroundTask({ kind: 'shell', title: 'Watch CI' }),
+            'bun run scripts/watch-ci.ts',
+        ],
+    ])('waits on %s', (_label, task, command) => {
+        const { events, setTasks, turns } = harness(['bun run dev'], { [task.id]: command });
+        turns.begin('turn-1');
+        setTasks([task]);
+        turns.onSessionState('running');
+        turns.onSessionState('idle');
+
+        expect(events.at(-1)).toHaveProperty('agentBackgroundWork', true);
+    });
+
+    it.each([
+        [
+            'a background shell without long-running patterns',
+            backgroundTask({ kind: 'shell' }),
+            undefined,
+            'bun run check',
+        ],
+        [
+            'a long-running background shell',
+            backgroundTask({ kind: 'shell', title: 'Dev server' }),
+            ['bun run dev'],
+            'cd web && bun run dev --port 3000',
+        ],
+        // Only the Agent's description is known, which says nothing about whether the shell ends.
+        [
+            'a background shell whose command is unknown',
+            backgroundTask({ kind: 'shell', title: 'Start the dev server' }),
+            ['bun run dev'],
+            undefined,
+        ],
+        [
+            'a foreground subagent',
+            backgroundTask({ isBackground: false }),
+            ['bun run dev'],
+            undefined,
+        ],
+    ])('does not wait on %s', (_label, task, longRunning, command) => {
+        const { events, setTasks, turns } = harness(
+            longRunning,
+            command === undefined ? {} : { [task.id]: command },
+        );
         turns.begin('turn-1');
         setTasks([task]);
         turns.onSessionState('running');

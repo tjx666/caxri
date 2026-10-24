@@ -77,6 +77,8 @@ export function createAgentChatService({
                 ? settings
                 : { ...settings, args: [...settings.args, ...extra] };
         },
+        longRunningShellCommands: () =>
+            configuration.getSettings().value['agents.longRunningShellCommands'],
         onReady: (terminalId) => {
             commanderHooks.chatReady(terminalId);
             if (service.readLeaseAt(terminalId) !== undefined) onObservationLeaseReady();

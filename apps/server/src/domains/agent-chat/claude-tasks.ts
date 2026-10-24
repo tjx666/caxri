@@ -385,6 +385,18 @@ export class ClaudeTasks {
     }
 
     /**
+     * The command line of a listed background shell, read from the Bash row that started it. A shell whose row is not
+     * in the parent timeline has no known command, even when the Agent named it.
+     */
+    shellCommand(taskId: string): string | undefined {
+        const claudeId = this.claudeIds.get(taskId);
+        const known = claudeId === undefined ? undefined : this.known.get(claudeId);
+        return known?.kind === 'shell'
+            ? stringField(this.commandRow(known.toolUseId)?.command)
+            : undefined;
+    }
+
+    /**
      * Inspects a top-level assistant frame for subagent tool calls.
      */
     onAssistant(message: Json, taskId?: string): void {

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
-import { cn } from '../../../lib/utilities';
-import { agentChatToolArgumentEntries } from './agent-chat-tool-argument-entries';
+import { cn } from '../../../../lib/utilities';
+import { agentChatToolArgumentEntries } from '../agent-chat-tool-argument-entries';
 
 /**
  * An expanded tool call's arguments. A JSON object reads as a name and value list, the way the Codex app sets a tool's

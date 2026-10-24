@@ -24,9 +24,12 @@ import {
     createPermissionAutoAllowController,
     defaultAgentEnvironment,
     discoverExecutable,
+    longRunningCommandsPath,
     reconcilePrimaryTurnFailure,
     SessionSearchIndex,
     shouldAutoAllowAttention,
+    withLongRunningCommands,
+    writeLongRunningCommands,
 } from '../agents';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
@@ -260,6 +263,23 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         watchHub,
     });
     await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
+    const longRunningCommands = longRunningCommandsPath(userDataPath);
+    /**
+     * A failed write leaves the bridge reading the previous file, or none, which exempts no background shell; it never
+     * fails the runtime.
+     */
+    const syncLongRunningCommands = async (patterns: readonly string[]) => {
+        try {
+            await writeLongRunningCommands(longRunningCommands, patterns);
+        } catch (error: unknown) {
+            logger.write('warn', logEventCatalog.agent.integrationReconcileFailed, {
+                fields: { error: errorMessage(error, 'unknown') },
+            });
+        }
+    };
+    await syncLongRunningCommands(
+        configuration.getSettings().value['agents.longRunningShellCommands'],
+    );
     let settingsReconcile = Promise.resolve();
     const unsubscribeSettings = configuration.subscribeSettings((settings) => {
         /**
@@ -276,6 +296,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             await Promise.all([
                 agentHooks.reconcile(settings['agents.providers']),
                 dependencies.agentEndpoints?.reconcile(settings['agents.providers']),
+                syncLongRunningCommands(settings['agents.longRunningShellCommands']),
             ]);
         })();
     });
@@ -295,6 +316,26 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         // "Always allow in this Session" (issue caxri#1295): read-only status, plus grant/revoke.
         attentionAutoAllowStatus: (sessionId: string) => attentionAutoAllow.status(sessionId),
         awaitSettingsReconcile: () => settingsReconcile,
+        /**
+         * The hook environments for PTY launches, each pointing its bridge at the profile's
+         * `agents.longRunningShellCommands` file.
+         */
+        hookLaunchEnvironment: {
+            terminalEnvironment: (
+                terminalId: string,
+                provider?: AgentProvider,
+                launchId?: string,
+            ) =>
+                withLongRunningCommands(
+                    agentHooks.terminalEnvironment(terminalId, provider, launchId),
+                    longRunningCommands,
+                ),
+            shellEnvironment: (terminalId: string) =>
+                withLongRunningCommands(
+                    agentHooks.shellEnvironment(terminalId),
+                    longRunningCommands,
+                ),
+        },
         close: async () => {
             unsubscribeSettings();
             await automaticNaming.close();
