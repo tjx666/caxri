@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 
 import type { FileEntry } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     boundFileListEntries,
@@ -80,25 +80,34 @@ describe('directory listing helpers', () => {
      * the full round of uncancellable follows.
      */
     it('closes the budget once the probes it allowed have waited long enough in total', async () => {
-        const spent: Array<{ reason: string; waitedMs: number }> = [];
-        const probeTarget = createSymlinkTargetProbe({
-            budgetMs: 30,
-            onBudgetSpent: (reason, waitedMs) => spent.push({ reason, waitedMs }),
-            timeoutMs: 10_000,
-        });
-        const slow = <T>(value: T) =>
-            new Promise<T>((resolve) => setTimeout(() => resolve(value), 20));
+        // Fake clock: on a loaded runner a real 20ms timer can fire after 30ms, spending the budget on the first probe.
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+        try {
+            const spent: Array<{ reason: string; waitedMs: number }> = [];
+            const probeTarget = createSymlinkTargetProbe({
+                budgetMs: 30,
+                onBudgetSpent: (reason, waitedMs) => spent.push({ reason, waitedMs }),
+                timeoutMs: 10_000,
+            });
+            const slow = async <T>(value: T) => {
+                const answer = probeTarget(
+                    () => new Promise<T>((resolve) => setTimeout(() => resolve(value), 20)),
+                );
+                await vi.advanceTimersByTimeAsync(20);
+                return answer;
+            };
 
-        const first = await probeTarget(() => slow('first'));
-        const second = await probeTarget(() => slow('second'));
-        const third = await probeTarget(() => slow('third'));
+            const first = await slow('first');
+            const second = await slow('second');
+            const third = await slow('third');
 
-        // Both answered: the budget bounds what a listing spends, it does not discard work already paid for.
-        expect([first, second]).toEqual(['first', 'second']);
-        expect(third).toBeUndefined();
-        expect(spent).toHaveLength(1);
-        expect(spent[0]?.reason).toBe('cumulative_wait');
-        expect(spent[0]?.waitedMs).toBeGreaterThanOrEqual(30);
+            // Both answered: the budget bounds what a listing spends, it does not discard work already paid for.
+            expect([first, second]).toEqual(['first', 'second']);
+            expect(third).toBeUndefined();
+            expect(spent).toEqual([{ reason: 'cumulative_wait', waitedMs: 40 }]);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('names a hung target apart from a merely slow one, and reports it once', async () => {
