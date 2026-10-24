@@ -57,7 +57,8 @@ describe('agentChatReplyMetrics', () => {
         expect(
             agentChatReplyMetrics({ outputTokens: 3_210, generationMs: 52_000, costUsd: 0.4234 }),
         ).toEqual({
-            label: '62\u{A0}tok/s · $0.42',
+            cost: '0.42',
+            rate: '62\u{A0}tok/s',
             details: [
                 '3,210 tokens in 52s · 62\u{A0}tok/s',
                 'Estimated cost of this turn at API list prices: $0.42',
@@ -68,11 +69,12 @@ describe('agentChatReplyMetrics', () => {
     it('shows whichever figure the turn has, and nothing for a turn that has neither', () => {
         // Too short to rate: the token count alone would not tell how fast the Agent answered.
         expect(
-            agentChatReplyMetrics({ outputTokens: 40, generationMs: 100, costUsd: 0.01 })?.label,
-        ).toBe('$0.01');
-        expect(agentChatReplyMetrics({ outputTokens: 600, generationMs: 10_000 })?.label).toBe(
-            '60\u{A0}tok/s',
-        );
+            agentChatReplyMetrics({ outputTokens: 40, generationMs: 100, costUsd: 0.01 }),
+        ).toMatchObject({ cost: '0.01', rate: undefined });
+        expect(agentChatReplyMetrics({ outputTokens: 600, generationMs: 10_000 })).toMatchObject({
+            cost: undefined,
+            rate: '60\u{A0}tok/s',
+        });
         // An unpriced model's zero is not "free".
         expect(agentChatReplyMetrics({ costUsd: 0 })).toBeUndefined();
         expect(agentChatReplyMetrics(undefined)).toBeUndefined();

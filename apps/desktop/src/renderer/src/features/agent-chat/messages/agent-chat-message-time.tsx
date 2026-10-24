@@ -1,4 +1,5 @@
 import type { AgentChatTurnMetrics } from '@caxri/protocol';
+import { CircleDollarSign } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
@@ -31,8 +32,8 @@ export function AgentChatMessageTime({ timestamp }: { timestamp: number }) {
 }
 
 /**
- * A finished turn's speed and cost after its reply's time, in the same quiet type, with the measured totals and the
- * estimate caveat on hover. Renders nothing for a turn that recorded neither.
+ * A finished turn's speed and cost after its reply's time, in the same quiet type (the cost behind a dollar glyph),
+ * with the measured totals and the estimate caveat on hover. Renders nothing for a turn that recorded neither.
  */
 export function AgentChatTurnMetricsLabel({ metrics }: { metrics?: AgentChatTurnMetrics }) {
     const { t } = useTranslation();
@@ -46,10 +47,16 @@ export function AgentChatTurnMetricsLabel({ metrics }: { metrics?: AgentChatTurn
         >
             <span
                 aria-label={readout.details.join('. ')}
-                className="px-1 text-[11px] leading-6 text-muted tabular-nums"
+                className="inline-flex items-center gap-2.5 px-1 text-[11px] leading-6 text-muted tabular-nums"
                 data-agent-chat-turn-metrics=""
             >
-                {readout.label}
+                {readout.rate && <span>{readout.rate}</span>}
+                {readout.cost && (
+                    <span className="inline-flex items-center gap-1">
+                        <CircleDollarSign aria-hidden="true" className="size-3.5 shrink-0" />
+                        {readout.cost}
+                    </span>
+                )}
             </span>
         </Tooltip>
     );
