@@ -154,10 +154,14 @@ function shellCommandMatchesAny(command, patterns) {
 }
 `;
 
-// oxlint-disable-next-line typescript/no-implied-eval -- see the JSDoc: the source is a repository constant shared with `bridge.cjs`.
+// Both linters flag the Function constructor; each suppression must sit directly above it, so oxlint uses a range.
+// See the JSDoc: the source is a repository constant shared with `bridge.cjs`.
+/* oxlint-disable typescript/no-implied-eval */
+// react-doctor-disable-next-line react-doctor/no-eval
 const loadMatcher = new Function(
     `${SHELL_COMMAND_SOURCE}\nreturn shellCommandMatchesAny;`,
 ) as () => (command: unknown, patterns: readonly string[]) => boolean;
+/* oxlint-enable typescript/no-implied-eval */
 
 /**
  * Whether any sub-command of a Shell command line matches one of the patterns, judged by the same source the hook
