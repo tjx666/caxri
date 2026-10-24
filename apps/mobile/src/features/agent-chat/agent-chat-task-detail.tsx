@@ -1,13 +1,14 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskIdentity, agentChatTaskUsageSummary } from '@caxri/protocol';
 import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
 
 import { SheetButton } from '../../components/sheet-button';
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
@@ -26,13 +27,15 @@ export type AgentChatTaskStopper = ReturnType<typeof useAgentChatTaskStop>;
 
 export const AgentChatTaskKindGlyph = ({
     kind,
+    size = 16,
     theme,
 }: {
     kind: AgentChatTask['kind'];
+    size?: number;
     theme: MobileTheme;
 }) => {
     const Icon = kind === 'shell' ? SquareTerminal : Bot;
-    return <Icon color={theme.muted} size={16} />;
+    return <Icon color={theme.muted} size={size} />;
 };
 
 /**
@@ -48,7 +51,7 @@ export const AgentChatTaskStatusGlyph = ({
 }) => {
     switch (status) {
         case 'running': {
-            return <ActivityIndicator color={theme.muted} size="small" style={styles.spinner} />;
+            return <Spinner color={theme.muted} size={16} />;
         }
         case 'completed': {
             return <Check color={theme.success} size={14} />;
@@ -91,7 +94,7 @@ const AgentChatTaskStopButton = ({
             testID="agent-chat-task-stop"
         >
             {isStopping ? (
-                <ActivityIndicator color={theme.danger} size="small" style={styles.spinner} />
+                <Spinner color={theme.danger} size={16} />
             ) : (
                 <Square color={theme.danger} fill={theme.danger} size={12} />
             )}
@@ -213,7 +216,7 @@ const TaskDetailContent = ({
                     {agentChatTaskReadError(t)}
                 </Text>
             );
-        return isLoading ? <ActivityIndicator color={theme.muted} style={styles.loading} /> : null;
+        return isLoading ? <Spinner color={theme.muted} style={styles.loading} /> : null;
     }
     return (
         <>
@@ -374,7 +377,6 @@ const styles = StyleSheet.create({
     facts: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 48 },
     status: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8 },
     factsText: { flex: 1, fontSize: 13, fontVariant: ['tabular-nums'] },
-    spinner: { transform: [{ scale: 0.8 }] },
     // A full 48dp box, like the queue card's Resume, so the target never depends on hit slop.
     stop: {
         alignItems: 'center',

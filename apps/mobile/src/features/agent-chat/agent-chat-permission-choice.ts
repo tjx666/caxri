@@ -24,7 +24,7 @@ type PermissionSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'permissionMo
 export interface AgentChatPermissionTrigger {
     label: string;
     /**
-     * Full access reads in the warning tone so the riskiest level stands out at a glance, as Desktop's shield does.
+     * Full access swaps in the alert shield, as Desktop's trigger does; the colors stay ordinary.
      */
     isFullAccess: boolean;
     isPlanMode: boolean;

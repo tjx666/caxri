@@ -7,7 +7,10 @@ import {
     withdrawAgentChatTaskLinks,
 } from '../agent-chat-task-links';
 import {
+    agentChatRunningKinds,
+    agentChatStatusRow,
     agentChatTaskDetailContent,
+    agentChatTaskLeadText,
     agentChatTaskPill,
     agentChatTaskPillIds,
     agentChatTaskRow,
@@ -54,6 +57,54 @@ describe('agentChatTaskSheetPill', () => {
         const pill = agentChatTaskPill({ tasks });
         expect(agentChatTaskSheetPill(pill, ['a'], tasks)).toBe(pill);
         expect(agentChatTaskSheetPill(undefined, ['gone'], tasks)).toBeUndefined();
+    });
+});
+
+describe('agentChatRunningKinds', () => {
+    it('counts subagents before shells and leaves out kinds with nothing running', () => {
+        expect(
+            agentChatRunningKinds([
+                task({ id: 'a' }),
+                task({ id: 'b', kind: 'agent' }),
+                task({ id: 'c' }),
+            ]),
+        ).toEqual([
+            { kind: 'agent', count: 1 },
+            { kind: 'shell', count: 2 },
+        ]);
+        expect(agentChatRunningKinds([task({ id: 'a' })])).toEqual([{ kind: 'shell', count: 1 }]);
+    });
+});
+
+describe('agentChatTaskLeadText', () => {
+    it('names the one running task, and counts several', () => {
+        const one = agentChatTaskPill({ tasks: [task({ id: 'a' })] });
+        expect(one && agentChatTaskLeadText(one)).toBe(
+            'Still running in the background: bun run dev',
+        );
+        const several = agentChatTaskPill({
+            tasks: [task({ id: 'a' }), task({ id: 'b', kind: 'agent', title: '' })],
+        });
+        expect(several && agentChatTaskLeadText(several)).toBe('2 background tasks running');
+    });
+});
+
+describe('agentChatStatusRow', () => {
+    const working = { kind: 'working', text: 'Working…', startedAt: undefined } as const;
+
+    it('leads with the activity and badges the running work while the turn runs', () => {
+        const pill = agentChatTaskPill({ tasks: [task({ id: 'a', kind: 'agent' })] });
+        expect(agentChatStatusRow(working, pill)).toEqual({
+            lead: 'activity',
+            badge: [{ kind: 'agent', count: 1 }],
+        });
+        expect(agentChatStatusRow(working, undefined)).toEqual({ lead: 'activity', badge: [] });
+    });
+
+    it('leads with the running work once the turn ended, and hides with nothing to say', () => {
+        const pill = agentChatTaskPill({ tasks: [task({ id: 'a' })] });
+        expect(agentChatStatusRow(undefined, pill)).toEqual({ lead: 'tasks', badge: [] });
+        expect(agentChatStatusRow(undefined, undefined)).toBeUndefined();
     });
 });
 

@@ -223,6 +223,8 @@ export const chat = {
     'chat.tasks.earlierOutput': 'Earlier output is on your computer.',
     'chat.tasks.empty': 'No background work.',
     'chat.tasks.endedCount': '{{count}} ended',
+    'chat.tasks.leadMany': '{{count}} background tasks running',
+    'chat.tasks.leadOne': 'Still running in the background: {{title}}',
     'chat.tasks.noMessages': 'No messages',
     'chat.tasks.noMessagesYet': 'No messages yet',
     'chat.tasks.noOutput': 'No output',
