@@ -152,6 +152,7 @@ export const agentChatTimeline = {
     'agentChat.tracker.checksOne': '{{count}} check',
     'agentChat.tracker.checksOther': '{{count}} checks',
     'agentChat.workGroup.noOutput': 'No output',
+    'agentChat.workGroup.noOutputYet': 'No output yet',
     'agentChat.workGroup.output': 'Output',
     'agentChat.workGroup.command': 'Command',
     'agentChat.workGroup.exitCode': 'Exit code {{code}}',

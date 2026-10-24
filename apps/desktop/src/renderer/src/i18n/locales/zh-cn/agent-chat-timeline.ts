@@ -147,6 +147,7 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.tracker.checksOne': '{{count}} 项检查',
     'agentChat.tracker.checksOther': '{{count}} 项检查',
     'agentChat.workGroup.noOutput': '无输出',
+    'agentChat.workGroup.noOutputYet': '暂无输出',
     'agentChat.workGroup.output': '输出',
     'agentChat.workGroup.command': '命令',
     'agentChat.workGroup.exitCode': '退出码 {{code}}',
