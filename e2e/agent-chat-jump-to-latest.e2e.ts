@@ -52,7 +52,7 @@ test('Jump to latest shows only while the latest turn is out of view, and a fini
         const message = chat.getByRole('textbox', { name: 'Message' });
         const transcript = chat.getByRole('log');
         // The control stays mounted to animate; while hidden it is `inert`, so only a live one counts.
-        const jump = chat.locator('button:not([inert])', { hasText: 'Jump to latest' });
+        const jump = chat.locator('button:not([inert])[aria-label="Jump to latest"]');
 
         // Two long replies first, so the history above the latest turn is taller than the view.
         await message.fill('table please');
@@ -92,6 +92,8 @@ test('Jump to latest shows only while the latest turn is out of view, and a fini
             element.scrollTop = 0;
         });
         await expect(jump).toBeVisible();
+        await expect(jump).toHaveCSS('opacity', '1');
+        await page.screenshot({ path: testInfo.outputPath('jump-to-latest.png') });
         await jump.click();
         await expect(jump).toHaveCount(0);
 
@@ -140,7 +142,7 @@ test('A message sent while reading above the end still rises to the top', async 
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
         const transcript = chat.getByRole('log');
-        const jump = chat.locator('button:not([inert])', { hasText: 'Jump to latest' });
+        const jump = chat.locator('button:not([inert])[aria-label="Jump to latest"]');
 
         await message.fill('table please');
         await message.press('Enter');

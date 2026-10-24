@@ -3,9 +3,10 @@ import { useState } from 'react';
 
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 import {
-    ArrowUpToLine,
     CircleAlert,
-    CornerDownLeft,
+    CornerDownRight,
+    Ellipsis,
+    ListEnd,
     Pause,
     Pencil,
     Play,
@@ -13,8 +14,8 @@ import {
     Trash2,
 } from 'lucide-react';
 
-import { ShortcutBadge } from '../../../components/shortcut-badge';
 import { Button } from '../../../components/ui/button';
+import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../../components/ui/menu';
 import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
@@ -39,27 +40,22 @@ import {
 } from './agent-chat-queue';
 
 /**
- * The card actions use `aria-disabled` rather than `disabled`, like the composer's Send: a natively disabled button
- * gets no pointer events in Chromium, so the tooltip that says why the action is unavailable would never open. Each
- * click handler refuses an unavailable action itself.
+ * Row actions always show, as the Codex app's queue does, so what a queued message offers is visible without hunting
+ * for it with the pointer.
  */
-function noop(): void {}
+const ACTION_CLASS_NAME = 'min-h-6 text-muted not-aria-disabled:hover:text-foreground';
 
 /**
- * Row actions stay out of sight until the row is hovered or holds focus, so a queue reads as the messages themselves.
- * They are only transparent, never removed, so Tab still reaches them and reveals them.
- */
-const ACTION_CLASS_NAME =
-    'size-6 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 not-aria-disabled:hover:text-foreground';
-
-/**
- * One card action behind its tooltip. An unavailable action stays focusable and pointable (`ACTION_CLASS_NAME`), and
- * its click does nothing; an available one runs, then reports through `onAction`.
+ * One card action behind its tooltip. It uses `aria-disabled` rather than `disabled`, like the composer's Send: a
+ * natively disabled button gets no pointer events in Chromium, so the tooltip that says why the action is unavailable
+ * would never open. An unavailable action stays focusable and pointable, and its click does nothing; an available one
+ * runs, then reports through `onAction`. With a `label` it shows its glyph and that word, otherwise the glyph alone.
  */
 function QueueCardAction({
     ariaLabel,
     children,
     isDisabled,
+    label,
     onAction,
     onRun,
     tooltip,
@@ -67,6 +63,7 @@ function QueueCardAction({
     ariaLabel: string;
     children: ReactNode;
     isDisabled: boolean;
+    label?: string;
     onAction: () => void;
     onRun: () => void;
     tooltip: string;
@@ -76,8 +73,8 @@ function QueueCardAction({
             <Button
                 aria-disabled={isDisabled || undefined}
                 aria-label={ariaLabel}
-                className={ACTION_CLASS_NAME}
-                size="icon"
+                className={cn(ACTION_CLASS_NAME, label ? 'gap-1 px-1.5 text-[12px]' : 'size-6')}
+                size={label ? 'sm' : 'icon'}
                 variant="ghost"
                 onClick={() => {
                     if (isDisabled) return;
@@ -86,6 +83,7 @@ function QueueCardAction({
                 }}
             >
                 {children}
+                {label}
             </Button>
         </Tooltip>
     );
@@ -167,19 +165,18 @@ function QueueTextEditor({
     );
 }
 
+/**
+ * One queued message as the Codex app lays it out: a queue glyph, the message, then its actions, always shown: Steer
+ * (Send now with no turn running) as a labeled button, Delete, and a More menu holding Edit.
+ */
 function QueueCard({
     entry,
-    isEnterTarget,
     isTurnRunning,
     onAction,
     onEdit,
     terminalId,
 }: {
     entry: AgentChatQueueEntryView;
-    /**
-     * Whether Enter in the empty composer steers this message now, which the row shows as a keycap chip.
-     */
-    isEnterTarget: boolean;
     isTurnRunning: boolean;
     onAction: () => void;
     onEdit: (text: string) => void;
@@ -204,10 +201,11 @@ function QueueCard({
         <li
             aria-busy={isPending}
             className={cn(
-                'group relative flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-0.5 pl-2 text-[12px] leading-5 focus-within:pr-21 hover:bg-list-hover-background hover:pr-21',
+                'flex min-h-8 min-w-0 items-center gap-2 rounded-md py-0.5 pr-0.5 pl-2 text-[13px] leading-5',
                 isPending && 'opacity-60',
             )}
         >
+            <ListEnd aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
             <span className="flex min-w-0 flex-1 items-center gap-2">
                 {entry.commandLabel && (
                     <span className="shrink-0 rounded bg-elevated px-1 font-mono text-[11px] text-foreground">
@@ -219,38 +217,16 @@ function QueueCard({
                     <span className="shrink-0 text-[11px] text-muted">{entry.imageLabel}</span>
                 )}
             </span>
-            {isEnterTarget && (
-                // Stays while the composer is focused (the caller passes `enterQueuedId` only then), hover included.
-                <span
-                    aria-hidden="true"
-                    className="flex shrink-0 items-center gap-1 pr-1.5 text-[11px] text-muted"
-                    data-agent-chat-queue-enter-hint=""
-                >
-                    <ShortcutBadge compact shortcut="enter" />
-                    {t('agentChat.queue.steer')}
-                </span>
-            )}
-            {/*
-             * The actions float over the row's end instead of holding their width in the flow, so while they are hidden
-             * the Enter hint sits flush with the row's end. Hover or focus pads the row by their width (`pr-21`), so they
-             * never cover the message or the hint. They stay full size and in place, so a pointer or Tab reaches them.
-             */}
-            <span className="absolute inset-y-0 right-0.5 flex items-center gap-1">
+            <span className="flex shrink-0 items-center gap-0.5">
                 <QueueCardAction
-                    ariaLabel={t('agentChat.queue.editMessage')}
-                    isDisabled={!entry.canEdit}
-                    tooltip={labels.editTooltip}
-                    // A message with images is edited in its row, which keeps focus there until it closes.
-                    onAction={entry.imageCount > 0 ? noop : onAction}
-                    onRun={() => {
-                        if (entry.imageCount > 0) {
-                            setIsEditingText(true);
-                            return;
-                        }
-                        void editAgentChatQueued(terminalId, entry.id, onEdit);
-                    }}
+                    ariaLabel={labels.sendAriaLabel}
+                    isDisabled={!entry.canSendNow}
+                    label={t(isTurnRunning ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow')}
+                    tooltip={labels.sendTooltip}
+                    onAction={onAction}
+                    onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
                 >
-                    <Pencil className="size-3.5" />
+                    <CornerDownRight aria-hidden="true" className="size-3.5" />
                 </QueueCardAction>
                 <QueueCardAction
                     ariaLabel={t('agentChat.queue.deleteMessage')}
@@ -259,21 +235,41 @@ function QueueCard({
                     onAction={onAction}
                     onRun={() => removeAgentChatQueued(terminalId, entry.id)}
                 >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 aria-hidden="true" className="size-3.5" />
                 </QueueCardAction>
-                <QueueCardAction
-                    ariaLabel={labels.sendAriaLabel}
-                    isDisabled={!entry.canSendNow}
-                    tooltip={labels.sendTooltip}
-                    onAction={onAction}
-                    onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
-                >
-                    {isTurnRunning ? (
-                        <ArrowUpToLine className="size-3.5" />
-                    ) : (
-                        <CornerDownLeft className="size-3.5" />
-                    )}
-                </QueueCardAction>
+                <Menu>
+                    <Tooltip content={t('common.more')}>
+                        <MenuTrigger
+                            render={
+                                <Button
+                                    aria-label={t('agentChat.queue.moreActions')}
+                                    className={cn(ACTION_CLASS_NAME, 'size-6')}
+                                    size="icon"
+                                    variant="ghost"
+                                >
+                                    <Ellipsis aria-hidden="true" className="size-3.5" />
+                                </Button>
+                            }
+                        />
+                    </Tooltip>
+                    <MenuContent align="end">
+                        <MenuItem
+                            disabled={!entry.canEdit || isPending}
+                            onClick={() => {
+                                // A message with images is edited in its row, which keeps focus there until it closes.
+                                if (entry.imageCount > 0) {
+                                    setIsEditingText(true);
+                                    return;
+                                }
+                                void editAgentChatQueued(terminalId, entry.id, onEdit);
+                                onAction();
+                            }}
+                        >
+                            <Pencil aria-hidden="true" className="size-3.5 text-muted" />
+                            {t('common.edit')}
+                        </MenuItem>
+                    </MenuContent>
+                </Menu>
             </span>
         </li>
     );
@@ -281,14 +277,12 @@ function QueueCard({
 
 /**
  * Follow-ups waiting for the running turn, in the order Server Core will send them, as one list just above the
- * composer. Each row shows only the message until hovered or focused, then offers taking it back into the composer,
- * deleting it, or sending it now (steering the running turn). While the composer is focused and empty, the row Enter
- * would steer carries an `Enter Steer` chip, kept on hover, so that shortcut is visible where its effect lands. After
- * the user stops a turn the queue pauses instead of firing the next message by surprise, and says so with a Resume
- * action; a pause caused by a failed send says that in `--danger` and offers Retry instead (`agentChatQueueHeader`).
+ * composer. Each row offers sending it now (steering the running turn), deleting it, and taking it back into the
+ * composer. After the user stops a turn the queue pauses instead of firing the next message by surprise, and says so
+ * with a Resume action; a pause caused by a failed send says that in `--danger` and offers Retry instead
+ * (`agentChatQueueHeader`).
  */
 export function AgentChatQueueList({
-    enterQueuedId,
     isTurnRunning,
     onAction,
     onEdit,
@@ -297,10 +291,6 @@ export function AgentChatQueueList({
     snapshot,
     terminalId,
 }: {
-    /**
-     * The queued message Enter in the empty composer steers now, or `undefined` while a draft is typed or no turn runs.
-     */
-    enterQueuedId: string | undefined;
     isTurnRunning: boolean;
     /**
      * Runs after any queue action. Each one removes the control that was clicked (the card leaves the queue, or the
@@ -325,54 +315,42 @@ export function AgentChatQueueList({
     const { t } = useTranslation();
     const entries = agentChatQueueEntries(queue, isTurnRunning, pending);
     if (entries.length === 0) return null;
-    const header = agentChatQueueHeader(snapshot, isTurnRunning, entries, t);
-    const isFailed = header.tone === 'failed';
+    const header = agentChatQueueHeader(snapshot, t);
+    const isFailed = header?.tone === 'failed';
     return (
         <section
             aria-label={t('agentChat.queue.label')}
             className="border-0 border-b border-solid border-border p-1"
             data-agent-chat-composer-strip-row=""
         >
-            <h3 className="m-0 flex min-h-6 items-center gap-2 pr-0.5 pl-2 text-[11px] font-normal text-muted">
-                {header.resumeLabel ? (
-                    <>
-                        {isFailed ? (
-                            <CircleAlert
-                                aria-hidden="true"
-                                className="size-3 shrink-0 text-danger"
-                            />
-                        ) : (
-                            <Pause aria-hidden="true" className="size-3 shrink-0 text-warning" />
-                        )}
-                        <span className={cn('min-w-0 flex-1 truncate', isFailed && 'text-danger')}>
-                            {header.text}
-                        </span>
-                        <Button
-                            className="min-h-5 shrink-0 gap-1 px-1.5 text-[11px]"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => {
-                                resumeAgentChatQueue(terminalId);
-                                onAction();
-                            }}
-                        >
-                            {isFailed ? (
-                                <RotateCw className="size-3" />
-                            ) : (
-                                <Play className="size-3" />
-                            )}
-                            {header.resumeLabel}
-                        </Button>
-                    </>
-                ) : (
-                    <span className="min-w-0 flex-1 truncate">{header.text}</span>
-                )}
-            </h3>
+            {header && (
+                <h3 className="m-0 flex min-h-6 items-center gap-2 pr-0.5 pl-2 text-[11px] font-normal text-muted">
+                    {isFailed ? (
+                        <CircleAlert aria-hidden="true" className="size-3 shrink-0 text-danger" />
+                    ) : (
+                        <Pause aria-hidden="true" className="size-3 shrink-0 text-warning" />
+                    )}
+                    <span className={cn('min-w-0 flex-1 truncate', isFailed && 'text-danger')}>
+                        {header.text}
+                    </span>
+                    <Button
+                        className="min-h-5 shrink-0 gap-1 px-1.5 text-[11px]"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                            resumeAgentChatQueue(terminalId);
+                            onAction();
+                        }}
+                    >
+                        {isFailed ? <RotateCw className="size-3" /> : <Play className="size-3" />}
+                        {header.resumeLabel}
+                    </Button>
+                </h3>
+            )}
             <ol className="m-0 flex max-h-40 list-none flex-col overflow-y-auto p-0">
                 {entries.map((entry) => (
                     <QueueCard
                         entry={entry}
-                        isEnterTarget={entry.id === enterQueuedId}
                         isTurnRunning={isTurnRunning}
                         key={entry.id}
                         terminalId={terminalId}

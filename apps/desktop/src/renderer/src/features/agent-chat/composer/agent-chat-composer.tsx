@@ -39,7 +39,7 @@ import { AgentChatComposerNotices } from './agent-chat-composer-notices';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import type { AgentChatComposerInput } from './agent-chat-composer-view';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
-import { agentChatEnterQueuedId, agentChatNextQueuedId } from './agent-chat-queue';
+import { agentChatNextQueuedId } from './agent-chat-queue';
 import type { agentChatSendBlock } from './send/agent-chat-send-tooltip';
 import { agentChatSendLabels } from './send/agent-chat-send-tooltip';
 
@@ -362,11 +362,6 @@ export function AgentChatComposer({
             <div className="relative">
                 <AgentChatComposerStrip
                     activeTurnId={activeTurnId}
-                    enterQueuedId={agentChatEnterQueuedId(nextQueuedId, {
-                        hasContent,
-                        isInputFocused,
-                        isTurnRunning,
-                    })}
                     isQueuePaused={isQueuePaused}
                     isTurnRunning={isTurnRunning}
                     pendingQueue={pendingQueue}

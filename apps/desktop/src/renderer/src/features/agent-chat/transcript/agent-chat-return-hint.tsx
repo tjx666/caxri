@@ -11,6 +11,9 @@ import type { AgentChatReturnHintData } from '../hooks/use-agent-chat-return-hin
  * away, with a jump to the first of them. It takes Jump to latest's slot near the composer, where the pointer already
  * is, and shows only while that button is hidden (`isAgentChatReturnHintShown`), the way Telegram's unread jump shares
  * the corner with its scroll-down button. It leaves with the Session, a jump, or its close button.
+ *
+ * It reads as short as the round Jump to latest beside it: an up arrow and the count (`2 new replies`), with what the
+ * jump lands on left to the tooltip, since the arrow already says the pill moves the view.
  */
 export function AgentChatReturnHint({
     hint,
@@ -41,24 +44,27 @@ export function AgentChatReturnHint({
             {anchorId === undefined ? (
                 <span className="tabular-nums">{label}</span>
             ) : (
-                // The whole message is the jump target, not only its trailing words; only Dismiss stays apart.
-                <Button
-                    className="rounded-full pl-2.5 text-xs"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                        onJump(anchorId);
-                        onDismiss();
-                    }}
-                >
-                    <span className="mr-1 tabular-nums">{label}</span>
-                    <ArrowUp aria-hidden="true" className="size-3.5" />
-                    {t(
+                <Tooltip
+                    content={t(
                         count === 1
                             ? 'agentChat.returnHint.jumpOne'
                             : 'agentChat.returnHint.jumpOther',
                     )}
-                </Button>
+                    side="top"
+                >
+                    <Button
+                        className="gap-1 rounded-full pl-2.5 text-xs"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                            onJump(anchorId);
+                            onDismiss();
+                        }}
+                    >
+                        <ArrowUp aria-hidden="true" className="size-3.5" />
+                        <span className="tabular-nums">{label}</span>
+                    </Button>
+                </Tooltip>
             )}
             <Tooltip content={t('agentChat.returnHint.dismiss')}>
                 <Button

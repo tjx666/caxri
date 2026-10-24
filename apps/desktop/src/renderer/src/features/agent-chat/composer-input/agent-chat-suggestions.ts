@@ -1,5 +1,4 @@
 import type { AgentAction } from '@caxri/protocol';
-import { completeAgentChatAction } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import type { SuggestionKeyHint, SuggestionOption } from '../../../lib/suggestion-options';
@@ -48,17 +47,9 @@ export function agentChatSessionSuggestions(
 }
 
 /**
- * Whether choosing `action` from the slash menu runs it on the spot. Only a command with nothing left to type runs; a
- * skill, a command that takes arguments, and `/goal` (which enters Goal mode) only fill the input or switch mode.
- */
-function isAgentChatChoiceRunnable(action: AgentAction): boolean {
-    return !isAgentChatGoalAction(action) && completeAgentChatAction(action) === action.invocation;
-}
-
-/**
  * The keys a suggestion list's `meta` footer names, always ending in Escape. A list with no row to choose offers only
  * Escape, so it never promises an Enter that would send the draft instead. The commands list names what Enter does to
- * the `highlighted` row: "to run" for a bare command, "to insert" for one that only fills the input.
+ * the `highlighted` row: "to run" for every row but `/goal`, which only switches the composer into Goal mode.
  */
 export function agentChatSuggestionFooter(
     list: 'commands' | 'history' | 'sessions',
@@ -76,7 +67,7 @@ export function agentChatSuggestionFooter(
                 {
                     keys: 'Enter',
                     action: translate(
-                        highlighted && !isAgentChatChoiceRunnable(highlighted)
+                        highlighted && isAgentChatGoalAction(highlighted)
                             ? 'agentChat.slash.keyHintInsert'
                             : 'agentChat.slash.keyHintRun',
                     ),
