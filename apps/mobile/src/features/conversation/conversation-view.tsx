@@ -28,9 +28,9 @@ import {
     conversationTurnSpacerHeight,
     createConversationFollower,
     latestConversationTurnStart,
-    shouldFillConversationWithOlder,
 } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
+import { useConversationOlderPages } from './use-conversation-older-pages';
 import type { ConversationTimelineState } from './use-conversation-timeline';
 
 const ConversationHistory = ({
@@ -309,27 +309,16 @@ export const ConversationList = <Entry extends { id: string }>({
         measureSpacer();
         follower.request();
     }, [follower, measureSpacer]);
-    /**
-     * Reads an older page while the rows are shorter than the viewport (`shouldFillConversationWithOlder`), so a window
-     * holding only a long turn's last few rows does not open as a blank band above them.
-     */
-    const fillWithOlder = useCallback((): void => {
-        const { timeline: current } = latest.current;
-        const reference = list.current;
-        if (
-            !reference ||
-            !shouldFillConversationWithOlder({
-                contentHeight: reference.getChildContainerDimensions().height,
-                // A failed page waits for the reader's Retry; reading again on every layout would loop on it.
-                hasOlder: current.olderCursor !== undefined && current.error === null,
-                isLoadingOlder: current.isLoadingOlder,
-                isPositioned: isPositionedReference.current,
-                viewportHeight: viewportHeight.current,
-            })
-        )
-            return;
-        void current.loadOlder();
-    }, []);
+    const {
+        fillWithOlder,
+        loadOlder: onLoadOlder,
+        onStartReached,
+    } = useConversationOlderPages({
+        isPositionedReference,
+        list,
+        timeline: latest,
+        viewportHeight,
+    });
     /**
      * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
      * `startRenderingFromBottom`'s top margin shrinks by the same amount, so `onContentSizeChange` stays silent and the
@@ -414,15 +403,6 @@ export const ConversationList = <Entry extends { id: string }>({
             scrollToEnd: jumpToLatest,
         });
     }, [followKey, jumpToLatest]);
-    const onLoadOlder = useCallback((): void => {
-        void latest.current.timeline.loadOlder();
-    }, []);
-    const onStartReached = useCallback((): void => {
-        const { timeline: current } = latest.current;
-        if (isPositionedReference.current && current.olderCursor && !current.isLoadingOlder) {
-            void current.loadOlder();
-        }
-    }, []);
     const header = useMemo(
         () => (
             <ConversationHistory
