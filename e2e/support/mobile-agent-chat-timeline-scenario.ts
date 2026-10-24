@@ -321,7 +321,13 @@ export async function executeMobileChatHistoryTasksScenario(
             const nodes = await mobileSemantics(serial);
             if (hasCheck(nodes, leftOutId)) {
                 isRevealed = true;
-            } else if (!isLoadEarlierTapped && hasCheck(nodes, 'conversation-load-earlier')) {
+            } else if (
+                !isLoadEarlierTapped &&
+                // A disabled control means the list already reads that page on reaching its start.
+                nodes.some(
+                    ({ checkId, enabled }) => checkId === 'conversation-load-earlier' && enabled,
+                )
+            ) {
                 isLoadEarlierSeen = true;
                 // eslint-disable-next-line no-await-in-loop -- the frame shows the control before it is used.
                 await capture(environment, 'load-earlier', artifacts);
