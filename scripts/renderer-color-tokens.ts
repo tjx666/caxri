@@ -56,6 +56,8 @@ export const registeredColorRoles = [
     'state-handle-halo',
     'success',
     'surface',
+    'switch-thumb',
+    'switch-thumb-off',
     'tab-active-background',
     'tab-active-foreground',
     'tab-hover-background',

@@ -36,6 +36,8 @@
     --color-muted: var(--muted);
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
+    --color-switch-thumb: var(--switch-thumb);
+    --color-switch-thumb-off: var(--switch-thumb-off);
     --color-success: var(--success);
     --color-warning: var(--warning);
     --color-danger: var(--danger);

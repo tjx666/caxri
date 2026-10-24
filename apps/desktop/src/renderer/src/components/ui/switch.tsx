@@ -29,7 +29,7 @@ export function Switch({ className, ...properties }: SwitchPrimitive.Root.Props)
         >
             <SwitchPrimitive.Thumb
                 data-slot="switch-thumb"
-                className="pointer-events-none block size-3.5 rounded-full bg-foreground transition-transform data-checked:translate-x-3.5 data-checked:bg-accent-foreground data-unchecked:translate-x-0 motion-reduce:transition-none"
+                className="pointer-events-none block size-3.5 rounded-full bg-switch-thumb-off transition-transform data-checked:translate-x-3.5 data-checked:bg-switch-thumb data-unchecked:translate-x-0 motion-reduce:transition-none"
             />
         </SwitchPrimitive.Root>
     );
