@@ -111,7 +111,7 @@ describe('applyCssTheme', () => {
 
         // Derived from the fixture, plus the foregrounds `applyCssTheme` computes, so a new color role
         // is covered here automatically instead of failing on a stale literal.
-        const derivedProperties = 7;
+        const derivedProperties = 9;
         expect(setProperty).toHaveBeenCalledTimes(
             Object.keys(theme.colors).length + derivedProperties,
         );
@@ -158,6 +158,29 @@ describe('applyCssTheme', () => {
         setProperty.mockClear();
         applyCssTheme(solarizedLightTheme);
         expect(setProperty).toHaveBeenCalledWith('--accent-foreground', '#000000');
+    });
+
+    it('derives Switch thumbs that stand out from their track in every built-in theme', () => {
+        for (const theme of builtinThemes) {
+            setProperty.mockClear();
+            applyCssTheme(theme);
+            const properties = new Map(
+                setProperty.mock.calls.map(
+                    ([key, value]) => [key as string, value as string] as const,
+                ),
+            );
+            expect(
+                contrastRatio(properties.get('--switch-thumb')!, theme.colors.accent),
+                theme.name,
+            ).toBeGreaterThanOrEqual(3);
+            expect(
+                contrastRatio(properties.get('--switch-thumb-off')!, theme.colors.border),
+                theme.name,
+            ).toBeGreaterThanOrEqual(3);
+        }
+        setProperty.mockClear();
+        applyCssTheme(solarizedLightTheme);
+        expect(setProperty).not.toHaveBeenCalledWith('--switch-thumb', '#000000');
     });
 
     it('never derives a diff stat color less readable than the weaker of success and danger', () => {

@@ -87,6 +87,7 @@ roles below.
 | `--muted`                                                 | secondary text, inactive icons                                                  |
 | `--accent`                                                | the single focus indicator + primary buttons                                    |
 | `--accent-foreground`                                     | text/icons on accent fills (derived, not hardcoded)                             |
+| `--switch-thumb` / `--switch-thumb-off`                   | Switch thumb over the accent / border track: derived at 3:1 non-text contrast   |
 | `--success` / `--warning` / `--danger`                    | status dots, exit banners, destructive buttons                                  |
 | `--merged`                                                | landed work: the merged pull request glyph                                      |
 | `--chart`                                                 | quantity data series: Usage heatmap, trend line, share bars, hourly bars        |
@@ -103,7 +104,7 @@ roles below.
 | `--indicator`                                             | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs  |
 | `--state-*`                                               | hover, selected, and focus washes for surfaces that borrow no `--list-*` state  |
 
-Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
+Derive `--accent-foreground`, `--switch-thumb`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
 place from theme colors. The status bar uses `--surface` plus a top hairline, never an accent fill.
 
 Tabs, list rows, and the title bar own their states rather than borrowing a surface: eighteen
