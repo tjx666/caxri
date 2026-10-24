@@ -2,7 +2,6 @@
 import { useCallback, useRef } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import {
-    ActivityIndicator,
     FlatList,
     Keyboard,
     KeyboardAvoidingView,
@@ -19,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
@@ -40,7 +40,7 @@ const InboxStatus = ({
     if (state.kind === 'loading')
         return (
             <View style={styles.status} testID="commander-inbox-loading">
-                <ActivityIndicator color={theme.primary} />
+                <Spinner color={theme.primary} />
             </View>
         );
     const message = t(

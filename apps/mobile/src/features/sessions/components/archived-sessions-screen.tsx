@@ -1,7 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useCallback, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { MethodResult } from '@caxri/protocol';
@@ -10,6 +10,7 @@ import { ArchiveRestore, ChevronLeft } from 'lucide-react-native';
 
 import { AgentAvatar } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
@@ -63,7 +64,7 @@ const ArchivedRow = ({
                     testID={`archived-session-restore-${session.id}`}
                 >
                     {isRestoring ? (
-                        <ActivityIndicator color={theme.primary} size="small" />
+                        <Spinner color={theme.primary} />
                     ) : (
                         <ArchiveRestore color={theme.primary} size={16} />
                     )}
@@ -148,7 +149,7 @@ export const ArchivedSessionsScreen = () => {
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         {archived.isPending ? (
-                            <ActivityIndicator color={theme.muted} />
+                            <Spinner color={theme.muted} />
                         ) : (
                             <Text style={[styles.emptyText, { color: theme.muted }]}>
                                 {t(

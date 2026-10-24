@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, Text, View } from 'react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from './changes-diff-stat';
@@ -97,7 +98,7 @@ const ChangesStatus = ({
     const { t } = useTranslation();
     return (
         <View style={styles.state} testID={`changes-${kind}`}>
-            {kind === 'loading' ? <ActivityIndicator color={theme.primary} /> : null}
+            {kind === 'loading' ? <Spinner color={theme.primary} /> : null}
             {title ? <Text style={[styles.stateTitle, { color: theme.text }]}>{title}</Text> : null}
             <Text
                 accessibilityRole={kind === 'error' ? 'alert' : undefined}

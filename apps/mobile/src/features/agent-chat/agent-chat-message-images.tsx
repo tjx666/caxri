@@ -1,9 +1,10 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { ImageIcon } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { AgentChatImageViewer } from './agent-chat-image-viewer';
@@ -53,7 +54,7 @@ const Thumbnail = ({
                     testID={`agent-chat-message-thumbnail-${itemId}-${index}`}
                 />
             ) : thumbnail.isLoading || original.isLoading ? (
-                <ActivityIndicator color={theme.muted} />
+                <Spinner color={theme.muted} />
             ) : (
                 // The provider's record no longer has the image; the tile keeps its place.
                 <ImageIcon color={theme.muted} size={24} />

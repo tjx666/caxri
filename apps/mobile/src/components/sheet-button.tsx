@@ -1,7 +1,8 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import type { MobileTheme } from '../theme/tokens';
+import { Spinner } from './spinner';
 
 /**
  * A full-width 48dp action inside a bottom sheet, such as the Merge and Back pair of a confirmation page. `isBusy`
@@ -48,7 +49,7 @@ export const SheetButton = ({
             ]}
             testID={testID}
         >
-            {isBusy ? <ActivityIndicator color={foreground} size="small" /> : null}
+            {isBusy ? <Spinner color={foreground} /> : null}
             <Text style={[styles.buttonText, { color: foreground }]}>{label}</Text>
         </Pressable>
     );

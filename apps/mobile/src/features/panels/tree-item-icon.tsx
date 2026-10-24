@@ -1,5 +1,4 @@
 import type { ComponentType } from 'react';
-import { ActivityIndicator } from 'react-native';
 import Svg, { Circle as SvgCircle, Defs, G, Mask, Path, Rect } from 'react-native-svg';
 
 import type { MethodResult } from '@caxri/protocol';
@@ -38,6 +37,7 @@ import {
     TriangleAlert,
 } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import type { MobileTheme } from '../../theme/tokens';
 
 type TreeIcon = NonNullable<MethodResult<'mobile.tree.children'>['items'][number]['icon']>;
@@ -266,7 +266,7 @@ export const TreeItemIcon = ({
     theme: MobileTheme;
 }) => {
     const id = icon?.kind === 'theme' ? icon.id : undefined;
-    if (id === 'loading') return <ActivityIndicator color={theme.warning} size={size} />;
+    if (id === 'loading') return <Spinner color={theme.warning} size={size} />;
     const linearKind = id ? LINEAR_KINDS[id] : undefined;
     /**
      * Only a Linear workflow state carries an externally owned color; without it the glyph shape still separates

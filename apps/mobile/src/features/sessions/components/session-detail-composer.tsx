@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import { formatByteSize } from '../../../lib/format-size';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -124,7 +125,7 @@ const SessionComposerActionButton = ({
             testID={showStop ? 'session-composer-stop' : 'session-composer-send'}
         >
             {isBusy ? (
-                <ActivityIndicator color={theme.primaryForeground} />
+                <Spinner color={theme.primaryForeground} />
             ) : (
                 <Icon color={theme.primaryForeground} size={20} strokeWidth={2.5} />
             )}

@@ -1,7 +1,8 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { router } from 'expo-router';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 
@@ -34,7 +35,7 @@ export const SessionRouteStatus = ({
     const { t } = useTranslation();
     return (
         <View style={styles.root} testID="session-route-status">
-            {isLoading && !error && !isOffline ? <ActivityIndicator color={theme.primary} /> : null}
+            {isLoading && !error && !isOffline ? <Spinner color={theme.primary} /> : null}
             <Text
                 accessibilityRole={error ? 'alert' : 'text'}
                 style={[styles.body, { color: theme.muted }]}

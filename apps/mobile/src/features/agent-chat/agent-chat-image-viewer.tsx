@@ -3,7 +3,7 @@
    hook API renames the end callbacks and changes composition, so the viewer moves only with on-device pinch and swipe
    verification. */
 import { useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { X } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatImageTarget, AgentChatViewerSwipe } from './agent-chat-images';
@@ -342,7 +343,7 @@ const ViewerContent = ({
             ) : null}
             {original.isLoading ? (
                 <View pointerEvents="none" style={styles.center}>
-                    <ActivityIndicator color={theme.onScrim} size="large" />
+                    <Spinner color={theme.onScrim} size={36} />
                     <Text style={[styles.status, { color: theme.onScrim }]}>
                         {Math.round(original.progress * 100)}%
                     </Text>

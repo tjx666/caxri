@@ -3,7 +3,6 @@ import type { ComponentType, ReactNode } from 'react';
 import { useCallback, useEffect } from 'react';
 import type { DimensionValue } from 'react-native';
 import {
-    ActivityIndicator,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -26,6 +25,7 @@ import type { LucideProps } from 'lucide-react-native';
 
 import { useTranslation } from '../i18n';
 import type { MobileTheme } from '../theme/tokens';
+import { Spinner } from './spinner';
 
 const OPEN_MS = 260;
 const CLOSE_MS = 180;
@@ -165,11 +165,7 @@ export const SheetAction = ({
         ]}
         testID={testID}
     >
-        {busy ? (
-            <ActivityIndicator color={theme.muted} size="small" />
-        ) : (
-            <Icon color={theme.muted} size={20} />
-        )}
+        {busy ? <Spinner color={theme.muted} /> : <Icon color={theme.muted} size={20} />}
         <Text style={[styles.actionText, { color: theme.text }]}>{label}</Text>
     </Pressable>
 );

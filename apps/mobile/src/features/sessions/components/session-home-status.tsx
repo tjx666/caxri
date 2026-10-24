@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileConnectionStatus } from '../../connection/connection-state';
@@ -142,7 +143,7 @@ export const SessionHomeEmpty = ({
                     {state.title}
                 </Text>
             ) : null}
-            {state.showSpinner ? <ActivityIndicator color={theme.primary} size="small" /> : null}
+            {state.showSpinner ? <Spinner color={theme.primary} /> : null}
             <Text style={[styles.emptyBody, { color: theme.muted }]}>{state.body}</Text>
             {state.action ? (
                 <Pressable

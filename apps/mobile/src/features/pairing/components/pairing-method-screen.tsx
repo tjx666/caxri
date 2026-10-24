@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
@@ -11,6 +11,7 @@ import { ChevronLeft } from 'lucide-react-native';
 
 import { ActionButton } from '../../../components/action-button';
 import { IconButton } from '../../../components/icon-button';
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
@@ -275,7 +276,7 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                                 accessibilityLabel={t('pairing.inProgressLabel')}
                                 style={styles.progress}
                             >
-                                <ActivityIndicator color={theme.primary} />
+                                <Spinner color={theme.primary} />
                                 <Text style={[styles.progressText, { color: theme.muted }]}>
                                     {t('pairing.inProgress')}
                                 </Text>

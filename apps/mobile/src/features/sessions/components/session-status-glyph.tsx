@@ -1,7 +1,8 @@
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 
 import { CircleAlert, LoaderCircle } from 'lucide-react-native';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
@@ -54,10 +55,10 @@ export const SessionStatusGlyph = ({
             );
         case 'running':
             return (
-                <ActivityIndicator
+                <Spinner
                     accessibilityLabel={stateLabel}
                     color={theme.muted}
-                    size="small"
+                    size={18}
                     testID="session-status-running"
                 />
             );

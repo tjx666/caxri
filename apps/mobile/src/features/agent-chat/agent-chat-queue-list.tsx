@@ -1,15 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useCallback, useRef, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
@@ -25,6 +17,7 @@ import {
 } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
@@ -99,7 +92,7 @@ const QueueHeader = ({
                     testID="agent-chat-queue-resume"
                 >
                     {isResuming ? (
-                        <ActivityIndicator color={theme.primary} size="small" />
+                        <Spinner color={theme.primary} />
                     ) : (
                         <Play color={theme.primary} size={14} strokeWidth={2.5} />
                     )}

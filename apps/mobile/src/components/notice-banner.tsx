@@ -1,6 +1,7 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MobileTheme } from '../theme/tokens';
+import { Spinner } from './spinner';
 
 const styles = StyleSheet.create({
     banner: {
@@ -62,7 +63,7 @@ export const NoticeBanner = ({
                 testID={`${testID}-action`}
             >
                 {isBusy ? (
-                    <ActivityIndicator color={theme.text} />
+                    <Spinner color={theme.text} />
                 ) : (
                     <Text style={[styles.buttonText, { color: theme.text }]}>{actionLabel}</Text>
                 )}
