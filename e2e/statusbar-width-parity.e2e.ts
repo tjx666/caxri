@@ -163,7 +163,16 @@ exec /bin/zsh -l
          * Terminal tab, the only state in which the width-sensitive chips exist at all.
          */
         const fileList = running.page.locator('.file-list').first();
-        await fileList.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
+        /**
+         * The fixture's pull request switches the secondary sidebar to Status once it is detected (`#2480`), which can
+         * land after the bar shows the pull request chip, so Files is reopened until the click reaches the tree.
+         */
+        await expect(async () => {
+            await running.page.keyboard.press('Meta+Alt+1');
+            await fileList
+                .getByRole('treeitem', { name: 'source.ts', exact: true })
+                .click({ timeout: 2_000 });
+        }).toPass({ timeout: 30_000 });
         await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
         await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();
         await expect(running.page.getByLabel(/^Open Process Explorer — Terminal/)).toHaveCount(0);
