@@ -1,11 +1,12 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { isPinnedSession } from '@caxri/protocol';
 import { Archive, Pencil, Pin, PinOff } from 'lucide-react-native';
 
 import { BottomSheet, SheetAction, SheetCancel } from '../../../components/bottom-sheet';
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { useSessionManagement } from '../hooks/use-session-management';
@@ -173,10 +174,7 @@ const SessionActionsBody = ({
                                     testID="session-rename-save"
                                 >
                                     {isBusy ? (
-                                        <ActivityIndicator
-                                            color={theme.primaryForeground}
-                                            size="small"
-                                        />
+                                        <Spinner color={theme.primaryForeground} />
                                     ) : (
                                         <Text
                                             style={[

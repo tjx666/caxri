@@ -1141,7 +1141,8 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   its lists disabled and the composer's reason.
 - Beside the model, the composer shows the permission level with the Desktop picker's names
   (`agentChatPermissionModeLabel`, so Codex reads `Default`; `Custom` while launch settings match no
-  level), `Plan` while plan mode is on, and Full access in the warning tone with its shield. Tapping
+  level), `Plan` while plan mode is on, and Full access with its alert shield in the ordinary text color,
+  as Desktop's trigger; only the sheet's Full access option keeps the warning tone. Tapping
   it opens a `Permissions` sheet listing the provider's levels with their descriptions and, except
   for Grok Build, a `Plan mode` switch; both go through `mobile.agentChat.configure { permissionMode,
 planMode }`. A Codex switch during a turn says it applies to the next turn. "Use as Project
@@ -1205,10 +1206,13 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
 - Background work. The snapshot and `state` patches carry the Chat's `tasks` as a bounded copy
   (`clipAgentChatTasksForMobile`: every running task up to 24, the newest started kept, and the 10
   that ended most recently, with titles and command lines cut to 300 characters and summaries to
-  200). Above its composer the phone shows a one-row `Background work` pill (`2 running · 1 ended`)
-  by Desktop's strip rule (`agentChatTaskStripView`, shared from
-  `packages/protocol/src/agent/agent-chat-tasks.ts` with the elapsed time and Stop rules), so a
-  Chat without tasks (Grok Build) shows none, and the pill disappears once nothing runs. Tapping it opens a sheet listing running
+  200). Above its composer the phone shows one status row, as Desktop's: the turn's activity
+  leads with a badge of the running work's kinds and counts beside it, and once the turn ended the
+  running work leads the row (`Still running in the background: bun run dev`, or
+  `2 background tasks running`). What counts as running follows Desktop's strip rule
+  (`agentChatTaskStripView`, shared from `packages/protocol/src/agent/agent-chat-tasks.ts` with
+  the elapsed time and Stop rules), so a Chat without tasks (Grok Build) shows none, and the badge
+  disappears once nothing runs. Tapping the badge, or the row once the turn ended, opens a sheet listing running
   and ended tasks with their glyph, title (a command line in monospace), elapsed time, and status;
   a task opens its detail in the same sheet: the command, the provider's summary, and a shell's
   output tail or a subagent's latest message. A background command row's detail shows the same
@@ -1218,9 +1222,10 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   subagent's newest items), every 1.5 s while the task runs and the app is in the foreground,
   instead of subscribing to `agentChat.taskPatch`. A `control` device gets Stop beside each running
   task the provider can stop (`mobile.agentChat.stopTask`, forwarded to `agentChat.stopTask`),
-  which shows `Stopping…` until the Chat reports the task ended. A saved copy shows no pill, since
+  which shows `Stopping…` until the Chat reports the task ended. A saved copy shows no badge, since
   its tasks may have ended long ago. Code lives in
-  `apps/mobile/src/features/agent-chat/agent-chat-task-strip.tsx` and `agent-chat-tasks.ts`.
+  `apps/mobile/src/features/agent-chat/agent-chat-status-row.tsx`, `agent-chat-task-sheet.tsx`,
+  and `agent-chat-tasks.ts`.
 - Optimistic sends. Desktop and the phone share the placement and settlement rules in
   `packages/protocol/src/agent/agent-chat-pending.ts`: a sent message shows at once where it lands
   (the timeline when it starts or steers a turn, the queue otherwise) until the projection shows a

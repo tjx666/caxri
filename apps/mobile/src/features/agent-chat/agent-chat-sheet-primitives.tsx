@@ -1,7 +1,8 @@
-import { ActivityIndicator, Pressable, Switch, Text, View } from 'react-native';
+import { Pressable, Switch, Text, View } from 'react-native';
 
 import { Check } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import type { MobileTheme } from '../../theme/tokens';
 import { sheetStyles } from './agent-chat-sheet-styles';
 
@@ -67,7 +68,7 @@ export const SheetOptionRow = ({
         ) : null}
         <View style={sheetStyles.optionMark}>
             {isBusy ? (
-                <ActivityIndicator color={theme.muted} size="small" />
+                <Spinner color={theme.muted} />
             ) : isSelected ? (
                 <Check color={theme.primary} size={18} strokeWidth={2.5} />
             ) : null}
@@ -119,7 +120,7 @@ export const SheetToggleRow = ({
                 {description}
             </Text>
         </View>
-        {isBusy ? <ActivityIndicator color={theme.muted} size="small" /> : null}
+        {isBusy ? <Spinner color={theme.muted} /> : null}
         <View pointerEvents="none">
             <Switch
                 disabled={isDisabled}

@@ -120,6 +120,23 @@ describe('phone Chat older history', () => {
         expect(replaced).toEqual(emptyAgentChatOlderHistory('history-2'));
     });
 
+    it('keeps rows a long turn slides out of the window before the reader ever scrolls back', () => {
+        const before = snapshot(['a', 'b', 'c']);
+        const after = snapshot(['c', 'd']);
+        const kept = syncAgentChatOlderHistory(
+            emptyAgentChatOlderHistory('history-1'),
+            before,
+            after,
+        );
+        expect(mergeAgentChatOlderHistory(after, kept).items.map((value) => value.id)).toEqual([
+            'a',
+            'b',
+            'c',
+            'd',
+        ]);
+        expect(canLoadOlderAgentChatHistory(kept, after)).toBe(true);
+    });
+
     it('ignores a page for a replaced conversation', () => {
         const history = emptyAgentChatOlderHistory('history-2');
         expect(

@@ -6,6 +6,7 @@ import {
     createConversationFollower,
     isConversationFollowingAfterScroll,
     latestConversationTurnStart,
+    shouldFillConversationWithOlder,
 } from '../conversation-scroll';
 
 describe('latestConversationTurnStart', () => {
@@ -52,6 +53,31 @@ describe('conversationTurnSpacerHeight', () => {
                 viewportHeight: 300,
             }),
         ).toBe(200);
+    });
+});
+
+describe('shouldFillConversationWithOlder', () => {
+    const base = {
+        contentHeight: 300,
+        hasOlder: true,
+        isLoadingOlder: false,
+        isPositioned: true,
+        viewportHeight: 700,
+    };
+
+    it('reads an older page while the rows leave the viewport partly blank', () => {
+        expect(shouldFillConversationWithOlder(base)).toBe(true);
+    });
+
+    it('stops once the rows fill the viewport, nothing older remains, or a page is on its way', () => {
+        expect(shouldFillConversationWithOlder({ ...base, contentHeight: 700 })).toBe(false);
+        expect(shouldFillConversationWithOlder({ ...base, hasOlder: false })).toBe(false);
+        expect(shouldFillConversationWithOlder({ ...base, isLoadingOlder: true })).toBe(false);
+    });
+
+    it('waits for the first positioning and a measured viewport', () => {
+        expect(shouldFillConversationWithOlder({ ...base, isPositioned: false })).toBe(false);
+        expect(shouldFillConversationWithOlder({ ...base, viewportHeight: 0 })).toBe(false);
     });
 });
 

@@ -1,10 +1,11 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatResponse } from '@caxri/protocol';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 
@@ -64,7 +65,7 @@ export const ActionButton = ({
             testID={testID}
         >
             {isPending ? (
-                <ActivityIndicator color={color} />
+                <Spinner color={color} />
             ) : (
                 <Text style={[styles.actionLabel, { color }]}>{label}</Text>
             )}

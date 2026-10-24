@@ -1,15 +1,16 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useMobileTheme } from '../theme/use-mobile-theme';
+import { Spinner } from './spinner';
 
 export const LoadingScreen = ({ label }: { label: string }) => {
     const theme = useMobileTheme();
     return (
         <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
             <View style={styles.content} testID="loading-screen">
-                <ActivityIndicator color={theme.primary} size="small" />
+                <Spinner color={theme.primary} />
                 <Text style={[styles.label, { color: theme.muted }]}>{label}</Text>
             </View>
         </SafeAreaView>

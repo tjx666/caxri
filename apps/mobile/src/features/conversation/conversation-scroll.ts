@@ -43,6 +43,31 @@ export const conversationTurnSpacerHeight = ({
     Math.max(Math.round(viewportHeight - (contentHeight - turnTop) - topGap - bottomInset), 0);
 
 /**
+ * Whether the list should read an older page on its own because its rows do not fill the viewport. A short list cannot
+ * scroll far enough to reach its top, so the load-earlier header sits hidden above the bottom inset and the reader sees
+ * a few rows under a blank band. Loading pages until the rows fill the viewport (or nothing older remains) avoids
+ * that.
+ */
+export const shouldFillConversationWithOlder = ({
+    contentHeight,
+    hasOlder,
+    isLoadingOlder,
+    isPositioned,
+    viewportHeight,
+}: {
+    contentHeight: number;
+    hasOlder: boolean;
+    isLoadingOlder: boolean;
+    isPositioned: boolean;
+    viewportHeight: number;
+}): boolean =>
+    isPositioned &&
+    hasOlder &&
+    !isLoadingOlder &&
+    viewportHeight > 0 &&
+    contentHeight < viewportHeight;
+
+/**
  * Whether the list follows its end after a scroll event. Only the reader's own touch (a drag or the momentum after it)
  * may stop following: a programmatic scroll, or a scroll event reporting an offset taken before the list caught up with
  * new content, would otherwise read as the reader leaving the end. Any scroll that reaches the end resumes it.

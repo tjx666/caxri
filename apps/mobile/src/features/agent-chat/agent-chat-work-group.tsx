@@ -184,11 +184,16 @@ const AgentChatWorkRow = memo(
  */
 export const AgentChatWorkGroup = ({
     id,
+    isOpen = false,
     rows,
     summarized,
     theme,
 }: {
     id: string;
+    /**
+     * Whether the next tool call can still join this run (see the timeline's `work` entry).
+     */
+    isOpen?: boolean;
     rows: readonly AgentChatWorkItem[];
     summarized: readonly AgentChatWorkItem[];
     theme: MobileTheme;
@@ -206,7 +211,10 @@ export const AgentChatWorkGroup = ({
               rows.find((item) => item.id === selectedId) ??
               null);
     const first = summarized.at(0);
-    const glyph = useMemo(() => agentChatWorkSummaryGlyph(summarized), [summarized]);
+    const glyph = useMemo(
+        () => agentChatWorkSummaryGlyph(summarized, { isOpen }),
+        [isOpen, summarized],
+    );
     const mcpIconUrls = useMcpIconUrls(glyph.mcpToolName);
     return (
         <View style={conversationStyles.message}>
@@ -219,10 +227,11 @@ export const AgentChatWorkGroup = ({
                         }
                         failure={agentChatWorkGroupFailure(summarized)}
                         id={id}
-                        isRunning={summarized.some(isAgentChatWorkRunning)}
+                        // An open summary keeps its running mark between fast calls, so the turn never reads as idle.
+                        isRunning={isOpen || summarized.some(isAgentChatWorkRunning)}
                         kind={glyph.kind}
                         mcpIconUrls={mcpIconUrls}
-                        summary={summarizeAgentChatWork(summarized, t)}
+                        summary={summarizeAgentChatWork(summarized, t, { isOpen })}
                         testID={`agent-chat-work-group-${first.id}`}
                         theme={theme}
                     >

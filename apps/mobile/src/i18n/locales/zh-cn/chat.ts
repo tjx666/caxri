@@ -217,6 +217,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.tasks.earlierOutput': '更早的输出保存在电脑上。',
     'chat.tasks.empty': '没有后台工作。',
     'chat.tasks.endedCount': '{{count}} 个已结束',
+    'chat.tasks.leadMany': '{{count}} 个后台任务运行中',
+    'chat.tasks.leadOne': '后台任务仍在运行：{{title}}',
     'chat.tasks.noMessages': '无消息',
     'chat.tasks.noMessagesYet': '暂无消息',
     'chat.tasks.noOutput': '无输出',

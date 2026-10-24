@@ -1,7 +1,8 @@
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 
 import { CircleAlert, LoaderCircle } from 'lucide-react-native';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
@@ -14,16 +15,16 @@ import { sessionStatusGlyphKind } from '../session-row-model';
  * a saved copy a running Session shows a still spinner glyph, since the phone cannot know it is still working.
  */
 export const SessionStatusGlyph = ({
-    isCompacting = false,
+    isRunShownBelow = false,
     isSaved = false,
     label,
     session,
     theme,
 }: {
     /**
-     * Whether the Session's open Chat is compacting its context, which its timeline already shows.
+     * Whether the screen below the slot already shows the run, so a running Session leaves the slot empty.
      */
-    isCompacting?: boolean;
+    isRunShownBelow?: boolean;
     /**
      * Whether `session` comes from the copy saved on this phone rather than a live read.
      */
@@ -37,7 +38,7 @@ export const SessionStatusGlyph = ({
 }) => {
     const { t } = useTranslation();
     const stateLabel = label ?? session.stateLabel;
-    switch (sessionStatusGlyphKind(session, isSaved, isCompacting)) {
+    switch (sessionStatusGlyphKind(session, isSaved, isRunShownBelow)) {
         case 'attention':
             return (
                 <View
@@ -54,10 +55,10 @@ export const SessionStatusGlyph = ({
             );
         case 'running':
             return (
-                <ActivityIndicator
+                <Spinner
                     accessibilityLabel={stateLabel}
                     color={theme.muted}
-                    size="small"
+                    size={18}
                     testID="session-status-running"
                 />
             );

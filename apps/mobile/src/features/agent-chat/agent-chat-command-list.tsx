@@ -1,8 +1,9 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentAction } from '@caxri/protocol';
 import { agentChatMenuGroupHeading } from '@caxri/protocol';
 
+import { Spinner } from '../../components/spinner';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
@@ -198,9 +199,7 @@ export const AgentChatCommandList = ({
                         ]}
                         testID="agent-chat-skill-notice"
                     >
-                        {notice.isLoading ? (
-                            <ActivityIndicator color={theme.muted} size="small" />
-                        ) : null}
+                        {notice.isLoading ? <Spinner color={theme.muted} /> : null}
                         <Text style={[styles.noticeText, { color: theme.muted }]}>
                             {notice.text}
                         </Text>

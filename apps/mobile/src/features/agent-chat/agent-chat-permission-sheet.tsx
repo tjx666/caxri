@@ -128,8 +128,10 @@ const AgentChatPermissionSheet = ({
 
 /**
  * The Chat's permission level and plan mode above the composer input, beside the model as Desktop keeps them. Full
- * access carries the warning shield and tone. It opens the sheet only when the device may change permissions now
- * (`control` access and a live connection); otherwise it is a plain label, so the level stays visible offline.
+ * access differs only by its alert shield and keeps the ordinary colors, as on Desktop: people who run it every day
+ * found a permanently yellow trigger noisy, and the sheet still marks the level in the warning tone. It opens the sheet
+ * only when the device may change permissions now (`control` access and a live connection); otherwise it is a plain
+ * label, so the level stays visible offline.
  */
 export const AgentChatPermissionButton = ({
     chat,
@@ -156,17 +158,10 @@ export const AgentChatPermissionButton = ({
     );
     if (!trigger || !provider) return null;
     const Icon = trigger.isFullAccess ? ShieldAlert : ShieldCheck;
-    const tone = trigger.isFullAccess ? theme.warning : theme.muted;
     const content = (
         <>
-            <Icon color={tone} size={14} />
-            <Text
-                numberOfLines={1}
-                style={[
-                    sheetStyles.triggerText,
-                    { color: trigger.isFullAccess ? theme.warning : theme.text },
-                ]}
-            >
+            <Icon color={theme.muted} size={14} />
+            <Text numberOfLines={1} style={[sheetStyles.triggerText, { color: theme.text }]}>
                 {trigger.label}
             </Text>
             {trigger.isPlanMode ? (

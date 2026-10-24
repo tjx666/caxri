@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { NewSessionViewState } from '../hooks/use-new-session';
@@ -19,9 +20,7 @@ export const NewSessionStatus = ({
             {!state.isDashboardLoaded && !state.dashboardError ? (
                 <View style={styles.status} testID="new-session-projects-pending">
                     {/* The Project list only loads while connected; offline, a spinner would never end. */}
-                    {state.status === 'connected' ? (
-                        <ActivityIndicator color={theme.primary} />
-                    ) : null}
+                    {state.status === 'connected' ? <Spinner color={theme.primary} /> : null}
                     <Text style={[styles.message, { color: theme.muted }]}>
                         {t(
                             state.status === 'connected'

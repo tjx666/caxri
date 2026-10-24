@@ -1,18 +1,11 @@
 import { useRef } from 'react';
 import type { ScrollViewInstance } from 'react-native';
-import {
-    ActivityIndicator,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { RotateCw, X } from 'lucide-react-native';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { insertComposerSuggestion } from '../composer-suggestions';
@@ -133,7 +126,7 @@ export const SessionComposerAttachments = ({
                             attachment.state === 'uploading' ? (
                                 <View style={styles.scrim}>
                                     {attachment.state === 'preparing' ? (
-                                        <ActivityIndicator color={theme.text} size="small" />
+                                        <Spinner color={theme.text} />
                                     ) : null}
                                     <Text
                                         style={[styles.scrimText, { color: theme.text }]}

@@ -1,23 +1,22 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
-    agentChatActivity,
     agentChatDockedPlan,
     agentChatFailureMessage,
     sentenceStartProvider,
 } from '@caxri/protocol';
 
 import { NoticeBanner } from '../../components/notice-banner';
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { ConversationList } from '../conversation/conversation-view';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
-import { AgentChatActivityLine } from './agent-chat-activity-line';
 import { AgentChatGoalBar } from './agent-chat-goal-bar';
 import { AgentChatMcpServersContext } from './agent-chat-mcp-icons';
 import { AgentChatMessageImages } from './agent-chat-message-images';
@@ -35,7 +34,7 @@ import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { agentChatRequestDock } from './agent-chat-request-flow';
 import { createAgentChatEntryStabilizer } from './agent-chat-stable-entries';
-import { AgentChatTaskStrip } from './agent-chat-task-strip';
+import { AgentChatStatusRow } from './agent-chat-status-row';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
 import {
     agentChatRunningTurnIds,
@@ -223,7 +222,7 @@ const AgentChatBody = ({
     if (!snapshot || snapshot.status === 'starting')
         return (
             <View style={styles.status} testID="agent-chat-status-loading">
-                <ActivityIndicator color={theme.muted} />
+                <Spinner color={theme.muted} />
                 <Text style={[styles.statusText, { color: theme.muted }]}>
                     {snapshot ? t('chat.starting', { provider }) : t('chat.loading')}
                 </Text>
@@ -291,24 +290,6 @@ const AgentChatRequests = ({
             ))}
         </View>
     );
-};
-
-const AgentChatActivity = ({
-    chat,
-    provider,
-    theme,
-}: {
-    chat: AgentChatController;
-    provider: string;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    const { snapshot } = chat;
-    const activity = agentChatActivity(snapshot, provider, {}, t);
-    // A saved copy's activity is however the Chat stood when it was saved, not what it is doing now. Starting has its
-    // own status in the body.
-    if (!activity || activity.kind === 'starting' || chat.savedAt !== undefined) return null;
-    return <AgentChatActivityLine activity={activity} theme={theme} />;
 };
 
 /**
@@ -450,19 +431,19 @@ export const AgentChatView = ({
                 />
             ) : null}
             <AgentChatGoalBar canAct={canActOnQueue} chat={chat} theme={theme} />
-            <AgentChatTaskStrip
-                chat={chat}
-                deviceRole={deviceRole}
-                isConnected={isConnected}
-                theme={theme}
-            />
             <AgentChatRequests
                 blockedReason={blockedReason}
                 chat={chat}
                 provider={provider}
                 theme={theme}
             />
-            <AgentChatActivity chat={chat} provider={provider} theme={theme} />
+            <AgentChatStatusRow
+                chat={chat}
+                deviceRole={deviceRole}
+                isConnected={isConnected}
+                provider={provider}
+                theme={theme}
+            />
             <AgentChatQueueList
                 canAct={canActOnQueue}
                 chat={chat}

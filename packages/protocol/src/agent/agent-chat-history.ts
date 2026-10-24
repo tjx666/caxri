@@ -152,13 +152,19 @@ function trimRetainedHistory(history: AgentChatOlderHistory): AgentChatOlderHist
  * read and the projection never go missing while the user reads back. Before the first request there is nothing to
  * keep: it starts right before the projection. From the request on, an item evicted while the page is on its way sits
  * between the page and the projection, so it is kept too.
+ *
+ * `keepUnread` keeps evicted items before any request as well. The phone's window is small (one gateway frame), so a
+ * long turn's output evicts rows the reader is looking at; without it those rows vanished from an open Chat and the few
+ * left rendered at the bottom of an otherwise blank list.
  */
 export function retainEvictedAgentChatItems(
     history: AgentChatOlderHistory,
     previous: Pick<AgentChatSnapshot, 'items' | 'turns'>,
     next: Pick<AgentChatSnapshot, 'items'>,
+    { keepUnread = false }: { keepUnread?: boolean } = {},
 ): AgentChatOlderHistory {
-    const isReading = history.isLoaded || history.status !== 'idle' || history.items.length > 0;
+    const isReading =
+        keepUnread || history.isLoaded || history.status !== 'idle' || history.items.length > 0;
     if (!isReading || previous.items === next.items || previous.items.length === 0) return history;
     const first = next.items.at(0);
     if (first?.id === previous.items.at(0)?.id) return history;

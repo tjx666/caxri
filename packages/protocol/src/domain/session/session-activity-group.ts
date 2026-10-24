@@ -1,4 +1,4 @@
-import type { SessionRecord } from './domain.js';
+import type { SessionRecord } from '../domain.js';
 
 /**
  * The status groups Session lists sort into, shared by Desktop's Activity view and the phone's home list so a Session

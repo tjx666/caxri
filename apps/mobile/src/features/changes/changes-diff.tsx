@@ -1,7 +1,8 @@
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { ChevronLeft } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffLines } from './changes-diff-lines';
@@ -69,7 +70,7 @@ const ChangesDiffBody = ({
     if (state.isLoading)
         return (
             <View style={styles.state} testID="changes-diff-loading">
-                <ActivityIndicator color={theme.primary} />
+                <Spinner color={theme.primary} />
                 <Text style={[styles.stateBody, { color: theme.muted }]}>
                     {t('changes.diffLoading')}
                 </Text>

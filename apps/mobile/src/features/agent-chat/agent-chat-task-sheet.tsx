@@ -1,32 +1,23 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
-import { findAgentChatTask } from '@caxri/protocol';
-import { ChevronLeft, ChevronUp, Layers } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { BottomSheet } from '../../components/bottom-sheet';
 import { IconButton } from '../../components/icon-button';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
-import type { AgentChatTaskStopper } from './agent-chat-task-detail';
 import {
     AgentChatTaskDetailBody,
     AgentChatTaskKindGlyph,
     AgentChatTaskStatusGlyph,
 } from './agent-chat-task-detail';
-import { publishAgentChatTaskLinks, withdrawAgentChatTaskLinks } from './agent-chat-task-links';
 import type { AgentChatTaskPill } from './agent-chat-tasks';
-import {
-    agentChatTaskPill,
-    agentChatTaskPillIds,
-    agentChatTaskRow,
-    agentChatTaskSheetPill,
-} from './agent-chat-tasks';
-import type { AgentChatController } from './use-agent-chat';
-import { useAgentChatTaskClock, useAgentChatTaskStop } from './use-agent-chat-task-detail';
+import { agentChatTaskRow } from './agent-chat-tasks';
+import { useAgentChatTaskClock } from './use-agent-chat-task-detail';
+import type { AgentChatTaskSheetState } from './use-agent-chat-task-sheet';
 
 /**
  * One task in the list. It only opens the task: Stop lives in the task's detail behind a confirmation, because beside
@@ -116,70 +107,27 @@ const TaskList = ({
 };
 
 /**
- * The one-row pill counting background tasks while any runs; it opens the sheet.
+ * The Background work sheet the status row's badge opens: the task list with each task's elapsed time, or one task's
+ * command, live output, and, for a control device, a confirmed Stop, with Back to the list. Stopping the turn never
+ * stops these. With no pill left to list, it shows the empty note instead.
  */
-const TaskPill = ({
-    onOpen,
-    pill,
+export const AgentChatTaskSheet = ({
+    state,
     theme,
 }: {
-    onOpen: () => void;
-    pill: AgentChatTaskPill;
+    state: AgentChatTaskSheetState;
     theme: MobileTheme;
 }) => {
-    const { t } = useTranslation();
-    return (
-        <View style={[styles.pill, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Pressable
-                accessibilityHint={t('chat.tasks.pillHint')}
-                accessibilityLabel={t('chat.tasks.pillLabel', { label: pill.label })}
-                accessibilityRole="button"
-                onPress={onOpen}
-                style={styles.pillButton}
-                testID="agent-chat-tasks"
-            >
-                <Layers color={theme.muted} size={14} />
-                <Text style={[styles.pillTitle, { color: theme.text }]}>
-                    {t('chat.tasks.backgroundWork')}
-                </Text>
-                <Text
-                    numberOfLines={1}
-                    style={[styles.pillCount, { color: theme.muted }]}
-                    testID="agent-chat-tasks-count"
-                >
-                    {pill.label}
-                </Text>
-                <ChevronUp color={theme.muted} size={14} />
-            </Pressable>
-        </View>
-    );
-};
-
-/**
- * The Background work sheet: the task list, or one task's detail with Back to the list. With no pill left to list, it
- * shows the empty note instead.
- */
-const TaskSheet = ({
-    canControl,
-    onBack,
-    onClose,
-    onOpenTask,
-    pill,
-    shownTask,
-    stopper,
-    terminalId,
-    theme,
-}: {
-    canControl: boolean;
-    onBack: () => void;
-    onClose: () => void;
-    onOpenTask: (taskId: string) => void;
-    pill: AgentChatTaskPill | undefined;
-    shownTask: AgentChatTask | undefined;
-    stopper: AgentChatTaskStopper;
-    terminalId: string;
-    theme: MobileTheme;
-}) => {
+    const {
+        backToList: onBack,
+        canControl,
+        close: onClose,
+        openTask: onOpenTask,
+        sheetPill: pill,
+        shownTask,
+        stopper,
+        terminalId,
+    } = state;
     const { t } = useTranslation();
     const shownRow = shownTask && agentChatTaskRow(shownTask, 0, t);
     const list = pill ? (
@@ -224,7 +172,7 @@ const TaskSheet = ({
                         isCommandShown={shownRow?.isCommandTitle}
                         stopper={stopper}
                         task={shownTask}
-                        terminalId={terminalId}
+                        terminalId={terminalId ?? ''}
                         theme={theme}
                     />
                 </ScrollView>
@@ -235,101 +183,7 @@ const TaskSheet = ({
     );
 };
 
-/**
- * Background work, just above the composer, as Desktop's strip: a one-row pill counting the subagents and background
- * shells that run (and those that ended), shown by the same rule (`agentChatTaskStripView`) and gone once nothing runs.
- * Tapping it opens a sheet listing each task with its elapsed time; a task opens its command, live output, and, for a
- * control device, a confirmed Stop in the same sheet. Stopping the turn never stops these. A saved copy shows no pill,
- * since its tasks may have ended long ago. The strip also publishes the Chat's tasks for background command rows
- * (`agent-chat-task-links.ts`), so a row's detail can show the same live output.
- */
-export const AgentChatTaskStrip = ({
-    chat,
-    deviceRole,
-    isConnected,
-    theme,
-}: {
-    chat: AgentChatController;
-    deviceRole: 'view' | 'reply' | 'control' | null;
-    isConnected: boolean;
-    theme: MobileTheme;
-}) => {
-    const { savedAt, snapshot } = chat;
-    const terminalId = snapshot?.terminalId;
-    const tasks = savedAt === undefined ? snapshot?.tasks : undefined;
-    const canControl = deviceRole === 'control' && isConnected;
-    const [isOpen, setOpen] = useState(false);
-    const [openTask, setOpenTask] = useState<AgentChatTask | undefined>();
-    const stopper = useAgentChatTaskStop(terminalId ?? '');
-    const { t } = useTranslation();
-
-    useEffect(() => {
-        if (terminalId !== undefined)
-            publishAgentChatTaskLinks(terminalId, tasks ?? [], canControl);
-    }, [canControl, tasks, terminalId]);
-    useEffect(() => {
-        if (terminalId === undefined) return;
-        return () => withdrawAgentChatTaskLinks(terminalId);
-    }, [terminalId]);
-
-    const [listedKey, setListedKey] = useState('');
-
-    const pill = agentChatTaskPill(savedAt === undefined ? snapshot : undefined, t);
-    const pillIdsKey = agentChatTaskPillIds(pill).join('\n');
-    // An open sheet remembers what it last listed, so a pill that drops to nothing leaves that list in place.
-    if (isOpen && pillIdsKey && pillIdsKey !== listedKey) setListedKey(pillIdsKey);
-    const sheetPill = isOpen
-        ? agentChatTaskSheetPill(pill, listedKey ? listedKey.split('\n') : [], tasks, t)
-        : pill;
-    if (!terminalId || (!pill && !isOpen)) return null;
-    // The open task follows the Chat's copy; one the phone's list no longer carries keeps its last known state.
-    const shownTask = openTask && (findAgentChatTask(tasks, openTask.id) ?? openTask);
-    const close = (): void => {
-        setOpen(false);
-        setOpenTask(undefined);
-        setListedKey('');
-    };
-    return (
-        <>
-            {pill ? <TaskPill onOpen={() => setOpen(true)} pill={pill} theme={theme} /> : null}
-            {isOpen ? (
-                <TaskSheet
-                    canControl={canControl}
-                    onBack={() => setOpenTask(undefined)}
-                    onClose={close}
-                    onOpenTask={(taskId) => setOpenTask(findAgentChatTask(tasks, taskId))}
-                    pill={sheetPill}
-                    shownTask={shownTask}
-                    stopper={stopper}
-                    terminalId={terminalId}
-                    theme={theme}
-                />
-            ) : null}
-        </>
-    );
-};
-
 const styles = StyleSheet.create({
-    pill: {
-        alignItems: 'center',
-        borderRadius: 10,
-        borderWidth: 1,
-        flexDirection: 'row',
-        marginHorizontal: 12,
-        marginTop: 8,
-        paddingRight: 2,
-    },
-    pillButton: {
-        alignItems: 'center',
-        flex: 1,
-        flexDirection: 'row',
-        gap: 8,
-        // The pill opens the sheet; 48dp is the mobile minimum touch target.
-        minHeight: 48,
-        paddingHorizontal: 12,
-    },
-    pillTitle: { fontSize: 13, fontWeight: '600' },
-    pillCount: { flex: 1, fontSize: 13, fontVariant: ['tabular-nums'], textAlign: 'right' },
     sheetHeader: { alignItems: 'center', flexDirection: 'row', gap: 4, minHeight: 44 },
     sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', paddingHorizontal: 4 },
     sheetCommandTitle: { flex: 1, fontFamily: MONOSPACE_FONT, fontSize: 14, paddingHorizontal: 4 },

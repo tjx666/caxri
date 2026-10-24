@@ -1,11 +1,12 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatPlan } from '@caxri/protocol';
 import { agentChatPlanProgress } from '@caxri/protocol';
 import { Check, ChevronDown, Circle, CircleDot, ListTodo } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 
@@ -36,11 +37,10 @@ const StepGlyph = ({
         }
         case 'inProgress': {
             return isTurnRunning ? (
-                <ActivityIndicator
+                <Spinner
                     accessibilityLabel={t('chat.plan.inProgress')}
                     color={theme.muted}
-                    size="small"
-                    style={styles.spinner}
+                    size={14}
                 />
             ) : (
                 <CircleDot
@@ -185,7 +185,6 @@ const styles = StyleSheet.create({
     explanation: { fontSize: 13, lineHeight: 19, marginBottom: 4 },
     step: { alignItems: 'flex-start', flexDirection: 'row', gap: 8, paddingVertical: 2 },
     glyph: { alignItems: 'center', height: 19, justifyContent: 'center', width: 16 },
-    spinner: { transform: [{ scale: 0.7 }] },
     stepText: { flex: 1, fontSize: 13, lineHeight: 19 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

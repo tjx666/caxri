@@ -1,16 +1,31 @@
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useRef } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { Archive } from 'lucide-react-native';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { SwipeRow } from '../open-swipe-row';
 
 const ACTION_WIDTH = 84;
+
+/**
+ * How far a finger must travel sideways before the row claims the touch. The library default (10dp) let the sideways
+ * drift of an ordinary upward flick open Archive, and once the row claims a touch the list under it cannot scroll. At
+ * 24dp the list's own vertical slop (8dp) wins any mostly vertical drag first.
+ */
+const SWIPE_ACTIVATION_DP = 24;
+
+/**
+ * A closed row has no action on its left, so a rightward drag must never claim the touch: it would freeze the list for
+ * a drag that can do nothing. The offset is past any screen width, so the row only listens for it while open (to
+ * close).
+ */
+const NEVER_ACTIVATES_DP = 10_000;
 
 const styles = StyleSheet.create({
     action: {
@@ -56,13 +71,16 @@ export const SessionSwipeRow = ({
 }) => {
     const { t } = useTranslation();
     const swipeableReference = useRef<SwipeableMethods>(null);
+    const [isOpen, setOpen] = useState(false);
     const handleOpenStart = useCallback((): void => {
         if (swipeableReference.current) onOpenStart(swipeableReference.current);
     }, [onOpenStart]);
     const handleOpen = useCallback((): void => {
+        setOpen(true);
         if (swipeableReference.current) onOpen(swipeableReference.current);
     }, [onOpen]);
     const handleClose = useCallback((): void => {
+        setOpen(false);
         if (swipeableReference.current) onClose(swipeableReference.current);
     }, [onClose]);
     useEffect(() => {
@@ -92,7 +110,7 @@ export const SessionSwipeRow = ({
                 testID={`session-swipe-archive-${sessionId}`}
             >
                 {busy ? (
-                    <ActivityIndicator color={theme.primaryForeground} />
+                    <Spinner color={theme.primaryForeground} />
                 ) : (
                     <>
                         <Archive color={theme.primaryForeground} size={20} strokeWidth={2.25} />
@@ -108,6 +126,8 @@ export const SessionSwipeRow = ({
     return (
         <ReanimatedSwipeable
             childrenContainerStyle={{ backgroundColor: theme.background }}
+            dragOffsetFromLeft={isOpen ? SWIPE_ACTIVATION_DP : NEVER_ACTIVATES_DP}
+            dragOffsetFromRight={-SWIPE_ACTIVATION_DP}
             enabled={enabled}
             friction={1.5}
             onSwipeableClose={handleClose}

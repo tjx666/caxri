@@ -1,4 +1,5 @@
 import type {
+    AgentChatActivity,
     AgentChatSnapshot,
     AgentChatTask,
     AgentChatTaskSnapshot,
@@ -24,9 +25,9 @@ import { translate } from '../../i18n';
 export const AGENT_CHAT_TASK_POLL_MS = 1_500;
 
 /**
- * What the Background work pill above the phone's composer shows, by Desktop's strip rule (`agentChatTaskStripView`):
- * the running work and every ended task while anything runs, and nothing once the last one ends. `undefined` hides the
- * pill (Grok Build, which reports no tasks, never shows one).
+ * What the status row's Background work badge stands for, by Desktop's strip rule (`agentChatTaskStripView`): the
+ * running work and every ended task while anything runs, and nothing once the last one ends. `undefined` hides the
+ * badge (Grok Build, which reports no tasks, never shows one).
  */
 export interface AgentChatTaskPill {
     running: AgentChatTask[];
@@ -86,6 +87,37 @@ export function agentChatTaskSheetPill(
         ended,
         label: taskCountLabel(running, ended, t),
     };
+}
+
+/**
+ * How many tasks of one kind run, for the status row's background work badge.
+ */
+export interface AgentChatRunningKind {
+    kind: AgentChatTask['kind'];
+    count: number;
+}
+
+const RUNNING_KIND_ORDER: ReadonlyArray<AgentChatTask['kind']> = ['agent', 'shell'];
+
+/**
+ * Running tasks counted per kind in a fixed order (subagents, then shells) and only kinds with one running, as
+ * Desktop's badge shows them, so the glyphs never swap places as tasks start and end.
+ */
+export function agentChatRunningKinds(running: readonly AgentChatTask[]): AgentChatRunningKind[] {
+    return RUNNING_KIND_ORDER.map((kind) => ({
+        kind,
+        count: running.filter((task) => task.kind === kind).length,
+    })).filter(({ count }) => count > 0);
+}
+
+/**
+ * What leads the status row once the turn ended but background work still runs, as Desktop's row says it: the one
+ * running task by title, or a count of several.
+ */
+export function agentChatTaskLeadText(pill: AgentChatTaskPill, t: Translate = translate): string {
+    return pill.running.length === 1
+        ? t('chat.tasks.leadOne', { title: agentChatTaskRow(pill.running[0], 0, t).title })
+        : t('chat.tasks.leadMany', { count: pill.running.length });
 }
 
 const STATUS_LABELS = {
@@ -215,4 +247,19 @@ export function agentChatTaskDetailContent(
         text: t(isRunning ? 'chat.tasks.noMessagesYet' : 'chat.tasks.noMessages'),
         notes,
     };
+}
+
+/**
+ * What the status row above the composer shows, as Desktop's single row lays it out: the turn's activity leads while it
+ * runs, with a badge counting the running background work beside it; once the turn ended, the running work itself leads
+ * (`agentChatTaskLeadText`). Work that has only ended shows nothing, as on Desktop; its rows in the timeline still open
+ * it. Undefined when there is nothing to say.
+ */
+export function agentChatStatusRow(
+    activity: AgentChatActivity | undefined,
+    pill: AgentChatTaskPill | undefined,
+): { lead: 'activity' | 'tasks'; badge: AgentChatRunningKind[] } | undefined {
+    const running = pill?.running ?? [];
+    if (activity) return { lead: 'activity', badge: agentChatRunningKinds(running) };
+    return running.length > 0 ? { lead: 'tasks', badge: [] } : undefined;
 }

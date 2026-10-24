@@ -1,7 +1,8 @@
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { RotateCw } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from './changes-diff-stat';
@@ -74,7 +75,7 @@ export const ChangesView = ({
                         testID="changes-refresh"
                     >
                         {state.isRefreshing ? (
-                            <ActivityIndicator color={theme.primary} />
+                            <Spinner color={theme.primary} />
                         ) : (
                             <RotateCw color={theme.primary} size={20} />
                         )}

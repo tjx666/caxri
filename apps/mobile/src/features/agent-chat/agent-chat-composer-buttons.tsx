@@ -1,9 +1,10 @@
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MAX_AGENT_CHAT_IMAGES } from '@caxri/protocol';
 import { ArrowUp, CornerDownLeft, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
@@ -177,7 +178,7 @@ export const AgentChatComposerButton = ({
             testID={action.testID}
         >
             {isBusy ? (
-                <ActivityIndicator color={theme.primaryForeground} />
+                <Spinner color={theme.primaryForeground} />
             ) : (
                 <Icon
                     color={isDisabled ? theme.muted : theme.primaryForeground}

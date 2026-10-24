@@ -99,7 +99,7 @@ describe('Session status on a saved copy', () => {
         ).toBeNull();
     });
 
-    it('leaves compaction to the Chat timeline instead of spinning beside the title', () => {
+    it('leaves a run the screen already shows to it instead of spinning beside the title', () => {
         const running = { hasUnread: false, lastActivityState: 'running' } as const;
         expect(sessionStatusGlyphKind(running, false, true)).toBeNull();
         expect(sessionStatusGlyphKind(running, true, true)).toBeNull();

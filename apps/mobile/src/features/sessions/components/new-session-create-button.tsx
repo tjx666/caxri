@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
 
+import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { NewSessionViewState } from '../hooks/use-new-session';
@@ -27,7 +28,7 @@ export const NewSessionCreateButton = ({
             ]}
             testID="new-session-create"
         >
-            {isCreating ? <ActivityIndicator color={theme.primaryForeground} /> : null}
+            {isCreating ? <Spinner color={theme.primaryForeground} /> : null}
             <Text
                 style={[
                     styles.actionText,

@@ -157,12 +157,18 @@ no background of its own keeps its default dark text readable.
 
 - Groups match Desktop's Activity view: `PINNED`, `NEEDS ATTENTION`, `WORKING`, `WAITING`,
   `FAILED`, `RECENTLY FINISHED`, `IDLE`, each with the same heading glyph. The rules and order
-  come from `packages/protocol/src/domain/session-activity-group.ts`, shared with Desktop (see
+  come from `packages/protocol/src/domain/session/session-activity-group.ts`, shared with Desktop (see
   [Activity view](../activity-view.md)). Pinned Sessions keep Desktop's pinned order; a pinned
   Session that needs attention, is working, waiting, or failed is listed again in that group. Rows
   inside a group are newest Session activity first, and the row's age reads that same clock. The
   one difference from Desktop: a finished Session past the 15-minute window moves to `IDLE`
   instead of leaving, because the home list is the phone's only Session list.
+- Tapping a group heading collapses the group to its heading with its Session count and opens it
+  again. `PINNED`, `RECENTLY FINISHED`, and `IDLE` show their newest five Sessions and a
+  `Show 10 more` row, stepping by ten with Desktop's sidebar window
+  (`packages/protocol/src/domain/session/session-list-window.ts`); a tablet keeps the selected
+  Session in sight below the window. The groups that ask for the user always list everything. The
+  choices last while the app stays on that computer (`MOB-CHAT-28`).
 - Pin and Unpin live in the row's long-press sheet beside Rename and Archive, for control devices
   only; they write the same pin Desktop shows.
 - Rows lead with the Agent's brand glyph and carry one status glyph that mirrors Desktop's Session
@@ -176,8 +182,9 @@ no background of its own keeps its default dark text readable.
 - The host menu contains `Add Project` (control devices only) and `Forget this computer`.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
-- On a control device, swiping a row left reveals its `Archive` action. At most one row shows its
-  action: starting to swipe another row, tapping a different row, or scrolling the list closes the
+- On a control device, swiping a row left reveals its `Archive` action. The swipe starts only after
+  `24dp` of sideways travel and a closed row ignores a rightward drag, so a vertical scroll that
+  drifts sideways keeps scrolling (`MOB-CHAT-27`). At most one row shows its action: starting to swipe another row, tapping a different row, or scrolling the list closes the
   open row, and the tap that closes a row does not open that Session. Android Acceptance
   `MOB-MOTION-02` records this.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
@@ -325,7 +332,10 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
 1s`, or `Worked` under a second).
 - A Chat draws Desktop's Chat timeline in the same list. Reasoning is a `Thinking` row while it
   streams and a `Thought` row after, titled by its latest bold heading; its detail is the text.
-  Work rows follow Desktop's: a change shows `+N -M`, a command shows a `Background` tag and a
+  Back-to-back thoughts merge into one row titled by the latest. As on Desktop, a settled run with a
+  single tool call shows that call as its own row instead of a one-call summary, while the running
+  turn's trailing run keeps its summary, names the current step, and stays marked running between
+  fast calls, so a second call joining it does not reshape the row. Work rows follow Desktop's: a change shows `+N -M`, a command shows a `Background` tag and a
   non-zero `Exit N`, and a step that failed, was declined, or was interrupted shows its own glyph.
   A command's detail is titled by the Agent's description when there is one and shows the command
   highlighted as shell, then its output highlighted by what printed it (a diff, JSON, or a file's
@@ -339,11 +349,13 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   `48dp` row shows or hides them, and a
   running turn never folds. The Agent's plan
   is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
-  expands to its steps. Below it a `48dp` `Background work` pill counts the subagents and
-  background shells (`2 running · 1 ended`) and opens a sheet listing each with its glyph, title,
+  expands to its steps. Below it one quiet status row, as Desktop's, leads with what the turn is
+  doing and carries a badge of the running subagents and background shells (a glyph and count per
+  kind); once the turn ended, the running work leads the row instead
+  (`Still running in the background: bun run dev`). The badge, or that row, opens a sheet listing each with its glyph, title,
   elapsed time, and status glyph; a task opens its command and live output tail in the same sheet,
   and a control device gets `Stop` beside each running task the provider can stop. A Chat without
-  tasks shows no pill. A subagent's own timeline row follows its task rather than the tool call
+  tasks shows no badge. A subagent's own timeline row follows its task rather than the tool call
   that started it: a muted second line says what it is doing (`Using Grep`, or the provider's
   progress line), and the trailing glyph shows the task's status, with the elapsed time only once it
   ended so a long subagent never redraws the timeline every second. The row's sheet adds a
@@ -353,6 +365,8 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   what the Chat is doing with Desktop's
   words under the same sweep (`Mapping the terrain…`, `Compacting context…`) and, after a second, how long
   the turn has run; waiting on the user shows a still question glyph in the warning color instead.
+  Since that line already spins, the Session header's status slot stays empty for a running Chat
+  while its Chat tab is open; the other tabs keep the header spinner.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
   echoes, local command output) renders as a compact event row: status icon and a short title,
   expandable detail, never as the user's own bubble. Reminder-only turns are hidden.
@@ -419,7 +433,8 @@ tab already shows the same data. Files browses the Project root (symlinks reache
 included) and opens bounded text previews; binary and oversized files say so. Status and extension
 panels render the same tree nodes Desktop shows, without running their commands. The Project tab is
 available to every role; nothing in it mutates the Project. Offline with nothing cached, it asks the
-reader to reconnect instead of showing an empty folder or a spinner.
+reader to reconnect instead of showing an empty folder or a spinner. A loading folder or tree item
+waits 500 ms before it shows its spinner, so one that answers at once never flashes it.
 
 ### Changes
 

@@ -1,10 +1,11 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { MobileCommanderInboxItem } from '@caxri/protocol';
 import { ExternalLink, MessageSquareReply } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
@@ -245,7 +246,7 @@ const CommanderInboxReplyComposer = ({
                     testID={`commander-inbox-reply-send-${item.id}`}
                 >
                     {isSending ? (
-                        <ActivityIndicator color={theme.primaryForeground} size="small" />
+                        <Spinner color={theme.primaryForeground} />
                     ) : (
                         <Text style={[styles.actionText, { color: theme.primaryForeground }]}>
                             {t('inbox.send')}

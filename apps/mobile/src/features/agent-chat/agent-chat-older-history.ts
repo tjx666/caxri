@@ -7,8 +7,9 @@ import {
 
 /**
  * The older pages a phone read for one Chat after its window changed from `previous` to `next`. A replaced conversation
- * (`historyId` changed) starts over; otherwise the items the new window no longer holds are kept once the phone has
- * started reading back, so the transcript never opens a gap between the pages and the window.
+ * (`historyId` changed) starts over; otherwise the items the new window no longer holds are kept, read back or not, so
+ * rows already on screen never vanish when a long turn's output slides the small mobile window past them, and the
+ * transcript never opens a gap between the pages and the window.
  */
 export function syncAgentChatOlderHistory(
     history: AgentChatOlderHistory,
@@ -18,7 +19,7 @@ export function syncAgentChatOlderHistory(
     if (!next) return history;
     if (next.historyId !== history.historyId) return emptyAgentChatOlderHistory(next.historyId);
     if (!previous || previous.historyId !== next.historyId) return history;
-    return retainEvictedAgentChatItems(history, previous, next);
+    return retainEvictedAgentChatItems(history, previous, next, { keepUnread: true });
 }
 
 /**

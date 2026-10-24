@@ -30,6 +30,7 @@ import {
     latestConversationTurnStart,
 } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
+import { useConversationOlderPages } from './use-conversation-older-pages';
 import type { ConversationTimelineState } from './use-conversation-timeline';
 
 const ConversationHistory = ({
@@ -308,6 +309,16 @@ export const ConversationList = <Entry extends { id: string }>({
         measureSpacer();
         follower.request();
     }, [follower, measureSpacer]);
+    const {
+        fillWithOlder,
+        loadOlder: onLoadOlder,
+        onStartReached,
+    } = useConversationOlderPages({
+        isPositionedReference,
+        list,
+        timeline: latest,
+        viewportHeight,
+    });
     /**
      * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
      * `startRenderingFromBottom`'s top margin shrinks by the same amount, so `onContentSizeChange` stays silent and the
@@ -315,7 +326,8 @@ export const ConversationList = <Entry extends { id: string }>({
      */
     const onCommitLayout = useCallback((): void => {
         if (measureSpacer()) follower.request();
-    }, [follower, measureSpacer]);
+        fillWithOlder();
+    }, [fillWithOlder, follower, measureSpacer]);
     const onScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
@@ -355,6 +367,7 @@ export const ConversationList = <Entry extends { id: string }>({
             revealProgress.set(
                 enterFrom === null ? 1 : withTiming(1, { duration: PANEL_ENTER_MS }),
             );
+            fillWithOlder();
         };
         measureSpacer();
         /**
@@ -364,7 +377,7 @@ export const ConversationList = <Entry extends { id: string }>({
         void Promise.resolve(list.current?.scrollToEnd({ animated: false })).finally(() => {
             setTimeout(() => requestAnimationFrame(reveal), 0);
         });
-    }, [enterFrom, measureSpacer, revealProgress]);
+    }, [enterFrom, fillWithOlder, measureSpacer, revealProgress]);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => (
             <View style={styles.entry}>{renderEntry(item)}</View>
@@ -390,15 +403,6 @@ export const ConversationList = <Entry extends { id: string }>({
             scrollToEnd: jumpToLatest,
         });
     }, [followKey, jumpToLatest]);
-    const onLoadOlder = useCallback((): void => {
-        void latest.current.timeline.loadOlder();
-    }, []);
-    const onStartReached = useCallback((): void => {
-        const { timeline: current } = latest.current;
-        if (isPositionedReference.current && current.olderCursor && !current.isLoadingOlder) {
-            void current.loadOlder();
-        }
-    }, []);
     const header = useMemo(
         () => (
             <ConversationHistory

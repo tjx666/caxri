@@ -1,12 +1,13 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { MobilePullRequest } from '@caxri/protocol';
 import { ExternalLink } from 'lucide-react-native';
 
 import { BottomSheet, SheetAction, SheetCancel } from '../../components/bottom-sheet';
 import { SheetButton } from '../../components/sheet-button';
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
@@ -316,7 +317,7 @@ const Note = ({
     theme?: MobileTheme;
 }) => (
     <View style={styles.note} testID="pull-request-note">
-        {isBusy && theme ? <ActivityIndicator color={theme.muted} size="small" /> : null}
+        {isBusy && theme ? <Spinner color={theme.muted} /> : null}
         <Text style={[styles.noteText, { color }]}>{text}</Text>
     </View>
 );

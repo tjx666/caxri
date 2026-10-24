@@ -51,6 +51,10 @@ import { executeMobilePlanLimitsScenario } from './mobile-plan-limits-scenario';
 import { executeMobilePullRequestScenario } from './mobile-pull-request-scenario';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
 import { executeMobileReplyPlaceholderScenario } from './mobile-reply-placeholder-scenario';
+import {
+    executeMobileSessionGroupsScenario,
+    executeMobileSessionSwipeScenario,
+} from './mobile-session-groups-scenario';
 import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
 
 /**
@@ -151,9 +155,17 @@ async function executeMobileAgentChatScenario(
         const fileChange = changed.items.findLast((item) => item.type === 'fileChange');
         if (!fileChange?.turnId) throw new Error('The wrapped diff fixture did not finish');
         await tapMobileCheckByBounds(serial, `agent-chat-turn-${fileChange.turnId}`);
-        await waitForCheck(serial, `agent-chat-work-group-${fileChange.id}`);
-        await tapMobileCheckByBounds(serial, `agent-chat-work-group-${fileChange.id}`);
-        await waitForCheck(serial, `agent-chat-work-${fileChange.id}`);
+        // A settled lone change is its own row; with other work it sits in the run's summary.
+        const unfolded = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, `agent-chat-work-${fileChange.id}`) ||
+                hasCheck(nodes, `agent-chat-work-group-${fileChange.id}`),
+        );
+        if (!hasCheck(unfolded, `agent-chat-work-${fileChange.id}`)) {
+            await tapMobileCheckByBounds(serial, `agent-chat-work-group-${fileChange.id}`);
+            await waitForCheck(serial, `agent-chat-work-${fileChange.id}`);
+        }
         await tapMobileCheckByBounds(serial, `agent-chat-work-${fileChange.id}`);
         await waitForCheck(serial, 'conversation-tool-detail');
         await capture(environment, 'wrapped-file-diff', artifacts);
@@ -508,6 +520,10 @@ export async function executeMobileAgentChatCase(
             return executeMobilePullRequestScenario(environment, artifacts, 'ready');
         case 'MOB-CHAT-26':
             return executeMobileChatSubagentScenario(environment, artifacts);
+        case 'MOB-CHAT-27':
+            return executeMobileSessionSwipeScenario(environment, artifacts);
+        case 'MOB-CHAT-28':
+            return executeMobileSessionGroupsScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }
