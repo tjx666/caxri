@@ -136,6 +136,10 @@ directories.
 - Treat backticks and `$()` in shell command strings as executable syntax. Put literal search
   patterns containing them in single quotes or pass them as structured arguments; never interpolate
   them through a double-quoted command string.
+- Never let a pipe hide a gating command's failure. `cmd | tail -5 && next` reports `tail`'s exit
+  status, so `next` runs after `cmd` failed: an Acceptance round was published although
+  `report.ts finalize` had rejected it. Run the gate on its own, or under `set -o pipefail`,
+  before any command that depends on it.
 - UI strings, code, comments, docs, PR content, and commit messages use English. GitHub issue
   titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
   commands in English. Contributor issue tracking lives in GitHub issues (`gh issue`); do not file
