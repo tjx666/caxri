@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { performance } from 'node:perf_hooks';
 
 /**
@@ -43,6 +44,12 @@ const REPORTED_REQUESTS = 5;
 export class RequestActivityTracker {
     private readonly finished: FinishedRequest[] = [];
     private readonly running = new Map<symbol, RunningRequest>();
+    /**
+     * The method of the request whose async context the caller runs in. It stays readable after the request settled, so
+     * work the handler left running in the background (a Git refresh after `git.summary` returned) is still
+     * attributed.
+     */
+    private readonly callers = new AsyncLocalStorage<{ id: string; method: string }>();
 
     constructor(private readonly now: () => number = () => performance.now()) {}
 
@@ -63,11 +70,21 @@ export class RequestActivityTracker {
     }
 
     /**
-     * The method of a request that is running now, for a diagnostic that only knows the request id from its observation
-     * context.
+     * Runs `action` with `method` attached to the async context under `id`, so background work started by the handler
+     * and outliving it can still name its caller through {@link methodOf}.
+     */
+    runAs<Result>(id: string, method: string, action: () => Result): Result {
+        return this.callers.run({ id, method }, action);
+    }
+
+    /**
+     * The method of the request behind a diagnostic that only knows the request id from its observation context: the
+     * one carried by the async context when it is for `id` (it outlives the request), else a request running now.
      */
     methodOf(id: string | undefined): string | undefined {
         if (id === undefined) return undefined;
+        const carried = this.callers.getStore();
+        if (carried?.id === id) return carried.method;
         let method: string | undefined;
         for (const request of this.running.values()) if (request.id === id) method = request.method;
         return method;

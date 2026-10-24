@@ -119,7 +119,12 @@ describe('Renderer jank reporter', () => {
     it('marks a frame delivered before its switch finished, and treats a zero layout start as absent', () => {
         const { reporter, reports, fire } = createReporter();
 
-        reporter.recordFrame({ startTime: 1_100, duration: 150, styleAndLayoutStart: 0 });
+        reporter.recordFrame({
+            startTime: 1_100,
+            duration: 150,
+            blockingDuration: 80,
+            styleAndLayoutStart: 0,
+        });
         reporter.recordSessionSwitch(slowSwitch(1_000, 400));
         fire();
 
@@ -132,16 +137,87 @@ describe('Renderer jank reporter', () => {
     it('does not let a visibility flush beat the minimum interval', () => {
         const { reporter, reports, advance, fire } = createReporter();
 
-        reporter.recordFrame({ startTime: 0, duration: 200 });
+        reporter.recordFrame({ startTime: 0, duration: 200, blockingDuration: 150 });
         fire();
         advance(1_000);
-        reporter.recordFrame({ startTime: 0, duration: 200 });
+        reporter.recordFrame({ startTime: 0, duration: 200, blockingDuration: 150 });
         reporter.flushIfDue();
         expect(reports).toHaveLength(1);
 
         advance(10_000);
         reporter.flushIfDue();
         expect(reports).toHaveLength(2);
+    });
+
+    it('drops an idle ~1 s frame with no scripts and no blocking, as Chromium throttling', () => {
+        const { reporter, timers } = createReporter();
+
+        reporter.recordFrame({
+            startTime: 2_000,
+            duration: 1_008,
+            blockingDuration: 0,
+            renderStart: 3_005,
+            styleAndLayoutStart: 3_006,
+            scripts: [],
+        });
+
+        expect(timers).toEqual([]);
+    });
+
+    it('drops an empty frame that happened while hidden even if it is delivered after the window came back', () => {
+        const { reporter, reports, timers, advance, fire } = createReporter();
+
+        reporter.noteVisibility(false);
+        advance(100);
+        reporter.noteVisibility(true);
+        // Rendering work this long would normally keep an empty frame, but the document was hidden for it.
+        reporter.recordFrame({
+            startTime: 9_950,
+            duration: 300,
+            blockingDuration: 0,
+            renderStart: 9_960,
+        });
+        expect(timers).toEqual([]);
+
+        // A frame after the window returned is judged on its own evidence.
+        reporter.recordFrame({
+            startTime: 10_200,
+            duration: 300,
+            blockingDuration: 0,
+            renderStart: 10_210,
+        });
+        fire();
+        expect(reports[0]?.frames).toHaveLength(1);
+    });
+
+    it('keeps genuine long frames: scripts, blocking, or real render work', () => {
+        const { reporter, reports, fire } = createReporter();
+
+        reporter.recordFrame({
+            startTime: 0,
+            duration: 1_000,
+            blockingDuration: 0,
+            scripts: [{ duration: 400, invokerType: 'event-listener' }],
+        });
+        reporter.recordFrame({ startTime: 0, duration: 1_008, blockingDuration: 900 });
+        reporter.recordFrame({
+            startTime: 0,
+            duration: 300,
+            blockingDuration: 0,
+            renderStart: 10,
+            styleAndLayoutStart: 100,
+        });
+        // Many short tasks under the attribution and blocking floors add up to a busy frame without a throttle cadence.
+        reporter.recordFrame({
+            startTime: 0,
+            duration: 125,
+            blockingDuration: 0,
+            renderStart: 100,
+            scripts: [],
+        });
+        fire();
+
+        expect(reports[0]?.frames).toHaveLength(4);
     });
 
     it('ignores frames while the window is hidden', () => {
@@ -156,7 +232,7 @@ describe('Renderer jank reporter', () => {
         const { reporter, reports, fire } = createReporter();
 
         for (const duration of [110, 120, 130, 140, 150, 900, 105]) {
-            reporter.recordFrame({ startTime: 5_000, duration });
+            reporter.recordFrame({ startTime: 5_000, duration, blockingDuration: 60 });
         }
         fire();
 
@@ -170,10 +246,10 @@ describe('Renderer jank reporter', () => {
     it('delays the next batch until the minimum interval has passed', () => {
         const { reporter, reports, timers, fire, advance } = createReporter();
 
-        reporter.recordFrame({ startTime: 0, duration: 200 });
+        reporter.recordFrame({ startTime: 0, duration: 200, blockingDuration: 150 });
         fire();
         advance(1_000);
-        reporter.recordFrame({ startTime: 0, duration: 200 });
+        reporter.recordFrame({ startTime: 0, duration: 200, blockingDuration: 150 });
 
         expect(reports).toHaveLength(1);
         expect(timers.at(-1)?.delayMs).toBe(9_000);

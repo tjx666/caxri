@@ -93,20 +93,18 @@ export function createOperationDispatcher(
             if (cancelTombstones.delete(envelope.id))
                 throw new CaxriError('CANCELLED', 'Runtime request was canceled before admission');
             const handler = resolveDomainHandler(handlers, request.method);
-            cancellation = new AbortController();
+            const { signal } = (cancellation = new AbortController());
             active.set(envelope.id, cancellation);
             // The control request's id (the observation context's) lets Git logs name their caller; the envelope id is
             // generated per domain call and matches nothing outside this layer.
-            const endActivity = requestActivity.begin(
-                currentObservationContext().requestId ?? envelope.id,
-                request.method,
-            );
+            const activityId = currentObservationContext().requestId ?? envelope.id;
+            const endActivity = requestActivity.begin(activityId, request.method);
             let result: unknown;
             try {
-                result = await handler(
-                    request.params,
-                    cancellation.signal,
-                    envelope.finalizeDurably,
+                // The method rides the async context beside the request id, so a Git refresh the handler leaves running
+                // after it returned (`git.summary`) still logs `callerMethod`.
+                result = await requestActivity.runAs(activityId, request.method, () =>
+                    handler(request.params, signal, envelope.finalizeDurably),
                 );
             } finally {
                 endActivity();

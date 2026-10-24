@@ -60,7 +60,10 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    - `renderer.jank` (`info`, `warn` from 1 s): `switches` (`total`, `request`, `converge`, `paint`)
      and `frames` (`duration`, `blocking`, `styleLayout`, `duringSwitch`, `topInvoker`,
      `topMs`, `topFile`, `topFunction`), each with `endedAgo`. Answers whether the user waited in the
-     Renderer and which script made the frame long.
+     Renderer and which script made the frame long. Chromium's throttling of a hidden, occluded or
+     just-created window (a 0.9-1.1 s frame with no scripts, zero blocking and no render work, or any
+     frame with no scripts and zero blocking that overlapped a hidden period) is filtered out, so every `frames` entry is real work: a ~1008 ms frame
+     with `topInvoker` unset and `blocking=0` can no longer appear and should be distrusted if seen.
    - `ipc.request` for `session.select` (`info` from 250 ms of queue): `queueMs`, `queueDepth`, `lane`,
      `blockedByMethod`, `blockedByRequestId`, `blockedByOverlapMs`. Answers which earlier request it
      waited behind.
@@ -69,6 +72,8 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      and by which handlers.
    - `git.command` (`info` when `queueMs` is 250 ms or more or `execMs` is 1 s or more): `operation`,
      `callerMethod`, `repository`. Answers whether Git queued or ran long and for which request.
+     `callerMethod` travels with the request id in the async context, so it is present even when the
+     Git command ran in a background refresh after the request (e.g. `git.summary`) had returned.
 
    Recipe: (1) Find the `renderer.jank` record near the reported time. `total` splits into `request`
    (Server round trip), `converge` (state applied in the Renderer), and `paint` (next frame). Large

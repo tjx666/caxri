@@ -76,4 +76,22 @@ describe('request activity tracker', () => {
         expect(tracker.methodOf('control-1')).toBe('session.select');
         expect(tracker.summarize(1000).inFlightCount).toBe(1);
     });
+
+    it('still names the caller of background work that outlives the request', async () => {
+        const { tracker } = createTracker();
+        let background: Promise<string | undefined> = Promise.resolve(undefined);
+
+        tracker.runAs('control-2', 'git.summary', () => {
+            const end = tracker.begin('control-2', 'git.summary');
+            // A refresh the handler starts and does not await, like the Git command behind a returned summary.
+            background = new Promise((resolve) =>
+                setTimeout(() => resolve(tracker.methodOf('control-2')), 0),
+            );
+            end();
+        });
+
+        await expect(background).resolves.toBe('git.summary');
+        expect(tracker.methodOf('control-2')).toBeUndefined();
+        expect(tracker.runAs('other', 'x', () => tracker.methodOf('control-2'))).toBeUndefined();
+    });
 });
