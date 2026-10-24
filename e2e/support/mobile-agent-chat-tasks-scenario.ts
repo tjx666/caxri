@@ -22,6 +22,12 @@ type ScreenBounds = NonNullable<Awaited<ReturnType<typeof mobileColorBounds>>>;
  */
 const STOP_COLOR = draculaTheme.colors.danger;
 
+/**
+ * The phone's body text color (`mobileTheme.text`). Behind the sheet's scrim the timeline is dimmed, so in the sheet
+ * this color draws only its title and the task rows' titles.
+ */
+const TEXT_COLOR = draculaTheme.colors.foreground;
+
 const runningShell = (snapshot: AgentChatSnapshot): AgentChatTask | undefined =>
     (snapshot.tasks ?? []).find((task) => task.kind === 'shell' && task.status === 'running');
 
@@ -62,9 +68,10 @@ export const waitForStop = async (
  * The background work half of `MOB-CHAT-16`: the pill, its sheet, a running task's detail, and Stop from the phone.
  *
  * A running task's row and detail redraw their elapsed time every second, so UIAutomator never finds the idle window it
- * needs to read them. While the task runs the scenario finds Stop by its color in the framebuffer instead: the running
- * row carries it, and so does the detail's status line. Once Stop ends the task the sheet holds still again, and
- * semantics confirm that Stop is gone and that the output tail followed the command.
+ * needs to read them. While the task runs the scenario reads the framebuffer instead: the lone running row is the
+ * lowest text in the sheet, and the detail's Stop and its confirmation button are the only things drawn in the danger
+ * color. Rows carry no Stop of their own (it lives in the detail behind a confirmation). Once Stop ends the task the
+ * sheet holds still again, and semantics confirm that Stop is gone and that the output tail followed the command.
  */
 export async function exerciseChatBackgroundWork(
     environment: MobileAgentScenarioEnvironment,
@@ -94,18 +101,19 @@ export async function exerciseChatBackgroundWork(
     await capture(environment, 'tasks-pill', artifacts);
 
     await tapMobileCheckByBounds(serial, 'agent-chat-tasks');
-    const rowStop = await waitForStop(serial, sheetRegion);
+    // Stop the search above the system navigation handle, which is drawn close to the text color.
+    const listRegion = { ...sheetRegion, bottom: Math.floor(screen.height * 0.96) };
+    const sheetText = await waitForMobile(
+        () => mobileColorBounds(serial, listRegion, TEXT_COLOR),
+        (bounds) => bounds !== undefined && bounds.bottom > screen.height * 0.6,
+    );
+    if (!sheetText) throw new Error('The task sheet did not open');
     await capture(environment, 'tasks-sheet', artifacts);
 
-    // The row's own button covers everything left of Stop.
-    const row = centerOf(rowStop);
-    await adbShell(serial, ['input', 'tap', String(Math.floor(screen.width / 4)), String(row.y)]);
-    // The detail draws its own Stop on the status line, away from where the row's sat.
-    const detailStop = await waitForStop(
-        serial,
-        sheetRegion,
-        (stop) => Math.abs(centerOf(stop).y - row.y) > 8,
-    );
+    // The row's button spans its width, so a tap left of center on the lowest title opens the task.
+    const rowY = sheetText.bottom - 10;
+    await adbShell(serial, ['input', 'tap', String(Math.floor(screen.width / 4)), String(rowY)]);
+    const detailStop = await waitForStop(serial, sheetRegion);
     // `backgroundquiet` prints a line a second and the detail re-reads the tail while the task runs.
     const openedAt = Date.now();
     await waitForMobile(
@@ -116,10 +124,19 @@ export async function exerciseChatBackgroundWork(
     await capture(environment, 'task-detail-running', artifacts);
 
     // Read Stop again: the output that arrived since has grown the sheet.
-    const stop = centerOf(
-        await waitForStop(serial, sheetRegion, (candidate) => candidate.top <= detailStop.top),
+    const stopBounds = await waitForStop(
+        serial,
+        sheetRegion,
+        (candidate) => candidate.top <= detailStop.top,
     );
+    const stop = centerOf(stopBounds);
     await adbShell(serial, ['input', 'tap', String(stop.x), String(stop.y)]);
+    // Stop gives way to a confirmation whose Stop button is the danger color's only other use.
+    const confirm = centerOf(
+        await waitForStop(serial, sheetRegion, (candidate) => !isSameBounds(candidate, stopBounds)),
+    );
+    await capture(environment, 'task-stop-confirmation', artifacts);
+    await adbShell(serial, ['input', 'tap', String(confirm.x), String(confirm.y)]);
     await waitForMobile(
         () => chat.read(),
         (snapshot) =>
