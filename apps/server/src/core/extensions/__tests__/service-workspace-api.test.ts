@@ -104,6 +104,7 @@ vi.mock('../supervisor', () => ({
 }));
 
 import { ExtensionService } from '../service';
+import { sessionContextOf } from './service-harness.fixture';
 
 const observationIdentity = {
     bootId: 'b'.repeat(32),
@@ -140,6 +141,9 @@ function apiRequest(
 
 describe('ExtensionService Git workspace API authority', () => {
     let active: { ownerProjectId: string; sessionId: string; workbenchProjectId: string };
+    let projectStatus: ReturnType<
+        typeof vi.fn<(sessionId: string) => Promise<{ repositories: []; refreshedAt: number }>>
+    >;
     let workspaceRequest: ReturnType<
         typeof vi.fn<(operation: string, parameters: unknown) => Promise<unknown>>
     >;
@@ -150,6 +154,7 @@ describe('ExtensionService Git workspace API authority', () => {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
         };
+        projectStatus = vi.fn(() => Promise.resolve({ repositories: [], refreshedAt: 1 }));
         workspaceRequest = vi.fn(() => Promise.resolve({ isRepository: false, repositories: [] }));
         harness.requestApi = undefined;
         harness.registrations = undefined;
@@ -174,9 +179,9 @@ describe('ExtensionService Git workspace API authority', () => {
                 'server-core',
                 'error',
             ),
-            activeContext: () => Promise.resolve(active),
+            sessionContext: sessionContextOf(() => active, ['project-1']),
             projectIds: () => Promise.resolve(['project-1']),
-            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            projectStatus,
             settings: () => Promise.resolve(options.settings as AppSettings),
             workspaceRequest,
         });
@@ -184,7 +189,7 @@ describe('ExtensionService Git workspace API authority', () => {
         return harness.registrations!()[0];
     }
 
-    it('injects the active Session and preserves Runtime Git authorization denial', async () => {
+    it('injects the request Session and preserves Runtime Git authorization denial', async () => {
         const registration = await start();
         const denied = Object.assign(new Error('Repository is outside approved Projects'), {
             code: 'PATH_DENIED',
@@ -230,7 +235,7 @@ describe('ExtensionService Git workspace API authority', () => {
         expect(workspaceRequest).not.toHaveBeenCalled();
     });
 
-    it('rejects a read result when the active Session changes in flight', async () => {
+    it('rejects a read result when its Session stops resolving in flight', async () => {
         const pending = Promise.withResolvers<unknown>();
         workspaceRequest.mockImplementation(() => pending.promise);
         const registration = await start();
@@ -268,6 +273,49 @@ describe('ExtensionService Git workspace API authority', () => {
         ).resolves.toBe(true);
     });
 
+    /**
+     * A phone or an unfocused window reads Status for the Session it shows; the Server must not substitute the focused
+     * window's Session, which is what made the phone's Status tab say "open this Session on your computer".
+     */
+    it('reads Project Status for the Session the request is scoped to', async () => {
+        active = {
+            ownerProjectId: 'project-1',
+            sessionId: 'session-2',
+            workbenchProjectId: 'project-1',
+        };
+        const registration = await start(['projects.read']);
+
+        await expect(
+            harness.requestApi!({
+                type: 'api-request',
+                id: crypto.randomUUID(),
+                extensionId: registration.extensionId,
+                generation: registration.generation,
+                apiToken: registration.apiToken,
+                method: 'workspace.getProjectStatus',
+                params: { context: { ...defaultApiContext, sessionId: 'session-2' } },
+            }),
+        ).resolves.toMatchObject({ repositories: [] });
+        expect(projectStatus).toHaveBeenCalledExactlyOnceWith('session-2', undefined);
+    });
+
+    it('cancels Project Status for a Session that no longer resolves to the request scope', async () => {
+        const registration = await start(['projects.read']);
+
+        await expect(
+            harness.requestApi!({
+                type: 'api-request',
+                id: crypto.randomUUID(),
+                extensionId: registration.extensionId,
+                generation: registration.generation,
+                apiToken: registration.apiToken,
+                method: 'workspace.getProjectStatus',
+                params: { context: { ...defaultApiContext, workbenchProjectId: 'project-2' } },
+            }),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(projectStatus).not.toHaveBeenCalled();
+    });
+
     it('denies Project Status to an extension that did not declare projects.read', async () => {
         const registration = await start(['git.read']);
 
@@ -279,7 +327,7 @@ describe('ExtensionService Git workspace API authority', () => {
                 generation: registration.generation,
                 apiToken: registration.apiToken,
                 method: 'workspace.getProjectStatus',
-                params: {},
+                params: { context: defaultApiContext },
             }),
         ).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' });
     });

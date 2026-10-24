@@ -1,11 +1,8 @@
 import type { ServerRequest } from '@caxri/protocol';
 import { CaxriError, isExtensionViewReadOperation } from '@caxri/protocol';
 
-import type { ServerDomainService } from '../domain-service';
 import type { MutationAdmission } from '../mutation-admission';
-import { readActiveExtensionContext } from './domain-events';
 import type { ExtensionService } from './service';
-import { assertActiveViewContext } from './view-scope';
 
 const EXTENSION_CONTROL_METHODS = [
     'viewContainers.catalog',
@@ -38,7 +35,6 @@ export function isExtensionControlRequest(
 export async function invokeExtensionControlRequest(
     request: ExtensionControlRequest,
     extensionService: ExtensionService | undefined,
-    domainService: Pick<ServerDomainService, 'request'>,
     mutationAdmission: Pick<MutationAdmission, 'run'>,
 ) {
     switch (request.method) {
@@ -62,23 +58,13 @@ export async function invokeExtensionControlRequest(
             if (!extensionService)
                 throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
             const service = extensionService;
-            return mutationAdmission.run(async () => {
-                const context = await readActiveExtensionContext(domainService);
-                assertActiveViewContext(
-                    request.params.context,
-                    context.kind === 'session' ? context : {},
-                );
-                if (context.kind !== 'session')
-                    throw new CaxriError(
-                        'FORBIDDEN',
-                        'Extension commands require an active Session',
-                    );
-                return service.executeCommand(
+            return mutationAdmission.run(() =>
+                service.executeCommand(
                     request.params.commandId,
                     request.params.arguments,
-                    context,
-                );
-            });
+                    request.params.context,
+                ),
+            );
         }
         case 'viewContainers.cancelRequest':
             return extensionService?.cancel(request.params.requestId) ?? { cancelled: false };

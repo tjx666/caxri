@@ -221,7 +221,7 @@ export type ExtensionHostApiRequest = ExtensionHostApiRequestBase &
     (
         | {
               method: 'workspace.getProjectStatus';
-              params: { refreshToken?: string };
+              params: { refreshToken?: string; context: ExtensionViewEventScope };
           }
         | {
               method: 'workspace.getConfiguration';

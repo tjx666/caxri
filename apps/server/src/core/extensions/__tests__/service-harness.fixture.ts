@@ -187,3 +187,25 @@ export const observationIdentity = {
     serverId: 'c'.repeat(32),
     userDataPath: '/tmp/caxri-extension-service-test',
 };
+
+/**
+ * An `ExtensionService` `sessionContext` double backed by the one Session a test treats as live. Reassigning the
+ * returned context makes the previous Session resolve as unknown, which is how a test retires a request's scope (the
+ * Session was deleted, hidden, or rebound to another Workbench Root).
+ */
+export function sessionContextOf(
+    live: () => { ownerProjectId?: string; sessionId?: string; workbenchProjectId?: string },
+    projectIds: string[] = [],
+): (sessionId: string) => Promise<{
+    ownerProjectId?: string;
+    projectIds: string[];
+    sessionId?: string;
+    workbenchProjectId?: string;
+}> {
+    return (sessionId) => {
+        const current = live();
+        return Promise.resolve(
+            current.sessionId === sessionId ? { ...current, projectIds } : { projectIds },
+        );
+    };
+}

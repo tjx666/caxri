@@ -25,25 +25,34 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
     private readonly changed = new EventEmitter<StatusNode | readonly StatusNode[] | undefined>();
     // eslint-disable-next-line unicorn/prefer-event-target -- Extension API subscriptions use the public Event contract.
     private readonly badgeChanged = new EventEmitter<void>();
-    private readonly forceRequests = new Set<string>();
-    private refreshToken?: string;
+    /**
+     * Forced refresh state per Workbench scope. Two windows or a phone can show different Sessions' Status at once, so
+     * one scope's forced refresh must neither force nor suppress another scope's read.
+     */
+    private readonly forcedRequests = new Map<string, string>();
+    private readonly refreshTokens = new Map<string, string>();
     readonly onDidChangeTreeData = this.changed.event;
     readonly onDidChangeBadge = this.badgeChanged.event;
 
     constructor(
         private readonly workspace: Pick<
             CaxriApi['workspace'],
-            'getProjectStatus'
+            'getCurrentContext' | 'getProjectStatus'
         > = caxri.workspace,
     ) {}
+
+    private currentScopeId(): string {
+        return this.workspace.getCurrentContext()?.scopeId ?? 'no-session';
+    }
 
     async getChildren(
         element: StatusNode | undefined,
         token: CancellationToken,
     ): Promise<readonly StatusNode[]> {
         if (element) return element.children ?? [];
-        const refreshToken = this.refreshToken;
-        if (refreshToken) this.forceRequests.add(refreshToken);
+        const scopeId = this.currentScopeId();
+        const refreshToken = this.refreshTokens.get(scopeId);
+        if (refreshToken) this.forcedRequests.set(refreshToken, scopeId);
         try {
             const summary = await this.workspace.getProjectStatus(
                 refreshToken ? { refreshToken } : undefined,
@@ -51,8 +60,11 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
             if (token.isCancellationRequested) return [];
             return buildStatusRootNodes(summary);
         } finally {
-            if (refreshToken) this.forceRequests.delete(refreshToken);
-            if (this.refreshToken === refreshToken) this.refreshToken = undefined;
+            if (refreshToken) {
+                this.forcedRequests.delete(refreshToken);
+                if (this.refreshTokens.get(scopeId) === refreshToken)
+                    this.refreshTokens.delete(scopeId);
+            }
         }
     }
 
@@ -65,16 +77,18 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
     }
 
     refresh(shouldForce = false): void {
-        if (shouldForce) this.refreshToken = crypto.randomUUID();
+        if (shouldForce) this.refreshTokens.set(this.currentScopeId(), crypto.randomUUID());
         this.changed.fire(undefined);
     }
 
     projectStatusChanged(): void {
         this.badgeChanged.fire();
+        const scopeId = this.currentScopeId();
         /**
          * Runtime echoes the completed forced request before its API reply reaches this provider.
          */
-        if (this.refreshToken || this.forceRequests.size > 0) return;
+        if (this.refreshTokens.has(scopeId) || new Set(this.forcedRequests.values()).has(scopeId))
+            return;
         this.changed.fire(undefined);
     }
 

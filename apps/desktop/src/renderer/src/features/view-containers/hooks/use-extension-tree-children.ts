@@ -196,9 +196,9 @@ export function useExtensionTreeChildren(
                     });
                 } else if (!isCancelledRequest(outcome.error)) {
                     /**
-                     * CANCELLED (skipped above) means this tree's Session is no longer active on the Server: the view
-                     * is being retired, so the read is superseded rather than failed and must not paint an error into
-                     * the branch.
+                     * CANCELLED (skipped above) means this tree's Session scope was retired on the Server: the view is
+                     * being retired, so the read is superseded rather than failed and must not paint an error into the
+                     * branch.
                      */
                     const { error } = outcome;
                     setErrors((current) =>

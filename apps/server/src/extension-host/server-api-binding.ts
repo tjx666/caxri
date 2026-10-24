@@ -1,6 +1,6 @@
 import type { CancellationToken, ProjectStatusSummary } from 'caxri';
 
-import type { ExtensionHostMessage } from './protocol';
+import type { ExtensionHostMessage, ExtensionViewEventScope } from './protocol';
 import { MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH } from './protocol';
 import type { ServerApiRequestInput } from './server-api-request';
 import { requestServerApi as sendServerApiRequest } from './server-api-request';
@@ -24,8 +24,13 @@ export function createServerApiRequester(context: ServerApiBindingContext): Serv
         sendServerApiRequest<Result>(context, request, token);
 }
 
+/**
+ * Reads Project Status for the Session the running provider call or command is scoped to. Outside any host-supplied
+ * scope the Server answers with an empty "no Session" summary rather than guessing the focused window's Session.
+ */
 export function requestProjectStatus(
     request: ServerApiRequester,
+    context: ExtensionViewEventScope,
     refreshToken?: string,
 ): Promise<ProjectStatusSummary> {
     if (
@@ -38,7 +43,7 @@ export function requestProjectStatus(
         });
     return request({
         method: 'workspace.getProjectStatus',
-        params: { ...(refreshToken && { refreshToken }) },
+        params: { context, ...(refreshToken && { refreshToken }) },
     });
 }
 

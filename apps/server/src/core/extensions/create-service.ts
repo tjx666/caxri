@@ -49,16 +49,10 @@ export async function createExtensionService(
         logger: options.logger,
         serverId: options.serverId,
         userDataPath: options.userDataPath,
-        activeContext: async () => {
-            const context = await options.domainService.request('app.activeContext');
-            return {
-                ownerProjectId: context.ownerProjectId,
-                sessionId: context.sessionId,
-                workbenchProjectId: context.workbenchProjectId,
-            };
-        },
         projectIds: async () =>
             (await options.domainService.request('app.activeContext')).projectIds,
+        sessionContext: (sessionId) =>
+            options.domainService.request('app.sessionContext', { sessionId }),
         projectStatus: (sessionId, refreshToken) =>
             options.domainService.request('projectStatus.summary', {
                 sessionId,

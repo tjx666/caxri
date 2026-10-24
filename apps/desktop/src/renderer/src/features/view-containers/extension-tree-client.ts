@@ -93,8 +93,8 @@ export function requestTreeChildren(
         viewId: scope.viewId,
         requestId,
         /**
-         * Server Core rejects the read with CANCELLED once this scope is no longer the active Session, so a branch
-         * computed for another Session can never be delivered into this tree.
+         * Server Core rejects the read with CANCELLED once this Session is deleted or its Workbench Root changes, so a
+         * branch computed for a retired scope can never be delivered into this tree.
          */
         context: {
             kind: 'session',

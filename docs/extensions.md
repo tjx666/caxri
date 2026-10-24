@@ -119,10 +119,11 @@ with the extension's declared identity without restarting the Desktop.
 Manifest capabilities are declarations, not grants. The Server Core records actual capability and Project
 scope per extension. Bundled extensions receive their reviewed grants; installed extensions
 currently receive none. Every API call validates the opaque identity, current generation,
-capability, and Server Core-authoritative active Session/Project scope before returning projected data.
+capability, and the Server Core-authoritative Session/Project scope named by the request before returning
+projected data.
 
 The declared capabilities are `git.read`, `git.write`, `projects.read`, and `settings.read`, and each
-one is consumed by a real check. There is deliberately no Session capability: the active Session
+one is consumed by a real check. There is deliberately no Session capability: the request's Session
 identity is part of the base API context an extension receives through its lifecycle `scopeId`, not a
 separate readable surface. A capability nothing checks constrains nothing, so it would read as
 authority the extension does not actually hold.
@@ -255,15 +256,18 @@ pre-boundary `CANCELLED` from an authoritative post-boundary completion.
 View operation policies are exhaustive over the public protocol's operation union. Adding an
 operation must also define its result schema, provider dispatch, read-cancellation behavior, and
 request lifetime. Shared policy metadata does not grant capabilities: Core still authorizes the
-target view and active context, and the Host still validates the provider registration and generation.
+target view and the request's Session scope, and the Host still validates the provider registration and generation.
 The four snapshot/history reads remain cancellable; `source.action` retains its authoritative
 completion and non-expiring request lifetime.
 
-Core reads the active context through the internal `app.activeContext` method, which returns only
-the selected Session's identities and the visible Project IDs. Every view operation and routed
-domain event needs that slice, so reading the whole `app.bootstrap` there made the bridge the source
-of almost every bootstrap read. Record-level `state.changed` events never reach this read: only a
-full change that can move the selection (`session.select`, `session.create`, `session.delete`,
+Every view request names its Session scope, and Core resolves it through the internal
+`app.sessionContext` method, which returns that Session's identities and Project IDs whether or not it
+is the focused Session ([ADR 0019](adr/0019-extension-view-request-scope.md)). A Session that was
+deleted or whose Workbench Root changed rejects the request with `CANCELLED`. Nested
+`workspace.getProjectStatus` and `workspace.request` calls inherit the scope of the provider request
+that issued them, and the Host keeps tree handles per scope. `projectStatus.changed` and `git.changed`
+refresh every Session they name. The focused Session is still read through `app.activeContext`, and
+only a full change that can move the selection (`session.select`, `session.create`, `session.delete`,
 `session.workbenchRoot`) notifies the Host of a new active context.
 
 Private protocol rejection logs use `extension_host.invalid_message` with one closed `reason`:

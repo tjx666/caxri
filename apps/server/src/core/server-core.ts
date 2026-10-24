@@ -250,12 +250,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             )
                 await mobileAccess.validatePairedDeviceRequest(request, context, domainService);
             if (isExtensionControlRequest(request))
-                return invokeExtensionControlRequest(
-                    request,
-                    extensionService,
-                    domainService,
-                    mutationAdmission,
-                );
+                return invokeExtensionControlRequest(request, extensionService, mutationAdmission);
             assertOwnerOnlyMethod(context, request.method);
             switch (request.method) {
                 case 'events.recover':

@@ -28,7 +28,7 @@ enforces the list for every `request('…')` literal in Main.
 
 Controlled view operations use the public protocol union and exhaustive metadata for provider
 routing, cancellation, and request lifetime. Host dispatch must remain exhaustive over that union;
-Core capability and active-context authorization remain independent of the shared lifecycle policy.
+Core capability and request Session-scope authorization remain independent of the shared lifecycle policy.
 
 Visible task delegation owns a separate `agent-delegation` Server domain. Its `agents.delegate`
 capability, held by every managed Agent, never widens human Terminal steer or general Agent control.

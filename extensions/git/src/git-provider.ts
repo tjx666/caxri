@@ -682,7 +682,7 @@ export class GitProvider implements SourceControlProvider {
         if (summary.repositories.every(({ id }) => id !== repoId))
             throw providerError(
                 'PROJECT_SCOPE_DENIED',
-                'Git commit does not belong to the active Session',
+                'Git commit does not belong to this Session',
             );
         this.clearDetails(state, true);
         state.commitSelection = { repositoryId: repoId, sha };

@@ -179,7 +179,7 @@ async function projectIcons(
      * than deriving its id from the tab.
      */
     const treeViews: string[] = [];
-    const TREE_STATES = new Set(['tree-panel-error', 'tree-panel-other-session']);
+    const TREE_STATES = new Set(['tree-panel-error']);
     const isNewTree = (id: string) =>
         id.startsWith('tree-panel-') && !TREE_STATES.has(id) && !treeViews.includes(id);
     for (const [index, treeTab] of treeTabs.entries()) {

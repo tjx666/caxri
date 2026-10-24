@@ -11,23 +11,17 @@ const issuedIn = {
     workbenchProjectId: 'project-1',
 } as const;
 
-function harness(active: { sessionId: string; workbenchProjectId: string }) {
+function harness() {
     const executeCommand = vi.fn<ExtensionService['executeCommand']>(() =>
         Promise.resolve({ executed: true }),
     );
     const viewOperation = vi.fn<ExtensionService['viewOperation']>(() => Promise.resolve(null));
     const service = { executeCommand, viewOperation } as unknown as ExtensionService;
-    const domainService = {
-        request: vi.fn(() =>
-            Promise.resolve({ projectIds: [active.workbenchProjectId], ...active }),
-        ),
-    };
     const admission = new MutationAdmission();
     const invoke = (request: ServerRequest) =>
         invokeExtensionControlRequest(
             request as Parameters<typeof invokeExtensionControlRequest>[0],
             service,
-            domainService as never,
             admission,
         );
     return { admission, executeCommand, invoke, viewOperation };
@@ -57,33 +51,18 @@ function viewOperationRequest(operation: 'source.action' | 'source.snapshot'): S
 }
 
 describe('invokeExtensionControlRequest', () => {
+    /**
+     * The command carries the Session it was issued in, and the service scopes it there, so a focus move to another
+     * Session while it waits behind a mutation cannot redirect "Merge Pull Request for Current Branch".
+     */
     it('runs an Extension command against the Session it was issued in', async () => {
-        const { executeCommand, invoke } = harness({
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-        });
+        const { executeCommand, invoke } = harness();
         await expect(invoke(executeCommandRequest())).resolves.toEqual({ executed: true });
         expect(executeCommand).toHaveBeenCalledWith('publisher.merge', [], issuedIn);
     });
 
-    /**
-     * A command can wait behind another repository mutation while a Session switch passes it, so it must not start
-     * against the Session the user switched to: "Merge Pull Request for Current Branch" would merge that Session's PR.
-     */
-    it('cancels an Extension command once its Session is no longer active', async () => {
-        const { executeCommand, invoke } = harness({
-            sessionId: 'session-2',
-            workbenchProjectId: 'project-1',
-        });
-        await expect(invoke(executeCommandRequest())).rejects.toMatchObject({ code: 'CANCELLED' });
-        expect(executeCommand).not.toHaveBeenCalled();
-    });
-
     it('keeps host stop draining until a running Extension command settles', async () => {
-        const { admission, executeCommand, invoke } = harness({
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-        });
+        const { admission, executeCommand, invoke } = harness();
         const release = Promise.withResolvers<{ executed: true }>();
         executeCommand.mockReturnValueOnce(release.promise);
         const running = invoke(executeCommandRequest());
@@ -103,10 +82,7 @@ describe('invokeExtensionControlRequest', () => {
     });
 
     it('refuses Extension mutations but serves view reads once host stop closed admission', async () => {
-        const { admission, executeCommand, invoke, viewOperation } = harness({
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-        });
+        const { admission, executeCommand, invoke, viewOperation } = harness();
         admission.close();
         await expect(invoke(executeCommandRequest())).rejects.toMatchObject({
             code: 'UNAVAILABLE',

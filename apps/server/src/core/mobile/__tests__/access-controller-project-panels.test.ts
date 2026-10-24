@@ -278,7 +278,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         }
     });
 
-    it('rejects Conversation Tree children for a Session Desktop is not focused on', async () => {
+    it('reports a Session that no longer resolves as unavailable instead of reading the tree', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-mismatch-'));
         temporaryDirectories.push(directory);
         const registryPath = join(directory, 'mobile-devices.json');
@@ -310,8 +310,7 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         const request = vi.fn((method: string) => {
             if (method === 'session.queryForPrincipal')
                 return Promise.resolve({ sessions: [{ id: 'session-1', projectId: 'project-1' }] });
-            if (method === 'app.activeContext')
-                return Promise.resolve({ sessionId: 'session-other' });
+            if (method === 'app.sessionContext') return Promise.resolve({ projectIds: [] });
             throw new Error(`Unexpected method: ${method}`);
         });
         const domainService = { request } as unknown as ServerDomainService;
@@ -325,14 +324,14 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                     context,
                     domainService,
                 ),
-            ).rejects.toMatchObject({ code: 'CONFLICT' });
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
             expect(treeChildren).not.toHaveBeenCalled();
         } finally {
             await controller.close();
         }
     });
 
-    it('reports a Desktop Session switch during a Conversation Tree read as CONFLICT', async () => {
+    it('surfaces a Workbench Root change during a Conversation Tree read as cancellation', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-switch-'));
         temporaryDirectories.push(directory);
         const registryPath = join(directory, 'mobile-devices.json');
@@ -366,8 +365,12 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         const request = vi.fn((method: string) => {
             if (method === 'session.queryForPrincipal')
                 return Promise.resolve({ sessions: [{ id: 'session-1', projectId: 'project-1' }] });
-            if (method === 'app.activeContext')
-                return Promise.resolve({ sessionId: 'session-1', workbenchProjectId: 'project-1' });
+            if (method === 'app.sessionContext')
+                return Promise.resolve({
+                    projectIds: ['project-1'],
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                });
             throw new Error(`Unexpected method: ${method}`);
         });
         const domainService = { request } as unknown as ServerDomainService;
@@ -381,14 +384,18 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                     context,
                     domainService,
                 ),
-            ).rejects.toMatchObject({ code: 'CONFLICT' });
+            ).rejects.toMatchObject({ code: 'CANCELLED' });
             expect(treeChildren).toHaveBeenCalledOnce();
         } finally {
             await controller.close();
         }
     });
 
-    it('projects Conversation Tree children for the active Session, dropping tooltip and a resource icon', async () => {
+    /**
+     * The phone reads the Session it shows. `app.activeContext` (the focused Desktop window) is never consulted, so a
+     * Session Desktop is not showing still loads instead of asking the user to open it on the computer.
+     */
+    it('projects Conversation Tree children for the requested Session, dropping tooltip and a resource icon', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-'));
         temporaryDirectories.push(directory);
         const registryPath = join(directory, 'mobile-devices.json');
@@ -443,8 +450,12 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         const request = vi.fn((method: string) => {
             if (method === 'session.queryForPrincipal')
                 return Promise.resolve({ sessions: [{ id: 'session-1', projectId: 'project-1' }] });
-            if (method === 'app.activeContext')
-                return Promise.resolve({ sessionId: 'session-1', workbenchProjectId: 'project-1' });
+            if (method === 'app.sessionContext')
+                return Promise.resolve({
+                    projectIds: ['project-1'],
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                });
             throw new Error(`Unexpected method: ${method}`);
         });
         const domainService = { request } as unknown as ServerDomainService;

@@ -63,7 +63,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 apiToken: 'fixture-token-1',
                 method: 'workspace.getProjectStatus',
                 observation: { traceId: '/private/project' },
-                params: {},
+                params: { context: { kind: 'no-session' } },
             },
             {
                 type: 'event',
@@ -117,7 +117,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                     requestId: 'control-request',
                     traceId: 'control-trace',
                 },
-                params: { refreshToken: 'refresh-1' },
+                params: { context: { kind: 'no-session' }, refreshToken: 'refresh-1' },
             }),
         ).toBe(true);
         expect(
@@ -128,7 +128,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 generation: 1,
                 apiToken: 'fixture-token-1',
                 method: 'workspace.getProjectStatus',
-                params: { refreshToken: 'x'.repeat(201) },
+                params: { context: { kind: 'no-session' }, refreshToken: 'x'.repeat(201) },
             }),
         ).toBe(false);
         expect(
@@ -354,7 +354,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 requestId: 'control-request',
                 traceId: 'control-trace',
             },
-            params: {},
+            params: { context: { kind: 'no-session' } },
         });
         await vi.waitFor(() => expect(apiObservations).toHaveLength(1));
         expect(apiObservations[0]).toEqual({

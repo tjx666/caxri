@@ -165,7 +165,8 @@ export const extensionViewMethods = {
             parentHandle: z.string().min(1).max(512).optional(),
             requestId: identifierSchema,
             /**
-             * Rejected with CANCELLED once no longer the active scope, like `viewContainers.viewOperation`.
+             * The Session this tree is read for, focused or not. Rejected with CANCELLED once that Session is deleted
+             * or its Workbench Root changes, like `viewContainers.viewOperation`.
              */
             context: extensionViewEventContextSchema,
         }),
@@ -182,8 +183,9 @@ export const extensionViewMethods = {
             commandId: extensionCommandIdSchema,
             arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).default([]),
             /**
-             * The Session the command was issued in. Rejected with CANCELLED once no longer the active scope: a command
-             * waiting behind another repository mutation must not start against a Session the user switched to.
+             * The Session the command was issued in. Rejected with CANCELLED once that Session is deleted or its
+             * Workbench Root changes: a command waiting behind another repository mutation must not start against a
+             * scope that no longer exists.
              */
             context: extensionViewEventContextSchema,
         }),

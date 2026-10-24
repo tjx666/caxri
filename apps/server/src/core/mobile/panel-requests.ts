@@ -51,29 +51,22 @@ export async function invokeMobilePanelRequest(
         reauthorize();
         return { panels };
     }
-    const activeContext = await domainService.request('app.activeContext', {});
-    const notActive = () =>
-        new CaxriError('CONFLICT', 'Conversation Tree only reflects the Desktop active Session');
-    if (activeContext.sessionId !== request.params.sessionId) throw notActive();
     if (!extensionService) throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
-    let result: Awaited<ReturnType<ExtensionService['treeChildren']>>;
-    try {
-        result = await extensionService.treeChildren({
-            viewId: request.params.viewId,
-            ...(request.params.parentHandle && { parentHandle: request.params.parentHandle }),
-            requestId: randomUUID(),
-            /**
-             * Pins the read to the Session verified above, so a Desktop Session switch while the provider runs cancels
-             * the request instead of answering with another Session's tree.
-             */
-            context: toExtensionViewEventContext(activeContext),
-        });
-    } catch (error) {
-        // The phone shows its "open this Session on your computer" state only for CONFLICT, which is what a Desktop
-        // Session switch during the read means.
-        if (error instanceof CaxriError && error.code === 'CANCELLED') throw notActive();
-        throw error;
-    }
+    /**
+     * Scoped to the Session the phone is viewing, whichever Session Desktop has focused. The Extension service cancels
+     * the read if that Session is deleted, hidden, or rebound to another Workbench Root while it runs.
+     */
+    const context = toExtensionViewEventContext(
+        await domainService.request('app.sessionContext', { sessionId: request.params.sessionId }),
+    );
+    if (context.kind !== 'session')
+        throw new CaxriError('NOT_FOUND', 'Session is not available for the Conversation Tree');
+    const result = await extensionService.treeChildren({
+        viewId: request.params.viewId,
+        ...(request.params.parentHandle && { parentHandle: request.params.parentHandle }),
+        requestId: randomUUID(),
+        context,
+    });
     reauthorize();
     return {
         items: result.items.map((item) => projectMobileTreeItem(item)),

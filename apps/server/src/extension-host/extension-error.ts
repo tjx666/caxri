@@ -86,13 +86,13 @@ export function supersededError(message: string): Error {
 /**
  * Host-private ledger of what the host itself did to the `caxri.*` API calls one provider request issued. A provider
  * that awaits `workspace.git.summary(...)` or `workspace.getProjectStatus(...)` receives Server Core's own
- * `GENERATION_EXPIRED` when the active Session changes mid-read, and the bundled providers let that rejection propagate
- * unchanged. The boundary cannot tell that outcome from a provider-forged code by looking at the error object, so the
- * API layer records the host's decision here, keyed to the request through `AsyncLocalStorage` rather than through
- * anything the extension can reach.
+ * `GENERATION_EXPIRED` when the request's Session scope changes mid-read, and the bundled providers let that rejection
+ * propagate unchanged. The boundary cannot tell that outcome from a provider-forged code by looking at the error
+ * object, so the API layer records the host's decision here, keyed to the request through `AsyncLocalStorage` rather
+ * than through anything the extension can reach.
  *
  * A `CANCELLED` is recorded only when it arrives in Server Core's own reply: the controlled-view scope fence rejects a
- * `workspace.request` whose Session is no longer active with that code, and never when it follows the token the
+ * `workspace.request` whose Session scope is no longer current with that code, and never when it follows the token the
  * extension passed to the call, which may be the extension's own `CancellationTokenSource`. When that token is the
  * host's request token, {@link HostRequestState.cancelled} already corroborates it.
  */

@@ -47,11 +47,14 @@ import {
     settleApiReply as settleServerApiReply,
 } from './server-api-request';
 import { serializeTreeItem } from './tree-item-dto';
-import type { ProviderRegistration } from './tree-provider-handles';
+import type { ProviderRegistration, TreeScopeState } from './tree-provider-handles';
 import {
     collectDescendantHandles,
+    resetTreeScope,
     retireTreeHandles,
     stableTreeHandle,
+    treeScopeFor,
+    treeScopeKey,
 } from './tree-provider-handles';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
@@ -90,33 +93,30 @@ const commands = new Map<
     }
 >();
 const cancellations = new Map<string, CancellationTokenSource>();
+/**
+ * Coalesced tree refreshes keyed by view and scope, so a refresh for one Session never flushes or merges into another
+ * Session's pending batch.
+ */
 const pendingRefreshes = new Map<
     string,
     {
+        viewId: string;
         batch: TreeRefreshBatch;
         timer: NodeJS.Timeout;
         context: ExtensionViewEventScope;
     }
 >();
 
-function isSameViewEventContext(
-    left: ExtensionViewEventScope,
-    right: ExtensionViewEventScope,
-): boolean {
-    return (
-        left.kind === right.kind &&
-        (left.kind === 'no-session' ||
-            (right.kind === 'session' &&
-                left.sessionId === right.sessionId &&
-                left.workbenchProjectId === right.workbenchProjectId))
-    );
+function pendingRefreshKey(viewId: string, scopeKey: string): string {
+    return `${viewId}\0${scopeKey}`;
 }
 
 function cancelPendingRefresh(viewId: string): void {
-    const pending = pendingRefreshes.get(viewId);
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    pendingRefreshes.delete(viewId);
+    for (const [key, pending] of pendingRefreshes) {
+        if (pending.viewId !== viewId) continue;
+        clearTimeout(pending.timer);
+        pendingRefreshes.delete(key);
+    }
 }
 
 function send(message: ExtensionHostMessage): void {
@@ -133,37 +133,18 @@ function assertCurrent(extensionId: string, generation: number): ExtensionInstan
 function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed: unknown): void {
     if (providers.get(viewId) !== provider) return;
     const context = currentViewEventContext();
-    if (changed === undefined) {
-        provider.refreshEpoch += 1;
-        provider.elements.clear();
-        provider.depths.clear();
-        provider.children.clear();
-        provider.parents.clear();
-        provider.ids.clear();
-        provider.itemIds.clear();
-        provider.handles = new WeakMap();
-        provider.nextHandle = 0;
-    }
     // Generic TreeDataProviders may refresh outside a Server-scoped notification (for example, an internal timer). Keep
-    // their local handles generation-safe, but fail closed by suppressing an unscoped cross-process event.
-    if (!context) return;
-    const existing = pendingRefreshes.get(viewId);
-    let mergeWith = existing;
-    if (existing && !isSameViewEventContext(existing.context, context)) {
-        clearTimeout(existing.timer);
-        pendingRefreshes.delete(viewId);
-        mergeWith = undefined;
-        send({
-            type: 'event',
-            event: 'treeChanged',
-            extensionId: provider.extensionId,
-            generation: provider.generation,
-            viewId,
-            eventId: randomUUID(),
-            context: existing.context,
-            ...(!existing.batch.root && { handles: [...existing.batch.handles] }),
-        });
+    // every scope's local handles generation-safe, but fail closed by suppressing an unscoped cross-process event.
+    if (!context) {
+        if (changed === undefined)
+            for (const state of provider.scopes.values()) resetTreeScope(state);
+        return;
     }
+    const scopeKey = treeScopeKey(context);
+    const state = provider.scopes.get(scopeKey);
+    if (changed === undefined && state) resetTreeScope(state);
+    const key = pendingRefreshKey(viewId, scopeKey);
+    const mergeWith = pendingRefreshes.get(key);
     const changedElements: readonly unknown[] = Array.isArray(changed)
         ? changed
         : changed !== undefined
@@ -172,16 +153,15 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
     const handles = changedElements
         .map((element) =>
             typeof element === 'object' && element !== null
-                ? provider.handles.get(element)
+                ? state?.handles.get(element)
                 : undefined,
         )
         .filter((handle): handle is string => Boolean(handle));
     const batch = mergeTreeRefresh(mergeWith?.batch, changed === undefined ? undefined : handles);
     if (!batch || batch === mergeWith?.batch) return;
-    const current = pendingRefreshes.get(viewId);
-    if (current) clearTimeout(current.timer);
+    if (mergeWith) clearTimeout(mergeWith.timer);
     const timer = setTimeout(() => {
-        pendingRefreshes.delete(viewId);
+        pendingRefreshes.delete(key);
         if (providers.get(viewId) !== provider) return;
         send({
             type: 'event',
@@ -195,7 +175,7 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
         });
     }, 25);
     timer.unref();
-    pendingRefreshes.set(viewId, { batch, timer, context });
+    pendingRefreshes.set(key, { viewId, batch, timer, context });
 }
 
 function workspaceChangeContext(context: ExtensionViewEventScope): WorkspaceChangeContext {
@@ -300,15 +280,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
                     extensionId: registration.extensionId,
                     generation: registration.generation,
                     provider,
-                    elements: new Map(),
-                    handles: new WeakMap(),
-                    depths: new Map(),
-                    children: new Map(),
-                    parents: new Map(),
-                    ids: new Map(),
-                    itemIds: new Map(),
-                    nextHandle: 0,
-                    refreshEpoch: 0,
+                    scopes: new Map(),
                 };
                 if (provider.onDidChangeTreeData)
                     providerRegistration.subscription = provider.onDidChangeTreeData((element) =>
@@ -336,7 +308,11 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
             getConfiguration: <Value>(key: string) => requestConfig<Value>(request, key),
             getProjectStatus: (options?: ProjectStatusRequestOptions) => {
                 assertBindingCurrent(registration);
-                return requestProjectStatus(request, options?.refreshToken);
+                return requestProjectStatus(
+                    request,
+                    currentViewEventContext() ?? { kind: 'no-session' },
+                    options?.refreshToken,
+                );
             },
         }),
         supersededError,
@@ -479,8 +455,8 @@ function isRequestCancelled(cancellation: CancellationTokenSource): boolean {
     return cancellation.token.isCancellationRequested;
 }
 
-function assertRefreshCurrent(provider: ProviderRegistration, refreshEpoch: number): void {
-    if (provider.refreshEpoch !== refreshEpoch)
+function assertRefreshCurrent(state: TreeScopeState, refreshEpoch: number): void {
+    if (state.refreshEpoch !== refreshEpoch)
         throw hostError(
             'GENERATION_EXPIRED',
             'Tree provider refreshed while the request was running',
@@ -506,12 +482,13 @@ export async function getTreeChildren(parameters: {
         throw Object.assign(new Error(`No provider registered for ${parameters.viewId}`), {
             code: 'PROVIDER_MISSING',
         });
+    const state = treeScopeFor(provider, treeScopeKey(parameters.context));
     const parent = parameters.parentHandle
-        ? provider.elements.get(parameters.parentHandle)
+        ? state.elements.get(parameters.parentHandle)
         : undefined;
     if (parent === undefined && parameters.parentHandle)
         throw hostError('GENERATION_EXPIRED', 'Tree handle belongs to an expired generation');
-    const parentDepth = parameters.parentHandle ? provider.depths.get(parameters.parentHandle) : -1;
+    const parentDepth = parameters.parentHandle ? state.depths.get(parameters.parentHandle) : -1;
     if (parentDepth === undefined)
         throw hostError('GENERATION_EXPIRED', 'Tree handle depth belongs to an expired generation');
     const childDepth = parentDepth + 1;
@@ -525,7 +502,7 @@ export async function getTreeChildren(parameters: {
             code: 'PROVIDER_CAPACITY',
         });
     const cancellation = new CancellationTokenSource();
-    const refreshEpoch = provider.refreshEpoch;
+    const refreshEpoch = state.refreshEpoch;
     const scope = createProviderRequestScope();
     cancellations.set(parameters.requestId, cancellation);
     /**
@@ -549,7 +526,7 @@ export async function getTreeChildren(parameters: {
                 provider.provider.getChildren(parent, cancellation.token),
             )) ?? [];
         assertInstanceCurrent(runtime);
-        assertRefreshCurrent(provider, refreshEpoch);
+        assertRefreshCurrent(state, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
         if (children.length > MAX_VIEW_TREE_ITEMS)
             throw Object.assign(new Error('Tree provider exceeded the item limit'), {
@@ -566,15 +543,15 @@ export async function getTreeChildren(parameters: {
             }),
         );
         assertInstanceCurrent(runtime);
-        assertRefreshCurrent(provider, refreshEpoch);
+        assertRefreshCurrent(state, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
         assertInstanceCurrent(runtime);
-        const retiredHandles = collectDescendantHandles(provider, parentKey);
-        if (provider.elements.size - retiredHandles.size + children.length > MAX_VIEW_TREE_HANDLES)
+        const retiredHandles = collectDescendantHandles(state, parentKey);
+        if (state.elements.size - retiredHandles.size + children.length > MAX_VIEW_TREE_HANDLES)
             throw Object.assign(new Error('Tree provider exceeded the handle limit'), {
                 code: 'PROVIDER_CAPACITY',
             });
-        let nextHandle = provider.nextHandle;
+        let nextHandle = state.nextHandle;
         const stagedIds = new Set<string>();
         const stagedObjects = new WeakSet<object>();
         const stagedHandles = new Set<string>();
@@ -586,7 +563,7 @@ export async function getTreeChildren(parameters: {
                         code: 'DUPLICATE_ID',
                     });
                 stagedIds.add(item.id);
-                const existingHandle = provider.ids.get(item.id);
+                const existingHandle = state.ids.get(item.id);
                 if (existingHandle && !retiredHandles.has(existingHandle))
                     throw Object.assign(new Error(`Duplicate TreeItem id: ${item.id}`), {
                         code: 'DUPLICATE_ID',
@@ -600,9 +577,7 @@ export async function getTreeChildren(parameters: {
                         code: 'DUPLICATE_ID',
                     });
                 if (objectElement) stagedObjects.add(objectElement);
-                const existingHandle = objectElement
-                    ? provider.handles.get(objectElement)
-                    : undefined;
+                const existingHandle = objectElement ? state.handles.get(objectElement) : undefined;
                 if (existingHandle && !retiredHandles.has(existingHandle))
                     throw Object.assign(new Error('Tree element belongs to another parent'), {
                         code: 'DUPLICATE_ID',
@@ -628,19 +603,18 @@ export async function getTreeChildren(parameters: {
                 code: 'PAYLOAD_TOO_LARGE',
             });
         if (isRequestCancelled(cancellation)) return { items: [] };
-        provider.nextHandle = nextHandle;
-        retireTreeHandles(provider, retiredHandles);
-        provider.children.set(parentKey, new Set(prepared.map(({ handle }) => handle)));
+        state.nextHandle = nextHandle;
+        retireTreeHandles(state, retiredHandles);
+        state.children.set(parentKey, new Set(prepared.map(({ handle }) => handle)));
         for (const { dto, element, handle } of prepared) {
-            provider.elements.set(handle, element);
-            provider.depths.set(handle, childDepth);
-            provider.parents.set(handle, parentKey);
+            state.elements.set(handle, element);
+            state.depths.set(handle, childDepth);
+            state.parents.set(handle, parentKey);
             if (dto.id) {
-                provider.ids.set(dto.id, handle);
-                provider.itemIds.set(handle, dto.id);
+                state.ids.set(dto.id, handle);
+                state.itemIds.set(handle, dto.id);
             }
-            if (typeof element === 'object' && element !== null)
-                provider.handles.set(element, handle);
+            if (typeof element === 'object' && element !== null) state.handles.set(element, handle);
         }
         return { items };
     } finally {

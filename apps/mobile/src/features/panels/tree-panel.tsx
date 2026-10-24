@@ -6,7 +6,6 @@ import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
-import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
 import { TreeItemIcon } from './tree-item-icon';
@@ -38,25 +37,17 @@ const TreeChildren = ({
         return depth === 0 ? (
             <PendingPanelStatus fetchStatus={children.fetchStatus} theme={theme} />
         ) : null;
-    if (children.isError) {
-        /**
-         * Extension trees follow the Session active on Desktop, and the phone never changes that selection, so a
-         * different Session is reported as a state to act on rather than as a failure.
-         */
-        const isOtherSession =
-            children.error instanceof MobileGatewayRequestError &&
-            children.error.code === 'CONFLICT';
+    if (children.isError)
         return (
             <PanelStatus
-                message={t(isOtherSession ? 'panels.treeOtherSession' : 'panels.loadFailed')}
+                message={t('panels.loadFailed')}
                 onRetry={() => {
                     void children.refetch();
                 }}
-                testID={isOtherSession ? 'tree-panel-other-session' : 'tree-panel-error'}
+                testID="tree-panel-error"
                 theme={theme}
             />
         );
-    }
     if (depth === 0 && children.data.items.length === 0)
         return (
             <PanelStatus message={t('panels.treeEmpty')} testID="tree-panel-empty" theme={theme} />

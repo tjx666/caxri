@@ -31,9 +31,15 @@ import type { ExtensionHostStartTrigger } from './host-start-gate';
 import { ExtensionHostStartGate } from './host-start-gate';
 import type { CatalogChangedEvent, TreeChangedEvent, ViewChangedEvent } from './service-events';
 import { projectExtensionHostViewEvent, subscribeExtensionEvent } from './service-events';
+import type { ResolvedSessionContext, SessionContextReader, SessionScope } from './session-scope';
+import {
+    assertSessionScopeUnchanged,
+    assertSessionWithinGrant,
+    resolveViewContext,
+} from './session-scope';
 import { ExtensionHostSupervisor } from './supervisor';
 import { requestTreeChildren } from './tree-children';
-import { assertActiveViewContext, extensionForView } from './view-scope';
+import { assertViewContextCurrent, extensionForView } from './view-scope';
 import {
     isReadWorkspaceOperation,
     workspaceCapability,
@@ -58,12 +64,12 @@ export interface ExtensionServiceOptions {
     logger: StructuredLogger;
     serverId: string;
     userDataPath: string;
-    activeContext(): Promise<{
-        ownerProjectId?: string;
-        sessionId?: string;
-        workbenchProjectId?: string;
-    }>;
     projectIds(): Promise<string[]>;
+    /**
+     * One Session's Project and Workbench Root identities plus the visible Project IDs (`app.sessionContext`). Every
+     * view request and nested API call is scoped to the Session it names, never to the focused window.
+     */
+    sessionContext(sessionId: string): Promise<ResolvedSessionContext>;
     projectStatus(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary>;
     settings?(): Promise<AppSettings>;
     workspaceRequest(
@@ -88,6 +94,8 @@ export class ExtensionService extends EventTarget {
     private supervisor?: ExtensionHostSupervisor;
     private readonly hostStartGate = new ExtensionHostStartGate();
     private projectIds: string[] = [];
+    private readonly readSessionContext: SessionContextReader = (sessionId) =>
+        this.options.sessionContext(sessionId);
 
     constructor(private readonly options: ExtensionServiceOptions) {
         super();
@@ -144,31 +152,11 @@ export class ExtensionService extends EventTarget {
         return registrations;
     }
 
-    private async projectStatusForStableContext(
-        active: {
-            sessionId: string;
-            workbenchProjectId: string;
-        },
-        refreshToken?: string,
-    ): Promise<ExtensionProjectStatusSummary> {
-        const result = await this.options.projectStatus(active.sessionId, refreshToken);
-        return this.projectStatusIfContextUnchanged(active, result);
-    }
-
-    private async projectStatusIfContextUnchanged(
-        active: { sessionId: string; workbenchProjectId: string },
-        result: ProjectStatusSummary,
-    ): Promise<ExtensionProjectStatusSummary> {
-        const current = await this.options.activeContext();
-        if (
-            current.sessionId !== active.sessionId ||
-            current.workbenchProjectId !== active.workbenchProjectId
-        )
-            throw Object.assign(
-                new Error('Active Project changed while the extension request was running'),
-                { code: 'GENERATION_EXPIRED' },
-            );
-        return projectStatusForExtension(result);
+    private async assertViewContext(context: ExtensionViewEventContext): Promise<void> {
+        assertViewContextCurrent(
+            context,
+            await resolveViewContext(this.readSessionContext, context),
+        );
     }
 
     private async rebuildCatalog(extensionId?: string): Promise<void> {
@@ -217,55 +205,36 @@ export class ExtensionService extends EventTarget {
             });
     }
 
-    private async activeContextForApi(
+    private async scopeForApi(
         request: ExtensionHostApiRequest,
         capability: ExtensionCapability,
-    ): Promise<{ sessionId: string; workbenchProjectId: string }> {
+        context: ExtensionViewEventContext,
+    ): Promise<SessionScope> {
         this.assertApiAccess(request, capability);
-        const active = await this.options.activeContext();
-        if (!active.sessionId || !active.workbenchProjectId)
-            throw Object.assign(new Error('No active Session'), { code: 'PROJECT_SCOPE_DENIED' });
-        const currentProjectIds = await this.options.projectIds();
-        const currentProjectIdSet = new Set(currentProjectIds);
-        this.projectIds = currentProjectIds;
+        if (context.kind !== 'session')
+            throw Object.assign(new Error('No Session in the request scope'), {
+                code: 'PROJECT_SCOPE_DENIED',
+            });
+        const resolved = await this.options.sessionContext(context.sessionId);
+        assertViewContextCurrent(context, resolved);
+        this.projectIds = resolved.projectIds;
         const grant = this.grants.get(request.extensionId);
         const extension = this.discovered.find(
             ({ extensionId }) => extensionId === request.extensionId,
         );
-        if (grant && extension?.source === 'bundled') grant.projectIds = new Set(currentProjectIds);
-        const activeProjectIds = [active.ownerProjectId, active.workbenchProjectId].filter(
-            (projectId): projectId is string => Boolean(projectId),
-        );
-        if (
-            activeProjectIds.some(
-                (projectId) =>
-                    !currentProjectIdSet.has(projectId) || !grant?.projectIds.has(projectId),
-            )
-        )
-            throw Object.assign(new Error('Active Project is outside the extension grant'), {
-                code: 'PROJECT_SCOPE_DENIED',
-            });
-        return {
-            sessionId: active.sessionId,
-            workbenchProjectId: active.workbenchProjectId,
-        };
+        if (grant && extension?.source === 'bundled')
+            grant.projectIds = new Set(resolved.projectIds);
+        assertSessionWithinGrant(resolved, grant?.projectIds);
+        return { sessionId: context.sessionId, workbenchProjectId: context.workbenchProjectId };
     }
 
-    private async assertApiContextCurrent(
+    private async assertApiScopeCurrent(
         request: ExtensionHostApiRequest,
         capability: ExtensionCapability,
-        active: { sessionId: string; workbenchProjectId: string },
+        scope: SessionScope,
     ): Promise<void> {
         this.assertApiAccess(request, capability);
-        const current = await this.options.activeContext();
-        if (
-            current.sessionId !== active.sessionId ||
-            current.workbenchProjectId !== active.workbenchProjectId
-        )
-            throw Object.assign(
-                new Error('Active Project changed while the extension request was running'),
-                { code: 'GENERATION_EXPIRED' },
-            );
+        await assertSessionScopeUnchanged(this.readSessionContext, scope);
     }
 
     private async workspaceApiRequest(
@@ -274,19 +243,18 @@ export class ExtensionService extends EventTarget {
     ): Promise<unknown> {
         const { operation } = request.params;
         const capability = workspaceCapability(operation);
-        const active = await this.activeContextForApi(request, capability);
-        assertActiveViewContext(request.params.context, active);
+        const scope = await this.scopeForApi(request, capability, request.params.context);
         const parameters = workspaceParameters(
             operation,
             request.params.arguments,
-            active.sessionId,
+            scope.sessionId,
         );
         const workspaceResult = signal
-            ? await this.options.workspaceRequest(operation, parameters, active, signal)
-            : await this.options.workspaceRequest(operation, parameters, active);
+            ? await this.options.workspaceRequest(operation, parameters, scope, signal)
+            : await this.options.workspaceRequest(operation, parameters, scope);
         const result = validatedServerWorkspaceResult(operation, workspaceResult);
         if (isReadWorkspaceOperation(operation))
-            await this.assertApiContextCurrent(request, capability, active);
+            await this.assertApiScopeCurrent(request, capability, scope);
         return result;
     }
 
@@ -312,20 +280,19 @@ export class ExtensionService extends EventTarget {
             return settings[request.params.key as keyof AppSettings];
         }
         this.assertApiAccess(request, 'projects.read');
-        const snapshot = await this.options.activeContext();
-        if (!snapshot.sessionId)
+        if (request.params.context.kind !== 'session')
             return {
                 repositories: [],
                 refreshedAt: Date.now(),
                 error: 'No active Session',
             } satisfies ExtensionProjectStatusSummary;
-        const active = await this.activeContextForApi(request, 'projects.read');
-        const result = await this.projectStatusForStableContext(
-            active,
+        const scope = await this.scopeForApi(request, 'projects.read', request.params.context);
+        const result = await this.options.projectStatus(
+            scope.sessionId,
             request.params.refreshToken,
         );
-        await this.assertApiContextCurrent(request, 'projects.read', active);
-        return result;
+        await this.assertApiScopeCurrent(request, 'projects.read', scope);
+        return projectStatusForExtension(result);
     }
 
     private extensionForView(viewId: string): DiscoveredExtension {
@@ -518,7 +485,8 @@ export class ExtensionService extends EventTarget {
     }
 
     /**
-     * Scoped like `viewOperation` reads: a Session switch mid-load cancels instead of crossing Session trees.
+     * Scoped like `viewOperation` reads: the request's own Session, so deleting it or rebinding its Workbench Root
+     * mid-load cancels instead of answering for a retired scope.
      */
     async treeChildren(parameters: {
         viewId: string;
@@ -526,10 +494,10 @@ export class ExtensionService extends EventTarget {
         requestId: string;
         context: ExtensionViewEventContext;
     }): Promise<TreeChildrenResult> {
-        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        await this.assertViewContext(parameters.context);
         const extension = this.extensionForView(parameters.viewId);
         await this.activate(extension, `onView:${parameters.viewId}`);
-        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        await this.assertViewContext(parameters.context);
         const generation = this.states.get(extension.extensionId)!.generation;
         const result = await requestTreeChildren(
             async (request) =>
@@ -540,7 +508,7 @@ export class ExtensionService extends EventTarget {
                 })) as TreeChildrenResult,
             parameters,
         );
-        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        await this.assertViewContext(parameters.context);
         return result;
     }
 
@@ -551,7 +519,7 @@ export class ExtensionService extends EventTarget {
         requestId: string;
         context: ExtensionViewEventContext;
     }): Promise<unknown> {
-        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        await this.assertViewContext(parameters.context);
         const extension = this.extensionForView(parameters.viewId);
         const descriptor = this.catalog().views.find(({ id }) => id === parameters.viewId);
         const expectedKind = 'source-control';
@@ -565,7 +533,7 @@ export class ExtensionService extends EventTarget {
                 { code: 'CAPABILITY_DENIED' },
             );
         await this.activate(extension, `onView:${parameters.viewId}`);
-        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        await this.assertViewContext(parameters.context);
         const generation = this.states.get(extension.extensionId)!.generation;
         let result: unknown;
         try {
@@ -583,8 +551,7 @@ export class ExtensionService extends EventTarget {
              */
             const isSameGeneration =
                 this.states.get(extension.extensionId)?.generation === generation;
-            if (isSameGeneration)
-                assertActiveViewContext(parameters.context, await this.options.activeContext());
+            if (isSameGeneration) await this.assertViewContext(parameters.context);
             const failure = extensionFailure(error);
             if (failure.code === 'GENERATION_EXPIRED') {
                 if (isExtensionViewReadOperation(parameters.operation))
@@ -606,15 +573,22 @@ export class ExtensionService extends EventTarget {
             throw Object.assign(new Error(message), { code: 'GENERATION_EXPIRED' });
         }
         if (isExtensionViewReadOperation(parameters.operation))
-            assertActiveViewContext(parameters.context, await this.options.activeContext());
+            await this.assertViewContext(parameters.context);
         return validatedExtensionWorkspaceResult(parameters.operation, result);
     }
 
+    /**
+     * Runs a command for the Session its caller captured. The Session must still exist on the same Workbench Root, but
+     * it need not be the focused window's: a command from a second window or a phone acts on the Session it shows.
+     */
     async executeCommand(
         commandId: string,
         arguments_: unknown[],
         context: ExtensionViewEventContext,
     ) {
+        if (context.kind !== 'session')
+            throw new CaxriError('FORBIDDEN', 'Extension commands require a Session');
+        await this.assertViewContext(context);
         const descriptor = this.catalog().commands.find(({ id }) => id === commandId);
         if (descriptor?.source.kind !== 'extension')
             throw Object.assign(new Error(`Extension command not found: ${commandId}`), {
