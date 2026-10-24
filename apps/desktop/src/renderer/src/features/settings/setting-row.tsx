@@ -32,6 +32,7 @@ import { FilesExcludeEditor } from './files-exclude-editor';
 import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { LaunchArgumentsField } from './launch-arguments-field';
+import { LongRunningCommandsForm } from './long-running-commands-form';
 import { MobileAccessForm } from './mobile-access-form';
 import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
@@ -407,6 +408,17 @@ function rowControl(
                     <IgnoredChecksForm
                         rules={settings['projectStatus.ignoredChecks']}
                         onChange={(rules) => onFieldChange('projectStatus.ignoredChecks', rules)}
+                    />
+                ),
+            };
+        case 'long-running-commands':
+            return {
+                control: (
+                    <LongRunningCommandsForm
+                        rules={settings['agents.longRunningShellCommands']}
+                        onChange={(rules) =>
+                            onFieldChange('agents.longRunningShellCommands', rules)
+                        }
                     />
                 ),
             };

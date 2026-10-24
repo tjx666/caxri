@@ -122,6 +122,7 @@ export async function createDomainServices(
         agentThroughput,
         coordinator,
         dispatchState,
+        hookLaunchEnvironment,
         sessionRenames,
     } = agentRuntime;
     const shellIntegration = await createShellIntegration(userDataPath, logger);
@@ -134,10 +135,10 @@ export async function createDomainServices(
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
-        shellEnvironment: (terminal) => agentHooks.shellEnvironment(terminal.id),
+        shellEnvironment: (terminal) => hookLaunchEnvironment.shellEnvironment(terminal.id),
         onShellRetired: (terminalId) => agentHooks.endShellLaunch(terminalId),
         lifecycleEnvironment: createLifecycleEnvironment({
-            agentHooks,
+            agentHooks: hookLaunchEnvironment,
             configuration,
             database,
             delegationState,

@@ -325,6 +325,10 @@ export const settingsCatalog = {
     'settings.agents.providers.description':
         'Launch commands, lifecycle hooks, peer messaging, and output recovery per Agent provider',
 
+    'settings.agents.longRunningShellCommands.title': 'Long-running background commands',
+    'settings.agents.longRunningShellCommands.description':
+        'A background shell started by Claude Code keeps its Session working until it ends, except one matching these patterns, such as a development server that runs for hours',
+
     'settings.agents.delegation.title': 'Agent delegation',
     'settings.agents.delegation.description':
         'Named delegation presets, caller bindings and maximum delegation depth',

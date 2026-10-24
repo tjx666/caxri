@@ -75,6 +75,11 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return settings['terminal.referenceLinks'].length > 0;
         case 'ignored-checks':
             return settings['projectStatus.ignoredChecks'].length > 0;
+        case 'long-running-commands':
+            return !isEqual(
+                settings['agents.longRunningShellCommands'],
+                defaultAppSettings['agents.longRunningShellCommands'],
+            );
         case 'files-exclude':
             return !isEqual(settings[binding.key], defaultAppSettings[binding.key]);
         case 'delegation-depth':
@@ -193,6 +198,12 @@ export function rowResetAction(
             return { kind: 'field', key: 'terminal.referenceLinks', value: [] };
         case 'ignored-checks':
             return { kind: 'field', key: 'projectStatus.ignoredChecks', value: [] };
+        case 'long-running-commands':
+            return {
+                kind: 'field',
+                key: 'agents.longRunningShellCommands',
+                value: [...defaultAppSettings['agents.longRunningShellCommands']],
+            };
         case 'files-exclude':
             return {
                 kind: 'field',

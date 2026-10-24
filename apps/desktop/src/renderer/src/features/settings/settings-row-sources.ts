@@ -24,6 +24,7 @@ export type SettingRowBinding =
     | { type: 'trusted-folders' }
     | { type: 'terminal-reference-links' }
     | { type: 'ignored-checks' }
+    | { type: 'long-running-commands' }
     | { type: 'files-exclude'; key: 'files.exclude' | 'git.diffExclude' }
     | { type: 'archived-sessions' }
     | { type: 'mobile-access' }
@@ -365,6 +366,7 @@ export const settingRowSources: SettingRowSource[] = [
             'hand off',
         ]),
     },
+    specRow('agents.longRunningShellCommands', { binding: { type: 'long-running-commands' } }),
     specRow('agents.notifications.enabled'),
     specRow('agents.notifications.completionThresholdSeconds'),
     specRow('terminal.suspendUntouchedAgents'),

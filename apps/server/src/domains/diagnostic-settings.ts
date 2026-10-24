@@ -172,6 +172,11 @@ const settingsProjection: SettingsProjection = {
     'updates.skippedVersion': exportAsIs,
     'agents.providers': projectAgentProviders,
     'agents.delegation': projectDelegation,
+    /**
+     * Patterns are command lines the user typed, so credential flags go through the same rule as launch arguments.
+     */
+    'agents.longRunningShellCommands': (patterns) =>
+        patterns.map((pattern) => redactCommandLine(pattern)),
     'agents.notifications.enabled': exportAsIs,
     'agents.notifications.completionThresholdSeconds': exportAsIs,
     'git.fetchGitHubAvatars': exportAsIs,

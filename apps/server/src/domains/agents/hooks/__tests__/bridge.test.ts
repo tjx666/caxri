@@ -184,7 +184,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 24 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 25 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -256,7 +256,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 24 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 25 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });

@@ -175,6 +175,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 this.requests.settleAll('Turn ended');
                 this.toolClock.clear();
             },
+            shellCommand: (taskId) => this.tasks.shellCommand(taskId),
         });
         this.stream = new ClaudeStream(
             (operations) => options.apply(operations),

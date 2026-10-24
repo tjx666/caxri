@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,23 +25,50 @@ async function sharedDirectory(): Promise<string> {
 }
 
 /**
- * Claude's `Stop` lists in-flight background work. Only work that wakes the Agent again marks the finish as waiting,
- * and the task's description or command never crosses the bridge.
+ * Claude's `Stop` lists in-flight background work. Work that wakes the Agent again, and a background shell that matches
+ * no long-running pattern, marks the finish as waiting; the task's description or command never crosses the bridge.
  */
 describe('agent hook bridge background work', () => {
     it.each([
         { tasks: [{ type: 'subagent', status: 'running' }], expected: true },
         { tasks: [{ type: 'workflow', status: 'pending' }], expected: true },
         { tasks: [{ type: 'monitor' }], expected: true },
-        { tasks: [{ type: 'shell', status: 'running', command: 'synthetic' }], expected: false },
         { tasks: [{ type: 'subagent', status: 'completed' }], expected: false },
         { tasks: [], expected: false },
         { tasks: [{ type: 'subagent', status: 'running' }], agentId: 'child', expected: false },
+        // A Server Core that predates the pattern file does not count shells.
+        { tasks: [{ type: 'shell', status: 'running', command: 'synthetic' }], expected: false },
+        {
+            tasks: [{ type: 'shell', status: 'running', command: 'synthetic --watch' }],
+            patterns: ['bun run dev'],
+            expected: true,
+        },
+        {
+            tasks: [
+                { type: 'shell', status: 'running', command: 'cd app && synthetic --port 3000' },
+            ],
+            patterns: ['synthetic'],
+            expected: false,
+        },
+        {
+            tasks: [{ type: 'shell', status: 'completed', command: 'synthetic' }],
+            patterns: [],
+            expected: false,
+        },
+        // A shell that cannot be classified does not hold the turn, as before shells counted at all.
+        { tasks: [{ type: 'shell', status: 'running' }], patterns: ['synthetic'], expected: false },
+        {
+            tasks: [{ type: 'shell', status: 'running', command: 'synthetic' }],
+            patterns: 'unreadable',
+            expected: false,
+        },
     ])(
         'flags a Claude Stop that waits on work that wakes the Agent: %j',
-        async ({ tasks, agentId, expected }) => {
+        async ({ tasks, agentId, patterns, expected }) => {
             const sharedPath = await sharedDirectory();
             const bridgePath = await stageAgentHookBridge(sharedPath);
+            const patternsPath = join(sharedPath, 'long-running-shell-commands.json');
+            if (Array.isArray(patterns)) await writeFile(patternsPath, JSON.stringify(patterns));
             const socketPath = join(sharedPath, 'background.sock');
             const packets: Array<Record<string, unknown>> = [];
             const server = createServer((socket) => {
@@ -64,6 +91,9 @@ describe('agent hook bridge background work', () => {
                     {
                         env: {
                             CAXRI_HOOK_LAUNCH_ID: 'fixture-launch',
+                            ...(patterns !== undefined && {
+                                CAXRI_HOOK_LONG_RUNNING_COMMANDS: patternsPath,
+                            }),
                             CAXRI_HOOK_RUNTIME: process.execPath,
                             CAXRI_HOOK_SOCKET: socketPath,
                             CAXRI_HOOK_TERMINAL_ID: 'fixture-terminal',

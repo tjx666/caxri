@@ -35,6 +35,10 @@ export interface AgentChatServiceOptions {
      */
     launchSettings(provider: AgentProvider, terminal: TerminalRecord): AgentLaunchSettings;
     /**
+     * The current `agents.longRunningShellCommands`, read by each Chat when a turn finishes.
+     */
+    longRunningShellCommands?: () => readonly string[];
+    /**
      * Runs once a Chat's provider is ready, after its state is persisted as running. The Agent Commander uses it to
      * send what a restart cut off, the Chat equivalent of a PTY launch prompt.
      */

@@ -129,10 +129,24 @@ for a failure, a spinner while the Agent runs, a hollow circle for idle, a dashe
 activity was ever reported. A detached Agent shows the unplugged glyph instead of its frozen state. A Claude Code turn that
 ended while background subagents, workflows, or monitors it started still run stays under
 **Working** but swaps the spinner for a slow, muted dotted ring: it is waiting for that work to
-wake it, not busy, and it is not ready for review. Background shells never hold a turn there; a dev
-server can outlive the turn by hours. Orca's quiet monitoring sub-mode is the precedent for keeping
-this inside running instead of adding a state; T3 Code's shell exclusion is the precedent for the
-shell rule.
+wake it, not busy, and it is not ready for review. A background shell holds the turn the same way
+(a test run or a CI watch whose result the Agent still needs), unless its command matches
+`agents.longRunningShellCommands` (Settings > Agents > Long-running background commands): a dev
+server, log tail, or emulator can outlive the turn by hours, so those settle it as usual. The
+default list names the common development servers; add a project's own, such as
+`bun run *switch-worktree.ts dev`. Patterns follow the shared shell command pattern syntax in
+`packages/protocol/src/configuration/shell-command-patterns.ts`: a text pattern is a prefix that ends
+at whitespace (`bun run dev` matches `bun run dev --port 3000`, not `bun run devtools`), `*` matches
+any characters, a bare command name matches it from any directory, `/source/flags` is a regular
+expression, and each sub-command joined by `&&`, `;`, or `|` is checked on its own after leading
+`NAME=value` assignments and wrappers such as `env`, `nohup`, and `timeout` are skipped. The
+Terminal hook bridge matches the command locally and sends Server Core only the resulting boolean,
+so command text never crosses the bridge; a Chat matches its own task list the same way. A shell
+whose command is unknown (only the Agent's description of it, or an unreadable pattern file) does
+not hold the turn, so a misclassified dev server never leaves a Session working. Orca's
+quiet monitoring sub-mode is the precedent for keeping this inside running instead of adding a
+state; VS Code's `chat.tools.terminal.autoApprove` keys and Claude Code's `Bash(...)` permission
+rules are the precedent for the pattern syntax.
 
 Color is the one thing the shape does not carry, and it follows the two-tier rule: only
 **Needs attention** and **Failed** rows are tinted warning or danger, so that weight always means

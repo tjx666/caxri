@@ -302,6 +302,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agents.providers.description':
         '每个 Agent 提供方的启动命令、生命周期 Hook、对等消息和输出恢复',
 
+    'settings.agents.longRunningShellCommands.title': '长期运行的后台命令',
+    'settings.agents.longRunningShellCommands.description':
+        'Claude Code 启动的后台命令会让 Session 保持工作中，直到命令结束；匹配这些模式的命令除外，例如会运行数小时的开发服务器',
+
     'settings.agents.delegation.title': 'Agent 委派',
     'settings.agents.delegation.description': '命名的委派预设、调用方绑定和最大委派深度',
 

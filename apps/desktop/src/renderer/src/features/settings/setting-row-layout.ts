@@ -17,6 +17,7 @@ export const SHORT_CONTROL_WIDTH_CLASS_NAME = 'w-52';
 const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['type']> = new Set([
     'files-exclude',
     'ignored-checks',
+    'long-running-commands',
     'mobile-access',
     'provider-actions',
     'provider-launch',

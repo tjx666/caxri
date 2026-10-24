@@ -1741,12 +1741,13 @@ hook `cwd` as `agentCwd`: its transcript is located through `agentProviderStateR
 existing worktree with `EnterWorktree` is therefore not followed in a Chat yet. Codex and Grok Chats
 expose no blocking pre-tool callback and do not report these phases.
 
-A Claude Chat whose turn ends while a background subagent or workflow task is still running reports
+A Claude Chat whose turn ends while a background subagent, workflow, or shell task is still running reports
 `turnFinished` with `agentBackgroundWork`, the same evidence the Terminal hook bridge derives from
 Claude's `background_tasks`, so the Session stays running in the quiet background sub-mode instead
 of turning unread. When the task list later drains without Claude Code starting a new turn, the Chat
-reports a plain `turnFinished` for the same turn, which settles it. Background shells never hold
-completion. Monitors are not listed as Chat tasks, so they do not hold it in a Chat yet.
+reports a plain `turnFinished` for the same turn, which settles it. A background shell whose command
+matches `agents.longRunningShellCommands` (a dev server) never holds completion; see
+[Activity view](activity-view.md). Monitors are not listed as Chat tasks, so they do not hold it in a Chat yet.
 
 ## Observability
 
