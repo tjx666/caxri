@@ -206,6 +206,10 @@ export const effectfulCommandRecovery = {
     'contextMenu.show': 'none',
     'processExplorer.open': 'durable',
     'benchmark.open': 'durable',
+    /**
+     * A toggle replayed after a reconnect would flip the window the user already settled.
+     */
+    'performanceMonitor.window': 'none',
     'benchmark.shareImage.copy': 'memory',
     'benchmark.shareImage.save': 'memory',
     'agentCommander.clearData': 'durable',

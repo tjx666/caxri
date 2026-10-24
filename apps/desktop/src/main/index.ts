@@ -54,6 +54,7 @@ import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
 import { companionWindowFor, createOnDemandWindows, isZoomingWithApp } from './on-demand-windows';
+import type { PerformanceMonitorWindowController } from './performance-monitor/window';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { RendererReadiness } from './renderer-readiness';
@@ -87,6 +88,7 @@ import {
     eventAudience,
     WorkbenchWindows,
 } from './workbench-windows';
+import { installActivationHandlers } from './workbench-windows/activation-handlers';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -151,6 +153,7 @@ if (ownsProfileInstance) {
         processName: 'desktop',
     });
     let processExplorer: ProcessExplorerWindowController;
+    let performanceMonitor: PerformanceMonitorWindowController | undefined;
     let agentCommander: AgentCommanderWindowController | undefined;
     let benchmarkWindow: BenchmarkWindowController | undefined;
     let updateService: UpdateService;
@@ -214,6 +217,7 @@ if (ownsProfileInstance) {
             agentCommander?.openWindow(),
             benchmarkWindow?.openWindow(),
             processExplorer.openWindow(),
+            performanceMonitor?.openWindow(),
             ...(sshHostEnvironments?.list().map((environment) => environment.window) ?? []),
         ],
     });
@@ -403,6 +407,8 @@ if (ownsProfileInstance) {
             environment: createLocalWorkbenchEnvironment(() => sshHostEnvironments),
             logger: () => mainLogger,
             getProcessExplorer: () => processExplorer,
+            getPerformanceMonitor: () => performanceMonitor,
+            requestWorkbenchProcessId: () => requestWorkbenchWindow()?.webContents.getOSProcessId(),
             getAgentCommander: () => agentCommander,
             getBenchmarkWindow: () => benchmarkWindow,
             onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
@@ -465,7 +471,10 @@ if (ownsProfileInstance) {
             logger: () => mainLogger,
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             readEventLoopStalls: () => eventLoopMonitor?.summary(),
-            onStartupFrame: (frame) => startupProfile.complete(frame),
+            onStartupFrame: (frame, sender) => {
+                startupProfile.complete(frame);
+                performanceMonitor?.recordStartupFrame(frame, sender);
+            },
             sshHost: (sender) => sshHostEnvironments?.route(sender),
             onEventsReady: (sender) => {
                 if (workbenchWindows.keyOf(sender) === PRIMARY_WINDOW_KEY)
@@ -578,15 +587,16 @@ if (ownsProfileInstance) {
                 userDataPath,
                 zoomLevel: () => windowZoom.level(),
             });
-            ({ agentCommander, benchmarkWindow, processExplorer } = createOnDemandWindows({
-                currentDirectory,
-                logger: mainLogger,
-                mainWindow: () => mainWindow,
-                sendEvent,
-                supervisor,
-                windowMode: e2eWindowMode,
-                zoomLevel: () => windowZoom.level(),
-            }));
+            ({ agentCommander, benchmarkWindow, performanceMonitor, processExplorer } =
+                createOnDemandWindows({
+                    currentDirectory,
+                    logger: mainLogger,
+                    mainWindow: () => mainWindow,
+                    sendEvent,
+                    supervisor,
+                    windowMode: e2eWindowMode,
+                    zoomLevel: () => windowZoom.level(),
+                }));
             supervisor.onEvent(sendEvent);
             wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
             installSignalQuitTriggers(quitTriggers);
@@ -628,22 +638,10 @@ if (ownsProfileInstance) {
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});
-    app.on('activate', () => {
-        openMainWindow();
-        // `activate` is a synchronous listener; a failed validation pass surfaces on the next one.
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        supervisor.request('session.validateWorkbenchRoots').catch(() => {});
-    });
-
-    app.on('browser-window-focus', () => {
-        // `browser-window-focus` is a synchronous listener; a failed validation pass surfaces on the
-        // next one.
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        supervisor.request('session.validateWorkbenchRoots').catch(() => {});
-    });
-
-    app.on('window-all-closed', () => {
-        // macOS keeps the Desktop client alive; the independently supervised Server survives either way.
+    installActivationHandlers({
+        app,
+        openMainWindow,
+        validateWorkbenchRoots: () => supervisor.request('session.validateWorkbenchRoots'),
     });
     installBeforeQuitTrigger(quitTriggers);
 }

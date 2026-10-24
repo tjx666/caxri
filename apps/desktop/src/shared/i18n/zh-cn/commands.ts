@@ -127,6 +127,8 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.help.showKeyboardShortcuts': '键盘快捷键',
     'commands.processExplorer.open': '打开进程资源管理器',
     'commands.developer.toggleScreencastMode': '切换录屏模式',
+    'commands.developer.togglePerformanceMonitor': '切换性能监视器',
+    'commands.developer.openPerformanceMonitorWindow': '在独立窗口打开性能监视器',
     'commands.developer.reportBug': '向 Agent 报告问题',
     'commands.diagnostics.export': '导出诊断信息',
     'commands.sshHost.connect': '连接到 SSH Host…',

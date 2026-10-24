@@ -1,0 +1,3 @@
+@import './theme.css';
+/** The one definition of a Renderer scrollbar; the Workbench window loads the same file. */
+@import './scrollbars.css';

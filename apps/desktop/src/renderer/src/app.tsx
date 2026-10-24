@@ -22,6 +22,7 @@ import { subscribeUnsavedEditorRequests } from './features/editor/unsaved-editor
 import { KeyboardShortcutsDialog } from './features/keyboard-shortcuts/keyboard-shortcuts-dialog';
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
+import { PerformanceOverlay } from './features/performance-monitor/performance-overlay';
 import { useDeliveryFocusRefresh } from './features/primary-sidebar/hooks/use-delivery-focus-refresh';
 import { useTranslucentSidebar } from './features/primary-sidebar/hooks/use-translucent-sidebar';
 import { PrimarySidebar } from './features/primary-sidebar/primary-sidebar';
@@ -329,6 +330,7 @@ export function App() {
                     <ToastOutlet />
                     <WindowZoomHud />
                     <ScreencastOverlay />
+                    <PerformanceOverlay />
                 </main>
             </TooltipProvider>
             {sshHostLayer}

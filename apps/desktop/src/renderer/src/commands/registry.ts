@@ -182,7 +182,12 @@ export interface CommandContext {
         openProcessExplorer(): void;
         zoom(step: 'in' | 'out' | 'reset'): void;
     };
-    developer: { reportBug(): void; toggleScreencastMode(): void };
+    developer: {
+        openPerformanceMonitorWindow(): void;
+        reportBug(): void;
+        togglePerformanceMonitor(): void;
+        toggleScreencastMode(): void;
+    };
     diagnostics: { export(): void };
     updates: { check(): void };
     shellCommand: { install(): void; uninstall(): void };

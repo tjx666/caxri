@@ -47,6 +47,10 @@ import {
 } from '../features/editor/send-file-reference';
 import { openUntitledEditor } from '../features/editor/untitled/commands';
 import {
+    openPerformanceMonitorWindow,
+    togglePerformanceMonitor,
+} from '../features/performance-monitor/monitor-commands';
+import {
     canOpenActivePreview,
     openActiveFilePreview,
     openActiveFilePreviewToSide,
@@ -465,7 +469,9 @@ const commandContext: CommandContext = {
         zoom: (step) => void stepWindowZoom(step),
     },
     developer: {
+        openPerformanceMonitorWindow,
         reportBug: () => useDialogStore.getState().openBugReport(),
+        togglePerformanceMonitor,
         toggleScreencastMode,
     },
     diagnostics: {

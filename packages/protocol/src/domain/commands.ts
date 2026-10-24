@@ -120,6 +120,8 @@ export const commandIds = [
     'agentCommander.handOver',
     'agentCommander.takeBack',
     'developer.toggleScreencastMode',
+    'developer.togglePerformanceMonitor',
+    'developer.openPerformanceMonitorWindow',
     'developer.reportBug',
     'diagnostics.export',
     'sshHost.connect',

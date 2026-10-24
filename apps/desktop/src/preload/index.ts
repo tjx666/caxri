@@ -15,6 +15,12 @@ import { CAXRI_PROTOCOL_VERSION, fromWireError } from '@caxri/protocol';
 import { notifyListeners } from '@caxri/utils';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
+import type {
+    PerformanceMonitorControl,
+    PerformanceMonitorHostBridge,
+} from '../shared/performance-monitor';
+import type { PERFORMANCE_MONITOR_CHANNELS } from '../shared/performance-monitor-channels';
+
 /**
  * Kept as an entry-local literal: importing the protocol constant at runtime from both preload entries makes Rolldown
  * extract a shared CommonJS chunk, which Electron's sandboxed preload loader cannot require. The type-only binding
@@ -193,6 +199,34 @@ const bridge: CaxriBridge = {
 };
 
 contextBridge.exposeInMainWorld('caxri', bridge);
+
+/**
+ * Channel literals for the Performance Monitor host bridge, typed against the shared table so a rename fails typecheck;
+ * a runtime import of that module would make Rolldown share a chunk the sandboxed preload cannot require.
+ */
+const monitorPublishChannel: (typeof PERFORMANCE_MONITOR_CHANNELS)['publish'] =
+    'caxri:performance-monitor:publish';
+const monitorIsActiveChannel: (typeof PERFORMANCE_MONITOR_CHANNELS)['isActive'] =
+    'caxri:performance-monitor:is-active';
+const monitorControlChannel: (typeof PERFORMANCE_MONITOR_CHANNELS)['control'] =
+    'caxri:performance-monitor:control';
+
+/**
+ * Lets the Workbench publish its own frame pacing to a detached Performance Monitor window through Main. Main drops a
+ * publish that does not come from the monitored window, so a Companion Renderer sharing this preload gains nothing.
+ */
+const performanceMonitorHost: PerformanceMonitorHostBridge = {
+    isActive: () => ipcRenderer.invoke(monitorIsActiveChannel),
+    onControl: (listener) => {
+        const handler = (_event: Electron.IpcRendererEvent, control: PerformanceMonitorControl) =>
+            listener(control);
+        ipcRenderer.on(monitorControlChannel, handler);
+        return () => ipcRenderer.off(monitorControlChannel, handler);
+    },
+    publish: (snapshot) => ipcRenderer.send(monitorPublishChannel, snapshot),
+};
+
+contextBridge.exposeInMainWorld('performanceMonitorHost', performanceMonitorHost);
 
 if (worktreePath) contextBridge.exposeInMainWorld('__caxriWorktree', worktreePath);
 

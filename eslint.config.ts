@@ -507,6 +507,7 @@ export default defineConfig(
         ],
         ignores: [
             '**/main.tsx',
+            '**/performance-monitor-main.tsx',
             '**/process-explorer-main.tsx',
             '**/agent-commander-main.tsx',
             '**/benchmark-main.tsx',

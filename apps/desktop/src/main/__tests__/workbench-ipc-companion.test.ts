@@ -222,6 +222,6 @@ describe('workbench IPC companion requests', () => {
         expect(onStartupFrame).not.toHaveBeenCalled();
         // The same frame from the Workbench is accepted, so the companion's was refused by sender, not by shape.
         report({ sender: renderer }, startupFrame);
-        expect(onStartupFrame).toHaveBeenCalledExactlyOnceWith(startupFrame);
+        expect(onStartupFrame).toHaveBeenCalledExactlyOnceWith(startupFrame, renderer);
     });
 });

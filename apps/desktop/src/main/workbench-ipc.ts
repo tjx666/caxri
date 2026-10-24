@@ -64,7 +64,7 @@ export interface WorkbenchIpcOptions {
      */
     readEventLoopStalls?(): EventLoopStallSummary | undefined;
     onEventsReady?(sender: WebContents): void;
-    onStartupFrame?(diagnostic: StartupFrameDiagnostic): void;
+    onStartupFrame?(diagnostic: StartupFrameDiagnostic, sender: WebContents): void;
     /**
      * Whether a sender is one of the local Workbench windows (the primary window or a tear-off window). Trust follows
      * the live registry, so a closed tear-off window's queued IPC is refused.
@@ -203,7 +203,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             return;
         }
         if (diagnostic.kind === 'startup-frame') {
-            options.onStartupFrame?.(diagnostic);
+            options.onStartupFrame?.(diagnostic, event.sender);
             return;
         }
         if (diagnostic.kind === 'gpu-incident-budget') {

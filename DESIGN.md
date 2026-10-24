@@ -1739,6 +1739,17 @@ popup itself hold focus until then.
   opaque, its Settings row says why in a muted line. An inactive window renders the material flat grey;
   that is native behavior.
 
+## Performance Monitor
+
+- The overlay is a 256px elevated card (`bg-elevated`, `border-border`) on `z-[100]` inside a
+  `pointer-events-none` layer, so only the card takes input. Its 24px header is the drag handle;
+  dragging writes `transform` directly and commits once on release, and the card is clamped into
+  the viewport on resize and when its content grows.
+- Numbers use `font-mono tabular-nums`; the fps value is 15px, all else 11px. Tone uses only
+  `text-success`, `text-warning`, `text-danger`, `text-muted`. Bars in the frame graph share those tones.
+- The detached window uses the 36px hidden-inset title bar of Process Explorer, with the same
+  Overlay | Window toggle in its footer.
+
 ## Known gaps
 
 Acknowledged debt in the current spec. Entries here describe shipped reality, not an endorsement;

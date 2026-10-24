@@ -187,6 +187,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['clipboard'],
         why: 'Requests the system pasteboard (clipboard: true).',
     },
+    'e2e/performance-monitor.e2e.ts': {
+        reasons: ['visible-window', 'machine-process'],
+        why: 'The detached monitor is its own visible window and reads machine process metrics.',
+    },
     'e2e/process-explorer-recovery.e2e.ts': {
         reasons: ['clipboard', 'machine-process'],
         why: 'Process Explorer lists machine processes and copies details through the pasteboard.',

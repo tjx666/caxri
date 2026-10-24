@@ -131,6 +131,14 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      of its V8 parent and copy a sync zlib result, which is a slice of Node's shared buffer pool
      (`apps/server/src/domains/agent-chat/chat-history-archive.ts`, the agent timeline projection).
 
+   For a quick frame rate, reload, or Session switch reading, open the Performance Monitor
+   (`docs/performance-monitor.md`; command palette `Toggle Performance Monitor`) without a debugger. Choose
+   Window mode to reload the Workbench from the monitor's `Reload` or `Hard reload` and read DOM ready, loaded,
+   and first frame from Main's clock; `Cmd+R` reloads are timed too. Its `fps` is the main thread's
+   `requestAnimationFrame` rate, so an idle page reads the display refresh rate; use CDP for compositor
+   presentation. The monitor costs about 0.2% Renderer CPU when open and nothing when closed, so compare
+   readings taken with it open against each other, never against a closed baseline.
+
    Measure idle cost over CDP in a frontmost dev window: `SystemInfo.getProcessInfo` CPU time for
    the Renderer and GPU processes plus `Performance.getMetrics` `RecalcStyleCount` and
    `TaskDuration`, comparing before and after in the same instance. Discard samples during which

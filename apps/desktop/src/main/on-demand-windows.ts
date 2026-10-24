@@ -8,6 +8,13 @@ import { app } from 'electron';
 
 import { AgentCommanderWindowController } from './agent-commander-window';
 import { BenchmarkWindowController } from './benchmark-window';
+import {
+    createSharedProcessReader,
+    gpuRasterState,
+    readServerProcess,
+    summarizeProcesses,
+} from './performance-monitor/metrics';
+import { PerformanceMonitorWindowController } from './performance-monitor/window';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import type { DesktopServerConnection } from './server-connection';
@@ -15,8 +22,8 @@ import type { E2EWindowMode } from './window-mode';
 import type { CompanionRendererPolicy } from './workbench-ipc';
 
 /**
- * Creates the controllers of Main's on-demand windows: Process Explorer, the Agent Commander, and Benchmark. No window
- * opens here; each controller creates its BrowserWindow on first `open()`.
+ * Creates the controllers of Main's on-demand windows: Process Explorer, Performance Monitor, the Agent Commander, and
+ * Benchmark. No window opens here; each controller creates its BrowserWindow on first `open()`.
  */
 export function createOnDemandWindows(options: {
     currentDirectory: string;
@@ -72,6 +79,51 @@ export function createOnDemandWindows(options: {
         windowMode,
         zoomLevel: options.zoomLevel,
     });
+    /**
+     * One `getAppMetrics()` reading shared by Process Explorer and the Performance Monitor; see
+     * `createSharedProcessReader` for why two independent readers would distort each other's CPU.
+     */
+    const readElectronProcesses = createSharedProcessReader(() =>
+        app.getAppMetrics().map((metric) => ({
+            pid: metric.pid,
+            type: metric.type,
+            name: metric.name,
+            serviceName: metric.serviceName,
+            cpuPercent: metric.cpu.percentCPUUsage,
+            memoryMb: kilobytesToMegabytes(metric.memory.workingSetSize),
+        })),
+    );
+    const performanceMonitor: PerformanceMonitorWindowController =
+        new PerformanceMonitorWindowController({
+            currentDirectory,
+            isPackaged: app.isPackaged,
+            language: async () =>
+                (await supervisor.request('settings.get')).value['workbench.language'],
+            logger: options.logger,
+            metrics: async (workbenchProcessId) => {
+                const mainWindow = options.mainWindow();
+                const serverPid = supervisor.serverProcessId();
+                const server =
+                    serverPid === undefined ? undefined : await readServerProcess(serverPid);
+                return {
+                    sampledAt: Date.now(),
+                    gpuRaster: gpuRasterState(app.getGPUFeatureStatus()),
+                    processes: summarizeProcesses(
+                        readElectronProcesses(),
+                        workbenchProcessId ??
+                            (mainWindow && !mainWindow.isDestroyed()
+                                ? mainWindow.webContents.getOSProcessId()
+                                : undefined),
+                        server,
+                    ),
+                };
+            },
+            rendererUrl: process.env.ELECTRON_RENDERER_URL,
+            target: options.mainWindow,
+            theme: async () => (await supervisor.request('theme.get')).value,
+            windowMode,
+            zoomLevel: options.zoomLevel,
+        });
     const processExplorer: ProcessExplorerWindowController = new ProcessExplorerWindowController({
         currentDirectory,
         forceRenderError:
@@ -111,17 +163,11 @@ export function createOnDemandWindows(options: {
                 if (commanderPid !== undefined) roles.set(commanderPid, 'agent commander');
                 const benchmarkPid = benchmark.processId();
                 if (benchmarkPid !== undefined) roles.set(benchmarkPid, 'benchmark');
+                const monitorPid = performanceMonitor.processId();
+                if (monitorPid !== undefined) roles.set(monitorPid, 'performance monitor');
                 return roles;
             },
-            electronProcesses: () =>
-                app.getAppMetrics().map((metric) => ({
-                    pid: metric.pid,
-                    type: metric.type,
-                    name: metric.name,
-                    serviceName: metric.serviceName,
-                    cpuPercent: metric.cpu.percentCPUUsage,
-                    memoryMb: kilobytesToMegabytes(metric.memory.workingSetSize),
-                })),
+            electronProcesses: readElectronProcesses,
         }),
         stopTerminal: (terminalId) => supervisor.request('terminal.suspend', { terminalId }),
         theme: async () => (await supervisor.request('theme.get')).value,
@@ -134,9 +180,12 @@ export function createOnDemandWindows(options: {
      * no key, so every settings change re-sends the current value.
      */
     supervisor.onEvent((event) => {
-        if (event.event === 'settings.changed') void processExplorer.refreshLanguage();
+        if (event.event !== 'settings.changed') return;
+        void processExplorer.refreshLanguage();
+        void performanceMonitor.refreshLanguage();
     });
-    return { agentCommander, benchmarkWindow: benchmark, processExplorer };
+    performanceMonitor.installIpc();
+    return { agentCommander, benchmarkWindow: benchmark, performanceMonitor, processExplorer };
 }
 
 /**

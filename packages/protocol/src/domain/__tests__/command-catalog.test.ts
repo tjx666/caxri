@@ -145,7 +145,7 @@ describe('command registry', () => {
             getNativeMenuCommandGroups('help').map((group) => group.map((command) => command.id)),
         ).toEqual([
             ['help.showKeyboardShortcuts'],
-            ['processExplorer.open'],
+            ['processExplorer.open', 'developer.togglePerformanceMonitor'],
             ['developer.reportBug', 'diagnostics.export'],
         ]);
         expect(getNativeMenuCommandGroups('terminal')[0]?.map((command) => command.id)).toEqual([

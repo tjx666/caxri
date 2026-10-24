@@ -1,6 +1,10 @@
 /// <reference types="vite/client" />
 
 import type { CaxriBridge } from '@caxri/protocol';
+import type {
+    PerformanceMonitorHostBridge,
+    PerformanceMonitorWindowBridge,
+} from '@desktop-shared/performance-monitor';
 import type { ProcessExplorerBridge } from '@desktop-shared/process-explorer';
 
 declare global {
@@ -13,6 +17,14 @@ declare global {
          */
         __caxriWorktree?: string;
         caxri: CaxriBridge;
+        /**
+         * Present in the Workbench preload only; absent in the dedicated windows and in unit tests.
+         */
+        performanceMonitorHost?: PerformanceMonitorHostBridge;
+        /**
+         * Present in the Performance Monitor window's preload only.
+         */
+        performanceMonitor: PerformanceMonitorWindowBridge;
         processExplorer: ProcessExplorerBridge;
     }
 
@@ -25,6 +37,10 @@ declare global {
     var caxri: CaxriBridge;
     // eslint-disable-next-line no-var -- `declare global { var … }` is the required ambient form
     var processExplorer: ProcessExplorerBridge;
+    // eslint-disable-next-line no-var -- `declare global { var … }` is the required ambient form
+    var performanceMonitor: PerformanceMonitorWindowBridge;
+    // eslint-disable-next-line no-var -- `declare global { var … }` is the required ambient form
+    var performanceMonitorHost: PerformanceMonitorHostBridge | undefined;
 }
 
 export {};

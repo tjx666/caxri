@@ -45,6 +45,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [notifications.md](notifications.md)                               | Notification center history and reminders                      |
 | [open-sessions.md](open-sessions.md)                               | Per-window Open Session, secondary windows, and presence       |
 | [process-explorer.md](process-explorer.md)                         | Process Explorer, resource thresholds, and runaway alerts      |
+| [performance-monitor.md](performance-monitor.md)                   | Draggable frame rate monitor and reload timeline               |
 | [provider-messaging.md](provider-messaging.md)                     | Peer Inbox provider-messaging support and the verified matrix  |
 | [quality-toolchain.md](quality-toolchain.md)                       | Unified mechanical-quality tooling                             |
 | [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                             |

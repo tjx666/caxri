@@ -130,6 +130,8 @@ export const commands = {
     'commands.help.showKeyboardShortcuts': 'Keyboard Shortcuts',
     'commands.processExplorer.open': 'Open Process Explorer',
     'commands.developer.toggleScreencastMode': 'Toggle Screencast Mode',
+    'commands.developer.togglePerformanceMonitor': 'Toggle Performance Monitor',
+    'commands.developer.openPerformanceMonitorWindow': 'Open Performance Monitor Window',
     'commands.developer.reportBug': 'Report Bug to Agent',
     'commands.diagnostics.export': 'Export Diagnostics',
     'commands.sshHost.connect': 'Connect to SSH Host…',

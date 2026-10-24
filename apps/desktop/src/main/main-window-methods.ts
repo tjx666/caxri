@@ -1,8 +1,9 @@
-import type { MainRequest, SettingsTarget } from '@caxri/protocol';
+import type { MainRequest, PerformanceMonitorMetrics, SettingsTarget } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import type { BenchmarkWindowController } from './benchmark-window';
+import type { PerformanceMonitorWindowController } from './performance-monitor/window';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import type { WindowPresenceRegistry } from './window-presence-registry';
 import { currentRequestWindowKey } from './window-presence-registry';
@@ -12,6 +13,14 @@ import { currentRequestWindowKey } from './window-presence-registry';
  */
 export interface MainWindowMethodOptions {
     getProcessExplorer(): ProcessExplorerWindowController;
+    /**
+     * Absent in an SSH Host window and in handler tests that do not exercise the monitor.
+     */
+    getPerformanceMonitor?(): PerformanceMonitorWindowController | undefined;
+    /**
+     * The Renderer process of the Workbench window making the current request; the in-window monitor reports that one.
+     */
+    requestWorkbenchProcessId?(): number | undefined;
     getAgentCommander(): AgentCommanderWindowController | undefined;
     /**
      * Absent in an SSH Host window, which has no Benchmark window of its own.
@@ -44,6 +53,8 @@ const WINDOW_METHODS = [
     'agentCommander.revealSession',
     'agentCommander.stop',
     'benchmark.open',
+    'performanceMonitor.metrics',
+    'performanceMonitor.window',
     'processExplorer.open',
     'window.reportViewing',
     'window.tearOffSession',
@@ -61,11 +72,24 @@ export function isWindowRequest(request: MainRequest): request is WindowRequest 
 export async function handleWindowRequest(
     request: WindowRequest,
     options: MainWindowMethodOptions,
-): Promise<{ opened: boolean } | null> {
+): Promise<PerformanceMonitorMetrics | { opened: boolean } | null> {
     switch (request.method) {
         case 'processExplorer.open':
             options.getProcessExplorer().open();
             return null;
+        case 'performanceMonitor.metrics': {
+            const monitor = options.getPerformanceMonitor?.();
+            if (!monitor)
+                throw new CaxriError('FORBIDDEN', 'The Performance Monitor is not available here');
+            return monitor.readMetrics(options.requestWorkbenchProcessId?.());
+        }
+        case 'performanceMonitor.window': {
+            const monitor = options.getPerformanceMonitor?.();
+            if (request.params.action === 'open') monitor?.open();
+            else if (request.params.action === 'close') monitor?.close();
+            else monitor?.toggle();
+            return null;
+        }
         case 'agentCommander.open':
             options.getAgentCommander()?.open(request.params.target);
             return null;

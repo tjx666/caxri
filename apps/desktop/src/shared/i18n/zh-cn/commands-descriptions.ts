@@ -130,6 +130,9 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.help.showKeyboardShortcuts': '按类别列出所有键盘快捷键',
     'commands.description.processExplorer.open': '查看 Caxri 各进程的资源占用',
     'commands.description.developer.toggleScreencastMode': '显示点击和 Caxri 快捷键，便于外部录屏',
+    'commands.description.developer.togglePerformanceMonitor': '显示或隐藏可拖拽的帧率与资源监视器',
+    'commands.description.developer.openPerformanceMonitorWindow':
+        '在独立窗口打开性能监视器，重新加载主窗口时不会消失',
     'commands.description.developer.reportBug':
         '预览并向运行中的 Agent 发送一份保护隐私的本地问题报告',
     'commands.description.diagnostics.export': '导出一份保护隐私的诊断包',

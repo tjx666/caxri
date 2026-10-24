@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { auxiliaryWindowStateSchema, persistedWindowStateSchema } from '../domain/domain.js';
 import { identifierSchema } from '../domain/identifiers.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { performanceMonitorMetricsSchema } from './performance-monitor-metrics.js';
 
 const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');
@@ -77,4 +78,22 @@ export const windowDesktopMethods = {
     },
     'processExplorer.open': { ...desktopControl, params: noParameters, result: z.null() },
     'benchmark.open': { ...desktopControl, params: noParameters, result: z.null() },
+    /**
+     * Opens, raises, closes, or toggles the Performance Monitor's own window. The in-window overlay is Renderer state
+     * and needs no method.
+     */
+    'performanceMonitor.window': {
+        ...desktopControl,
+        params: z.object({ action: z.enum(['open', 'close', 'toggle']) }),
+        result: z.null(),
+    },
+    /**
+     * Process and GPU readings the Performance Monitor shows beside the frame rate it measures itself. Main samples
+     * through the Process Explorer's sampler, so the two never disturb each other's CPU deltas.
+     */
+    'performanceMonitor.metrics': {
+        ...desktopRead,
+        params: noParameters,
+        result: performanceMonitorMetricsSchema,
+    },
 } as const;
