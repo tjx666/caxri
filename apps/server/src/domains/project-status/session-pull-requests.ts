@@ -36,6 +36,7 @@ import type {
     SessionEntry,
     SessionUpdate,
 } from './session-pull-request-entries';
+import { isSettled, pullRequestKey, wasMergedBefore } from './session-pull-request-entries';
 import type { SessionPullRequestResolution } from './session-pull-request-parse';
 import {
     isRowChanged,
@@ -124,14 +125,6 @@ type SessionPullRequestDatabase = Pick<
     CaxriDatabase,
     'getSession' | 'getTerminal' | 'listVisibleSessions'
 >;
-
-function pullRequestKey(reference: PullRequestReference): string {
-    return `${reference.owner}/${reference.repo}#${reference.number}`;
-}
-
-function isSettled(value: SessionPullRequest | undefined): value is SessionPullRequest {
-    return value?.state === 'merged' || value?.state === 'closed';
-}
 
 /**
  * Discovers and tracks the pull request each active Session is delivering. Discovery prefers the Session's own Agent
@@ -387,23 +380,27 @@ export class SessionPullRequestService {
         isForced: boolean,
     ): Promise<{ entry: SessionEntry; lookedUp: boolean }> {
         const now = this.now();
-        const reference = await this.transcriptReference(session);
-        if (reference) {
-            const key = pullRequestKey(reference);
+        const found = await this.transcriptReference(session);
+        let isTranscriptLookedUp = false;
+        if (found) {
+            const key = pullRequestKey(found.reference);
             // A still-fresh entry already carries last sweep's answer, including any branch hand-off below.
             if (!isForced && previous?.key === key && previous.expiresAt > now)
                 return { entry: previous, lookedUp: false };
             const transcript = await this.transcriptPullRequest(
                 session,
-                reference,
+                found.reference,
                 key,
                 previous,
                 isForced,
             );
-            return this.preferBranchPullRequest(session, transcript, key, isForced);
+            if (!(found.isMentioned && wasMergedBefore(transcript.entry.value, session.createdAt)))
+                return this.preferBranchPullRequest(session, transcript, key, isForced);
+            // The Agent cited a delivery that landed before this Session existed; fall back to the branch.
+            isTranscriptLookedUp = transcript.lookedUp;
         }
         if (!isForced && previous && previous.key === undefined && previous.expiresAt > now)
-            return { entry: previous, lookedUp: false };
+            return { entry: previous, lookedUp: isTranscriptLookedUp };
         const branch = await this.branchPullRequest(session, isForced);
         return {
             entry: {
@@ -411,7 +408,7 @@ export class SessionPullRequestService {
                 value: branch.value,
                 unavailable: branch.unavailable,
             },
-            lookedUp: branch.lookedUp,
+            lookedUp: branch.lookedUp || isTranscriptLookedUp,
         };
     }
 
@@ -504,20 +501,20 @@ export class SessionPullRequestService {
      */
     private async transcriptReference(
         session: SessionRecord,
-    ): Promise<PullRequestReference | undefined> {
+    ): Promise<{ reference: PullRequestReference; isMentioned: boolean } | undefined> {
         const { pullRequests: current } = await this.readSessionContext(session);
         /**
          * A `gh pr create` result is authoritative even when it targets a submodule or linked repository. A link the
          * Agent merely mentioned may be anything it quoted (a changelog, a related PR), so it only counts for the
          * repository this Session actually works in; otherwise the sidebar would show a stranger's PR.
          */
-        if (current.created) return current.created;
+        if (current.created) return { reference: current.created, isMentioned: false };
         if (!current.mentioned) return undefined;
         const remote = await this.githubRemote(session);
         return remote &&
             remote.owner.toLowerCase() === current.mentioned.owner.toLowerCase() &&
             remote.repo.toLowerCase() === current.mentioned.repo.toLowerCase()
-            ? current.mentioned
+            ? { reference: current.mentioned, isMentioned: true }
             : undefined;
     }
 
