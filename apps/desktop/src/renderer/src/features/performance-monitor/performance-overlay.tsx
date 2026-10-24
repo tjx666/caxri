@@ -94,8 +94,8 @@ function ActivePerformanceOverlay() {
             <div
                 ref={cardReference}
                 aria-label={t('performanceMonitor.title')}
-                className="pointer-events-auto absolute top-0 left-0 flex max-h-full w-64 max-w-full flex-col overflow-hidden rounded-md border border-border bg-elevated text-foreground shadow-[0_8px_24px_var(--shadow)] will-change-transform"
-                role="dialog"
+                className="pointer-events-auto absolute top-0 left-0 flex max-h-full w-64 max-w-full flex-col overflow-hidden rounded-md border border-border bg-elevated text-foreground shadow-[0_8px_24px_var(--shadow)]"
+                role="region"
                 style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
             >
                 <div
