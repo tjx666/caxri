@@ -17,6 +17,7 @@ import {
 } from '../../stores/workbench-session-titles';
 import { forgetDeletedSessions } from '../closed-items/recording';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
+import { beginSessionSwitchTiming } from '../renderer-performance/jank-monitor';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
@@ -37,18 +38,22 @@ const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {}
 async function didRequestSelection(sessionId: string): Promise<boolean> {
     const convergence = registerSessionCommandConvergence('session.select');
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
+    const switchTiming = beginSessionSwitchTiming();
     const selected = await tryCommand(translate('session.errors.selectFailed'), async () => {
         try {
             return await caxri.request('session.select', { sessionId });
         } finally {
             finishPerformanceRequest();
+            switchTiming.replied();
         }
     });
     if (selected === undefined) {
+        switchTiming.abandon();
         convergence.cancel();
         return false;
     }
     await convergence.promise;
+    switchTiming.converged();
     // Another window owns the Session: the Server activated it there and left this window as it was, so there is no
     // selection here to record in the visit history.
     return selected.ownerWindowKey === undefined;

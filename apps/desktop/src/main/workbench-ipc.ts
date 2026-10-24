@@ -22,6 +22,10 @@ import type { BrowserWindow, WebContents } from 'electron';
 import { ipcMain } from 'electron';
 
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
+import {
+    rendererJankLogFields,
+    rendererJankLogLevel,
+} from './renderer-diagnostics/renderer-jank-log';
 import { runInRequestWindow } from './request-window';
 import { runInRequestWindowKey } from './window-presence-registry';
 
@@ -312,6 +316,14 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                         userActivationHasBeenActive: diagnostic.userActivationHasBeenActive,
                         window: rendererWindow,
                     },
+                });
+            return;
+        }
+        if (diagnostic.kind === 'renderer-jank') {
+            options
+                .logger()
+                ?.write(rendererJankLogLevel(diagnostic), logEventCatalog.renderer.jank, {
+                    fields: { ...rendererJankLogFields(diagnostic), window: rendererWindow },
                 });
             return;
         }

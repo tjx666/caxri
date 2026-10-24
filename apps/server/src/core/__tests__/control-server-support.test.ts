@@ -53,6 +53,62 @@ describe('Host request log sink', () => {
         expect(writes[0]?.[2]?.fields).toMatchObject({ code: 'CANCELLED' });
     });
 
+    it('logs a noticeable queue wait at info and names the blocking request', () => {
+        const writes: ControlRequestLogWrite[] = [];
+        const request = { id: 'select-1', method: 'session.select' };
+
+        logControlRequestOutcome(
+            {
+                logger: {
+                    write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_),
+                },
+            },
+            request,
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: request.id,
+                ok: true,
+                result: {},
+            },
+            operatorContext('profile-1'),
+            performance.now(),
+            {
+                enqueuedAt: performance.now() - 400,
+                queueDepth: 3,
+                blockedBy: { method: 'git.sync', overlapMs: 380.4, requestId: 'sync-9' },
+            },
+        );
+
+        expect(writes).toHaveLength(1);
+        expect(writes[0]?.[0]).toBe('info');
+        expect(writes[0]?.[2]?.fields).toMatchObject({
+            blockedByMethod: 'git.sync',
+            blockedByRequestId: 'sync-9',
+            blockedByOverlapMs: 380,
+        });
+    });
+
+    it('keeps a short queue wait at debug without blocker fields', () => {
+        const writes: ControlRequestLogWrite[] = [];
+        const request = { id: 'select-2', method: 'session.select' };
+
+        logControlRequestOutcome(
+            {
+                logger: {
+                    write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_),
+                },
+            },
+            request,
+            { protocolVersion: CAXRI_PROTOCOL_VERSION, id: request.id, ok: true, result: {} },
+            operatorContext('profile-1'),
+            performance.now(),
+            { enqueuedAt: performance.now() - 20, queueDepth: 1 },
+        );
+
+        expect(writes[0]?.[0]).toBe('debug');
+        expect(writes[0]?.[2]?.fields).not.toHaveProperty('blockedByMethod');
+    });
+
     it('keeps successful log reads out of their own source while retaining metrics and failures', () => {
         const writes: ControlRequestLogWrite[] = [];
         const metrics: unknown[][] = [];

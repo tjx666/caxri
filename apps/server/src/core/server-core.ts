@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
@@ -16,11 +15,11 @@ import {
     isTransientServerEvent,
     projectObservableEventRecovery,
     protocolFeatures,
-    resolveLogLevel,
 } from '@caxri/protocol';
-import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import { warmServerExecutablePath } from '../domains/executables';
+import { startServerObservability } from '../observability/server-observability';
 import {
     agentCommandRequest,
     agentControlRequest,
@@ -78,14 +77,7 @@ export type { ServerCore, ServerCoreOptions } from './server-core-contract';
  */
 export async function startServerCore(options: ServerCoreOptions): Promise<ServerCore> {
     const startedAt = Date.now();
-    const logger =
-        options.logger ??
-        new StructuredLogger(
-            join(options.userDataPath, 'logs'),
-            'server-core',
-            resolveLogLevel(process.env),
-        );
-    const eventLoopMonitor = startEventLoopMonitor(logger);
+    const { eventLoopMonitor, logger } = startServerObservability(options);
     // Fired before any `await` so the login-shell PATH probe overlaps startup instead of blocking the first command.
     warmServerExecutablePath();
     const lease = await acquireServerProfile({

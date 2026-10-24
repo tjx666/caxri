@@ -223,4 +223,35 @@ describe('workbench IPC Renderer performance diagnostic', () => {
         });
         expect(onRendererDiagnostic).not.toHaveBeenCalled();
     });
+
+    it('logs a trusted Renderer jank batch as renderer.jank and rejects other senders', () => {
+        const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
+        const diagnostic = {
+            kind: 'renderer-jank',
+            diagnosticId: 'a66947a8-0da0-4a4b-8629-a7694116d8e5',
+            documentVisible: true,
+            frames: [],
+            omittedFrameCount: 0,
+            omittedSwitchCount: 0,
+            switches: [
+                { totalMs: 320, requestMs: 200, convergeMs: 90, paintMs: 30, endedAgoMs: 5 },
+            ],
+        };
+
+        report({ sender: {} }, diagnostic);
+        expect(write).not.toHaveBeenCalled();
+        report({ sender: renderer }, diagnostic);
+
+        expect(write).toHaveBeenCalledOnce();
+        const [level, event, options] = write.mock.calls[0] as [
+            string,
+            string,
+            { fields: Record<string, unknown> },
+        ];
+        expect([level, event]).toEqual(['info', 'renderer.jank']);
+        expect(options.fields).toMatchObject({
+            code: 'RENDERER_JANK',
+            switches: 'total=320,request=200,converge=90,paint=30,endedAgo=5',
+        });
+    });
 });

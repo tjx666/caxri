@@ -50,6 +50,12 @@ export interface EventLoopMonitorOptions {
      * Test seam for process CPU accounting; production uses `process.cpuUsage`.
      */
     cpuUsage?: () => NodeJS.CpuUsage;
+    /**
+     * Extra content-free fields for one stall record, called only when a stall is reported. The Server uses it to name
+     * the requests that were running or had just finished, which tells a blocked loop (a handler held it) from a lane
+     * wait (the loop was free and the request queued behind an earlier one).
+     */
+    describeStall?: (stall: { kind: EventLoopStallKind; stallMs: number }) => LogRecord['fields'];
     intervalMs?: number;
     /**
      * Test seam for the monotonic clock; production uses `performance.now`.
@@ -144,6 +150,7 @@ export function startEventLoopMonitor(
         sink.write(stallLevel(kind, stallMs, warnMs), EVENT_LOOP_STALL_EVENT, {
             durationMs: Math.round(stallMs),
             fields: {
+                ...options.describeStall?.({ kind, stallMs }),
                 probeIntervalMs: intervalMs,
                 cpuDeltaMs: Math.round(cpuDeltaMs),
                 stallKind: kind,

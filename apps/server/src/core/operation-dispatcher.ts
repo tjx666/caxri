@@ -8,9 +8,10 @@ import {
     workbenchRequestContextSchema,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { currentObservationContext, logEventCatalog } from '@caxri/system';
 
 import type { DomainHandlers, DomainOperation } from '../domains/domain-services';
+import { requestActivity } from '../observability/request-activity';
 import {
     delegationRequestLogFields,
     requestFailureLogLevel,
@@ -94,11 +95,22 @@ export function createOperationDispatcher(
             const handler = resolveDomainHandler(handlers, request.method);
             cancellation = new AbortController();
             active.set(envelope.id, cancellation);
-            const result = await handler(
-                request.params,
-                cancellation.signal,
-                envelope.finalizeDurably,
+            // The control request's id (the observation context's) lets Git logs name their caller; the envelope id is
+            // generated per domain call and matches nothing outside this layer.
+            const endActivity = requestActivity.begin(
+                currentObservationContext().requestId ?? envelope.id,
+                request.method,
             );
+            let result: unknown;
+            try {
+                result = await handler(
+                    request.params,
+                    cancellation.signal,
+                    envelope.finalizeDurably,
+                );
+            } finally {
+                endActivity();
+            }
             if (cancellation.signal.aborted)
                 throw new CaxriError('CANCELLED', 'Runtime request was canceled');
             if (shouldLogSuccessfulRequest('domain', envelope.method)) {

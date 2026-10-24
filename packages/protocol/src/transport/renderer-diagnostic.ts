@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/identifiers.js';
+import { rendererJankDiagnosticSchema } from './renderer-jank-diagnostic.js';
 import {
     refineRendererPerformanceScenario,
     rendererPerformanceScenarioDiagnosticSchema,
@@ -286,6 +287,7 @@ export const rendererDiagnosticSchema = z
         terminalResizeBurstDiagnosticSchema,
         editorWorkerStallDiagnosticSchema,
         rendererPerformanceScenarioDiagnosticSchema,
+        rendererJankDiagnosticSchema,
         startupFrameDiagnosticSchema,
     ])
     .superRefine((diagnostic, context) => {

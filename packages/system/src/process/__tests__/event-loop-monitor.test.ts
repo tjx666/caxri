@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { LogRecord } from '../../observability/logger';
+import type { EventLoopMonitorOptions } from '../event-loop-monitor';
 import { EVENT_LOOP_STALL_EVENT, startEventLoopMonitor } from '../event-loop-monitor';
 
 interface Sample {
@@ -17,7 +18,7 @@ const PROBE_WARN_MS = 250;
  * Drives the monitor over a stubbed clock and stubbed CPU accounting so a suspended window and a genuinely blocked
  * window can be produced exactly, without waiting on either one in real time.
  */
-function createStubbedProbe() {
+function createStubbedProbe(describeStall?: EventLoopMonitorOptions['describeStall']) {
     const samples: Sample[] = [];
     let nowMs = 0;
     let cpuMicroseconds = 0;
@@ -28,6 +29,7 @@ function createStubbedProbe() {
             intervalMs: PROBE_INTERVAL_MS,
             now: () => nowMs,
             warnMs: PROBE_WARN_MS,
+            ...(describeStall && { describeStall }),
         },
     );
     return {
@@ -63,6 +65,28 @@ describe('event-loop stall monitor', () => {
             probe.tick(PROBE_INTERVAL_MS + 100, 600);
 
             expect(probe.samples).toEqual([]);
+        } finally {
+            probe.stop();
+        }
+    });
+
+    it('adds the caller-supplied request context to a stall record only', () => {
+        vi.useFakeTimers();
+        const describeStall = vi.fn(({ stallMs }: { stallMs: number }) => ({
+            inFlightRequests: `git.sync=${Math.round(stallMs)}`,
+        }));
+        const probe = createStubbedProbe(describeStall);
+        try {
+            probe.tick(PROBE_INTERVAL_MS, PROBE_INTERVAL_MS);
+            expect(describeStall).not.toHaveBeenCalled();
+
+            probe.tick(1500, 1500);
+
+            expect(describeStall).toHaveBeenCalledWith({ kind: 'event-loop-block', stallMs: 1000 });
+            expect(probe.samples[0]?.fields).toMatchObject({
+                inFlightRequests: 'git.sync=1000',
+                stallKind: 'event-loop-block',
+            });
         } finally {
             probe.stop();
         }

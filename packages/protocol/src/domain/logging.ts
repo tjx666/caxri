@@ -426,6 +426,7 @@ export const logEventCatalog = {
     renderer: {
         consoleError: 'renderer.console_error',
         editorWorkerStall: 'renderer.editor_worker_stall',
+        jank: 'renderer.jank',
         pageException: 'renderer.page_exception',
         performanceScenario: 'renderer.performance_scenario',
         preloadError: 'renderer.preload_error',

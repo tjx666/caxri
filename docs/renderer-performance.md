@@ -214,12 +214,31 @@ The Main-process copy is queryable by an Agent through the existing CLI:
 caxri logs query --event renderer.performance_scenario --limit 20 --json
 ```
 
+## Always-on jank log
+
+Outside a named scenario the Workbench Renderer keeps a threshold-gated record of what a user would call
+lag. `features/renderer-performance/jank-monitor.ts` installs a `long-animation-frame` observer and times
+each `session.select` from the select command to the second animation frame after the Workbench applied
+the result. A switch of 100 ms or more, or a Long Animation Frame of 100 ms or more in a visible window,
+is queued; Chromium itself only reports frames from 50 ms, so a healthy Renderer wakes the observer
+rarely. The reporter keeps the five slowest switches and frames per batch, counts the rest as omitted,
+flushes two seconds after the first sample and at most once every ten seconds, and flushes when the
+window hides. Desktop Main writes one `renderer.jank` record per batch (`warn` when a sample reached one
+second, otherwise `info`) with flat fields; see the recipe in the `performance` skill.
+
+Each frame carries the script that spent the most time in it: its invoker type, duration, forced
+style/layout time, and the Caxri bundle chunk file name and function identifier. Both strings must match a
+plain identifier pattern and are `null` otherwise, so no directory, URL, or user text can reach the log.
+
 ## Privacy and bounds
 
 The Renderer-to-Main protocol is a strict allowlist. Receipts may contain fixed action/surface names,
 opaque UUIDs, booleans, counts, and bounded durations. They cannot contain DOM text, Project or source
 paths, component names, source locations, props, state, stack traces, Terminal output, prompts,
 transcripts, credentials, or environment values.
+
+The one exception is the `renderer-jank` batch above: its top-script attribution is limited to a
+validated Caxri bundle chunk file name and function identifier, never a path or URL.
 
 Frame timestamps and per-render samples exist only in Renderer memory during the active scenario. Main
 persists the finished aggregate as flat scalar fields so `logs query` remains directly usable by
