@@ -1,8 +1,8 @@
 /**
- * Pure windowing math for the PrimarySidebar's per-Project Session list. A long-lived Project accumulates dozens of
- * Sessions, and rendering all of them buries every Project below it, so the sidebar shows the most recent few and asks
- * for an explicit reveal for the rest. Kept out of `ProjectGroup`/`PrimarySidebar` so the arithmetic is covered by fast
- * unit tests instead of an Electron E2E workflow (see the `unit-testing` skill).
+ * Pure windowing math for a grouped Session list: Desktop's PrimarySidebar windows each Project's Sessions, and the
+ * phone windows each status group. A long-lived Project or group accumulates dozens of Sessions, and rendering all of
+ * them buries every group below it, so a list shows the most recent few and asks for an explicit reveal for the rest.
+ * Kept out of the components so the arithmetic is covered by fast unit tests (see the `unit-testing` skill).
  */
 
 /**

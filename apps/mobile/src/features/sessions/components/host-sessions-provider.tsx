@@ -9,6 +9,9 @@ import { useSavedDrafts } from '../hooks/use-saved-drafts';
 import { useSessionPolling } from '../hooks/use-session-polling';
 import type { NewSessionCreateState, NewSessionSelection } from '../new-session-model';
 import { emptyNewSessionSelection, forgetNewSessionProject } from '../new-session-model';
+import type { SessionListGroupStates } from '../session-list-groups';
+import { revealSessionListGroup, toggleSessionListGroup } from '../session-list-groups';
+import type { MobileSessionListGroup } from '../session-model';
 import type { HostSessionUiState, SessionSegment } from '../session-ui-state';
 import {
     emptyHostSessionUiState,
@@ -19,7 +22,13 @@ import {
 
 interface HostSessionsContextValue {
     hostId: string;
+    /**
+     * Which Session list groups the reader collapsed or revealed, kept while the app stays on this computer so opening
+     * a Session and coming back leaves the list as they arranged it.
+     */
+    listGroups: SessionListGroupStates;
     listScrollOffsetRef: RefObject<number>;
+    revealListGroup: (group: MobileSessionListGroup, windowCount: number) => void;
     sessions: ReturnType<typeof useSessionPolling>;
     ui: HostSessionUiState;
     newSessionSelection: NewSessionSelection;
@@ -37,6 +46,7 @@ interface HostSessionsContextValue {
     setDraft: (sessionId: string, draft: string | ((current: string) => string)) => void;
     setProjectId: (projectId: string | null) => void;
     setSegment: (sessionId: string, segment: SessionSegment, previous?: SessionSegment) => void;
+    toggleListGroup: (group: MobileSessionListGroup) => void;
 }
 
 const HostSessionsContext = createContext<HostSessionsContextValue | null>(null);
@@ -52,6 +62,16 @@ export const HostSessionsProvider = ({
     const sessions = useSessionPolling(isDashboardRouteVisible(pathname, hostId));
     const listScrollOffsetReference = useRef(0);
     const [ui, setUi] = useState(emptyHostSessionUiState);
+    const [listGroups, setListGroups] = useState<SessionListGroupStates>({});
+    const toggleListGroup = useCallback((group: MobileSessionListGroup): void => {
+        setListGroups((current) => toggleSessionListGroup(current, group));
+    }, []);
+    const revealListGroup = useCallback(
+        (group: MobileSessionListGroup, windowCount: number): void => {
+            setListGroups((current) => revealSessionListGroup(current, group, windowCount));
+        },
+        [],
+    );
     useSavedDrafts(ui.draftBySession, setUi);
     const [newSessionSelection, setNewSessionSelection] = useState(emptyNewSessionSelection);
     const [newSessionCreateState, setNewSessionCreateState] = useState<NewSessionCreateState>({
@@ -101,7 +121,9 @@ export const HostSessionsProvider = ({
     const value = useMemo(
         () => ({
             hostId,
+            listGroups,
             listScrollOffsetRef: listScrollOffsetReference,
+            revealListGroup,
             sessions,
             ui,
             newSessionSelection,
@@ -116,9 +138,12 @@ export const HostSessionsProvider = ({
             setDraft,
             setProjectId,
             setSegment,
+            toggleListGroup,
         }),
         [
             hostId,
+            listGroups,
+            revealListGroup,
             sessions,
             ui,
             newSessionSelection,
@@ -133,6 +158,7 @@ export const HostSessionsProvider = ({
             setDraft,
             setProjectId,
             setSegment,
+            toggleListGroup,
         ],
     );
     return <HostSessionsContext.Provider value={value}>{children}</HostSessionsContext.Provider>;

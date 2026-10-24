@@ -51,6 +51,7 @@ import { executeMobilePlanLimitsScenario } from './mobile-plan-limits-scenario';
 import { executeMobilePullRequestScenario } from './mobile-pull-request-scenario';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
 import { executeMobileReplyPlaceholderScenario } from './mobile-reply-placeholder-scenario';
+import { executeMobileSessionGroupsScenario } from './mobile-session-groups-scenario';
 import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
 
 /**
@@ -508,6 +509,8 @@ export async function executeMobileAgentChatCase(
             return executeMobilePullRequestScenario(environment, artifacts, 'ready');
         case 'MOB-CHAT-26':
             return executeMobileChatSubagentScenario(environment, artifacts);
+        case 'MOB-CHAT-27':
+            return executeMobileSessionGroupsScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

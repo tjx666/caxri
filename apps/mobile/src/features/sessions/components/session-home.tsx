@@ -14,15 +14,16 @@ import { useConfirmForgetComputer } from '../../connection/use-confirm-forget-co
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionManagement } from '../hooks/use-session-management';
-import type { SessionListEntry } from '../hooks/use-session-polling';
 import type { SwipeRow } from '../open-swipe-row';
 import { createOpenSwipeRow } from '../open-swipe-row';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
+import type { SessionListRow } from '../session-list-groups';
+import { sessionListRows } from '../session-list-groups';
 import { createSessionListInteraction } from '../session-list-interaction';
 import type { MobileSessionItem } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionActionsSheet } from './session-actions-sheet';
-import { SessionGroupHeader } from './session-group-header';
+import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
 import { SessionHomeHeader } from './session-home-header';
 import { SessionHomeEmpty, SessionHomeStatus } from './session-home-status';
 import { SessionRow } from './session-row';
@@ -56,8 +57,8 @@ const styles = StyleSheet.create({
     listError: { fontSize: 13, paddingHorizontal: 18, paddingVertical: 8 },
 });
 
-const entryKey = (entry: SessionListEntry): string => entry.id;
-const entryType = (entry: SessionListEntry): SessionListEntry['type'] => entry.type;
+const entryKey = (entry: SessionListRow): string => entry.id;
+const entryType = (entry: SessionListRow): SessionListRow['type'] => entry.type;
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- already this size before the connection-notice prop; splitting the Session list screen is its own refactor.
 export const SessionHome = ({
@@ -81,9 +82,18 @@ export const SessionHome = ({
     const { status } = useMobileClient();
     const { t } = useTranslation();
     const router = useRouter();
-    const { hostId, listScrollOffsetRef, sessions, setProjectId, setSegment, ui } =
-        useHostSessions();
-    const listReference = useRef<FlashListRef<SessionListEntry>>(null);
+    const {
+        hostId,
+        listGroups,
+        listScrollOffsetRef,
+        revealListGroup,
+        sessions,
+        setProjectId,
+        setSegment,
+        toggleListGroup,
+        ui,
+    } = useHostSessions();
+    const listReference = useRef<FlashListRef<SessionListRow>>(null);
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
     const { archive, clearError } = management;
@@ -153,8 +163,13 @@ export const SessionHome = ({
     }, []);
     const activeProjectId = activeProjectFilter(ui.projectId, projects);
     const filtered = useMemo(
-        () => filterSessionEntries(entries, activeProjectId),
-        [activeProjectId, entries],
+        () =>
+            sessionListRows(
+                filterSessionEntries(entries, activeProjectId),
+                listGroups,
+                layout === 'phone' ? undefined : (selectedId ?? undefined),
+            ),
+        [activeProjectId, entries, layout, listGroups, selectedId],
     );
     const restoreScroll = useCallback((): void => {
         listReference.current?.scrollToOffset({
@@ -186,9 +201,24 @@ export const SessionHome = ({
         [onOpenSession, setSegment],
     );
     const renderEntry = useCallback(
-        ({ item }: ListRenderItemInfo<SessionListEntry>) =>
+        ({ item }: ListRenderItemInfo<SessionListRow>) =>
             item.type === 'header' ? (
-                <SessionGroupHeader group={item.group} label={item.label} theme={theme} />
+                <SessionGroupHeader
+                    count={item.count}
+                    group={item.group}
+                    isCollapsed={item.isCollapsed}
+                    label={item.label}
+                    onToggle={toggleListGroup}
+                    theme={theme}
+                />
+            ) : item.type === 'reveal' ? (
+                <SessionGroupReveal
+                    count={item.nextRevealCount}
+                    group={item.group}
+                    onReveal={revealListGroup}
+                    theme={theme}
+                    windowCount={item.windowCount}
+                />
             ) : (
                 <View>
                     <SessionSwipeRow
@@ -240,11 +270,13 @@ export const SessionHome = ({
             openActions,
             openSession,
             openTerminal,
+            revealListGroup,
             savedAt,
             selectedId,
             swipe.handleClose,
             swipe.handleDragStart,
             theme,
+            toggleListGroup,
         ],
     );
     return (

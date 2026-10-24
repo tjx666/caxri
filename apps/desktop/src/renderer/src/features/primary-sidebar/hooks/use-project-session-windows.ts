@@ -1,9 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 
-import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
-
-import type { SessionListWindow } from '../session-list-window';
-import { nextRevealedSessionCount, sessionListWindow } from '../session-list-window';
+import type { ProjectRecord, SessionListWindow, SessionRecord } from '@caxri/protocol';
+import { nextRevealedSessionCount, sessionListWindow } from '@caxri/protocol';
 
 export interface ProjectSessionWindow extends SessionListWindow<SessionRecord> {
     project: ProjectRecord;

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
-import { defaultAppSettings, isPinnedSession } from '@caxri/protocol';
+import { defaultAppSettings, isPinnedSession, SESSION_REVEAL_STEP } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
@@ -36,7 +36,6 @@ import { handlePrimarySidebarTreeKey } from './primary-sidebar-tree-keys';
 import { ProjectGroupList } from './project-group-list';
 import { hasProjectDragType } from './project-order';
 import { sessionWorktreeProject, topLevelProjects } from './project-visibility';
-import { SESSION_REVEAL_STEP } from './session-list-window';
 import { SessionSelectionGlideFill } from './session-selection-glide-fill';
 
 const NO_RECORDS: never[] = [];

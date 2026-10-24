@@ -107,7 +107,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## T3 Code (MIT)
 
-- **Activity queue placement and retention**: Left Side Bar queue (with the Codex app); 15-minute window. Evidence: `docs/activity-view.md`; `packages/protocol/src/domain/session-activity-group.ts`.
+- **Activity queue placement and retention**: Left Side Bar queue (with the Codex app); 15-minute window. Evidence: `docs/activity-view.md`; `packages/protocol/src/domain/session/session-activity-group.ts`.
 - **Chat composer card, Plan card, drafts**: Composer drawer and tray (with LobeHub), task badge, localStorage drafts. Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-drafts.ts`.
 - **Open work-group shimmer**: The running turn's latest work group keeps its active sweep between calls, not only while one is in flight (`work-live` stays `active` after its command completes). Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tools/agent-chat-work-group.tsx`.
 - **Side pane minimum width**: A 360px minimum for the pane beside the Chat, as for its right panel. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`.

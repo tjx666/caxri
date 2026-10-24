@@ -1,17 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
 
-import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
+import type { ProjectRecord, SessionListWindow, SessionRecord } from '@caxri/protocol';
+import {
+    nextRevealedSessionCount,
+    revealedCountIncluding,
+    sessionListWindow,
+} from '@caxri/protocol';
 
 import { didReorderPinnedSession } from '../../session/session-commands';
 import { pinnedSessionDropTarget, pinnedSessions } from '../pinned-session-order';
 import { PINNED_GROUP_ROW_ID } from '../primary-sidebar-tree';
 import { sessionWorktreeProject } from '../project-visibility';
-import type { SessionListWindow } from '../session-list-window';
-import {
-    nextRevealedSessionCount,
-    revealedCountIncluding,
-    sessionListWindow,
-} from '../session-list-window';
 import type { SessionOrderController } from './use-session-order';
 import { useSessionOrder } from './use-session-order';
 

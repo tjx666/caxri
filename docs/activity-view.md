@@ -52,7 +52,7 @@ An empty group is not rendered. Inside a group, rows keep Session activity recen
 event in a group is always its first row.
 
 The group rules, their order, the retention window, and the in-group order live in
-`packages/protocol/src/domain/session-activity-group.ts`, which the phone's home list also uses, so
+`packages/protocol/src/domain/session/session-activity-group.ts`, which the phone's home list also uses, so
 a Session sits under the same heading on Desktop and on the phone. The phone differs in one place:
 its home list is its only Session list, so a finished Session past the window moves to **Idle**
 instead of leaving.
@@ -239,7 +239,7 @@ into the same trap.
 | `.../primary-sidebar/primary-sidebar-project-tree.tsx`       | The other body, split out so mode switching unmounts it      |
 | `apps/desktop/src/renderer/src/stores/chrome-layout.ts`      | `primarySidebarActivityMode` and its persistence             |
 | `.../features/agent-activity/agent-activity-rows.ts`         | Grouping, ordering, the next-attention walk, the badge tally |
-| `packages/protocol/src/domain/session-activity-group.ts`     | Group order, retention window, row order shared with mobile  |
+| `packages/protocol/.../session/session-activity-group.ts`    | Group order, retention window, row order shared with mobile  |
 | `.../agent-activity-glyph.ts`                                | Which shape, which words, and the tint a row's state earns   |
 | `.../agent-activity-tree.ts`                                 | Flattening and keyboard row math                             |
 | `.../use-agent-activity-clock.ts`                            | The subscription to the shared window clock                  |
