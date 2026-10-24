@@ -40,18 +40,20 @@ const isSameBounds = (a: ScreenBounds, b: ScreenBounds): boolean =>
     a.top === b.top && a.bottom === b.bottom && a.left === b.left && a.right === b.right;
 
 /**
- * Waits until Stop is drawn in `region` at the same place on two reads in a row, and returns where. The sheet grows as
- * a running task's output arrives, which moves Stop with it. `isWanted` rejects a Stop the screen showed before.
+ * Waits until `color` is drawn in `region` at the same place on two reads in a row, and returns where. A sheet slides
+ * in before it settles, and a running task's output grows it, which moves what it draws. `isWanted` rejects a place the
+ * screen showed before.
  */
-export const waitForStop = async (
+const waitForSettledColor = async (
     serial: string,
     region: ScreenBounds,
-    isWanted: (stop: ScreenBounds) => boolean = () => true,
-): Promise<ScreenBounds> => {
+    color: string,
+    isWanted: (bounds: ScreenBounds) => boolean = () => true,
+): Promise<ScreenBounds | undefined> => {
     let previous: ScreenBounds | undefined;
-    const stop = await waitForMobile(
+    return waitForMobile(
         async () => {
-            const current = await mobileColorBounds(serial, region, STOP_COLOR);
+            const current = await mobileColorBounds(serial, region, color);
             const isSettled =
                 current !== undefined && previous !== undefined && isSameBounds(current, previous);
             previous = current;
@@ -60,6 +62,17 @@ export const waitForStop = async (
         (candidate) => candidate !== undefined && isWanted(candidate),
         20_000,
     );
+};
+
+/**
+ * Waits until Stop (or its confirmation button) is drawn and settled in `region`, and returns where.
+ */
+export const waitForStop = async (
+    serial: string,
+    region: ScreenBounds,
+    isWanted?: (stop: ScreenBounds) => boolean,
+): Promise<ScreenBounds> => {
+    const stop = await waitForSettledColor(serial, region, STOP_COLOR, isWanted);
     if (!stop) throw new Error('Stop is not drawn');
     return stop;
 };
@@ -103,9 +116,12 @@ export async function exerciseChatBackgroundWork(
     await tapMobileCheckByBounds(serial, 'agent-chat-tasks');
     // Stop the search above the system navigation handle, which is drawn close to the text color.
     const listRegion = { ...sheetRegion, bottom: Math.floor(screen.height * 0.96) };
-    const sheetText = await waitForMobile(
-        () => mobileColorBounds(serial, listRegion, TEXT_COLOR),
-        (bounds) => bounds !== undefined && bounds.bottom > screen.height * 0.6,
+    // Wait for the sheet to finish sliding in, or the tap lands where the row has not reached yet.
+    const sheetText = await waitForSettledColor(
+        serial,
+        listRegion,
+        TEXT_COLOR,
+        (bounds) => bounds.bottom > screen.height * 0.6,
     );
     if (!sheetText) throw new Error('The task sheet did not open');
     await capture(environment, 'tasks-sheet', artifacts);
