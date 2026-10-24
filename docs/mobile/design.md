@@ -332,7 +332,10 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
 1s`, or `Worked` under a second).
 - A Chat draws Desktop's Chat timeline in the same list. Reasoning is a `Thinking` row while it
   streams and a `Thought` row after, titled by its latest bold heading; its detail is the text.
-  Work rows follow Desktop's: a change shows `+N -M`, a command shows a `Background` tag and a
+  Back-to-back thoughts merge into one row titled by the latest. As on Desktop, a settled run with a
+  single tool call shows that call as its own row instead of a one-call summary, while the running
+  turn's trailing run keeps its summary, names the current step, and stays marked running between
+  fast calls, so a second call joining it does not reshape the row. Work rows follow Desktop's: a change shows `+N -M`, a command shows a `Background` tag and a
   non-zero `Exit N`, and a step that failed, was declined, or was interrupted shows its own glyph.
   A command's detail is titled by the Agent's description when there is one and shows the command
   highlighted as shell, then its output highlighted by what printed it (a diff, JSON, or a file's

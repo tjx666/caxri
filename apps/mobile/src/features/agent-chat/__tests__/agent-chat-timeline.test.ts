@@ -92,13 +92,14 @@ describe('buildAgentChatTimeline', () => {
         expect(work.rows).toEqual([]);
     });
 
-    it('keeps a single tool call in its summary after it settles', () => {
+    it("keeps the running turn's trailing lone call in an open summary so a second call does not reshape it", () => {
         const [work] = buildAgentChatTimeline({
             items: [command('c1', 'declined')],
             turns: [{ id: 't1', status: 'running' }],
             activeTurnId: 't1',
         });
         if (work.kind !== 'work') throw new Error('expected a work entry');
+        expect(work.isOpen).toBe(true);
         expect(work.summarized.map((item) => item.id)).toEqual(['c1']);
         expect(work.rows).toEqual([]);
     });

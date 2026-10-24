@@ -24,12 +24,12 @@ import {
     isAgentChatSubagentItem,
     isAgentChatWorkItem,
     parseAgentChatPathReferences,
-    splitAgentChatWork,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { DiffLine } from '../changes/changes-model';
+import { agentChatWorkEntry } from './agent-chat-timeline-work';
 
 /**
  * A message the shared Conversation renderer draws as it draws a terminal Agent's: the user's bubble, a Markdown reply,
@@ -87,6 +87,11 @@ export type AgentChatTimelineEntry =
     | {
           kind: 'work';
           id: string;
+          /**
+           * The running turn's trailing work, which the next tool call can still join. Its summary names the current
+           * step and stays marked running between calls, as on Desktop; the aggregate replaces it once the run ends.
+           */
+          isOpen?: true;
           summarized: readonly AgentChatWorkItem[];
           rows: readonly AgentChatWorkItem[];
       }
@@ -200,17 +205,13 @@ function groupEntries(
     visible: readonly AgentChatItem[],
     t: Translate,
     taskItemIds: ReadonlySet<string>,
+    isRunning = false,
 ): AgentChatTimelineEntry[] {
     const entries: AgentChatTimelineEntry[] = [];
     let work: AgentChatWorkItem[] = [];
-    const flush = (): void => {
-        const first = work.at(0);
-        if (first)
-            entries.push({
-                kind: 'work',
-                id: `work:${first.id}`,
-                ...splitAgentChatWork(work, (item) => taskItemIds.has(item.id)),
-            });
+    const flush = (isOpen = false): void => {
+        const entry = agentChatWorkEntry(work, taskItemIds, isOpen);
+        if (entry) entries.push({ kind: 'work', ...entry });
         work = [];
     };
     for (const item of visible) {
@@ -233,7 +234,7 @@ function groupEntries(
             });
         else entries.push(messageEntry(item, t));
     }
-    flush();
+    flush(isRunning);
     return entries;
 }
 
@@ -381,7 +382,12 @@ export function buildAgentChatTimeline(
                       t,
                       taskItemIds,
                   )
-                : groupEntries(visible, t, taskItemIds)),
+                : groupEntries(
+                      visible,
+                      t,
+                      taskItemIds,
+                      turnId !== undefined && turnId === activeTurnId,
+                  )),
         );
         start = end;
     }

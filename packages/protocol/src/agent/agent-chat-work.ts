@@ -387,8 +387,9 @@ export function agentChatWorkSummaryItems(
 export function summarizeAgentChatWork(
     items: readonly AgentChatWorkItem[],
     t: AgentChatLabelTranslate = translateAgentChatLabel,
+    options: { isOpen?: boolean } = {},
 ): string {
-    return agentChatWorkSummaryPhrases(items, t)
+    return agentChatWorkSummaryPhrases(items, t, options)
         .map(({ text }) => text)
         .join('');
 }

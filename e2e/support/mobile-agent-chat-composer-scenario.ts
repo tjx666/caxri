@@ -147,20 +147,28 @@ export async function executeMobileChatComposerScenario(
         if (!failedCommand || !reply?.turnId) throw new Error('The test run turn is incomplete');
         const fold = `agent-chat-turn-${reply.turnId}`;
         await waitForCheck(serial, fold);
+        const isWork = ({ checkId }: { checkId: string }): boolean =>
+            checkId.startsWith('agent-chat-work-group-') ||
+            checkId === `agent-chat-work-${failedCommand.id}`;
         const collapsed = await mobileSemantics(serial);
-        if (collapsed.some(({ checkId }) => checkId.startsWith('agent-chat-work-group-')))
+        if (collapsed.some(isWork))
             throw new Error('A finished turn must fold its work behind Worked for');
         await capture(environment, 'turn-collapsed', artifacts);
         await tapMobileCheckByBounds(serial, fold);
+        // A settled lone command is its own row; with other work it sits in the run's summary.
         const expanded = await waitForMobile(
             () => mobileSemantics(serial),
-            (nodes) => nodes.some(({ checkId }) => checkId.startsWith('agent-chat-work-group-')),
+            (nodes) => nodes.some(isWork),
         );
         await capture(environment, 'turn-expanded', artifacts);
-        const group = expanded.find(({ checkId }) => checkId.startsWith('agent-chat-work-group-'));
-        if (!group) throw new Error('The unfolded turn shows no work');
-        await tapMobileCheckByBounds(serial, group.checkId);
-        await waitForCheck(serial, `agent-chat-work-${failedCommand.id}`);
+        if (!hasCheck(expanded, `agent-chat-work-${failedCommand.id}`)) {
+            const group = expanded.find(({ checkId }) =>
+                checkId.startsWith('agent-chat-work-group-'),
+            );
+            if (!group) throw new Error('The unfolded turn shows no work');
+            await tapMobileCheckByBounds(serial, group.checkId);
+            await waitForCheck(serial, `agent-chat-work-${failedCommand.id}`);
+        }
         await capture(environment, 'command-exit-code', artifacts);
 
         // Following the user's own send (#1878): scroll up, send, and land on the latest message.
@@ -186,6 +194,11 @@ export async function executeMobileChatComposerScenario(
             () => chat.read(),
             (snapshot) => Boolean(snapshot.activeTurnId),
         );
+        // The status row's shimmer keeps UIAutomator from settling, so this frame is read from pixels only: the Chat
+        // tab's running turn spins in the status row and leaves the header beside the title empty. The pause lets the
+        // phone receive the Session's running state, so an empty slot is not just a state that has not arrived yet.
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        await capture(environment, 'running-turn-header', artifacts);
         await chat.send({ text: 'Is it deployed? Please answer.', delivery: 'steer' });
         const steered = await waitForMobile(
             () => chat.read(),
