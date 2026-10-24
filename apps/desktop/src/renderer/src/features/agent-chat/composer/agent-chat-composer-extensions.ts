@@ -1,5 +1,5 @@
 import { proseWebLinks } from '@caxri/markdown';
-import { agentChatImageTokenRanges } from '@caxri/protocol';
+import { agentChatImageTokenRanges, agentChatMediaUrl } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
 import type { Extension, Range } from '@codemirror/state';
@@ -9,7 +9,10 @@ import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from '@codemir
 
 import { resolveFileIcon } from '../../../icons/files/file-icon-resolver';
 import type { AgentChatPathPill } from '../attachments/agent-chat-path-pills';
-import { agentChatPathPillRanges } from '../attachments/agent-chat-path-pills';
+import {
+    agentChatPathPillRanges,
+    isAgentChatPlayableVideo,
+} from '../attachments/agent-chat-path-pills';
 import type { AgentChatMarkdownMark } from './agent-chat-composer-markdown';
 import { agentChatMarkdownMarks } from './agent-chat-composer-markdown';
 import { agentChatLimitedChange } from './agent-chat-composer-view';
@@ -198,19 +201,27 @@ const imagePills = ViewPlugin.fromClass(
     },
 );
 
+interface PathPills {
+    pills: ReadonlyMap<string, AgentChatPathPill>;
+    /**
+     * Plays the video whose pill is clicked.
+     */
+    openVideo: (path: string) => void;
+}
+
 /**
  * The paths dropped into this composer by their token; a token no drop wrote stays plain text, so a path the user types
  * never turns into a pill mid-word.
  */
-export const agentChatPathPills = Facet.define<
-    ReadonlyMap<string, AgentChatPathPill>,
-    ReadonlyMap<string, AgentChatPathPill>
->({
-    combine: (values) => values[0] ?? new Map(),
+export const agentChatPathPills = Facet.define<PathPills, PathPills>({
+    combine: (values) => values[0] ?? { pills: new Map(), openVideo: () => {} },
 });
 
 class PathPillWidget extends WidgetType {
-    constructor(private readonly pill: AgentChatPathPill) {
+    constructor(
+        private readonly pill: AgentChatPathPill,
+        private readonly openVideo: (path: string) => void,
+    ) {
         super();
     }
 
@@ -226,18 +237,30 @@ class PathPillWidget extends WidgetType {
         pill.title = this.pill.path;
         const icon = document.createElement('img');
         icon.alt = '';
-        icon.src = resolveFileIcon({ kind: this.pill.kind, name }).src;
+        const fileIcon = resolveFileIcon({ kind: this.pill.kind, name }).src;
+        if (this.pill.kind === 'file' && isAgentChatPlayableVideo(this.pill.path)) {
+            // A video shows its poster frame and plays on click, as an image pill previews its image.
+            pill.classList.add('cm-video-pill');
+            icon.src = agentChatMediaUrl('poster', this.pill.path);
+            icon.addEventListener('error', () => (icon.src = fileIcon), { once: true });
+            pill.addEventListener('mousedown', (event) => {
+                if (event.button === 0) event.preventDefault();
+            });
+            pill.addEventListener('click', (event) => {
+                if (event.button === 0) this.openVideo(this.pill.path);
+            });
+        } else icon.src = fileIcon;
         pill.append(icon, name);
         return pill;
     }
 }
 
 function pathPillDecorations(state: EditorState): DecorationSet {
-    const pills = state.facet(agentChatPathPills);
+    const { openVideo, pills } = state.facet(agentChatPathPills);
     if (pills.size === 0) return Decoration.none;
     return Decoration.set(
         agentChatPathPillRanges(state.doc.toString(), pills).map(({ from, pill, to }) =>
-            Decoration.replace({ widget: new PathPillWidget(pill) }).range(from, to),
+            Decoration.replace({ widget: new PathPillWidget(pill, openVideo) }).range(from, to),
         ),
     );
 }
@@ -424,6 +447,11 @@ const composerTheme = EditorView.theme({
         userSelect: 'none',
     },
     '.cm-path-pill img': { width: '14px', height: '14px' },
+    '.cm-video-pill': { cursor: 'pointer' },
+    '.cm-video-pill:hover': {
+        backgroundColor: 'color-mix(in srgb, var(--border) 75%, transparent)',
+    },
+    '.cm-video-pill img': { borderRadius: '3px', objectFit: 'cover' },
     /**
      * A list line's hanging indent is `text-indent`, which inherits: an inline-flex widget makes its label a
      * block-level flex item that re-applies the negative indent and slides it over the widget's own icon (`1. ` before

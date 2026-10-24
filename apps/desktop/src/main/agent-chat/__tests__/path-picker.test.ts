@@ -29,7 +29,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
 
-import { openAgentChatPathReference, selectAgentChatPaths } from '../agent-chat-path-picker';
+import { openAgentChatPathReference, selectAgentChatPaths } from '../path-picker';
 
 const fixture = { directory: '' };
 

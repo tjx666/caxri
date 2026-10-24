@@ -7,7 +7,10 @@ import { agentChatImageToken } from '@caxri/protocol';
 import { translate } from '../../../i18n';
 import { isOsFileDrag, isOsFileReferenceRefused, osFilePaths } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
-import { agentChatOsFileReferences } from '../attachments/agent-chat-path-attachments';
+import {
+    agentChatOsFileReferences,
+    agentChatOsVideoPills,
+} from '../attachments/agent-chat-path-attachments';
 import type { AgentChatPathPill } from '../attachments/agent-chat-path-pills';
 import {
     agentChatDraftPathPills,
@@ -23,10 +26,10 @@ import { useAgentChatLongPaste } from './use-agent-chat-long-paste';
 
 /**
  * Everything that puts content into the composer besides typing: pasted, dropped, and picked files (images attach,
- * other files and folders from another application become cards the message cites by path, and Caxri's own Files,
- * Editor tab, and Project drags are cited in the text), long pastes saved to a file, and Cmd+Shift+V's plain-text
- * paste. Returns the file input handlers, the plain-text paste, and whether picked images are still being read or a
- * long paste saved, which holds Send.
+ * videos are cited in the text as pills, other files and folders from another application become cards the message
+ * cites by path, and Caxri's own Files, Editor tab, and Project drags are cited in the text), long pastes saved to a
+ * file, and Cmd+Shift+V's plain-text paste. Returns the file input handlers, the plain-text paste, and whether picked
+ * images are still being read or a long paste saved, which holds Send.
  */
 export function useAgentChatComposerInput({
     draft,
@@ -76,27 +79,39 @@ export function useAgentChatComposerInput({
         });
     };
     /**
+     * Writes `pills` at the caret and draws them as pills.
+     */
+    const insertPills = (pills: readonly AgentChatPathPill[]): void => {
+        setPathPills((current) => {
+            const next = new Map(current);
+            for (const pill of pills) next.set(pill.token, pill);
+            return next;
+        });
+        insertText(pills.map((pill) => pill.token).join(' '));
+    };
+    /**
      * Cites what a drop or pick carries besides the images it attached. Files and folders from another application
-     * (Finder, a file picker, or a paste) become cards, as in the Codex app; a Files entry, an Editor tab, or a Project
-     * is cited at the caret by its absolute path, drawn as a pill with its icon and name as in LobeHub's composer,
-     * because the user drags those into the sentence they are writing. Unlike a Terminal drop the path is not made
-     * relative: the pill already reads short, and an absolute path means the same thing wherever the Agent stands.
-     * Returns whether it cited anything.
+     * (Finder, a file picker, or a paste) become cards, as in the Codex app, except a video, which is cited at the
+     * caret as a pill with its poster frame so the sent message can show and play it where the user put it; a Files
+     * entry, an Editor tab, or a Project is cited at the caret by its absolute path, drawn as a pill with its icon and
+     * name as in LobeHub's composer, because the user drags those into the sentence they are writing. Unlike a Terminal
+     * drop the path is not made relative: the pill already reads short, and an absolute path means the same thing
+     * wherever the Agent stands. Returns whether it cited anything.
      */
     const didInsertPaths = (event: DragEvent | undefined, files: readonly File[]): boolean => {
         if (event && !isOsFileDrag(event.dataTransfer)) {
             const pills = agentChatDropPathPills(event);
             if (pills.length === 0) return false;
-            setPathPills((current) => {
-                const next = new Map(current);
-                for (const pill of pills) next.set(pill.token, pill);
-                return next;
-            });
-            insertText(pills.map((pill) => pill.token).join(' '));
+            insertPills(pills);
             return true;
         }
         if (files.length === 0) return false;
-        if (osFilePaths(files).length === 0) {
+        const { rest, videos } = agentChatOsVideoPills(files, (file) =>
+            globalThis.caxri.pathForFile(file),
+        );
+        if (videos.length > 0) insertPills(videos);
+        if (rest.length === 0) return videos.length > 0;
+        if (osFilePaths(rest).length === 0) {
             pushToast(
                 'warning',
                 translate(
@@ -105,17 +120,23 @@ export function useAgentChatComposerInput({
                         : 'agentChat.composer.fileHasNoPath',
                 ),
             );
-            return false;
+            return videos.length > 0;
         }
         // The card is reserved now: the folder probe holds Send until the card is attached.
-        void images.addPathsWhenResolved(agentChatOsFileReferences(files));
+        void images.addPathsWhenResolved(agentChatOsFileReferences(rest));
         return true;
     };
     /**
-     * Files and folders picked in the native panel, as cards. Returns whether it attached anything.
+     * Files and folders picked in the native panel, as cards, with videos cited inline instead. Returns whether it
+     * attached anything.
      */
-    const didInsertPickedPaths = (references: readonly AgentChatPathReference[]): boolean =>
-        images.addPaths(references).length > 0;
+    const didInsertPickedPaths = (references: readonly AgentChatPathReference[]): boolean => {
+        const { rest, videos } = agentChatOsVideoPills(references, ({ isDirectory, path }) =>
+            isDirectory ? undefined : path,
+        );
+        if (videos.length > 0) insertPills(videos);
+        return images.addPaths(rest).length > 0 || videos.length > 0;
+    };
     const longPaste = useAgentChatLongPaste({
         insert: insertText,
         inputReference,

@@ -7,11 +7,13 @@ import type { AgentChatPathPill } from '../agent-chat-path-pills';
 import {
     agentChatDraftPathPills,
     agentChatDropPathPills,
+    agentChatMessageVideoPaths,
     agentChatPathPillRanges,
     isPathInsideProject,
 } from '../agent-chat-path-pills';
 
-vi.mock('../../../../stores/environment', () => ({ isSshHost: () => false }));
+const environment = vi.hoisted(() => ({ isSshHost: false }));
+vi.mock('../../../../stores/environment', () => ({ isSshHost: () => environment.isSshHost }));
 
 function transfer(): DataTransfer {
     const data = new Map<string, string>();
@@ -112,5 +114,22 @@ describe('isPathInsideProject', () => {
         expect(isPathInsideProject('/repository', '/repo')).toBe(false);
         expect(isPathInsideProject('/elsewhere/src', '/repo')).toBe(false);
         expect(isPathInsideProject('/repo/src', undefined)).toBe(false);
+    });
+});
+
+describe('agentChatMessageVideoPaths', () => {
+    it('lists each video the text cites once, in order, and skips other paths', () => {
+        environment.isSshHost = false;
+        expect(
+            agentChatMessageVideoPaths(
+                "why does '/Users/me/Desktop/Recording 13.37.mov' differ from /tmp/b.mp4 and /tmp/notes.md, see /tmp/b.mp4 /tmp/clips.mov/",
+            ),
+        ).toEqual(['/Users/me/Desktop/Recording 13.37.mov', '/tmp/b.mp4']);
+    });
+
+    it('lists none in an SSH Host window, whose paths this Mac cannot play', () => {
+        environment.isSshHost = true;
+        expect(agentChatMessageVideoPaths('look at /tmp/b.mp4')).toEqual([]);
+        environment.isSshHost = false;
     });
 });

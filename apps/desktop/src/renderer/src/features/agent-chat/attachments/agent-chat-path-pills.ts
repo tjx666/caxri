@@ -1,7 +1,10 @@
 import type { DragEvent } from 'react';
 
+import { isAgentChatVideoPath } from '@caxri/protocol';
+
 import {
     isDirectoryDrag,
+    isOsFileReferenceRefused,
     PROJECT_PATH_DRAG_TYPE,
     terminalDragPaths,
     terminalInputPath,
@@ -22,13 +25,14 @@ export interface AgentChatPathPill {
 /**
  * The pills a drop of Caxri's own Files entry, file reference, Editor tab, or Project drag cites, in drag order. Paths
  * stay absolute: the Agent reads them with its own tools from any directory, and an absolute path is what the pill's
- * icon and name stand for. Files from another application are not handled here; they become tray cards.
+ * icon and name stand for. Files from another application are not handled here: a video among them is cited inline too
+ * (`agentChatOsVideoPills`), and the rest become tray cards.
  */
 export function agentChatDropPathPills(event: DragEvent): AgentChatPathPill[] {
     const { dataTransfer } = event;
     const projectPath = dataTransfer.getData(PROJECT_PATH_DRAG_TYPE);
     const editorPath = dataTransfer.getData(EDITOR_PATH_DRAG_TYPE);
-    const references: Array<Omit<AgentChatPathPill, 'token'>> = projectPath
+    const references: Array<Pick<AgentChatPathPill, 'kind' | 'path'>> = projectPath
         ? [{ kind: 'directory', path: projectPath }]
         : editorPath
           ? [{ kind: 'file', path: editorPath }]
@@ -36,15 +40,45 @@ export function agentChatDropPathPills(event: DragEvent): AgentChatPathPill[] {
                 kind: isDirectoryDrag(dataTransfer) ? 'directory' : 'file',
                 path,
             }));
-    return references.map((reference) => ({
-        ...reference,
+    return references.map(({ kind, path }) => agentChatPathPill(path, kind));
+}
+
+/**
+ * The pill that cites `path` in the text: its token is the absolute path, with a trailing `/` for a folder,
+ * shell-quoted only when it needs to be.
+ */
+export function agentChatPathPill(
+    path: string,
+    kind: AgentChatPathPill['kind'],
+): AgentChatPathPill {
+    return {
+        kind,
+        path,
         // A folder ends in `/`, so the sent message still draws it as a folder (`agentChatUserMessageSegments`).
-        token: terminalInputPath(
-            reference.kind === 'directory' && !reference.path.endsWith('/')
-                ? `${reference.path}/`
-                : reference.path,
+        token: terminalInputPath(kind === 'directory' && !path.endsWith('/') ? `${path}/` : path),
+    };
+}
+
+/**
+ * The videos a message cites in its text, each once, in order of first mention; a sent message shows each as a playable
+ * tile. A Chat on an SSH Host has none: its paths name files on that Host, which this Mac cannot play.
+ */
+export function agentChatMessageVideoPaths(text: string): string[] {
+    if (isOsFileReferenceRefused()) return [];
+    return [
+        ...new Set(
+            agentChatAbsolutePaths(text).flatMap(({ isDirectory, path }) =>
+                !isDirectory && isAgentChatVideoPath(path) ? [path] : [],
+            ),
         ),
-    }));
+    ];
+}
+
+/**
+ * Whether a pill for `path` previews and plays it as a video (see `agentChatMessageVideoPaths`).
+ */
+export function isAgentChatPlayableVideo(path: string): boolean {
+    return !isOsFileReferenceRefused() && isAgentChatVideoPath(path);
 }
 
 /**

@@ -74,6 +74,10 @@ export const agentChatTimeline = {
     'agentChat.message.imageUnavailable': 'Image no longer available',
     'agentChat.message.imageUnavailableLabel': '{{label}}, no longer available',
     'agentChat.message.previewImage': 'Preview {{label}}',
+    'agentChat.message.playVideo': 'Play {{name}}',
+    'agentChat.message.videoUnplayable':
+        "This video can't play here. It may have moved, or use a format Caxri can't decode.",
+    'agentChat.message.revealVideo': 'Show in Finder',
     'agentChat.time.today': 'Today {{time}}',
     'agentChat.time.yesterday': 'Yesterday {{time}}',
     'agentChat.rail.label': 'Messages',

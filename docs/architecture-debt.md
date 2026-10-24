@@ -765,7 +765,7 @@ resolved most of them, and the fix batch of [issue caxri#2332](https://github.co
 - **Evidence:** `packages/system/src/filesystem/bounded-file-reader.ts` (then under Server domains) gains `symlinks` and `inspect` options; `config/source.ts`, `claude/metadata-cache.ts`, `grok/state.ts`, `core/extensions/discovery.ts`, `catalog.ts`, and `core/private-json-store.ts` now use it, with FIFO tests.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
-- **Changed-shape recurrence:** 2026-10-21 @ 403f8de9a, the Chat image picker in Desktop Main read with `stat` then `readFile`. Fixed in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264): the reader moved to `packages/system/src/filesystem/bounded-file-reader.ts` and `apps/desktop/src/main/agent-chat-path-picker.ts` uses it; covered by `apps/desktop/src/main/__tests__/agent-chat-path-picker.test.ts`.
+- **Changed-shape recurrence:** 2026-10-21 @ 403f8de9a, the Chat image picker in Desktop Main read with `stat` then `readFile`. Fixed in [PR caxri#2264](https://github.com/tjx666/caxri/pull/2264): the reader moved to `packages/system/src/filesystem/bounded-file-reader.ts` and `apps/desktop/src/main/agent-chat/path-picker.ts` uses it; covered by `apps/desktop/src/main/agent-chat/__tests__/path-picker.test.ts`.
 - **Remediation target / Acceptance:** A FIFO at any migrated path fails fast as a non-regular file.
 
 ### AD-lifecycle-quit-prompt-parent: [RESOLVED · Confirmed defect · S]

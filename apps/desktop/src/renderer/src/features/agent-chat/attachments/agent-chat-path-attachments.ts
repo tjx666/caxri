@@ -1,6 +1,9 @@
 import type { AgentChatPathReference } from '@caxri/protocol';
+import { isAgentChatVideoPath } from '@caxri/protocol';
 
 import { isOsFileReferenceRefused } from '../../../lib/file-drag';
+import type { AgentChatPathPill } from './agent-chat-path-pills';
+import { agentChatPathPill } from './agent-chat-path-pills';
 
 /**
  * Whether `file`, from another application, is a folder. Chromium hands a dropped or pasted folder over as a `File`
@@ -31,4 +34,25 @@ export async function agentChatOsFileReferences(
         }),
     );
     return references.filter((reference) => reference !== undefined);
+}
+
+/**
+ * Splits files from another application (dropped, pasted, or picked) into the videos among them, which the composer
+ * cites inline as pills the way an image gets its `[Image #N]` pill, so the sent message shows each where the user put
+ * it and can play it, and the other files, which stay tray cards. An SSH Host window cites no video: its Agent cannot
+ * read this Mac's paths (`isOsFileReferenceRefused`).
+ */
+export function agentChatOsVideoPills<T>(
+    entries: readonly T[],
+    pathOf: (entry: T) => string | undefined,
+): { rest: T[]; videos: AgentChatPathPill[] } {
+    if (isOsFileReferenceRefused()) return { rest: [...entries], videos: [] };
+    const rest: T[] = [];
+    const videos: AgentChatPathPill[] = [];
+    for (const entry of entries) {
+        const path = pathOf(entry);
+        if (path && isAgentChatVideoPath(path)) videos.push(agentChatPathPill(path, 'file'));
+        else rest.push(entry);
+    }
+    return { rest, videos };
 }

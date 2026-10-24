@@ -12,10 +12,15 @@
              images real READMEs are written around (build badges, hosted diagrams), the same
              default VS Code's Markdown preview ships with, and the same trade-off: opening a
              document tells whatever host it points at that it was opened. Plain `http:` stays
-             blocked. -->
+             blocked.
+
+             `caxri-media:` is Main's scheme for a video a Chat message cites: its poster frame
+             and the video itself, served only for existing files with a video extension
+             (`main/agent-chat/media-protocol.ts`), because a screen recording is too large for the
+             file channel and `file:` stays forbidden. -->
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__; worker-src 'self' blob:"
+            content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: caxri-media:; media-src 'self' caxri-media:; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__; worker-src 'self' blob:"
         />
         <title>Caxri</title>
         <!-- Startup loader: painted by the first frame, before any bundle runs. On macOS in a dark appearance the window
