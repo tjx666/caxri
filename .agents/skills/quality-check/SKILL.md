@@ -68,6 +68,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   build; the checker's `--e2e` path performs that rebuild automatically.
 - Finish `--lint` before starting a build or Electron E2E. Its automatic fixes mutate source;
   running both concurrently invalidates the build-freshness receipt before Electron can launch.
+  The same holds for the whole `--e2e` run, background runs included: an edit, a `git commit`
+  (its hook rewrites staged files), or a rebase in that worktree fails every later spec with
+  `Build output is stale`. Wait for the run to finish; read-only work can continue meanwhile.
 
 Pass a test path explicitly when a source file has a nonstandard test that does not directly import
 the source boundary. The checker never launches full Electron E2E, packaging, or performance gates
