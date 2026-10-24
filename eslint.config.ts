@@ -288,11 +288,18 @@ export default defineConfig(
              * type-aware layer lives in oxlint: see .oxlintrc.json), and in untyped mode each of these produced
              * confirmed false positives on this repository (a non-Array `.push()` receiver, a string `.slice()` treated
              * as an ArrayBuffer view, an intentional boolean-to-boolean `!==` comparison).
+             *
+             * `unicorn/prefer-includes` also rewrites `.some((x) => x === v)` on an iterator such as `map.values()`
+             * into `.includes(v)`, which iterators do not have, so its autofix throws at runtime. The type-aware
+             * `typescript/prefer-includes` in .oxlintrc.json replaces it and only fires on receivers that have
+             * `includes`. Upstream treated iterators as fixed in sindresorhus/eslint-plugin-unicorn#1916, but v79 still
+             * flags iterator helpers.
              */
             'unicorn/no-chained-comparison': 'off',
             'unicorn/no-computed-property-existence-check': 'off',
             'unicorn/no-return-array-push': 'off',
             'unicorn/no-unsafe-buffer-conversion': 'off',
+            'unicorn/prefer-includes': 'off',
         },
     },
     {

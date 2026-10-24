@@ -43,7 +43,9 @@ async function listSources(directory: string): Promise<string[]> {
         entries.map(async (entry) => {
             const path = join(directory, entry.name);
             if (entry.isDirectory()) return entry.name === '__tests__' ? [] : listSources(path);
-            return /\.(?:tsx?|css)$/.test(entry.name) && !/\.test\./.test(entry.name) ? [path] : [];
+            return /\.(?:tsx?|css)$/.test(entry.name) && !entry.name.includes('.test.')
+                ? [path]
+                : [];
         }),
     );
     return nested.flat();
