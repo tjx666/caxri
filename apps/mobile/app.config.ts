@@ -54,6 +54,7 @@ export default function createExpoConfig({ config }: ConfigContext): ExpoConfig 
         },
         plugins: [
             './plugins/with-android-sdk-download-disabled',
+            './plugins/with-android-mlkit-keep-rules',
             './plugins/with-android-release-signing',
             './plugins/with-mobile-network-policy',
             'expo-router',

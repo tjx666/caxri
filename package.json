@@ -190,6 +190,7 @@
             },
             "apps/mobile": {
                 "entry": [
+                    "plugins/with-android-mlkit-keep-rules.ts",
                     "plugins/with-android-release-signing.ts",
                     "plugins/with-android-sdk-download-disabled.ts",
                     "plugins/with-mobile-network-policy.ts"
