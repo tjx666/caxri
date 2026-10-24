@@ -4,6 +4,7 @@ import type {
     AgentChatTurn,
     AgentChatTurnArtifacts,
     AgentChatTurnFoldSegment,
+    AgentChatTurnMetrics,
     AgentChatWorkItem,
 } from '@caxri/protocol';
 import {
@@ -37,6 +38,11 @@ export type AgentChatTimelineEntry =
            * What the finished turn this reply ends changed and filed, shown under the reply above its Copy action.
            */
           artifacts?: AgentChatTurnArtifacts;
+          /**
+           * The finished turn's generation speed and cost, shown after the reply's time. Absent for a turn that ended
+           * before Caxri recorded them, so a replayed history shows only the time.
+           */
+          metrics?: AgentChatTurnMetrics;
       }
     | {
           kind: 'work';
@@ -265,6 +271,20 @@ function withTurnArtifacts(
 }
 
 /**
+ * Hangs a finished turn's recorded metrics on its final reply. A turn without a reply has no footer to carry them.
+ */
+function withTurnMetrics(
+    entries: AgentChatTimelineEntry[],
+    metrics: AgentChatTurnMetrics | undefined,
+): AgentChatTimelineEntry[] {
+    if (!metrics) return entries;
+    const replyIndex = entries.findIndex((entry) => entry.kind === 'item' && entry.isFinalReply);
+    const reply = replyIndex === -1 ? undefined : entries[replyIndex];
+    if (reply?.kind !== 'item') return entries;
+    return entries.with(replyIndex, { ...reply, metrics });
+}
+
+/**
  * Builds the rendered timeline from the projection. Items arrive in order and each turn's items are contiguous, so a
  * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded. Every
  * turn not running ends on its last reply, which is the only one marked `isFinalReply`; a running turn's latest reply
@@ -300,16 +320,17 @@ export function buildAgentChatTimeline(
             turnId !== undefined && running.has(turnId)
                 ? undefined
                 : agentChatFinalReplyId(segment);
+        const artifacts =
+            turn &&
+            turnArtifacts(
+                turn.id,
+                segment,
+                start === 0 && isTruncated && segment[0]?.type !== 'userMessage',
+            );
+        const folded = turn && withTurnArtifacts(foldTurn(segment, turn, finalReplyId), artifacts);
         entries.push(
-            ...(turn
-                ? withTurnArtifacts(
-                      foldTurn(segment, turn, finalReplyId),
-                      turnArtifacts(
-                          turn.id,
-                          segment,
-                          start === 0 && isTruncated && segment[0]?.type !== 'userMessage',
-                      ),
-                  )
+            ...(turn && folded
+                ? withTurnMetrics(folded, turn.metrics)
                 : groupWork(segment, finalReplyId, turnId !== undefined && running.has(turnId))),
         );
         start = end;
@@ -361,6 +382,21 @@ function areSameEntries(
     return left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
 
+/**
+ * Compared by value: every `state` patch replaces the `turns` array, and a fresh but equal metrics object must not
+ * re-render a settled reply.
+ */
+function isSameTurnMetrics(
+    left: AgentChatTurnMetrics | undefined,
+    right: AgentChatTurnMetrics | undefined,
+): boolean {
+    return (
+        left?.outputTokens === right?.outputTokens &&
+        left?.generationMs === right?.generationMs &&
+        left?.costUsd === right?.costUsd
+    );
+}
+
 function firstItem(entry: AgentChatTimelineEntry): AgentChatItem | undefined {
     switch (entry.kind) {
         case 'item': {
@@ -389,7 +425,8 @@ function reuseAgentChatTimelineEntry(entry: AgentChatTimelineEntry): AgentChatTi
             if (
                 previous &&
                 previous.isFinalReply === entry.isFinalReply &&
-                previous.artifacts === entry.artifacts
+                previous.artifacts === entry.artifacts &&
+                isSameTurnMetrics(previous.metrics, entry.metrics)
             )
                 return previous;
             items.set(entry.item, entry);

@@ -36,6 +36,7 @@ export function createAgentChatService({
         Awaited<ReturnType<typeof createAgentRuntime>>,
         | 'agentEnvironment'
         | 'agentLaunchSettings'
+        | 'agentThroughput'
         | 'coordinator'
         | 'dispatchState'
         | 'observeChatLifecycleSignal'
@@ -91,6 +92,7 @@ export function createAgentChatService({
             },
         },
         onAgentStateChanged: agentRuntime.dispatchState.observe,
+        readThroughput: (terminalId) => agentRuntime.agentThroughput.read(terminalId),
         resolveExecutable: dependencies.terminal?.resolveExecutable,
         coordinator,
         observeLifecycleSignal: agentRuntime.observeChatLifecycleSignal,

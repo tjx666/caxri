@@ -897,13 +897,19 @@ several callbacks can share one item, so the transport id is never the key.
   leveled headings, nested and task lists, quotes with a hover Copy quote (the quote's text without
   its `>` markers, `blocksPlainText`), tables with Copy table (Markdown plus HTML), and fenced code
   with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer once the
-  fence closes. Under a finished reply, Copy message and the time the reply began mount only while
+  fence closes. Under a finished reply, Copy message, the time the reply began, and the turn's
+  generation speed and estimated cost (`62 tok/s · $0.42`) mount only while
   the pointer is over the reply or focus is inside it, the latest reply included
   (`agent-chat-reply-frame.tsx`); the row keeps its height, so revealing it never shifts the
   transcript. Option+ArrowUp and Option+ArrowDown step focus between replies and user messages,
   which reveals each one's row. Right-clicking a reply opens a native menu with Copy Message; with
   text selected inside it, Copy comes first and Add to Message follows, which quotes the selection
   into the composer as the selection toolbar's quote does.
+- The speed and cost are recorded on the turn once, when it ends
+  ([`turn-metrics.ts`](../apps/server/src/domains/usage/turn-metrics.ts)): output
+  tokens and generation time come from the transcript throughput read (the responses that completed
+  inside the turn's window), and the cost is the turn's `turnUsage` captured at its end. A turn
+  replayed from provider history, or one too short to rate, shows only what it has.
 - Message times follow the Codex app. A centered day break (`Today 17:59`, `Yesterday 09:12`,
   `Oct 3 17:59`) heads the first user message of each day. Under a user message, a hover row shows
   its time and Copy message, mounted only while the pointer or focus is on the message; the row keeps

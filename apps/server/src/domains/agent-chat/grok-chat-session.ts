@@ -245,7 +245,7 @@ class GrokChatSession implements AgentChatProviderSession {
         });
         this.options.apply(operations);
         this.requests.settleTurn(turnId);
-        this.options.onTurnFinished(status, durationMs);
+        this.options.onTurnFinished(status, durationMs, turnId);
         this.options.lifecycle(
             status === 'failed'
                 ? {

@@ -177,7 +177,7 @@ class CodexChatSession implements AgentChatProviderSession {
             operations.push({ op: 'state', state: { operation: null } });
         this.options.apply(operations);
         void this.tasks.reconcileTerminals();
-        this.options.onTurnFinished(status, durationMs);
+        this.options.onTurnFinished(status, durationMs, id);
         this.options.lifecycle(
             status === 'failed'
                 ? {

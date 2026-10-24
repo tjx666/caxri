@@ -7,6 +7,7 @@ import type { AgentChatService } from './agent-chat';
 import type {
     AgentEnvironment,
     AgentHookManager,
+    AgentThroughputService,
     AgentTimelineService,
     AgentTranscriptWatcher,
     LongPasteService,
@@ -14,7 +15,6 @@ import type {
 } from './agents';
 import {
     agentSkillHealthReader,
-    AgentThroughputService,
     listAgentActions,
     readAgentAction,
     readAgentExcerpts,
@@ -181,6 +181,10 @@ export function createServiceHandlers(services: {
         Pick<AgentChatService, 'readPlanLimits' | 'states'>;
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
+    /**
+     * Shared with the Chat service, which reads it when a turn ends (`recordChatTurnMetrics`).
+     */
+    agentThroughput: Pick<AgentThroughputService, 'read'>;
     agentRuntime: {
         awaitSettingsReconcile: () => Promise<void>;
         sessionSearchIndex: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'search'>;
@@ -219,6 +223,7 @@ export function createServiceHandlers(services: {
         agentEnvironment,
         agentHooks,
         agentRuntime,
+        agentThroughput,
         commanderHandovers,
         commanderInbox,
         configuration,
@@ -258,7 +263,6 @@ export function createServiceHandlers(services: {
         logger,
         agentEnvironment,
     );
-    const agentThroughput = new AgentThroughputService(database, agentEnvironment);
     const noticeMergedPullRequest = createPullRequestMergeNotice({
         agentChat: services.agentChat,
         database,

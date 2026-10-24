@@ -53,6 +53,7 @@ export const agentChatTimeline = {
     'agentChat.message.typeToSend': 'Type a message to send',
     'agentChat.message.steered': 'Steered',
     'agentChat.message.copy': 'Copy message',
+    'agentChat.message.turnCost': 'Estimated cost of this turn at API list prices: {{cost}}',
     'agentChat.message.showLess': 'Show less',
     'agentChat.delegated.by': 'Delegated by',
     'agentChat.delegated.task': 'Delegated task',

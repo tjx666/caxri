@@ -49,6 +49,7 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.message.typeToSend': '输入消息后即可发送',
     'agentChat.message.steered': '已插入本轮',
     'agentChat.message.copy': '复制消息',
+    'agentChat.message.turnCost': '本轮按 API 标价估算的花费：{{cost}}',
     'agentChat.message.showLess': '收起',
     'agentChat.delegated.by': '委派自',
     'agentChat.delegated.task': '委派任务',

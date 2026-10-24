@@ -1,5 +1,13 @@
-import type { AgentChatTurnUsage } from '@caxri/protocol';
-import { formatTokens, tokenCountParts } from '@caxri/protocol';
+import type { AgentChatTurnMetrics, AgentChatTurnUsage } from '@caxri/protocol';
+import { formatTokens, formatUsd, tokenCountParts } from '@caxri/protocol';
+
+import type { Translate } from '../../../i18n';
+import { translate } from '../../../i18n';
+import {
+    describeThroughputAggregate,
+    formatThroughputRate,
+    throughputRate,
+} from '../../status-bar/agent-throughput-label';
 
 export type AgentChatTurnMetricKind = 'steps' | 'tokens' | 'cost';
 
@@ -64,4 +72,39 @@ export function agentChatTurnMetrics(
         metrics.push({ kind: 'cost', value, figure });
     }
     return metrics;
+}
+
+/**
+ * What a finished turn's reply footer reads after its time, the way LobeHub's message footer does: `62 tok/s · $0.42`,
+ * with the measured totals and the estimate caveat as tooltip lines. Undefined when the turn recorded neither a rate
+ * nor a cost; a turn too short to rate (below the throughput floor) or whose models have no price shows the other
+ * figure alone.
+ */
+export function agentChatReplyMetrics(
+    metrics: AgentChatTurnMetrics | undefined,
+    t: Translate = translate,
+): { label: string; details: string[] } | undefined {
+    if (!metrics) return undefined;
+    const generated =
+        metrics.outputTokens === undefined || metrics.generationMs === undefined
+            ? undefined
+            : {
+                  outputTokens: metrics.outputTokens,
+                  durationMs: metrics.generationMs,
+                  responseCount: 1,
+              };
+    const rate = generated && throughputRate(generated);
+    const cost =
+        metrics.costUsd !== undefined && metrics.costUsd > 0
+            ? formatUsd(metrics.costUsd)
+            : undefined;
+    const label = [rate === undefined ? undefined : formatThroughputRate(rate), cost]
+        .filter(Boolean)
+        .join(' · ');
+    if (!label) return undefined;
+    const details = [
+        rate === undefined || !generated ? undefined : describeThroughputAggregate(generated, t),
+        cost && t('agentChat.message.turnCost', { cost }),
+    ].filter((line) => line !== undefined);
+    return { label, details };
 }

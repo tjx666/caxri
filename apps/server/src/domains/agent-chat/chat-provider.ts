@@ -209,7 +209,11 @@ export interface AgentChatSessionHost {
      * started), because binding earlier would leave an identity that can never be resumed.
      */
     onSessionBound(agentSessionId: string): void;
-    onTurnFinished(status: AgentChatTurn['status'], durationMs: number | undefined): void;
+    onTurnFinished(
+        status: AgentChatTurn['status'],
+        durationMs: number | undefined,
+        turnId: string,
+    ): void;
     /**
      * The provider changed the Chat's permission on its own (Claude Code leaving plan mode once its plan is approved),
      * so the service saves it as the Chat's choice.

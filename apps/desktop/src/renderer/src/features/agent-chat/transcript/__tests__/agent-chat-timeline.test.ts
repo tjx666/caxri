@@ -165,6 +165,39 @@ describe('buildAgentChatTimeline', () => {
         expect(artifactsOf(buildAgentChatTimeline([...items], turns, undefined).at(2))).toBe(final);
     });
 
+    it("carries a finished turn's metrics on its final reply and keeps the entry across an equal rebuild", () => {
+        const metrics = { outputTokens: 300, generationMs: 3_000, costUsd: 0.42 };
+        const turns: AgentChatTurn[] = [
+            { id: 't1', status: 'completed', metrics },
+            { id: 't2', status: 'running' },
+        ];
+        const items = [
+            user('u1', 't1'),
+            reply('c1', 't1'),
+            command('x1', 't1'),
+            reply('a1', 't1'),
+            user('u2', 't2'),
+            reply('a2', 't2'),
+        ];
+        const metricsById = (entries: readonly AgentChatTimelineEntry[]) =>
+            Object.fromEntries(
+                entries.flatMap((entry) =>
+                    entry.kind === 'item' && entry.metrics ? [[entry.item.id, entry.metrics]] : [],
+                ),
+            );
+        const entries = buildAgentChatTimeline(items, turns, 't2');
+        expect(metricsById(entries)).toEqual({ a1: metrics });
+        // The next `state` patch hands over a fresh but equal metrics object: the reply entry stays the same object.
+        const rebuilt = buildAgentChatTimeline(
+            items,
+            [{ ...turns[0], metrics: { ...metrics } }, turns[1]],
+            't2',
+        );
+        const final = (list: readonly AgentChatTimelineEntry[]) =>
+            list.find((entry) => entry.kind === 'item' && entry.item.id === 'a1');
+        expect(final(rebuilt)).toBe(final(entries));
+    });
+
     it('marks the artifacts of a first turn that lost its start to the budget as partial', () => {
         const change: AgentChatItem = {
             id: 'f1',

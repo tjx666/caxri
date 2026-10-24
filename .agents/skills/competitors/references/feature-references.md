@@ -158,6 +158,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Chat waiting popup**: `GlobalApprovalNotification` design only (code written independently): a top-center card below the title bar, one request at a time with an "N more" line, a fold to an "N pending" pill that unfolds on a new request, Chats on screen left out. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/waiting/agent-chat-waiting-popup.tsx`; `docs/agent-chat.md`.
 - **Readable Chat beside a side pane**: `fitsBesidePortal`: a 420px floor for the conversation beside a Portal, and the working sidebar steps aside while the Portal is open. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`; `docs/agent-chat.md`.
 - **Chat turn spend in the composer strip**: `OpStatusTray`: steps, tokens, and price-list cost of the running turn behind icons, split by hairlines; zero hidden, steps above one; four decimals below a cent; only tokens when narrow; no stop hint. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metric-list.tsx`; `docs/agent-chat.md`.
+- **Chat reply speed and cost footer**: A finished reply's footer reads its generation speed and cost after the time (`62 tok/s · $0.42`), with the totals on hover. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metrics.ts` (`agentChatReplyMetrics`); `docs/agent-chat.md`.
 
 ## NumberFlow (MIT)
 

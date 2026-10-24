@@ -1,5 +1,8 @@
+import type { AgentChatTurnMetrics } from '@caxri/protocol';
+
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
+import { agentChatReplyMetrics } from '../activity/agent-chat-turn-metrics';
 import { useClockTick } from '../hooks/use-clock-tick';
 import {
     agentChatDayLabel,
@@ -23,6 +26,31 @@ export function AgentChatMessageTime({ timestamp }: { timestamp: number }) {
             >
                 {agentChatMessageTime(timestamp)}
             </time>
+        </Tooltip>
+    );
+}
+
+/**
+ * A finished turn's speed and cost after its reply's time, in the same quiet type, with the measured totals and the
+ * estimate caveat on hover. Renders nothing for a turn that recorded neither.
+ */
+export function AgentChatTurnMetricsLabel({ metrics }: { metrics?: AgentChatTurnMetrics }) {
+    const { t } = useTranslation();
+    const readout = agentChatReplyMetrics(metrics, t);
+    if (!readout) return null;
+    return (
+        <Tooltip
+            content={readout.details.map((line) => (
+                <div key={line}>{line}</div>
+            ))}
+        >
+            <span
+                aria-label={readout.details.join('. ')}
+                className="px-1 text-[11px] leading-6 text-muted tabular-nums"
+                data-agent-chat-turn-metrics=""
+            >
+                {readout.label}
+            </span>
         </Tooltip>
     );
 }
