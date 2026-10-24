@@ -39,6 +39,7 @@ describe('Session activity presentation', () => {
         expect(sessionActivityPresentation(state)).toEqual({
             ariaLabel: `${label}. ${description}`,
             description,
+            hasVisibleDescription: false,
             indicatorClassName: className,
             label,
             tone,
@@ -49,6 +50,7 @@ describe('Session activity presentation', () => {
         expect(sessionActivityPresentation('running', 'compacting')).toEqual({
             ariaLabel: 'Compacting. The Agent is summarizing earlier context before continuing.',
             description: 'The Agent is summarizing earlier context before continuing.',
+            hasVisibleDescription: true,
             indicatorClassName: 'text-success',
             label: 'Compacting',
             tone: 'success',

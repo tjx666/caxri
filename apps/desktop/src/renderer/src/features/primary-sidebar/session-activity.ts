@@ -12,6 +12,12 @@ import type { SessionStatusTerminal } from './session-status';
 export interface SessionActivityPresentation {
     ariaLabel: string;
     description: string;
+    /**
+     * Whether the hover card shows {@link description} under the status. Most sentences only restate their label
+     * ("Working" / "The Agent is running."), so the card keeps them for screen readers and shows only the ones that
+     * explain something the label cannot, such as how a suspended Agent comes back.
+     */
+    hasVisibleDescription: boolean;
     indicatorClassName: string;
     label: string;
     tone: 'danger' | 'neutral' | 'success' | 'warning';
@@ -19,6 +25,13 @@ export interface SessionActivityPresentation {
 
 type ActivityKey =
     'background' | 'compacting' | 'detached' | 'noAgent' | 'suspended' | AgentActivityState;
+
+const KEYS_WITH_VISIBLE_DESCRIPTION: ReadonlySet<ActivityKey> = new Set([
+    'background',
+    'compacting',
+    'detached',
+    'suspended',
+]);
 
 const PRESENTATIONS: Record<
     AgentActivityState,
@@ -51,6 +64,7 @@ function presentation(
     return {
         ariaLabel: translate('primarySidebar.activity.ariaLabel', { description, label }),
         description,
+        hasVisibleDescription: KEYS_WITH_VISIBLE_DESCRIPTION.has(key),
         indicatorClassName,
         label,
         tone,

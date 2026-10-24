@@ -232,7 +232,7 @@ on the same snapshot generation the Source Control provider reads through `git.s
 plain working-tree write in any other Session's root never bumps that root's status generation, and
 a cached read keeps returning the snapshot from when the user switched away. `git.overview` therefore
 accepts `refresh: true`, which runs the same forced `refreshSummary` path `mobile.changes.list` uses.
-The Session hover card's `Changes` row
+The Session hover card's change count
 (`apps/desktop/src/renderer/src/features/primary-sidebar/hooks/use-session-changes.ts`) is the
 Desktop reader: it sends `refresh: true` only for a Session whose Workbench Root differs from the
 visible Session's, reads only while its card is open, and lets one card read at a time. A forced

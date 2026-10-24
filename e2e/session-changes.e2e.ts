@@ -82,7 +82,7 @@ test('Session hover card counts another root’s uncommitted changes but not the
         await sessionCard(page, betaSessionId).hover();
         await expect(card).toContainText('beta work');
         const changes = card.locator('.session-card-changes');
-        await expect(changes).toHaveText(/^Changes\s*2$/);
+        await expect(changes).toHaveText('2 changes');
         await expect(sessionCard(page, betaSessionId)).toHaveAccessibleDescription(
             /Working tree has 2 uncommitted changes\./,
         );
@@ -92,7 +92,7 @@ test('Session hover card counts another root’s uncommitted changes but not the
         await expect(card).toHaveCount(0);
         await sessionCard(page, alphaSessionId).hover();
         await expect(card).toContainText('alpha work');
-        await expect(card).toContainText('Last opened');
+        await expect(card).toContainText('Opened');
         await expect(card.locator('.session-card-changes')).toHaveCount(0);
         await card.screenshot({ path: test.info().outputPath('selected-session-card.png') });
     } finally {

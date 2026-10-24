@@ -15,6 +15,11 @@ import {
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    dismissContextMenu,
+    waitForContextMenu,
+} from './support/native-context-menu.ts';
 
 const CLOSED = '7f5b1d4c-9e6a-4b0d-8c43-5a8f1e0d9b74';
 const CURRENT = '8a6c2e5d-0f7b-4c1e-9d54-6b9a2f1e0c85';
@@ -47,7 +52,7 @@ async function writeClaudeTranscript(
     await writeFile(path, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`);
 }
 
-test("a Session's hover card lists its past conversations and reopens a closed one", async () => {
+test("a Session's context menu reopens a closed past conversation", async () => {
     const created = await mkdtemp(join(tmpdir(), 'caxri-session-agent-history-e2e-'));
     const directory = await realpath(created);
     const userData = join(directory, 'profile');
@@ -113,35 +118,21 @@ test("a Session's hover card lists its past conversations and reopens a closed o
         running = await launchCaxri(options);
         const { page } = running;
         await createAdditionalShellSession(page);
-        await sessionCard(page, sessionId).hover();
-        const history = page.locator('.session-agent-history');
-        await expect(history).toBeVisible();
-        const entries = history.locator('.session-agent-history-entry');
-        await expect(entries).toHaveCount(2);
-        await expect(entries.first()).toHaveAttribute('data-open', 'true');
-        const closed = history.getByRole('button', { name: /^Reopen conversation/u });
-        await expect(closed).toHaveCount(1);
-        // Titles come from Session search's index, which the first hover after launch starts filling.
+        const menuPath = ['Reopen previous conversation', 'Fix invoice rounding'];
+        // Titles come from Session search's index, which the first history read after launch starts filling.
         await expect(async () => {
-            await page.mouse.move(800, 600);
-            await expect(history).toHaveCount(0);
-            await sessionCard(page, sessionId).hover();
-            await expect(closed).toContainText('Fix invoice rounding', { timeout: 2_000 });
+            await sessionCard(page, sessionId).click({ button: 'right' });
+            try {
+                const items = await waitForContextMenu(running.app);
+                const submenu = items.find((item) => item.label === menuPath[0])?.submenu ?? [];
+                // Only the closed conversation is offered; the open one is already a tab of the Session.
+                expect(submenu.map((item) => item.label)).toEqual([menuPath[1]]);
+            } catch (error) {
+                await dismissContextMenu(running.app);
+                throw error;
+            }
         }).toPass({ timeout: 30_000 });
-        await expect(entries.first()).toContainText('Add a refund ledger');
-        await page
-            .locator('.session-activity-card')
-            .screenshot({ path: test.info().outputPath('session-agent-history.png') });
-        // At rest the long title fades out right before the row's edge.
-        await page.mouse.move(800, 600);
-        await expect(history).toHaveCount(0);
-        await sessionCard(page, sessionId).screenshot({
-            path: test.info().outputPath('session-row-at-rest.png'),
-        });
-        await sessionCard(page, sessionId).hover();
-        await expect(closed).toBeVisible();
-
-        await closed.click();
+        await chooseContextMenuItem(running.app, menuPath);
         await expect.poll(() => selectedSessionId(page)).toBe(sessionId);
         await expect
             .poll(async () => {

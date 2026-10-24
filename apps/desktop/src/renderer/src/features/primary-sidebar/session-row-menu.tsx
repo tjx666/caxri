@@ -193,8 +193,8 @@ async function isCommanderManaged(sessionId: string): Promise<boolean> {
 }
 
 /**
- * The Session's Agent conversations that can be brought back, read when the menu opens. Mirrors the hover card's list
- * so keyboard and context-menu users reach the same entries; an unanswered read hides the submenu instead of blocking.
+ * The Session's Agent conversations that can be brought back, read when the menu opens. This submenu is the only way
+ * back to a closed conversation; an unanswered read hides it instead of blocking the menu.
  */
 async function readReopenableConversations(sessionId: string): Promise<SessionAgentHistoryEntry[]> {
     const read = async (): Promise<SessionAgentHistoryEntry[]> => {

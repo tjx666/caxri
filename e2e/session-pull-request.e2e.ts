@@ -193,10 +193,10 @@ esac
             await expect(card).toBeFocused();
             const hoverCard = running.page.locator('.session-activity-card');
             await expect(hoverCard).toContainText('#42');
+            // An open PR's glyph carries the lifecycle, so its text slot shows the checks instead.
             await expect(hoverCard).toContainText(
-                state === 'open' ? 'Open' : state === 'draft' ? 'Draft' : 'Merged',
+                state === 'open' ? 'Checks failing' : state === 'draft' ? 'Draft' : 'Merged',
             );
-            if (state === 'open') await expect(hoverCard).toContainText('Checks failing');
             await hoverCard.screenshot({ path: test.info().outputPath(`pr-${state}-hover.png`) });
             await expect(hoverCard).toContainText('Pull request fixture');
             await running.page.keyboard.press('Tab');
