@@ -61,7 +61,7 @@ describe('Agent Chat suggestion list copy', () => {
             expect(keycaps(agentChatSuggestionFooter(list, false))).toBe('Esc to dismiss');
     });
 
-    it('says Enter inserts for a skill or a command that takes arguments, and runs a bare command', () => {
+    it('says Enter runs every command and skill, and inserts only /goal', () => {
         const action = (
             kind: 'command' | 'skill',
             invocation: string,
@@ -78,8 +78,9 @@ describe('Agent Chat suggestion list copy', () => {
                 ({ keys }) => keys === 'Enter',
             )?.action;
         expect(enter(action('command', '/clear'))).toBe('to run');
-        expect(enter(action('command', '/model', '<name>'))).toBe('to insert');
-        expect(enter(action('skill', '$review'))).toBe('to insert');
+        expect(enter(action('command', '/model', '<name>'))).toBe('to run');
+        expect(enter(action('skill', '$review'))).toBe('to run');
+        expect(enter(action('command', '/goal', '<objective>'))).toBe('to insert');
     });
 
     it('names the Session whose reference is being prepared', () => {

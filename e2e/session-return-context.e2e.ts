@@ -96,8 +96,8 @@ test('returning to a Chat counts the turns that finished while away', async ({},
     try {
         const { page } = running;
         await returnAfterTwoTurns(page);
-        const hint = page.getByRole('status').filter({ hasText: 'since you left' });
-        await expect(hint).toContainText('2 replies since you left');
+        const hint = page.getByRole('status').filter({ hasText: 'new replies' });
+        await expect(hint).toContainText('2 new replies');
         const jumpToLatest = page
             .locator(VISIBLE_SESSION)
             .getByRole('button', { name: 'Jump to latest' });
@@ -111,9 +111,9 @@ test('returning to a Chat counts the turns that finished while away', async ({},
         expect(hintBox!.y).toBeGreaterThanOrEqual(transcriptBox!.y + transcriptBox!.height - 1);
         await page.screenshot({ path: testInfo.outputPath('return-hint.png') });
         // The whole message jumps, not only its trailing words.
-        await hint.getByText('2 replies since you left').hover();
+        await hint.getByText('2 new replies').hover();
         await page.screenshot({ path: testInfo.outputPath('return-hint-hover.png') });
-        await hint.getByText('2 replies since you left').click();
+        await hint.getByText('2 new replies').click();
         await expect(hint).toBeHidden();
         // Up at the first missed prompt, Jump to latest takes the same slot.
         await expect(jumpToLatest).toHaveCSS('opacity', '1');
@@ -129,8 +129,8 @@ test('sending a message retires the return hint', async ({}) => {
     try {
         const { page } = running;
         await returnAfterTwoTurns(page);
-        const hint = page.getByRole('status').filter({ hasText: 'since you left' });
-        await expect(hint).toContainText('2 replies since you left');
+        const hint = page.getByRole('status').filter({ hasText: 'new replies' });
+        await expect(hint).toContainText('2 new replies');
         const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
         await message.fill('hello again');
         await message.press('Enter');

@@ -17,7 +17,6 @@ import { AgentChatQueueList } from './agent-chat-queue-list';
 export function AgentChatComposerStrip({
     activeTurnId,
     children,
-    enterQueuedId,
     isQueuePaused,
     isTurnRunning,
     pendingQueue,
@@ -29,10 +28,6 @@ export function AgentChatComposerStrip({
 }: {
     activeTurnId: string | undefined;
     children: ReactNode;
-    /**
-     * The queued message Enter in the empty composer steers now (`AgentChatQueueList`).
-     */
-    enterQueuedId: string | undefined;
     isQueuePaused: boolean;
     isTurnRunning: boolean;
     pendingQueue: readonly AgentChatPendingMessage[];
@@ -61,7 +56,6 @@ export function AgentChatComposerStrip({
                     turns={snapshot?.turns}
                 />
                 <AgentChatQueueList
-                    enterQueuedId={enterQueuedId}
                     isTurnRunning={isTurnRunning}
                     pending={pendingQueue}
                     queue={queue}

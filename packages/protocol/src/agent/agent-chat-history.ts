@@ -98,6 +98,33 @@ export function prependAgentChatHistoryPage(
 }
 
 /**
+ * How many pages one scroll-back reads at most while looking for a user message. A page holds at most
+ * {@link MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS} items, so a long Agent turn can fill several pages with commands and tool
+ * calls alone; past this bound the reader scrolls back again instead of one scroll-back pulling in a whole archive.
+ */
+export const MAX_AGENT_CHAT_HISTORY_PAGES_PER_LOAD = 10;
+
+/**
+ * Whether one scroll-back reads another page after `page` moved the history from `previous` to `next`. A page that ends
+ * inside a turn shows Agent output without the request it answers, so reading goes on until a page brings a user
+ * message, nothing older remains, a page adds nothing, or {@link MAX_AGENT_CHAT_HISTORY_PAGES_PER_LOAD} pages were
+ * read.
+ */
+export function shouldReadOlderAgentChatHistoryPage(
+    page: Pick<AgentChatHistoryPage, 'items'>,
+    previous: AgentChatOlderHistory,
+    next: AgentChatOlderHistory,
+    pagesRead: number,
+): boolean {
+    return (
+        pagesRead < MAX_AGENT_CHAT_HISTORY_PAGES_PER_LOAD &&
+        next.hasMore &&
+        next.items !== previous.items &&
+        page.items.every((item) => item.type !== 'userMessage')
+    );
+}
+
+/**
  * How many evicted items a Client keeps before it lets the oldest go. A Chat left open after one scroll-back would
  * otherwise mirror everything the Agent streams for as long as it stays mounted, while Server Core keeps its own
  * archive bounded. Dropped items stay readable: the cursor moves to the oldest kept item and the next scroll-back reads

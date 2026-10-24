@@ -157,7 +157,8 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await expect(chat.getByText('Queue paused')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-paused.png') });
         // Editing takes the message out of the queue and back into the empty composer.
-        await queue.getByRole('button', { name: 'Edit queued message' }).last().click();
+        await queue.getByRole('button', { name: 'More actions for queued message' }).last().click();
+        await page.getByRole('menuitem', { name: 'Edit' }).click();
         await expectComposerValue(message, 'hello edit');
         await expect(queue.getByText('hello edit')).toHaveCount(0);
         await message.fill('');
@@ -192,7 +193,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await expect(chat.getByText('Queued', { exact: true })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-queue-drained.png') });
 
-        // With nothing typed, Enter steers the queued message into the running turn, and its row's chip says so.
+        // With nothing typed, Enter steers the queued message into the running turn, as the placeholder says.
         await message.fill('slow please');
         await message.press('Enter');
         await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
@@ -203,20 +204,13 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
             'aria-placeholder',
             'Enter to steer the first queued message',
         );
-        const enterRow = queue.getByRole('listitem').filter({ hasText: 'hello fourth' });
-        const enterHint = enterRow.locator('[data-agent-chat-queue-enter-hint]');
-        await expect(enterHint).toBeVisible();
-        // The row's hidden actions take no width, so the hint ends at the row's end instead of short of three buttons.
+        // The row's actions show without hovering it, as the Codex app's queue rows do.
         await page.mouse.move(0, 0);
-        await expect
-            .poll(async () => {
-                const [row, hint] = await Promise.all([
-                    enterRow.boundingBox(),
-                    enterHint.boundingBox(),
-                ]);
-                return row && hint ? row.x + row.width - (hint.x + hint.width) : Infinity;
-            })
-            .toBeLessThanOrEqual(12);
+        const fourthRow = queue.getByRole('listitem').filter({ hasText: 'hello fourth' });
+        await expect(fourthRow.getByRole('button', { name: 'Steer now' })).toBeVisible();
+        await expect(
+            fourthRow.getByRole('button', { name: 'Delete queued message' }),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-empty-enter.png') });
         await message.press('Enter');
         await expect(queue).toHaveCount(0);

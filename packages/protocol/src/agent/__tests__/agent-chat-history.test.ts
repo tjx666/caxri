@@ -5,9 +5,11 @@ import {
     agentChatHistoryCursor,
     emptyAgentChatOlderHistory,
     hasOlderAgentChatHistory,
+    MAX_AGENT_CHAT_HISTORY_PAGES_PER_LOAD,
     MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS,
     prependAgentChatHistoryPage,
     retainEvictedAgentChatItems,
+    shouldReadOlderAgentChatHistoryPage,
     splitAgentChatHistory,
 } from '../agent-chat-history.js';
 
@@ -118,5 +120,62 @@ describe('Agent Chat older history', () => {
             carried: [older[1], older[2]],
         });
         expect(splitAgentChatHistory(older, 't3')).toEqual({ settled: older, carried: [] });
+    });
+});
+
+describe('shouldReadOlderAgentChatHistoryPage', () => {
+    const output = (id: string): AgentChatItem => ({
+        id,
+        type: 'agentMessage',
+        text: id,
+        streaming: false,
+    });
+    const read = (items: AgentChatItem[], hasMore: boolean) => ({
+        historyId: 'h1',
+        items,
+        turns: [],
+        hasMore,
+        truncated: false,
+    });
+
+    it('reads on past a page of Agent output until a page brings a user message', () => {
+        const start = emptyAgentChatOlderHistory('h1');
+        const outputPage = read([output('a1'), output('a2')], true);
+        const first = prependAgentChatHistoryPage(start, outputPage, []);
+        expect(shouldReadOlderAgentChatHistoryPage(outputPage, start, first, 1)).toBe(true);
+
+        const requestPage = read([item('u1'), output('a0')], true);
+        const second = prependAgentChatHistoryPage(first, requestPage, []);
+        expect(shouldReadOlderAgentChatHistoryPage(requestPage, first, second, 2)).toBe(false);
+    });
+
+    it('stops when nothing older remains, a page adds nothing, or the page bound is reached', () => {
+        const start = emptyAgentChatOlderHistory('h1');
+        const last = read([output('a1')], false);
+        expect(
+            shouldReadOlderAgentChatHistoryPage(
+                last,
+                start,
+                prependAgentChatHistoryPage(start, last, []),
+                1,
+            ),
+        ).toBe(false);
+
+        const known = read([output('a1')], true);
+        const shown = [output('a1')];
+        const unchanged = prependAgentChatHistoryPage(start, known, shown);
+        expect(shouldReadOlderAgentChatHistoryPage(known, start, unchanged, 1)).toBe(false);
+
+        const more = read([output('a1')], true);
+        const next = prependAgentChatHistoryPage(start, more, []);
+        expect(shouldReadOlderAgentChatHistoryPage(more, start, next, 1)).toBe(true);
+        expect(
+            shouldReadOlderAgentChatHistoryPage(
+                more,
+                start,
+                next,
+                MAX_AGENT_CHAT_HISTORY_PAGES_PER_LOAD,
+            ),
+        ).toBe(false);
     });
 });

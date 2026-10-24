@@ -198,7 +198,8 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await expect(commands.getByRole('option').first()).toHaveText(/^\/new-session/u);
         await message.fill('$rev');
         await expect(commands.getByRole('option').first()).toHaveText(/^\$review-pr/u);
-        await message.press('Enter');
+        // Tab stops at the inserted invocation so a request can follow it; Enter would run the skill.
+        await message.press('Tab');
         await expectComposerValue(message, '$review-pr ');
         await expect(commands).toHaveCount(0);
 
@@ -218,6 +219,15 @@ test('a Codex Chat sends pasted and dropped images, restores their previews on r
         await expect(commands).toHaveCount(0);
         await expect(chat.getByText('Context compacted')).toBeVisible();
         await expectComposerValue(message, '');
+        // Enter on a skill runs it as its own message instead of only inserting it.
+        await message.fill('$rev');
+        await expect(commands.getByRole('option').first()).toHaveText(/^\$review-pr/u);
+        await message.press('Enter');
+        await expect(commands).toHaveCount(0);
+        await expectComposerValue(message, '');
+        await expect(
+            chat.locator('[data-agent-chat-user-bubble]').filter({ hasText: 'review-pr' }),
+        ).toBeVisible();
 
         // A reply's inline code naming a discovered skill shows the skill icon; hovering it reads the instructions.
         await message.fill('Load `review-pr` first, then `/review-pr`, but not `missing-skill`.');

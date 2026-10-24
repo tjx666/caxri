@@ -130,6 +130,15 @@ export function useAgentChatComposerSend({
     // A goal is text only, so attached images alone do not make it sendable.
     const hasContent = draft.trim().length > 0 || (!isGoalMode && images.attachments.length > 0);
     const isSendable = edit.canSend && !isSending && !isAttaching && hasContent;
+    /**
+     * Sends `text` as Enter would: queued or steered while a turn runs, and replacing the earlier message being edited.
+     */
+    const submitText = async (text: string, delivery?: 'steer'): Promise<void> => {
+        // Send, like Enter, steers while the running turn takes a steered message by default.
+        const sentDelivery =
+            delivery ?? (editInput.isSteerDefault && editInput.isTurnRunning ? 'steer' : undefined);
+        await edit.submit(text, async () => submitDraft(text, sentDelivery));
+    };
     const submit = async (delivery?: 'steer'): Promise<void> => {
         if (!isSendable) return;
         if (isGoalMode) {
@@ -140,10 +149,7 @@ export function useAgentChatComposerSend({
             if (isSet) setAgentChatGoalMode(terminalId, false);
             return;
         }
-        // Send, like Enter, steers while the running turn takes a steered message by default.
-        const sentDelivery =
-            delivery ?? (editInput.isSteerDefault && editInput.isTurnRunning ? 'steer' : undefined);
-        await edit.submit(draft, async () => submitDraft(draft, sentDelivery));
+        await submitText(draft, delivery);
     };
     const isResume = isAgentChatResumeOffered({
         canSend: edit.canSend,
@@ -194,7 +200,7 @@ export function useAgentChatComposerSend({
         void recordRecentAgentAction(terminalId, action.invocation);
     };
     /**
-     * Tab: put the row's text into the input and stop there, so the user can add arguments or press Enter to run it.
+     * Tab: put the row's text into the input and stop there, so the user can add arguments or a request before Enter.
      */
     const complete = (action: AgentAction): void => {
         recordRecent(action);
@@ -212,12 +218,18 @@ export function useAgentChatComposerSend({
             return;
         }
         recordRecent(action);
-        const completed = completeAgentChatAction(action);
-        setDraft(() => completed);
         focusInput();
-        // A command without arguments has nothing left to type, so choosing it runs it; a skill waits for the request.
-        if (!canSend || isSending || completed !== action.invocation) return;
-        void runCommand(completed, { name: action.invocation.slice(1) });
+        /**
+         * Enter runs the row, a skill or a command with an argument hint included, since such hints are mostly
+         * optional: Tab is the way to stop at the inserted text and add a request. A Chat that cannot send yet keeps
+         * the row in the input instead, ready for Enter once it can.
+         */
+        if (isSending || isAttaching || !edit.canSend) {
+            setDraft(() => completeAgentChatAction(action));
+            return;
+        }
+        setDraft(() => action.invocation);
+        void submitText(action.invocation);
     };
     const goalMode = {
         isOn: isGoalMode,

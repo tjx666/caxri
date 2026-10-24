@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    agentChatEnterQueuedId,
     agentChatNextQueuedId,
     agentChatQueueCardLabels,
     agentChatQueuedTextAfterEdit,
@@ -65,17 +64,6 @@ describe('agentChatQueueEntries', () => {
     });
 });
 
-describe('agentChatEnterQueuedId', () => {
-    it('marks the next queued message only while a turn runs and the focused input is empty', () => {
-        const running = { hasContent: false, isInputFocused: true, isTurnRunning: true };
-        expect(agentChatEnterQueuedId('m1', running)).toBe('m1');
-        expect(agentChatEnterQueuedId('m1', { ...running, hasContent: true })).toBeUndefined();
-        expect(agentChatEnterQueuedId('m1', { ...running, isTurnRunning: false })).toBeUndefined();
-        expect(agentChatEnterQueuedId('m1', { ...running, isInputFocused: false })).toBeUndefined();
-        expect(agentChatEnterQueuedId(undefined, running)).toBeUndefined();
-    });
-});
-
 describe('agentChatNextQueuedId', () => {
     const command = {
         id: 'c1',
@@ -101,45 +89,27 @@ describe('agentChatNextQueuedId', () => {
 });
 
 describe('agentChatQueueHeader', () => {
-    const message = { commandLabel: undefined };
-    const command = { commandLabel: '/compact' };
-
     it('tells a failed send from a Stop and offers Retry for it', () => {
-        expect(
-            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'sendFailed' }, false, [
-                message,
-            ]),
-        ).toEqual({ tone: 'failed', text: "Couldn't send queued messages", resumeLabel: 'Retry' });
-        expect(
-            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'stopped' }, false, [
-                message,
-            ]),
-        ).toEqual({
+        expect(agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'sendFailed' })).toEqual(
+            {
+                tone: 'failed',
+                text: "Couldn't send queued messages",
+                resumeLabel: 'Retry',
+            },
+        );
+        expect(agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'stopped' })).toEqual({
             tone: 'paused',
             text: 'Queue paused · sends nothing until you resume',
             resumeLabel: 'Resume',
         });
         expect(
-            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'deliveryUnknown' }, true, [
-                message,
-            ]),
+            agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'deliveryUnknown' }),
         ).toMatchObject({ tone: 'paused', resumeLabel: 'Resume' });
     });
 
-    it('says the leading messages go out together only when Server Core joins them', () => {
-        expect(agentChatQueueHeader(undefined, true, [message, message])).toEqual({
-            tone: 'normal',
-            text: 'Queued · sends together after this turn',
-        });
-        expect(agentChatQueueHeader(undefined, true, [message]).text).toBe(
-            'Queued · sends after this turn',
-        );
-        expect(agentChatQueueHeader(undefined, true, [command, message]).text).toBe(
-            'Queued · sends after this turn',
-        );
-        expect(agentChatQueueHeader({ queuePaused: false }, false, [message, message]).text).toBe(
-            'Queued',
-        );
+    it('heads a waiting queue with nothing', () => {
+        expect(agentChatQueueHeader(undefined)).toBeUndefined();
+        expect(agentChatQueueHeader({ queuePaused: false })).toBeUndefined();
     });
 });
 
@@ -148,7 +118,6 @@ describe('agentChatQueueCardLabels', () => {
 
     it('names each action, steering while a turn runs', () => {
         expect(agentChatQueueCardLabels(message)).toEqual({
-            editTooltip: 'Edit',
             deleteTooltip: 'Delete',
             sendTooltip: 'Add to the running turn now',
             sendAriaLabel: 'Steer now',
@@ -161,7 +130,6 @@ describe('agentChatQueueCardLabels', () => {
 
     it('says why an action is unavailable', () => {
         expect(agentChatQueueCardLabels({ ...message, canSendNow: false })).toMatchObject({
-            editTooltip: 'Edit',
             sendTooltip: 'A command waits for the running turn to end',
         });
     });
@@ -174,7 +142,6 @@ describe('agentChatQueueCardLabels', () => {
                 isPending: true,
             }),
         ).toEqual({
-            editTooltip: 'Sending…',
             deleteTooltip: 'Sending…',
             sendTooltip: 'Sending…',
             sendAriaLabel: 'Steer now',

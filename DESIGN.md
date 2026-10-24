@@ -1299,11 +1299,12 @@ opens the same kind of list of other Sessions to cite, each with its Project; a 
 row shares adds when that Session was last opened (`· 3h`), a query with no match reads `No Sessions
 match`, and after a choice the list becomes one spinner row (`Preparing “Title”…`) until the
 reference is written, while Enter waits. Both lists show only while the input has focus. Queued
-messages list in the composer strip (below) as 12px rows showing only the message; hovering a row or
-focusing inside it reveals its ghost icon actions Edit (back into the composer), Delete, and Send
-now (an arrow-up-to-line Steer while a turn runs). While a turn runs and the input is empty, the row
-Enter would steer carries a compact `Enter Steer` keycap chip, hidden while its own actions show,
-and the placeholder reads `Type a follow-up`; a paused queue is headed by a row that
+messages list in the composer strip (below) as 13px rows laid out like the Codex app's queue: a
+`--muted` queue glyph, the message, then its actions, always shown rather than revealed on hover: a
+labeled ghost `Steer` (`Send now` with no turn running), a Delete icon, and a More menu holding Edit
+(back into the composer). A waiting queue has no header, since its rows already read as what goes
+next. While a turn runs and the input is empty, Enter steers the first queued message and the
+placeholder says so; no chip on the row repeats it. A paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send
 reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the composer (recovery row and requests) is capped
 at 60% of the pane and scrolls past it. Above everything in the dock, a recovery row explains why the Chat cannot
@@ -1489,7 +1490,9 @@ button after the card's own click area, outside it, with the hand-off glyph (`Me
 and the tooltip `Start ENG-12 in a new Session`; a pull request or acceptance card has none. A screen
 reader hears `Reply ready`, `Turn failed`, or `Stopped` when a turn ends. A Chat that keeps only the
 recent part of a long conversation opens with a `meta` line saying so, since the provider still has
-all of it, and Open as Terminal. `Jump to latest` shows only once the end of the latest entry has
+all of it, and Open as Terminal. `Jump to latest` is a 32px round down-arrow button with no caption
+(its name lives in the accessible label and a hover tooltip; reference: the Codex app), and it shows
+only once the end of the latest entry has
 left the view, not while the reader scrolls within the empty space kept below a short latest turn,
 where it would have nothing to bring back. It
 returns focus to the composer (to the scroll view in a read-only task tab). Expanded output renders

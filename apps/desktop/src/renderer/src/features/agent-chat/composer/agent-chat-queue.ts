@@ -80,21 +80,6 @@ export function agentChatNextQueuedId(
     return head && agentChatQueueEntry(head, isTurnRunning).canSendNow ? head.id : undefined;
 }
 
-/**
- * The queued message whose row carries the `Enter Steer` chip: the one an empty composer's Enter steers into the
- * running turn ({@link agentChatNextQueuedId}). `undefined` while the user is typing, when Enter would queue the draft
- * instead, with no turn running, when the placeholder already says what Enter does, and while the composer is not
- * focused, since Enter then does nothing there.
- */
-export function agentChatEnterQueuedId(
-    nextQueuedId: string | undefined,
-    state: { hasContent: boolean; isInputFocused: boolean; isTurnRunning: boolean },
-): string | undefined {
-    return state.isTurnRunning && state.isInputFocused && !state.hasContent
-        ? nextQueuedId
-        : undefined;
-}
-
 function queueEntryView(
     message: AgentChatQueuedMessage,
     isTurnRunning: boolean,
@@ -119,11 +104,10 @@ function queueEntryView(
 
 /**
  * The words on a queue card's actions. A message still on its way to Server Core says so on every action, since all of
- * them are held until Server Core lists it; otherwise each tooltip names the action or why it is unavailable (a message
- * carrying images cannot be edited, and a command waits for the running turn instead of steering it).
+ * them are held until Server Core lists it; otherwise each tooltip names the action or why it is unavailable (a command
+ * waits for the running turn instead of steering it).
  */
 export interface AgentChatQueueCardLabels {
-    editTooltip: string;
     deleteTooltip: string;
     sendTooltip: string;
     sendAriaLabel: string;
@@ -140,14 +124,12 @@ export function agentChatQueueCardLabels(
     if (entry.isPending) {
         const sending = t('agentChat.message.sending');
         return {
-            editTooltip: sending,
             deleteTooltip: sending,
             sendTooltip: sending,
             ...sendLabels,
         };
     }
     return {
-        editTooltip: t('common.edit'),
         deleteTooltip: t('common.delete'),
         sendTooltip: entry.canSendNow
             ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
@@ -157,64 +139,45 @@ export function agentChatQueueCardLabels(
 }
 
 /**
- * The queue card's header line. `tone` picks the glyph and color: `failed` (`--danger`) when Server Core could not send
- * the queued messages it took, `paused` (`--warning`) after the user's Stop or a send whose delivery is unknown, and
- * `normal` while the queue simply waits. `resumeLabel` is the header's action, present only while paused: `Retry` after
- * a failure, since resuming re-sends what failed, and `Resume` otherwise.
+ * The queue's header line, shown only while the queue is paused: a waiting queue has none, like the Codex app's, since
+ * its rows already read as messages that go next. `tone` picks the glyph and color: `failed` (`--danger`) when Server
+ * Core could not send the queued messages it took, and `paused` (`--warning`) after the user's Stop or a send whose
+ * delivery is unknown. `resumeLabel` is its action: `Retry` after a failure, since resuming re-sends what failed, and
+ * `Resume` otherwise.
  */
 export interface AgentChatQueueHeader {
-    tone: 'failed' | 'normal' | 'paused';
+    tone: 'failed' | 'paused';
     text: string;
-    resumeLabel?: string;
+    resumeLabel: string;
 }
 
 export function agentChatQueueHeader(
     snapshot: Pick<AgentChatSnapshot, 'queuePauseReason' | 'queuePaused'> | undefined,
-    isTurnRunning: boolean,
-    entries: ReadonlyArray<Pick<AgentChatQueueEntryView, 'commandLabel'>>,
     t: Translate = translate,
-): AgentChatQueueHeader {
-    if (snapshot?.queuePaused) {
-        switch (snapshot.queuePauseReason) {
-            case 'sendFailed': {
-                return {
-                    tone: 'failed',
-                    text: t('agentChat.queue.sendFailed'),
-                    resumeLabel: t('common.retry'),
-                };
-            }
-            case 'deliveryUnknown': {
-                return {
-                    tone: 'paused',
-                    text: t('agentChat.queue.pausedDeliveryUnknown'),
-                    resumeLabel: t('agentChat.queue.resume'),
-                };
-            }
-            case 'stopped':
-            case undefined: {
-                return {
-                    tone: 'paused',
-                    text: t('agentChat.queue.paused'),
-                    resumeLabel: t('agentChat.queue.resume'),
-                };
-            }
+): AgentChatQueueHeader | undefined {
+    if (!snapshot?.queuePaused) return undefined;
+    switch (snapshot.queuePauseReason) {
+        case 'sendFailed': {
+            return {
+                tone: 'failed',
+                text: t('agentChat.queue.sendFailed'),
+                resumeLabel: t('common.retry'),
+            };
+        }
+        case 'deliveryUnknown': {
+            return {
+                tone: 'paused',
+                text: t('agentChat.queue.pausedDeliveryUnknown'),
+                resumeLabel: t('agentChat.queue.resume'),
+            };
+        }
+        case 'stopped':
+        case undefined: {
+            return {
+                tone: 'paused',
+                text: t('agentChat.queue.paused'),
+                resumeLabel: t('agentChat.queue.resume'),
+            };
         }
     }
-    if (!isTurnRunning) return { tone: 'normal', text: t('agentChat.queue.queued') };
-    /**
-     * Server Core joins the run of messages at the head of the queue into one turn; a command keeps a turn of its own,
-     * so only two leading messages make "together" true.
-     */
-    const isJoined =
-        entries.length >= 2 &&
-        entries[0].commandLabel === undefined &&
-        entries[1].commandLabel === undefined;
-    return {
-        tone: 'normal',
-        text: t(
-            isJoined
-                ? 'agentChat.queue.queuedTogetherAfterTurn'
-                : 'agentChat.queue.queuedAfterTurn',
-        ),
-    };
 }

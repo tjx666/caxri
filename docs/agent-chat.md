@@ -1355,9 +1355,9 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   [Agent Commands & Skills](agent-actions.md) picker discovers for this Terminal (`agentActions.list`,
   after the user's Settings overrides), ranked by the picker's search. Picker-only commands are
   left out because a Chat runs only what its provider reported, and a skill Claude Code already
-  lists keeps its command row. Choosing a skill inserts its invocation and a space instead of
-  sending: a Codex `$skill` travels as ordinary text, which Codex resolves to the skill the same way
-  its own composer does.
+  lists keeps its command row. Enter on a skill sends its invocation as the message; Tab inserts it
+  and a space so a request can follow. A Codex `$skill` travels as ordinary text, which Codex
+  resolves to the skill the same way its own composer does.
 - **Recently used.** A bare `/` or `$` leads with a Recently Used group: the commands and skills
   last picked from this menu (Enter, click, or Tab) that it still offers, most recent first, as
   Claude Code's TUI ranks its own `/` menu by use. A pick goes through `agentActions.recordRecent`,
@@ -1365,9 +1365,11 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   recent row is not repeated in its own group, and typing a name ranks by the match alone. The
   phone menu does not lead with recents yet.
 - `agentChat.runCommand` runs a listed command with optional arguments and rejects anything the
-  Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
-  Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when
-  chosen; one that does is completed so its arguments can be typed. A command leaves the input as
+  Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Enter
+  runs the highlighted command, Tab completes it so arguments can be typed, and Escape dismisses
+  the list. Enter runs a command with an argument hint too, since those hints are mostly optional;
+  only `/goal` switches the composer into Goal mode instead. While the Chat cannot send yet, Enter
+  inserts the row like Tab, ready to send once it can. A command leaves the input as
   soon as it runs, as a message does, while Send says it is sending; if Server Core refuses it, a
   toast says why and the command text comes back into the input.
 - **Session references.** Typing `@` at the start of a word lists other Sessions with an Agent
