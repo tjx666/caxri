@@ -24,8 +24,10 @@ export function installRendererJankMonitor(): void {
     }).observe({ type: 'long-animation-frame', buffered: false });
     // A hidden window may be closed or suspended before the batch timer fires.
     document.addEventListener('visibilitychange', () => {
+        installed.noteVisibility(document.visibilityState === 'visible');
         if (document.visibilityState === 'hidden') installed.flushIfDue();
     });
+    if (document.visibilityState !== 'visible') installed.noteVisibility(false);
     installation.reporter = installed;
 }
 

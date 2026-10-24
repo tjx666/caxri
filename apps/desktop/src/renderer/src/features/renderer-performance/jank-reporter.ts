@@ -24,6 +24,17 @@ const MAX_SWITCHES_PER_BATCH = 5;
  * How many recent switch intervals are kept to tell whether a slow frame happened during a switch.
  */
 const SWITCH_WINDOW_CAPACITY = 8;
+const HIDDEN_WINDOW_CAPACITY = 8;
+/**
+ * A frame with no scripts and no blocking is only a real hitch when it spent this long rendering. Below it the duration
+ * is waiting, not work.
+ */
+const IDLE_FRAME_RENDER_WORK_MS = 50;
+/**
+ * Chromium's throttled frame rate is about 1 Hz; startup and occlusion frames were measured at ~1008 ms.
+ */
+const THROTTLE_CADENCE_MIN_MS = 900;
+const THROTTLE_CADENCE_MAX_MS = 1_100;
 
 /**
  * One finished Session switch, in `performance.now()` milliseconds.
@@ -64,6 +75,7 @@ interface LongAnimationFrameScript {
 export interface LongAnimationFrameEntry {
     blockingDuration?: number;
     duration: number;
+    renderStart?: number;
     scripts?: readonly LongAnimationFrameScript[];
     startTime: number;
     styleAndLayoutStart?: number;
@@ -109,6 +121,29 @@ export function bundleFileName(sourceUrl: string | undefined): string | null {
     const withoutQuery = sourceUrl.split(/[?#]/u, 1)[0] ?? '';
     const name = withoutQuery.slice(withoutQuery.lastIndexOf('/') + 1);
     return /^[\w.-]{1,80}$/u.test(name) ? name : null;
+}
+
+/**
+ * Whether a Long Animation Frame is Chromium's frame throttling rather than work: a hidden, occluded or just-created
+ * window is given about one frame per second, so a frame that ran no script, blocked nothing and did (almost) no
+ * rendering lasts ~1 s while the main thread was idle. A frame with script attribution, blocking time or real style,
+ * layout or render work is never idle. Empty scripts and zero blocking alone are not proof, because many short tasks
+ * (each under the attribution and blocking floors) can add up to a genuinely busy frame. So the document having been
+ * hidden during the frame is the evidence for any length, and without it only the ~1 Hz throttle cadence qualifies.
+ */
+function isIdleThrottledFrame(
+    entry: LongAnimationFrameEntry,
+    wasHiddenDuringFrame: boolean,
+): boolean {
+    if ((entry.scripts?.length ?? 0) > 0 || (entry.blockingDuration ?? 0) >= 1) return false;
+    if (wasHiddenDuringFrame) return true;
+    if (entry.duration < THROTTLE_CADENCE_MIN_MS || entry.duration > THROTTLE_CADENCE_MAX_MS)
+        return false;
+    const end = entry.startTime + entry.duration;
+    const phaseMs = (start: number | undefined) =>
+        start !== undefined && start >= entry.startTime ? end - start : 0;
+    const renderWorkMs = Math.max(phaseMs(entry.renderStart), phaseMs(entry.styleAndLayoutStart));
+    return renderWorkMs < IDLE_FRAME_RENDER_WORK_MS;
 }
 
 function functionIdentifier(name: string | undefined): string | null {
@@ -162,6 +197,10 @@ export class RendererJankReporter {
     private omittedSwitches = 0;
     private switches: PendingSwitch[] = [];
     private recentSwitchWindows: Array<{ end: number; start: number }> = [];
+    /**
+     * Recent stretches where the document was hidden, in `now()` milliseconds. `end` is undefined while still hidden.
+     */
+    private hiddenWindows: Array<{ end?: number; start: number }> = [];
     private timer: unknown;
 
     constructor(private readonly dependencies: JankReporterDependencies) {}
@@ -196,6 +235,12 @@ export class RendererJankReporter {
         );
     }
 
+    private wasHiddenDuring(start: number, end: number): boolean {
+        return this.hiddenWindows.some(
+            (window) => window.start <= end && (window.end ?? Infinity) >= start,
+        );
+    }
+
     /**
      * Records a finished switch. Every switch is remembered briefly for frame attribution; only a slow one is queued.
      */
@@ -223,10 +268,33 @@ export class RendererJankReporter {
     }
 
     /**
-     * Records one Long Animation Frame entry when it is long enough and the window is visible.
+     * Tells the reporter the document became hidden or visible, so a throttled frame that is delivered after the window
+     * came back can still be recognized as having happened while hidden.
+     */
+    noteVisibility(isVisible: boolean): void {
+        const now = this.dependencies.now();
+        const open = this.hiddenWindows.at(-1);
+        if (isVisible) {
+            if (open && open.end === undefined) open.end = now;
+        } else if (!open || open.end !== undefined) {
+            this.hiddenWindows.push({ start: now });
+            if (this.hiddenWindows.length > HIDDEN_WINDOW_CAPACITY) this.hiddenWindows.shift();
+        }
+    }
+
+    /**
+     * Records one Long Animation Frame entry when it is long enough, the window is visible, and it is not just Chromium
+     * throttling an idle window (see {@link isIdleThrottledFrame}).
      */
     recordFrame(entry: LongAnimationFrameEntry): void {
         if (entry.duration < JANK_THRESHOLD_MS || !this.dependencies.isDocumentVisible()) return;
+        if (
+            isIdleThrottledFrame(
+                entry,
+                this.wasHiddenDuring(entry.startTime, entry.startTime + entry.duration),
+            )
+        )
+            return;
         this.enqueue(
             this.frames,
             {
