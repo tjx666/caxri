@@ -8,7 +8,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Circle } from 'lucide-react';
+import { Circle, GitBranch } from 'lucide-react';
 
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
@@ -31,7 +31,6 @@ import {
     sessionToneCalloutClassName,
     sessionUnreadTone,
 } from './session-activity';
-import { SessionAgentHistory } from './session-agent-history';
 import { SessionCreatorRow } from './session-creator-row';
 import { SessionExcerpt } from './session-excerpt';
 import { sessionPullRequestPresentation } from './session-pull-request';
@@ -59,7 +58,7 @@ function SessionPullRequestLink({
     const { t } = useTranslation();
     return (
         <a
-            className="mt-2 flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5 text-[11px] text-foreground no-underline hover:bg-elevated"
+            className="-mx-1.5 mt-1.5 flex min-w-0 items-center gap-1.5 rounded px-1.5 py-1 text-[11px] text-foreground no-underline hover:bg-state-hover"
             href={pullRequest.url}
             rel="noreferrer"
             aria-label={t('primarySidebar.card.openPullRequestAriaLabel', {
@@ -74,24 +73,23 @@ function SessionPullRequestLink({
             }}
         >
             <SessionPullRequestIndicator pullRequest={pullRequest} />
-            <span className="flex-none font-medium">#{pullRequest.number}</span>
-            <span className="flex-none text-muted">{presentation.label}</span>
-            <span className="min-w-0 flex-1 text-muted">
-                <span className="block truncate">{pullRequest.title}</span>
-                {presentation.checksLabel && (
-                    <span
-                        className={cn(
-                            'block',
-                            presentation.checksTone === 'danger'
-                                ? 'text-danger'
-                                : presentation.checksTone === 'warning'
-                                  ? 'text-warning'
-                                  : 'text-muted',
-                        )}
-                    >
-                        {presentation.checksLabel}
-                    </span>
+            <span className="flex-none font-medium tabular-nums">#{pullRequest.number}</span>
+            <span className="min-w-0 flex-1 truncate text-muted">{pullRequest.title}</span>
+            {/*
+             * The glyph already colors the lifecycle, so an open PR spends this slot on its checks and every other
+             * state names itself (Draft, Merged, Deployed) where the glyph alone is ambiguous.
+             */}
+            <span
+                className={cn(
+                    'flex-none',
+                    presentation.checksTone === 'danger'
+                        ? 'text-danger'
+                        : presentation.checksTone === 'warning'
+                          ? 'text-warning'
+                          : 'text-muted',
                 )}
+            >
+                {presentation.checksLabel ?? presentation.label}
             </span>
         </a>
     );
@@ -104,8 +102,10 @@ function SessionPullRequestLink({
 function LastOpenedText({ sentence, timestamp }: { sentence?: boolean; timestamp: number }) {
     const { t } = useTranslation();
     const lastOpened = useRelativeTime(timestamp);
-    if (sentence) return t('primarySidebar.card.lastOpenedSentence', { time: lastOpened });
-    return <span className="text-right text-foreground">{lastOpened}</span>;
+    return t(
+        sentence ? 'primarySidebar.card.lastOpenedSentence' : 'primarySidebar.card.openedAgo',
+        { time: lastOpened },
+    );
 }
 
 function SessionPullRequestDetails({
@@ -280,59 +280,57 @@ export function SessionActivityCard({
                         <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
                             {sessionTitleForDisplay(session.displayTitle, t)}
                         </h3>
-                        <p className="mt-0.5 mb-0 flex items-center gap-1 truncate text-[11px] text-muted">
+                        <p className="mt-0.5 mb-0 flex min-w-0 items-center gap-1 text-[11px] text-muted">
                             <ProjectIcon icon={project.icon} size={11} />
-                            <span className="truncate">
+                            <span className="min-w-0 truncate">
                                 {project.displayTitle} · {agentLabel}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span className="session-card-activity flex flex-none items-center gap-1 text-foreground">
+                                <Circle
+                                    aria-hidden="true"
+                                    className={cn('flex-none', activity.indicatorClassName)}
+                                    fill="currentColor"
+                                    size={7}
+                                />
+                                {activity.label}
                             </span>
                         </p>
                     </div>
                 </div>
-                <div className="mt-3 rounded-md border border-border bg-surface p-2">
-                    <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                        <Circle
-                            aria-hidden="true"
-                            className={cn('flex-none', activity.indicatorClassName)}
-                            fill="currentColor"
-                            size={7}
-                        />
-                        <span>{activity.label}</span>
-                    </div>
-                    <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
+                {activity.hasVisibleDescription && (
+                    <p className="mt-2 mb-0 text-[11px] leading-[1.45] text-muted">
                         {activity.description}
                     </p>
-                </div>
+                )}
                 <SessionExcerpt isVisible={visible} session={session} />
-                <SessionAgentHistory
-                    isVisible={visible}
-                    sessionId={session.id}
-                    onReopen={() => setOpen(false)}
-                />
                 <SessionPullRequestDetails
                     pullRequest={pullRequest}
                     presentation={pullRequestPresentation}
                     unavailable={pullRequestUnavailable}
                 />
-                {worktreeProject && (
-                    <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
-                        <span className="flex-none">{t('primarySidebar.card.worktree')}</span>
-                        <span className="min-w-0 truncate text-right text-foreground">
-                            {worktreeProject.displayTitle}
-                        </span>
-                    </div>
-                )}
                 {session.createdBySessionId && <SessionCreatorRow session={session} />}
-                {changes && (
-                    <div className="session-card-changes mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
-                        <span className="flex-none">{t('primarySidebar.card.changes')}</span>
-                        <span className="text-right text-foreground tabular-nums">
-                            {changes.value}
+                {/*
+                 * Secondary facts share one muted footer line instead of a labeled row each. The worktree name
+                 * truncates first; the change count and last-opened time keep their width.
+                 */}
+                <div className="mt-2.5 flex min-w-0 items-center gap-3 border-t border-border pt-2 text-[11px] text-muted">
+                    {worktreeProject && (
+                        <span className="session-card-worktree flex min-w-0 items-center gap-1">
+                            <GitBranch aria-hidden="true" className="flex-none" size={11} />
+                            <span className="truncate">{worktreeProject.displayTitle}</span>
                         </span>
-                    </div>
-                )}
-                <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
-                    <span>{t('primarySidebar.card.lastOpened')}</span>
-                    <LastOpenedText timestamp={session.lastOpenedAt} />
+                    )}
+                    <span className="ml-auto flex flex-none items-center gap-2">
+                        {changes && (
+                            <span className="session-card-changes tabular-nums">
+                                {changes.value}
+                            </span>
+                        )}
+                        <span>
+                            <LastOpenedText timestamp={session.lastOpenedAt} />
+                        </span>
+                    </span>
                 </div>
                 {unread && unreadAttention && (
                     <p

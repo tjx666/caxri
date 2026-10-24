@@ -132,11 +132,11 @@ describe('Session changes presentation', () => {
     it('describes the working tree rather than the Session Agent', () => {
         expect(sessionChangesPresentation(1)).toEqual({
             ariaLabel: 'Working tree has 1 uncommitted change.',
-            value: '1',
+            value: '1 change',
         });
         expect(sessionChangesPresentation(12)).toEqual({
             ariaLabel: 'Working tree has 12 uncommitted changes.',
-            value: '12',
+            value: '12 changes',
         });
     });
 });

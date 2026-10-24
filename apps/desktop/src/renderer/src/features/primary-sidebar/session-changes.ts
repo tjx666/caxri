@@ -35,7 +35,7 @@ export function sessionChangesScope(
 }
 
 /**
- * Whether a Session card should show a `Changes` row at all.
+ * Whether a Session card should show a change count at all.
  *
  * The selected Session is excluded because the Workbench already shows its count exactly: the Git tab badge subtracts
  * the gitlink rows a submodule section hides, which the `files[]`-free overview cannot, so a second, occasionally
@@ -73,9 +73,9 @@ export interface SessionChangesPresentation {
 }
 
 /**
- * The card's `Changes` row. The copy names the working tree rather than the Session's Agent, because several Sessions
- * can share one Workbench Root and any of them, or the user, may have made the edits. Zero hides the row the same way
- * zero hides the Git tab badge: a clean tree is the resting state, not news.
+ * The card footer's change count. The copy names the working tree rather than the Session's Agent, because several
+ * Sessions can share one Workbench Root and any of them, or the user, may have made the edits. Zero hides the count the
+ * same way zero hides the Git tab badge: a clean tree is the resting state, not news.
  */
 export function sessionChangesPresentation(
     count: number | undefined,
@@ -88,6 +88,9 @@ export function sessionChangesPresentation(
                 : 'primarySidebar.changes.ariaLabelOther',
             { count },
         ),
-        value: String(count),
+        value: translate(
+            count === 1 ? 'primarySidebar.card.changesOne' : 'primarySidebar.card.changesOther',
+            { count },
+        ),
     };
 }

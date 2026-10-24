@@ -272,14 +272,15 @@ locally: the Server never persists or logs it, and the Renderer keeps it only in
 
 ## Past conversations
 
-The Session hover card lists every Agent conversation the Session hosted (newest binding first, up
-to 12), once at least one of them is no longer open. The record is the `agent_session_usage`
-ledger, since `terminals.agent_session_id` holds only the current binding and `/clear`, a provider
-switch, or closing the Terminal overwrites it. Titles come from Session search's index
-(`session.agentHistory`); a conversation since resumed in another Session is left out. Clicking an
-open one selects its Terminal; clicking a closed one (`session.reopenConversation`) adds a parked
-Agent Terminal bound to it in the ledger's recorded folder, and revealing that Terminal resumes the
-conversation, as an imported conversation does.
+The Session row's context menu offers `Reopen previous conversation`, a submenu of every Agent
+conversation the Session hosted that is no longer open in a Terminal (newest binding first, up to
+12). The record is the `agent_session_usage` ledger, since `terminals.agent_session_id` holds only
+the current binding and `/clear`, a provider switch, or closing the Terminal overwrites it. Titles
+come from Session search's index (`session.agentHistory`); a conversation since resumed in another
+Session is left out. Choosing one (`session.reopenConversation`) adds a parked Agent Terminal bound
+to it in the ledger's recorded folder, and revealing that Terminal resumes the conversation, as an
+imported conversation does. The Session hover card does not repeat this list: it stays a glance at
+status, the latest reply, the PR, and a one-line footer (worktree, change count, last opened).
 
 ## Returning to a Session
 

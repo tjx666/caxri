@@ -205,8 +205,9 @@ setInterval(() => {
         await expect(activityCard.locator('h3')).toHaveText(longTitle);
         await expect(activityCard).toContainText('project · Claude');
         await expect(activityCard).toContainText('Working');
-        await expect(activityCard).toContainText('The Agent is running.');
-        await expect(activityCard).toContainText('Last opened');
+        // A running Agent's sentence only restates the label, so the card leaves it to the accessible description.
+        await expect(activityCard).not.toContainText('The Agent is running.');
+        await expect(activityCard).toContainText('Opened');
         const cardPosition = await running.page.evaluate(() => {
             const trigger = document.querySelector<HTMLElement>('.session-card');
             const card = document.querySelector<HTMLElement>('.session-activity-card');
@@ -341,7 +342,7 @@ setInterval(() => {
         await expect(rowActions).toHaveCSS('pointer-events', 'none');
         await expect(activityCard).toBeVisible({ timeout: 200 });
         await expect(activityCard).toContainText('Finished');
-        await expect(activityCard).toContainText('The Agent finished its latest turn.');
+        await expect(activityCard).not.toContainText('The Agent finished its latest turn.');
         await expect(activityCard).toContainText('Unread attention: Finished');
         expect(
             (await pageRequest<{ selectedSessionId?: string }>(running.page, 'app.bootstrap'))

@@ -21,7 +21,7 @@ import {
 } from '../session-changes-reader-store';
 
 /**
- * The `Changes` row of one Session card, read from `git.overview`, the `files[]`-free projection of the Server's shared
+ * The change count of one Session card, read from `git.overview`, the `files[]`-free projection of the Server's shared
  * repository snapshot.
  *
  * Nothing is read while the card is closed: the scope selector short-circuits, so a resting row neither scans the
