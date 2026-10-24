@@ -167,6 +167,12 @@ export const androidChatCases = {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
         recordingOwner: 'scenario',
+        scenario: 'agent-chat-session-swipe',
+    },
+    'MOB-CHAT-28': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
         scenario: 'agent-chat-session-groups',
     },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
