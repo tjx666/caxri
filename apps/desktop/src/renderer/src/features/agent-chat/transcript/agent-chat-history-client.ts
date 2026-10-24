@@ -10,6 +10,7 @@ import {
     hasOlderAgentChatHistory,
     prependAgentChatHistoryPage,
     retainEvictedAgentChatItems,
+    shouldReadOlderAgentChatHistoryPage,
 } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -116,9 +117,10 @@ function loadingKey({ terminalId, taskId }: AgentChatHistoryScope): string {
 }
 
 /**
- * Reads the page before the oldest item the pane holds and puts it in front. `onBeforePrepend` runs while the DOM still
- * shows the old transcript, so the view can hold the entry the reader looks at in place. A call while the Chat's page
- * is on its way does nothing.
+ * Reads the page before the oldest item the pane holds and puts it in front, going on page by page while the pages
+ * bring no user message (see `shouldReadOlderAgentChatHistoryPage`). `onBeforePrepend` runs before each page commits,
+ * while the DOM still shows the old transcript, so the view can hold the entry the reader looks at in place. A call
+ * while the Chat's pages are on their way does nothing.
  */
 export async function loadOlderAgentChatHistory(
     scope: AgentChatHistoryScope,
@@ -140,20 +142,32 @@ export async function loadOlderAgentChatHistory(
     };
     update((current) => ({ ...current, status: 'loading' }));
     try {
-        const page = await caxri.request('agentChat.readHistory', {
-            terminalId,
-            beforeItemId: cursor,
-            ...(taskId !== undefined && { taskId }),
-        });
-        const live = cachedWindow(scope)?.items ?? [];
-        const current =
-            queryClient.getQueryData<AgentChatOlderHistory>(queryKey) ??
-            emptyAgentChatOlderHistory(historyId);
-        const next = prependAgentChatHistoryPage(current, page, live);
-        // Only a page that adds entries moves the transcript; holding the view for one that does not would leave the
-        // hold to pull the view back on an unrelated later change.
-        if (next.items !== current.items) onBeforePrepend();
-        queryClient.setQueryData<AgentChatOlderHistory>(queryKey, { ...next, status: 'idle' });
+        let beforeItemId = cursor;
+        for (let pagesRead = 1; ; pagesRead += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each page reads before the oldest item the previous one brought
+            const page = await caxri.request('agentChat.readHistory', {
+                terminalId,
+                beforeItemId,
+                ...(taskId !== undefined && { taskId }),
+            });
+            const live = cachedWindow(scope)?.items ?? [];
+            const current =
+                queryClient.getQueryData<AgentChatOlderHistory>(queryKey) ??
+                emptyAgentChatOlderHistory(historyId);
+            const next = prependAgentChatHistoryPage(current, page, live);
+            // Only a page that adds entries moves the transcript; holding the view for one that does not would leave
+            // the hold to pull the view back on an unrelated later change.
+            if (next.items !== current.items) onBeforePrepend();
+            const continues = shouldReadOlderAgentChatHistoryPage(page, current, next, pagesRead);
+            // `loading` between pages keeps retention from trimming the front the next page reads before.
+            queryClient.setQueryData<AgentChatOlderHistory>(queryKey, {
+                ...next,
+                status: continues ? 'loading' : 'idle',
+            });
+            if (!continues) break;
+            // A page that continues added entries, so the history it left has a first item.
+            beforeItemId = next.items[0].id;
+        }
     } catch {
         update((current) => ({ ...current, status: 'failed' }));
     } finally {

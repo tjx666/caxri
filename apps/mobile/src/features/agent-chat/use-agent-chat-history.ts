@@ -5,6 +5,7 @@ import {
     agentChatHistoryCursor,
     emptyAgentChatOlderHistory,
     prependAgentChatHistoryPage,
+    shouldReadOlderAgentChatHistoryPage,
 } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
@@ -94,15 +95,33 @@ export const useAgentChatHistory = (
             );
         update((value) => ({ ...value, status: 'loading' }));
         try {
-            const page = await request('mobile.agentChat.readHistory', {
-                terminalId,
-                beforeItemId,
-            });
-            // A page for a replaced conversation is dropped by `prependAgentChatHistoryPage` itself.
-            update((value) => ({
-                ...prependAgentChatHistoryPage(value, page, latest.current.snapshot?.items ?? []),
-                status: 'idle',
-            }));
+            /**
+             * The pages read so far over the history this load started from, which tells the next cursor and whether to
+             * go on. Items the window evicts meanwhile only append to the end, so the front matches the committed
+             * state.
+             */
+            let read = base.history;
+            let cursor = beforeItemId;
+            for (let pagesRead = 1; ; pagesRead += 1) {
+                // eslint-disable-next-line no-await-in-loop -- each page reads before the oldest item the previous one brought
+                const page = await request('mobile.agentChat.readHistory', {
+                    terminalId,
+                    beforeItemId: cursor,
+                });
+                const live = latest.current.snapshot?.items ?? [];
+                const next = prependAgentChatHistoryPage(read, page, live);
+                const continues = shouldReadOlderAgentChatHistoryPage(page, read, next, pagesRead);
+                // A page for a replaced conversation is dropped by `prependAgentChatHistoryPage` itself. `loading`
+                // between pages keeps retention from trimming the front the next page reads before.
+                update((value) => ({
+                    ...prependAgentChatHistoryPage(value, page, live),
+                    status: continues ? 'loading' : 'idle',
+                }));
+                read = next;
+                if (!continues) break;
+                // A page that continues added entries, so the history it left has a first item.
+                cursor = next.items[0].id;
+            }
         } catch {
             update((value) => ({ ...value, status: 'failed' }));
         } finally {
