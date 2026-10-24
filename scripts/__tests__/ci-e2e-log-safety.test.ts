@@ -188,11 +188,16 @@ describe('public Actions E2E log boundary', () => {
             '.agents/skills/quality-check/scripts/full-suite-authorization.ts',
             '.github/workflows/release.yml',
             'package.json',
+            // Its only `-c` clears the device log (`adb logcat -c`); its Playwright argv names no config.
+            'scripts/mobile-android-acceptance.ts',
             'scripts/run-e2e-census-fixture.ts',
         ]);
         for (const { path, source } of alternateConfigOwners) {
             if (path === 'scripts/run-e2e-census-fixture.ts') {
                 expect(source).toContain('playwrightReporterArgument');
+            } else if (path === 'scripts/mobile-android-acceptance.ts') {
+                expect(source.match(/--config|['"`]-c['"`]/gu)).toEqual(["'-c'"]);
+                expect(source).toContain("adbRun(['logcat', '-c'])");
             } else {
                 expect(source).not.toMatch(/(?:exec|spawn|runChildProcess)\s*\(/u);
             }
