@@ -26,9 +26,10 @@ const DRIFT_DP = 16;
 type Fixture = Awaited<ReturnType<typeof createMobileAcceptanceFixture>>;
 
 /**
- * Creates the idle Sessions before pairing, so the phone's first list already holds a long Idle group.
+ * Pairs on the empty list the fixture waits for, then creates the idle Sessions, which reach the phone as live updates.
  */
 async function pairWithIdleSessions(fixture: Fixture): Promise<string[]> {
+    await fixture.pair();
     const ids: string[] = [];
     for (let index = 0; index < IDLE_SESSION_COUNT; index += 1) {
         // eslint-disable-next-line no-await-in-loop -- Sessions are created in order so their recency is fixed.
@@ -39,7 +40,6 @@ async function pairWithIdleSessions(fixture: Fixture): Promise<string[]> {
         );
         ids.push(created.session.id);
     }
-    await fixture.pair();
     return ids;
 }
 
