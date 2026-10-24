@@ -1,11 +1,14 @@
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { panelsStyles as styles } from './panels-styles';
 
 /**
- * Loading, empty, and error states share one centered block so every Panels view fails the same way.
+ * Loading, empty, and error states share one centered block so every Panels view fails the same way. The loading
+ * spinner waits `LOADING_REVEAL_DELAY_MS` before it draws, so opening a folder or expanding a tree item that answers at
+ * once swaps straight to its entries instead of flashing a spinner.
  */
 export const PanelStatus = ({
     isLoading,
@@ -23,7 +26,7 @@ export const PanelStatus = ({
     const { t } = useTranslation();
     return (
         <View style={styles.status} testID={testID}>
-            {isLoading ? <ActivityIndicator color={theme.muted} /> : null}
+            {isLoading ? <Spinner color={theme.muted} isDelayed /> : null}
             {message ? (
                 <Text style={[styles.statusText, { color: theme.muted }]}>{message}</Text>
             ) : null}
