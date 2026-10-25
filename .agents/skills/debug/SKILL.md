@@ -288,6 +288,11 @@ drop an untracked image into whichever checkout first started the daemon.
 Read an open shared Tooltip through `.tooltip-popup`, not `[role=tooltip]`: Base UI renders the
 popup without that role, so the role query reports no tooltip while one is on screen.
 
+Do not measure durations (a hover-card open delay, an animation length) over CDP in a dev window
+that is behind other apps: Chromium throttles its timers and pauses `requestAnimationFrame`, so a
+450ms hover delay read back as 1897ms and a rAF polling loop never finished. Assert the timing in
+a Playwright E2E spec, or report it as code-verified only rather than measured.
+
 ## Production debugging controls
 
 Every build, packaged included, is already fully instrumented: debug logs, source maps, the Renderer
