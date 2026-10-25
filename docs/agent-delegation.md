@@ -75,10 +75,10 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
 - The Agent Commander uses the same flag, and additionally records the Session as its own for its
   board and archive commands; see [Agent Commander](agent-commander.md).
 - The new Session records the caller's Session as its creator (`createdBySessionId`), after Orca's
-  worktree lineage, where a workspace an agent creates remembers its parent workspace. The sidebar
-  detail card shows a "Created by" row that opens the creating Session, names it as archived instead
-  of restoring it, or names the Agent Commander for its own hidden Session; the Session menu adds
-  "Go to Creating Session". The column has no foreign key, so deleting the creating Session or its
+  worktree lineage, where a workspace an agent creates remembers its parent workspace. The Session
+  menu adds "Go to Creating Session" while the creating Session is open; an archived creator or the
+  Agent Commander's hidden Session offers no entry, because navigating there must not silently
+  restore it. The column has no foreign key, so deleting the creating Session or its
   Project clears it in the same transaction
   (`apps/server/src/domains/db/session-creator.ts`).
 - The creating Agent can keep the sidebar tidy without the Commander's board:

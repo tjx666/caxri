@@ -49,10 +49,10 @@ async function writeClaudeMetadata(
 }
 
 /**
- * The hover card's pull request link is the only pointer route to the PR, and the card is a non-modal preview: Tab from
- * the focused row leaves the sidebar and closes it (verified over CDP for #534). Keyboard users therefore reach the PR
- * through the Session row menu and the command palette, both of which this workflow drives end to end against a fake
- * `gh` that reports a merged, open, or draft PR for the checked-out branch.
+ * The Session hover card is a glance that leaves the PR to the row, and it is a non-modal preview: Tab from the focused
+ * row leaves the sidebar and closes it (verified over CDP for #534). Users therefore reach the PR through the Session
+ * row menu and the command palette, both of which this workflow drives end to end against a fake `gh` that reports a
+ * merged, open, or draft PR for the checked-out branch.
  */
 for (const state of ['merged', 'open', 'draft'] as const) {
     test(`a ${state} Session pull request is visible on the row and opens from the keyboard`, async () => {
@@ -187,18 +187,13 @@ esac
             const selectedPaletteCommand = () =>
                 command.evaluate((element) => (element as HTMLElement).dataset.selected);
 
-            // Keyboard focus on the row opens the hover card with the PR, but the card is not in the Tab order.
+            // Keyboard focus on the row opens the hover card, which leaves the PR to the row and is not in the Tab order.
             await running.page.locator('.project-select').focus();
             await running.page.keyboard.press('ArrowDown');
             await expect(card).toBeFocused();
             const hoverCard = running.page.locator('.session-activity-card');
-            await expect(hoverCard).toContainText('#42');
-            // An open PR's glyph carries the lifecycle, so its text slot shows the checks instead.
-            await expect(hoverCard).toContainText(
-                state === 'open' ? 'Checks failing' : state === 'draft' ? 'Draft' : 'Merged',
-            );
-            await hoverCard.screenshot({ path: test.info().outputPath(`pr-${state}-hover.png`) });
-            await expect(hoverCard).toContainText('Pull request fixture');
+            await expect(hoverCard).toBeVisible();
+            await expect(hoverCard).not.toContainText('#42');
             await running.page.keyboard.press('Tab');
             await expect(card).not.toBeFocused();
             await expect(hoverCard).toHaveCount(0);
@@ -414,14 +409,7 @@ setInterval(() => {
         expect(runningLayout.indicatorWidth).toBe(idleLayout.indicatorWidth);
         expect(runningLayout.titleWidth).toBe(idleLayout.titleWidth);
 
-        // PR details stay reachable from the hover card and the context menu.
-        await card.hover();
-        const hoverCard = running.page.locator('.session-activity-card');
-        await expect(hoverCard).toBeVisible();
-        await expect(hoverCard).toContainText('#42');
-        await expect(hoverCard).toContainText('Pull request lifecycle fixture');
-        await running.page.keyboard.press('Escape');
-        await expect(hoverCard).toBeHidden();
+        // The PR stays reachable from the context menu.
         await card.click({ button: 'right' });
         await expect(contextMenuLabels(running.app)).resolves.toContain('Open Pull Request #42');
         await dismissContextMenu(running.app);

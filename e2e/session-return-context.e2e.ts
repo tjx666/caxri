@@ -66,31 +66,6 @@ async function returnAfterTwoTurns(page: Page): Promise<void> {
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the hover card quotes the question an away Chat is waiting on', async ({}, testInfo) => {
-    const { directory, running } = await launchWithChat();
-    try {
-        const { page } = running;
-        const waitingId = await createProjectSession(page, 'shell');
-        await openAgentChat(page, 'Codex Chat');
-        const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
-        await message.fill('ask several questions');
-        await message.press('Enter');
-        await expect(
-            page.locator(VISIBLE_SESSION).getByRole('region', { name: 'Codex has 3 questions' }),
-        ).toBeVisible();
-        await createAdditionalShellSession(page);
-        await sessionCard(page, waitingId).hover();
-        const card = page.locator('.session-activity-card');
-        await expect(card.getByText('Waiting on you')).toBeVisible();
-        await expect(card).toContainText('?');
-        await page.screenshot({ path: testInfo.outputPath('hover-card-excerpt.png') });
-    } finally {
-        await closeAppQuietly(running.app);
-        await rm(directory, { recursive: true, force: true });
-    }
-});
-
-// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('returning to a Chat counts the turns that finished while away', async ({}, testInfo) => {
     const { directory, running } = await launchWithChat();
     try {

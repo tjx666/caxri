@@ -9,9 +9,10 @@ import {
 } from '../sidebar-detail-card-handoff';
 
 /**
- * The open state every sidebar detail card (Session and Project) shares: Escape and modal dismissal, the one-card-at-a-
- * time handoff that lets a hover sweep swap cards at once, and the delay and motion classes that handoff picks.
- * `suppressed` hides the card without forgetting it was asked for (an open row menu).
+ * The open state of the Session hover card (PrimarySidebar and Activity rows): Escape and modal dismissal, the
+ * one-card- at-a-time handoff that lets a hover sweep swap cards at once, and the delay and motion classes that handoff
+ * picks. Only the Session card is fast on purpose: the Project heading's card keeps the ordinary hover-card delay and
+ * motion. `suppressed` hides the card without forgetting it was asked for (an open row menu).
  */
 export function useSidebarDetailCard(suppressed: boolean | undefined) {
     const [open, setOpenState] = useState(false);
