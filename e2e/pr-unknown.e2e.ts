@@ -145,16 +145,14 @@ ${response}
                     });
                 }
                 await expect(row.locator('[data-pull-request-state]')).toHaveCount(0);
-                await row.focus();
-                const hoverCard = running.page.locator('.session-activity-card');
-                await expect(hoverCard).toContainText(scenario.hint);
-                await expect(hoverCard).toHaveCSS('opacity', '1');
-                const cardScreenshot = test.info().outputPath(`${scenario.id}-card.png`);
-                await hoverCard.screenshot({ path: cardScreenshot });
-                await test.info().attach(`${scenario.id}-card`, {
-                    path: cardScreenshot,
-                    contentType: 'image/png',
-                });
+                // The hover card is a glance; the row's description still names why the PR is unknown.
+                const escapedHint = scenario.hint.replaceAll(
+                    /[$()*+.?[\\\]^{|}]/gu,
+                    String.raw`\$&`,
+                );
+                await expect(row).toHaveAccessibleDescription(
+                    new RegExp(String.raw`Pull request unknown\. ` + escapedHint, 'u'),
+                );
                 if (scenario.id === 'not-logged-in') {
                     const before = test.info().outputPath('before-recovery.png');
                     await statusBar.screenshot({ path: before });

@@ -275,13 +275,13 @@ hidden or was never opened.
 
 ## Excerpts
 
-A row in the attention group, and the Session hover card everywhere, quote what the Agent last asked
+A row in the attention group quotes what the Agent last asked
 or said so the user can decide whether to open the Session. `agent.excerpts` (read-only, one batch
 per view) answers per Session and attention generation: a Chat Agent that is waiting on the user
 shows the question or approval it is asking, read from the live Chat's in-memory request without
 starting a provider; every other case shows the closing message of the latest turn from the on-disk
 transcript. A Terminal Agent has no live request to read, so it only gets the transcript's last
-reply. Rows clamp the quote to two lines and the card to three. The text is user content shown
+reply. Rows clamp the quote to two lines. The text is user content shown
 locally: the Server never persists or logs it, and the Renderer keeps it only in the query cache.
 
 ## Past conversations
@@ -293,8 +293,9 @@ the current binding and `/clear`, a provider switch, or closing the Terminal ove
 come from Session search's index (`session.agentHistory`); a conversation since resumed in another
 Session is left out. Choosing one (`session.reopenConversation`) adds a parked Agent Terminal bound
 to it in the ledger's recorded folder, and revealing that Terminal resumes the conversation, as an
-imported conversation does. The Session hover card does not repeat this list: it stays a glance at
-status, the latest reply, the PR, and a one-line footer (worktree, change count, last opened).
+imported conversation does. The Session hover card does not repeat this list: after the Codex app's thread list, it is a
+two-line glance at the title, the Agent, the latest activity time, and the Project. Status, the PR,
+and unread attention stay on the row and in its accessible description.
 
 ## Returning to a Session
 

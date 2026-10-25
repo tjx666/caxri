@@ -15,6 +15,7 @@ import {
     launchCaxri,
     pageRequest,
     selectedSessionId,
+    sessionCard,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
 
@@ -176,13 +177,12 @@ process.stdout.write('Compaction Agent ready\r\n');
             lastActivityState: 'running',
         });
 
+        await expect(sessionCard(running.page, sessionId)).toHaveAccessibleDescription(
+            /Compacting\. The Agent is summarizing earlier context before continuing\./,
+        );
         await sessionRow.hover();
         const activityCard = running.page.locator('.session-activity-card');
         await expect(activityCard).toBeVisible();
-        await expect(activityCard).toContainText('Compacting');
-        await expect(activityCard).toContainText(
-            'The Agent is summarizing earlier context before continuing.',
-        );
         await running.page.screenshot({
             path: testInfo.outputPath('codex-compacting.png'),
         });

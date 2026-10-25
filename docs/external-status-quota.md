@@ -389,7 +389,7 @@ fails differently. The window aggregate still counts every failure.
 
 Project Status preserves GitHub's `CANCELLED` conclusion as `cancelled`, shown with a muted
 slashed-circle icon and a `cancelled` tooltip. Cancelled checks do not count toward failure badges
-or delivery-failure notifications. The Session PR hover card reports `Checks cancelled`.
+or delivery-failure notifications. The Agent Commander board reports `Checks cancelled`.
 
 PR summaries prioritize actual failures, then running checks. Once every check is terminal, a
 cancelled check remains visible but does not override another non-cancelled outcome; the summary is

@@ -101,9 +101,9 @@ budget. A Terminal on screen waits for its pane's grid before its PTY starts. If
 cannot be resumed because it was never written to disk, the Terminal starts a fresh Agent session
 instead and logs `terminal.resume_skipped`.
 
-While a Terminal is suspended, the PrimarySidebar's Session hover card reads `Suspended` in the
-neutral tone (not the idle state it last probed) and says the Agent resumes when the Session is
-opened, naming Settings > Agents. The Terminal's recovery row reads `Suspended in the background,
+While a Terminal is suspended, the PrimarySidebar's Session row describes it as `Suspended` in the
+neutral tone (not the idle state it last probed) and its accessible description says the Agent
+resumes when the Session is opened, naming Settings > Agents. The Terminal's recovery row reads `Suspended in the background,
 resuming`, and its tooltip names the same setting. Neither claims the idle rule caused the park,
 because the record does not say whether the idle rule, an archive, or a Process Explorer stop
 parked it.

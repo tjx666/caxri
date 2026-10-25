@@ -12,12 +12,6 @@ import type { SessionStatusTerminal } from './session-status';
 export interface SessionActivityPresentation {
     ariaLabel: string;
     description: string;
-    /**
-     * Whether the hover card shows {@link description} under the status. Most sentences only restate their label
-     * ("Working" / "The Agent is running."), so the card keeps them for screen readers and shows only the ones that
-     * explain something the label cannot, such as how a suspended Agent comes back.
-     */
-    hasVisibleDescription: boolean;
     indicatorClassName: string;
     label: string;
     tone: 'danger' | 'neutral' | 'success' | 'warning';
@@ -25,13 +19,6 @@ export interface SessionActivityPresentation {
 
 type ActivityKey =
     'background' | 'compacting' | 'detached' | 'noAgent' | 'suspended' | AgentActivityState;
-
-const KEYS_WITH_VISIBLE_DESCRIPTION: ReadonlySet<ActivityKey> = new Set([
-    'background',
-    'compacting',
-    'detached',
-    'suspended',
-]);
 
 const PRESENTATIONS: Record<
     AgentActivityState,
@@ -64,7 +51,6 @@ function presentation(
     return {
         ariaLabel: translate('primarySidebar.activity.ariaLabel', { description, label }),
         description,
-        hasVisibleDescription: KEYS_WITH_VISIBLE_DESCRIPTION.has(key),
         indicatorClassName,
         label,
         tone,
@@ -72,35 +58,14 @@ function presentation(
 }
 
 /**
- * `--accent` is DESIGN.md's single per-screen focus color (the focused pane/tab); the PrimarySidebar stays entirely
- * neutral otherwise, so detailed activity chrome borrows the same success/warning/danger/neutral tones instead.
- * `bg-danger`/`bg-warning`/`bg-danger/10`/etc. are literal keys here (not built from a template string) so Tailwind's
- * static class scanner can find and generate them.
- */
-const TONE_CALLOUT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> = {
-    danger: 'bg-danger/10 text-danger',
-    neutral: 'bg-muted/10 text-muted',
-    success: 'bg-success/10 text-success',
-    warning: 'bg-warning/10 text-warning',
-};
-
-/**
- * Tone for the hover card's unread explanation, which is deliberately coarser than {@link sessionActivityPresentation}.
+ * Tone for an unread attention mark, which is deliberately coarser than {@link sessionActivityPresentation}.
  *
- * Every unread kind except an outright failure collapses to `warning`. A `--muted` detail chip reads as inert chrome,
- * which is exactly what the most common attention kinds (`completed`/`idle`/`unknown`) resolve to. The hover card names
- * the attention kind outright, while `danger` stays distinct in that detail surface because a failed turn warrants
- * different explanatory emphasis.
+ * Every unread kind except an outright failure collapses to `warning`. A `--muted` mark reads as inert chrome, which is
+ * exactly what the most common attention kinds (`completed`/`idle`/`unknown`) resolve to, while `danger` stays distinct
+ * because a failed turn warrants different emphasis.
  */
 export function sessionUnreadTone(kind: AgentActivityState): SessionActivityPresentation['tone'] {
     return PRESENTATIONS[kind].tone === 'danger' ? 'danger' : 'warning';
-}
-
-/**
- * Soft background + matching text for a tone-colored callout chip (e.g. the unread explanation).
- */
-export function sessionToneCalloutClassName(tone: SessionActivityPresentation['tone']): string {
-    return TONE_CALLOUT_CLASSNAME[tone];
 }
 
 /**

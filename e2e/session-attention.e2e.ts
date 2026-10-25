@@ -203,11 +203,12 @@ setInterval(() => {
         const activityCard = running.page.locator('.session-activity-card');
         await expect(activityCard).toBeVisible();
         await expect(activityCard.locator('h3')).toHaveText(longTitle);
-        await expect(activityCard).toContainText('project · Claude');
-        await expect(activityCard).toContainText('Working');
-        // A running Agent's sentence only restates the label, so the card leaves it to the accessible description.
-        await expect(activityCard).not.toContainText('The Agent is running.');
-        await expect(activityCard).toContainText('Opened');
+        await expect(activityCard).toContainText('project');
+        await expect(activityCard.locator('[data-agent-icon]')).toBeVisible();
+        await expect(activityCard.locator('.session-card-time')).not.toBeEmpty();
+        // The card is a glance: status lives on the row and in its accessible description, not in the card.
+        await expect(activityCard).not.toContainText('Working');
+        await expect(firstRow).toHaveAccessibleDescription(/Working\. The Agent is running\./);
         const cardPosition = await running.page.evaluate(() => {
             const trigger = document.querySelector<HTMLElement>('.session-card');
             const card = document.querySelector<HTMLElement>('.session-activity-card');
@@ -341,9 +342,8 @@ setInterval(() => {
         await expect(rowActions).toHaveCSS('opacity', '0');
         await expect(rowActions).toHaveCSS('pointer-events', 'none');
         await expect(activityCard).toBeVisible({ timeout: 200 });
-        await expect(activityCard).toContainText('Finished');
-        await expect(activityCard).not.toContainText('The Agent finished its latest turn.');
-        await expect(activityCard).toContainText('Unread attention: Finished');
+        await expect(activityCard).not.toContainText('Finished');
+        await expect(firstRow).toHaveAccessibleDescription(/Unread attention: Finished\./);
         expect(
             (await pageRequest<{ selectedSessionId?: string }>(running.page, 'app.bootstrap'))
                 .selectedSessionId,

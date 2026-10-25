@@ -13,10 +13,10 @@ import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 /**
  * An ordinary Agent starts work in a new Session through the real CLI, then tidies it up: renames it, archives it, and
- * restores it. Its own Session stays out of reach. The Workbench shows where the new Session came from and opens the
- * creating Session from the detail card.
+ * restores it. Its own Session stays out of reach. The Workbench opens the creating Session from the new Session's
+ * context menu.
  */
-test('an Agent manages the Session it created, and the Workbench shows the creator', async () => {
+test('an Agent manages the Session it created, and the Workbench opens the creator', async () => {
     /**
      * The Agent's attempt to archive its own Session is refused on purpose.
      */
@@ -122,23 +122,6 @@ process.stdout.write('Synthetic caller ready\r\n');
         expect(
             state.sessions.find((session) => session.id === callerSessionId)?.archivedAt,
         ).toBeUndefined();
-
-        await pageRequest(running.page, 'session.select', { sessionId });
-        await sessionCard(running.page, sessionId).hover();
-        const card = running.page.locator('.session-activity-card');
-        const creatorRow = card.locator('.session-card-creator');
-        await expect(creatorRow).toContainText('Created by');
-        await expect(creatorRow).toContainText('Coordinator');
-        await expect(card).toHaveCSS('opacity', '1');
-        await card.screenshot({ path: test.info().outputPath('session-creator-card.png') });
-        await creatorRow.getByRole('button', { name: 'Coordinator' }).click();
-        await expect
-            .poll(
-                async () =>
-                    (await pageRequest<BootstrapState>(running.page, 'app.bootstrap'))
-                        .selectedSessionId,
-            )
-            .toBe(callerSessionId);
 
         await pageRequest(running.page, 'session.select', { sessionId });
         await expect
