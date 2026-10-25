@@ -912,8 +912,8 @@ removed, fades and gives back its width on `--motion-collapse`. Attachments rest
 without motion, and the transcript keeps its scrollbar hidden while the composer resizes it.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
-state transitions, the Agent Chat composer strip and its rows appearing or leaving, sidebar detail
-cards closing (and swapping as the pointer moves from one row to the next), sidebar and Panel visibility (animating their width would reflow every
+state transitions, the Agent Chat composer strip and its rows appearing or leaving, Session hover
+cards closing (and swapping as the pointer moves from one row to the next; the Project card keeps the ordinary delay and motion), sidebar and Panel visibility (animating their width would reflow every
 xterm on each frame), Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
 disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).

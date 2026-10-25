@@ -46,9 +46,9 @@ export function isSidebarDetailCardWarm(): boolean {
 }
 
 /**
- * Registers an open sidebar detail card (Session or Project) as the one shown, closing the previous one at once rather
- * than after its close delay, so a sweep never stacks two cards for a frame of overlap. Returns the release for when
- * the card closes, which keeps the list warm for {@link HANDOFF_WINDOW_MS}.
+ * Registers an open Session hover card as the one shown, closing the previous one at once rather than after its close
+ * delay, so a sweep never stacks two cards for a frame of overlap. Returns the release for when the card closes, which
+ * keeps the list warm for {@link HANDOFF_WINDOW_MS}.
  */
 export function claimSidebarDetailCard(close: () => void): () => void {
     clearTimeout(state.coolTimer);

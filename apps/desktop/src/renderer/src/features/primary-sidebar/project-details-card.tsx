@@ -1,5 +1,5 @@
 import type { ReactElement, RefObject } from 'react';
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
 import { FolderClosed, MessageCircle } from 'lucide-react';
@@ -7,9 +7,8 @@ import { FolderClosed, MessageCircle } from 'lucide-react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { useTranslation } from '../../i18n';
 import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
-import { cn } from '../../lib/utilities';
-import { useSidebarDetailCard } from './hooks/use-sidebar-detail-card';
 import { ProjectIcon } from './project-icon';
+import { sidebarDetailCardDismissal } from './sidebar-detail-card-dismissal';
 
 export function ProjectDetailsCard({
     anchor,
@@ -31,16 +30,21 @@ export function ProjectDetailsCard({
     trigger: ReactElement;
 }) {
     const accessibleDescriptionId = useId();
+    const [open, setOpen] = useState(false);
     const { t } = useTranslation();
-    const { closeDelay, delay, motionClassName, setOpen, visible } =
-        useSidebarDetailCard(suppressed);
+    const visible = open && !suppressed;
+
+    useEffect(() => {
+        if (!visible) return;
+        return sidebarDetailCardDismissal(() => setOpen(false));
+    }, [visible]);
 
     return (
         <HoverCard open={visible} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
             <HoverCardTrigger
                 aria-describedby={accessibleDescriptionId}
-                closeDelay={closeDelay}
-                delay={delay}
+                closeDelay={80}
+                delay={450}
                 onFocus={(event) => {
                     if (isRestoringPickerFocus(event.currentTarget)) {
                         event.preventBaseUIHandler();
@@ -57,10 +61,7 @@ export function ProjectDetailsCard({
             <HoverCardContent
                 anchor={anchor}
                 align="start"
-                className={cn(
-                    'project-details-card w-72 max-w-[calc(100vw-16px)] p-3',
-                    motionClassName,
-                )}
+                className="project-details-card w-72 max-w-[calc(100vw-16px)] p-3"
                 collisionAvoidance={{ align: 'shift', fallbackAxisSide: 'end', side: 'flip' }}
                 collisionBoundary={document.documentElement}
                 collisionPadding={8}
