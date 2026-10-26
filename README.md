@@ -1,9 +1,13 @@
 # Caxri
 
-Caxri is a project-first development workbench for macOS, built for running and supervising coding
-agents. It groups durable Agent and Shell Sessions beneath local Projects: Agent Chats, real PTYs, a
-focused editor, Files and Source Control views, and reliable agent attention signals, in one
-Electron app.
+Running several coding agents at once means juggling terminals and missing the moment one stops to
+ask you something. Caxri is a macOS app for developers who already use Claude Code, Codex or Grok
+Build: it keeps each task as a durable Session under a local Project folder, shows which Sessions
+are waiting on you, and lets you read, review and steer them from one window.
+
+**Works with:** Claude Code, Codex and Grok Build. Caxri runs your own installed Agent CLIs and
+their existing sign-in; it does not bundle an Agent or a subscription. The interface is available
+in English and Simplified Chinese.
 
 Caxri is in active development. Repository visibility and source-available development releases
 do not establish a support or compatibility commitment. The maintainer will declare any future
@@ -11,25 +15,162 @@ compatibility commitment explicitly.
 
 ## Highlights
 
-- **Projects and Sessions.** A Project is a user-authorized folder. Sessions are durable
-  units of work beneath it, each owning its Terminals, layout, and workbench state. The shared
-  vocabulary lives in [GLOSSARY.md](GLOSSARY.md).
-- **Chat first, Terminal always.** Agents run the user's own, unmodified CLIs (Claude Code,
-  Codex, …). A Chat drives the installed CLI through its vendor's structured protocol and renders
-  a readable conversation; it is where new Agent features land. Every Agent can also run in a
-  genuine pseudo-terminal, and a Chat can switch to one without losing its conversation. Shells
-  always run in one, and Caxri never proxies or rewrites PTY I/O. See
-  [docs/agent-chat.md](docs/agent-chat.md) and
-  [ADR 0015](docs/adr/0015-chat-primary-agent-surface.md).
-- **Attention you can trust.** Each Session's Primary Agent reports waiting / completed / failed
-  states, so a wall of parallel agent sessions never stalls silently.
-- **A focused workbench.** A narrow editor, file tree, search, and an inspection-first Source
-  Control view cover the "glance at what the agent did" loop without becoming an IDE.
-- **A scriptable CLI.** The standalone `caxri` CLI drives the same authenticated, profile-scoped
-  Server that the desktop app uses; see [docs/cli.md](docs/cli.md).
-- **An agent-native repository.** Caxri is developed exclusively by coding agents.
-  [AGENTS.md](AGENTS.md) is the contributor standing orders; task-routed skills under
-  `.agents/skills/` own the workflows.
+- **Projects and Sessions.** A Project is a folder you authorize. Sessions are durable units of
+  work beneath it, each with its own Terminals, layout and workbench state. The shared vocabulary
+  lives in [GLOSSARY.md](GLOSSARY.md).
+- **Chat first, Terminal always.** An Agent opens as a readable conversation (a Chat) by default,
+  and can switch to a genuine terminal without losing the conversation. Shells always run in a
+  terminal. See [docs/agent-chat.md](docs/agent-chat.md).
+- **Attention you can trust.** Each Session reports waiting, completed or failed, so a wall of
+  parallel Agents never stalls silently.
+- **A focused workbench.** A narrow editor, file tree, search and an inspection-first Source Control
+  view cover the "glance at what the Agent did" loop without becoming an IDE.
+- **A scriptable CLI.** The `caxri` command drives the same app Server; see
+  [docs/cli.md](docs/cli.md).
+
+New here? Read [Getting started](docs/getting-started.md) for the model in five minutes.
+
+## Requirements
+
+- An Apple Silicon Mac running macOS 13 (Ventura) or later.
+- At least one supported Agent CLI (Claude Code, Codex or Grok Build) installed and signed in. Check
+  that it works in Terminal first. Shell Sessions work without one.
+- [Homebrew](https://brew.sh/), only to install the optional notification helper.
+
+Intel Macs can run from source (see [Run from source](#run-from-source)); Windows and Linux desktop
+builds are not currently supported.
+
+## Install
+
+1. **Prepare your Agent.** Install and sign in to your Agent CLI following its vendor's
+   instructions, and confirm it works in Terminal.
+2. **Install the notification helper (optional).** Caxri uses the
+   [`alerter` CLI](https://github.com/vjeantet/alerter) to show macOS banners when an Agent
+   finishes or needs you:
+
+   ```bash
+   brew install vjeantet/tap/alerter
+   ```
+
+   Install it before launching Caxri, or fully quit and reopen Caxri afterwards. Without it,
+   system notifications may not appear. **Settings → Notifications → System notifications** shows
+   the helper's status.
+
+3. **Download and verify the app.** Open the
+   [latest release](https://github.com/tjx666/caxri/releases/latest) and download
+   `Caxri-VERSION-arm64.dmg` and its matching `Caxri-VERSION-arm64.dmg.sha256` file into the same
+   folder. In Terminal, replacing `VERSION` with the version in the filenames:
+
+   ```bash
+   cd ~/Downloads
+   shasum -a 256 -c Caxri-VERSION-arm64.dmg.sha256
+   ```
+
+   Continue only when the result is `OK`. The `-arm64-nosourcemap.dmg` asset is a smaller
+   alternative without diagnostic Source Maps.
+
+4. **Install and open Caxri.** Open the DMG, drag **Caxri** into **Applications**, then launch it.
+   The app is unsigned and unnotarized, so macOS may block it the first time:
+   - If macOS says Caxri is **"damaged"**, after verifying the download above, run this and open
+     it again:
+
+     ```bash
+     xattr -dr com.apple.quarantine /Applications/Caxri.app
+     ```
+
+   - If macOS says it cannot verify the developer, open **System Settings → Privacy & Security**,
+     scroll to the message about Caxri, click **Open Anyway**, and confirm.
+
+   More help: [Troubleshooting](docs/troubleshooting.md).
+
+### Install on Android
+
+Android phones can install the paired companion from the same
+[Release](https://github.com/tjx666/caxri/releases/latest): download
+`Caxri-Mobile-<version>-android-arm64.apk`, open it, and allow installation from the browser or
+file manager if prompted. Each APK has a `.sha256` companion; use the same release version as Desktop.
+See [Mobile installation and updates](docs/mobile/update.md#install-from-github-releases).
+
+## First Session
+
+Add a local folder as a Project, create a Session beneath it, and choose your installed Agent or a
+Shell. Agents open in Chat by default; you can switch a Session to its terminal at any time.
+
+Agents start with full access: they can edit files and run commands without asking. Change this in
+**Settings → Agents**. Allow notifications from the helper in macOS System Settings if prompted.
+
+## Updating
+
+Caxri checks GitHub for a new release when it launches and every few hours afterwards. You can also
+choose **Caxri → Check for Updates…** at any time. Finish your running tasks and quit Caxri before
+replacing the app. Updating does not delete your profile or Project folders. Contributor release
+options are in [RELEASING.md](RELEASING.md).
+
+## Command line for app users
+
+Open the Command Palette and run **Install 'caxri' Command in PATH**, then in a new Terminal:
+
+```bash
+caxri --help
+```
+
+The full manual is [docs/cli.md](docs/cli.md).
+
+## What Caxri changes on your Mac
+
+- **Agent hook entries.** To learn when an Agent starts, waits or finishes, Caxri adds lifecycle
+  hook entries to your Agent configs (for example `~/.claude/settings.json` and the Codex hook
+  config). Hooks receive lifecycle phases, never prompt or response content. Turn them off per
+  Agent in **Settings → Agents**, which removes Caxri's entries; your own hooks stay.
+- **A background job for Claude windows (Claude Pro).** **Keep 5-hour windows rolling** (Settings → Agents → Claude)
+  is on by default for a Claude Pro account and off for Max. When on, Caxri registers a per-user
+  launchd job under `~/Library/LaunchAgents` (names start with `com.caxri.app.claude-windows`;
+  macOS lists it under Login Items) that sends one minimal request to Claude when a window resets.
+  Turn the setting off to remove it. See [docs/claude-windows.md](docs/claude-windows.md).
+- **The `caxri` command link (only if you installed it).** **Install 'caxri' Command in PATH** in the
+  command palette creates the symlink `/usr/local/bin/caxri`. Run **Uninstall 'caxri' Command from
+  PATH** before deleting the app, or remove it later with `sudo rm /usr/local/bin/caxri`.
+- **The notification helper.** `alerter` is installed by you with Homebrew; Caxri only runs it.
+- **Your data.** The profile (database, settings) lives in `~/Library/Application Support/Caxri`,
+  with logs under its `logs` folder. Use **Help → Reveal Logs in Finder** to open them.
+- **Two kinds of network requests.** Caxri asks GitHub's public release API for new versions, and,
+  while the Claude windows setting is on, sends the one minimal request to Claude described above.
+  It has no telemetry, and its diagnostics never include source contents, Terminal output or Agent
+  transcripts. Your Agent CLIs talk to their own vendors under their own terms.
+
+## Uninstall and reset
+
+Quit Caxri, delete `/Applications/Caxri.app`, then remove `~/Library/Application Support/Caxri`
+to erase its data. Deleting a Project or Session in Caxri never touches your folders or files.
+Before deleting, turn off Agent hooks and **Keep 5-hour windows rolling** (on by default for Claude Pro) in Settings so Caxri removes its
+config entries and background job. If you installed the `caxri` command, run **Uninstall 'caxri'
+Command from PATH** from the command palette too (or `sudo rm /usr/local/bin/caxri` afterwards). From a source checkout, `bun run uninstall:caxri` previews a full
+local cleanup (hook entries, background jobs, app and profiles) and archives rather than deletes;
+add `-- --yes` to apply it.
+
+## Support and community
+
+- [Open an Issue](https://github.com/tjx666/caxri/issues/new/choose) for a bug, feature request or
+  question. There is no response or resolution SLA. Use **Help → Report an Issue** in the app.
+- Pull requests from people and coding agents are welcome; the maintainer decides what to merge.
+  See [CONTRIBUTING.md](CONTRIBUTING.md).
+- Report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
+- See [SUPPORT.md](SUPPORT.md) for request routing and [docs/troubleshooting.md](docs/troubleshooting.md)
+  for common problems.
+
+## License
+
+Caxri is source-available under the [Caxri Source-Available License 1.0](LICENSE). It is not licensed
+under an OSI-approved open source license.
+
+Using Caxri for personal or company work, earning money from Outputs created with it, and keeping
+private Modifications closed source are free. Free redistribution is allowed under the License's
+notice and source-availability conditions. Selling, commercially distributing, or monetizing access
+to Caxri or a Modification requires a separate written commercial license. Contact
+[ytj2713151713@gmail.com](mailto:ytj2713151713@gmail.com) for commercial terms.
+
+External Contributions require acceptance of the [Caxri Individual Contributor License
+Agreement](CLA.md) before merge. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution flow.
 
 <!-- development-usage:start -->
 
@@ -55,73 +196,6 @@ The script reads session files without changing them. Default backup paths use `
 Pricing sources: [OpenAI](https://developers.openai.com/api/docs/pricing), [Anthropic](https://platform.claude.com/docs/en/about-claude/pricing).
 
 <!-- development-usage:end -->
-
-## Install on macOS
-
-The packaged app currently supports **Apple Silicon Macs running macOS 13 (Ventura) or later**.
-You do not need to clone this repository or install Node.js, Bun, or `ni` to use it. Intel Macs
-running macOS 13 or later can run from source using the development steps below; Windows and Linux
-desktop builds are not currently supported.
-
-1. **Prepare your Agent.** Install and sign in to at least one supported Agent CLI, such as
-   Claude Code or Codex, following its vendor's instructions. Confirm that it works in Terminal
-   before opening it in Caxri. Caxri uses your installed CLIs and their existing authentication;
-   it does not include an Agent subscription or credentials. You can also use Shell Sessions
-   without an Agent CLI.
-2. **Install the notification helper.** Current unsigned builds depend on the
-   [`alerter` CLI](https://github.com/vjeantet/alerter) for macOS system notifications, including
-   Agent completion and waiting-for-input banners. Install [Homebrew](https://brew.sh/) if needed,
-   then run:
-
-   ```bash
-   brew install vjeantet/tap/alerter
-   ```
-
-   Caxri looks for it at `/opt/homebrew/bin/alerter` or `/usr/local/bin/alerter`. Install it before
-   launching Caxri, or fully quit and reopen Caxri afterwards. Without it, system notifications
-   may not appear even when enabled in Settings.
-
-3. **Download and verify the app.** Open the
-   [latest release](https://github.com/tjx666/caxri/releases/latest) and download
-   `Caxri-VERSION-arm64.dmg` and its matching `Caxri-VERSION-arm64.dmg.sha256` file. Keep both
-   files in the same folder. In Terminal, change to that folder and verify the download,
-   replacing `VERSION` with the version in the downloaded filenames:
-
-   ```bash
-   cd ~/Downloads
-   shasum -a 256 -c Caxri-VERSION-arm64.dmg.sha256
-   ```
-
-   Continue only when the result is `OK`. Use the default `-arm64.dmg` asset; the
-   `-arm64-nosourcemap.dmg` asset is a smaller alternative without diagnostic Source Maps.
-
-4. **Install and open Caxri.** Open the DMG, drag **Caxri** into **Applications**, then launch it
-   from Applications. The current app is unsigned and unnotarized. If macOS says it is
-   **"damaged"**, after verifying the download above, run this command for the installed app
-   and open it again:
-
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Caxri.app
-   ```
-
-5. **Start your first Session.** Add a local folder as a Project, create a Session beneath it,
-   and choose your installed Agent or Shell. To start Agents in the conversation view, enable
-   **Settings → General → Open Agents in Chat**. Check **Settings → Notifications → System
-   notifications** and allow the notification helper's notifications in macOS System Settings
-   if prompted.
-
-To update manually, finish your running tasks, quit Caxri, and repeat the download, verification,
-and installation steps with the new release. Installing the app does not require deleting your
-profile or Project folders. Contributor installation and release options are documented in
-[RELEASING.md](RELEASING.md).
-
-## Install on Android
-
-Android phones can install the paired companion from the same
-[Release](https://github.com/tjx666/caxri/releases/latest): download
-`Caxri-Mobile-<version>-android-arm64.apk`, open it, and allow installation from the browser or
-file manager if prompted. Each APK has a `.sha256` companion; use the same release version as Desktop.
-See [Mobile installation and updates](docs/mobile/update.md#install-from-github-releases).
 
 ## Run from source
 
@@ -159,7 +233,7 @@ Caxri's own diagnostics and reporting paths do not collect or upload source cont
 output, or Agent transcripts. Caxri runs separately installed third-party Agent CLIs; their network
 behavior and data handling are governed by their respective vendors' terms and privacy policies.
 
-## Command line
+### Build the CLI from source
 
 ```bash
 bun run build:cli
@@ -171,32 +245,6 @@ never directly to Caxri's database, settings, or logs. It covers Projects, Sessi
 settings, logs, diagnostics, events, desktop window control, and Agent automation, and embeds the
 version-matched `caxri-cli` Agent skill. The full manual, including output modes, mutation safety,
 and command authority boundaries, is in [docs/cli.md](docs/cli.md).
-
-## Community and support
-
-- [Open an Issue](https://github.com/tjx666/caxri/issues/new/choose) for a bug or feature request.
-  Issues are open for community use, but there is no response or resolution SLA.
-- Pull requests are welcome for review. The maintainer decides whether to merge each contribution,
-  and submission does not guarantee review or acceptance. See
-  [CONTRIBUTING.md](CONTRIBUTING.md).
-- Read [SECURITY.md](SECURITY.md) before reporting a vulnerability. Never post credentials,
-  sensitive exploit details, or private data in a public Issue.
-- See [SUPPORT.md](SUPPORT.md) for the boundary between bug reports, feature requests, security
-  reports, and general support.
-
-## License
-
-Caxri is source-available under the [Caxri Source-Available License 1.0](LICENSE). It is not licensed
-under an OSI-approved open source license.
-
-Using Caxri for personal or company work, earning money from Outputs created with it, and keeping
-private Modifications closed source are free. Free redistribution is allowed under the License's
-notice and source-availability conditions. Selling, commercially distributing, or monetizing access
-to Caxri or a Modification requires a separate written commercial license. Contact
-[ytj2713151713@gmail.com](mailto:ytj2713151713@gmail.com) for commercial terms.
-
-External Contributions require acceptance of the [Caxri Individual Contributor License
-Agreement](CLA.md) before merge. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution flow.
 
 ## Development
 
@@ -223,18 +271,27 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 
 ## Documentation
 
+### Use Caxri
+
+| Document                                   | Contents                                        |
+| ------------------------------------------ | ----------------------------------------------- |
+| [Getting started](docs/getting-started.md) | The model in five minutes                       |
+| [Troubleshooting](docs/troubleshooting.md) | Blocked app, notifications, Agent not found     |
+| [docs/cli.md](docs/cli.md)                 | The `caxri` CLI manual                          |
+| [GLOSSARY.md](GLOSSARY.md)                 | Product language: Projects, Sessions, Attention |
+| [SUPPORT.md](SUPPORT.md)                   | Community support scope and request routing     |
+| [SECURITY.md](SECURITY.md)                 | Private vulnerability reporting policy          |
+| [LICENSE](LICENSE)                         | Source-available use and commercial licensing   |
+
+### Contribute
+
 | Document                                                                               | Contents                                                   |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [GLOSSARY.md](GLOSSARY.md)                                                             | Product language: Projects, Sessions, Attention            |
-| [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                      |
-| [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents              |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                                                     | Issue and pull request contribution workflow               |
-| [LICENSE](LICENSE)                                                                     | Source-available use and commercial licensing terms        |
 | [CLA.md](CLA.md)                                                                       | Contributor license agreement                              |
-| [SECURITY.md](SECURITY.md)                                                             | Private vulnerability reporting policy                     |
-| [SUPPORT.md](SUPPORT.md)                                                               | Community support scope and request routing                |
+| [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents              |
+| [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                      |
 | [docs/README.md](docs/README.md)                                                       | Full index of every living doc, ADR, and historical record |
-| [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                     |
 | [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                      |
 | [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline     |
 

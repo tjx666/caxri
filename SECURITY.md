@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Caxri is in active development and has not made its first public release. Only the current default
-branch is considered for security fixes. No version currently carries a response, remediation, or
+Caxri is in active development. Development releases are published; only the latest release and
+`main` are supported and considered for security fixes. No version currently carries a response, remediation, or
 backport SLA.
 
 ## Report a vulnerability privately
@@ -12,10 +12,9 @@ Do not report a vulnerability in a public Issue, pull request, Discussion, or ot
 Never publish credentials, private data, source contents, Terminal output, Agent transcripts, or
 sensitive exploit details as evidence.
 
-Once private vulnerability reporting is enabled for this repository, submit a report through
+Submit a report through
 [GitHub private vulnerability reporting](https://github.com/tjx666/caxri/security/advisories/new).
-If that link is unavailable, the private channel has not been enabled yet. Do not substitute a
-public Issue; wait for a private reporting channel to be published.
+Do not substitute a public Issue.
 
 Include only the information needed to investigate:
 

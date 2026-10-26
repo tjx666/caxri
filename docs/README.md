@@ -8,6 +8,13 @@ this index drifts from the files on disk.
 The product glossary lives in [GLOSSARY.md](../GLOSSARY.md), not here: it defines terms, this index
 explains behavior.
 
+## Start here (users)
+
+Plain-language guides for people using Caxri. Both are living docs and are also listed below.
+
+- [getting-started.md](getting-started.md): the model in five minutes.
+- [troubleshooting.md](troubleshooting.md): blocked app, notifications, Agent not found, logs and reset.
+
 ## Living docs
 
 What/why of current shipped behavior, core modules, protocols, and operator knowledge.
@@ -16,7 +23,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | ------------------------------------------------------------------ | ------------------------------------------------------------------- |
 | [activity-view.md](activity-view.md)                               | Activity view: attention queue, excerpts, return hint               |
 | [agent-actions.md](agent-actions.md)                               | Unified Agent skills and slash-command picker                       |
-| [agent-chat.md](agent-chat.md)                                     | Chat Terminals over Codex app-server                                |
+| [agent-chat.md](agent-chat.md)                                     | Chat Terminals for Codex, Claude Code, and Grok Build               |
 | [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries       |
 | [agent-usage-continuation.md](agent-usage-continuation.md)         | Usage-limit recovery, weekly usage guard, continue in another Agent |
 | [agent-commander.md](agent-commander.md)                           | Second-window Codex or Claude Code commander and Agent board        |
@@ -35,6 +42,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [editor-worker-stalls.md](editor-worker-stalls.md)                 | Editor Worker stall diagnostics                                     |
 | [extensions.md](extensions.md)                                     | Extension Host process and view contributions                       |
 | [external-status-quota.md](external-status-quota.md)               | External delivery-status reads and quota governance                 |
+| [getting-started.md](getting-started.md)                           | Projects, Sessions, Chat, attention, and menus in five minutes      |
 | [file-preview.md](file-preview.md)                                 | Markdown and SVG preview tabs                                       |
 | [git-diff-review.md](git-diff-review.md)                           | Git diff review comments                                            |
 | [git-status-snapshot.md](git-status-snapshot.md)                   | Incremental Git topology/status pipeline                            |
@@ -52,6 +60,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [quality-toolchain.md](quality-toolchain.md)                       | Unified mechanical-quality tooling                                  |
 | [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                                  |
 | [secondary-sidebar-trees.md](secondary-sidebar-trees.md)           | Files/Source Control/extension tree rendering                       |
+| [troubleshooting.md](troubleshooting.md)                           | Blocked app, notifications, missing Agent, logs, and reset          |
 | [startup-performance.md](startup-performance.md)                   | Launch milestone log, packaged startup runner, rejected tricks      |
 | [server-architecture.md](server-architecture.md)                   | Current Server/Client architecture contract                         |
 | [server-footprint.md](server-footprint.md)                         | SSH Host Server memory and disk requirements and the baseline       |

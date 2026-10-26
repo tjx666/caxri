@@ -5,8 +5,12 @@ community use, but there is no guaranteed response, resolution, compatibility, o
 
 ## Where to ask
 
+- **How do I...?** Check [Getting started](docs/getting-started.md) and
+  [Troubleshooting](docs/troubleshooting.md) first. If they do not answer it, an Issue is fine.
 - **Bug:** use the
-  [bug report form](https://github.com/tjx666/caxri/issues/new?template=bug-report.yml).
+  [bug report form](https://github.com/tjx666/caxri/issues/new?template=bug-report.yml), or
+  **Help → Report an Issue** in the app. Attach the file from **Help → Export Diagnostics**; it
+  excludes source contents, Terminal output, and Agent transcripts.
 - **Feature request:** use the
   [feature request form](https://github.com/tjx666/caxri/issues/new?template=feature-request.yml).
 - **Security vulnerability:** follow [SECURITY.md](SECURITY.md). Never put sensitive vulnerability

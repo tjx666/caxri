@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem in a verified Caxri workflow.
+description: Report something in Caxri that does not work as expected.
 title: ''
 labels:
   - bug
@@ -42,6 +42,7 @@ body:
     id: version
     attributes:
       label: Caxri version or commit
+      description: Find the version under Caxri > About Caxri.
       placeholder: v0.0.0 or commit SHA
     validations:
       required: true
@@ -68,7 +69,7 @@ body:
     id: evidence
     attributes:
       label: Sanitized evidence
-      description: Add screenshots or short logs only when they contain no source, Terminal output, Agent transcript, credentials, private paths, or personal data.
+      description: Attach the file from Help > Export Diagnostics. Add screenshots or short logs only when they contain no source, Terminal output, Agent transcript, credentials, private paths, or personal data.
   - type: textarea
     id: additional
     attributes:

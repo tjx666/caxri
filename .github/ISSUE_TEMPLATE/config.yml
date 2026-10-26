@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
     url: https://github.com/tjx666/caxri/security/advisories/new
-    about: Use private vulnerability reporting after it is enabled. Never disclose sensitive security details in a public Issue.
+    about: Report privately through GitHub security advisories. Never disclose sensitive security details in a public Issue.
   - name: Support policy
     url: https://github.com/tjx666/caxri/blob/main/SUPPORT.md
     about: Read the support scope and request routing before opening an Issue.
