@@ -1,4 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatTextWithPathReferences } from '@caxri/protocol';
 
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
@@ -6,6 +7,7 @@ import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     agentText,
     chatTimelineFrame,
+    checkBounds,
     hasCheck,
     sendFromPhone,
     swipeTimelineTowardEarlier,
@@ -55,10 +57,47 @@ async function scrollAwayFromLatest(serial: string): Promise<void> {
 }
 
 /**
+ * Types a draft taller than the composer's maximum height after the current text, one line per Enter, so the input
+ * scrolls inside itself (#1937). It ends with the caret, and the view, on the last line.
+ */
+async function typeTallDraft(serial: string): Promise<void> {
+    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+    await adbShell(serial, ['input', 'keyevent', 'KEYCODE_MOVE_END']);
+    for (let line = 1; line <= 12; line += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each line must land after the newline before it.
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_ENTER']);
+        // eslint-disable-next-line no-await-in-loop -- see above.
+        await adbShell(serial, ['input', 'text', `Draft%sline%s${line}`]);
+    }
+}
+
+/**
+ * Drags the composer's draft down inside the input until its first line is back in view.
+ */
+async function scrollDraftToTop(serial: string): Promise<void> {
+    const input = checkBounds(await mobileSemantics(serial), 'agent-chat-composer-input');
+    if (!input) throw new Error('The composer input is not laid out');
+    const x = String(Math.round((input.left + input.right) / 2));
+    const height = input.bottom - input.top;
+    for (let swipe = 0; swipe < 3; swipe += 1)
+        // eslint-disable-next-line no-await-in-loop -- each drag continues from where the last one left the draft.
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            x,
+            String(input.top + Math.round(height * 0.15)),
+            x,
+            String(input.bottom - Math.round(height * 0.1)),
+            '300',
+        ]);
+}
+
+/**
  * `MOB-CHAT-10`: the phone's Codex Chat composer and timeline. It covers the permission trigger and sheet, fenced code
  * highlighted by language, a finished multi-step turn folded behind `Worked for` with a failed command's exit code,
  * following the user's own send to the latest message, slash commands, the visible Queue button, editing a long queued
- * message, and a message shown as `Sending…` before Server Core accepts it.
+ * message, editing a queued message that cites a file in place, a message shown as `Sending…` before Server Core
+ * accepts it, and a draft taller than the composer.
  */
 export async function executeMobileChatComposerScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -255,6 +294,43 @@ export async function executeMobileChatComposerScenario(
          */
         await sendFromPhone(serial, 'ask');
         await waitForCheck(serial, 'agent-chat-question-0-option-1');
+        /**
+         * A queued message citing a file is edited where it stands (#2208): the editor holds only the words, and saving
+         * keeps the reference block ahead of them.
+         */
+        const referenceBlock = agentChatTextWithPathReferences('', [
+            { isDirectory: false, path: '/tmp/caxri-notes/plan.md' },
+        ]);
+        await chat.send({ text: `${referenceBlock}Check the plan` });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => (snapshot.queue?.length ?? 0) === 1,
+        );
+        await waitForCheck(serial, 'agent-chat-queue-edit');
+        await tapMobileCheckByBounds(serial, 'agent-chat-queue-edit');
+        await waitForCheck(serial, 'agent-chat-queue-editor-input');
+        const inPlace = await observeMobileNode(serial, 'agent-chat-queue-editor-input', {
+            kind: 'equals',
+            value: 'Check the plan',
+        });
+        if (!inPlace.exists || !inPlace.textMatches)
+            throw new Error('The in-place editor did not hold only the typed words');
+        await capture(environment, 'queue-edit-in-place', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-queue-editor-input');
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_MOVE_END']);
+        await adbShell(serial, ['input', 'text', '%sfirst']);
+        await tapMobileCheckByBounds(serial, 'agent-chat-queue-editor-save');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.queue?.[0]?.text === `${referenceBlock}Check the plan first`,
+        );
+        await waitForNoCheck(serial, 'agent-chat-queue-editor');
+        await capture(environment, 'queue-edit-in-place-saved', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-queue-delete');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => (snapshot.queue?.length ?? 0) === 0,
+        );
         // During a turn the main button steers (#2611); the Queue button beside it queues for the turn's end.
         await typeChatDraft(serial, LONG_QUEUED_MESSAGE);
         await waitForCheck(serial, 'agent-chat-composer-queue');
@@ -313,16 +389,24 @@ export async function executeMobileChatComposerScenario(
             throw new Error('A failed send did not return its text to the composer');
         await capture(environment, 'send-failed', artifacts);
 
+        // A draft taller than the composer scrolls inside it, and its first line is whole at the top (#1937).
+        await typeTallDraft(serial);
+        await capture(environment, 'tall-draft-bottom', artifacts);
+        await scrollDraftToTop(serial);
+        await capture(environment, 'tall-draft-top', artifacts);
+
         await finish(environment, artifacts, {
             codeBlocks: 'rendered',
             commandExitCode: 1,
             followAfterSend: 'latest',
             permission: 'full-access-and-plan-shown',
             queueEdit: 'full-text-restored',
+            queueEditInPlace: 'reference-kept',
             sendFailure: 'returned-to-composer',
             slashCommand: 'compact-ran',
             status: 'passed',
             steeredFold: 'per-segment',
+            tallDraft: 'top-and-bottom-captured',
             turnFold: 'collapsed-then-expanded',
         });
     } finally {
