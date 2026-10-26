@@ -11,6 +11,62 @@ import { defaultKeybindingChanges, defaultKeybindings } from '../default-keybind
 import type { Keybinding } from '../domain';
 import { releasedDefaultKeybindingGenerations } from './default-keybinding-history.fixture';
 
+/**
+ * The first version and binding digest of every tagged default generation, oldest first. A user who installed that
+ * version holds exactly those bindings in `keybindings.jsonc`, so the migration tests above prove nothing once a tagged
+ * generation is edited to match what the code does today. Add the newest generation's line (the failure prints it) when
+ * a later one is appended after it; never edit or remove an existing line. A range only grows its end version, so the
+ * line keeps its first version.
+ */
+const taggedGenerationDigests: ReadonlyArray<readonly [firstVersion: string, digest: string]> = [
+    ['v0.0.17', '640daaab73856b11'],
+    ['v0.0.18', '0ac8332681a66300'],
+    ['v0.0.20', 'f08ada5c67340c9c'],
+    ['v0.0.21', 'fb9851da41b80a99'],
+    ['v0.0.30', 'b8fe56c353a4fe2e'],
+    ['v0.0.40', 'ef06a607dc415b51'],
+    ['v0.0.43', '760fd425a30bd158'],
+    ['v0.0.52', '1573c3c27905251a'],
+    ['v0.0.53', '31b9354fabf0cee4'],
+    ['v0.0.64', '5146b52255e3e359'],
+    ['v0.0.75', 'e3bb458cec546a0f'],
+    ['v0.0.90', '79d82c44964f1db6'],
+    ['v0.0.98', 'f8cb09bc2901c577'],
+    ['v0.0.101', '73755ffebeedca42'],
+    ['v0.0.114', '0e367e6b3319c9cf'],
+    ['v0.0.120', 'a4a2b71140da82a2'],
+    ['v0.0.124', 'f007ea253bbc5e6c'],
+    ['v0.0.127', 'b2ec2e1b6636ee5f'],
+    ['v0.0.134', 'b2ec2e1b6636ee5f'],
+    ['v0.0.135', '0f487a471ef3653d'],
+];
+
+/**
+ * Splits a generation id (`v0.0.18` or `v0.0.18-v0.0.19`) into its first and last version, each as numeric parts.
+ */
+function generationVersions(
+    id: string,
+): [first: string, firstParts: number[], lastParts: number[]] {
+    const match = /^(v\d+\.\d+\.\d+)(?:-(v\d+\.\d+\.\d+))?$/.exec(id);
+    if (!match) throw new Error(`Generation id ${id} is not vX.Y.Z or vX.Y.Z-vX.Y.Z`);
+    const parts = (version: string) => version.slice(1).split('.').map(Number);
+    return [match[1], parts(match[1]), parts(match.at(2) ?? match[1])];
+}
+
+function compareVersions(left: number[], right: number[]): number {
+    const index = left.findIndex((part, position) => part !== right[position]);
+    return index === -1 ? 0 : left[index] - right[index];
+}
+
+/**
+ * A short SHA-256 of the bindings through Web Crypto, which this browser-safe package's tests can use without Node.
+ */
+async function bindingsDigest(bindings: readonly Keybinding[]): Promise<string> {
+    const bytes = new TextEncoder().encode(JSON.stringify(bindings));
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    return [...digest.subarray(0, 8)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 describe('command registry', () => {
     it('has unique IDs and owns every default keybinding command', () => {
         const ids = commandDefinitions.map((command) => command.id);
@@ -238,6 +294,51 @@ describe('command registry', () => {
                 ),
                 `migrated ${generation.id} keeps a shadowed keybinding`,
             ).toEqual([]);
+        }
+    });
+
+    it('numbers released generations with unique, strictly increasing versions', () => {
+        let previousLast: number[] | undefined;
+        for (const { id } of releasedDefaultKeybindingGenerations) {
+            const [, first, last] = generationVersions(id);
+            expect(compareVersions(first, last), `${id} ends before it starts`).toBeLessThanOrEqual(
+                0,
+            );
+            if (previousLast)
+                expect(
+                    compareVersions(first, previousLast),
+                    `${id} does not start after the generation before it`,
+                ).toBeGreaterThan(0);
+            previousLast = last;
+        }
+    });
+
+    /**
+     * Only the newest generation may still be untagged (the fixture documents it as the current default set), so every
+     * generation before it must match its recorded digest: a tagged generation only ever gains a successor.
+     */
+    it('only appends to the tagged generations of the default keybinding history', async () => {
+        const generations = releasedDefaultKeybindingGenerations;
+        expect(
+            taggedGenerationDigests.length,
+            'a tagged generation was removed from the history',
+        ).toBeLessThanOrEqual(generations.length);
+        for (const [index, generation] of generations.entries()) {
+            const [firstVersion] = generationVersions(generation.id);
+            // eslint-disable-next-line no-await-in-loop -- one digest per generation, compared in order.
+            const digest = await bindingsDigest(generation.bindings);
+            const recorded = taggedGenerationDigests.at(index);
+            if (!recorded) {
+                expect(
+                    index,
+                    `${generation.id} is no longer the newest generation; add ['${firstVersion}', '${digest}'] to taggedGenerationDigests`,
+                ).toBe(generations.length - 1);
+                continue;
+            }
+            expect(
+                [firstVersion, digest],
+                `${generation.id} is tagged; append a new generation instead of rewriting it`,
+            ).toEqual(recorded);
         }
     });
 
