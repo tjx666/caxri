@@ -107,7 +107,7 @@ export function RuleListForm({
                     ref={inputReference}
                     aria-label={inputLabel}
                     aria-invalid={Boolean(error)}
-                    className="min-w-0 flex-1 bg-elevated"
+                    className="min-w-0 flex-1"
                     placeholder={placeholder}
                     value={draft}
                     onChange={(event) => {

@@ -164,7 +164,6 @@ export function TerminalReferenceLinksForm({
             <div className="mt-3 grid grid-cols-[minmax(8rem,0.8fr)_minmax(8rem,0.8fr)_minmax(14rem,2fr)] gap-2">
                 <Input
                     aria-label={t('settings.referenceLinksForm.titleLabel')}
-                    className="bg-elevated"
                     placeholder={t('settings.referenceLinksForm.titlePlaceholder')}
                     value={draft.title}
                     onChange={(event) => {
@@ -174,7 +173,7 @@ export function TerminalReferenceLinksForm({
                 />
                 <Input
                     aria-label={t('settings.referenceLinksForm.prefixLabel')}
-                    className="bg-elevated font-mono"
+                    className="font-mono"
                     placeholder="TASK-"
                     value={draft.prefix}
                     onChange={(event) => {
@@ -184,7 +183,7 @@ export function TerminalReferenceLinksForm({
                 />
                 <Input
                     aria-label={t('settings.referenceLinksForm.urlLabel')}
-                    className="bg-elevated font-mono"
+                    className="font-mono"
                     placeholder="https://linear.app/workspace/issue/<num>"
                     value={draft.url}
                     onChange={(event) => {

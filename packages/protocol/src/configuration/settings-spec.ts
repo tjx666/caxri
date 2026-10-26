@@ -508,7 +508,7 @@ export const settingsSpec = [
         key: 'agents.longRunningShellCommands',
         title: 'Long-running background commands',
         description:
-            'A background shell started by Claude Code keeps its Session working until it ends, except one matching these patterns, such as a development server that runs for hours',
+            "Commands that keep running on purpose, like a dev server. Caxri won't wait for them to finish before treating the Agent's turn as done",
         category: 'agents',
         keywords: [
             'background',

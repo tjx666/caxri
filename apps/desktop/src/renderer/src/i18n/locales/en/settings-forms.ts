@@ -34,7 +34,7 @@ export const settingsForms = {
     'settings.ignoredChecksForm.remove': 'Remove ignored check {{rule}}',
     'settings.longRunningCommandsForm.ariaLabel': 'Long-running background commands editor',
     'settings.longRunningCommandsForm.description':
-        'Each pattern matches the start of a command, so bun run dev also matches bun run dev --port 3000. * matches any characters, a bare command name matches it from any directory, and /regex/ is a regular expression. Each part of a command joined by &&, ;, or | is checked on its own.',
+        'Matches the start of a command; a bare command name matches from any directory, and each part joined by &&, ;, or | is checked on its own. Use * as a wildcard or /regex/.',
     'settings.longRunningCommandsForm.inputLabel': 'Long-running command pattern',
     'settings.longRunningCommandsForm.listLabel': 'Long-running command patterns',
     'settings.longRunningCommandsForm.empty':
@@ -42,8 +42,7 @@ export const settingsForms = {
     'settings.longRunningCommandsForm.invalid':
         'Enter a command such as npm run dev, or a valid /regular expression/.',
     'settings.longRunningCommandsForm.duplicate': 'This pattern is already listed.',
-    'settings.longRunningCommandsForm.maximum':
-        'Long-running background commands supports at most {{maximum}} patterns.',
+    'settings.longRunningCommandsForm.maximum': 'You can add at most {{maximum}} patterns.',
     'settings.longRunningCommandsForm.remove': 'Remove pattern {{rule}}',
     'settings.referenceLinksForm.ariaLabel': 'Terminal Reference Links editor',
     'settings.referenceLinksForm.descriptionBeforeToken':

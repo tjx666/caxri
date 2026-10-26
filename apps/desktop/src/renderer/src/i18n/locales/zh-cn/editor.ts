@@ -120,7 +120,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.tab.agentContext': '上下文',
     'editor.tab.agentSideChat': '旁路对话',
     'editor.tab.preview': '预览：{{name}}',
-    'editor.tab.untitled': 'Untitled-{{index}}',
+    'editor.tab.untitled': '未命名-{{index}}',
     'editor.untitled.openFailed': '无法新建未命名文件',
     'editor.untitled.savedButNotReopened':
         '已保存到 {{path}}，但文件过大，无法在此重新打开。未命名缓冲区保持打开。',

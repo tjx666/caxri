@@ -132,6 +132,20 @@ export function createClosedItemStack(limit = CLOSED_ITEMS_LIMIT): ClosedItemSta
 }
 
 /**
+ * Reopens the newest reopenable entry and reports `onNothing` when none could be: an empty history, or every entry
+ * failed. Pulled out of the command so the "silent no-op" case stays testable without the Renderer stores.
+ */
+export async function didReopenOrReportNothing(
+    stack: ClosedItemStack,
+    didReopen: (item: ClosedItem) => Promise<boolean>,
+    onNothing: () => void,
+): Promise<boolean> {
+    const reopened = await stack.reopenNext(didReopen);
+    if (!reopened) onNothing();
+    return reopened !== undefined;
+}
+
+/**
  * The window's closed-item history. Closing code pushes to it; `reopenClosedItem` is its only consumer.
  */
 export const closedItems = createClosedItemStack();

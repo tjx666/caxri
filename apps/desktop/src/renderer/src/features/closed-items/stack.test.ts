@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ClosedItem } from './stack';
-import { createClosedItemStack, isRecordableTabPath } from './stack';
+import { createClosedItemStack, didReopenOrReportNothing, isRecordableTabPath } from './stack';
 
 const tab = (sessionId: string, path: string, index = 0): ClosedItem => ({
     kind: 'tab',
@@ -94,5 +94,40 @@ describe('closed item stack', () => {
     it('never records untitled editor tabs', () => {
         expect(isRecordableTabPath('caxri-untitled://1')).toBe(false);
         expect(isRecordableTabPath('src/index.ts')).toBe(true);
+    });
+});
+
+describe('didReopenOrReportNothing', () => {
+    const tab: ClosedItem = { kind: 'session', sessionId: 's1' };
+
+    it('reports nothing for an empty history', async () => {
+        const stack = createClosedItemStack();
+        let reported = 0;
+        const result = await didReopenOrReportNothing(
+            stack,
+            () => Promise.resolve(true),
+            () => {
+                reported += 1;
+            },
+        );
+        expect(result).toBe(false);
+        expect(reported).toBe(1);
+    });
+
+    it('reports nothing when every entry fails, and stays quiet on success', async () => {
+        const stack = createClosedItemStack();
+        stack.push([tab]);
+        let reported = 0;
+        const onNothing = () => {
+            reported += 1;
+        };
+        expect(await didReopenOrReportNothing(stack, () => Promise.resolve(false), onNothing)).toBe(
+            false,
+        );
+        stack.push([tab]);
+        expect(await didReopenOrReportNothing(stack, () => Promise.resolve(true), onNothing)).toBe(
+            true,
+        );
+        expect(reported).toBe(1);
     });
 });

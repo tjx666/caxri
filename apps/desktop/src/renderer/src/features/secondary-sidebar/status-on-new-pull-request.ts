@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { SessionPullRequests } from '@caxri/protocol';
 
 import { useCaxriQuery } from '../../queries/client';
-import { useSelectedSessionId } from '../../stores/selectors';
+import { getSessionState, useSelectedSessionId } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS } from '../session/session-commands';
 
@@ -11,6 +11,11 @@ import { SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS } from '../session/session-co
  * The Status panel's ViewContainer: it shows the Session's pull request with its checks and Merge action.
  */
 const STATUS_VIEW_CONTAINER_ID = 'caxri.project-status';
+
+/**
+ * Source Control's ViewContainer: its Pull Request mode resolves the pull request from the current branch.
+ */
+const GIT_VIEW_CONTAINER_ID = 'caxri.git';
 
 /**
  * One Session's pull request as the snapshot last reported it: its URL, `null` once a loaded snapshot listed none, or
@@ -53,11 +58,23 @@ export function isNewSessionPullRequest(
 }
 
 /**
+ * Whether a newly detected pull request should move the Secondary Sidebar to Status: only when the user is looking at
+ * Source Control, whose Pull Request mode cannot show it. Any other tab (Files, Status itself, an extension) is the
+ * user's choice and stays, as does the remembered tab.
+ */
+export function shouldSwitchToStatusForNewPullRequest(
+    desiredContainerId: string | undefined,
+): boolean {
+    return desiredContainerId === GIT_VIEW_CONTAINER_ID;
+}
+
+/**
  * Switches the selected Session's Secondary Sidebar to the Status panel when that Session gains a new pull request.
  *
  * Source Control's Pull Request mode resolves the pull request from the Session's current branch, so a pull request an
  * Agent opened from another worktree branch would show there as "no pull request"; the Status panel reads the Session's
- * own pull request instead. A hidden Secondary Sidebar stays hidden and simply opens on Status next time.
+ * own pull request instead. Only a Secondary Sidebar showing Source Control is switched. A hidden Secondary Sidebar
+ * stays hidden and simply opens on Status next time.
  *
  * Reads the shared `session.pullRequests` cache without driving its cadence (see `useSessionPullRequestPoll`), and
  * `select` narrows the subscription to the selected Session's URL so a poll that changed nothing does not re-render.
@@ -73,10 +90,15 @@ export function useStatusOnNewPullRequest(): void {
     useEffect(() => {
         if (!sessionId || url === undefined) return;
         const next = { sessionId, url };
-        if (isNewSessionPullRequest(observed.current, next))
-            useSessionViewStore
-                .getState()
-                .setDesiredSecondarySidebarViewContainerId(STATUS_VIEW_CONTAINER_ID);
+        if (isNewSessionPullRequest(observed.current, next)) {
+            const store = useSessionViewStore.getState();
+            if (
+                shouldSwitchToStatusForNewPullRequest(
+                    getSessionState()?.desiredSecondarySidebarViewContainerId,
+                )
+            )
+                store.setDesiredSecondarySidebarViewContainerId(STATUS_VIEW_CONTAINER_ID);
+        }
         observed.current = next;
     }, [sessionId, url]);
 }
