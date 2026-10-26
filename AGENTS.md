@@ -40,7 +40,10 @@ directories.
   extract or strengthen scripts, guards, tests, this file, or the owning skill when the change is
   safe, reversible, authorized, and in scope. Raise it for discussion only when a real product
   choice, new authority, or material scope expansion requires the user's decision. Do not invent
-  process for a reuse case you have not demonstrated.
+  process for a reuse case you have not demonstrated. Before proposing such an improvement or
+  counting a tooling gap, check current `origin/main`, the owning skill, ESLint rules, and scripts
+  for an existing owner; cite it, or drop the proposal. For example, a custom ESLint rule's own
+  unit test is not an unregistered repository check.
 - When an authorized implementation exposes an obvious, narrow defect in this file or a repository
   skill, repair it in the same change. That does not authorize unrelated or remote mutation.
 - Use `docs/` for durable explanations of shipped behavior, core modules, protocols, architectural
@@ -70,8 +73,11 @@ directories.
 - For requests that exclude new UI, classify each acceptance criterion separately. New behavior
   alone does not imply new UI: keyboard handling in an existing input or sorting by the latest
   message can remain in scope. Exclude only the criterion that requires new UI elements or needs an
-  unresolved product decision, and report unfinished or unverified criteria explicitly. Existing
-  implementation explains current behavior; it does not prove that it satisfies the request.
+  unresolved product decision. Existing implementation explains current behavior; it does not
+  prove that it satisfies the request.
+- Every progress or completion report for a multi-item request, prototype, or spec gives each
+  requested item a status (done, in progress, not started, or dropped), so an unfinished item such
+  as removing the Open Sessions tab bar never reads as done.
 - A request to review current local work authorizes the primary agent to repair validated P0/P1
   findings introduced by that work when the fix is unambiguous, local, and inside the requested
   scope. This applies to direct review, `deep-review`, and `dianjiang` review. Keep delegated
