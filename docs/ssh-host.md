@@ -172,6 +172,44 @@ Typical timings against a container on the same machine: a cold install 3 to 4 s
 runtime is streamed), attaching to an already running Server about 150 ms, a reconnect under 200 ms,
 and upgrading to a new build under 1 s.
 
+## Slow links
+
+Every Workbench request, file read, diff, and search result reaches an SSH Host window as JSON on
+the forwarded WebSocket, which has no compression of its own. The ControlMaster therefore always
+negotiates OpenSSH compression (`Compression=yes` on its command line, which overrides the user's
+own `Compression` setting for that host). Source-code JSON compresses about 3x, and on a slow link the
+time goes almost entirely into those bytes.
+
+`bun run benchmark:ssh-link` measures it. `scripts/ssh-link-benchmark.ts` starts a disposable lab,
+reaches it through `scripts/ssh-link-throttle.ts` (a `ProxyCommand` that simulates a link's
+bandwidth and round trip and counts the bytes that cross it), and runs
+`apps/desktop/src/main/ssh/__tests__/link.integration.test.ts` with compression off and on. The
+workload opens this repository's own tree as a Project and lists five directories, reads five files
+(lockfile included), loads five Git diffs, and runs one content search. Medians of three rounds,
+October 2026, Apple Silicon laptop:
+
+| Link                 | Phase          |    Off |     On |
+| -------------------- | -------------- | -----: | -----: |
+| 400 kbps, 400 ms RTT | Read 5 files   | 21.2 s |  7.3 s |
+| 400 kbps, 400 ms RTT | Load 5 diffs   |  9.4 s |  3.1 s |
+| 400 kbps, 400 ms RTT | Content search |  3.6 s |  0.9 s |
+| 400 kbps, 400 ms RTT | List 5 folders |  1.8 s |  1.0 s |
+| 20 Mbps, 60 ms RTT   | Read 5 files   | 611 ms | 331 ms |
+| 20 Mbps, 60 ms RTT   | Load 5 diffs   | 257 ms | 137 ms |
+| No shaping           | Read 5 files   |  50 ms |  70 ms |
+| No shaping           | Load 5 diffs   |  24 ms |  49 ms |
+
+The cost is CPU: zlib runs at roughly 20 MB/s, so only a link faster than that (a gigabit LAN) pays,
+about 20 ms per MiB of JSON and, for a cold install that streams the already-compressed 50 MB Node
+runtime, 2 to 3 s once. At 20 Mbps that upload takes 20.7 s either way, because compression overlaps
+the transfer. Weak-CPU hosts and high-entropy payloads (binary previews, noisy Terminal output) are
+not measured.
+
+Mixing attacker-influenced content (a file in a cloned repository) with secrets (the Desktop
+credential) in one compressed stream is the precondition for CRIME-style length attacks. Caxri's
+single-user threat model accepts it: exploiting it also requires observing the encrypted link and
+driving many chosen requests.
+
 ## Diagnostics
 
 Structured log events live under `logEventCatalog.sshHost` (`ssh_host.*` in Main's log): phase
