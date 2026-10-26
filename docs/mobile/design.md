@@ -590,7 +590,9 @@ paused until Caxri reconnects.` instead of repeating `Showing the last known sta
 - The first live read replaces the saved copy as a whole; the label disappears with it. A saved
   copy is never merged into live history, because it has no cursor into it.
 - What is kept: the Session dashboard as the Server returned it, and per Conversation or Chat the
-  newest 50 items, for at most 20 Conversations and Chats (least recently saved go first).
+  newest 50 items, for at most 20 Conversations and Chats (least recently saved go first). A Chat
+  is cut at a turn boundary: a turn the limit would split is left out whole unless it is the only
+  one, so the saved copy shows the same turn cards the live read does (`MOB-CHAT-29`).
   Conversation tool and system-event details, Chat command and tool output, file diffs, image
   previews, and pending approvals or questions are dropped before writing: like diagnostics, the
   cache keeps no Terminal output or source. It never holds the device credential, pairing links,

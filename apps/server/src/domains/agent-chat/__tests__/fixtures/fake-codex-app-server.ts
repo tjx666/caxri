@@ -101,6 +101,7 @@ import {
     runCodeBlocks,
     runConsecutiveThoughts,
     runLongStream,
+    runManySteps,
     runMarkdownTable,
     runTestCommands,
     runWebLink,
@@ -336,6 +337,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runConsecutiveThoughts(io, turn);
     } else if (text.includes('testrun')) {
         await runTestCommands(io, turn);
+    } else if (text.includes('manysteps')) {
+        await runManySteps(io, turn);
     } else if (text.includes('workrows')) {
         await runWorkRowCommands(io, turn);
     } else if (text.includes('table')) {

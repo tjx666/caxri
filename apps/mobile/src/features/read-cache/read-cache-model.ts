@@ -126,12 +126,25 @@ const trimChatItem = (item: AgentChatItem): AgentChatItem => {
 };
 
 /**
+ * The newest items of a Chat that fit the cache, cut at a turn boundary: a turn the limit would split is left out whole
+ * unless it is the only one. A split turn opened from the saved copy without the files and pull requests its cut start
+ * held, and its cards then popped in mid-list when the live read arrived.
+ */
+const newestWholeTurns = (items: readonly AgentChatItem[]): readonly AgentChatItem[] => {
+    const kept = items.slice(-READ_CACHE_MAX_ITEMS);
+    if (kept.length === items.length) return kept;
+    const splitTurnId = items[items.length - kept.length - 1]?.turnId;
+    const start = kept.findIndex((item) => item.turnId !== splitTurnId);
+    return start === -1 ? kept : kept.slice(start);
+};
+
+/**
  * A Chat as the phone last saw it, without pending approvals: those can only be answered live. Of the provider's model
  * list it keeps only the model in use, so the composer still names it as Desktop does (`Fake Codex`, not its id), and
  * it keeps ultracode, the permission level, and plan mode, so an offline composer still shows them read-only.
  */
 export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot => {
-    const items = snapshot.items.slice(-READ_CACHE_MAX_ITEMS).map(trimChatItem);
+    const items = newestWholeTurns(snapshot.items).map(trimChatItem);
     const turnIds = new Set(items.map((item) => item.turnId));
     const model = findAgentChatModel(snapshot.models, snapshot.model);
     return {

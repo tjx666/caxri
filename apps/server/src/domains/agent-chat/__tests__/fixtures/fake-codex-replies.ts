@@ -5,7 +5,7 @@
  * search, a test run, a commit and push, and a pull request), `burststream` arrives in a few large deltas, `longstream`
  * thinks quietly and then streams a long reply at a reader's pace, and `weblink` answers with a Markdown link to the
  * web page the message names, `bigdiff` changes one file by 6,000 lines, and `widediff` changes one file with lines
- * wider than a phone.
+ * wider than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands before a short reply.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -175,6 +175,31 @@ export async function runWorkRowCommands(io: FakeCodexIo, turn: FakeTurn) {
         });
     }
     await io.streamMessage(turn, 'Fixed the totals and opened a pull request.', 0);
+}
+
+/**
+ * How many commands the `manysteps` turn runs: with its message and reply the turn holds 47 items, so a phone's 50-item
+ * read cache cuts into the turn before it.
+ */
+const MANY_STEPS = 45;
+
+/**
+ * The `manysteps` turn: {@link MANY_STEPS} completed reads followed by a one-line reply.
+ */
+export async function runManySteps(io: FakeCodexIo, turn: FakeTurn) {
+    for (let step = 1; step <= MANY_STEPS; step += 1) {
+        io.completeItem(turn, {
+            type: 'commandExecution',
+            id: crypto.randomUUID(),
+            command: `/bin/zsh -lc "sed -n '1,40p' src/step-${step}.ts"`,
+            cwd: process.cwd(),
+            status: 'completed',
+            aggregatedOutput: '',
+            exitCode: 0,
+            durationMs: 100,
+        });
+    }
+    await io.streamMessage(turn, 'Read every step.', 0);
 }
 
 /**

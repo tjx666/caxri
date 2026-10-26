@@ -330,7 +330,7 @@ describe('buildAgentChatTimeline', () => {
         ).toEqual(['turn:t1', 'artifacts:t1']);
     });
 
-    it('shows no artifacts for the oldest turn when the window cut its start', () => {
+    it('keeps the artifacts of the oldest turn when the window cut its start', () => {
         const fileChange = (id: string, turnId: string): AgentChatItem => ({
             id,
             turnId,
@@ -348,7 +348,7 @@ describe('buildAgentChatTimeline', () => {
         expect(ids(timeline)).toEqual(['turn:t1', 'artifacts:t1', 'turn:t2', 'artifacts:t2']);
         expect(
             buildAgentChatTimeline({ ...timeline, truncated: true }).map((entry) => entry.id),
-        ).toEqual(['turn:t1', 'turn:t2', 'artifacts:t2']);
+        ).toEqual(['turn:t1', 'artifacts:t1', 'turn:t2', 'artifacts:t2']);
     });
 
     it('gives a running or active turn neither artifacts nor a footer', () => {
