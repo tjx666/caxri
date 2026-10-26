@@ -316,6 +316,29 @@ export function agentActivityPinnedRowId(sessionId: string): string {
 }
 
 /**
+ * The row a command-driven rename (`session.rename`) edits: the Session's first rendered copy. Only a pinned Session
+ * has a Pinned copy, and it renders first while the Pinned group is open; an unpinned Session must keep its status row,
+ * or the editor targets a row that does not exist and the command silently does nothing (issue #2629). A Session listed
+ * only under a collapsed Pinned group has no rendered row, so `expandPinned` asks the caller to open the group first.
+ */
+export function agentActivityRenameRow(
+    groups: readonly AgentActivityGroup[],
+    sessionId: string,
+    isPinnedExpanded: boolean,
+): { expandPinned: boolean; rowId: string } {
+    const isPinned = groups.some(
+        (group) => group.id === 'pinned' && group.rows.some((row) => row.session.id === sessionId),
+    );
+    const statusRow = groups
+        .filter((group) => group.id !== 'pinned')
+        .flatMap((group) => group.rows)
+        .find((row) => row.session.id === sessionId);
+    if (isPinned && (isPinnedExpanded || !statusRow))
+        return { expandPinned: !isPinnedExpanded, rowId: agentActivityPinnedRowId(sessionId) };
+    return { expandPinned: false, rowId: statusRow?.rowId ?? sessionId };
+}
+
+/**
  * How many Sessions the queue would put under "Needs attention", for the Primary Side Bar toggle's badge.
  *
  * Counted straight from `hasUnread` rather than by projecting the whole queue: `sessionStatus` derives `attention` from

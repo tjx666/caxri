@@ -7,6 +7,7 @@ import type { AgentActivitySelectionAnchor } from '../agent-activity-rows';
 import {
     agentActivityGroups,
     agentActivityHeadingPresentation,
+    agentActivityRenameRow,
     agentActivitySelectionAnchor,
     agentAttentionCount,
     isAgentActivityActionable,
@@ -332,6 +333,45 @@ describe('agentActivityGroups', () => {
     it('names each row with its owning Project', () => {
         const groups = groupsOf([session('one', { hasUnread: true, projectId: 'beta' })]);
         expect(groups[0].rows[0].project.displayTitle).toBe('beta');
+    });
+});
+
+describe('agentActivityRenameRow', () => {
+    it('keeps an unpinned Session on its status row while the Pinned group is open', () => {
+        const groups = groupsOf(
+            [
+                session('pinned', { pinnedAt: 1 }),
+                session('waiting', { lastActivityState: 'waiting' }),
+            ],
+            [terminal('waiting')],
+        );
+        expect(agentActivityRenameRow(groups, 'waiting', true)).toEqual({
+            expandPinned: false,
+            rowId: 'waiting',
+        });
+    });
+
+    it('renames a pinned Session in its Pinned copy only while that copy is rendered', () => {
+        const groups = groupsOf(
+            [session('pinned', { lastActivityState: 'waiting', pinnedAt: 1 })],
+            [terminal('pinned')],
+        );
+        expect(agentActivityRenameRow(groups, 'pinned', true)).toEqual({
+            expandPinned: false,
+            rowId: 'pinned:pinned',
+        });
+        expect(agentActivityRenameRow(groups, 'pinned', false)).toEqual({
+            expandPinned: false,
+            rowId: 'pinned',
+        });
+    });
+
+    it('opens a collapsed Pinned group for a Session listed nowhere else', () => {
+        const groups = groupsOf([session('pinned', { pinnedAt: 1 })]);
+        expect(agentActivityRenameRow(groups, 'pinned', false)).toEqual({
+            expandPinned: true,
+            rowId: 'pinned:pinned',
+        });
     });
 });
 

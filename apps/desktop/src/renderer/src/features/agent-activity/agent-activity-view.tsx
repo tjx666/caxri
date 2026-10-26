@@ -23,7 +23,7 @@ import type {
 import {
     agentActivityGroups,
     agentActivityHeadingPresentation,
-    agentActivityPinnedRowId,
+    agentActivityRenameRow,
     agentActivitySelectionAnchor,
     isAgentActivitySelectionAnchorCurrent,
 } from './agent-activity-rows';
@@ -151,20 +151,10 @@ export function AgentActivityView() {
     );
     const excerpts = useSessionExcerpts(attentionSessions);
     const visibleSessions = useMemo(() => sessionRows.map((row) => row.session), [sessionRows]);
-    /**
-     * A command-driven rename (`session.rename`) edits the Session's first rendered copy. A Session listed only under a
-     * collapsed Pinned group has no rendered row, so the group opens first.
-     */
     const sessionRename = useSessionRename(visibleSessions, (session) => {
-        const statusRow = groups
-            .filter((group) => group.id !== 'pinned')
-            .flatMap((group) => group.rows)
-            .find((row) => row.session.id === session.id);
-        if (!statusRow || pinnedCollapse.expanded) {
-            pinnedCollapse.expand();
-            return agentActivityPinnedRowId(session.id);
-        }
-        return statusRow.rowId;
+        const target = agentActivityRenameRow(groups, session.id, pinnedCollapse.expanded);
+        if (target.expandPinned) pinnedCollapse.expand();
+        return target.rowId;
     });
     /**
      * Headings and Session rows are rendered as one keyed sequence under a single parent rather than one fragment per
