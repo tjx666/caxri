@@ -54,6 +54,8 @@ import { rememberRecentFile } from './recent-files-store';
 import {
     createSaveFailureTracker,
     saveFailedLabel,
+    saveFailureKey,
+    subscribeSaveFailureCleanup,
     writeReportingNewFailures,
 } from './save-failure-tracker';
 import { persistOpenedEditorTab, sessionStateOf } from './session-pane-state';
@@ -384,6 +386,13 @@ export function pinDocumentTab(sessionId: string, tabId: string): void {
 const saveFailures = createSaveFailureTracker();
 
 /**
+ * Keeps the save failure records in step with the document cache for the lifetime of the Workbench window.
+ */
+export function subscribeDocumentSaveFailureCleanup(): () => void {
+    return subscribeSaveFailureCleanup(saveFailures);
+}
+
+/**
  * Save As for an untitled buffer, reported like any other save: a failed write gets the save-failure toast, and a
  * dismissed dialog is a quiet "not saved" that keeps the buffer and its tab.
  */
@@ -423,7 +432,7 @@ export async function didSaveDocumentAt(
             async () => {
                 const result = await writeReportingNewFailures(
                     saveFailures,
-                    `${sessionId}\u{0}${path}`,
+                    saveFailureKey(sessionId, path),
                     options.isAutomatic === true,
                     () => writeEditorDocument(sessionId, path, document.content),
                 );

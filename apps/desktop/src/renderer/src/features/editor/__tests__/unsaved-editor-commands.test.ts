@@ -1,10 +1,24 @@
 import type { EditorDocument, SessionDocuments } from '@desktop-shared/editor-state';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../lib/caxri', () => ({ caxri: { request: vi.fn(), onEvent: vi.fn() } }));
+const mocks = vi.hoisted(() => ({
+    request: vi.fn<(method: string, parameters: unknown) => Promise<unknown>>(),
+    onEvent: vi.fn<(listener: (event: unknown) => void) => () => void>(),
+    pushToast: vi.fn(),
+}));
+vi.mock('../../../lib/caxri', () => ({
+    caxri: { request: mocks.request, onEvent: mocks.onEvent },
+}));
+vi.mock('../../../stores/toasts', async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    pushToast: mocks.pushToast,
+}));
 
+import { useSessionViewStore } from '../../../stores/session-view';
+import { useWorkbenchStore } from '../../../stores/workbench';
 import {
     listUnsavedEditorDocuments,
+    subscribeUnsavedEditorRequests,
     unreachableUnsavedEditorsMessage,
     unsavedEditorName,
     unsavedEditorNames,
@@ -90,5 +104,64 @@ describe('unreachableUnsavedEditorsMessage', () => {
                 '/p/e.md',
             ]),
         ).toMatch(/^a\.md, b\.md, c\.md, and 2 more belong to /u);
+    });
+});
+
+describe('subscribeUnsavedEditorRequests', () => {
+    /**
+     * Sends Main's request for one buffer kept under an inactive Workbench Root and resolves to the Renderer's reply.
+     */
+    async function answer(action: 'autoSave' | 'inspect' | 'saveAll'): Promise<unknown> {
+        mocks.request.mockReset();
+        mocks.request.mockResolvedValue(undefined);
+        let listener: ((event: unknown) => void) | undefined;
+        mocks.onEvent.mockImplementation((next) => {
+            listener = next;
+            return () => {};
+        });
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-1',
+                settings: {},
+                sessions: [
+                    { id: 'session-1', projectId: 'project', workbenchProjectId: 'project' },
+                ],
+            } as never,
+        });
+        useSessionViewStore.setState({
+            documents: {
+                'session-1\0project-worktree': { '/worktree/a.ts': document('/worktree/a.ts') },
+            },
+            recentDocuments: {},
+        });
+        const unsubscribe = subscribeUnsavedEditorRequests();
+        listener?.({
+            event: 'editor.unsavedRequest',
+            payload: { requestId: 'request-1', action },
+        });
+        await vi.waitFor(() => expect(mocks.request).toHaveBeenCalled());
+        unsubscribe();
+        return mocks.request.mock.calls[0]?.[1];
+    }
+
+    it('leaves the inactive-root buffer to the prompt under auto save instead of toasting first', async () => {
+        mocks.pushToast.mockClear();
+        expect(await answer('autoSave')).toEqual({
+            requestId: 'request-1',
+            reply: { kind: 'saveFailed', reason: 'inactiveRoot' },
+        });
+        expect(mocks.pushToast).not.toHaveBeenCalled();
+        expect(await answer('inspect')).toMatchObject({
+            reply: { kind: 'summary', count: 1, names: ['a.ts'] },
+        });
+    });
+
+    it('toasts the inactive-root buffer when the user chose Save', async () => {
+        mocks.pushToast.mockClear();
+        await answer('saveAll');
+        expect(mocks.pushToast).toHaveBeenCalledWith(
+            'error',
+            unreachableUnsavedEditorsMessage(['/worktree/a.ts']),
+        );
     });
 });

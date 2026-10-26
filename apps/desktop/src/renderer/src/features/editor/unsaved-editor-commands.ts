@@ -158,7 +158,8 @@ async function saveAllUnsavedEditors(
     }
     const unreachable = unsaved.filter(({ isActiveRoot }) => !isActiveRoot).map(({ path }) => path);
     if (unreachable.length === 0) return 'saved';
-    pushToast('error', unreachableUnsavedEditorsMessage(unreachable));
+    // Under auto save Main's prompt follows and lists these files itself; a toast first would say it twice (#2394).
+    if (mode === 'saveAll') pushToast('error', unreachableUnsavedEditorsMessage(unreachable));
     return 'inactiveRoot';
 }
 
