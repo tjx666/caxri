@@ -275,6 +275,20 @@ async function runTool(
 }
 
 /**
+ * The same cache the `lint` script writes. `runLint` lints every file twice (autofix, then the post-Prettier
+ * verification), and parallel Agent sessions re-run the check after each edit, so an uncached pass re-lints unchanged
+ * files every time. The content strategy keys entries on file bytes rather than mtime, which a checkout or formatter
+ * rewrite would otherwise invalidate.
+ */
+export const ESLINT_CACHE_ARGUMENTS = [
+    '--cache',
+    '--cache-strategy',
+    'content',
+    '--cache-location',
+    '.cache/eslint/.eslintcache',
+];
+
+/**
  * Explicit changed-file lists can include intentionally ignored fixtures or vendored sources. ESLint must skip them
  * silently so one ignored file does not turn a valid focused check into a warning failure under the repository's
  * zero-warning policy.
@@ -283,7 +297,7 @@ async function runTool(
  * check reports a clean file that the CI gate then fails on, which is the one outcome this check exists to prevent.
  */
 export function eslintArguments(files: string[]): string[] {
-    return ['--fix', '--no-warn-ignored', '--max-warnings=0', ...files];
+    return ['--fix', ...ESLINT_CACHE_ARGUMENTS, '--no-warn-ignored', '--max-warnings=0', ...files];
 }
 
 /**
@@ -342,7 +356,12 @@ export async function runLint(root: string, files: string[], run = runTool): Pro
      * source, so a successful check agrees with the commit gate.
      */
     if (eslintFiles.length > 0)
-        await run(root, 'eslint', ['--no-warn-ignored', '--max-warnings=0', ...eslintFiles]);
+        await run(root, 'eslint', [
+            ...ESLINT_CACHE_ARGUMENTS,
+            '--no-warn-ignored',
+            '--max-warnings=0',
+            ...eslintFiles,
+        ]);
     return codeFiles.length + markdownFiles.length + otherFormatFiles.length;
 }
 

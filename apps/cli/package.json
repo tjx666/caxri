@@ -14,7 +14,7 @@
     "scripts": {
         "build": "bun run scripts/validate-skill.ts && tsc -p tsconfig.build.json && bun build src/bin.ts --target=node --format=cjs --outfile dist/caxri.cjs && bun run scripts/verify-bundle.ts",
         "test": "vitest run --root ../.. --project cli",
-        "typecheck": "tsc --noEmit -p tsconfig.json"
+        "typecheck": "tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/apps-cli.tsbuildinfo"
     },
     "dependencies": {
         "@caxri/agent-skills": "workspace:*",

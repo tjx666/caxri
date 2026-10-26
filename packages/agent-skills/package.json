@@ -23,7 +23,7 @@
     "scripts": {
         "build": "bun run scripts/generate-skill-bundle.ts && tsc -p tsconfig.build.json && bun run scripts/verify-exports.ts",
         "test": "vitest run --root ../.. --project agent-skills",
-        "typecheck": "tsc --noEmit -p tsconfig.json"
+        "typecheck": "tsc --noEmit -p tsconfig.json --incremental --tsBuildInfoFile ../../.cache/tsc/packages-agent-skills.tsbuildinfo"
     },
     "dependencies": {
         "@caxri/protocol": "workspace:*"

@@ -125,6 +125,22 @@ describe('dependency manifest contract selection', () => {
             selectedTestCandidates(process.cwd(), ['apps/mobile/package.json']),
         ).resolves.not.toContain(contract);
     });
+
+    it('runs the workspace-manifest contracts when a workspace package.json changes', async () => {
+        const selected = await selectedTestCandidates(process.cwd(), [
+            'extensions/status/package.json',
+        ]);
+
+        expect(selected).toEqual(
+            expect.arrayContaining([
+                'scripts/__tests__/toolchain-contract.test.ts',
+                'scripts/__tests__/workspace-package-contract.test.ts',
+            ]),
+        );
+        await expect(
+            selectedTestCandidates(process.cwd(), ['packages/utils/src/index.ts']),
+        ).resolves.not.toContain('scripts/__tests__/workspace-package-contract.test.ts');
+    });
 });
 
 describe('design-prototype runtime contract selection', () => {

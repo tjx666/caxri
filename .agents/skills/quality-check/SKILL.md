@@ -47,13 +47,18 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   importing individual files. A deleted
   or renamed path, or an edit to `doctor.config.jsonc` or `components.json`, also runs
   `scripts/__tests__/doctor-config-paths.test.ts`, because those configs name source paths as
-  plain strings. A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
+  plain strings. A root or workspace `package.json` also runs the manifest-reading contracts
+  (`toolchain-contract`, `workspace-package-contract`, and for root manifests
+  `workspace-dependency-contract`), which assert scripts and ranges without importing source.
+  A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
   guards runs `scripts/__tests__/directory-density-ratchet.test.ts`, which counts files on disk.
 - For added or changed production structured-log writes, explicitly include
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.
 - `--type` runs the repository-wide TypeScript check (about 16 seconds) because TypeScript cannot
-  safely validate one file in isolation.
+  safely validate one file in isolation. Every `tsc` keeps gitignored incremental build info
+  (composite projects beside their `tsconfig`, the rest under `.cache/tsc/`), so a repeat run in
+  the same worktree rechecks only what changed; delete those files to force a cold check.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract
   changes.
 - `--e2e` requires one or more explicit `e2e/*.e2e.ts` files, rebuilds Caxri, and runs only those
