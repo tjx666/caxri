@@ -15,6 +15,7 @@ import type {
     SessionRowModel,
     SystemModel,
 } from './host-status-model';
+import { moreTerminalsLabel } from './host-status-model';
 
 const levelColor = (level: MeterLevel, theme: MobileTheme): string =>
     level === 'danger' ? theme.danger : level === 'warning' ? theme.warning : theme.primary;
@@ -211,7 +212,7 @@ export const HostSessionRow = ({
                     ))}
                     {row.hiddenTerminals > 0 ? (
                         <Text style={[styles.secondary, { color: theme.muted }]}>
-                            {t('hostStatus.sessions.moreTerminals', { count: row.hiddenTerminals })}
+                            {moreTerminalsLabel(row.hiddenTerminals, t)}
                         </Text>
                     ) : null}
                 </View>

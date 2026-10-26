@@ -126,6 +126,22 @@ export interface UsageLabels {
     memory: string;
 }
 
+const processCount = (count: number, t: Translate): string =>
+    t(count === 1 ? 'hostStatus.processCountOne' : 'hostStatus.processCountOther', { count });
+
+/**
+ * The label for running Terminals beyond the Server's per-Session cap, or `undefined` when none were left out.
+ */
+export const moreTerminalsLabel = (count: number, t: Translate = translate): string | undefined =>
+    count > 0
+        ? t(
+              count === 1
+                  ? 'hostStatus.sessions.moreTerminalsOne'
+                  : 'hostStatus.sessions.moreTerminalsOther',
+              { count },
+          )
+        : undefined;
+
 const usageLabels = (usage: { cpuPercent: number; memoryMb: number }): UsageLabels => ({
     cpu: formatCpuPercent(usage.cpuPercent),
     memory: formatMemoryMb(usage.memoryMb),
@@ -177,7 +193,7 @@ export const sessionRows = (
             name: terminalName(terminal, t),
             isHigh: isTerminalResourceUsageHigh(terminal),
             kind: terminal.kind,
-            processes: t('hostStatus.processCount', { count: terminal.processCount }),
+            processes: processCount(terminal.processCount, t),
             ...usageLabels(terminal),
         }));
         return {
@@ -185,7 +201,7 @@ export const sessionRows = (
             title: session.title || t('hostStatus.sessions.untitled'),
             isHigh: terminals.some((terminal) => terminal.isHigh),
             kind: terminals[0]?.kind,
-            processes: t('hostStatus.processCount', { count: session.processCount }),
+            processes: processCount(session.processCount, t),
             terminals,
             hiddenTerminals: Math.max(0, session.terminalTotal - session.terminals.length),
             ...usageLabels(session),

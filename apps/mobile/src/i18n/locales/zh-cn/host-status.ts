@@ -26,7 +26,8 @@ export const hostStatus: TranslatedNamespace<typeof source> = {
     'hostStatus.sessions.terminal': '终端',
     'hostStatus.sessions.untitled': '未命名会话',
     'hostStatus.sessions.high': '资源占用过高',
-    'hostStatus.sessions.moreTerminals': '另有 {{count}} 个终端',
+    'hostStatus.sessions.moreTerminalsOne': '另有 {{count}} 个终端',
+    'hostStatus.sessions.moreTerminalsOther': '另有 {{count}} 个终端',
     'hostStatus.sessions.truncated': '显示 {{total}} 个会话中占用最高的 {{shown}} 个。',
     'hostStatus.sessions.openHint': '打开该会话。',
     'hostStatus.services.title': 'Caxri',
@@ -35,6 +36,7 @@ export const hostStatus: TranslatedNamespace<typeof source> = {
     'hostStatus.processes.sortCpu': 'CPU',
     'hostStatus.processes.sortMemory': '内存',
     'hostStatus.processes.sortLabel': '进程排序方式',
-    'hostStatus.processCount': '{{count}} 个进程',
+    'hostStatus.processCountOne': '{{count}} 个进程',
+    'hostStatus.processCountOther': '{{count}} 个进程',
     'hostStatus.pid': 'PID {{pid}}',
 };

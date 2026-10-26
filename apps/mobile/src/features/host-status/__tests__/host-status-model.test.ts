@@ -5,6 +5,7 @@ import {
     formatUptime,
     hostStatusScreenState,
     meterLevel,
+    moreTerminalsLabel,
     serviceRows,
     sessionRows,
     systemModel,
@@ -127,6 +128,11 @@ describe('host status model', () => {
             isHigh: false,
             hiddenTerminals: 0,
         });
+        expect(quiet.processes).toBe('6 processes');
+        expect(quiet.terminals[0].processes).toBe('1 process');
+        expect(moreTerminalsLabel(0)).toBeUndefined();
+        expect(moreTerminalsLabel(1)).toBe('+1 more Terminal');
+        expect(moreTerminalsLabel(3)).toBe('+3 more Terminals');
     });
 
     it('orders Caxri services and sorts top processes by the chosen column', () => {

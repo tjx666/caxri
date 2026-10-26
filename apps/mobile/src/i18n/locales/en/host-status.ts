@@ -23,7 +23,8 @@ export const hostStatus = {
     'hostStatus.sessions.terminal': 'Terminal',
     'hostStatus.sessions.untitled': 'Untitled Session',
     'hostStatus.sessions.high': 'High resource use',
-    'hostStatus.sessions.moreTerminals': '+{{count}} more Terminals',
+    'hostStatus.sessions.moreTerminalsOne': '+{{count}} more Terminal',
+    'hostStatus.sessions.moreTerminalsOther': '+{{count}} more Terminals',
     'hostStatus.sessions.truncated': 'Showing {{shown}} of {{total}} Sessions, busiest first.',
     'hostStatus.sessions.openHint': 'Opens the Session.',
     'hostStatus.services.title': 'Caxri',
@@ -32,6 +33,7 @@ export const hostStatus = {
     'hostStatus.processes.sortCpu': 'CPU',
     'hostStatus.processes.sortMemory': 'Memory',
     'hostStatus.processes.sortLabel': 'Sort processes by',
-    'hostStatus.processCount': '{{count}} processes',
+    'hostStatus.processCountOne': '{{count}} process',
+    'hostStatus.processCountOther': '{{count}} processes',
     'hostStatus.pid': 'PID {{pid}}',
 } as const;
