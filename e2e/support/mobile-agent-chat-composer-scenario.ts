@@ -326,16 +326,20 @@ export async function executeMobileChatComposerScenario(
         );
         await waitForNoCheck(serial, 'agent-chat-queue-editor');
         await capture(environment, 'queue-edit-in-place-saved', artifacts);
-        // Delete sits behind the row's swipe, so a left swipe reveals it first.
+        /**
+         * Delete sits behind the row's swipe, so a left swipe reveals it first. It starts on the preview text, away
+         * from the screen edge, whose swipe is Android's Back gesture and leaves the Chat.
+         */
         const row = checkBounds(await mobileSemantics(serial), 'agent-chat-queue-item');
         if (!row) throw new Error('The queued row is not laid out');
         const rowY = String(Math.round((row.top + row.bottom) / 2));
+        const rowWidth = row.right - row.left;
         await adbShell(serial, [
             'input',
             'swipe',
-            String(row.right - 40),
+            String(row.left + Math.round(rowWidth * 0.45)),
             rowY,
-            String(row.left + Math.round((row.right - row.left) * 0.4)),
+            String(row.left + Math.round(rowWidth * 0.05)),
             rowY,
             '300',
         ]);
