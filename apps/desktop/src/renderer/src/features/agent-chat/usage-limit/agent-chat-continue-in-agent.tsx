@@ -1,6 +1,10 @@
 import { useState } from 'react';
 
-import type { AgentChatContinuation, AgentProvider } from '@caxri/protocol';
+import type {
+    AgentChatContinuation,
+    AgentChatContinuationTarget,
+    AgentProvider,
+} from '@caxri/protocol';
 
 import { Button } from '../../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../../components/ui/menu';
@@ -61,6 +65,129 @@ function ContinuedInRow({ continuedIn }: { continuedIn: AgentChatContinuation })
     );
 }
 
+type Run = (provider: AgentProvider) => void;
+
+/**
+ * Every Agent but this Chat's own, the ones that cannot take over now disabled with why.
+ */
+function TargetsMenu({
+    run,
+    targets,
+}: {
+    run: Run;
+    targets: readonly AgentChatContinuationTarget[];
+}) {
+    const { t } = useTranslation();
+    const now = useClockTick('minute');
+    return (
+        <MenuContent align="end">
+            {targets.map((target) => {
+                const reason = agentChatContinuationUnavailableLabel(target, now, t);
+                return (
+                    <MenuItem
+                        disabled={reason !== undefined}
+                        key={target.provider}
+                        onClick={() => run(target.provider)}
+                    >
+                        <AgentIdentityIcon identity={target.provider} size={14} />
+                        <span className="flex-1 truncate">
+                            {resolveAgentIcon(target.provider).label}
+                        </span>
+                        {reason && <span className="text-[11px] text-muted">{reason}</span>}
+                    </MenuItem>
+                );
+            })}
+        </MenuContent>
+    );
+}
+
+/**
+ * "Continue in <primary>" beside a chevron that lists the others.
+ */
+function ContinueSplitButton({
+    isPending,
+    primary,
+    run,
+    targets,
+}: {
+    isPending: boolean;
+    primary: AgentProvider;
+    run: Run;
+    targets: readonly AgentChatContinuationTarget[];
+}) {
+    const { t } = useTranslation();
+    const name = resolveAgentIcon(primary).label;
+    return (
+        <SplitButton>
+            <Tooltip content={t('agentChat.usageLimit.continueTooltip', { provider: name })}>
+                <SplitButtonAction
+                    aria-disabled={isPending || undefined}
+                    className="min-h-6 gap-1.5 px-2 text-[12px]"
+                    data-agent-chat-continue={primary}
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => run(primary)}
+                >
+                    {isPending ? (
+                        <Spinner className="size-3.5" role="presentation" />
+                    ) : (
+                        <AgentIdentityIcon identity={primary} size={14} />
+                    )}
+                    {t('agentChat.usageLimit.continueIn', { provider: name })}
+                </SplitButtonAction>
+            </Tooltip>
+            <Menu>
+                <MenuTrigger
+                    render={
+                        <SplitButtonTrigger
+                            aria-label={t('agentChat.usageLimit.chooseAgent')}
+                            className="min-h-6"
+                            variant="secondary"
+                        />
+                    }
+                />
+                <TargetsMenu run={run} targets={targets} />
+            </Menu>
+        </SplitButton>
+    );
+}
+
+/**
+ * One button that opens the list: the usage guard's "Open in another Agent", or a failed turn whose every other Agent
+ * is unavailable.
+ */
+function ContinueMenuButton({
+    isPending,
+    run,
+    targets,
+    text,
+}: {
+    isPending: boolean;
+    run: Run;
+    targets: readonly AgentChatContinuationTarget[];
+    text: string;
+}) {
+    return (
+        <Menu>
+            <MenuTrigger
+                render={
+                    <Button
+                        aria-disabled={isPending || undefined}
+                        className="min-h-6 gap-1.5 px-2 text-[12px]"
+                        data-agent-chat-continue=""
+                        size="sm"
+                        variant="secondary"
+                    >
+                        {isPending && <Spinner className="size-3.5" role="presentation" />}
+                        {text}
+                    </Button>
+                }
+            />
+            <TargetsMenu run={run} targets={targets} />
+        </Menu>
+    );
+}
+
 /**
  * Continues this Chat's work in a new Session with another Agent (`agentChat.continueInAgent`): a split button whose
  * leading half names the first Agent that can take over, and whose list shows every other Agent, the unavailable ones
@@ -84,7 +211,6 @@ export function AgentChatContinueInAgent({
     turnId: string | undefined;
 }) {
     const { t } = useTranslation();
-    const now = useClockTick('minute');
     const [pending, setPending] = useState<AgentProvider>();
     const canContinue = useCanContinueInAgent();
     const query = useCaxriQuery(
@@ -95,97 +221,26 @@ export function AgentChatContinueInAgent({
     if (!canContinue) return null;
     if (continuedIn) return <ContinuedInRow continuedIn={continuedIn} />;
     const { primary, targets } = agentChatContinuationChoice(query.data?.targets ?? []);
-    const run = (provider: AgentProvider): void => {
+    const run: Run = (provider) => {
         if (pending) return;
         setPending(provider);
         void continueAgentChatInAgent(terminalId, provider, turnId).finally(() =>
             setPending(undefined),
         );
     };
-    const primaryName = primary ? resolveAgentIcon(primary).label : undefined;
-    const actionText =
-        label === 'openElsewhere'
-            ? t('agentChat.usageGuard.openElsewhere')
-            : primaryName
-              ? t('agentChat.usageLimit.continueIn', { provider: primaryName })
-              : t('agentChat.usageLimit.continueElsewhere');
-    const menu = (
-        <MenuContent align="end">
-            {targets.map((target) => {
-                const reason = agentChatContinuationUnavailableLabel(target, now, t);
-                return (
-                    <MenuItem
-                        disabled={reason !== undefined}
-                        key={target.provider}
-                        onClick={() => run(target.provider)}
-                    >
-                        <AgentIdentityIcon identity={target.provider} size={14} />
-                        <span className="flex-1 truncate">
-                            {resolveAgentIcon(target.provider).label}
-                        </span>
-                        {reason && <span className="text-[11px] text-muted">{reason}</span>}
-                    </MenuItem>
-                );
-            })}
-        </MenuContent>
-    );
-    if (!primary || label === 'openElsewhere')
+    const isPending = pending !== undefined;
+    if (primary && label === 'continueIn')
         return (
-            <Menu>
-                <MenuTrigger
-                    render={
-                        <Button
-                            aria-disabled={pending !== undefined || undefined}
-                            className="min-h-6 gap-1.5 px-2 text-[12px]"
-                            data-agent-chat-continue=""
-                            size="sm"
-                            variant="secondary"
-                        >
-                            {pending && <Spinner className="size-3.5" role="presentation" />}
-                            {primary || query.isPending
-                                ? actionText
-                                : t('agentChat.usageLimit.noTarget')}
-                        </Button>
-                    }
-                />
-                {menu}
-            </Menu>
+            <ContinueSplitButton
+                isPending={isPending}
+                primary={primary}
+                run={run}
+                targets={targets}
+            />
         );
-    return (
-        <SplitButton>
-            <Tooltip
-                content={t('agentChat.usageLimit.continueTooltip', {
-                    provider: resolveAgentIcon(primary).label,
-                })}
-            >
-                <SplitButtonAction
-                    aria-disabled={pending !== undefined || undefined}
-                    className="min-h-6 gap-1.5 px-2 text-[12px]"
-                    data-agent-chat-continue={primary}
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => run(primary)}
-                >
-                    {pending ? (
-                        <Spinner className="size-3.5" role="presentation" />
-                    ) : (
-                        <AgentIdentityIcon identity={primary} size={14} />
-                    )}
-                    {actionText}
-                </SplitButtonAction>
-            </Tooltip>
-            <Menu>
-                <MenuTrigger
-                    render={
-                        <SplitButtonTrigger
-                            aria-label={t('agentChat.usageLimit.chooseAgent')}
-                            className="min-h-6"
-                            variant="secondary"
-                        />
-                    }
-                />
-                {menu}
-            </Menu>
-        </SplitButton>
-    );
+    const hasChoice = primary !== undefined || query.isPending;
+    let text = t('agentChat.usageLimit.noTarget');
+    if (hasChoice && label === 'openElsewhere') text = t('agentChat.usageGuard.openElsewhere');
+    else if (hasChoice) text = t('agentChat.usageLimit.continueElsewhere');
+    return <ContinueMenuButton isPending={isPending} run={run} targets={targets} text={text} />;
 }

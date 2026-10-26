@@ -82,7 +82,6 @@ import {
 } from './transcript/agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './transcript/agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
-import { CanContinueInAgentContext } from './usage-limit/use-can-continue-in-agent';
 import { markAgentChatOnScreen } from './waiting/agent-chat-on-screen';
 
 /**
@@ -173,13 +172,8 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<AgentChatComposerInput | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
-    const {
-        canContinueInAgent,
-        canFork,
-        canOpenBesideChat,
-        canOpenContext,
-        canSaveProjectDefault,
-    } = agentChatHostCapabilities(host);
+    const { canFork, canOpenBesideChat, canOpenContext, canSaveProjectDefault } =
+        agentChatHostCapabilities(host);
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
@@ -283,187 +277,179 @@ export function AgentChatPane({
         recoverAgentChat(terminalId, recoveryNotice, query.refetch);
     };
     return (
-        <CanContinueInAgentContext value={canContinueInAgent}>
-            <section
-                {...{ [AGENT_CHAT_PANE_ATTRIBUTE]: '' }}
-                aria-label={ariaLabel}
-                // `relative` anchors the composer's whole-Chat drop tint (see `AgentChatComposer`).
-                className="relative flex h-full min-h-0 flex-col bg-background"
-                // Picks the status line and running work rows' sweep (`activity-shimmer` in styles.css).
-                data-agent-chat-status-shimmer={statusShimmer}
-                onKeyDown={onKeyDown}
-                onDragLeave={(event) => composerDrop.current?.onDragLeave(event)}
-                onDragOver={(event) => composerDrop.current?.onDragOver(event)}
-                onDrop={(event) => composerDrop.current?.onDrop(event)}
-            >
-                <div className="relative min-h-0 flex-1">
-                    <AgentChatFindScope
-                        agentSessionId={terminal?.agentSessionId}
-                        contentReference={contentReference}
-                        focusComposer={focusComposer}
-                        hasUnsearchedHistory={history.hasMore || history.history.truncated}
-                        isLoadingEarlier={history.history.status === 'loading'}
-                        loadEarlier={history.hasMore ? history.loadOlder : undefined}
-                        scrollReference={scrollReference}
-                        stopFollowing={stopFollowing}
-                        terminalId={terminalId}
-                    >
-                        {/* A named log, so screen readers can find the transcript, and focusable so the keyboard can scroll
+        <section
+            {...{ [AGENT_CHAT_PANE_ATTRIBUTE]: '' }}
+            aria-label={ariaLabel}
+            // `relative` anchors the composer's whole-Chat drop tint (see `AgentChatComposer`).
+            className="relative flex h-full min-h-0 flex-col bg-background"
+            // Picks the status line and running work rows' sweep (`activity-shimmer` in styles.css).
+            data-agent-chat-status-shimmer={statusShimmer}
+            onKeyDown={onKeyDown}
+            onDragLeave={(event) => composerDrop.current?.onDragLeave(event)}
+            onDragOver={(event) => composerDrop.current?.onDragOver(event)}
+            onDrop={(event) => composerDrop.current?.onDrop(event)}
+        >
+            <div className="relative min-h-0 flex-1">
+                <AgentChatFindScope
+                    agentSessionId={terminal?.agentSessionId}
+                    contentReference={contentReference}
+                    focusComposer={focusComposer}
+                    hasUnsearchedHistory={history.hasMore || history.history.truncated}
+                    isLoadingEarlier={history.history.status === 'loading'}
+                    loadEarlier={history.hasMore ? history.loadOlder : undefined}
+                    scrollReference={scrollReference}
+                    stopFollowing={stopFollowing}
+                    terminalId={terminalId}
+                >
+                    {/* A named log, so screen readers can find the transcript, and focusable so the keyboard can scroll
                         it without a pointer. `aria-live` is off because a log is polite by default, which would read
                         every streamed token aloud; `AgentChatTurnAnnouncer` owns what is announced. */}
-                        <div
-                            aria-keyshortcuts={AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS}
-                            aria-label={t('agentChat.timeline.transcriptLabel')}
-                            aria-live="off"
-                            className={cn(
-                                'absolute inset-x-0 top-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent',
-                                // The transcript runs on under Jump to latest (DESIGN.md "Scroll edge cues"). The return
-                                // hint shows only at the latest entry, so the transcript ends above it instead of covering
-                                // the last line; the top stays anchored, so nothing the user is reading moves.
-                                returnHint ? 'bottom-10' : 'bottom-0',
-                            )}
-                            ref={scrollReference}
-                            role="log"
-                            tabIndex={0}
-                            onKeyDown={onAgentChatTranscriptKeyDown}
-                            onScroll={onScroll}
-                        >
-                            <div
-                                className={cn(
-                                    'mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none',
-                                    // The rail sits at `left-1` and is 20px wide; 28px clears it with the usual gap.
-                                    isAgentChatMessageRailShown(railMarks) && 'pl-7',
-                                )}
-                                ref={contentReference}
-                            >
-                                <AgentChatHistoryHead
-                                    hasFailed={history.history.status === 'failed'}
-                                    hasMore={history.hasMore}
-                                    isLoading={history.history.status === 'loading'}
-                                    isUnavailable={history.history.truncated}
-                                    loadedCount={olderItems.length}
-                                    providerName={providerName}
-                                    scrollReference={scrollReference}
-                                    onLoad={history.loadOlder}
-                                    onOpenAsTerminal={openAsTerminal}
-                                />
-                                {isAgentChatConversationLoading(snapshot, {
-                                    hasConversation: Boolean(terminal?.agentSessionId),
-                                    isPending: query.isPending,
-                                }) && <ConversationLoading />}
-                                <AgentChatExpansionContext value={expansion}>
-                                    <AgentChatTaskLinksContext value={taskLinks}>
-                                        <AgentChatTimelineBody
-                                            dayBreaks={dayBreaks}
-                                            editActions={editActions}
-                                            activeTurnId={snapshot?.activeTurnId}
-                                            isAwaitingReply={
-                                                pending.timeline.length === 0 &&
-                                                isAgentChatAwaitingReplyInTimeline(
-                                                    snapshot,
-                                                    timeline,
-                                                )
-                                            }
-                                            mcpServers={snapshot?.mcpServers}
-                                            pending={pending}
-                                            readBackHistory={readBackHistory}
-                                            settledChunks={settledChunks}
-                                            terminalId={terminalId}
-                                            timeline={timeline}
-                                            onOpenFile={openFile}
-                                        />
-                                    </AgentChatTaskLinksContext>
-                                </AgentChatExpansionContext>
-                                <AgentChatEmptyState
-                                    hint={
-                                        processState !== 'detached' &&
-                                        agentChatEmptyHint(supportsImages, t)
-                                    }
-                                    message={emptyMessage}
-                                />
-                            </div>
-                            <div aria-hidden data-agent-chat-turn-space ref={spacerReference} />
-                        </div>
-                        {returnHint && terminal && (
-                            <AgentChatReturnHint
-                                hint={returnHint}
-                                onDismiss={() => dismissReturn(terminal.sessionId)}
-                                onJump={jumpToMessage}
-                            />
+                    <div
+                        aria-keyshortcuts={AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS}
+                        aria-label={t('agentChat.timeline.transcriptLabel')}
+                        aria-live="off"
+                        className={cn(
+                            'absolute inset-x-0 top-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent',
+                            // The transcript runs on under Jump to latest (DESIGN.md "Scroll edge cues"). The return
+                            // hint shows only at the latest entry, so the transcript ends above it instead of covering
+                            // the last line; the top stays anchored, so nothing the user is reading moves.
+                            returnHint ? 'bottom-10' : 'bottom-0',
                         )}
-                        <AgentChatSelectionToolbar
-                            contentReference={contentReference}
-                            scrollReference={scrollReference}
-                            terminalId={terminalId}
-                            onQuoted={focusComposer}
-                        />
-                        <AgentChatMessageRail
-                            activeIndex={rail.activeIndex}
-                            marks={railMarks}
+                        ref={scrollReference}
+                        role="log"
+                        tabIndex={0}
+                        onKeyDown={onAgentChatTranscriptKeyDown}
+                        onScroll={onScroll}
+                    >
+                        <div
+                            className={cn(
+                                'mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none',
+                                // The rail sits at `left-1` and is 20px wide; 28px clears it with the usual gap.
+                                isAgentChatMessageRailShown(railMarks) && 'pl-7',
+                            )}
+                            ref={contentReference}
+                        >
+                            <AgentChatHistoryHead
+                                hasFailed={history.history.status === 'failed'}
+                                hasMore={history.hasMore}
+                                isLoading={history.history.status === 'loading'}
+                                isUnavailable={history.history.truncated}
+                                loadedCount={olderItems.length}
+                                providerName={providerName}
+                                scrollReference={scrollReference}
+                                onLoad={history.loadOlder}
+                                onOpenAsTerminal={openAsTerminal}
+                            />
+                            {isAgentChatConversationLoading(snapshot, {
+                                hasConversation: Boolean(terminal?.agentSessionId),
+                                isPending: query.isPending,
+                            }) && <ConversationLoading />}
+                            <AgentChatExpansionContext value={expansion}>
+                                <AgentChatTaskLinksContext value={taskLinks}>
+                                    <AgentChatTimelineBody
+                                        dayBreaks={dayBreaks}
+                                        editActions={editActions}
+                                        activeTurnId={snapshot?.activeTurnId}
+                                        isAwaitingReply={
+                                            pending.timeline.length === 0 &&
+                                            isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
+                                        }
+                                        mcpServers={snapshot?.mcpServers}
+                                        pending={pending}
+                                        readBackHistory={readBackHistory}
+                                        settledChunks={settledChunks}
+                                        terminalId={terminalId}
+                                        timeline={timeline}
+                                        onOpenFile={openFile}
+                                    />
+                                </AgentChatTaskLinksContext>
+                            </AgentChatExpansionContext>
+                            <AgentChatEmptyState
+                                hint={
+                                    processState !== 'detached' &&
+                                    agentChatEmptyHint(supportsImages, t)
+                                }
+                                message={emptyMessage}
+                            />
+                        </div>
+                        <div aria-hidden data-agent-chat-turn-space ref={spacerReference} />
+                    </div>
+                    {returnHint && terminal && (
+                        <AgentChatReturnHint
+                            hint={returnHint}
+                            onDismiss={() => dismissReturn(terminal.sessionId)}
                             onJump={jumpToMessage}
                         />
-                        <AgentChatJumpToLatest
-                            focusTarget={inputReference}
-                            isLatestInView={isLatestInView}
-                            onJump={jumpToLatest}
-                        />
-                    </AgentChatFindScope>
-                </div>
-                <AgentChatDock
-                    answeredRequestIds={pending.answeredRequestIds}
-                    projectRoot={projectRoot}
-                    providerName={providerName}
-                    recoveryNotice={recoveryNotice}
-                    snapshot={snapshot}
-                    terminalId={terminalId}
-                    onAnswered={focusComposer}
-                    onOpenAsTerminal={openAsTerminal}
-                    onRecover={recover}
-                />
-                <AgentChatTurnAnnouncer
-                    activeTurnId={snapshot?.activeTurnId}
-                    turns={snapshot?.turns}
-                />
-                <TerminalLinkPicker
-                    isOpen={linkPicker.isOpen}
-                    isTruncated={linkPicker.isTruncated}
-                    links={linkPicker.links}
-                    mode={linkPicker.mode}
-                    status={linkPicker.status}
-                    onOpenChange={linkPicker.onOpenChange}
-                    onSelect={linkPicker.selectLink}
-                />
-                <AgentChatComposer
-                    activeTurnId={composerView.activeTurnId}
-                    activity={composerView.activity}
-                    canOpenContext={canOpenContext}
-                    canSaveProjectDefault={canSaveProjectDefault}
-                    sendBlock={composerView.sendBlock}
-                    commands={composerView.commands}
-                    dropHandlersReference={composerDrop}
-                    edit={{
-                        handleReference: composerEdit,
-                        filesUnsupportedReason: supportsRewindFiles
-                            ? undefined
-                            : t('agentChat.pane.filesUnsupported', { provider: providerName }),
-                        onEditingChange: setEditingId,
-                    }}
-                    inputReference={inputReference}
-                    isBusy={composerView.isBusy}
-                    isQueuePaused={composerView.isQueuePaused}
-                    isSteerDefault={composerView.isSteerDefault}
-                    isShown={isShown}
-                    providerName={providerName}
-                    onOpenTask={taskLinks.openTask}
-                    onSent={sentAction(terminal, jumpToLatest)}
-                    pendingQueue={composerView.pendingQueue}
-                    queue={composerView.queue}
-                    snapshot={composerView.snapshot}
-                    supportsImages={supportsImages}
-                    terminalId={terminalId}
-                />
-            </section>
-        </CanContinueInAgentContext>
+                    )}
+                    <AgentChatSelectionToolbar
+                        contentReference={contentReference}
+                        scrollReference={scrollReference}
+                        terminalId={terminalId}
+                        onQuoted={focusComposer}
+                    />
+                    <AgentChatMessageRail
+                        activeIndex={rail.activeIndex}
+                        marks={railMarks}
+                        onJump={jumpToMessage}
+                    />
+                    <AgentChatJumpToLatest
+                        focusTarget={inputReference}
+                        isLatestInView={isLatestInView}
+                        onJump={jumpToLatest}
+                    />
+                </AgentChatFindScope>
+            </div>
+            <AgentChatDock
+                answeredRequestIds={pending.answeredRequestIds}
+                projectRoot={projectRoot}
+                providerName={providerName}
+                recoveryNotice={recoveryNotice}
+                snapshot={snapshot}
+                terminalId={terminalId}
+                onAnswered={focusComposer}
+                onOpenAsTerminal={openAsTerminal}
+                onRecover={recover}
+            />
+            <AgentChatTurnAnnouncer activeTurnId={snapshot?.activeTurnId} turns={snapshot?.turns} />
+            <TerminalLinkPicker
+                isOpen={linkPicker.isOpen}
+                isTruncated={linkPicker.isTruncated}
+                links={linkPicker.links}
+                mode={linkPicker.mode}
+                status={linkPicker.status}
+                onOpenChange={linkPicker.onOpenChange}
+                onSelect={linkPicker.selectLink}
+            />
+            <AgentChatComposer
+                activeTurnId={composerView.activeTurnId}
+                activity={composerView.activity}
+                canOpenContext={canOpenContext}
+                canSaveProjectDefault={canSaveProjectDefault}
+                sendBlock={composerView.sendBlock}
+                commands={composerView.commands}
+                dropHandlersReference={composerDrop}
+                edit={{
+                    handleReference: composerEdit,
+                    filesUnsupportedReason: supportsRewindFiles
+                        ? undefined
+                        : t('agentChat.pane.filesUnsupported', { provider: providerName }),
+                    onEditingChange: setEditingId,
+                }}
+                inputReference={inputReference}
+                isBusy={composerView.isBusy}
+                isQueuePaused={composerView.isQueuePaused}
+                isSteerDefault={composerView.isSteerDefault}
+                isShown={isShown}
+                providerName={providerName}
+                onOpenTask={taskLinks.openTask}
+                onSent={sentAction(terminal, jumpToLatest)}
+                pendingQueue={composerView.pendingQueue}
+                queue={composerView.queue}
+                snapshot={composerView.snapshot}
+                supportsImages={supportsImages}
+                terminalId={terminalId}
+            />
+        </section>
     );
 }
 
