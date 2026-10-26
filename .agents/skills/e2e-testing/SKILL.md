@@ -109,6 +109,10 @@ Use the launch helpers instead of the developer's real profile:
   data. Agent specs explicitly select shared `fake` mode or the single-provider `real` mode, except
   negative tests that deliberately prove the `blocked` default; never inherit the developer's
   `PATH`, `HOME`, `CODEX_HOME`, or `CLAUDE_CONFIG_DIR` accidentally.
+- Fake Agents pick their scenario by substring keywords in the sent message, listed in the header
+  of `fake-codex-app-server.ts`, `fake-claude-cli.ts`, and `fake-grok-acp.ts` under
+  `apps/server/src/domains/agent-chat/__tests__/fixtures/`. Check free-form message text against
+  that list: "It fails on CI" contains `fail`, so the fake Codex turn fails instead of replying.
 - A fault-injection environment flag must reach the process that owns the seam. Cover Desktop to
   Server forwarding with a boundary test and verify the controlled delay or failure occurs before
   interpreting the product assertion; setting the launcher environment alone is not proof.

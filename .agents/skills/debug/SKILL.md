@@ -162,10 +162,12 @@ tab bar's Chat toggle switches an open one. Run the repeated Caxri steps through
 `.agents/skills/debug/scripts/drive-app.ts` instead of hand-writing Playwright: `language en`
 (English labels for the E2E helpers), `open-chat <claude|codex|grok>` to add the test-root Project
 and open that Agent in Chat (driving the dialog by hand lets the root grant expire, and
-`project.create` then fails with `PATH_DENIED` and no Session), `send <text>` into the Chat message box, `paste-image [count]` to paste synthetic PNGs there without the system clipboard, `idle` until a reply
+`project.create` then fails with `PATH_DENIED` and no Session), `send <text>` into the Chat message box (its words can select a fake scenario; see `e2e-testing`), `paste-image [count]` to paste synthetic PNGs there without the system clipboard, `idle` until a reply
 stops changing the window, `search <query>` in Session search, `ready [seconds]` until a relaunched
-window answers (instead of a fixed sleep), `select-session <id prefix|title>` to open a sidebar
-Session, and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
+window's Workbench reports the Runtime ready (instead of a fixed sleep; a first launch spends about a
+minute pre-bundling Vite dependencies after CDP already answers), `select-session <id prefix|title>`
+to open a sidebar Session, `theme <built-in id|absolute JSON path>` for a light (`solarized-light`)
+or imported-theme capture without the native import dialog, and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
 which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
 throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as a string, never a
 partial patch. If the fixture's test root does not cover the flow, export
