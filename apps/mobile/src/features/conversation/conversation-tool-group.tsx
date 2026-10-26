@@ -6,6 +6,7 @@ import { agentToolKindCounts, formatNoticeableDuration } from '@caxri/protocol';
 import { useRecyclingState } from '@shopify/flash-list';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
+import { ShimmerText } from '../../components/shimmer-text';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { ConversationEntry } from './conversation-model';
@@ -75,12 +76,25 @@ export const ConversationToolGroupView = ({
                 testID={testID}
             >
                 <ConversationToolIcon kind={kind} mcpIconUrls={mcpIconUrls} theme={theme} />
-                <Text
-                    numberOfLines={expanded ? undefined : 1}
-                    style={[styles.toolSubject, { color: theme.text }]}
-                >
-                    {summary}
-                </Text>
+                {isRunning && !expanded ? (
+                    // Live work sweeps its summary as Desktop's `.activity-shimmer` does; the running status has no glyph.
+                    <ShimmerText
+                        color={theme.muted}
+                        highlightColor={theme.text}
+                        style={styles.toolTitle}
+                        testID={`${testID}-shimmer`}
+                        textStyle={styles.toolSummaryText}
+                    >
+                        {summary}
+                    </ShimmerText>
+                ) : (
+                    <Text
+                        numberOfLines={expanded ? undefined : 1}
+                        style={[styles.toolSubject, { color: theme.text }]}
+                    >
+                        {summary}
+                    </Text>
+                )}
                 {isRunning ? <ConversationStatusGlyph status="running" theme={theme} /> : null}
                 {failure ? <ConversationStatusGlyph status={failure} theme={theme} /> : null}
                 {duration ? (

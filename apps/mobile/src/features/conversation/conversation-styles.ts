@@ -53,6 +53,7 @@ export const conversationStyles = StyleSheet.create({
     toolActivity: { fontSize: 12, lineHeight: 16 },
     toolLiveLabel: { fontSize: 13, fontWeight: '500' },
     toolSubject: { flex: 1, fontSize: 13, minWidth: 0 },
+    toolSummaryText: { fontSize: 13 },
     toolChipSlot: { alignItems: 'flex-start', flex: 1, minWidth: 0 },
     toolChip: {
         borderRadius: 6,
