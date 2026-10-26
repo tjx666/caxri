@@ -25,9 +25,11 @@ interface EnumControlProperties {
     spec: EnumSettingSpec;
     value: string | null;
     /**
-     * Optional per-option adornment (e.g. Agent identity icons for the default-agent setting).
+     * Optional per-option adornment (e.g. Agent identity icons for the default-agent setting). `placement` tells the
+     * closed trigger from an open list item, so a looping preview can stay in the list instead of animating beside the
+     * selected value for as long as Settings is open.
      */
-    renderOptionIcon?: (value: string | null) => ReactNode;
+    renderOptionIcon?: (value: string | null, placement: 'item' | 'trigger') => ReactNode;
     onChange: (value: string | null) => void;
 }
 
@@ -59,7 +61,7 @@ export function EnumControl({
             >
                 <SelectValue>
                     <span className="flex items-center gap-2">
-                        {renderOptionIcon?.(value)}
+                        {renderOptionIcon?.(value, 'trigger')}
                         {labelFor(selected)}
                     </span>
                 </SelectValue>
@@ -68,7 +70,7 @@ export function EnumControl({
                 {nullLabel !== undefined && (
                     <SelectItem value={NULL_OPTION}>
                         <span className="flex items-center gap-2">
-                            {renderOptionIcon?.(null)}
+                            {renderOptionIcon?.(null, 'item')}
                             {nullLabel}
                         </span>
                     </SelectItem>
@@ -76,7 +78,7 @@ export function EnumControl({
                 {spec.options.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                         <span className="flex items-center gap-2">
-                            {renderOptionIcon?.(option.value)}
+                            {renderOptionIcon?.(option.value, 'item')}
                             {settingOptionLabel(t, spec, option.value)}
                         </span>
                     </SelectItem>

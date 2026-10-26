@@ -60,7 +60,8 @@ const ADMITTED_METHODS = new Set<string>([
  * is the read the pane issues on mount to resolve file links; `agentCommander.openFileLink` hands a detected file link
  * to the Workbench (see that method's JSDoc for why this cannot grant cross-Project authority).
  * `terminal.switchSurface` backs the title bar's `Terminal | Chat` toggle, and the `agentChat.*` and `agentActions.*`
- * methods are the Chat pane's whole surface once the Commander runs as a Chat.
+ * methods are the Chat pane's whole surface once the Commander runs as a Chat. `terminal.agentUsage` is the read-only
+ * usage poll behind the composer's plan pace alert, which the Chat pane mounts here as in the Workbench.
  */
 const TERMINAL_METHODS = new Set<string>([
     'agentActions.list',
@@ -87,6 +88,7 @@ const TERMINAL_METHODS = new Set<string>([
     'agentChat.stopTask',
     'agentChat.takeQueued',
     'agentCommander.openFileLink',
+    'terminal.agentUsage',
     'terminal.attach',
     'terminal.detach',
     'terminal.input',
