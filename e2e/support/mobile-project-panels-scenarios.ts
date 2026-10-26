@@ -11,6 +11,7 @@ import {
     captureMobileFramebuffer,
     mobileSemantics,
     tapMobileCheck,
+    tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
 
@@ -201,6 +202,14 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
                 hasCheck(nodes, 'tree-panel-caxri.fixture.tree') && hasCheck(nodes, 'tree-row'),
         );
         await capture(environment, 'extension-tree', artifacts);
+        // The fixture's root rows render as Lazy children, Provider expanded, its Expanded child, Targeted refresh,
+        // then Empty children (extensions/fixture/src/extension.ts); expanding it must show the nested empty row.
+        await tapMobileCheckByBounds(environment.serial, 'tree-row', { index: 4 });
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => hasCheck(nodes, 'tree-nested-empty'),
+        );
+        await capture(environment, 'extension-tree-nested-empty', artifacts);
         await tapMobileCheck(environment.serial, 'session-segment-changes');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
@@ -209,6 +218,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         await capture(environment, 'git-changes', artifacts);
         await finish(environment, artifacts, {
             panels: ['Files', 'Status', 'Fixture tree'],
+            treeStates: ['nested empty'],
             filesStates: ['empty', 'error'],
             git: 'Changes segment',
             desktopFocusedOtherSession:

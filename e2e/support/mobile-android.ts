@@ -338,11 +338,16 @@ export const tapMobileCheck = (
 
 /**
  * React Native can expose a visible Pressable with `clickable=false` in Android's accessibility dump. Tap its verified
- * device bounds and prove the resulting product state separately.
+ * device bounds and prove the resulting product state separately. Rows that share one check ID (every tree row is
+ * `tree-row`) are told apart by `index`, their position in the dump, because semantic capture carries no text.
  */
-export async function tapMobileCheckByBounds(serial: string, checkId: string): Promise<void> {
+export async function tapMobileCheckByBounds(
+    serial: string,
+    checkId: string,
+    { index = 0 }: { index?: number } = {},
+): Promise<void> {
     const nodes = await mobileSemantics(serial);
-    const target = nodes.find((node) => node.checkId === checkId);
+    const target = nodes.filter((node) => node.checkId === checkId).at(index);
     const bounds = target && androidBounds(target.bounds);
     if (!bounds || !target.enabled) {
         const visible = nodes
