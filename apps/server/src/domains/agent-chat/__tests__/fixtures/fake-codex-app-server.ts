@@ -26,6 +26,8 @@
  *   indented code block, so a Client's syntax highlighting can be compared across languages.
  * - `testrun`: a finished multi-step turn: a thought, a test command that exits with code 1, a passing command, and a
  *   short reply, so a Client folds the work behind its `Worked for` row and shows the failed command's exit code.
+ * - `manyagents`: seven `spawnAgent` calls with long titles, each child finishing before the next, then one `wait` for
+ *   all of them, so a finished turn's fold row carries more subagents than fit beside its `Worked for` label.
  * - `subagent`: a `spawnAgent` collab call whose child thread runs its own turn (notifications with the child's
  *   `threadId`, some before the spawn completes, as real Codex sends them), then a `wait` call reporting its result.
  *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away; with
@@ -113,6 +115,7 @@ import {
     didHandleTaskRequest,
     dropTerminalsSilently,
     runBackgroundCommand,
+    runManySubagents,
     runSubagent,
     startUnannouncedTerminal,
     wakeFakeWait,
@@ -280,6 +283,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runBurstStream(io, turn);
     } else if (text.includes('longstream')) {
         await runLongStream(io, turn);
+    } else if (text.includes('manyagents')) {
+        await runManySubagents(io, turn);
     } else if (text.includes('subagent')) {
         await runSubagent(io, turn, {
             isHeld: text.includes('hold'),

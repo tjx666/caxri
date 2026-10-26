@@ -29,6 +29,12 @@ export class CheckError extends Error {
     }
 }
 
+/**
+ * A sibling session's focused E2E batch (rebuild plus several specs) routinely holds the desktop lease for 10 to 20
+ * minutes, so a shorter cap pushed agents into hand-written retry loops around `--e2e`.
+ */
+const MAX_E2E_WAIT_SECONDS = 1800;
+
 const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep <pattern>] [--e2e-wait <seconds>] [--staged]
 
 Selectors:
@@ -38,7 +44,7 @@ Selectors:
   --knip     Run the repository-wide dead code/export check (CI blocking)
   --e2e      Build and run explicitly named e2e/*.e2e.ts Playwright specs
   --e2e-grep Narrow --e2e to a Playwright test-title pattern
-  --e2e-wait Wait up to 300 seconds for the repository desktop lease (default: fail immediately)
+  --e2e-wait Wait up to ${MAX_E2E_WAIT_SECONDS} seconds for the repository desktop lease (default: fail immediately)
   --staged   Discover only staged files when no file arguments are supplied
 
 With no selector, --lint and --test are enabled.`;
@@ -72,8 +78,16 @@ function didConsumeNextCheckArgument(
         }
         case '--e2e-wait': {
             const seconds = Number(nextArgument);
-            if (!nextArgument || !Number.isSafeInteger(seconds) || seconds < 1 || seconds > 300)
-                throw new CheckError('--e2e-wait requires an integer from 1 to 300 seconds', 2);
+            if (
+                !nextArgument ||
+                !Number.isSafeInteger(seconds) ||
+                seconds < 1 ||
+                seconds > MAX_E2E_WAIT_SECONDS
+            )
+                throw new CheckError(
+                    `--e2e-wait requires an integer from 1 to ${MAX_E2E_WAIT_SECONDS} seconds`,
+                    2,
+                );
             options.e2eWaitSeconds = seconds;
             return true;
         }

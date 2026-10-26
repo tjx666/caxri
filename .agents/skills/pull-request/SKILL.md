@@ -74,6 +74,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    how existing content renders (a path becoming a pill, a long message clamped behind "Show more")
    breaks text assertions the same way: search `e2e/` for specs reading that content and run them.
    Rendering sent paths as pills left `agent-chat-handoff.e2e.ts` matching the full path on `main`.
+   A change to a shared fixture under `e2e/support/` (profile defaults, launch helpers) reaches
+   every spec that relies on what it changed: search `e2e/` for specs reading that value or helper
+   and list them too. Changing `e2e/support/e2e-profile.ts` defaults while listing only
+   `editor-auto-save.e2e.ts` left `settings.e2e.ts` failing on `main`.
    Run `bun run scripts/surface-matrix.ts` against the pushed diff (`--base origin/main` is the
    default) and paste its Markdown output into the PR body. It reports which product surfaces the
    diff touches (Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,

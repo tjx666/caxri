@@ -243,8 +243,8 @@ describe('parseCheckArguments', () => {
         expect(() => parseCheckArguments(['--e2e-wait', '30'])).toThrow(
             '--e2e-wait requires --e2e',
         );
-        expect(() => parseCheckArguments(['--e2e', '--e2e-wait', '301'])).toThrow(
-            '--e2e-wait requires an integer from 1 to 300 seconds',
+        expect(() => parseCheckArguments(['--e2e', '--e2e-wait', '1801'])).toThrow(
+            '--e2e-wait requires an integer from 1 to 1800 seconds',
         );
     });
 });

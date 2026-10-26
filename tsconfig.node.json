@@ -6,6 +6,7 @@
         "electron.vite.config.*",
         "drizzle.config.*",
         "vitest.config.*",
+        "vitest.global-setup.ts",
         "playwright.config.*",
         "eslint.config.*",
         "apps/cli/**/*.ts",

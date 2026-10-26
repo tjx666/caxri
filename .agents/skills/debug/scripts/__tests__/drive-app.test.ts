@@ -36,6 +36,18 @@ describe('drive-app', () => {
         expect(() => parseDriveCommand(['paste-image', 'many'], {})).toThrow(/count/u);
     });
 
+    it('switches to a built-in theme by id or a theme file by absolute path', () => {
+        expect(parseDriveCommand(['theme', 'solarized-light'], {}).argument).toBe(
+            'solarized-light',
+        );
+        expect(parseDriveCommand(['theme', '/tmp/a/theme.json'], {}).argument).toBe(
+            '/tmp/a/theme.json',
+        );
+        expect(() => parseDriveCommand(['theme', 'light'], {})).toThrow(/solarized-light/u);
+        expect(() => parseDriveCommand(['theme', 'theme.json'], {})).toThrow(/absolute/u);
+        expect(() => parseDriveCommand(['theme'], {})).toThrow(/needs an argument/u);
+    });
+
     it('opens a Chat only for a known Agent provider', () => {
         expect(parseDriveCommand(['open-chat', 'codex'], {}).argument).toBe('codex');
         expect(() => parseDriveCommand(['open-chat', 'shell'], {})).toThrow(/claude, codex/u);

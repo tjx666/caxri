@@ -16,17 +16,20 @@
  * - `search <query>`: opens Session search and types the query.
  * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply.
  * - `ready [seconds]`: waits until a dev instance just started with `switch-worktree dev` answers over CDP as this
- *   worktree's window, instead of a fixed sleep.
+ *   worktree's window and its Workbench reports the Runtime ready, instead of a fixed sleep.
+ * - `theme <built-in id|absolute JSON path>`: replaces the active theme with a built-in palette (such as
+ *   `solarized-light`) or a theme file, the way an imported theme lands, without the native import dialog.
  * - `select-session <id prefix|title>`: clicks that Session in the sidebar, as a user opening it would.
  * - `stub-folder-dialog <absolute path>`: makes Main's native folder picker return that path. Needs the dev instance
  *   started with `V8_INSPECTOR_PORT=<port>` exported; pass the same port as `--inspector-port` or in that variable.
  * - `screenshot <absolute path>`.
  */
+import { readFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, builtinThemeIds, builtinThemes } from '@caxri/protocol';
 import type { Browser, Page } from '@playwright/test';
 import { chromium } from '@playwright/test';
 
@@ -45,6 +48,7 @@ const STEPS = [
     'ready',
     'select-session',
     'stub-folder-dialog',
+    'theme',
     'screenshot',
 ] as const;
 type Step = (typeof STEPS)[number];
@@ -100,6 +104,16 @@ export function parseDriveCommand(
     }
     if (argument && (step === 'idle' || step === 'ready') && !(Number(argument) > 0)) {
         throw new CommandError(`\`${step}\` takes a number of seconds, not ${argument}`, 2);
+    }
+    if (
+        step === 'theme' &&
+        !isAbsolute(argument) &&
+        !(builtinThemeIds as readonly string[]).includes(argument)
+    ) {
+        throw new CommandError(
+            `\`theme\` takes ${builtinThemeIds.join(', ')}, or an absolute theme JSON path, not ${argument}`,
+            2,
+        );
     }
     if (argument && step === 'paste-image' && !Number.isSafeInteger(Number(argument))) {
         throw new CommandError(`\`paste-image\` takes a count, not ${argument}`, 2);
@@ -190,11 +204,23 @@ async function pasteImages(page: Page, count: number): Promise<void> {
 }
 
 /**
+ * The status bar publishes the Runtime state on every Workbench (`e2e/support/runtime-ready.ts`). A window that answers
+ * over CDP can still be drawing its boot spinner: on a first `dev` launch Vite pre-bundles dependencies for about a
+ * minute, and a `Cmd+O` pressed then reaches no Workbench keybinding.
+ */
+async function waitForWorkbench(page: Page, timeoutMs: number): Promise<void> {
+    await page
+        .locator('.statusbar[data-runtime-status="ready"]')
+        .waitFor({ state: 'attached', timeout: timeoutMs });
+}
+
+/**
  * Runs the add-Project dialog in one go. The test-root selection behind `Cmd+O` expires while the dialog waits, and an
  * expired one fails `project.create` with `PATH_DENIED` and creates nothing, so a slow hand-driven choice silently
  * leaves the app without a Session.
  */
 async function openChat(page: Page, provider: AgentProvider): Promise<void> {
+    await waitForWorkbench(page, OPEN_CHAT_TIMEOUT_MS);
     const before = await request<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     // A CDP connection does not focus the window, and the shortcut only reaches a focused document.
     await page.bringToFront();
@@ -311,8 +337,15 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
         case 'idle':
             return waitForIdle(page, argument ? Number(argument) : DEFAULT_IDLE_SECONDS);
         case 'ready':
-            // `main` only reaches a step once the window answered, which is all `ready` waits for.
+            // `main` already waited for the Workbench within the same deadline.
             return;
+        case 'theme': {
+            const source = isAbsolute(argument)
+                ? await readFile(argument, 'utf8')
+                : JSON.stringify(builtinThemes.find((theme) => theme.id === argument));
+            await request(page, 'theme.update', { source });
+            return;
+        }
         case 'select-session': {
             const rows = page.locator('[data-session-id]');
             // A window that just became ready may not have drawn the sidebar's Sessions yet.
@@ -393,10 +426,15 @@ async function main(): Promise<void> {
         if (!(name in environment)) delete process.env[name];
     let connection: { browser: Browser; page: Page };
     if (command.step === 'ready') {
-        connection = await connectWhenReady(
-            process.cwd(),
-            command.argument ? Number(command.argument) : DEFAULT_READY_SECONDS,
-        );
+        const seconds = command.argument ? Number(command.argument) : DEFAULT_READY_SECONDS;
+        const deadline = Date.now() + seconds * 1000;
+        connection = await connectWhenReady(process.cwd(), seconds);
+        try {
+            await waitForWorkbench(connection.page, Math.max(deadline - Date.now(), 1));
+        } catch (error) {
+            await connection.browser.close();
+            throw error;
+        }
     } else {
         const { root, target } = await resolveTarget(process.cwd());
         connection = await connect(root, target.cdpPort);
