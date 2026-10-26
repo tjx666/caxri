@@ -23,6 +23,7 @@ import { TableBlock } from './table-block';
  */
 export function MarkdownBlocks({
     blocks,
+    commands,
     diagrams,
     isStreaming = false,
     onOpenFile,
@@ -39,6 +40,7 @@ export function MarkdownBlocks({
     const revealSince = isStreaming ? mountedAt : undefined;
     const context = useMemo(
         () => ({
+            commands,
             diagrams,
             onOpenFile,
             onOpenUrl,
@@ -47,7 +49,16 @@ export function MarkdownBlocks({
             skills,
             variant,
         }),
-        [diagrams, onOpenFile, onOpenUrl, referenceTerminalId, revealSince, skills, variant],
+        [
+            commands,
+            diagrams,
+            onOpenFile,
+            onOpenUrl,
+            referenceTerminalId,
+            revealSince,
+            skills,
+            variant,
+        ],
     );
     return (
         <MarkdownContext value={context}>

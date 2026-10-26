@@ -905,7 +905,14 @@ several callbacks can share one item, so the transport id is never the key.
   leveled headings, nested and task lists, quotes with a hover Copy quote (the quote's text without
   its `>` markers, `blocksPlainText`), tables with Copy table (Markdown plus HTML), and fenced code
   with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer once the
-  fence closes. Under a finished reply, Copy message, the time the reply began, and the turn's
+  fence closes. A closed `bash`, `sh`, `shell`, `shellscript`, or `zsh` fence also offers Run in
+  Terminal (`run-command/agent-chat-run-command.ts`): it opens a shell Terminal in the Chat's
+  Session, started in the Agent's working folder (`agentCwd` when Claude Code entered a worktree),
+  and types the block at the shell's first prompt, released by shell integration's `OSC 133;A` or,
+  for a shell without integration, after five seconds (`terminal-prompt-input.ts`). The first Run
+  splits a pane below the Chat; later Runs add tabs to that pane while it stays open. `console`
+  and `fish` fences stay copy-only, since one mixes prompts with output and the other is not the
+  user's shell syntax. Under a finished reply, Copy message, the time the reply began, and the turn's
   generation speed and estimated cost (`62 tok/s`, then `0.42` behind a dollar glyph) mount only while
   the pointer is over the reply or focus is inside it, the latest reply included
   (`agent-chat-reply-frame.tsx`); the row keeps its height, so revealing it never shifts the

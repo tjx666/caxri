@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { CodeXml, WrapText } from 'lucide-react';
+import { CodeXml, Play, WrapText } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -13,11 +13,12 @@ import { useColorizedCode } from './use-colorized-code';
 
 /**
  * A titled block of code, lifted onto `--elevated` with its header inside the same panel as the Codex app sets it: the
- * label, then a soft-wrap toggle for long lines, Copy, and View Full Screen, over the code painted with the editor's
- * colors. The buttons appear while the pointer is over the block or focus is inside it, so a transcript of code blocks
- * is not lined with icons; they stay reachable by Tab, which reveals them. Full screen shows the same code at the
- * window's width with the same toggles. Markdown fences, Agent Chat tool output, and a background shell's output share
- * it so they read the same, set in the `meta` tier DESIGN.md gives every monospace preview and diff.
+ * label, then a soft-wrap toggle for long lines, Run when the host can execute the code, Copy, and View Full Screen,
+ * over the code painted with the editor's colors. The buttons appear while the pointer is over the block or focus is
+ * inside it, so a transcript of code blocks is not lined with icons; they stay reachable by Tab, which reveals them.
+ * Full screen shows the same code at the window's width with the same toggles. Markdown fences, Agent Chat tool output,
+ * and a background shell's output share it so they read the same, set in the `meta` tier DESIGN.md gives every
+ * monospace preview and diff.
  */
 export function CodeView({
     className,
@@ -26,6 +27,7 @@ export function CodeView({
     isPaintable = true,
     label,
     language,
+    onRun,
 }: {
     /**
      * Extra classes for the scrolling `<pre>`, such as a height cap.
@@ -48,6 +50,10 @@ export function CodeView({
      * A fence word, language id, or file extension Monaco can resolve. Unknown or absent stays plain text.
      */
     language: string | undefined;
+    /**
+     * Adds Run before Copy, for code the host can execute. Without it the block only copies.
+     */
+    onRun?: () => void;
 }) {
     const { t } = useTranslation();
     const [isWrapped, setWrapped] = useState(defaultWrapped);
@@ -57,6 +63,7 @@ export function CodeView({
     const actions = (
         <>
             <WrapToggle isWrapped={isWrapped} onToggle={() => setWrapped((value) => !value)} />
+            {onRun && <RunButton onRun={onRun} />}
             <CopyIconButton
                 copy={() => writeToClipboardWithFeedback(navigator.clipboard, code)}
                 label={t('core.copy.code')}
@@ -90,6 +97,23 @@ export function CodeView({
                 />
             </BlockFullscreenDialog>
         </div>
+    );
+}
+
+function RunButton({ onRun }: { onRun: () => void }) {
+    const { t } = useTranslation();
+    const label = t('core.codeView.runInTerminal');
+    return (
+        <Tooltip content={label}>
+            <button
+                aria-label={label}
+                className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+                type="button"
+                onClick={onRun}
+            >
+                <Play className="size-3.5" />
+            </button>
+        </Tooltip>
     );
 }
 

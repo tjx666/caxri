@@ -234,6 +234,19 @@ describe('TerminalCommandTracker', () => {
         ]);
     });
 
+    it('reports each prompt start, and only prompt starts', () => {
+        const host = createTerminalHost();
+        const onPrompt = vi.fn();
+        new TerminalCommandTracker(host.terminal, colors, vi.fn(), undefined, onPrompt);
+
+        expect(host.handlers.get(133)?.('C')).toBe(true);
+        expect(host.handlers.get(133)?.('D;0')).toBe(true);
+        expect(onPrompt).not.toHaveBeenCalled();
+        expect(host.handlers.get(133)?.('A')).toBe(true);
+        expect(host.handlers.get(633)?.('A')).toBe(true);
+        expect(onPrompt).toHaveBeenCalledTimes(2);
+    });
+
     it('ignores finish and oversized metadata without a command boundary', () => {
         const host = createTerminalHost();
         const publish = vi.fn();

@@ -43,6 +43,18 @@ export interface MarkdownSkillHost {
 }
 
 /**
+ * Runs the commands a fenced block holds. Supplied by the host, as diagrams are, so this shared renderer knows nothing
+ * about Terminals.
+ */
+export interface MarkdownCommandHost {
+    /**
+     * Whether a fence in this language holds commands the host can run.
+     */
+    canRun(language: string | undefined): boolean;
+    run(command: string): void;
+}
+
+/**
  * Host-specific rendering choices and actions, shared by every block of one Markdown tree. Read through context so a
  * memoized block skips re-rendering on a streamed delta without each level threading the callbacks down.
  */
@@ -65,6 +77,10 @@ export interface MarkdownRenderContext {
      * Draws `mermaid` fences as diagrams in the transcript variant. Without it they stay code.
      */
     diagrams?: MarkdownDiagramHost;
+    /**
+     * Adds a Run action to settled fences the host can execute. Without it, code blocks only copy.
+     */
+    commands?: MarkdownCommandHost;
     /**
      * Marks inline code that names a known skill. Without it, such code stays plain.
      */

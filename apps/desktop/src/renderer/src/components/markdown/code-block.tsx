@@ -9,10 +9,11 @@ type CodeBlockNode = Extract<MarkdownBlock, { type: 'code' }>;
 /**
  * A fenced block. Compact hosts show bare text. A transcript renders it as a `CodeView` labeled with the fence
  * language, painted with the editor's colors once the fence closes; a closed `mermaid` fence becomes a diagram when the
- * host draws them.
+ * host draws them. A closed fence the host can execute (`MarkdownCommandHost`) also offers Run; a fence still streaming
+ * never does, so a half-written command cannot be started.
  */
 export function CodeBlock({ block, isOpen }: { block: CodeBlockNode; isOpen: boolean }) {
-    const { diagrams, variant } = useMarkdownContext();
+    const { commands, diagrams, variant } = useMarkdownContext();
     if (diagrams && !isOpen && block.language?.trim().toLowerCase() === 'mermaid')
         return <DiagramBlock diagrams={diagrams} source={block.value} />;
     if (variant === 'compact')
@@ -21,5 +22,16 @@ export function CodeBlock({ block, isOpen }: { block: CodeBlockNode; isOpen: boo
                 {block.value}
             </pre>
         );
-    return <CodeView code={block.value} isPaintable={!isOpen} language={block.language} />;
+    return (
+        <CodeView
+            code={block.value}
+            isPaintable={!isOpen}
+            language={block.language}
+            onRun={
+                commands && !isOpen && commands.canRun(block.language)
+                    ? () => commands.run(block.value)
+                    : undefined
+            }
+        />
+    );
 }

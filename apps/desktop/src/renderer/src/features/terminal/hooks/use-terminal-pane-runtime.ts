@@ -22,15 +22,6 @@ import {
     recordRendererPerformanceTerminalAttachment,
 } from '../../renderer-performance/controller';
 import {
-    createTerminalCommandStatusElement,
-    formatTerminalCommandCompletionStatus,
-    registerTerminalCommandNavigation,
-    terminalCommandDecorationDefaultColor,
-    terminalCommandDecorationFailedColor,
-    terminalCommandDecorationSucceededColor,
-    TerminalCommandTracker,
-} from '../terminal-command-tracker';
-import {
     attachTerminal,
     detachTerminalQuietly,
     prepareTerminalLongPaste,
@@ -44,6 +35,7 @@ import {
     terminalKeyboardInput,
 } from '../terminal-keyboard';
 import { createTerminalLongPasteRuntime, longPasteFailureMessage } from '../terminal-long-paste';
+import { attachTerminalPaneCommandTracker } from '../terminal-pane-command-tracker';
 import {
     markTerminalAttached,
     registerTerminalClearHandler,
@@ -232,36 +224,12 @@ export function useTerminalPaneRuntime({
             latest: () => latestReference.current,
             search,
         });
-        const commandStatusElement = createTerminalCommandStatusElement();
-        container.append(commandStatusElement);
-        let previousCompletedCommandCount = 0;
-        const commandTracker = new TerminalCommandTracker(
-            xterm,
-            // VS Code registers a `terminalCommandDecoration.*` color per theme (dark/light/HC) rather than one fixed
-            // hex; deriving these from the workbench `--danger` / `--success` tokens is the token-driven equivalent
-            // (see terminal-command-tracker.ts).
-            {
-                failed: terminalCommandDecorationFailedColor(latest.dangerColor),
-                running: terminalCommandDecorationDefaultColor(latest.terminalTheme?.foreground),
-                succeeded: terminalCommandDecorationSucceededColor(latest.successColor),
-            },
-            ({ commandCount, completedCount, lastExitStatus }) => {
-                container.dataset.terminalCommandCount = String(commandCount);
-                container.dataset.terminalCommandCompletedCount = String(completedCount);
-                if (lastExitStatus === undefined)
-                    delete container.dataset.terminalCommandLastExitStatus;
-                else container.dataset.terminalCommandLastExitStatus = String(lastExitStatus);
-                if (lastExitStatus !== undefined && completedCount > previousCompletedCommandCount)
-                    commandStatusElement.textContent =
-                        formatTerminalCommandCompletionStatus(lastExitStatus);
-                previousCompletedCommandCount = completedCount;
-            },
-            (status) => (commandStatusElement.textContent = status),
-        );
-        const unregisterCommandNavigation = registerTerminalCommandNavigation(
+        const detachCommandTracker = attachTerminalPaneCommandTracker({
+            colors: latest,
+            container,
             terminalId,
-            (direction) => commandTracker.navigate(direction),
-        );
+            xterm,
+        });
         let unregisterTerminalImages = (): void => undefined;
         const images = createTerminalImageAddon();
         try {
@@ -620,9 +588,7 @@ export function useTerminalPaneRuntime({
             unregisterInputHandlers();
             if (pasteReference.current === pasteFromClipboard) pasteReference.current = undefined;
             terminalLinks.dispose();
-            unregisterCommandNavigation();
-            commandTracker.dispose();
-            commandStatusElement.remove();
+            detachCommandTracker();
             unregisterTerminalImages();
             rendererObserver.dispose();
             renderer.dispose();
