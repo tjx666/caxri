@@ -580,6 +580,23 @@ export default defineConfig(
         },
     },
     /**
+     * An upgrade test anchors its starting schema on a migration tag, never on `CURRENT_SCHEMA_VERSION - n`, which
+     * shifts to the wrong migration as soon as another one is appended (`project-architecture`'s `persistence.md`).
+     */
+    {
+        files: [
+            '**/__tests__/**/*.{ts,tsx}',
+            '**/*.test.{ts,tsx}',
+            'scripts/fixtures/eslint/schema-version-offset/**/*.ts',
+        ],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/no-schema-version-offset': 'error',
+        },
+    },
+    /**
      * Listener and subscription fan-outs isolate each callback through `@caxri/utils`, so one throwing listener or
      * `dispose()` cannot starve or leak the rest. Tests and generated bundles stay out: a test may invoke its own fakes
      * in a bare loop, and nobody edits vendored output.
