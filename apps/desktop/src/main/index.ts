@@ -293,7 +293,7 @@ if (ownsProfileInstance) {
         // eslint-disable-next-line no-use-before-define, @typescript-eslint/no-use-before-define
         createWindow: (input) => createWorkbenchWindow({ role: 'tearOff', ...input }),
         logger: () => mainLogger,
-        primaryReady: (primary) => rendererReadiness.wait(primary.webContents),
+        primaryReady: (primary) => rendererReadiness.whenReady(primary.webContents),
         register: (windowKey, window, sessionId) => {
             registerWorkbenchWindow(windowKey, window);
             localPresence.setViewing(windowKey, sessionId);
@@ -624,7 +624,7 @@ if (ownsProfileInstance) {
             processExplorer.installIpc();
             serverReady.resolve();
             // `openMainWindow` alone only creates the window; wait for its Renderer too (see `reopenAuxiliaryWindowsAtStartup`).
-            await rendererReadiness.wait(mainWindow!.webContents);
+            await rendererReadiness.whenReady(mainWindow!.webContents);
             await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
             secondInstanceFocus.ready();
         })
