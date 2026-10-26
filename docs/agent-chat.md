@@ -782,12 +782,22 @@ several callbacks can share one item, so the transport id is never the key.
   left out, since their own card already asks. The popup sits top-center below the title bar
   (`min(640px, 92vw)`), shows the oldest waiting request with the Chat's provider, Session,
   Project, and an Open Session button, counts the rest ("N more pending"), and folds into an
-  "N pending" pill that unfolds when a new request arrives. A click on a question's option only
-  selects it, so the user confirms with Submit; the popup never takes focus by itself (the palette's
-  `Focus Waiting Request`, `agentChat.focusWaitingRequest`, unfolds it and moves focus to the question's
-  selected option; Tab then reaches the other controls, since options are one roving tab stop, as in the
-  docked card), and its keys (digits, Enter, Cmd+Enter, Cmd+Backspace, Escape to fold) work only while
-  focus is inside it.
+  "N pending" status-bar item that unfolds it on click and unfolds on its own when a new request
+  arrives. A click on a question's option only
+  selects it, so the user confirms with Submit; the popup never takes focus by itself (`Focus Waiting
+Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and moves focus to the
+  question's selected option or the approval's first button; Tab then reaches the other controls,
+  since options are one roving tab stop, as in the docked card), and its keys (digits, Enter, Escape
+  to fold) work only while focus is inside it. Answering from inside keeps focus on the next card, and
+  answering the last one returns focus to where the command took it from.
+  The approval keys are registry commands, `agentChat.allowRequest` (Cmd+Enter) and
+  `agentChat.denyRequest` (Cmd+Backspace), available only while some approval can take them
+  (`agentChatApprovalKeyOwner`): inside a pane with its own approval, that card while the composer
+  holds no draft; anywhere else, the popup's approval, and only from a focus target that does nothing
+  with the key (the document body or a static element). A text field, contenteditable, Terminal,
+  editor, button, link, or row keeps the chord, so a Session row's Cmd+Backspace still archives. An
+  unavailable command lets the key through untouched. Key repeats are ignored and the popup's 450ms
+  arm delay also covers the keys, so a held or doubled press cannot answer the next card.
   A file-change approval shows no diff there and points to the Session instead. The design
   follows LobeHub's `GlobalApprovalNotification`; the Agent Commander window does not show it.
 - An answered question leaves an `answered` notice in the timeline, so the transcript records what

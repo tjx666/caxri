@@ -27,6 +27,14 @@ export interface CommandContext {
         canFocus(): boolean;
         focus(): void;
     };
+    /**
+     * The approval keyboard focus is nearest to: a Chat pane's own, or the waiting popup's (see
+     * `agentChatApprovalKeyOwner`).
+     */
+    agentChatApproval: {
+        canAnswer(): boolean;
+        answer(decision: 'accept' | 'decline'): void;
+    };
     project: {
         create(): void;
         customizeIcon(projectId?: string): void;
@@ -237,6 +245,11 @@ export interface CommandDefinition {
      * follows too, opts in.
      */
     allowBehindModal?: boolean;
+    /**
+     * Runs the command once per press: a held key's auto-repeat keydowns are consumed without running it again, so
+     * holding an answer key cannot answer the next request that takes the first one's place.
+     */
+    ignoresRepeat?: boolean;
     /**
      * Marks a destructive command whose confirmation is already handled inside `run` (native dialog).
      */

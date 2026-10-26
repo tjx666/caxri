@@ -101,6 +101,18 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'cmd+;', command: 'agentChat.openSideChat' },
     /**
+     * An approval's answers take the Command chord because plain Enter and Escape already mean send and interrupt in
+     * the Chat composer. Each fires only where nothing else owns the chord (`agentChatApproval`): a composer holding a
+     * draft keeps `Cmd+Enter` for queueing it, a tree row keeps `Cmd+Backspace`, and a Terminal or editor keeps both.
+     */
+    { key: 'cmd+enter', command: 'agentChat.allowRequest' },
+    { key: 'cmd+backspace', command: 'agentChat.denyRequest' },
+    /**
+     * `Cmd+Alt+W` reads as "waiting" and is free: Caxri has no Close All Windows, the chord macOS apps usually spend on
+     * it.
+     */
+    { key: 'cmd+alt+w', command: 'agentChat.focusWaitingRequest' },
+    /**
      * `Cmd+\` provides the requested iTerm2-style split-terminal behavior: preserve the active Terminal and open a
      * fresh Shell in a new pane to its right. The generic Split Right command remains available in the command palette
      * for moving an existing tab.
@@ -435,5 +447,17 @@ export const defaultKeybindingChanges = [
         type: 'replace',
         previous: { key: 'cmd+`', command: 'session.switchMru' },
         current: { key: 'ctrl+alt+tab', command: 'session.switchMru' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+enter', command: 'agentChat.allowRequest' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+backspace', command: 'agentChat.denyRequest' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+alt+w', command: 'agentChat.focusWaitingRequest' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

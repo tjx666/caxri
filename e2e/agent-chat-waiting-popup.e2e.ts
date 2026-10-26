@@ -56,10 +56,19 @@ test('Chats that are not on screen ask through the waiting popup, one request at
         await expect(popup).toContainText('Claude has a question');
         await expect(popup).toContainText('ask multi');
 
-        // Two Chats wait off screen: the earlier one asks first, and the other is counted.
+        // A second approval, answered later by the focus command and Deny Request.
+        await createAdditionalShellSession(page);
+        await openAgentChat(page, 'Claude Chat');
+        const denyingId = await selectedSessionId(page);
+        const denying = page.locator(VISIBLE_SESSION);
+        await denying.getByRole('textbox', { name: 'Message' }).fill('please approve this');
+        await denying.getByRole('textbox', { name: 'Message' }).press('Enter');
+        await expect(denying.getByRole('region', { name: 'Run this command?' })).toBeVisible();
+
+        // Three Chats wait off screen: the earliest asks first, and the others are counted.
         await createAdditionalShellSession(page);
         await expect(popup).toContainText('Which checks should run before the pull request?');
-        await expect(popup).toContainText('1 more pending');
+        await expect(popup).toContainText('2 more pending');
         await page.screenshot({ path: testInfo.outputPath('waiting-popup-question.png') });
 
         // The popup never takes focus from what the user was doing.
@@ -86,27 +95,65 @@ test('Chats that are not on screen ask through the waiting popup, one request at
         // The next waiting Chat takes its place.
         await expect(popup).toContainText('Run this command?');
         await expect(popup).toContainText('echo approved');
-        await expect(popup).not.toContainText('more pending');
+        await expect(popup).toContainText('1 more pending');
+        const run = popup.getByRole('button', { name: 'Run', exact: true });
+        await expect(run).toHaveAttribute('aria-keyshortcuts', 'Meta+Enter');
+        await expect(run).not.toHaveAttribute('aria-disabled', 'true');
         await page.screenshot({ path: testInfo.outputPath('waiting-popup-approval.png') });
 
-        // Minimizing folds the popup into a pill that reopens it.
-        await popup.getByRole('button', { name: 'Minimize' }).click();
-        const pill = page.getByRole('button', { name: 'Show 1 waiting for you' });
-        await expect(pill).toBeVisible();
-        await expect(popup).toHaveCount(0);
-        await page.screenshot({ path: testInfo.outputPath('waiting-popup-pill.png') });
-        await pill.click();
-        await expect(popup).toContainText('echo approved');
+        // A Terminal keeps Cmd+Enter; from a spot that does nothing with the key, Allow Request answers the popup.
+        // Pressed twice in a row, the second press lands on the card that just dropped in and is ignored.
+        await terminalInput.focus();
+        await page.keyboard.press('Meta+Enter');
+        await expect(popup).toContainText('1 more pending');
+        await terminalInput.blur();
+        await page.keyboard.press('Meta+Enter');
+        await page.keyboard.press('Meta+Enter');
+        await expect(popup).not.toContainText('more pending');
+        // An answer given from outside the popup does not pull focus into the next card.
+        await expect(popup.locator(':focus')).toHaveCount(0);
+        await expect(run).not.toHaveAttribute('aria-disabled', 'true');
+        await expect(popup).toContainText('Run this command?');
 
-        await popup.getByRole('button', { name: 'Run', exact: true }).click();
+        // Minimizing folds the popup into a status bar item, off the Terminal, that reopens it.
+        await popup.getByRole('button', { name: 'Minimize' }).click();
+        const waitingItem = page.locator('footer.statusbar').getByRole('button', {
+            name: 'Show 1 waiting for you',
+        });
+        await expect(waitingItem).toBeVisible();
         await expect(popup).toHaveCount(0);
-        await expect(pill).toHaveCount(0);
+        const terminalBox = await page
+            .locator(VISIBLE_SESSION)
+            .locator('.xterm-screen')
+            .boundingBox();
+        const itemBox = await waitingItem.boundingBox();
+        expect(terminalBox && itemBox && itemBox.y >= terminalBox.y + terminalBox.height).toBe(
+            true,
+        );
+        await page.screenshot({ path: testInfo.outputPath('waiting-popup-status-item.png') });
+        await waitingItem.click();
+        await expect(popup).toContainText('echo approved');
+        await popup.getByRole('button', { name: 'Minimize' }).click();
+        await expect(popup).toHaveCount(0);
+
+        // Focus Waiting Request unfolds the popup and moves focus in; answering the last request returns it.
+        await terminalInput.focus();
+        await page.keyboard.press('Meta+Alt+w');
+        await expect(run).toBeFocused();
+        // The card that just unfolded ignores keys until it arms, like one that just dropped in.
+        await expect(run).not.toHaveAttribute('aria-disabled', 'true');
+        await page.keyboard.press('Meta+Backspace');
+        await expect(popup).toHaveCount(0);
+        await expect(waitingItem).toHaveCount(0);
+        await expect(terminalInput).toBeFocused();
 
         // Each answer reached its own Chat, never the one on screen.
         await sessionCard(page, askingId).click();
         await expect(page.locator(VISIBLE_SESSION)).toContainText(/Running Lint, Type check\./u);
         await sessionCard(page, approvingId).click();
         await expect(page.locator(VISIBLE_SESSION).getByText('The command ran.')).toBeVisible();
+        await sessionCard(page, denyingId).click();
+        await expect(page.locator(VISIBLE_SESSION).getByText('Skipped the command.')).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

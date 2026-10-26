@@ -106,6 +106,70 @@ describe('dispatchGlobalKeydown', () => {
         expect(run).toHaveBeenCalledOnce();
     });
 
+    it('runs a command that ignores repeats once per press, consuming the held key', () => {
+        const run = vi.fn();
+        registerCommand({
+            id: 'test.shortcut.once' as CommandId,
+            title: 'Once',
+            category: 'Test',
+            run,
+            ignoresRepeat: true,
+        });
+        useWorkbenchStore.setState({
+            bootstrap: {
+                keybindings: [{ key: 'cmd+shift+f', command: 'test.shortcut.once' }],
+            } as unknown as BootstrapState,
+        });
+        const state = createGlobalShortcutDispatchState();
+        const first = projectSearchKeydownEvent();
+        dispatchGlobalKeydown(state, first.event);
+        const held = projectSearchKeydownEvent();
+        Object.assign(held.event, { repeat: true });
+        dispatchGlobalKeydown(state, held.event);
+
+        expect(run).toHaveBeenCalledOnce();
+        expect(held.preventDefault).toHaveBeenCalledOnce();
+    });
+
+    it('passes a key whose default command cannot run on to a later binding for it, and leaves it alone without one', () => {
+        const unavailable = vi.fn();
+        const later = vi.fn();
+        registerCommand({
+            id: 'test.shortcut.unavailable' as CommandId,
+            title: 'Unavailable',
+            category: 'Test',
+            run: unavailable,
+            when: () => false,
+        });
+        registerCommand({
+            id: 'test.shortcut.later' as CommandId,
+            title: 'Later',
+            category: 'Test',
+            run: later,
+        });
+        const defaultBinding = { key: 'cmd+shift+f', command: 'test.shortcut.unavailable' };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                keybindings: [
+                    defaultBinding,
+                    { key: 'cmd+shift+f', command: 'test.shortcut.later' },
+                ],
+            } as unknown as BootstrapState,
+        });
+        const withLater = projectSearchKeydownEvent();
+        dispatchGlobalKeydown(createGlobalShortcutDispatchState(), withLater.event);
+        expect(later).toHaveBeenCalledOnce();
+        expect(unavailable).not.toHaveBeenCalled();
+
+        useWorkbenchStore.setState({
+            bootstrap: { keybindings: [defaultBinding] } as unknown as BootstrapState,
+        });
+        const alone = projectSearchKeydownEvent();
+        dispatchGlobalKeydown(createGlobalShortcutDispatchState(), alone.event);
+        expect(alone.preventDefault).not.toHaveBeenCalled();
+        expect(unavailable).not.toHaveBeenCalled();
+    });
+
     it('honors the same shortcut once the handoff has settled and the registration is clear', async () => {
         useWorkbenchStore.setState({
             bootstrap: { keybindings: [projectSearchShortcut] } as unknown as BootstrapState,

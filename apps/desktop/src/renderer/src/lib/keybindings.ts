@@ -73,10 +73,15 @@ export function isModifierKey(key: string): boolean {
 
 export interface KeybindingContext {
     terminalFocus: boolean;
+    /**
+     * Whether a binding's command can run right now. A command that cannot (Allow Request with no approval waiting)
+     * passes the key on to the next binding for it, so a user's own binding on a default's key still works.
+     */
+    isCommandAvailable?: (command: string) => boolean;
 }
 
 /**
- * Resolves the first source-ordered binding whose supported context is active.
+ * Resolves the first source-ordered binding whose supported context is active and whose command is available.
  */
 export function resolveShortcutBinding(
     shortcutMap: ReadonlyMap<string, readonly Keybinding[]>,
@@ -85,7 +90,11 @@ export function resolveShortcutBinding(
 ): Keybinding | undefined {
     return shortcutMap
         .get(shortcut)
-        ?.find((binding) => binding.when === undefined || context[binding.when]);
+        ?.find(
+            (binding) =>
+                (binding.when === undefined || context[binding.when]) &&
+                (context.isCommandAvailable?.(binding.command) ?? true),
+        );
 }
 
 const EDITABLE_SELECTOR = 'input, textarea, [contenteditable], .monaco-editor, .xterm';
@@ -157,4 +166,36 @@ export function useCommandShortcut(commandId: CommandId | undefined): string | u
         const binding = keybindings?.find((item) => item.command === commandId);
         return binding?.key;
     }, [keybindings, commandId]);
+}
+
+const ARIA_MODIFIERS: Readonly<Record<string, string>> = {
+    alt: 'Alt',
+    cmd: 'Meta',
+    ctrl: 'Control',
+    shift: 'Shift',
+};
+
+const ARIA_KEY_NAMES: Readonly<Record<string, string>> = {
+    arrowdown: 'ArrowDown',
+    arrowleft: 'ArrowLeft',
+    arrowright: 'ArrowRight',
+    arrowup: 'ArrowUp',
+    pagedown: 'PageDown',
+    pageup: 'PageUp',
+    space: 'Space',
+};
+
+/**
+ * A stored keybinding as `aria-keyshortcuts` spells it (`cmd+enter` reads `Meta+Enter`), so assistive technology hears
+ * the key the user actually bound. A chord sequence (`cmd+k cmd+s`) has no spelling there, because the attribute uses
+ * spaces to separate alternatives, and gets none.
+ */
+export function ariaKeyShortcuts(shortcut: string | undefined): string | undefined {
+    if (!shortcut || shortcut.includes(' ')) return undefined;
+    const parts = normalizeShortcut(shortcut).split('+');
+    const key = parts.pop() ?? '';
+    const name =
+        ARIA_KEY_NAMES[key] ??
+        (key.length === 1 ? key.toUpperCase() : key.charAt(0).toUpperCase() + key.slice(1));
+    return [...parts.map((part) => ARIA_MODIFIERS[part] ?? part), name].join('+');
 }

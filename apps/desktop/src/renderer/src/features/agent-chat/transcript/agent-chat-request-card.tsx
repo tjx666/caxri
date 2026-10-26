@@ -11,17 +11,12 @@ import { useColorizedCode } from '../../../components/markdown/use-colorized-cod
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
+import { ariaKeyShortcuts, useCommandShortcut } from '../../../lib/keybindings';
 import { cn } from '../../../lib/utilities';
 import { answerAgentChatRequest } from '../agent-chat-commands';
 import { AgentChatMessage } from '../messages/agent-chat-message';
-import {
-    AGENT_CHAT_APPROVE_SHORTCUT,
-    AGENT_CHAT_DENY_SHORTCUT,
-} from '../permissions/agent-chat-approval-keys';
-import {
-    AGENT_CHAT_APPROVAL_ATTRIBUTE,
-    useAgentChatApprovalKeys,
-} from '../permissions/use-agent-chat-approval-keys';
+import { AGENT_CHAT_APPROVAL_ATTRIBUTE } from '../permissions/agent-chat-approval-commands';
+import { useAgentChatApprovalKeys } from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatFileChanges } from '../turns/agent-chat-file-changes';
 import { agentChatCommandCwd, isApprovalClickGuarded } from './agent-chat-presentation';
 import { AgentChatQuestionForm } from './questions/agent-chat-question-form';
@@ -81,6 +76,11 @@ function ApprovalBody({
     title: string;
 }) {
     const { t } = useTranslation();
+    // The keys the user bound, so a rebinding in Keyboard Shortcuts shows here at once.
+    const allowShortcut = useCommandShortcut('agentChat.allowRequest');
+    const denyShortcut = useCommandShortcut('agentChat.denyRequest');
+    const shortcutFor = (decision: string): string | undefined =>
+        decision === 'accept' ? allowShortcut : decision === 'decline' ? denyShortcut : undefined;
     // The card is keyed by request, so mount time is when this request appeared.
     const [shownAt] = useState(() => performance.now());
     const [isArmed, setArmed] = useState(armDelayMs <= 0);
@@ -125,13 +125,7 @@ function ApprovalBody({
                 {choices.map(({ decision, label }) => {
                     const button = (
                         <Button
-                            aria-keyshortcuts={
-                                decision === 'accept'
-                                    ? 'Meta+Enter'
-                                    : decision === 'decline'
-                                      ? 'Meta+Backspace'
-                                      : undefined
-                            }
+                            aria-keyshortcuts={ariaKeyShortcuts(shortcutFor(decision))}
                             aria-disabled={!isArmed || undefined}
                             disabled={isAnswering}
                             key={decision}
@@ -161,15 +155,7 @@ function ApprovalBody({
                     );
                     if (decision === 'acceptForSession') return button;
                     return (
-                        <Tooltip
-                            content={label}
-                            key={decision}
-                            shortcut={
-                                decision === 'accept'
-                                    ? AGENT_CHAT_APPROVE_SHORTCUT
-                                    : AGENT_CHAT_DENY_SHORTCUT
-                            }
-                        >
+                        <Tooltip content={label} key={decision} shortcut={shortcutFor(decision)}>
                             {button}
                         </Tooltip>
                     );
@@ -183,8 +169,8 @@ function ApprovalBody({
  * A pending approval or question. It sits above the composer rather than in the timeline so the turn that waits on it
  * can never scroll it out of view. Answering takes it away at once (`answerAgentChatRequest`), and a failed answer
  * brings it back; its controls go inert on the first answer, so a double click cannot answer twice. The first approval
- * in the pane also answers to the keyboard (Cmd+Enter accepts, Cmd+Backspace denies) while the composer is empty, and
- * its buttons' tooltips say so.
+ * in the pane also answers to the Allow Request and Deny Request keybindings (`Cmd+Enter` and `Cmd+Backspace` by
+ * default) while the composer is empty, and its buttons' tooltips show whatever the user bound.
  */
 export function AgentChatRequestCard({
     approvalArmDelayMs = 0,
@@ -200,10 +186,10 @@ export function AgentChatRequestCard({
     terminalId,
 }: {
     /**
-     * Ignores pointer clicks on the approval buttons for this long after the card appears, and makes a question
-     * option's click only select it in that time; for a card that drops in on its own (the waiting popup), where the
-     * second click of a double click aimed at the previous card, or a click meant for what was under the pointer, must
-     * not decide this one.
+     * Ignores pointer clicks on the approval buttons and the approval keys for this long after the card appears, and
+     * makes a question option's click only select it in that time; for a card that drops in on its own (the waiting
+     * popup), where the second click of a double click or the second press of a doubled key aimed at the previous card,
+     * or a click meant for what was under the pointer, must not decide this one.
      */
     approvalArmDelayMs?: number;
     /**
@@ -254,6 +240,7 @@ export function AgentChatRequestCard({
     };
     const choices = request.kind === 'question' ? [] : agentChatApprovalChoices(request, t);
     useAgentChatApprovalKeys(cardReference, {
+        armDelayMs: approvalArmDelayMs,
         isEnabled: choices.length > 0 && !isAnswering,
         onDecision: (decision) => {
             if (choices.some((choice) => choice.decision === decision))

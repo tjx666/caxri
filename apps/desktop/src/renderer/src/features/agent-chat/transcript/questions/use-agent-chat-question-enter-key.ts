@@ -4,34 +4,17 @@ import { useEffect } from 'react';
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
 import { isImeComposing } from '../../../../lib/ime';
-import { isAgentChatComposerEmpty } from '../../permissions/agent-chat-approval-keys';
-import { AGENT_CHAT_PANE_ATTRIBUTE } from '../../permissions/use-agent-chat-approval-keys';
+import { AGENT_CHAT_PANE_ATTRIBUTE } from '../../permissions/agent-chat-approval-commands';
+import type { AgentChatKeyTarget } from '../../permissions/agent-chat-approval-keys';
+import {
+    isAgentChatComposerEmpty,
+    isAgentChatStaticTarget,
+} from '../../permissions/agent-chat-approval-keys';
 
 /**
  * The attribute every question card carries; only the first one in a pane answers to Enter from outside it.
  */
 export const AGENT_CHAT_QUESTION_ATTRIBUTE = 'data-agent-chat-question';
-
-const INTERACTIVE_ROLES = new Set([
-    'button',
-    'checkbox',
-    'combobox',
-    'gridcell',
-    'link',
-    'menuitem',
-    'menuitemcheckbox',
-    'menuitemradio',
-    'option',
-    'radio',
-    'row',
-    'searchbox',
-    'slider',
-    'spinbutton',
-    'switch',
-    'tab',
-    'textbox',
-    'treeitem',
-]);
 
 /**
  * Whether the focused element does nothing with Enter, so a question card may take it: nothing focused, an empty Chat
@@ -40,20 +23,10 @@ const INTERACTIVE_ROLES = new Set([
  * holding a draft, and a button, link, tree row, or other control keep their own Enter. An empty composer's Enter would
  * otherwise send the first queued message, which the turn waiting on the question could not take anyway.
  */
-export function isAgentChatQuestionEnterTarget(
-    target: {
-        isContentEditable?: boolean;
-        role?: string | null;
-        tagName?: string;
-        value?: unknown;
-    } | null,
-): boolean {
-    if (!target) return true;
-    const tag = target.tagName?.toLowerCase() ?? '';
-    if (['a', 'button', 'input', 'select', 'summary', 'textarea'].includes(tag)) return false;
-    // Before the roles: the composer's editor is a `textbox` too.
-    if (target.isContentEditable === true) return isAgentChatComposerEmpty(target);
-    return !(target.role && INTERACTIVE_ROLES.has(target.role));
+export function isAgentChatQuestionEnterTarget(target: AgentChatKeyTarget | null): boolean {
+    // The composer's editor is a `textbox` too, so it is read by its draft before the static-target rule.
+    if (target?.isContentEditable === true) return isAgentChatComposerEmpty(target);
+    return isAgentChatStaticTarget(target);
 }
 
 /**

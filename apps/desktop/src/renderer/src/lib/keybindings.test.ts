@@ -2,6 +2,7 @@ import { formatShortcut } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    ariaKeyShortcuts,
     buildShortcutMap,
     isKeybindingRecordingEventTarget,
     isModifierKey,
@@ -165,6 +166,24 @@ describe('buildShortcutMap', () => {
     });
 });
 
+describe('resolveShortcutBinding availability', () => {
+    it('skips a binding whose command cannot run for the next one on the same key', () => {
+        const map = buildShortcutMap([
+            { command: 'agentChat.allowRequest', key: 'cmd+enter' },
+            { command: 'workbench.action.terminal.sendSequence', key: 'cmd+enter' },
+        ]);
+        const isCommandAvailable = (command: string) => command !== 'agentChat.allowRequest';
+
+        expect(
+            resolveShortcutBinding(map, 'cmd+enter', { isCommandAvailable, terminalFocus: false })
+                ?.command,
+        ).toBe('workbench.action.terminal.sendSequence');
+        expect(resolveShortcutBinding(map, 'cmd+enter', { terminalFocus: false })?.command).toBe(
+            'agentChat.allowRequest',
+        );
+    });
+});
+
 describe('isModifierKey', () => {
     it('identifies lone modifier presses, which never open or complete a chord', () => {
         for (const key of ['Alt', 'Control', 'Meta', 'Shift']) {
@@ -186,5 +205,20 @@ describe('isKeybindingRecordingEventTarget', () => {
         expect(isKeybindingRecordingEventTarget(recordingTarget)).toBe(true);
         expect(isKeybindingRecordingEventTarget(ordinaryTarget)).toBe(false);
         expect(isKeybindingRecordingEventTarget(null)).toBe(false);
+    });
+});
+
+describe('ariaKeyShortcuts', () => {
+    it('spells a stored binding the way aria-keyshortcuts names keys', () => {
+        expect(ariaKeyShortcuts('cmd+enter')).toBe('Meta+Enter');
+        expect(ariaKeyShortcuts('cmd+backspace')).toBe('Meta+Backspace');
+        expect(ariaKeyShortcuts('ctrl+alt+shift+arrowleft')).toBe('Control+Alt+Shift+ArrowLeft');
+        expect(ariaKeyShortcuts('alt+y')).toBe('Alt+Y');
+        expect(ariaKeyShortcuts('f2')).toBe('F2');
+    });
+
+    it('gives a chord sequence or a missing binding no spelling', () => {
+        expect(ariaKeyShortcuts('cmd+k cmd+s')).toBeUndefined();
+        expect(ariaKeyShortcuts(undefined)).toBeUndefined();
     });
 });

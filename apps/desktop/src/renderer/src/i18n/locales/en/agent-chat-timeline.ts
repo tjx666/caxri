@@ -127,7 +127,6 @@ export const agentChatTimeline = {
     'agentChat.request.submit': 'Submit',
     'agentChat.request.skip': 'Skip',
     'agentChat.request.cwd': 'in {{cwd}}',
-    'agentChat.waiting.label': 'Waiting for you',
     'agentChat.waiting.announceQuestion': '{{provider}} in {{session}} has a question',
     'agentChat.waiting.announceApproval': '{{provider}} in {{session}} needs your approval',
     'agentChat.waiting.openSession': 'Open Session',

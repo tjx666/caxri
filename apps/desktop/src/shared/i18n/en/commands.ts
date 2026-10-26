@@ -74,6 +74,8 @@ export const commands = {
     'commands.agentChat.togglePlanMode': 'Toggle Plan Mode',
     'commands.agentChat.openSideChat': 'Open Side Chat',
     'commands.agentChat.focusWaitingRequest': 'Focus Waiting Request',
+    'commands.agentChat.allowRequest': 'Allow Request',
+    'commands.agentChat.denyRequest': 'Deny Request',
     'commands.terminal.close': 'Close Terminal',
     'commands.workbench.closeActiveTab': 'Close Active Tab',
     'commands.workbench.closeOtherTabs': 'Close Other Tabs',

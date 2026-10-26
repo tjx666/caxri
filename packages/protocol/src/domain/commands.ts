@@ -64,6 +64,8 @@ export const commandIds = [
     'agentChat.togglePlanMode',
     'agentChat.openSideChat',
     'agentChat.focusWaitingRequest',
+    'agentChat.allowRequest',
+    'agentChat.denyRequest',
     'terminal.close',
     'workbench.closeActiveTab',
     'workbench.closeOtherTabs',

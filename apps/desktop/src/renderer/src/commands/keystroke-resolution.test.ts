@@ -179,6 +179,20 @@ describe('resolveKeystroke', () => {
         ).toEqual({ kind: 'cancelChord' });
     });
 
+    it('swallows a continuation whose command cannot run, like one that matches nothing', () => {
+        expect(
+            resolveKeystroke({
+                editorFocus: false,
+                event: keyEvent('s', { metaKey: true }),
+                isCommandAvailable: (command) => command !== 'settings.openKeybindings',
+                leadingChords,
+                pending: { leadingChord: 'cmd+k', yieldToEditor: false },
+                shortcutMap,
+                terminalFocus: false,
+            }),
+        ).toEqual({ kind: 'cancelChord' });
+    });
+
     /**
      * A pending chord has no visible affordance, so an accidental `Cmd+K` over a dialog must not also eat the Escape
      * the user presses to close it. Escape ends the sequence and still reaches the dialog's own handler.
