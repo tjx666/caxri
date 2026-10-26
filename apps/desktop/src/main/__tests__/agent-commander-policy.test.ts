@@ -115,6 +115,7 @@ describe('Agent Commander Renderer policy', () => {
         'agentChat.rewind',
         'agentChat.restoreFiles',
         'agentActions.list',
+        'terminal.agentUsage',
     ])('admits the Chat surface request %s only for the Commander Terminal', (method) => {
         const policy = new AgentCommanderRendererPolicy(() => {});
         ensured(policy);
