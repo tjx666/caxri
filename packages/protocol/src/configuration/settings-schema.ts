@@ -175,6 +175,7 @@ export const appSettingsSchema = z.object({
         .default(spec['session.defaultAgent'].default),
     'session.openAgentsInChat': booleanField(spec['session.openAgentsInChat']),
     'agentChat.idleCompaction.enabled': booleanField(spec['agentChat.idleCompaction.enabled']),
+    'agentChat.autoContinueAtUsageLimit': booleanField(spec['agentChat.autoContinueAtUsageLimit']),
     'agentChat.longPasteThreshold': integerField(spec['agentChat.longPasteThreshold']),
     'agentChat.workingIndicator': z
         .enum(enumValues(spec['agentChat.workingIndicator'].options))

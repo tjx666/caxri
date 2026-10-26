@@ -459,6 +459,12 @@ export interface AgentChatProviderSession {
      */
     readContext?(): Promise<ChatContextDetails>;
     /**
+     * Continues the conversation once a used-up plan limit resets (issue #2220), without a user message in the
+     * timeline: Claude sends a hidden prompt, Codex starts a turn with no input. The service has already checked that
+     * no turn runs. Resolves once the turn started. Providers without plan limits omit it.
+     */
+    continueAfterUsageLimit?(): Promise<void>;
+    /**
      * The account's plan rate limits as the running provider process reports them, for the status bar's usage chip.
      * Undefined when the plan has none (an API key) or the process does not answer. Providers that report limits only
      * through their transcript omit it.

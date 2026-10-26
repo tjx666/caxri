@@ -35,8 +35,9 @@ vi.mock('../session', () => ({ ChatIdleCompaction: recorder('idleCompaction') })
 function compose() {
     lifecycle.events.length = 0;
     const suspensionState: { service?: unknown } = {};
+    const UsageLimitWaits = recorder('usageLimitWaits');
     const supervision = createTerminalSupervision({
-        agentChat: {} as never,
+        agentChat: { states: { usageLimitWaits: new UsageLimitWaits() } } as never,
         configuration: {} as never,
         coordinator: { maintenanceTurns: {} } as never,
         database: {} as never,
@@ -64,15 +65,18 @@ describe('createTerminalSupervision', () => {
         await supervision.close();
 
         // Suspension and the resource monitor keep the order the composition root closed them in before this slice owned
-        // them; idle compaction sits between.
+        // them; idle compaction and the usage-limit waits sit between.
         expect(lifecycle.events).toEqual([
             'suspension.start',
             'idleCompaction.start',
+            'usageLimitWaits.start',
             'monitor.start',
             'suspension.close:begin',
             'suspension.close:end',
             'idleCompaction.close:begin',
             'idleCompaction.close:end',
+            'usageLimitWaits.close:begin',
+            'usageLimitWaits.close:end',
             'monitor.close:begin',
             'monitor.close:end',
         ]);

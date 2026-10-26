@@ -13,6 +13,7 @@ export { chatStateStore } from './chat-state-store';
 export { claudePlanLimits } from './claude-plan-limits';
 export { withTimeout } from './claude-prompt-queue';
 export { ChatUsageContinuation } from './continuation/chat-usage-continuation';
+export { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
 export { createAgentChatHandlers } from './handlers';
 export { ProviderProcess } from './provider-process';
 export { reapStaleProviderGroups } from './provider-process-groups';

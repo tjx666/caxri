@@ -10,7 +10,12 @@ import {
 } from '@caxri/protocol';
 
 import { clip, isRecord, stringField } from './chat-items';
-import { isQueuedPromptUuid, queuedPromptUuid } from './queued-prompt-uuid';
+import {
+    isQueuedPromptUuid,
+    isUsageLimitContinuePromptUuid,
+    queuedPromptUuid,
+    usageLimitContinuePromptUuid,
+} from './queued-prompt-uuid';
 
 const COMMAND_NAME = /^[\w:.-]{1,100}$/u;
 
@@ -124,6 +129,26 @@ export function claudePromptUuid(delivery?: 'queued' | 'steered'): UUID {
  */
 export function isQueuedClaudePrompt(uuid: string): boolean {
     return isQueuedPromptUuid(uuid);
+}
+
+/**
+ * What a Claude Chat sends on its own once a used-up plan limit resets (issue #2220), instead of repeating the user's
+ * last message. Hidden from the timeline live and on a history replay, where its uuid
+ * ({@link claudeUsageLimitContinueUuid}) marks it, so the turn reads as the Agent continuing rather than the user
+ * asking.
+ */
+export const CLAUDE_USAGE_LIMIT_CONTINUE_PROMPT =
+    'Your usage limit has reset. Pick up where you left off and continue the work, without repeating steps that are already done.';
+
+export function claudeUsageLimitContinueUuid(): UUID {
+    return usageLimitContinuePromptUuid() as UUID;
+}
+
+/**
+ * Whether a transcript user record's uuid marks an automatic continuation after a usage limit reset.
+ */
+export function isClaudeUsageLimitContinuePrompt(uuid: string): boolean {
+    return isUsageLimitContinuePromptUuid(uuid);
 }
 
 /**

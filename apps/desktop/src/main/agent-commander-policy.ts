@@ -62,6 +62,7 @@ const ADMITTED_METHODS = new Set<string>([
  * `terminal.switchSurface` backs the title bar's `Terminal | Chat` toggle, and the `agentChat.*` and `agentActions.*`
  * methods are the Chat pane's whole surface once the Commander runs as a Chat. `terminal.agentUsage` is the read-only
  * usage poll behind the composer's plan pace alert, which the Chat pane mounts here as in the Workbench.
+ * `agentChat.usageLimitWait` backs the usage-limit notice's Cancel and Continue now, which only touch this Chat.
  */
 const TERMINAL_METHODS = new Set<string>([
     'agentActions.list',
@@ -87,6 +88,7 @@ const TERMINAL_METHODS = new Set<string>([
     'agentChat.sendQueuedNow',
     'agentChat.stopTask',
     'agentChat.takeQueued',
+    'agentChat.usageLimitWait',
     'agentCommander.openFileLink',
     'terminal.agentUsage',
     'terminal.attach',

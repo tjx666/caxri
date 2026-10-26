@@ -48,6 +48,7 @@ export function createAgentChatHandlers(
     | 'agentChat.sendQueuedNow'
     | 'agentChat.stopTask'
     | 'agentChat.takeQueued'
+    | 'agentChat.usageLimitWait'
 > {
     const usage = () => {
         const { usage: continuation } = agentChat.states;
@@ -60,8 +61,27 @@ export function createAgentChatHandlers(
         'agentChat.continuationTargets': async ({ terminalId }) => ({
             targets: await usage().targets(terminalId),
         }),
-        'agentChat.continueInAgent': ({ terminalId, provider, turnId }) =>
-            usage().continueIn(terminalId, provider, turnId),
+        'agentChat.continueInAgent': ({ terminalId, provider, turnId }) => {
+            agentChat.states.usageLimitWaits?.cancel(terminalId, 'continuedElsewhere');
+            return usage().continueIn(terminalId, provider, turnId);
+        },
+        /**
+         * "Continue now" is the user continuing the Chat, so it takes a delegated Chat over like a message; the wait
+         * ends first, so that human input does not cancel it as a message would.
+         */
+        'agentChat.usageLimitWait': async ({ terminalId, turnId, action }) => {
+            const waits = agentChat.states.usageLimitWaits;
+            if (!waits)
+                throw new CaxriError('UNAVAILABLE', 'Automatic continuation is unavailable');
+            if (action === 'cancel') {
+                waits.cancel(terminalId, 'cancelled', turnId);
+                return null;
+            }
+            await waits.continueNow(terminalId, turnId, () =>
+                agentChat.delegation.observeHumanInput(terminalId),
+            );
+            return null;
+        },
         'agentChat.generateHandoff': ({ terminalId }) => {
             usage().generateHandoff(terminalId);
             return null;

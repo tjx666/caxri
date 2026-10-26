@@ -18,7 +18,12 @@ import {
 } from './chat-items';
 import { claudeResponseUsage } from './claude-context';
 import { claudeFeedbackItems, claudeFeedbackToolUseId } from './claude-feedback';
-import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
+import {
+    claudeUserImageCount,
+    isClaudeCompactCommand,
+    isClaudeUsageLimitContinuePrompt,
+    isQueuedClaudePrompt,
+} from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, claudeUsageTokens, text } from './claude-items';
 import { claudeCompaction } from './claude-system-notices';
 import { settleClaudeToolItem } from './claude-tool-results';
@@ -109,8 +114,10 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
     const turnId = clip(uuid, 200);
     state.turnId = turnId;
     state.turns.push({ id: turnId, status: 'completed' });
-    // The compaction notice already stands for `/compact`; the live Chat hides its bubble too.
+    // The compaction notice already stands for `/compact`, and the usage-limit notice for an automatic continuation;
+    // the live Chat hides their bubbles too.
     if (imageCount === 0 && visible && isClaudeCompactCommand(visible.text)) return;
+    if (isClaudeUsageLimitContinuePrompt(uuid)) return;
     state.items.set(turnId, {
         id: turnId,
         turnId,

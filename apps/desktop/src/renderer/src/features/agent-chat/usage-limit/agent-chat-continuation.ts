@@ -4,10 +4,12 @@ import type {
     AgentChatUsageLimit,
     AgentProvider,
 } from '@caxri/protocol';
+import { AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import { translate } from '../../../i18n';
-import { localizedLimitReset } from '../../../lib/usage-format';
+import { localizedDuration, localizedLimitReset } from '../../../lib/usage-format';
+import { agentChatMessageTime } from '../transcript/agent-chat-time';
 
 /**
  * The continuation control's default and its alternatives: the first provider that can take the work over is the split
@@ -74,4 +76,39 @@ export function agentChatUsageGuardOffer(
         generate: isOpen && canAskSideQuestion && guard.usedPercent < 100,
         used: guard.handoff !== 'available' && guard.document === undefined,
     };
+}
+
+/**
+ * The line a usage-limit notice shows about the Chat continuing on its own (issue #2220): when a wait continues, that
+ * it already did, that the reset passed while the Chat could not continue, or why it never waited.
+ */
+export function agentChatAutoContinueLabel(
+    autoContinue: NonNullable<AgentChatUsageLimit['autoContinue']>,
+    now: number,
+    t: Translate = translate,
+): string {
+    switch (autoContinue.status) {
+        case 'waiting': {
+            const ms = autoContinue.at - now;
+            // Sweeps run every few seconds, so a passed time is only a moment before the continuation lands.
+            if (ms < 60_000) return t('agentChat.usageLimit.auto.continuing');
+            return t('agentChat.usageLimit.auto.waiting', {
+                time: agentChatMessageTime(autoContinue.at),
+                duration: localizedDuration(ms, t),
+            });
+        }
+        case 'continued': {
+            return t('agentChat.usageLimit.auto.continued', {
+                time: agentChatMessageTime(autoContinue.at),
+            });
+        }
+        case 'missed': {
+            return t('agentChat.usageLimit.auto.missed');
+        }
+        case 'skipped': {
+            return t(`agentChat.usageLimit.auto.skipped.${autoContinue.reason}`, {
+                count: AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS,
+            });
+        }
+    }
 }

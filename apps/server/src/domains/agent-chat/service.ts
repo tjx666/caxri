@@ -28,9 +28,9 @@ import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider
 import * as queueActions from './chat-queue-actions';
 import { saveChatDefaults } from './chat-session-logs';
 import type { ChatStartHost } from './chat-start';
-import { startChat } from './chat-start';
+import { ensureChatStarted } from './chat-start';
 import type { ChatState, ChatStateDelivery, ChatStopper } from './chat-states';
-import { ChatStates, requireOpenChatSession } from './chat-states';
+import { ChatStates } from './chat-states';
 import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
 import type { ChatTaskHost } from './chat-task-read';
 import { readChatTask, readChatTaskHistory, stopChatTask } from './chat-task-read';
@@ -86,11 +86,16 @@ export class AgentChatService {
             onAgentStateChanged: (terminalId, state) =>
                 options.onAgentStateChanged?.(terminalId, state),
             usage: options.usage,
+            usageLimitWaits: options.usageLimitWaits,
         });
         options.usage?.attach({
             states: this.states,
             interrupt: (id) => this.interrupt(id, 'usageGuard'),
             start: (id) => this.start(id),
+        });
+        options.usageLimitWaits?.attach({
+            states: this.states,
+            deliver: (id, deliver) => this.enqueue(id, deliver),
         });
         this.maintenance = new ChatIdleMaintenance({
             database: options.database,
@@ -120,23 +125,18 @@ export class AgentChatService {
         state.session = undefined;
     }
 
-    private async ensureStarted(
+    private ensureStarted(
         terminalId: string,
         state: ChatState,
         shouldKeepAgentAutonomy = false,
     ): Promise<AgentChatProviderSession> {
-        const terminal = this.states.admit(terminalId, state);
-        /**
-         * `start()` publishes its session as soon as the process spawns, before the thread exists, so an open session
-         * alone does not mean it can take a turn. Join an in-flight start instead of sending into it early.
-         */
-        if (this.starts.has(terminalId) || !state.session?.isOpen)
-            await this.starts.run(terminalId, () =>
-                startChat(this.startHost(), terminal, state, shouldKeepAgentAutonomy),
-            );
-        // A teardown may have begun while the start was in flight; its session is about to close.
-        this.states.admit(terminalId, state);
-        return requireOpenChatSession(state, terminal.provider);
+        return ensureChatStarted(
+            this.startHost(),
+            this.starts,
+            terminalId,
+            state,
+            shouldKeepAgentAutonomy,
+        );
     }
 
     /**

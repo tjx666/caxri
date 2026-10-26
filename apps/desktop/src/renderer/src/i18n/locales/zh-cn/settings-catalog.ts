@@ -156,6 +156,9 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agentChat.idleCompaction.enabled.title': '在提示缓存过期前压缩空闲的 Chat',
     'settings.agentChat.idleCompaction.enabled.description':
         'Claude 或 Grok Build 的 Chat 上下文较大且空闲到提示缓存快要过期时，自动压缩对话，这样你下一条消息只需重新读取摘要，而不是整段对话。',
+    'settings.agentChat.autoContinueAtUsageLimit.title': '用量限额重置后自动继续',
+    'settings.agentChat.autoContinueAtUsageLimit.description':
+        'Claude 或 Codex 的 Chat 因套餐用量用完而停下时，等限额重置（24 小时内）后自动继续任务。你可以在 Chat 中取消等待，或立即继续。',
 
     'settings.terminal.osc52ClipboardWrite.title': '允许终端中的程序复制到剪贴板',
     'settings.terminal.osc52ClipboardWrite.description':

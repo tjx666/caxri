@@ -48,7 +48,14 @@ test('a Claude Chat that used up its 5-hour limit continues in Codex in a new Se
             menu.getByRole('menuitem', { name: /Grok Build.*Not installed/u }),
         ).toHaveAttribute('aria-disabled', 'true');
         await page.keyboard.press('Escape');
+        // The limit resets within a day, so the Chat waits to continue on its own.
+        const wait = notice.locator('[data-agent-chat-auto-continue="waiting"]');
+        await expect(wait).toContainText(/Continues automatically at .+ \(in /u);
         await page.screenshot({ path: testInfo.outputPath('usage-limit-recovery.png') });
+        // Cancel ends the wait and leaves the rest of the card as it was.
+        await notice.getByRole('button', { name: 'Cancel' }).click();
+        await expect(wait).toHaveCount(0);
+        await expect(notice.getByRole('button', { name: 'Continue now' })).toHaveCount(0);
 
         await notice.getByRole('button', { name: 'Continue in Codex' }).click();
 
@@ -110,6 +117,42 @@ test('a Claude Chat at 99% of its weekly usage refuses new messages and writes o
         await expect(guard).toHaveAttribute('data-agent-chat-usage-guard', 'used');
         await expect(guard.getByRole('button', { name: 'Generate hand-off' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('usage-guard-handoff.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('Continue now resumes a Claude Chat waiting for its limit without a visible message', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-usage-limit-wait-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: { executableSource: fakeClaudeChatExecutableSource({}) } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await message.fill('usage exhausted');
+        await message.press('Enter');
+
+        const notice = chat.locator('[data-agent-chat-usage-limit="session"]');
+        await expect(notice.locator('[data-agent-chat-auto-continue="waiting"]')).toBeVisible();
+        await notice.getByRole('button', { name: 'Continue now' }).click();
+
+        // The continuation is a new turn the Agent answers; the timeline gains no user message for it.
+        await expect(chat.getByText(/Hello from fake Claude/u)).toBeVisible();
+        await expect(chat.locator('[data-agent-chat-user-message]')).toHaveCount(1);
+        await expect(notice.locator('[data-agent-chat-auto-continue]')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('usage-limit-continue-now.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

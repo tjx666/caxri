@@ -1,8 +1,10 @@
+import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatItem, AgentChatPatchOperation } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_OUTPUT_LENGTH } from '@caxri/protocol';
 import { omit } from 'es-toolkit';
 
 import { clip, isRecord, stringField, tail } from './chat-items';
+import type { AgentChatSessionHost } from './chat-provider';
 import { structuredPatchDiff, text } from './claude-items';
 
 /**
@@ -187,18 +189,21 @@ export class ClaudeToolClock {
 }
 
 /**
- * Settles every item a user message's `tool_result` blocks answer. `resolve` supplies what only the live session knows
- * about each result: whether the user declined it, and how long it ran.
+ * Settles every item a user message's `tool_result` blocks answer, and returns those content blocks for the subagent
+ * tasks to read. `resolve` supplies what only the live session knows about each result: whether the user declined it,
+ * and how long it ran.
  */
-export function settleClaudeToolResults(
-    content: unknown,
-    items: readonly AgentChatItem[],
-    structured: unknown,
+export function applyClaudeToolResults(
+    host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
+    message: SDKUserMessage,
     resolve: (id: string) => Omit<ClaudeToolResult, 'structured'>,
-): AgentChatPatchOperation[] {
-    if (!Array.isArray(content)) return [];
-    const byId = new Map(items.map((item) => [item.id, item]));
-    return content.flatMap((block: unknown): AgentChatPatchOperation[] => {
+): unknown[] | undefined {
+    const content: unknown = isRecord(message.message) ? message.message.content : undefined;
+    if (!Array.isArray(content)) return undefined;
+    const blocks: unknown[] = content;
+    const byId = new Map(host.read().items.map((item) => [item.id, item]));
+    const structured = message.tool_use_result;
+    const operations = blocks.flatMap((block: unknown): AgentChatPatchOperation[] => {
         if (!isRecord(block) || block.type !== 'tool_result') return [];
         const toolUseId = stringField(block.tool_use_id);
         if (!toolUseId) return [];
@@ -207,4 +212,6 @@ export function settleClaudeToolResults(
         const settled = item && settleClaudeToolItem(item, block, { structured, ...resolve(id) });
         return settled ? [{ op: 'upsertItem', item: settled }] : [];
     });
+    if (operations.length > 0) host.apply(operations);
+    return blocks;
 }

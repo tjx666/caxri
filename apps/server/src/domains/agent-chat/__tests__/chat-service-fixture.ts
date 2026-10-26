@@ -13,6 +13,7 @@ import { expect, onTestFinished, vi } from 'vitest';
 import type { AgentLifecycleSignal } from '../../agents';
 import { CaxriDatabase } from '../../db';
 import type { ChatUsageContinuation } from '../continuation/chat-usage-continuation';
+import type { ChatUsageLimitWaits } from '../continuation/chat-usage-limit-waits';
 import { AgentChatService } from '../service';
 import type { AgentChatEndpoint, AgentChatServiceOptions } from '../service-options';
 
@@ -54,6 +55,13 @@ export async function fixture(
          * Builds the weekly usage guard and continuation over the fixture's database.
          */
         usage?: (database: CaxriDatabase, logger: StructuredLogger) => ChatUsageContinuation;
+        /**
+         * Builds the automatic continuation after a usage limit resets over the fixture's database.
+         */
+        usageLimitWaits?: (
+            database: CaxriDatabase,
+            logger: StructuredLogger,
+        ) => ChatUsageLimitWaits;
     } = {},
 ) {
     const provider = options.provider ?? 'codex';
@@ -86,6 +94,7 @@ export async function fixture(
             spawn(process.execPath, [FAKE_CLIS[provider], ...arguments_], spawnOptions),
     );
     const usage = options.usage?.(database, logger);
+    const usageLimitWaits = options.usageLimitWaits?.(database, logger);
     const createService = () =>
         new AgentChatService({
             database,
@@ -129,6 +138,7 @@ export async function fixture(
             onAgentStateChanged: options.onAgentStateChanged,
             delegation: options.delegation,
             usage,
+            usageLimitWaits,
         });
     const service = createService();
     /**
@@ -244,6 +254,7 @@ export async function fixture(
     };
     return {
         usage,
+        usageLimitWaits,
         database,
         agentEnvironment,
         logWrite,

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { CaxriError } from '@caxri/protocol';
+import type { SingleFlight } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
@@ -24,6 +25,7 @@ import { AgentChatStartError } from './chat-provider';
 import { chatSessionLogCallbacks } from './chat-session-logs';
 import { chatStateStore } from './chat-state-store';
 import type { ChatState, ChatTerminal } from './chat-states';
+import { requireOpenChatSession } from './chat-states';
 
 /**
  * What starting a Chat's provider process needs from the service that owns it.
@@ -39,7 +41,7 @@ export interface ChatStartHost extends ChatExitHost {
  * by a newer launch, or a Chat closed, deleted, detached, or archived while preparing, closes what it opened; a failure
  * is recorded in the projection, where every Client sees it.
  */
-export async function startChat(
+async function startChat(
     host: ChatStartHost,
     terminal: ChatTerminal,
     state: ChatState,
@@ -199,4 +201,28 @@ export async function startChat(
                 states.publish(terminalId);
         }
     }
+}
+
+/**
+ * Resolves the open provider session of a Chat state, starting it or joining the start in flight in `starts`.
+ */
+export async function ensureChatStarted(
+    host: ChatStartHost,
+    starts: SingleFlight<string, void>,
+    terminalId: string,
+    state: ChatState,
+    shouldKeepAgentAutonomy: boolean,
+): Promise<AgentChatProviderSession> {
+    const terminal = host.states.admit(terminalId, state);
+    /**
+     * `start()` publishes its session as soon as the process spawns, before the thread exists, so an open session alone
+     * does not mean it can take a turn. Join an in-flight start instead of sending into it early.
+     */
+    if (starts.has(terminalId) || !state.session?.isOpen)
+        await starts.run(terminalId, () =>
+            startChat(host, terminal, state, shouldKeepAgentAutonomy),
+        );
+    // A teardown may have begun while the start was in flight; its session is about to close.
+    host.states.admit(terminalId, state);
+    return requireOpenChatSession(state, terminal.provider);
 }

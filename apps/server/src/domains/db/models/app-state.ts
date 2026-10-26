@@ -1,6 +1,9 @@
 import {
+    agentChatAutoContinueSchema,
     agentChatHandoffSchema,
+    agentProviderSchema,
     agentUsageGuardSchema,
+    agentUsageLimitWindowSchema,
     auxiliaryWindowStateSchema,
     CaxriError,
     commanderAgentSchema,
@@ -72,6 +75,32 @@ const appStateValueSchemas = {
             }),
         )
         .max(8),
+    /**
+     * Each Chat's automatic continuation after its latest used-up plan limit (issue #2220), so a wait survives a Server
+     * Core restart and its notice comes back after a history replay that lacks it. At most one per Chat Terminal; see
+     * `agent-chat/continuation/chat-usage-limit-waits.ts`.
+     */
+    agentChatUsageLimitWaits: z
+        .array(
+            z.strictObject({
+                terminalId: identifierSchema,
+                turnId: z.string().min(1).max(200),
+                provider: agentProviderSchema,
+                window: agentUsageLimitWindowSchema,
+                resetsAt: z.number().int().positive().optional(),
+                /**
+                 * The failed turn's notice text, so a replay that dropped the notice can show it again.
+                 */
+                message: z.string().max(2_000),
+                failedAt: z.number().int().positive(),
+                /**
+                 * Automatic continuations into this limit so far, counting the one this record waits for.
+                 */
+                attempt: z.number().int().min(1).max(100),
+                autoContinue: agentChatAutoContinueSchema,
+            }),
+        )
+        .max(1_000),
 } as const;
 
 export type AppStateKey = keyof typeof appStateValueSchemas;

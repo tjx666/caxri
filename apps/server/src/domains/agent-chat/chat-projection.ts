@@ -23,7 +23,11 @@ import type { DelegatedTaskDetails } from './chat-delegated-task';
 import { stampDelegatedTasks } from './chat-delegated-task';
 import { ChatHistoryArchive } from './chat-history-archive';
 import { ChatTaskProjections } from './chat-task-projections';
-import { stampUsageContinuations } from './continuation/usage-continuation-stamp';
+import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
+import {
+    observeUsageLimitWaits,
+    stampUsageContinuations,
+} from './continuation/usage-continuation-stamp';
 
 /**
  * Streaming deltas are coalesced into one patch per frame-sized window so a fast provider does not flood every Client
@@ -58,6 +62,10 @@ interface ChatProjectionOptions {
      * The Session another Agent continued a turn in; see {@link stampUsageContinuations}.
      */
     usageContinuedIn?(turnId: string): AgentChatContinuation | undefined;
+    /**
+     * The Chat's automatic continuation after a used-up plan limit; see {@link observeUsageLimitWaits}.
+     */
+    usageLimitWaits?: ProjectionUsageLimitWaits;
     /**
      * Runs when the task list changed, with the new list (`undefined` once a `reset` cleared it). The sidebar's durable
      * subagent summaries follow it; see `ChatSubagentSummaries`.
@@ -408,9 +416,11 @@ export class ChatProjection {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
         const isHistoryReplay = operations.some((operation) => operation.op === 'reset');
-        const carried = isHistoryReplay
-            ? this.carryNotices(operations)
-            : this.persistNewNotices(operations);
+        const carried = observeUsageLimitWaits(
+            isHistoryReplay ? this.carryNotices(operations) : this.persistNewNotices(operations),
+            isHistoryReplay,
+            this.options.usageLimitWaits,
+        );
         const labeled = isHistoryReplay ? carried : this.labelIdleCompaction(carried);
         const timed = stampStoppedTurns(
             stampNewItems(this.snapshot, labeled, Date.now()),
@@ -419,6 +429,7 @@ export class ChatProjection {
         const stamped = stampUsageContinuations(
             stampDelegatedTasks(timed, (delegationId) => this.options.delegatedTask(delegationId)),
             (turnId) => this.options.usageContinuedIn?.(turnId),
+            (turnId) => this.options.usageLimitWaits?.stateOf(turnId),
         );
         if (isHistoryReplay) this.replacedItems = [];
         const isReplacement = stamped.some((operation) => operation.op === 'reset');

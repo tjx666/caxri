@@ -10,6 +10,7 @@ import {
     AgentChatService,
     chatStateStore,
     ChatUsageContinuation,
+    ChatUsageLimitWaits,
     reapStaleProviderGroups,
 } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
@@ -93,6 +94,12 @@ export function createAgentChatService({
                 }),
             ),
     });
+    const usageLimitWaits = new ChatUsageLimitWaits({
+        database,
+        logger,
+        settings: () => configuration.getSettings().value,
+        isUsageGuarded: (terminalId) => usage.isBlocked(terminalId),
+    });
     const service = new AgentChatService({
         database,
         logger,
@@ -100,6 +107,7 @@ export function createAgentChatService({
         agentEnvironment,
         launchSettings,
         usage,
+        usageLimitWaits,
         longRunningShellCommands: () =>
             configuration.getSettings().value['agents.longRunningShellCommands'],
         onReady: (terminalId) => {
@@ -112,6 +120,7 @@ export function createAgentChatService({
             retireLaunch: (terminalId, launchId) =>
                 delegationState.service?.interruptTerminal(terminalId, false, launchId),
             humanInput: (terminalId) => {
+                usageLimitWaits.cancel(terminalId, 'userInput');
                 commanderHooks.chatInput(terminalId);
                 delegationState.service?.interruptTerminal(terminalId, true);
             },

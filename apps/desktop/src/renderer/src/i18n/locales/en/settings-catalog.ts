@@ -165,6 +165,10 @@ export const settingsCatalog = {
         'Compact idle Chats before the prompt cache expires',
     'settings.agentChat.idleCompaction.enabled.description':
         'Compacts a Claude or Grok Build Chat that holds a large context and has waited long enough that its prompt cache is about to expire, so your next message re-reads the summary instead of the whole conversation.',
+    'settings.agentChat.autoContinueAtUsageLimit.title':
+        'Continue automatically after a usage limit resets',
+    'settings.agentChat.autoContinueAtUsageLimit.description':
+        'When a Claude or Codex Chat stops because your plan usage limit is used up, wait for the limit to reset (within 24 hours) and continue the task on its own. You can cancel the wait or continue right away from the Chat.',
 
     'settings.terminal.osc52ClipboardWrite.title':
         'Let programs in the Terminal copy to your clipboard',

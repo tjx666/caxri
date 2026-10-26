@@ -7,9 +7,10 @@ status: current
 
 When a provider account runs out of plan usage, the work in a Chat should not stop with it. Caxri
 handles two moments: a turn that already failed on a used-up limit (recovery), and a weekly window
-that is about to run out (the weekly usage guard). Both end in the same action: continue the Chat's
-work in a new Session of the same Project with another Agent. Both are Chat-first; the PTY Terminal
-surface is not guarded yet.
+that is about to run out (the weekly usage guard). Both offer the same action: continue the Chat's
+work in a new Session of the same Project with another Agent. A failed turn whose limit resets soon
+also continues on its own in the same Chat once the reset passes. All of it is Chat-first; the PTY
+Terminal surface is not guarded yet.
 
 Contract: `packages/protocol/src/agent/agent-usage-continuation.ts`. Server owners:
 `apps/server/src/domains/usage/usage-guard.ts` (the guard) and
@@ -26,7 +27,8 @@ Contract: `packages/protocol/src/agent/agent-usage-continuation.ts`. Server owne
   beneath, and offers `Continue in <Agent>`: a split button whose leading half names the first
   Agent that can take over, with a list of every other Agent. An Agent that cannot take over is
   listed disabled with why: not installed or its own account is at the guard
-  (`agentChat.continuationTargets`). Waiting for the reset needs no control.
+  (`agentChat.continuationTargets`). Below the reset line, the card shows the automatic
+  continuation and its controls (next section).
 - **Continuation.** `agentChat.continueInAgent` is owner-only and Server-owned. It creates a
   delegation with `newSession` and `handoff` from the source Chat, so the new Session reuses the
   existing `Continued from` and `Continued in` cards. The delegation id is a deterministic UUID of
@@ -37,6 +39,38 @@ Contract: `packages/protocol/src/agent/agent-usage-continuation.ts`. Server owne
   the source provider anything (`continuation-brief.ts`): why the work moved, what to verify first
   (`git status`), the latest request, the plan, the files changed, and the newest conversation that
   fits the delegation prompt budget. Reasoning text and control characters are dropped.
+
+## Automatic continuation after the reset
+
+`agentChat.autoContinueAtUsageLimit` (default on) lets a Chat that failed on a used-up limit carry on
+by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-limit-waits.ts`.
+
+- **When it waits.** The failed turn's notice must carry a `resetsAt` within
+  `AGENT_CHAT_AUTO_CONTINUE_HORIZON_MS` (24 hours), and the account must not be at the weekly usage
+  guard. Otherwise the notice says why it will not continue (`skipped`: reset unknown, reset too far
+  away, attempts used, or the usage guard). The wait fires 30 to 120 seconds after the reset, a
+  random stagger so several Chats on one account do not hit the provider in the same second.
+- **What it sends.** Nothing the user wrote. Claude Code gets a fixed hidden prompt asking it to pick
+  up where it left off; its uuid carries a marker (`queued-prompt-uuid.ts`) so a history replay
+  hides it too. Codex starts a turn with empty input, which runs the model on the thread as it
+  stands; the empty user item it echoes is dropped. Before sending, a Claude Chat reads its plan
+  limits: a window still used up with a later reset moves the wait there instead of failing a turn
+  into it.
+- **Attempts.** Each continuation that fails into the limit again counts toward
+  `AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS` (3); the last one is `skipped` with `attemptsUsed`.
+  Human input resets the count.
+- **Ending a wait.** The card offers `Continue now` and `Cancel` while waiting. A message the user
+  sends, `Continue in <Agent>`, turning the setting off, switching the Terminal to the PTY surface,
+  or closing, deleting, or archiving it also ends it. A cancelled wait does not arm again for the
+  same notice, and one that ends while the plan limits are read before sending sends nothing.
+- **Missed.** A wait more than 30 minutes past its time (the Mac slept, or Server Core was not
+  running), a Chat busy with a pending request, a queued follow-up, or a held queue, or a start that
+  fails, becomes `missed`: the card offers `Continue` and never retries by itself, because a
+  timed-out start may still have reached the provider.
+- **Persistence.** The latest wait per Terminal lives in `app_state` (`agentChatUsageLimitWaits`), so
+  a restart keeps it. Claude Code's transcript keeps no failed-turn notice, so a replay re-adds the
+  notice while its wait is `waiting` or `missed`. A 15-second sweep fires due waits one Chat at a
+  time.
 
 ## Weekly usage guard
 
@@ -61,12 +95,15 @@ Agent` continues from the deterministic package, with the hand-off document firs
 
 ## Observability
 
-Both events are content-free and use closed enums (`packages/protocol/src/domain/logging/logging-usage.ts`):
+All three events are content-free and use closed enums (`packages/protocol/src/domain/logging/logging-usage.ts`):
 
 - `usage.guard`: `provider` and `outcome` (`armed`, `window_reset` with its duration, `refused` with
   its closed `path`, `handoff_started`, `handoff_generated`, `handoff_failed` with its closed
   `reason`).
 - `usage.continuation`: source and target `provider`, `trigger` (`usageLimit`, `usageGuard`), and
   `outcome` (`created`, `existing`, `failed` with the error `code`), with the duration.
+- `usage.auto_continue`: `provider`, `window`, `attempt`, and `outcome` (`waiting`, `continued`,
+  `rescheduled`, `missed`, `skipped` or `cancelled` with its closed `reason`, `failed` with the
+  error `code`), with the time waited.
 
-Neither carries prompt, hand-off, transcript, or provider text.
+None carries prompt, hand-off, transcript, or provider text.

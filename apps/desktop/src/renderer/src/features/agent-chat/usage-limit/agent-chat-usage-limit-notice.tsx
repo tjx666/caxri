@@ -8,6 +8,8 @@ import { localizedLimitReset } from '../../../lib/usage-format';
 import { useTerminal } from '../../../stores/selectors';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
 import { useClockTick } from '../hooks/use-clock-tick';
+import { AgentChatAutoContinueActions } from './agent-chat-auto-continue-actions';
+import { AgentChatAutoContinueLine } from './agent-chat-auto-continue-line';
 import { agentChatUsageLimitHeadline } from './agent-chat-continuation';
 import { AgentChatContinueInAgent } from './agent-chat-continue-in-agent';
 
@@ -15,9 +17,10 @@ type Notice = Extract<AgentChatItem, { type: 'notice' }>;
 
 /**
  * A turn the provider failed because the plan's usage limit is used up (issue #2581): which window ran out and when it
- * resets, the provider's own words muted beneath, and the way forward, continuing in another Agent. Waiting for the
- * reset needs no control; the composer stays usable. A task tab's read-only timeline has no Terminal, so it shows the
- * failure without the action.
+ * resets, the provider's own words muted beneath, and the ways forward: the Chat continuing on its own once the limit
+ * resets (issue #2220), with Continue now and Cancel, and continuing in another Agent. The composer stays usable, and
+ * sending anything ends the wait. Once the Chat continued on its own, the other Agent is no longer offered. A task
+ * tab's read-only timeline has no Terminal, so it shows the failure without the actions.
  */
 export function AgentChatUsageLimitNotice({
     item,
@@ -50,8 +53,16 @@ export function AgentChatUsageLimitNotice({
                 {detail && (
                     <div className="wrap-anywhere whitespace-pre-line text-muted">{detail}</div>
                 )}
-                {terminalId && item.turnId && (
-                    <div className="flex select-none">
+                {usageLimit.autoContinue && (
+                    <AgentChatAutoContinueLine autoContinue={usageLimit.autoContinue} />
+                )}
+                {terminalId && item.turnId && usageLimit.autoContinue?.status !== 'continued' && (
+                    <div className="flex flex-wrap items-center gap-1.5 select-none">
+                        <AgentChatAutoContinueActions
+                            autoContinue={usageLimit.autoContinue}
+                            terminalId={terminalId}
+                            turnId={item.turnId}
+                        />
                         <AgentChatContinueInAgent
                             continuedIn={usageLimit.continuedIn}
                             terminalId={terminalId}
