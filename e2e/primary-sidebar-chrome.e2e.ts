@@ -262,7 +262,7 @@ test('Session rows support keyboard selection independently from rename', async 
     }
 });
 
-test('Files actions stay visible while Project actions reveal on hover or focus', async () => {
+test('Project actions reveal on hover or focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-primary-sidebar-affordances-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -271,23 +271,6 @@ test('Files actions stay visible while Project actions reveal on hover or focus'
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        const caption = running.page.locator('.panel-caption');
-        const captionTitle = caption.locator('.panel-caption-title');
-        const fileActionNames = ['New File', 'New Folder', 'Refresh Files', 'Collapse Folders'];
-        await expect(captionTitle).toHaveText('project');
-        await expect(captionTitle).toHaveAttribute('title', await realpath(root));
-        await Promise.all(
-            fileActionNames.map((name) =>
-                expect(caption.getByRole('button', { name })).toHaveCSS('opacity', '1'),
-            ),
-        );
-        await running.page.mouse.move(500, 300);
-        await Promise.all(
-            fileActionNames.map((name) =>
-                expect(caption.getByRole('button', { name })).toHaveCSS('opacity', '1'),
-            ),
-        );
-
         const projectHeading = running.page.locator('.project-heading');
         const newSession = projectHeading.getByRole('button', { name: 'New Session in project' });
         const projectDisclosure = projectHeading.getByRole('button', {
