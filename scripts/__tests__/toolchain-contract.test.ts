@@ -25,6 +25,7 @@ interface ActionDocument {
 
 interface PackageManifest {
     devDependencies: Record<string, string>;
+    scripts?: Record<string, string>;
 }
 
 const mise = await readFile(new URL('../../mise.toml', import.meta.url), 'utf8');
@@ -38,10 +39,12 @@ const packageManifest = JSON.parse(
 ) as PackageManifest;
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 /**
- * The `tsc` the mobile workspace's own scripts run. It is not the root TypeScript 7 CLI; see the `apps/mobile`
- * exception in `.agents/skills/project-architecture/references/stack-baseline.md`.
+ * The `tsc` the mobile `typecheck` script runs: the root TypeScript 7 CLI, addressed by path because the workspace's
+ * own TypeScript 6 `tsc` bin shadows it on `PATH`. See the `apps/mobile` exception in
+ * `.agents/skills/project-architecture/references/stack-baseline.md`.
  */
-const mobileTscPath = join(repoRoot, 'apps/mobile/node_modules/.bin/tsc');
+const mobileTypecheckTscPath = join(repoRoot, 'node_modules/.bin/tsc');
+const mobileTypecheckTsc = '../../node_modules/.bin/tsc';
 
 function miseVersion(tool: 'node' | 'pnpm'): string {
     const match = mise.match(new RegExp(`^${tool} = "([^"]+)"$`, 'mu'));
@@ -315,7 +318,7 @@ describe('toolchain contract', () => {
         expect(typescript.version).toMatch(/^6\./u);
     });
 
-    it('keeps apps/mobile on the documented TypeScript 6 compiler that Expo tooling needs', async () => {
+    it('keeps the TypeScript 6 API Expo tooling needs while apps/mobile typechecks with TypeScript 7', async () => {
         const mobileManifest = JSON.parse(
             await readFile(new URL('../../apps/mobile/package.json', import.meta.url), 'utf8'),
         ) as PackageManifest;
@@ -324,12 +327,17 @@ describe('toolchain contract', () => {
             name: string;
             version: string;
         };
-        const { stdout } = await execFileAsync(mobileTscPath, ['--version']);
+        const { stdout } = await execFileAsync(mobileTypecheckTscPath, ['--version']);
+        const typecheck = mobileManifest.scripts?.typecheck ?? '';
+        const compilers = typecheck.match(/(?:^|&& )(\S+) --noEmit/gu) ?? [];
 
         expect(mobileManifest.devDependencies.typescript).toMatch(/^\^6\./u);
         expect(resolvedTypescript).toMatchObject({ name: 'typescript' });
         expect(resolvedTypescript.version).toMatch(/^6\./u);
-        expect(stdout.trim()).toBe(`Version ${resolvedTypescript.version}`);
+        expect(compilers).toHaveLength(2);
+        for (const compiler of compilers)
+            expect(compiler).toContain(`${mobileTypecheckTsc} --noEmit`);
+        expect(stdout.trim()).toMatch(/^Version 7\./u);
     });
 
     it('rejects browser document globals from the React Native runtime project', async () => {
@@ -356,7 +364,7 @@ describe('toolchain contract', () => {
 
             let diagnostics = '';
             try {
-                await execFileAsync(mobileTscPath, [
+                await execFileAsync(mobileTypecheckTscPath, [
                     '--noEmit',
                     '-p',
                     join(workspace, 'tsconfig.json'),

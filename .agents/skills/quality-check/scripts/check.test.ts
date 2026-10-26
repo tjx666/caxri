@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { dirtyLayerReportForFiles } from './changed-file-layers';
 import {
+    ESLINT_CACHE_ARGUMENTS,
     eslintArguments,
     eslintTargets,
     formatCheckSummary,
@@ -32,6 +35,7 @@ describe('final lint validation', () => {
             'eslint',
         ]);
         expect(calls.at(-1)?.arguments).toEqual([
+            ...ESLINT_CACHE_ARGUMENTS,
             '--no-warn-ignored',
             '--max-warnings=0',
             'source.ts',
@@ -361,10 +365,24 @@ describe('eslintArguments', () => {
     it('silences intentionally ignored files while keeping the zero-warning threshold', () => {
         expect(eslintArguments(['tools/oxlint/anti-slop/index.ts'])).toEqual([
             '--fix',
+            ...ESLINT_CACHE_ARGUMENTS,
             '--no-warn-ignored',
             '--max-warnings=0',
             'tools/oxlint/anti-slop/index.ts',
         ]);
+    });
+
+    /**
+     * Both lint passes share the `lint` script's cache, so a focused check that re-runs after an edit re-lints only the
+     * changed bytes. A second cache location would split the entries and leave the repository-wide gate cold.
+     */
+    it('reuses the lint script cache for every pass', () => {
+        const manifest = JSON.parse(
+            readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8'),
+        ) as {
+            scripts: Record<string, string>;
+        };
+        expect(manifest.scripts.lint).toContain(ESLINT_CACHE_ARGUMENTS.join(' '));
     });
 });
 

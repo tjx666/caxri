@@ -167,13 +167,12 @@ describe('pnpm dependency contract', () => {
         });
         expect(rootManifest.devDependencies?.['@oxlint/plugins']).toBe(workspace.catalog?.oxlint);
         // `--max-warnings=0` mirrors the `lint` script: ESLint exits 0 on a warning, so without it the hook lets
-        // through exactly what CI rejects.
-        expect(rootManifest['lint-staged']?.['*.{js,jsx,mjs,cjs}']?.[0]).toBe(
-            'eslint --fix --no-warn-ignored --max-warnings=0',
-        );
-        expect(rootManifest['lint-staged']?.['*.{ts,tsx,mts,cts}']?.[0]).toBe(
-            'eslint --fix --no-warn-ignored --max-warnings=0',
-        );
+        // through exactly what CI rejects. The cache flags reuse the `lint` script's cache, so a commit re-lints only
+        // files whose bytes changed since the last check.
+        const stagedEslint =
+            'eslint --fix --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache --no-warn-ignored --max-warnings=0';
+        expect(rootManifest['lint-staged']?.['*.{js,jsx,mjs,cjs}']?.[0]).toBe(stagedEslint);
+        expect(rootManifest['lint-staged']?.['*.{ts,tsx,mts,cts}']?.[0]).toBe(stagedEslint);
         // Every worktree shares one Git stash stack, so lint-staged's default stash backup can pop a sibling
         // session's entry into this checkout. A broad revert once dropped the flag unnoticed.
         expect(rootManifest.scripts?.['lint:staged']).toBe('lint-staged --no-stash');

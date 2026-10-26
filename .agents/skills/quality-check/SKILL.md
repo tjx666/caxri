@@ -53,7 +53,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.
 - `--type` runs the repository-wide TypeScript check (about 16 seconds) because TypeScript cannot
-  safely validate one file in isolation.
+  safely validate one file in isolation. Every `tsc` keeps gitignored incremental build info
+  (composite projects beside their `tsconfig`, the rest under `.cache/tsc/`), so a repeat run in
+  the same worktree rechecks only what changed; delete those files to force a cold check.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract
   changes.
 - `--e2e` requires one or more explicit `e2e/*.e2e.ts` files, rebuilds Caxri, and runs only those
