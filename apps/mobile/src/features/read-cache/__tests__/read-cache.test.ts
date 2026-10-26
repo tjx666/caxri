@@ -1,6 +1,7 @@
 import type { AgentChatSnapshot, AgentTimelineItem } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildAgentChatTimeline } from '../../agent-chat/agent-chat-timeline';
 import {
     cachedChatSchema,
     cachedTimelineSchema,
@@ -123,7 +124,7 @@ describe('read cache model', () => {
         expect(trimChatSnapshot(chat([]))).not.toHaveProperty('permissionMode');
     });
 
-    it('keeps the newest messages of a long Chat and says the rest were cut', () => {
+    it('keeps the newest whole turns of a long Chat and says the rest were cut', () => {
         const items = Array.from({ length: READ_CACHE_MAX_ITEMS + 5 }, (_, index) => ({
             id: `a${index}`,
             turnId: index < 10 ? 't1' : 't2',
@@ -132,10 +133,62 @@ describe('read cache model', () => {
             streaming: false,
         }));
         const trimmed = trimChatSnapshot(chat(items));
+        expect(trimmed.items).toHaveLength(READ_CACHE_MAX_ITEMS - 5);
+        expect(trimmed.items[0]?.id).toBe('a10');
+        expect(trimmed.truncated).toBe(true);
+        expect(trimmed.turns.map((turn) => turn.id)).toEqual(['t2']);
+    });
+
+    it('keeps the tail of a single turn longer than the cache', () => {
+        const items = Array.from({ length: READ_CACHE_MAX_ITEMS + 5 }, (_, index) => ({
+            id: `a${index}`,
+            turnId: 't2',
+            type: 'agentMessage' as const,
+            text: `reply ${index}`,
+            streaming: false,
+        }));
+        const trimmed = trimChatSnapshot(chat(items));
         expect(trimmed.items).toHaveLength(READ_CACHE_MAX_ITEMS);
         expect(trimmed.items[0]?.id).toBe('a5');
-        expect(trimmed.truncated).toBe(true);
-        expect(trimmed.turns.map((turn) => turn.id)).toEqual(['t1', 't2']);
+        expect(trimmed.turns.map((turn) => turn.id)).toEqual(['t2']);
+    });
+
+    it('opens a saved Chat with the same turn artifacts the live read shows', () => {
+        const items: AgentChatSnapshot['items'] = [
+            { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Fix it' },
+            {
+                id: 'f1',
+                turnId: 't1',
+                type: 'fileChange',
+                status: 'completed',
+                changes: [{ path: 'a.ts', kind: 'update', diff: '@@ -1 +1 @@\n-a\n+b' }],
+            },
+            ...Array.from({ length: READ_CACHE_MAX_ITEMS - 5 }, (_, index) => ({
+                id: `r${index}`,
+                turnId: 't1',
+                type: 'reasoning' as const,
+                text: `step ${index}`,
+                streaming: false,
+            })),
+            { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Done', streaming: false },
+            ...Array.from({ length: 10 }, (_, index) => ({
+                id: `b${index}`,
+                turnId: 't2',
+                type: 'agentMessage' as const,
+                text: `reply ${index}`,
+                streaming: false,
+            })),
+        ];
+        const live = { ...chat(items), requests: [] };
+        const artifactRows = (snapshot: AgentChatSnapshot) =>
+            buildAgentChatTimeline(snapshot)
+                .filter((entry) => entry.kind === 'artifacts')
+                .map((entry) => entry.id);
+        expect(artifactRows(live)).toEqual(['artifacts:t1']);
+        // The saved copy either holds a turn whole or leaves it for the live read to add above.
+        const saved = trimChatSnapshot(live);
+        expect(saved.items.some((item) => item.turnId === 't1')).toBe(false);
+        expect(artifactRows(saved)).toEqual([]);
     });
 
     it('drops tool and system details from a saved Conversation', () => {

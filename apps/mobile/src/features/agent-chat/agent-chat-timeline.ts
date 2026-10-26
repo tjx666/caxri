@@ -345,7 +345,8 @@ function finishedTurnEntries(
  * gets artifacts, so a running turn stays live and never claims a result it has not reached. `expandedIds` names the
  * finished turns and delegated task pointers the user unfolded, and the answered question lists the user folded; the
  * list owns it rather than a row, so a recycled row never carries another turn's state. When the window cut older items
- * (`truncated`), the oldest turn may be missing its start, so it shows no artifacts rather than an incomplete summary.
+ * (`truncated`), the oldest turn may be missing its start; it still shows the artifacts of what remains, as Desktop
+ * does, because withholding them made the cards pop in mid-list once a fuller window or an older page arrived.
  */
 export function buildAgentChatTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> &
@@ -371,13 +372,12 @@ export function buildAgentChatTimeline(
         const segment = items.slice(start, end);
         const visible = segment.filter((item) => isAgentChatItemVisible(item));
         const turn = turnId === undefined ? undefined : finished.get(turnId);
-        const isComplete = start > 0 || snapshot.truncated !== true;
         entries.push(
             ...(turn
                 ? finishedTurnEntries(
                       visible,
                       turn,
-                      isComplete ? collectAgentChatTurnArtifacts(turn.id, segment) : undefined,
+                      collectAgentChatTurnArtifacts(turn.id, segment),
                       expandedIds,
                       t,
                       taskItemIds,
