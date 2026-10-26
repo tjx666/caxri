@@ -195,4 +195,16 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-usage-screen',
     },
+    'MOB-CHAT-SEND-UNKNOWN-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-send-unknown',
+    },
+    'MOB-CHAT-USAGE-GUARD-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-usage-guard',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

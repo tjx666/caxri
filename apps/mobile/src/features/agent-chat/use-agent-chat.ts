@@ -23,6 +23,7 @@ import {
     answerAgentChatRequestOptimistically,
 } from './agent-chat-pending';
 import type { AgentChatQueueEditTarget } from './agent-chat-queue';
+import { chatSendFaultGate } from './agent-chat-send-fault';
 import { startAgentChatReader } from './agent-chat-sync';
 
 /**
@@ -220,6 +221,8 @@ export const useAgentChat = ({
                 ...(attachments.length > 0 && { attachments: [...attachments] }),
                 ...(delivery && { delivery }),
             });
+            // Acceptance-only: fail after the request was delivered; see `agent-chat-send-fault.ts`.
+            if (chatSendFaultGate.shouldInject()) throw new Error('Acceptance chat send fault');
         },
         [request, terminalId],
     );

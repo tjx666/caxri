@@ -49,6 +49,10 @@ import {
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
+import {
+    executeMobileChatSendUnknownScenario,
+    executeMobileChatUsageGuardScenario,
+} from './mobile-chat-delivery-guard-scenarios';
 import { executeMobilePlanLimitsScenario } from './mobile-plan-limits-scenario';
 import { executeMobilePullRequestScenario } from './mobile-pull-request-scenario';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
@@ -533,6 +537,10 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatBurstStreamScenario(environment, artifacts);
         case 'MOB-CHAT-31':
             return executeMobileAgentUsageScenario(environment, artifacts);
+        case 'MOB-CHAT-SEND-UNKNOWN-01':
+            return executeMobileChatSendUnknownScenario(environment, artifacts);
+        case 'MOB-CHAT-USAGE-GUARD-01':
+            return executeMobileChatUsageGuardScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }
