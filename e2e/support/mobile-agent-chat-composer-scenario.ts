@@ -326,6 +326,20 @@ export async function executeMobileChatComposerScenario(
         );
         await waitForNoCheck(serial, 'agent-chat-queue-editor');
         await capture(environment, 'queue-edit-in-place-saved', artifacts);
+        // Delete sits behind the row's swipe, so a left swipe reveals it first.
+        const row = checkBounds(await mobileSemantics(serial), 'agent-chat-queue-item');
+        if (!row) throw new Error('The queued row is not laid out');
+        const rowY = String(Math.round((row.top + row.bottom) / 2));
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            String(row.right - 40),
+            rowY,
+            String(row.left + Math.round((row.right - row.left) * 0.4)),
+            rowY,
+            '300',
+        ]);
+        await waitForCheck(serial, 'agent-chat-queue-delete');
         await tapMobileCheckByBounds(serial, 'agent-chat-queue-delete');
         await waitForMobile(
             () => chat.read(),
