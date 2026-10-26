@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { createAgentChatStreamPacer } from '@caxri/protocol';
@@ -25,16 +25,21 @@ export function useConversationPacedText(
     const [pacer] = useState(() => createAgentChatStreamPacer(text));
     const [shown, setShown] = useState(() => ({ text, shownAt: performance.now() }));
     const isReducedMotion = useReducedMotion();
+    /**
+     * Kept across loop restarts: every delta restarts the loop, and a per-loop clock would redraw on each one's first
+     * frame, so a stream of deltas arriving faster than `MIN_REDRAW_MS` would re-parse the reply every frame.
+     */
+    const lastRedrawAt = useRef<number | undefined>(undefined);
     useEffect(() => {
         if (!isStreaming || isReducedMotion) return;
-        let lastRedrawAt: number | undefined;
         // Each delta restarts the loop with the longer target; the pacer carries the reveal across restarts.
         let frame = requestAnimationFrame(function step(now) {
-            if (lastRedrawAt !== undefined && now - lastRedrawAt < MIN_REDRAW_MS) {
+            const last = lastRedrawAt.current;
+            if (last !== undefined && now - last < MIN_REDRAW_MS) {
                 frame = requestAnimationFrame(step);
                 return;
             }
-            lastRedrawAt = now;
+            lastRedrawAt.current = now;
             const next = pacer.next(text, now);
             setShown((current) =>
                 current.text === next ? current : { text: next, shownAt: performance.now() },

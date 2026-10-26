@@ -7,7 +7,13 @@
  * It never holds text back for long: the first character of a reply shows on the first frame, a backlog drains in
  * roughly {@link AGENT_CHAT_STREAM_DRAIN_MS}, and a caller stops pacing (showing the whole text at once) the moment the
  * turn completes, fails, or is interrupted. LobeHub's `useSmoothStreamContent` paces its replies the same way, with an
- * adaptive rate and a short buffer; this keeps only its core idea, a reveal rate proportional to the backlog.
+ * adaptive rate and a short buffer.
+ *
+ * The buffer adapts to how text arrives. Over a local connection (Desktop) deltas land every few milliseconds and the
+ * reveal trails by about {@link AGENT_CHAT_STREAM_DRAIN_MS}. Over a phone's cellular or VPN link the same stream lands
+ * in clumps a few hundred milliseconds apart; draining each clump in 180ms and then waiting for the next reads as text
+ * appearing block by block. So the pacer learns the typical gap between arrivals and the arrival rate, stretches the
+ * drain window to cover that gap, and never reveals slower than text arrives, which spreads each clump over the gap.
  */
 
 /**
@@ -28,6 +34,34 @@ const MIN_CHARACTERS_PER_SECOND = 90;
 const NOMINAL_FRAME_MS = 16;
 const MAX_FRAME_MS = 50;
 
+/**
+ * The longest drain window a clumpy link stretches to, so text that already arrived never waits more than about this.
+ */
+const MAX_DRAIN_MS = 600;
+
+/**
+ * How much of the drain window the gap between arrivals fills: a little more than one gap, so the next clump lands
+ * before the last one finished showing.
+ */
+const DRAIN_PER_ARRIVAL_GAP = 1.5;
+
+/**
+ * A gap longer than this between arrivals is a pause (a tool running, the model thinking), not the link's cadence, so
+ * it teaches the pacer nothing.
+ */
+const MAX_ARRIVAL_GAP_MS = 1_000;
+
+/**
+ * Weight of the newest arrival in the running averages of gap and rate.
+ */
+const ARRIVAL_SMOOTHING = 0.3;
+
+/**
+ * The fastest the reveal follows the arrival rate, in characters per millisecond. One paragraph landing at once would
+ * otherwise read as a huge rate and show whole; past this, the backlog share eases it in as before.
+ */
+const MAX_FOLLOWED_RATE_PER_MS = 0.4;
+
 export interface AgentChatStreamPacer {
     /**
      * The part of `target`, the reply received so far, to show at `now` (a monotonic millisecond clock such as
@@ -45,14 +79,34 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
     let shown = initial;
     let lastFrameAt: number | undefined;
     let carry = 0;
+    /**
+     * When `target` last grew and how long it was then, and the running averages of the gap between arrivals and of the
+     * arrival rate (characters per millisecond); `undefined` until two arrivals were seen.
+     */
+    let lastArrival: { at: number; length: number } | undefined;
+    let arrivalGapMs: number | undefined;
+    let arrivalRate: number | undefined;
+    const average = (current: number | undefined, sample: number): number =>
+        current === undefined ? sample : current + (sample - current) * ARRIVAL_SMOOTHING;
+    const noteArrival = (length: number, now: number): void => {
+        if (lastArrival && length <= lastArrival.length) return;
+        const gap = lastArrival ? now - lastArrival.at : undefined;
+        if (lastArrival && gap !== undefined && gap > 0 && gap <= MAX_ARRIVAL_GAP_MS) {
+            arrivalGapMs = average(arrivalGapMs, gap);
+            arrivalRate = average(arrivalRate, (length - lastArrival.length) / gap);
+        }
+        lastArrival = { at: now, length };
+    };
     return {
         next(target, now) {
             if (!target.startsWith(shown)) {
                 shown = target;
                 carry = 0;
                 lastFrameAt = undefined;
+                lastArrival = undefined;
                 return shown;
             }
+            noteArrival(target.length, now);
             const backlog = target.length - shown.length;
             if (backlog === 0) {
                 // Caught up: the next burst starts from a nominal frame, not from the pause before it.
@@ -64,10 +118,17 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
                 lastFrameAt === undefined ? NOMINAL_FRAME_MS : Math.max(now - lastFrameAt, 0);
             const elapsed = gap > MAX_FRAME_MS ? NOMINAL_FRAME_MS : gap;
             lastFrameAt = now;
-            carry += Math.max(
-                (MIN_CHARACTERS_PER_SECOND * elapsed) / 1_000,
-                (backlog * elapsed) / AGENT_CHAT_STREAM_DRAIN_MS,
+            const drainMs = Math.min(
+                MAX_DRAIN_MS,
+                Math.max(AGENT_CHAT_STREAM_DRAIN_MS, (arrivalGapMs ?? 0) * DRAIN_PER_ARRIVAL_GAP),
             );
+            // Keeping pace with arrivals replaces the fixed floor once the rate is known, so a slow, clumpy stream
+            // keeps moving between clumps instead of racing ahead and stopping.
+            const floorPerMs =
+                arrivalRate === undefined
+                    ? MIN_CHARACTERS_PER_SECOND / 1_000
+                    : Math.min(arrivalRate, MAX_FOLLOWED_RATE_PER_MS);
+            carry += Math.max(floorPerMs * elapsed, (backlog * elapsed) / drainMs);
             let count = Math.min(Math.floor(carry), backlog);
             // The first character of a reply shows at once, so pacing never reads as a slow start.
             if (count === 0 && shown.length === 0) count = 1;

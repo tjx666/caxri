@@ -32,6 +32,7 @@ import {
     executeMobileChatChineseScenario,
     executeMobileChatSkillsQuestionScenario,
 } from './mobile-agent-chat-skills-scenario';
+import { executeMobileChatBurstStreamScenario } from './mobile-agent-chat-stream-scenario';
 import { executeMobileChatSubagentScenario } from './mobile-agent-chat-subagent-scenario';
 import {
     executeMobileChatHistoryTasksScenario,
@@ -527,6 +528,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileSessionGroupsScenario(environment, artifacts);
         case 'MOB-CHAT-29':
             return executeMobileSavedTurnArtifactsScenario(environment, artifacts);
+        case 'MOB-CHAT-30':
+            return executeMobileChatBurstStreamScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }
