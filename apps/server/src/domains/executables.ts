@@ -4,7 +4,13 @@ import { delimiter, isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { stripVTControlCharacters } from 'node:util';
 
-import { isAccessible, preferredShell, safeProcessEnvironment } from '@caxri/system';
+import type { StructuredLogger } from '@caxri/system';
+import {
+    isAccessible,
+    logEventCatalog,
+    preferredShell,
+    safeProcessEnvironment,
+} from '@caxri/system';
 
 import { execFileInProcessGroup } from './process-group';
 
@@ -95,54 +101,115 @@ interface LoginShellSnapshot {
     variables: NodeJS.ProcessEnv;
 }
 
-function parseLoginEnvironment(block: string): NodeJS.ProcessEnv {
+/**
+ * Why a login-shell probe produced no snapshot. Closed, so a missing Agent variable can be traced to its cause.
+ */
+type LoginShellFailure =
+    'exit' | 'missing_markers' | 'missing_path' | 'output_limit' | 'spawn' | 'timeout';
+
+/**
+ * Why an exported variable was left out of the Agent environment. Closed and counted, never named.
+ */
+type DroppedVariableReason =
+    | 'caxri_key'
+    | 'entry_limit'
+    | 'invalid_name'
+    | 'name_too_long'
+    | 'session_key'
+    | 'value_too_long';
+
+type DroppedVariableCounts = Record<DroppedVariableReason, number>;
+
+/**
+ * Whether the probe printed a usable `env -0` block: `missing` for shells without `env -0`, `oversized` past
+ * {@link MAX_LOGIN_ENVIRONMENT_BYTES}.
+ */
+type LoginEnvironmentBlock = 'missing' | 'oversized' | 'parsed';
+
+interface ParsedLoginEnvironment {
+    block: LoginEnvironmentBlock;
+    dropped: DroppedVariableCounts;
+    variables: NodeJS.ProcessEnv;
+}
+
+function droppedReason(key: string, valueLength: number): DroppedVariableReason | undefined {
+    if (key.length > MAX_ENVIRONMENT_KEY_LENGTH) return 'name_too_long';
+    if (valueLength > MAX_ENVIRONMENT_VALUE_LENGTH) return 'value_too_long';
+    if (!ENVIRONMENT_KEY_PATTERN.test(key)) return 'invalid_name';
+    if (SHELL_SESSION_KEYS.has(key)) return 'session_key';
+    if (key.startsWith(CAXRI_ENVIRONMENT_PREFIX)) return 'caxri_key';
+    return undefined;
+}
+
+function parseLoginEnvironment(block: string | undefined): ParsedLoginEnvironment {
     const variables: NodeJS.ProcessEnv = {};
-    if (Buffer.byteLength(block, 'utf8') > MAX_LOGIN_ENVIRONMENT_BYTES) return variables;
+    const dropped: DroppedVariableCounts = {
+        caxri_key: 0,
+        entry_limit: 0,
+        invalid_name: 0,
+        name_too_long: 0,
+        session_key: 0,
+        value_too_long: 0,
+    };
+    if (block === undefined) return { block: 'missing', dropped, variables };
+    if (Buffer.byteLength(block, 'utf8') > MAX_LOGIN_ENVIRONMENT_BYTES)
+        return { block: 'oversized', dropped, variables };
     let count = 0;
     for (const entry of block.split('\0')) {
-        if (count >= MAX_LOGIN_ENVIRONMENT_ENTRIES) break;
+        if (!entry) continue;
         const separator = entry.indexOf('=');
-        if (separator <= 0) continue;
-        const key = entry.slice(0, separator);
-        if (
-            key.length > MAX_ENVIRONMENT_KEY_LENGTH ||
-            entry.length - separator - 1 > MAX_ENVIRONMENT_VALUE_LENGTH ||
-            !ENVIRONMENT_KEY_PATTERN.test(key) ||
-            SHELL_SESSION_KEYS.has(key) ||
-            key.startsWith(CAXRI_ENVIRONMENT_PREFIX)
-        )
-            continue;
-        variables[key] = entry.slice(separator + 1);
-        count += 1;
+        const key = separator <= 0 ? '' : entry.slice(0, separator);
+        const reason = droppedReason(key, entry.length - separator - 1);
+        if (reason) {
+            dropped[reason] += 1;
+        } else if (count >= MAX_LOGIN_ENVIRONMENT_ENTRIES) {
+            dropped.entry_limit += 1;
+        } else {
+            variables[key] = entry.slice(separator + 1);
+            count += 1;
+        }
     }
-    return variables;
+    return { block: 'parsed', dropped, variables };
 }
 
 /**
  * Parses the probe output: a marker-prefixed PATH line, then `env -0` output between two markers. Startup files may
  * print banners or terminal escapes before either part, so only marker-delimited text is trusted.
  */
-function parseLoginShellOutput(stdout: string): LoginShellSnapshot {
+function parseLoginShellOutput(
+    stdout: string,
+): LoginShellSnapshot & Omit<ParsedLoginEnvironment, 'variables'> & { hasMarker: boolean } {
     const environmentStart = stdout.indexOf(LOGIN_ENVIRONMENT_START_MARKER);
     const environmentEnd = stdout.lastIndexOf(LOGIN_ENVIRONMENT_END_MARKER);
-    const variables =
+    const environment = parseLoginEnvironment(
         environmentStart !== -1 && environmentEnd > environmentStart
-            ? parseLoginEnvironment(
-                  stdout.slice(
-                      environmentStart + LOGIN_ENVIRONMENT_START_MARKER.length,
-                      environmentEnd,
-                  ),
-              )
-            : {};
+            ? stdout.slice(environmentStart + LOGIN_ENVIRONMENT_START_MARKER.length, environmentEnd)
+            : undefined,
+    );
     const line = (environmentStart === -1 ? stdout : stdout.slice(0, environmentStart))
         .split(/\r?\n/)
         .map((candidate) => stripVTControlCharacters(candidate).trim())
         .findLast((candidate) => candidate.startsWith(LOGIN_PATH_MARKER));
-    const directories = pathDirectories(line?.slice(LOGIN_PATH_MARKER.length) ?? variables.PATH);
+    const directories = pathDirectories(
+        line?.slice(LOGIN_PATH_MARKER.length) ?? environment.variables.PATH,
+    );
     return {
+        ...environment,
+        hasMarker: line !== undefined || environment.block !== 'missing',
         ...(directories.length > 0 && { path: directories.join(delimiter) }),
-        variables,
     };
+}
+
+/**
+ * Maps an `execFile` rejection onto a closed cause: Node kills a timed-out child (`killed`), reports an overflow with
+ * `ERR_CHILD_PROCESS_STDIO_MAXBUFFER`, and gives a numeric `code` for a non-zero exit.
+ */
+function loginShellFailure(error: unknown): LoginShellFailure {
+    const failure = error as { code?: unknown; killed?: unknown } | undefined;
+    if (failure?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return 'output_limit';
+    if (failure?.killed === true) return 'timeout';
+    if (typeof failure?.code === 'number') return 'exit';
+    return 'spawn';
 }
 
 /**
@@ -152,8 +219,24 @@ function parseLoginShellOutput(stdout: string): LoginShellSnapshot {
  */
 export class ExecutableResolver {
     private readonly executableCache = new Map<string, string>();
+    /**
+     * The newest snapshot request: the probe in flight, or the last one to finish.
+     */
     private loginSnapshotRequest: Promise<LoginShellSnapshot | undefined> | undefined;
+    /**
+     * The probe in flight, shared by every caller until it settles so at most one login shell runs at a time.
+     */
+    private loginProbe: Promise<LoginShellSnapshot | undefined> | undefined;
     private loginSnapshotRequestedAt = 0;
+    /**
+     * The result of the last finished probe, served while a newer one runs in the background.
+     */
+    private settledLoginSnapshot: { snapshot: LoginShellSnapshot | undefined } | undefined;
+    /**
+     * Bumped by {@link clear} so a probe that started before it cannot publish its result afterwards.
+     */
+    private loginGeneration = 0;
+    private logger: Pick<StructuredLogger, 'write'> | undefined;
 
     constructor(
         private readonly sourceEnvironment: () => NodeJS.ProcessEnv = () => process.env,
@@ -183,49 +266,110 @@ export class ExecutableResolver {
     }
 
     /**
-     * Shares one in-flight probe between callers. A caller that needs fresh startup-file changes passes `maxAgeMs`; a
-     * refresh that fails keeps the previous snapshot so one slow shell start cannot strip PATH from a working setup.
+     * Shares one in-flight probe between callers. Only the first probe is ever waited for by default: once a snapshot
+     * exists, callers get it at once, even while a newer probe runs. A caller that needs fresh startup-file changes
+     * passes `maxAgeMs`; an older snapshot is then re-read, in the background when `isBackground` is set (the
+     * stale-while-revalidate VS Code applies to its resolved shell environment) and awaited otherwise. A refresh that
+     * fails keeps the previous snapshot so one slow shell start cannot strip PATH from a working setup.
      */
-    private loginSnapshot(maxAgeMs?: number): Promise<LoginShellSnapshot | undefined> {
+    private loginSnapshot(
+        maxAgeMs?: number,
+        isBackground = false,
+    ): Promise<LoginShellSnapshot | undefined> {
         const isStale =
             maxAgeMs !== undefined && this.now() - this.loginSnapshotRequestedAt >= maxAgeMs;
+        // A first probe that failed left no snapshot to serve, so a stale read then waits like the first one did.
+        const snapshot = this.settledLoginSnapshot?.snapshot;
+        if (snapshot && (isBackground || !isStale)) {
+            if (isStale) void this.refreshLoginSnapshot();
+            return Promise.resolve(snapshot);
+        }
         return isStale || !this.loginSnapshotRequest
             ? this.refreshLoginSnapshot()
             : this.loginSnapshotRequest;
     }
 
     private refreshLoginSnapshot(): Promise<LoginShellSnapshot | undefined> {
+        if (this.loginProbe) return this.loginProbe;
         const previous = this.loginSnapshotRequest;
+        const generation = this.loginGeneration;
         this.loginSnapshotRequestedAt = this.now();
-        const request = (async () => (await this.readLoginSnapshot()) ?? (await previous))();
-        this.loginSnapshotRequest = request;
-        return request;
+        const probe = (async () => {
+            const snapshot = (await this.readLoginSnapshot()) ?? (await previous);
+            if (generation === this.loginGeneration) {
+                this.settledLoginSnapshot = { snapshot };
+                this.loginProbe = undefined;
+            }
+            return snapshot;
+        })();
+        this.loginProbe = probe;
+        this.loginSnapshotRequest = probe;
+        return probe;
     }
 
     private async loginPath(maxAgeMs?: number): Promise<string | undefined> {
         return (await this.loginSnapshot(maxAgeMs))?.path;
     }
 
+    /**
+     * Runs one probe and logs its outcome: a closed failure reason, or the variable count and per-reason counts of the
+     * variables left out. Variable names and values are never logged.
+     */
     private async readLoginSnapshot(): Promise<LoginShellSnapshot | undefined> {
         const source = this.sourceEnvironment();
         const shell = preferredShell(source);
+        const startedAt = performance.now();
+        const fail = (reason: LoginShellFailure): void => {
+            this.logger?.write('warn', logEventCatalog.loginShell.probe, {
+                durationMs: performance.now() - startedAt,
+                fields: { outcome: 'failed', reason },
+            });
+        };
+        let stdout: string;
         try {
-            const { stdout } = await this.run(shell, ['-lic', LOGIN_SHELL_PROBE], {
+            ({ stdout } = await this.run(shell, ['-lic', LOGIN_SHELL_PROBE], {
                 env: safeProcessEnvironment(source),
                 timeout: LOGIN_SHELL_TIMEOUT_MS,
                 maxBuffer: MAX_LOGIN_SHELL_OUTPUT_BYTES,
-            });
-            const snapshot = parseLoginShellOutput(stdout);
-            return snapshot.path ? snapshot : undefined;
-        } catch {
+            }));
+        } catch (error) {
+            fail(loginShellFailure(error));
             return undefined;
         }
+        const { block, dropped, hasMarker, path, variables } = parseLoginShellOutput(stdout);
+        if (!path) {
+            fail(hasMarker ? 'missing_path' : 'missing_markers');
+            return undefined;
+        }
+        this.logger?.write('info', logEventCatalog.loginShell.probe, {
+            durationMs: performance.now() - startedAt,
+            fields: {
+                outcome: 'read',
+                environment: block,
+                variables: Object.keys(variables).length,
+                ...Object.fromEntries(
+                    Object.entries(dropped).map(([reason, count]) => [`dropped_${reason}`, count]),
+                ),
+            },
+        });
+        return { path, variables };
+    }
+
+    /**
+     * Records each login-shell probe's outcome. Server Core attaches its logger at startup; the resolver is created
+     * before any logger exists.
+     */
+    attachLogger(logger: Pick<StructuredLogger, 'write'>): void {
+        this.logger = logger;
     }
 
     clear(): void {
         this.executableCache.clear();
         this.loginSnapshotRequest = undefined;
+        this.loginProbe = undefined;
+        this.settledLoginSnapshot = undefined;
         this.loginSnapshotRequestedAt = 0;
+        this.loginGeneration += 1;
     }
 
     async resolve(requestedExecutable: string): Promise<string | undefined> {
@@ -244,6 +388,7 @@ export class ExecutableResolver {
         const source = this.sourceEnvironment();
         const direct = await this.findInPath(requested, source.PATH);
         if (direct) return this.cache(requested, direct);
+        // A moved install re-reads PATH, joining any probe already in flight instead of starting one per executable.
         const login = await this.loginPath(cached ? 0 : undefined);
         const discovered = await this.findInPath(requested, login);
         if (discovered) return this.cache(requested, discovered);
@@ -274,17 +419,17 @@ export class ExecutableResolver {
      * terminal: every variable the interactive login shell exports (API keys an MCP server reads, proxies, toolchain
      * homes). The allowlisted launch context Caxri itself received still wins, so an isolated `HOME` or `CODEX_HOME`
      * from a test or portable launch is never replaced by a startup-file value; the login-shell PATH wins as
-     * everywhere. The snapshot is re-read when older than {@link LOGIN_SHELL_REFRESH_MS}, so editing a startup file
-     * reaches the next Agent launch without restarting Server Core. VS Code resolves a GUI launch's environment the
-     * same way: an interactive login shell prints its whole environment between markers
-     * (`src/vs/platform/shell/node/shellEnv.ts`).
+     * everywhere. The snapshot is re-read in the background when older than {@link LOGIN_SHELL_REFRESH_MS}, so editing a
+     * startup file reaches a later Agent launch without restarting Server Core, and no launch waits for a login shell
+     * once the first probe finished. VS Code resolves a GUI launch's environment the same way: an interactive login
+     * shell prints its whole environment between markers (`src/vs/platform/shell/node/shellEnv.ts`).
      *
      * @param variables Launch context to sanitize and layer over the login-shell variables.
      */
     async agentEnvironment(
         variables: NodeJS.ProcessEnv = this.sourceEnvironment(),
     ): Promise<NodeJS.ProcessEnv> {
-        const snapshot = await this.loginSnapshot(LOGIN_SHELL_REFRESH_MS);
+        const snapshot = await this.loginSnapshot(LOGIN_SHELL_REFRESH_MS, true);
         return {
             ...snapshot?.variables,
             ...safeProcessEnvironment(variables),
@@ -320,7 +465,8 @@ export function agentProcessEnvironment(variables?: NodeJS.ProcessEnv): Promise<
  * to `LOGIN_SHELL_TIMEOUT_MS` on a slow shell profile) synchronously on the user's first action. `readLoginSnapshot`
  * already catches its own failures and resolves `undefined`, so this can never produce an unhandled rejection.
  */
-export function warmServerExecutablePath(): void {
+export function warmServerExecutablePath(logger: Pick<StructuredLogger, 'write'>): void {
+    serverExecutableResolver.attachLogger(logger);
     void serverProcessEnvironment();
 }
 

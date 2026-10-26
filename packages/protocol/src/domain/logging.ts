@@ -4,6 +4,7 @@ import { claudeWindowLogEvents } from './claude-window/log-events.js';
 import { agentChatSubagentLogEvents } from './logging/logging-agent-chat-subagents.js';
 import { agentCommanderLogEvents } from './logging/logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging/logging-benchmark.js';
+import { loginShellLogEvents } from './logging/logging-login-shell.js';
 import { mobileGatewayLogEvents } from './logging/logging-mobile-gateway.js';
 import { sessionContextLogEvents, sessionSearchLogEvents } from './logging/logging-session.js';
 import { sshHostLogEvents } from './logging/logging-ssh-host.js';
@@ -335,6 +336,7 @@ export const logEventCatalog = {
     process: {
         eventLoopStall: 'process.event_loop_stall',
     },
+    loginShell: loginShellLogEvents,
     agentCommander: agentCommanderLogEvents,
     agentChatSubagents: agentChatSubagentLogEvents,
     benchmark: benchmarkLogEvents,

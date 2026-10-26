@@ -11,7 +11,10 @@ providers, rename one-shots) start from every variable the user's interactive lo
 variables from startup files match the user's own terminal; Caxri's allowlisted launch context wins
 over that snapshot (an isolated test `HOME` or `CODEX_HOME` stays), the login-shell PATH wins over
 both, and shell bookkeeping (`PWD`, `SHLVL`, ...) and the `CAXRI_*` namespace are dropped. The
-snapshot is re-read for an Agent launch once it is a minute old. Variables that only Caxri's own
+snapshot is re-read in the background once an Agent launch finds it a minute old; that launch and
+any during the re-read use the previous snapshot, so only the first probe is ever waited for. At most
+one probe runs at a time, and each one logs `login_shell.probe` with its duration and a closed failure
+reason, or per-cause counts of the variables it dropped (never names or values). Variables that only Caxri's own
 process environment carries (a workflow marker, a token exported to the shell that started Caxri)
 are still excluded.
 
