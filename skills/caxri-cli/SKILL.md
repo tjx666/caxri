@@ -119,7 +119,10 @@ state access.
 
 Every Agent, in a Terminal or an Agent Chat, can hand a task to a new Agent in its own visible
 Session, in any Project the user added. The user sees that Session appear in the sidebar and can
-open it at any time, so prefer this over running a long side task inside your own conversation.
+open it at any time. Create one only when the user explicitly asks for a new or separate Session,
+or when your own workspace instructions direct it. A request to handle several items, work in
+parallel, or delegate is not such a request: use subagents, workflows, or your own conversation as
+you normally would.
 
 ```bash
 caxri project list --json
