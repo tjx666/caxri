@@ -3,7 +3,13 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import {
+    chatTimelineFrame,
+    hasCheck,
+    swipeTimelineTowardEarlier,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
 import {
     adbShell,
     mobileSemantics,
@@ -28,8 +34,6 @@ const READ_CACHE_SETTLE_MS = 2_500;
  */
 const LIVE_SETTLE_MS = 3_000;
 
-const MAX_FILLER_TURNS = 40;
-
 const coldStart = async (serial: string): Promise<void> => {
     await adbShell(serial, ['am', 'force-stop', 'com.caxri.mobile']);
     await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
@@ -37,6 +41,14 @@ const coldStart = async (serial: string): Promise<void> => {
 
 const isIdle = (snapshot: AgentChatSnapshot): boolean =>
     !snapshot.activeTurnId && snapshot.turns.every((turn) => turn.status !== 'running');
+
+/**
+ * The opened Chat pins its latest turn to the top, so the turn before it sits just above the viewport: one drag toward
+ * earlier messages brings its cards into view.
+ */
+const revealEarlierTurn = async (serial: string): Promise<void> => {
+    await swipeTimelineTowardEarlier(serial, await chatTimelineFrame(serial));
+};
 
 /**
  * The artifacts turn's item count and how many items came after it.
@@ -76,29 +88,28 @@ export async function executeMobileSavedTurnArtifactsScenario(
         if (!turnId) throw new Error('The artifacts turn did not finish');
         const card = `agent-chat-turn-changes-${turnId}`;
 
-        // Dense turns first, so the artifacts reply stays near the end; short replies then land the cut inside it.
-        let snapshot = changed;
-        let cut = split(snapshot, turnId);
-        for (let turns = 0; ; turns += 1) {
-            cut = split(snapshot, turnId);
-            const { after, size } = cut;
-            if (after < SAVED_ITEMS && after + size > SAVED_ITEMS) break;
-            if (after >= SAVED_ITEMS || turns >= MAX_FILLER_TURNS)
-                throw new Error('The filler turns did not cut the artifacts turn');
-            const count = snapshot.items.length;
-            // eslint-disable-next-line no-await-in-loop -- each turn starts after the previous one ended
-            await chat.send({ text: after + size + 12 < SAVED_ITEMS ? 'workrows' : 'next' });
-            // eslint-disable-next-line no-await-in-loop -- see above
-            snapshot = await waitForMobile(
-                () => chat.read(),
-                (next) => isIdle(next) && next.items.length > count,
-            );
-        }
+        // One long turn of quick commands follows, so the cache's limit lands inside the artifacts turn while its
+        // reply and cards stay just above the long turn's collapsed work.
+        const count = changed.items.length;
+        await chat.send({ text: 'manysteps' });
+        const snapshot = await waitForMobile(
+            () => chat.read(),
+            (next) =>
+                isIdle(next) &&
+                next.items.length > count &&
+                next.items.at(-1)?.type === 'agentMessage',
+        );
+        const cut = split(snapshot, turnId);
+        if (cut.after >= SAVED_ITEMS || cut.after + cut.size <= SAVED_ITEMS)
+            throw new Error('The long turn did not put the cache limit inside the artifacts turn');
+        const latest = `agent-chat-turn-${snapshot.items.at(-1)?.turnId ?? ''}`;
 
         await fixture.pair();
         await tapMobileCheck(serial, row);
-        await waitForCheck(serial, card);
+        await waitForCheck(serial, latest);
         await waitForNoCheck(serial, 'conversation-jump-latest');
+        await revealEarlierTurn(serial);
+        await waitForCheck(serial, card);
         await capture(environment, 'live', artifacts);
         await tapMobileCheck(serial, 'session-detail-back');
         await waitForCheck(serial, row);
@@ -111,13 +122,15 @@ export async function executeMobileSavedTurnArtifactsScenario(
         await coldStart(serial);
         await waitForCheck(serial, row, 60_000);
         await tapMobileCheck(serial, row);
-        await waitForCheck(serial, card, 60_000);
+        await waitForCheck(serial, latest, 60_000);
         await new Promise((resolve) => setTimeout(resolve, LIVE_SETTLE_MS));
         await recording?.stop();
         recording = undefined;
         const reopened = await mobileSemantics(serial);
         if (hasCheck(reopened, 'conversation-jump-latest'))
             throw new Error('The reopened Chat left its end');
+        await revealEarlierTurn(serial);
+        await waitForCheck(serial, card);
         await capture(environment, 'reopened', artifacts);
         await tapMobileCheck(serial, 'session-detail-back');
         await waitForCheck(serial, row);
@@ -130,6 +143,8 @@ export async function executeMobileSavedTurnArtifactsScenario(
         await waitForCheck(serial, row, 60_000);
         await tapMobileCheck(serial, row);
         await waitForCheck(serial, 'agent-chat-saved', 60_000);
+        await revealEarlierTurn(serial);
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
         const saved = await mobileSemantics(serial);
         const savedTurnRows = saved.filter(({ checkId }) =>
             /^agent-chat-turn-(?!changes-)[^:]+$/u.test(checkId),
