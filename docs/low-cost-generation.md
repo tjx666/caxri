@@ -61,8 +61,10 @@ the transcript never held enough material to ask.
 
 ## Rename with AI
 
-The Session rename editor's AI button, and `Shift+Enter` on a focused Session row or inside the
-editor, ask for a name on demand through `session.suggestTitle`. It reads the same naming material
+The Session rename editor's AI button, `Shift+Enter` on a focused Session row or inside the
+editor, and `Option`-click on a Session row ask for a name on demand through
+`session.suggestTitle`. While it is pending, the AI button's spinner replaces the row's status glyph
+so a running Session does not show two spinners. It reads the same naming material
 and shares the automatic naming concurrency limit, but ignores the Session's title mode and naming
 state, so it also works after the user named the Session by hand. The Server only generates the
 suggestion; the Renderer commits it through `session.rename`, so it carries manual ownership and

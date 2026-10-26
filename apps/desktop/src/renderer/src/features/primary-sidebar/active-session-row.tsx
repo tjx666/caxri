@@ -264,6 +264,7 @@ export function ActiveSessionRow({
                 className={HIDDEN_ON_ROW_HOVER}
                 pullRequest={pullRequestUnavailable ? undefined : pullRequest}
                 renaming={renaming}
+                renameSuggesting={renameSuggesting}
                 session={session}
                 shortcutHint={shortcutHint}
                 terminal={terminal}

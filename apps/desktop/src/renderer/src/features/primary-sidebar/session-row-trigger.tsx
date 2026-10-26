@@ -98,8 +98,13 @@ export function SessionRowTrigger({
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => onFocusChange(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => onFocusChange(false)}
-            onClick={() => {
+            onClick={(event) => {
                 if (renaming) return;
+                // Option+Click is the pointer shortcut for Rename with AI, as `Shift+Enter` is the keyboard one.
+                if (event.altKey) {
+                    if (canSuggest) onSuggestRename();
+                    return;
+                }
                 // Fire-and-forget: selection reports its own failures through a toast.
                 if (!selected) void didSelectSession(session.id);
             }}

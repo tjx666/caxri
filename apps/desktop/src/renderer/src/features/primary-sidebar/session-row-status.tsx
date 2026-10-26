@@ -20,6 +20,7 @@ export function SessionRowStatus({
     className,
     pullRequest,
     renaming,
+    renameSuggesting,
     session,
     shortcutHint,
     terminal,
@@ -31,10 +32,16 @@ export function SessionRowStatus({
     className: string;
     pullRequest?: SessionPullRequest;
     renaming: boolean;
+    /**
+     * An AI name is being generated in this row's editor. Its button spinner already says the row is busy, so a running
+     * Session's spinner beside it would read as a second, unrelated load.
+     */
+    renameSuggesting: boolean;
     session: SessionRecord;
     shortcutHint?: string;
     terminal?: SessionStatusTerminal;
 }) {
+    if (renaming && renameSuggesting) return;
     if (shortcutHint)
         return (
             <ShortcutBadge
