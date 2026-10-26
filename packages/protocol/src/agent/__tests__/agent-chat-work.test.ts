@@ -14,6 +14,7 @@ import {
     agentChatWorkVerb,
     describeAgentChatWork,
     isAgentChatWaitingOnAgents,
+    isAgentChatWorkRowRunning,
     isAgentChatWorkRunning,
     splitAgentChatWork,
     summarizeAgentChatWork,
@@ -452,6 +453,46 @@ describe('agentChatWorkVerb', () => {
         expect(agentChatWorkVerb({ id: 'r', type: 'reasoning', text: 'x', streaming: true })).toBe(
             'Thinking',
         );
+    });
+});
+
+describe('isAgentChatWorkRowRunning', () => {
+    const agentCall: AgentChatWorkItem = {
+        id: 'a1',
+        turnId: 't1',
+        type: 'toolCall',
+        name: 'Task',
+        status: 'completed',
+    };
+
+    it('keeps a settled subagent call running while its subagent still works', () => {
+        expect(isAgentChatWorkRowRunning(agentCall, { kind: 'agent', status: 'running' })).toBe(
+            true,
+        );
+        expect(
+            agentChatWorkVerb(agentCall, undefined, undefined, {
+                kind: 'agent',
+                status: 'running',
+            }),
+        ).toBe('Running agent');
+    });
+
+    it('settles once the subagent ended, and ignores a background shell task', () => {
+        expect(isAgentChatWorkRowRunning(agentCall, { kind: 'agent', status: 'completed' })).toBe(
+            false,
+        );
+        expect(isAgentChatWorkRowRunning(agentCall, { kind: 'shell', status: 'running' })).toBe(
+            false,
+        );
+        expect(isAgentChatWorkRowRunning(agentCall)).toBe(false);
+        expect(agentChatWorkVerb(agentCall)).toBe('Ran agent');
+    });
+
+    it("keeps Codex's spawnAgent settled as Started agent while its subagent runs", () => {
+        const spawn: AgentChatWorkItem = { ...agentCall, name: 'spawnAgent' };
+        const running = { kind: 'agent', status: 'running' } as const;
+        expect(isAgentChatWorkRowRunning(spawn, running)).toBe(false);
+        expect(agentChatWorkVerb(spawn, undefined, undefined, running)).toBe('Started agent');
     });
 });
 

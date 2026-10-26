@@ -253,6 +253,26 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await expect(subagent.getByText(/66\.9k tokens · \$0\.\d\d · 1 tool use/u)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-subagent-tab.png') });
 
+        // A background subagent's call returns as soon as it launches, yet its row reads as running until it ends.
+        await message.fill('background agent');
+        await message.press('Enter');
+        const folds = chat.getByRole('button', { name: /^Worked(?: for |$)/u });
+        await expect(folds).toHaveCount(2);
+        await folds.last().click();
+        await expect(
+            chat.getByRole('button', { name: /^Running agent Watch the build/u }),
+        ).toBeVisible();
+        await page.screenshot({
+            path: testInfo.outputPath('claude-background-subagent-running.png'),
+        });
+        await chat.getByRole('button', { name: 'Stop Watch the build' }).click();
+        await expect(
+            chat.getByRole('button', { name: /^Ran agent Watch the build/u }),
+        ).toBeVisible();
+        await page.screenshot({
+            path: testInfo.outputPath('claude-background-subagent-ended.png'),
+        });
+
         await message.fill('run in background');
         await message.press('Enter');
         const strip = await openBackgroundWork(page, chat);

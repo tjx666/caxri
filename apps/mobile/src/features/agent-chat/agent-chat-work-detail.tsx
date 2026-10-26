@@ -6,6 +6,7 @@ import {
     agentChatOutputLanguage,
     agentChatReasoningTitle,
     agentChatToolCallArguments,
+    agentChatWorkVerb,
     describeAgentChatWork,
     isAgentChatSubagentItem,
     stripLineNumberGutter,
@@ -22,7 +23,6 @@ import { codeLanguage } from '../panels/file-language';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatTaskDetailBody } from './agent-chat-task-detail';
 import { useAgentChatSubagentTask, useAgentChatTaskLink } from './agent-chat-task-links';
-import { agentChatWorkRowVerb } from './agent-chat-work-row';
 import { useAgentChatTaskStop } from './use-agent-chat-task-detail';
 
 /**
@@ -86,7 +86,7 @@ export const AgentChatWorkDetail = ({
     if (!item) return null;
     const presentation = describeAgentChatWork(item, t);
     // Same rule as the row, so a subagent still working reads `Running agent` in both places.
-    const verb = agentChatWorkRowVerb(item, presentation, t, subagent?.status === 'running');
+    const verb = agentChatWorkVerb(item, presentation, t, subagent);
     const title =
         item.type === 'command' && item.description
             ? item.description
