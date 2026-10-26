@@ -159,7 +159,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
         '较长的 Claude 或 Grok Build 对话空闲一段时间后，Caxri 会在后台为它生成摘要，这样你的下一条消息只需带上简短摘要而不是整段对话，回复更快也更省用量。',
     'settings.agentChat.autoContinueAtUsageLimit.title': '用量限额重置后自动继续',
     'settings.agentChat.autoContinueAtUsageLimit.description':
-        'Claude 或 Codex 的 Chat 因套餐用量用完而停下时，等限额重置（24 小时内）后自动继续任务。你可以在 Chat 中取消等待，或立即继续。',
+        'Claude 或 Codex 的对话因套餐用量用完而停下时，等限额重置（24 小时内）后自动继续任务。你可以在对话中取消等待，或立即继续。',
 
     'settings.terminal.osc52ClipboardWrite.title': '允许终端中的程序复制到剪贴板',
     'settings.terminal.osc52ClipboardWrite.description':
