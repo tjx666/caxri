@@ -28,6 +28,7 @@ import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
+import { SessionRevealRow } from './session-reveal-row';
 import { summarizeSessionStatuses } from './session-status';
 import { rovingSubagentRowId } from './session-subagents';
 
@@ -373,7 +374,7 @@ export function ProjectGroup({
                             />
                         ))}
                         {hiddenSessionCount > 0 && (
-                            <ProjectRevealRow
+                            <SessionRevealRow
                                 count={nextRevealCount}
                                 projectTitle={project.displayTitle}
                                 roving={revealRowId === rovingRowId}
@@ -392,45 +393,5 @@ export function ProjectGroup({
                 )}
             </DisclosureMotion>
         </section>
-    );
-}
-
-/**
- * The button is the row: it holds the roving Tab stop, so it carries the tree semantics itself instead of sitting
- * inside a `treeitem` wrapper focus never reaches. No disclosure chevron: this is not a collapsible branch, and a
- * twistie would spend width on a meaning the row does not have.
- */
-function ProjectRevealRow({
-    count,
-    projectTitle,
-    roving,
-    rowId,
-    onReveal,
-}: {
-    count: number;
-    projectTitle: string;
-    roving: boolean;
-    rowId: string;
-    onReveal: () => void;
-}) {
-    const { t } = useTranslation();
-    return (
-        <button
-            className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-            role="treeitem"
-            aria-label={t(
-                count === 1
-                    ? 'primarySidebar.project.revealAriaLabelOne'
-                    : 'primarySidebar.project.revealAriaLabelOther',
-                { count, title: projectTitle },
-            )}
-            aria-level={2}
-            aria-selected={false}
-            data-row-id={rowId}
-            tabIndex={roving ? 0 : -1}
-            onClick={onReveal}
-        >
-            {t('primarySidebar.reveal.showMore')}
-        </button>
     );
 }

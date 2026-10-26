@@ -19,6 +19,7 @@ import {
     primarySidebarPinnedRowId,
     primarySidebarRevealRowId,
 } from './primary-sidebar-tree';
+import { SessionRevealRow } from './session-reveal-row';
 import { rovingSubagentRowId } from './session-subagents';
 
 const PINNED_DISCLOSURE_ID = 'pinned-sessions-group';
@@ -241,28 +242,13 @@ export function PinnedSessionGroup({
                             );
                         })}
                         {hiddenSessionCount > 0 && (
-                            /*
-                             * Same reveal row a Project group uses, for the same reason: a long Pinned list would push
-                             * every Project off the screen. The button is the row, so it carries the tree semantics. No
-                             * disclosure chevron: this is not a collapsible branch.
-                             */
-                            <button
-                                className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                                role="treeitem"
-                                aria-label={t(
-                                    nextRevealCount === 1
-                                        ? 'primarySidebar.pinned.revealAriaLabelOne'
-                                        : 'primarySidebar.pinned.revealAriaLabelOther',
-                                    { count: nextRevealCount },
-                                )}
-                                aria-level={2}
-                                aria-selected={false}
-                                data-row-id={revealRowId}
-                                tabIndex={revealRowId === rovingRowId ? 0 : -1}
-                                onClick={onRevealMoreSessions}
-                            >
-                                {t('primarySidebar.reveal.showMore')}
-                            </button>
+                            // Same reveal row a Project group uses: a long Pinned list would push every Project off the screen.
+                            <SessionRevealRow
+                                count={nextRevealCount}
+                                roving={revealRowId === rovingRowId}
+                                rowId={revealRowId}
+                                onReveal={onRevealMoreSessions}
+                            />
                         )}
                     </div>
                 )}
