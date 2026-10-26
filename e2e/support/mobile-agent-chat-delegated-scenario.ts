@@ -5,7 +5,13 @@ import { delegatedTaskPointer } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { checkBounds, waitForCheck } from './mobile-agent-chat-helpers';
+import {
+    chatTimelineFrame,
+    checkBounds,
+    hasCheck,
+    swipeTimelineTowardEarlier,
+    waitForCheck,
+} from './mobile-agent-chat-helpers';
 import { mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
 
 const RECORDED_DELEGATION = `dispatch-${'a'.repeat(64)}`;
@@ -68,6 +74,21 @@ async function promptHeight(serial: string, id: string): Promise<number> {
 }
 
 /**
+ * Swipes the Chat toward earlier messages until check `id` is on screen. The phone pins the newest turn to the top, so
+ * an earlier turn sits above the viewport.
+ */
+async function scrollUpTo(serial: string, id: string): Promise<void> {
+    const frame = await chatTimelineFrame(serial);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        // eslint-disable-next-line no-await-in-loop -- the check follows the settled scroll position.
+        if (hasCheck(await mobileSemantics(serial), id)) return;
+        // eslint-disable-next-line no-await-in-loop -- each gesture moves the same virtual list further.
+        await swipeTimelineTowardEarlier(serial, frame);
+    }
+    await waitForCheck(serial, id);
+}
+
+/**
  * `MOB-CHAT-19`: a delegated task reads as a "Delegated task" bubble, and the Session list labels its groups. With its
  * delegation record, the bubble shows the task the caller wrote, clamped with Show more (#2307); without one, it shows
  * the source-less fallback with the raw instruction collapsed.
@@ -127,10 +148,9 @@ export async function executeMobileChatDelegatedTaskScenario(
         // Semantics wait for an idle screen, so the capture shows where the unfolded row settles.
         await waitForCheck(environment.serial, `agent-chat-delegated-toggle-${pointer.id}`);
         await capture(environment, 'delegated-expanded', artifacts);
-        // Fold the pointer again so the recorded task above it is back on screen.
         await tapMobileCheck(environment.serial, `agent-chat-delegated-toggle-${pointer.id}`);
         const promptId = `agent-chat-delegated-prompt-${recorded.id}`;
-        await waitForCheck(environment.serial, `${promptId}-toggle`);
+        await scrollUpTo(environment.serial, `${promptId}-toggle`);
         const clamped = await promptHeight(environment.serial, promptId);
         await capture(environment, 'delegated-prompt-clamped', artifacts);
         await tapMobileCheck(environment.serial, `${promptId}-toggle`);
