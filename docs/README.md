@@ -12,62 +12,63 @@ explains behavior.
 
 What/why of current shipped behavior, core modules, protocols, and operator knowledge.
 
-| Doc                                                                | Covers                                                         |
-| ------------------------------------------------------------------ | -------------------------------------------------------------- |
-| [activity-view.md](activity-view.md)                               | Activity view: attention queue, excerpts, return hint          |
-| [agent-actions.md](agent-actions.md)                               | Unified Agent skills and slash-command picker                  |
-| [agent-chat.md](agent-chat.md)                                     | Chat Terminals over Codex app-server                           |
-| [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries  |
-| [agent-commander.md](agent-commander.md)                           | Second-window Codex or Claude Code commander and Agent board   |
-| [agent-delegation.md](agent-delegation.md)                         | Visible Agent delegation into a sibling pane                   |
-| [agent-dispatch-receipts.md](agent-dispatch-receipts.md)           | Managed dispatch launch requests and observed process lifetime |
-| [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return     |
-| [agent-throughput.md](agent-throughput.md)                         | Agent output speed (tok/s) in the status bar                   |
-| [architecture-debt.md](architecture-debt.md)                       | Persistent architecture-debt audit ledger                      |
-| [benchmark.md](benchmark.md)                                       | Benchmark tab: one prompt across Agents, models, and efforts   |
-| [bundle-size.md](bundle-size.md)                                   | Packaged app size baseline and the CI budget gate              |
-| [ci-performance.md](ci-performance.md)                             | CI/E2E execution profiles and performance evidence             |
-| [client-local-data.md](client-local-data.md)                       | Device store, Editor hot exit, drafts, offline decisions       |
-| [cli.md](cli.md)                                                   | The `caxri` CLI manual                                         |
-| [editor-imports.md](editor-imports.md)                             | Editor import navigation                                       |
-| [editor-worker-stalls.md](editor-worker-stalls.md)                 | Editor Worker stall diagnostics                                |
-| [extensions.md](extensions.md)                                     | Extension Host process and view contributions                  |
-| [external-status-quota.md](external-status-quota.md)               | External delivery-status reads and quota governance            |
-| [file-preview.md](file-preview.md)                                 | Markdown and SVG preview tabs                                  |
-| [git-diff-review.md](git-diff-review.md)                           | Git diff review comments                                       |
-| [git-status-snapshot.md](git-status-snapshot.md)                   | Incremental Git topology/status pipeline                       |
-| [grok-build.md](grok-build.md)                                     | Grok Build terminal integration                                |
-| [hook-installation-authority.md](hook-installation-authority.md)   | Provider hook installation authority                           |
-| [hook-turn-recovery.md](hook-turn-recovery.md)                     | Lifecycle hook turn recovery                                   |
-| [i18n.md](i18n.md)                                                 | Interface languages, translation resources, and terminology    |
-| [keybindings.md](keybindings.md)                                   | Keybinding format and chord sequences                          |
-| [low-cost-generation.md](low-cost-generation.md)                   | Automatic Session-naming sandbox                               |
-| [notifications.md](notifications.md)                               | Notification center history and reminders                      |
-| [open-sessions.md](open-sessions.md)                               | Per-window Open Session, secondary windows, and presence       |
-| [process-explorer.md](process-explorer.md)                         | Process Explorer, resource thresholds, and runaway alerts      |
-| [performance-monitor.md](performance-monitor.md)                   | Draggable frame rate monitor and reload timeline               |
-| [provider-messaging.md](provider-messaging.md)                     | Peer Inbox provider-messaging support and the verified matrix  |
-| [quality-toolchain.md](quality-toolchain.md)                       | Unified mechanical-quality tooling                             |
-| [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                             |
-| [secondary-sidebar-trees.md](secondary-sidebar-trees.md)           | Files/Source Control/extension tree rendering                  |
-| [startup-performance.md](startup-performance.md)                   | Launch milestone log, packaged startup runner, rejected tricks |
-| [server-architecture.md](server-architecture.md)                   | Current Server/Client architecture contract                    |
-| [server-footprint.md](server-footprint.md)                         | SSH Host Server memory and disk requirements and the baseline  |
-| [session-compaction.md](session-compaction.md)                     | Batch command and idle Chat compaction                         |
-| [session-search.md](session-search.md)                             | Session search across Caxri and external Agent conversations   |
-| [session-conversation-context.md](session-conversation-context.md) | Reading a Session's own Agent conversation                     |
-| [ssh-host.md](ssh-host.md)                                         | SSH Host windows: connect, install, lifecycle, remote layers   |
-| [terminal-reference-preview.md](terminal-reference-preview.md)     | Terminal commit/reference hover previews                       |
-| [type-aware-linting.md](type-aware-linting.md)                     | ESLint (syntactic) + oxlint/tsgolint (typed) split             |
-| [usage.md](usage.md)                                               | Usage page: token, cost, and delivery statistics               |
-| [mobile/apk-size.md](mobile/apk-size.md)                           | Android internal APK size                                      |
-| [mobile/authorization.md](mobile/authorization.md)                 | Mobile device pairing and method authorization                 |
-| [mobile/changes.md](mobile/changes.md)                             | Mobile read-only Git Changes segment                           |
-| [mobile/conversation.md](mobile/conversation.md)                   | Mobile read-only Agent conversation timeline                   |
-| [mobile/design.md](mobile/design.md)                               | Caxri Mobile design and interaction spec                       |
-| [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets                             |
-| [mobile/transport.md](mobile/transport.md)                         | Mobile gateway transport, pairing, and framing                 |
-| [mobile/update.md](mobile/update.md)                               | Mobile app self-update from Desktop                            |
+| Doc                                                                | Covers                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| [activity-view.md](activity-view.md)                               | Activity view: attention queue, excerpts, return hint               |
+| [agent-actions.md](agent-actions.md)                               | Unified Agent skills and slash-command picker                       |
+| [agent-chat.md](agent-chat.md)                                     | Chat Terminals over Codex app-server                                |
+| [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries       |
+| [agent-usage-continuation.md](agent-usage-continuation.md)         | Usage-limit recovery, weekly usage guard, continue in another Agent |
+| [agent-commander.md](agent-commander.md)                           | Second-window Codex or Claude Code commander and Agent board        |
+| [agent-delegation.md](agent-delegation.md)                         | Visible Agent delegation into a sibling pane                        |
+| [agent-dispatch-receipts.md](agent-dispatch-receipts.md)           | Managed dispatch launch requests and observed process lifetime      |
+| [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return          |
+| [agent-throughput.md](agent-throughput.md)                         | Agent output speed (tok/s) in the status bar                        |
+| [architecture-debt.md](architecture-debt.md)                       | Persistent architecture-debt audit ledger                           |
+| [benchmark.md](benchmark.md)                                       | Benchmark tab: one prompt across Agents, models, and efforts        |
+| [bundle-size.md](bundle-size.md)                                   | Packaged app size baseline and the CI budget gate                   |
+| [ci-performance.md](ci-performance.md)                             | CI/E2E execution profiles and performance evidence                  |
+| [client-local-data.md](client-local-data.md)                       | Device store, Editor hot exit, drafts, offline decisions            |
+| [cli.md](cli.md)                                                   | The `caxri` CLI manual                                              |
+| [editor-imports.md](editor-imports.md)                             | Editor import navigation                                            |
+| [editor-worker-stalls.md](editor-worker-stalls.md)                 | Editor Worker stall diagnostics                                     |
+| [extensions.md](extensions.md)                                     | Extension Host process and view contributions                       |
+| [external-status-quota.md](external-status-quota.md)               | External delivery-status reads and quota governance                 |
+| [file-preview.md](file-preview.md)                                 | Markdown and SVG preview tabs                                       |
+| [git-diff-review.md](git-diff-review.md)                           | Git diff review comments                                            |
+| [git-status-snapshot.md](git-status-snapshot.md)                   | Incremental Git topology/status pipeline                            |
+| [grok-build.md](grok-build.md)                                     | Grok Build terminal integration                                     |
+| [hook-installation-authority.md](hook-installation-authority.md)   | Provider hook installation authority                                |
+| [hook-turn-recovery.md](hook-turn-recovery.md)                     | Lifecycle hook turn recovery                                        |
+| [i18n.md](i18n.md)                                                 | Interface languages, translation resources, and terminology         |
+| [keybindings.md](keybindings.md)                                   | Keybinding format and chord sequences                               |
+| [low-cost-generation.md](low-cost-generation.md)                   | Automatic Session-naming sandbox                                    |
+| [notifications.md](notifications.md)                               | Notification center history and reminders                           |
+| [open-sessions.md](open-sessions.md)                               | Per-window Open Session, secondary windows, and presence            |
+| [process-explorer.md](process-explorer.md)                         | Process Explorer, resource thresholds, and runaway alerts           |
+| [performance-monitor.md](performance-monitor.md)                   | Draggable frame rate monitor and reload timeline                    |
+| [provider-messaging.md](provider-messaging.md)                     | Peer Inbox provider-messaging support and the verified matrix       |
+| [quality-toolchain.md](quality-toolchain.md)                       | Unified mechanical-quality tooling                                  |
+| [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                                  |
+| [secondary-sidebar-trees.md](secondary-sidebar-trees.md)           | Files/Source Control/extension tree rendering                       |
+| [startup-performance.md](startup-performance.md)                   | Launch milestone log, packaged startup runner, rejected tricks      |
+| [server-architecture.md](server-architecture.md)                   | Current Server/Client architecture contract                         |
+| [server-footprint.md](server-footprint.md)                         | SSH Host Server memory and disk requirements and the baseline       |
+| [session-compaction.md](session-compaction.md)                     | Batch command and idle Chat compaction                              |
+| [session-search.md](session-search.md)                             | Session search across Caxri and external Agent conversations        |
+| [session-conversation-context.md](session-conversation-context.md) | Reading a Session's own Agent conversation                          |
+| [ssh-host.md](ssh-host.md)                                         | SSH Host windows: connect, install, lifecycle, remote layers        |
+| [terminal-reference-preview.md](terminal-reference-preview.md)     | Terminal commit/reference hover previews                            |
+| [type-aware-linting.md](type-aware-linting.md)                     | ESLint (syntactic) + oxlint/tsgolint (typed) split                  |
+| [usage.md](usage.md)                                               | Usage page: token, cost, and delivery statistics                    |
+| [mobile/apk-size.md](mobile/apk-size.md)                           | Android internal APK size                                           |
+| [mobile/authorization.md](mobile/authorization.md)                 | Mobile device pairing and method authorization                      |
+| [mobile/changes.md](mobile/changes.md)                             | Mobile read-only Git Changes segment                                |
+| [mobile/conversation.md](mobile/conversation.md)                   | Mobile read-only Agent conversation timeline                        |
+| [mobile/design.md](mobile/design.md)                               | Caxri Mobile design and interaction spec                            |
+| [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets                                  |
+| [mobile/transport.md](mobile/transport.md)                         | Mobile gateway transport, pairing, and framing                      |
+| [mobile/update.md](mobile/update.md)                               | Mobile app self-update from Desktop                                 |
 
 ## ADRs
 

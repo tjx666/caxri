@@ -83,6 +83,9 @@ export const agentChatLabelsEn = {
     'agentChat.fold.stoppedByYou': 'Stopped by you',
     'agentChat.fold.stoppedByAgentAfter': 'Stopped by an Agent after {{duration}}',
     'agentChat.fold.stoppedByAgent': 'Stopped by an Agent',
+    'agentChat.fold.stoppedByUsageGuardAfter':
+        'Stopped at the weekly usage guard after {{duration}}',
+    'agentChat.fold.stoppedByUsageGuard': 'Stopped at the weekly usage guard',
 
     // A work summary that counts unsuccessful items
     'agentChat.workGroup.andMore': '{{label}} and {{count}} more',

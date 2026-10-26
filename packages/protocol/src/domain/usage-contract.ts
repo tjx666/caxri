@@ -145,6 +145,12 @@ const usageLimitWindowSchema = z.object({
     windowMinutes: count,
     usedPercent: z.number().min(0).max(100),
     resetsAt: count.optional(),
+    /**
+     * Which general plan window this is, as the provider names it (Claude Code's `five_hour` and `seven_day`, Codex's
+     * primary and secondary windows of its `codex` limit). Absent for a window the provider did not name, so the usage
+     * guard never mistakes a model-specific window for the account's weekly one by its length alone.
+     */
+    scope: z.enum(['session', 'weekly']).optional(),
 });
 const modelName = z.string().max(200);
 

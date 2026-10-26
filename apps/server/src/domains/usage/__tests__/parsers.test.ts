@@ -326,7 +326,14 @@ describe('codexUsageParser', () => {
         expect(accumulator.toRecord().rateLimits).toEqual({
             observedAt: T0,
             planType: 'pro',
-            windows: [{ windowMinutes: 300, usedPercent: 12.5, resetsAt: 1_800_000_000_000 }],
+            windows: [
+                {
+                    windowMinutes: 300,
+                    usedPercent: 12.5,
+                    resetsAt: 1_800_000_000_000,
+                    scope: 'session',
+                },
+            ],
         });
     });
 });

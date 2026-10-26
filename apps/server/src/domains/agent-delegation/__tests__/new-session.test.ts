@@ -96,6 +96,7 @@ async function fixture() {
         commanderSessionId: commander.session.id,
         agentAuthority,
         callerSessionId: caller.session.id,
+        callerTerminalId: caller.terminal!.id,
         project,
         request,
     };
@@ -279,5 +280,29 @@ describe('Delegation into a new Session from an ordinary Agent', () => {
         ).rejects.toThrow();
 
         expect(database.listSessions()).toHaveLength(sessionsBefore);
+    });
+});
+
+/**
+ * `agentChat.continueInAgent`: the owner, through a Client, continues a Chat's work in another Agent (issue #2581).
+ */
+describe('Delegation into a new Session from a Client continuation', () => {
+    it('creates the Session under the continued Chat and resolves a retry to it', async () => {
+        const { database, service, callerSessionId, callerTerminalId, request } = await fixture();
+        const authority = {
+            principal: { kind: 'desktop' as const, id: 'usage-continuation', generation: 1 },
+            callerTerminalId,
+        };
+        const id = randomUUID();
+        const continuation = { ...request, handoff: true as const, title: 'Continued: Fix login' };
+
+        const receipt = await service.create(id, authority, continuation);
+        expect(database.getSession(receipt.sessionId)).toMatchObject({
+            displayTitle: 'Continued: Fix login',
+            createdBySessionId: callerSessionId,
+        });
+        expect(receipt.callerTerminalId).toBe(callerTerminalId);
+        const retried = await service.create(id, authority, continuation);
+        expect(retried.sessionId).toBe(receipt.sessionId);
     });
 });

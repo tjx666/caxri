@@ -70,6 +70,7 @@ export async function sendQueuedNow(
     terminalId: string,
     id: string,
 ): Promise<void> {
+    host.states.assertUsage(terminalId, 'chat_queue');
     await host.enqueue(terminalId, async (session, state) => {
         const entry = state.followUps.entry(id);
         const isSteering = Boolean(state.projection.snapshot.activeTurnId);
@@ -85,5 +86,6 @@ export async function sendQueuedNow(
  */
 export function didResumeQueue(host: ChatQueueActionsHost, terminalId: string): boolean {
     requireChatTerminal(host.options.database, terminalId);
+    host.states.assertUsage(terminalId, 'chat_queue');
     return host.states.get(terminalId)?.followUps.resume() ?? false;
 }

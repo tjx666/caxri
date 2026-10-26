@@ -5,11 +5,6 @@ import { benchmarkMethods } from '../agent/agent-benchmark-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { agentChatPickedPathSchema } from '../agent/agent-chat-path-references.js';
 import { agentChatWaitingMethods } from '../agent/agent-chat-waiting-contract.js';
-import { commanderMethods } from '../agent/agent-commander-contract.js';
-import {
-    commanderDataInternalMethods,
-    commanderDataMethods,
-} from '../agent/agent-commander-data-contract.js';
 import {
     agentDelegationInternalMethods,
     agentDelegationMethods,
@@ -28,6 +23,11 @@ import {
 } from '../agent/agent-session-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
 import { agentThroughputSchema } from '../agent/agent-throughput-contract.js';
+import { commanderMethods } from '../agent/commander/agent-commander-contract.js';
+import {
+    commanderDataInternalMethods,
+    commanderDataMethods,
+} from '../agent/commander/agent-commander-data-contract.js';
 import {
     delegationAccessInternalMethods,
     delegationAccessMethods,

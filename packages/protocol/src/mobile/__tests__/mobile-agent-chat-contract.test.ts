@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatItem, AgentChatSnapshot } from '../../agent/agent-chat-contract.js';
-import { agentChatPatchSchema, agentChatSnapshotSchema } from '../../agent/agent-chat-contract.js';
+import { agentChatSnapshotSchema } from '../../agent/agent-chat-contract.js';
 import { MAX_AGENT_CHAT_IMAGES } from '../../agent/agent-chat-limits.js';
+import { agentChatPatchSchema } from '../../agent/agent-chat-patch-contract.js';
 import { applyAgentChatPatch } from '../../agent/agent-chat-reducer.js';
 import {
     clipAgentChatCommandsForMobile,

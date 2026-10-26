@@ -55,6 +55,7 @@ import { CodexRequestBroker } from './codex-requests';
 import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
+import { codexTurnFailure, CodexUsageLimits } from './continuation/codex-usage-limit';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import { forkCodexThread, revertCodexThread } from './rewind/codex-rewind';
 import { CodexSideQuestions } from './side-question/codex-side-question';
@@ -103,6 +104,7 @@ class CodexChatSession implements AgentChatProviderSession {
     private readonly usage: CodexUsage;
 
     private readonly sideQuestions = new CodexSideQuestions();
+    private readonly usageLimits = new CodexUsageLimits();
 
     constructor(private readonly options: AgentChatSessionHost) {
         const opening = codexOpeningSettings(options);
@@ -167,6 +169,7 @@ class CodexChatSession implements AgentChatProviderSession {
             turn,
             (requestId, finishedTurnId) => this.requests.outlivesTurn(requestId, finishedTurnId),
             backgrounded,
+            () => this.usageLimits.usageLimit(),
         );
         if (!finished) return;
         const { id, status, durationMs, operations } = finished;
@@ -184,7 +187,7 @@ class CodexChatSession implements AgentChatProviderSession {
                       phase: 'turnFailed',
                       agentSessionId: this.threadId,
                       agentTurnId: id,
-                      agentFailure: 'provider_failed',
+                      agentFailure: codexTurnFailure(this.options.read(), id),
                   }
                 : { phase: 'turnFinished', agentSessionId: this.threadId, agentTurnId: id },
         );
@@ -202,6 +205,7 @@ class CodexChatSession implements AgentChatProviderSession {
             return;
         }
         if (this.usage.onNotification(method, parameters)) return;
+        if (this.usageLimits.onNotification(method, parameters)) return;
         const turnId = stringField(parameters.turnId);
         switch (method) {
             case 'thread/started': {
@@ -245,8 +249,9 @@ class CodexChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'error': {
+                const usageLimit = this.usageLimits.errorLimit(parameters);
                 this.options.apply([
-                    { op: 'upsertItem', item: mapCodexErrorNotice(parameters, turnId) },
+                    { op: 'upsertItem', item: mapCodexErrorNotice(parameters, turnId, usageLimit) },
                 ]);
                 return;
             }

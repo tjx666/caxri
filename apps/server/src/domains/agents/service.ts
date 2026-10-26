@@ -10,6 +10,7 @@ import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/proto
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, SingleFlight } from '@caxri/system';
 
+import type { AgentUsageGuards } from '../usage';
 import type {
     AgentEnvironment,
     AgentLowCostGenerationContext,
@@ -198,16 +199,21 @@ export class AgentService {
     constructor(
         private readonly logger?: StructuredLogger,
         private readonly adapters: Record<AgentProvider, AgentAdapter> = createLocalAgentAdapters(),
+        /**
+         * Refuses a title while the provider's account is at the weekly usage guard (issue #2580).
+         */
+        private readonly usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted'>,
     ) {}
 
-    generateTitle(
+    async generateTitle(
         provider: AgentProvider,
         context: AgentLowCostGenerationContext,
     ): Promise<string> {
+        this.usageGuards?.assertAdmitted(provider, 'auto_naming');
         const adapter = this.adapters[provider];
-        return adapter.generateTitle
-            ? adapter.generateTitle(context)
-            : Promise.reject(new CaxriError('UNAVAILABLE', 'Title generation is unavailable'));
+        if (!adapter.generateTitle)
+            throw new CaxriError('UNAVAILABLE', 'Title generation is unavailable');
+        return adapter.generateTitle(context);
     }
 
     snapshot(provider: AgentProvider, context?: AgentSnapshotContext): Promise<AgentProbeSnapshot> {

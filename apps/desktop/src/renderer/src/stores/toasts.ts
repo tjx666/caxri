@@ -295,6 +295,7 @@ const caxriErrorReasons: Record<CaxriErrorCode, TranslationKey> = {
     FORBIDDEN: 'toasts.failure.code.FORBIDDEN',
     IO: 'toasts.failure.code.IO',
     GIT: 'toasts.failure.code.GIT',
+    USAGE_LIMITED: 'toasts.failure.code.USAGE_LIMITED',
     INTERNAL: 'toasts.failure.code.INTERNAL',
 };
 

@@ -81,6 +81,7 @@ const exitCodes: Record<CaxriErrorCode, number> = {
     UNAVAILABLE: 6,
     TIMEOUT: 7,
     CAPACITY: 8,
+    USAGE_LIMITED: 8,
     IO: 9,
     GIT: 9,
     INTERNAL: 10,

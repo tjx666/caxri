@@ -491,12 +491,19 @@ export class ChatFollowUpQueue {
     }
 
     /**
-     * Pauses the queue after the user stopped a turn. A queue a failure already paused keeps that reason: the failure
-     * is still what the user has to act on.
+     * Why the queue holds its entries back, or `undefined` while it delivers.
      */
-    pause(): void {
+    get pausedFor(): QueuePauseReason | undefined {
+        return this.pauseReason;
+    }
+
+    /**
+     * Pauses the queue after the user stopped a turn, or while the account is at the weekly usage guard. A queue a
+     * failure already paused keeps that reason: the failure is still what the user has to act on.
+     */
+    pause(reason: 'stopped' | 'usageGuard' = 'stopped'): void {
         if (this.entries.length === 0 || this.pauseReason !== undefined) return;
-        this.pauseReason = 'stopped';
+        this.pauseReason = reason;
         this.publish();
         this.log('paused');
     }

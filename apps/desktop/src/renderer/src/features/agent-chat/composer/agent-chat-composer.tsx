@@ -130,6 +130,7 @@ interface AgentChatComposerProperties {
               | 'tasks'
               | 'turns'
               | 'usage'
+              | 'usageGuard'
           >
         | undefined;
     /**

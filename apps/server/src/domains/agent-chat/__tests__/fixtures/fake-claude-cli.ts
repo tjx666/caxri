@@ -70,6 +70,7 @@ import { streamBrowserSteps, streamPacedReply, streamPlannedReply } from './fake
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import { answerSideQuestion } from './fake-claude-side.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
+import { didRunUsageLimitScenario } from './fake-claude-usage-limit.ts';
 
 type Json = Record<string, unknown>;
 
@@ -328,7 +329,7 @@ const scenarioIo: FakeClaudeIo = {
     system,
     assistant,
     toolResult,
-    result: (startedAt, text) => result(startedAt, text),
+    result: (startedAt, text, isError) => result(startedAt, text, isError),
     didStreamFully,
     controlRequest,
     isInterrupted,
@@ -423,6 +424,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         return;
     }
     if (didStartBackgroundTask(scenarioIo, startedAt, text)) return;
+    if (await didRunUsageLimitScenario(scenarioIo, startedAt, text)) return;
     if (text.includes('fail')) {
         result(startedAt, 'The fake model is overloaded.', true);
         return;

@@ -13,6 +13,7 @@ import type { CaxriDatabase } from '../db';
 import type { TerminalManagerOptions } from '../terminal';
 import type { ChatDelegationHooks } from './chat-delegation';
 import type { SpawnChatProcess } from './chat-provider';
+import type { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 
 /**
  * Dependencies of `AgentChatService`, injected so tests can swap the provider process, environment, and executable.
@@ -84,6 +85,11 @@ export interface AgentChatServiceOptions {
      * test can omit it.
      */
     delegation?: ChatDelegationHooks;
+    /**
+     * The weekly usage guard and cross-Agent continuation (issues #2580, #2581). Optional so a test can build the
+     * service without it.
+     */
+    usage?: ChatUsageContinuation;
 }
 
 export interface AgentChatEndpoint {

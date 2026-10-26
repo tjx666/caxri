@@ -105,6 +105,13 @@ describe('agentChatQueueHeader', () => {
         expect(
             agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'deliveryUnknown' }),
         ).toMatchObject({ tone: 'paused', resumeLabel: 'Resume' });
+        expect(agentChatQueueHeader({ queuePaused: true, queuePauseReason: 'usageGuard' })).toEqual(
+            {
+                tone: 'paused',
+                text: 'Queue paused · weekly usage nearly used up',
+                resumeLabel: 'Resume',
+            },
+        );
     });
 
     it('heads a waiting queue with nothing', () => {

@@ -62,6 +62,7 @@ const rateLimitWindowSchema = z.object({
     windowMinutes: count,
     usedPercent: z.number().min(0).max(100),
     resetsAt: count.optional(),
+    scope: z.enum(['session', 'weekly']).optional(),
 });
 
 /**

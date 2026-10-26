@@ -46,6 +46,7 @@ import {
     withAgentChatPendingEntries,
 } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
+import { AgentChatUsageGuardBanner } from './agent-chat-usage-guard-banner';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatHistory } from './use-agent-chat-history';
 
@@ -398,6 +399,13 @@ export const AgentChatView = ({
                     testID="agent-chat-handed-off"
                     theme={theme}
                     tone="muted"
+                />
+            ) : null}
+            {snapshot?.usageGuard ? (
+                <AgentChatUsageGuardBanner
+                    guard={snapshot.usageGuard}
+                    provider={provider}
+                    theme={theme}
                 />
             ) : null}
             {shouldShowAgentChatStaleNotice(chat, isConnected) ? (

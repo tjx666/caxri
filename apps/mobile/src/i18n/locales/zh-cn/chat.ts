@@ -63,6 +63,11 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.disabled.send.failed': '请先重试对话，再发送消息。',
     'chat.disabled.send.handedOff': '请在电脑上恢复对话后再发送消息。',
     'chat.disabled.send.offline': '重新连接后才能发送消息。',
+    'chat.disabled.send.usageGuard': '每周额度即将用完，请在电脑上交接。',
+    'chat.usageGuard.banner':
+        '{{provider}} 每周额度已用 {{percent}}%。新请求已暂停，{{reset}}后重置。请在电脑上交接给其他 Agent。',
+    'chat.usageGuard.resetDays': '{{days}} 天 {{hours}} 小时',
+    'chat.usageGuard.resetHours': '{{hours}} 小时 {{minutes}} 分钟',
     'chat.empty': '还没有消息。',
     'chat.emptyHandedOff': '没有可显示的消息。',
     'chat.emptyReady': '还没有消息。发送一条消息，开始与 {{provider}} 协作。',

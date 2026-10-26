@@ -1826,6 +1826,12 @@ Chat status, turn statuses, item counts by type, an unchanged `agentSessionId`, 
 modes (`started`, then `resumed`) and `agent_chat.turn_finished` statuses from the Server Core log. It never reads,
 logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to start a Chat.
 
+## Usage limits
+
+A turn that failed on a used-up plan limit offers `Continue in <Agent>`, and an account at 99% of its
+weekly window blocks new requests behind the weekly usage guard; see
+[Usage limits and cross-Agent continuation](agent-usage-continuation.md).
+
 ## Not yet supported
 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's

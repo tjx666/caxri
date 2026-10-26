@@ -22,13 +22,14 @@ function failureReason(error: unknown): SideQuestionFailure {
  * the question as a message instead. Logs one outcome with a closed reason and the duration, never the text.
  */
 export async function askChatSideQuestion(
-    options: Pick<AgentChatServiceOptions, 'database' | 'logger'>,
+    options: Pick<AgentChatServiceOptions, 'database' | 'logger' | 'usage'>,
     terminalId: string,
     session: AgentChatProviderSession | undefined,
     question: string,
     history: readonly ChatSideExchange[],
 ): Promise<{ response: string }> {
     const { provider } = requireChatTerminal(options.database, terminalId);
+    options.usage?.assert(terminalId, 'chat_side_question');
     const startedAt = Date.now();
     const log = (outcome: 'answered' | 'failed' | 'refused', reason: SideQuestionFailure | null) =>
         options.logger.write(

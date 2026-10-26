@@ -1,27 +1,27 @@
 import { z } from 'zod';
 
-import { bootstrapStateSchema } from '../domain/bootstrap.js';
-import { sessionRecordSchema } from '../domain/domain.js';
-import { editorNavigationTargetSchema } from '../domain/editor.js';
-import { identifierSchema, pathSchema } from '../domain/identifiers.js';
+import { bootstrapStateSchema } from '../../domain/bootstrap.js';
+import { sessionRecordSchema } from '../../domain/domain.js';
+import { editorNavigationTargetSchema } from '../../domain/editor.js';
+import { identifierSchema, pathSchema } from '../../domain/identifiers.js';
 import {
     pullRequestUnavailableSchema,
     sessionPullRequestSchema,
-} from '../domain/session-pull-request.js';
-import { settingsTargetSchema } from '../domain/settings-target.js';
-import { terminalFileLinkOpenResultSchema } from '../domain/terminal-file-link.js';
-import { terminalKindSchema, terminalRecordSchema } from '../domain/terminal-record.js';
-import type { MethodSpec } from '../transport/method-spec.js';
-import { commandPolicy } from '../transport/method-spec.js';
+} from '../../domain/session-pull-request.js';
+import { settingsTargetSchema } from '../../domain/settings-target.js';
+import { terminalFileLinkOpenResultSchema } from '../../domain/terminal-file-link.js';
+import { terminalKindSchema, terminalRecordSchema } from '../../domain/terminal-record.js';
+import type { MethodSpec } from '../../transport/method-spec.js';
+import { commandPolicy } from '../../transport/method-spec.js';
+import {
+    agentDelegationFailureSchema,
+    agentDelegationStatusSchema,
+} from '../agent-delegation-contract.js';
 import {
     commanderHandoverMethods,
     commanderHandoverOwnershipReasonSchema,
 } from './agent-commander-handover-contract.js';
 import { commanderInboxMethods } from './agent-commander-inbox-contract.js';
-import {
-    agentDelegationFailureSchema,
-    agentDelegationStatusSchema,
-} from './agent-delegation-contract.js';
 
 /**
  * Upper bound on board rows, far above any real Workbench, so one malformed database cannot produce an unbounded reply.

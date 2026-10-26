@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { commanderMethods } from '../agent-commander-contract.js';
+import { commanderMethods } from '../commander/agent-commander-contract.js';
 
 describe('agentCommander.open parameters', () => {
     const parameters = commanderMethods['agentCommander.open'].params;

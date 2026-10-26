@@ -124,6 +124,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Chat `@` file completion**: Workspace files offered from the composer's `@` trigger. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-file-mentions.ts`.
 - **Agent Chat Session switch**: Frame-by-frame switch measurement; 16 remembered conversations; hidden Chats skip rendering their stream. Evidence: `docs/renderer-performance.md`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-cache-retention.ts`.
 - **Chat message video tile**: A cited video shown as its poster frame with a centered play button and its name, opening a player on click. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/attachments/agent-chat-message-videos.tsx`.
+- **Portable hand-off on a used-up provider**: When a provider's usage runs out, the workbench builds the continuation brief from the visible, budgeted conversation (failed or interrupted turns included) instead of asking the source model for a summary, and never copies reasoning or tool state. Evidence: `docs/agent-usage-continuation.md`; `apps/server/src/domains/agent-chat/continuation/continuation-brief.ts`.
 
 ## Paseo (Apache-2.0)
 

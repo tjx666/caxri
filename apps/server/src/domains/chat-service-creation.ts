@@ -1,12 +1,15 @@
 import process from 'node:process';
 
 import type { ServerEvent } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
+import type { AgentChatServiceOptions } from './agent-chat';
 import {
     agentChatEndpoint,
     AgentChatService,
     chatStateStore,
+    ChatUsageContinuation,
     reapGroup,
     reapStaleProviderGroups,
 } from './agent-chat';
@@ -16,6 +19,7 @@ import type { CommanderTerminalHooks } from './commander';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
+import { discardEmptySession } from './session';
 
 /**
  * Composes the Chat service with the domain root's launch settings and, when Agent Endpoints exist, the Commander
@@ -40,6 +44,7 @@ export function createAgentChatService({
         | 'coordinator'
         | 'dispatchState'
         | 'observeChatLifecycleSignal'
+        | 'usageGuards'
     >;
     commanderHooks: Pick<CommanderTerminalHooks, 'chatInput' | 'chatReady' | 'launchArguments'>;
     configuration: Pick<ConfigService, 'getSettings'>;
@@ -58,25 +63,43 @@ export function createAgentChatService({
     send: (event: ServerEvent) => void;
 }): AgentChatService {
     const { agentEnvironment, agentLaunchSettings, coordinator } = agentRuntime;
+    /**
+     * A Chat Commander needs the same Codex overrides as a PTY one, notably the raised `project_doc_max_bytes` that
+     * keeps its embedded memory from being cut; `codexChatSettings` carries `-c` over as an app-server root option.
+     */
+    const launchSettings: AgentChatServiceOptions['launchSettings'] = (provider, terminal) => {
+        const settings = (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(
+            provider,
+        );
+        const extra = commanderHooks.launchArguments(terminal);
+        return extra.length === 0 ? settings : { ...settings, args: [...settings.args, ...extra] };
+    };
+    const usage = new ChatUsageContinuation({
+        database,
+        logger,
+        launchSettings,
+        resolveExecutable: dependencies.terminal?.resolveExecutable,
+        guards: agentRuntime.usageGuards,
+        createDelegation: (id, authority, request) => {
+            if (!delegationState.service)
+                throw new CaxriError('UNAVAILABLE', 'Agent delegation is not ready');
+            return delegationState.service.create(id, authority, request);
+        },
+        discardSession: (sessionId) =>
+            discardEmptySession(database, sessionId, () =>
+                send({
+                    event: 'state.changed',
+                    payload: { kind: 'full', reason: 'session.delete' },
+                }),
+            ),
+    });
     const service = new AgentChatService({
         database,
         logger,
         send,
         agentEnvironment,
-        /**
-         * A Chat Commander needs the same Codex overrides as a PTY one, notably the raised `project_doc_max_bytes` that
-         * keeps its embedded memory from being cut; `codexChatSettings` carries `-c` over as an app-server root
-         * option.
-         */
-        launchSettings: (provider, terminal) => {
-            const settings = (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(
-                provider,
-            );
-            const extra = commanderHooks.launchArguments(terminal);
-            return extra.length === 0
-                ? settings
-                : { ...settings, args: [...settings.args, ...extra] };
-        },
+        launchSettings,
+        usage,
         longRunningShellCommands: () =>
             configuration.getSettings().value['agents.longRunningShellCommands'],
         onReady: (terminalId) => {

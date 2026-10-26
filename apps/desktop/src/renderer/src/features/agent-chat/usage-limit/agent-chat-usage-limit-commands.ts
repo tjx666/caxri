@@ -1,0 +1,36 @@
+import type { AgentProvider } from '@caxri/protocol';
+
+import { translate } from '../../../i18n';
+import { caxri } from '../../../lib/caxri';
+import { tryCommand } from '../../../stores/toasts';
+import { openSession } from '../../session/session-commands';
+
+/**
+ * Continues the Chat's work in a new Session with `provider` (`agentChat.continueInAgent`) and opens that Session.
+ * `turnId` names the failed turn; without it the continuation is the usage guard's "Open in another Agent". A failure
+ * is a toast, and resolves like a success so the caller only clears its pending state.
+ */
+export async function continueAgentChatInAgent(
+    terminalId: string,
+    provider: AgentProvider,
+    turnId: string | undefined,
+): Promise<void> {
+    const result = await tryCommand(translate('agentChat.usageLimit.continueFailed'), () =>
+        caxri.request('agentChat.continueInAgent', {
+            terminalId,
+            provider,
+            ...(turnId !== undefined && { turnId }),
+        }),
+    );
+    if (result) openSession(result.sessionId);
+}
+
+/**
+ * Spends the usage guard's one hand-off on this Chat (`agentChat.generateHandoff`). The document arrives on the
+ * snapshot's `usageGuard`, so nothing is returned.
+ */
+export async function generateAgentChatHandoff(terminalId: string): Promise<void> {
+    await tryCommand(translate('agentChat.usageGuard.generateFailed'), () =>
+        caxri.request('agentChat.generateHandoff', { terminalId }),
+    );
+}

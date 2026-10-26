@@ -36,7 +36,7 @@ function isChatIdleForSuspension(
  */
 interface ChatIdleMaintenanceHost {
     database: Pick<CaxriDatabase, 'getTerminal'>;
-    states: Pick<ChatStates, 'get'>;
+    states: Pick<ChatStates, 'get' | 'assertUsage'>;
     hasStart(terminalId: string): boolean;
     enqueue(terminalId: string, state: ChatState, deliver: ChatStateDelivery): Promise<void>;
 }
@@ -85,6 +85,7 @@ export class ChatIdleMaintenance {
     ): Promise<void> {
         const state = this.host.states.get(terminalId);
         assertE2EAgentChatInput(readE2EAgentPolicy(), '/compact');
+        this.host.states.assertUsage(terminalId, 'idle_compaction');
         if (!state || state.launchId !== launchId)
             throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
         await this.host.enqueue(terminalId, state, async (session) => {

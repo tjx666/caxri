@@ -3,12 +3,14 @@ import type { AgentChatActivity, AgentChatSnapshot } from '@caxri/protocol';
 import { AgentChatActivityBar } from '../activity/agent-chat-activity-bar';
 import { AgentChatContextAlerts } from '../context/agent-chat-context-alerts';
 import { AgentChatPlanPaceAlert } from '../tools/agent-chat-plan-pace-alert';
+import { AgentChatUsageGuardCard } from '../usage-limit/agent-chat-usage-guard-card';
 import type { AgentChatEditBarProperties } from './agent-chat-edit-bar';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 
 /**
- * The rows stacked above the composer's input: the status row, the edit bar, and the context and plan alerts. The
- * alerts give way to a busy Chat and the edit bar, which own the strip while they show.
+ * The rows stacked above the composer's input: the status row, the edit bar, the usage guard, and the context and plan
+ * alerts. The alerts give way to a busy Chat and the edit bar, which own the strip while they show, and to the usage
+ * guard, which refuses the compaction and new Chat they offer.
  */
 export function AgentChatComposerNotices({
     activeTurnId,
@@ -34,10 +36,12 @@ export function AgentChatComposerNotices({
     onContinueInNewChat: () => void;
     onOpenTask: ((taskId: string) => void) | undefined;
     onPopoverClosed: () => HTMLElement | null;
-    snapshot: Pick<AgentChatSnapshot, 'plan' | 'tasks' | 'turns' | 'usage'> | undefined;
+    snapshot:
+        Pick<AgentChatSnapshot, 'plan' | 'tasks' | 'turns' | 'usage' | 'usageGuard'> | undefined;
     terminalId: string;
 }) {
-    const hasStripRoom = !activity && !isEditing;
+    const guard = snapshot?.usageGuard;
+    const hasStripRoom = !activity && !isEditing && !guard;
     return (
         <>
             <AgentChatActivityBar
@@ -50,6 +54,7 @@ export function AgentChatComposerNotices({
                 onPopoverClosed={onPopoverClosed}
             />
             <AgentChatEditBar edit={edit} />
+            {guard && <AgentChatUsageGuardCard guard={guard} terminalId={terminalId} />}
             <AgentChatContextAlerts
                 isContinuing={isContinuing}
                 isShown={hasStripRoom}

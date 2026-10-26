@@ -15,11 +15,12 @@ export interface AgentChatSendKey {
  * Why the Chat itself refuses a message right now (`canSendAgentChatMessage`), or `undefined` when it accepts one.
  */
 export function agentChatSendBlock(
-    snapshot: Pick<AgentChatSnapshot, 'status'> | undefined,
+    snapshot: Pick<AgentChatSnapshot, 'status' | 'usageGuard'> | undefined,
     processState: ProcessState | undefined,
-): 'detached' | 'failed' | 'loading' | undefined {
+): 'detached' | 'failed' | 'loading' | 'usageGuard' | undefined {
     if (processState === 'detached') return 'detached';
     if (!snapshot) return 'loading';
+    if (snapshot.usageGuard) return 'usageGuard';
     return snapshot.status === 'failed' ? 'failed' : undefined;
 }
 
@@ -110,6 +111,9 @@ function sendBlockedReason(
         }
         case 'detached': {
             return t('agentChat.message.sendBlockedDetached');
+        }
+        case 'usageGuard': {
+            return t('agentChat.message.sendBlockedUsageGuard');
         }
         case undefined: {
             break;

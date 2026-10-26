@@ -62,6 +62,11 @@ export const chat = {
     'chat.disabled.send.failed': 'Retry the Chat before sending a message.',
     'chat.disabled.send.handedOff': 'Resume the Chat on your computer to send messages.',
     'chat.disabled.send.offline': 'Reconnect to send messages.',
+    'chat.disabled.send.usageGuard': 'Weekly usage is nearly used up. Hand off on your computer.',
+    'chat.usageGuard.banner':
+        '{{provider}} weekly usage is at {{percent}}%. New requests are paused for {{reset}}, until it resets. Hand off to another Agent on your computer.',
+    'chat.usageGuard.resetDays': '{{days}}d {{hours}}h',
+    'chat.usageGuard.resetHours': '{{hours}}h {{minutes}}m',
     'chat.empty': 'No messages yet.',
     'chat.emptyHandedOff': 'No messages to show.',
     'chat.emptyReady': 'No messages yet. Send a message to start working with {{provider}}.',

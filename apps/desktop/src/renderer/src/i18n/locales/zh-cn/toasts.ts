@@ -16,6 +16,8 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.code.FORBIDDEN': '不允许执行此操作。',
     'toasts.failure.code.IO': '无法读取或写入文件。',
     'toasts.failure.code.GIT': 'Git 操作失败。',
+    'toasts.failure.code.USAGE_LIMITED':
+        '该 Agent 账户的周额度已用到 99%，新请求已暂停以保留交接额度。',
     'toasts.failure.code.INTERNAL': '发生内部错误。',
     'toasts.failure.errno.ENOENT': '该文件已不存在。',
     'toasts.failure.errno.ENOTDIR': '该路径不是目录。',

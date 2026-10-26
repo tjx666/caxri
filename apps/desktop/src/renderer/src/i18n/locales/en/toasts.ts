@@ -16,6 +16,8 @@ export const toasts = {
     'toasts.failure.code.FORBIDDEN': 'This action is not allowed.',
     'toasts.failure.code.IO': 'A file could not be read or written.',
     'toasts.failure.code.GIT': 'The Git operation failed.',
+    'toasts.failure.code.USAGE_LIMITED':
+        'This Agent account reached 99% of its weekly usage; new requests are paused to keep budget for a hand-off.',
     'toasts.failure.code.INTERNAL': 'An internal error occurred.',
     'toasts.failure.errno.ENOENT': 'The file no longer exists.',
     'toasts.failure.errno.ENOTDIR': 'The path is not a directory.',

@@ -3,13 +3,13 @@ import { z } from 'zod';
 import type {
     CommanderInbox,
     CommanderInboxItem,
-} from '../agent/agent-commander-inbox-contract.js';
+} from '../agent/commander/agent-commander-inbox-contract.js';
 import {
     commanderInboxItemSchema,
     commanderInboxMethods,
     MAX_COMMANDER_INBOX_OPEN_ITEMS,
-} from '../agent/agent-commander-inbox-contract.js';
-import { orderCommanderInboxItems } from '../agent/agent-commander-inbox-presentation.js';
+} from '../agent/commander/agent-commander-inbox-contract.js';
+import { orderCommanderInboxItems } from '../agent/commander/agent-commander-inbox-presentation.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';

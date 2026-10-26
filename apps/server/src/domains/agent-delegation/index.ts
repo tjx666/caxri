@@ -1,3 +1,4 @@
+export type { DelegationAuthority } from './admission';
 export { isAgentCommanderCaller } from './admission';
 export type { DelegationChatTurn } from './chat-child';
 export { canChatCorrelateTask } from './chat-child';

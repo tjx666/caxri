@@ -5,6 +5,7 @@ import type {
     AgentChatPlan,
     AgentChatRequest,
     AgentChatSnapshot,
+    AgentChatUsageLimit,
 } from '@caxri/protocol';
 import {
     MAX_AGENT_CHAT_DIFF_LENGTH,
@@ -553,7 +554,11 @@ function codexRetry(error: Json | undefined): {
  * The `error` notification: a retry notice while Codex retries, else the turn's error notice. One item per kind and
  * turn, so a repeated retry updates the notice instead of stacking copies.
  */
-export function mapCodexErrorNotice(parameters: Json, turnId: string | undefined): AgentChatItem {
+export function mapCodexErrorNotice(
+    parameters: Json,
+    turnId: string | undefined,
+    usageLimit?: AgentChatUsageLimit,
+): AgentChatItem {
     const error = isRecord(parameters.error) ? parameters.error : undefined;
     const base = { ...(turnId && { turnId: clip(turnId, 200) }), type: 'notice' } as const;
     if (parameters.willRetry === true) {
@@ -572,5 +577,6 @@ export function mapCodexErrorNotice(parameters: Json, turnId: string | undefined
         ...base,
         kind: 'error',
         ...(message && { message }),
+        ...(usageLimit && { usageLimit }),
     };
 }

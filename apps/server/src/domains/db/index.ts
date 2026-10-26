@@ -12,6 +12,7 @@ export type {
     ExternalAgentUsageRow,
     PullRequestOutcomeRow,
 } from './models/agent-session-usage';
+export type { AppStateValue } from './models/app-state';
 export { BenchmarkRunsModel } from './models/benchmark-runs';
 export type { StoredCommanderInboxItem } from './models/commander-inbox';
 export type {

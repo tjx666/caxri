@@ -31,10 +31,11 @@ describe('claudePlanLimits', () => {
             windows: [
                 {
                     windowMinutes: 300,
+                    scope: 'session',
                     usedPercent: 38.5,
                     resetsAt: Date.parse('2026-10-19T14:00:00.000Z'),
                 },
-                { windowMinutes: 10_080, usedPercent: 100 },
+                { windowMinutes: 10_080, usedPercent: 100, scope: 'weekly' },
             ],
         });
     });
@@ -74,7 +75,7 @@ describe('ClaudePlanLimits', () => {
         // The SDK types the full answer; the reader looks only at the fields this fixture carries.
         const usage = vi.fn(() => Promise.resolve(answer as never));
         const query = { usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: usage };
-        const limits = new ClaudePlanLimits(() => now);
+        const limits = new ClaudePlanLimits(undefined, () => now);
         limits.observe({ status: 'allowed', rateLimitType: 'five_hour', utilization: 0.9 });
         await expect(limits.read(query)).resolves.toMatchObject({
             windows: [{ usedPercent: 20 }, { usedPercent: 40 }],
@@ -92,9 +93,10 @@ describe('ClaudePlanLimits', () => {
             observedAt: now,
             planType: 'max',
             windows: [
-                { windowMinutes: 300, usedPercent: 85, resetsAt },
+                { windowMinutes: 300, usedPercent: 85, resetsAt, scope: 'session' },
                 {
                     windowMinutes: 10_080,
+                    scope: 'weekly',
                     usedPercent: 40,
                     resetsAt: Date.parse('2026-10-23T00:00:00.000Z'),
                 },
@@ -113,7 +115,7 @@ describe('ClaudePlanLimits', () => {
         expect(
             claudeRateLimitEvent(reading, { status: 'rejected', rateLimitType: 'seven_day' }, NOW)
                 ?.windows[1],
-        ).toEqual({ windowMinutes: 10_080, usedPercent: 100 });
+        ).toEqual({ windowMinutes: 10_080, usedPercent: 100, scope: 'weekly' });
         expect(claudeRateLimitEvent(reading, { status: 'allowed' }, NOW)).toBeUndefined();
     });
 });
