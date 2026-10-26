@@ -1,12 +1,12 @@
 import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
 
-import { AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE } from '../transcript/agent-chat-history';
+import { isScrolledToEnd } from '../../hooks/use-agent-chat-scroll';
+import { AGENT_CHAT_SETTLED_ENTRY_ATTRIBUTE } from '../../transcript/agent-chat-history';
 import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
     agentChatActiveRailIndex,
-} from '../transcript/agent-chat-rail-marks';
-import { isScrolledToEnd } from './use-agent-chat-scroll';
+} from '../agent-chat-rail-marks';
 
 /**
  * Space left above a message the rail jumps to, so it does not sit flush against the top edge.

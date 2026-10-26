@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 
 import { useSessionLookStore } from '../../session/session-look-boundary';
+import { agentChatMessageElement } from '../rail/hooks/use-agent-chat-message-rail';
 import {
     agentChatReturnAnchorId,
     isAgentChatReturnAnchorAbove,
     isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
 } from '../transcript/agent-chat-return-boundary';
-import { agentChatMessageElement } from './use-agent-chat-message-rail';
 
 export interface AgentChatReturnHintData {
     /**

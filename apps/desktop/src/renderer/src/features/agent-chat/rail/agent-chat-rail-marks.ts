@@ -2,17 +2,37 @@ import { agentChatPathReferencePreview } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import { translate } from '../../../i18n';
-import type { AgentChatTimelineEntry } from './agent-chat-timeline';
+import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 
 /**
- * One mark on the message rail: a user message the rail can jump to.
+ * What a rail mark's message is, for the badge in its preview card's corner: a plain message, one steered into a
+ * running turn, a delegated task, or images alone. Queued messages read as plain ones, as they do in the transcript.
+ */
+export type AgentChatRailMarkKind = 'delegated' | 'images' | 'message' | 'steered';
+
+/**
+ * One mark on the message rail: a user message the rail can jump to, and what its preview card shows.
  */
 export interface AgentChatRailMark {
     id: string;
     /**
-     * The start of the message, for the mark's hover preview.
+     * The start of the message on one line, for the tick's accessible name.
      */
     preview: string;
+    /**
+     * The card's heading: the message's first line, or its first sentence when that line runs long.
+     */
+    title: string;
+    /**
+     * The card's body: what follows the title, with the message's line breaks kept. The card clamps it to three lines.
+     */
+    summary: string;
+    kind: AgentChatRailMarkKind;
+    /**
+     * False while the message has no content to show yet (no text and no images), when the card holds its skeleton
+     * instead of an empty frame. Content that is already in the timeline is never held back behind it.
+     */
+    isReady: boolean;
 }
 
 /**
@@ -56,8 +76,77 @@ export function agentChatRailPreview(
 }
 
 /**
+ * About as wide as the card's title row shows beside its badge, in {@link titleWidth} units. A first line wider than
+ * this would be cut by the title's ellipsis, so it is not used as the title on its own.
+ */
+const TITLE_WIDTH = 28;
+
+/**
+ * The most of the body the card is handed; three clamped lines never show more.
+ */
+const SUMMARY_LENGTH = 400;
+
+const SENTENCE_END = /[.!?。！？]/gu;
+
+/**
+ * A rough display width: a CJK or other full-width character takes about two Latin letters' room.
+ */
+function titleWidth(text: string): number {
+    let width = 0;
+    for (const character of text) width += (character.codePointAt(0) ?? 0) >= 0x2e_80 ? 2 : 1;
+    return width;
+}
+
+/**
+ * The title for a message whose first line is `line`, and what the summary shows after it. A line that fits is the
+ * title; a long line whose first sentence fits is titled by that sentence. Any other long line stays whole in the
+ * summary under its own clipped start, because a title cut where the row's ellipsis lands would lose the words between
+ * the cut and the summary.
+ */
+function splitTitle(line: string): { title: string; rest: string } {
+    if (titleWidth(line) <= TITLE_WIDTH) return { title: line, rest: '' };
+    for (const match of line.matchAll(SENTENCE_END)) {
+        const end = match.index + 1;
+        const after = line.charAt(end);
+        if (after !== '' && after !== ' ' && titleWidth(match[0]) === 1) continue;
+        if (titleWidth(line.slice(0, end)) > TITLE_WIDTH) break;
+        return { title: line.slice(0, end), rest: line.slice(end).trim() };
+    }
+    // The row clips the title; past this it only costs memory per mark.
+    return { title: line.slice(0, SUMMARY_LENGTH), rest: line };
+}
+
+/**
+ * The title and summary of a message's preview card. Each line is collapsed to single spaces and blank lines are
+ * dropped, so a summary spends its three lines on words; a message of images alone is named by its images.
+ */
+export function agentChatRailPreviewParts(
+    text: string,
+    imageCount: number,
+    t: Translate = translate,
+): { title: string; summary: string } {
+    const lines = text
+        .split(/\r?\n/u)
+        .map((line) => line.replaceAll(/\s+/gu, ' ').trim())
+        .filter(Boolean);
+    if (lines.length === 0)
+        return {
+            title: agentChatRailPreview('', imageCount, t),
+            summary: imageCount > 0 ? t('agentChat.rail.imagesOnly') : '',
+        };
+    const { title, rest } = splitTitle(lines[0]);
+    const summary = [rest, ...lines.slice(1)].filter(Boolean).join('\n');
+    return {
+        title,
+        summary:
+            summary.length <= SUMMARY_LENGTH ? summary : `${summary.slice(0, SUMMARY_LENGTH - 1)}…`,
+    };
+}
+
+/**
  * The rail's marks, one per user message in transcript order. User messages always stay at the timeline's top level (a
- * finished turn folds only work and commentary), so nested entries are not searched.
+ * finished turn folds only work and commentary), so nested entries are not searched. A delegated task previews the task
+ * its caller wrote, not the pointer that stands in for it.
  */
 export function agentChatRailMarks(
     timeline: readonly AgentChatTimelineEntry[],
@@ -66,14 +155,24 @@ export function agentChatRailMarks(
     const marks: AgentChatRailMark[] = [];
     for (const entry of timeline) {
         if (entry.kind !== 'item' || entry.item.type !== 'userMessage') continue;
-        const { id, text, images } = entry.item;
+        const { id, text, images, delivery, delegatedTask } = entry.item;
+        const imageCount = images?.length ?? 0;
+        const words = delegatedTask
+            ? (delegatedTask.prompt ?? t('agentChat.delegated.task'))
+            : agentChatPathReferencePreview(text);
+        const isReady = words.trim() !== '' || imageCount > 0;
         marks.push({
             id,
-            preview: agentChatRailPreview(
-                agentChatPathReferencePreview(text),
-                images?.length ?? 0,
-                t,
-            ),
+            preview: agentChatRailPreview(words, imageCount, t),
+            ...agentChatRailPreviewParts(words, imageCount, t),
+            kind: delegatedTask
+                ? 'delegated'
+                : delivery === 'steered'
+                  ? 'steered'
+                  : words.trim() === '' && imageCount > 0
+                    ? 'images'
+                    : 'message',
+            isReady,
         });
     }
     return marks;

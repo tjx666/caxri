@@ -36,7 +36,6 @@ import {
     AgentChatMcpServersContext,
     useAgentChatMcpServers,
 } from './hooks/use-agent-chat-mcp-server';
-import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPaneEscape } from './hooks/use-agent-chat-pane-escape';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
@@ -49,7 +48,6 @@ import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-ag
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
 import { useLoadingStyle } from './loading';
-import { AgentChatMessageRail } from './messages/agent-chat-message-rail';
 import { AgentChatDayBreak } from './messages/agent-chat-message-time';
 import {
     AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
@@ -58,6 +56,12 @@ import {
 import { AgentChatReplyPlaceholder } from './messages/agent-chat-reply-placeholder';
 import { AgentChatSelectionToolbar } from './messages/agent-chat-selection-toolbar';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './permissions/use-agent-chat-approval-keys';
+import { AgentChatMessageRail } from './rail/agent-chat-message-rail';
+import {
+    AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
+    isAgentChatMessageRailShown,
+} from './rail/agent-chat-rail-marks';
+import { useAgentChatMessageRail } from './rail/hooks/use-agent-chat-message-rail';
 import { AgentChatExpansionState } from './transcript/agent-chat-expansion';
 import { AgentChatHistoryHead } from './transcript/agent-chat-history-head';
 import { AgentChatJumpToLatest } from './transcript/agent-chat-jump-to-latest';
@@ -69,10 +73,6 @@ import {
     isAgentChatBusy,
     isAgentChatConversationLoading,
 } from './transcript/agent-chat-presentation';
-import {
-    AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
-    isAgentChatMessageRailShown,
-} from './transcript/agent-chat-rail-marks';
 import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
 import { AgentChatSettledTimeline } from './transcript/agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from './transcript/agent-chat-timeline';
