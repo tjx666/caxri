@@ -89,7 +89,7 @@ async function scrollUsageScreenTo(serial: string, id: string, triesLeft = 6): P
 }
 
 /**
- * `MOB-CHAT-30`: a phone opens Agent usage from the Session list header and sees, per Agent, the plan windows with what
+ * `MOB-CHAT-31`: a phone opens Agent usage from the Session list header and sees, per Agent, the plan windows with what
  * is left and when each resets, the latest output speed, and the provider's API status. A running Claude Chat answers
  * `/usage` (the fake reports a behind-pace week), the Claude status page is degraded by an incident, and the Codex page
  * is operational.
