@@ -60,10 +60,11 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'ctrl+tab', command: 'workbench.nextTab' },
     { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
     /**
-     * `Cmd+Backquote` follows the macOS current-app window switching convention for Caxri's closest equivalent context:
-     * Sessions inside its single window. `Ctrl+Tab` remains dedicated to Workbench tabs.
+     * `Cmd+Backquote` stays with macOS, which cycles the current app's windows with it: Caxri opens several windows
+     * (torn-off Sessions), so claiming it would leave no keyboard path between them. `Ctrl+Alt+Tab` collides with
+     * neither a system shortcut nor the Workbench tab chords on `Ctrl+Tab`.
      */
-    { key: 'cmd+`', command: 'session.switchMru' },
+    { key: 'ctrl+alt+tab', command: 'session.switchMru' },
     /**
      * VS Code's `Ctrl+-` / `Ctrl+Shift+-` history chords are unavailable because these commands must fire while a
      * Terminal owns focus, where they would shadow the shell's own `Ctrl+_`.
@@ -277,11 +278,6 @@ export const defaultKeybindingChanges = [
         current: { key: 'cmd+\\', command: 'terminal.newInSplit' },
     },
     {
-        type: 'replace',
-        previous: { key: 'ctrl+alt+tab', command: 'session.switchMru' },
-        current: { key: 'cmd+`', command: 'session.switchMru' },
-    },
-    {
         type: 'add',
         binding: { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
     },
@@ -430,5 +426,14 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+alt+n', command: 'editor.newUntitledFile' },
+    },
+    /**
+     * Session MRU hands `Cmd+Backquote` back to the macOS window cycle. Files still on the earlier `Ctrl+Alt+Tab`
+     * default need no change; the reverse move that once sat earlier in this list is dropped so the two never chain.
+     */
+    {
+        type: 'replace',
+        previous: { key: 'cmd+`', command: 'session.switchMru' },
+        current: { key: 'ctrl+alt+tab', command: 'session.switchMru' },
     },
 ] satisfies readonly DefaultKeybindingChange[];
