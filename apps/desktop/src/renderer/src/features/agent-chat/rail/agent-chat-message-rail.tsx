@@ -102,10 +102,16 @@ const RailTick = memo(
  */
 export function AgentChatMessageRail({
     activeIndex,
+    hasEarlierHistory,
     marks,
     onJump,
 }: {
     activeIndex: number;
+    /**
+     * True while older history is not loaded yet, so `marks` is not the whole conversation and the card must not claim
+     * a position out of a total.
+     */
+    hasEarlierHistory: boolean;
     marks: readonly AgentChatRailMark[];
     onJump: (id: string) => void;
 }) {
@@ -176,6 +182,9 @@ export function AgentChatMessageRail({
                 anchor={preview.anchor}
                 isOpen={preview.shownId !== undefined && shownMark?.id === preview.shownId}
                 mark={shownMark}
+                position={shownMark ? marks.indexOf(shownMark) + 1 : 0}
+                loadedCount={marks.length}
+                total={hasEarlierHistory ? undefined : marks.length}
                 onDismiss={preview.dismiss}
             />
         </nav>

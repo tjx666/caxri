@@ -6,8 +6,10 @@ import {
 } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
+import { translate } from '../../i18n';
 import { getBootstrap } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
+import { pushToast } from '../../stores/toasts';
 import { didOpenEditorTabForSession, openFileForSession } from '../editor/document-commands';
 import { focusEditor } from '../editor/editor-reveal';
 import { sessionStateOf } from '../editor/session-pane-state';
@@ -15,7 +17,7 @@ import { restoreArchivedSession } from '../session/session-archive-commands';
 import { didSelectSession } from '../session/session-commands';
 import { movePaneTab } from '../workbench/pane-actions';
 import type { ClosedItem, ClosedSessionItem, ClosedTabItem } from './stack';
-import { closedItems } from './stack';
+import { closedItems, didReopenOrReportNothing } from './stack';
 
 /**
  * Makes the Session the Open Session when it is not already, which is where a closed tab has to come back.
@@ -86,5 +88,7 @@ function reopenItem(item: ClosedItem): Promise<boolean> {
  * deleted or whose file no longer opens. Each call walks one step further back, like the browser and VS Code.
  */
 export async function reopenClosedItem(): Promise<void> {
-    await closedItems.reopenNext(reopenItem);
+    await didReopenOrReportNothing(closedItems, reopenItem, () =>
+        pushToast('info', translate('closedItems.nothingToReopen')),
+    );
 }

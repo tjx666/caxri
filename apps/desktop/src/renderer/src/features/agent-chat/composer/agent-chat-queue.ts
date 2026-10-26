@@ -103,11 +103,33 @@ function queueEntryView(
 }
 
 /**
+ * What deleting a queued message does with its text: `restore` moves it back into the composer, so a mis-click is
+ * recoverable by clearing the draft; `drop` deletes it outright.
+ */
+export type AgentChatQueueDeleteOutcome = 'drop' | 'restore';
+
+/**
+ * Deleting restores the text only into an empty composer, so a draft the user is writing is never overwritten or merged
+ * with a message they meant to discard. A message carrying images is dropped too: its images stay on Server Core and
+ * cannot return to the composer, so restoring the text alone would split the message.
+ */
+export function agentChatQueueDeleteOutcome(
+    isDraftEmpty: boolean,
+    entry: Pick<AgentChatQueueEntryView, 'imageCount'>,
+): AgentChatQueueDeleteOutcome {
+    return isDraftEmpty && entry.imageCount === 0 ? 'restore' : 'drop';
+}
+
+/**
  * The words on a queue card's actions. A message still on its way to Server Core says so on every action, since all of
  * them are held until Server Core lists it; otherwise each tooltip names the action or why it is unavailable (a command
  * waits for the running turn instead of steering it).
  */
 export interface AgentChatQueueCardLabels {
+    /**
+     * Names what Delete actually does, so a restore into an empty composer is not announced as a deletion.
+     */
+    deleteAriaLabel: string;
     deleteTooltip: string;
     editTooltip: string;
     sendTooltip: string;
@@ -117,9 +139,15 @@ export interface AgentChatQueueCardLabels {
 export function agentChatQueueCardLabels(
     entry: Pick<AgentChatQueueEntryView, 'canSendNow' | 'isPending' | 'sendNowLabel'>,
     t: Translate = translate,
+    deleteOutcome: AgentChatQueueDeleteOutcome = 'drop',
 ): AgentChatQueueCardLabels {
     const isSteer = entry.sendNowLabel === 'Steer';
     const sendLabels = {
+        deleteAriaLabel: t(
+            deleteOutcome === 'restore'
+                ? 'agentChat.queue.restoreMessage'
+                : 'agentChat.queue.deleteMessage',
+        ),
         sendAriaLabel: t(isSteer ? 'agentChat.queue.steerNow' : 'agentChat.queue.sendNow'),
     };
     if (entry.isPending) {
@@ -132,7 +160,9 @@ export function agentChatQueueCardLabels(
         };
     }
     return {
-        deleteTooltip: t('common.delete'),
+        deleteTooltip: t(
+            deleteOutcome === 'restore' ? 'agentChat.queue.deleteRestoreTooltip' : 'common.delete',
+        ),
         editTooltip: t('common.edit'),
         sendTooltip: entry.canSendNow
             ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')

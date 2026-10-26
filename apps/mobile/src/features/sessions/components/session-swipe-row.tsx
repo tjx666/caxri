@@ -105,16 +105,16 @@ export const SessionSwipeRow = ({
                 onPress={archive}
                 style={({ pressed }) => [
                     styles.action,
-                    { backgroundColor: theme.danger, opacity: pressed ? 0.8 : 1 },
+                    { backgroundColor: theme.elevated, opacity: pressed ? 0.8 : 1 },
                 ]}
                 testID={`session-swipe-archive-${sessionId}`}
             >
                 {busy ? (
-                    <Spinner color={theme.primaryForeground} />
+                    <Spinner color={theme.text} />
                 ) : (
                     <>
-                        <Archive color={theme.primaryForeground} size={20} strokeWidth={2.25} />
-                        <Text style={[styles.actionText, { color: theme.primaryForeground }]}>
+                        <Archive color={theme.text} size={20} strokeWidth={2.25} />
+                        <Text style={[styles.actionText, { color: theme.text }]}>
                             {t('sessions.actions.archive')}
                         </Text>
                     </>

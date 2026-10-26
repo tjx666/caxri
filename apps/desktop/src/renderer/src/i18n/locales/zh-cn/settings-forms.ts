@@ -37,7 +37,7 @@ export const settingsForms: TranslatedNamespace<typeof source> = {
     'settings.ignoredChecksForm.remove': '移除已忽略检查 {{rule}}',
     'settings.longRunningCommandsForm.ariaLabel': '长期运行的后台命令编辑器',
     'settings.longRunningCommandsForm.description':
-        '每个模式匹配命令的开头，所以 bun run dev 也会匹配 bun run dev --port 3000。* 匹配任意字符，只写命令名时匹配任意目录下的该命令，/regex/ 为正则表达式。用 &&、; 或 | 连接的命令会逐段检查。',
+        '按命令开头匹配；只写命令名时在任何目录都能匹配，用 &&、; 或 | 连接的每一段会分别检查。可用 * 作通配符，或写成 /regex/。',
     'settings.longRunningCommandsForm.inputLabel': '长期运行命令模式',
     'settings.longRunningCommandsForm.listLabel': '长期运行命令模式列表',
     'settings.longRunningCommandsForm.empty':
@@ -45,7 +45,7 @@ export const settingsForms: TranslatedNamespace<typeof source> = {
     'settings.longRunningCommandsForm.invalid':
         '请输入命令（如 npm run dev）或有效的 /正则表达式/。',
     'settings.longRunningCommandsForm.duplicate': '该模式已在列表中。',
-    'settings.longRunningCommandsForm.maximum': '长期运行的后台命令最多支持 {{maximum}} 个模式。',
+    'settings.longRunningCommandsForm.maximum': '最多只能添加 {{maximum}} 个模式。',
     'settings.longRunningCommandsForm.remove': '移除模式 {{rule}}',
     'settings.referenceLinksForm.ariaLabel': '终端引用链接编辑器',
     'settings.referenceLinksForm.descriptionBeforeToken':

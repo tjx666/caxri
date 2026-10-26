@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 import {
@@ -27,10 +27,15 @@ import {
     resumeAgentChatQueue,
     sendAgentChatQueuedNow,
 } from '../agent-chat-commands';
+import {
+    readAgentChatDraft,
+    subscribeAgentChatDraftChanges,
+} from '../composer-input/agent-chat-drafts';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import type { AgentChatQueueEntryView } from './agent-chat-queue';
 import {
     agentChatQueueCardLabels,
+    agentChatQueueDeleteOutcome,
     agentChatQueuedTextAfterEdit,
     agentChatQueuedTextEdit,
     agentChatQueueEntries,
@@ -183,7 +188,16 @@ function QueueCard({
 }) {
     const { t } = useTranslation();
     const isPending = entry.isPending === true;
-    const labels = agentChatQueueCardLabels(entry, t);
+    // Subscribes to whether the draft is empty, not to its text, so typing re-renders the card only when that flips.
+    const isDraftEmpty = useSyncExternalStore(
+        (listener) => subscribeAgentChatDraftChanges(terminalId, listener),
+        () => readAgentChatDraft(terminalId).trim() === '',
+    );
+    const labels = agentChatQueueCardLabels(
+        entry,
+        t,
+        agentChatQueueDeleteOutcome(isDraftEmpty, entry),
+    );
     const [isEditingText, setIsEditingText] = useState(false);
     if (isEditingText)
         return (
@@ -243,11 +257,22 @@ function QueueCard({
                     <Pencil aria-hidden="true" className="size-3.5" />
                 </QueueCardAction>
                 <QueueCardAction
-                    ariaLabel={t('agentChat.queue.deleteMessage')}
+                    ariaLabel={labels.deleteAriaLabel}
                     isDisabled={isPending}
                     tooltip={labels.deleteTooltip}
                     onAction={onAction}
-                    onRun={() => removeAgentChatQueued(terminalId, entry.id)}
+                    onRun={() => {
+                        // Read the draft at click time: the composer may have changed since the card last rendered.
+                        const isEmpty = readAgentChatDraft(terminalId).trim() === '';
+                        if (agentChatQueueDeleteOutcome(isEmpty, entry) === 'restore')
+                            void editAgentChatQueued(
+                                terminalId,
+                                entry.id,
+                                onEdit,
+                                'agentChat.commands.removeQueuedFailed',
+                            );
+                        else removeAgentChatQueued(terminalId, entry.id);
+                    }}
                 >
                     <Trash2 aria-hidden="true" className="size-3.5" />
                 </QueueCardAction>

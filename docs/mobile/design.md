@@ -182,7 +182,7 @@ no background of its own keeps its default dark text readable.
 - The host menu contains `Add Project` (control devices only) and `Forget this computer`.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
-- On a control device, swiping a row left reveals its `Archive` action. The swipe starts only after
+- On a control device, swiping a row left reveals its `Archive` action on a neutral elevated surface, not the danger color, because archiving is reversible from Archived Sessions. The swipe starts only after
   `24dp` of sideways travel and a closed row ignores a rightward drag, so a vertical scroll that
   drifts sideways keeps scrolling (`MOB-CHAT-27`). At most one row shows its action: starting to swipe another row, tapping a different row, or scrolling the list closes the
   open row, and the tap that closes a row does not open that Session. Android Acceptance

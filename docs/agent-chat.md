@@ -951,7 +951,12 @@ several callbacks can share one item, so the transport id is never the key.
   message, the one being read longer and brighter. Hovering a tick, or focusing it from the
   keyboard, opens one fixed-size preview card beside it: the message's first line (or first
   sentence) as the title, up to three lines of what follows, and a corner badge naming the kind of
-  message (sent by you, steered, a delegated task, or images only). A message with no content yet
+  message (sent by you, steered, a delegated task, or images only). The title and body never repeat
+  each other: a first line too long for any title is shown whole in the body under a caption
+  (`Message 3 of 12 · 17:59`), and a message with nothing after its title fills the body with that
+  caption instead of blank lines. While earlier history is unloaded the rail only knows the loaded
+  messages, so the caption names the send time (or the position among the loaded messages) rather
+  than a total. A message with no content yet
   shows a skeleton of the same size; content already in the timeline never waits behind it. An open
   card moves to the next tick at once, and only the current tick's content is ever rendered, so a
   sweep never flashes a passed message (`rail/agent-chat-rail-preview.ts`). Clicking a tick stops
@@ -1522,8 +1527,10 @@ than 20 minutes, so a five-minute cache does not warn the moment a reply lands),
 countdown says when the cache expires and that replying now avoids rewriting the context. Once the
 Chat has idled past the lifetime, a `--muted` notice says the next message rewrites the context and
 what that costs. From 85% of the compaction window, a `--warning` notice suggests `/compact`. A cache
-notice and the compaction notice can show at once, cache first. Dismissing a cache notice hides it
-until the next reply arrives; the dismissal lives in memory only.
+notice and the compaction notice can show at once, cache first. Dismissing a cache notice (its
+control reads `Hide this notice`) hides it until the next reply arrives without cancelling anything;
+the dismissal lives in memory only. While idle compaction counts down, the row offers `Compact now`
+when the provider reports a compact command, so the user need not wait for the same compaction.
 
 The expired-cache notice also offers **Continue in new Chat**, the cheaper way out of a large cold
 context. It opens a new Chat of the same Agent in the same Session and sends it a handoff prompt

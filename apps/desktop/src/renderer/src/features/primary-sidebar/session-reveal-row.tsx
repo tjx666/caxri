@@ -1,7 +1,7 @@
 import { useTranslation } from '../../i18n';
 
 /**
- * The `Show more` row that closes a windowed Session list, shared by Project groups and the Pinned group.
+ * The `Show N more` row that closes a windowed Session list, shared by Project groups and the Pinned group.
  *
  * The button is the row: it holds the roving Tab stop, so it carries the tree semantics itself instead of sitting
  * inside a `treeitem` wrapper focus never reaches. It is deliberately content-width rather than `w-full`: a full-width
@@ -18,7 +18,8 @@ export function SessionRevealRow({
     onReveal,
 }: {
     /**
-     * How many Sessions this activation reveals; only the accessible name carries it, not the visible label.
+     * How many Sessions this activation reveals; the visible label (`Show N more`) and the accessible name both carry
+     * it.
      */
     count: number;
     /**
@@ -55,7 +56,7 @@ export function SessionRevealRow({
             tabIndex={roving ? 0 : -1}
             onClick={onReveal}
         >
-            <span className="truncate">{t('primarySidebar.reveal.showMore')}</span>
+            <span className="truncate">{t('primarySidebar.reveal.showMore', { count })}</span>
         </button>
     );
 }

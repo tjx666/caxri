@@ -304,7 +304,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.agents.longRunningShellCommands.title': '长期运行的后台命令',
     'settings.agents.longRunningShellCommands.description':
-        'Claude Code 启动的后台命令会让 Session 保持工作中，直到命令结束；匹配这些模式的命令除外，例如会运行数小时的开发服务器',
+        '本来就会一直运行的命令，例如开发服务器。判断 Agent 这一轮是否结束时，Caxri 不会等它们退出',
 
     'settings.agents.delegation.title': 'Agent 委派',
     'settings.agents.delegation.description': '命名的委派预设、调用方绑定和最大委派深度',

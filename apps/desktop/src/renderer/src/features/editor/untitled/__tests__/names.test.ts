@@ -6,6 +6,7 @@ import {
     nextUntitledIndex,
     untitledDisplayName,
     untitledFirstLineName,
+    untitledSaveAsBaseName,
     untitledSuggestedFileName,
 } from '../names';
 
@@ -63,5 +64,14 @@ describe('emptyUntitledDocument', () => {
             dirty: false,
             ephemeral: true,
         });
+    });
+});
+
+describe('untitledSaveAsBaseName', () => {
+    it('keeps the ASCII Untitled-N name regardless of the UI language', () => {
+        expect(untitledSaveAsBaseName(untitledEditorTabPath(4), '')).toBe('Untitled-4');
+        expect(untitledSaveAsBaseName(untitledEditorTabPath(4), 'hello world\nmore')).toBe(
+            'hello world',
+        );
     });
 });

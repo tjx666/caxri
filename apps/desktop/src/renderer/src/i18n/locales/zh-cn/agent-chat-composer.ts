@@ -121,6 +121,8 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.queue.sendFailed': '排队的消息发送失败',
     'agentChat.queue.resume': '恢复',
     'agentChat.queue.deleteMessage': '删除排队的消息',
+    'agentChat.queue.restoreMessage': '把排队的消息放回输入框',
+    'agentChat.queue.deleteRestoreTooltip': '移出队列并放回输入框',
     'agentChat.queue.editMessage': '编辑排队消息',
     'agentChat.queue.sendNow': '立即发送',
     'agentChat.queue.steer': '引导',
@@ -191,8 +193,9 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.context.continueTooltip':
         '打开一个新对话，读取当前对话的记录并继续工作。你的草稿会一并带过去。',
     'agentChat.context.continueInNewChat': '在新对话中继续',
-    'agentChat.context.compact': '压缩',
-    'agentChat.context.dismissCache': '下次回复前不再提示',
+    'agentChat.context.compact': '压缩对话',
+    'agentChat.context.compactNow': '立即压缩',
+    'agentChat.context.dismissCache': '隐藏此提示',
     'agentChat.context.cacheCost': '（预计约 {{cost}}）',
     'agentChat.context.cacheText': '已闲置 {{duration}} · 下次回复将重新读取整个对话{{cost}}',
     'agentChat.context.cacheDetail':

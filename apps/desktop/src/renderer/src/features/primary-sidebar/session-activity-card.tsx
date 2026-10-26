@@ -24,6 +24,7 @@ import {
     currentSessionActivityPresentation,
     sessionActivityPresentation,
 } from './session-activity';
+import { sessionCardStatusLine } from './session-card-status';
 import { sessionPullRequestPresentation } from './session-pull-request';
 
 /**
@@ -133,6 +134,7 @@ export function SessionActivityCard({
         pullRequestUnavailable,
         worktreeProject,
     });
+    const statusLine = sessionCardStatusLine(session, terminal);
     // The list's status slot collapses every attention kind into one signal; the description names the exact one.
     const unreadSentence = session.hasUnread
         ? t('primarySidebar.card.sentence', {
@@ -164,8 +166,10 @@ export function SessionActivityCard({
             </span>
             {/*
              * A glance, after the Codex app's thread list: which Session, which Agent, how recently, which Project.
-             * Status, PR, and unread attention already sit on the row; the PR, the creating Session, and past
-             * conversations open from the row's context menu; everything stays in the accessible description.
+             * The PR and unread attention already sit on the row; the PR, the creating Session, and past
+             * conversations open from the row's context menu; everything stays in the accessible description. The row
+             * hides its status glyph while hovered, so a non-default status (working, unread, detached) is restated as
+             * one muted line; a settled Session keeps the two-line card.
              */}
             <HoverCardContent
                 align="start"
@@ -196,6 +200,11 @@ export function SessionActivityCard({
                     <ProjectIcon className="flex-none" icon={project.icon} size={13} />
                     <span className="min-w-0 truncate">{project.displayTitle}</span>
                 </p>
+                {statusLine && (
+                    <p className="mt-1 mb-0 min-w-0 truncate text-[12px] text-muted">
+                        {statusLine}
+                    </p>
+                )}
             </HoverCardContent>
         </HoverCard>
     );

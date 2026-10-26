@@ -75,4 +75,5 @@ export const toasts = {
     'toasts.center.empty': 'No recent notifications',
     'toasts.center.list': 'Recent notifications',
     'toasts.center.footer': 'Recent activity from this window. Cleared when the window reloads.',
+    'closedItems.nothingToReopen': 'Nothing to reopen',
 } as const;

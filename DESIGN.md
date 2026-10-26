@@ -471,15 +471,15 @@ detached Agent shows a static unplugged glyph. Attention wins over running; ther
 second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Lifecycle outranks delivery: only a settled Session (idle, unknown, failed,
 exited, or read) shows its pull request and production deployment glyph in that slot, and while a
-lifecycle glyph holds it the PR stays reachable from the hover card and the row menu. A visible
+lifecycle glyph holds it the PR stays reachable from the row menu. A visible
 glyph claims the 14px slot and every such glyph shares one vertical line; a Session with neither
 collapses the empty slot to zero so its title gains one more character while retaining the 8px
 separation from the right edge. The MRU switcher shows the same lifecycle glyph after its relative
 time, reserving the slot so the time column does not shift.
 
 The row deliberately shows no activity label, relative time, or line diff. In daily use those were
-not read, and a second line halved how many Sessions fit on screen. The hover card still explains
-the current activity in words. A collapsed Project heading summarizes the rows it hides: a small running arc with
+not read, and a second line halved how many Sessions fit on screen. The hover card restates a
+non-default status in words. A collapsed Project heading summarizes the rows it hides: a small running arc with
 the running count, and one warning dot when any Session is unread; it stays beside the name while the
 heading's hover actions show, and disappears when the Project expands. Thus a failed process is not a persistent
 list alert, while reliable unread attention remains visible
@@ -490,13 +490,16 @@ edge; the title (and a Pinned row's Project name) clips with the same right-edge
 cluster. Every right-edge glyph (lifecycle, delivery, and the Commander marker) collapses while the
 pointer is over the row, so the row shows only Pin and Archive and the title keeps its width; a
 glyph that stayed beside the buttons read as a third action and crowded the title. The hover card
-still states the lifecycle, so hovering a busy row does not hide why it is busy. Keyboard focus keeps
+still states a non-default status, so hovering a busy row does not hide why it is busy. Keyboard focus keeps
 the track visible because Delete already owns the keyboard action; the hover buttons stay outside
 the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
-collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
-activity explanation, the pull request when one exists, the `Worktree` the Session works in when
-that is not its own Project root, `Changes`, `Last opened`, and unread-attention metadata. Opening a
+collision-shifts within the viewport, and is a glance: the full title, the primary Agent icon, last active time, and
+Project, plus one muted status line (`Working`, `Unread, finished`, `Detached`) only when the row's
+status glyph is non-default; a settled Session keeps the two-line card. Removed facts live elsewhere:
+the pull request is the row's PR glyph and the row context menu, the creating Session and past
+conversations open from the row context menu, and the accessible description still carries the
+Worktree, pull request, activity, and unread-attention sentences. Opening a
 modal closes the card and gives the modal ownership of Escape. Canceling a picker restores the exact
 opening control without reopening its detail card; a command's explicit focus handoff takes precedence.
 If the opening control disappeared, restore the current workbench Terminal when available.
@@ -538,7 +541,7 @@ full-width management dialog. Its footer carries the jump to Session search as a
 `Search Sessions` button beside `Done`, the Keyboard Shortcuts `Edit Keybindings` pattern, so the
 header stays a title plus description. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
-plus a text-only `Show N more` row that reveals ten more per activation and disappears once the list
+plus a text-only `Show N more` row (N is the count the next activation reveals, at most ten) that reveals ten more per activation and disappears once the list
 is complete, so a busy Project never buries the Projects below it. The row has no disclosure chevron:
 it is not a collapsible branch, and a twistie would spend width on a meaning it does not have. Project
 and Pinned groups share one `SessionRevealRow`: a 24px, 6px-radius, content-width `--muted` button
@@ -575,32 +578,18 @@ decision.
 
 A Session working in a Git worktree rather than its Project root carries no mark on its row: in
 daily use a leading worktree glyph added a column without changing what the user did next. The
-worktree name stays in the Session hover card and the row's accessible description.
-
-`Changes` is the one place a Session other than the selected one shows its uncommitted file count:
-the number of working-tree changes across that Session's own Workbench Root repositories. The copy names
-the working tree, never the Session's Agent, because several Sessions can share one root and any of
-them (or the user) may have made the edits. The row is absent when the tree is clean, when the root
-is not a repository, and when the read fails, the same way zero hides the Git tab badge. It is
-absent for the selected Session too: the Git tab badge already carries that Session's exact count on
-the same screen. This file count never reaches the row, the Files tree, or any Workbench
-badge. It is read only while the card is open, for at most one card at a time, and trusted for 30
-seconds; nothing polls it, so the sidebar never holds a Git read per row. A Session sharing the
-selected Session's root follows `git.changed`; any other root has no file watcher to advance it, so
-opening its card asks Git for a fresh snapshot instead of showing a count frozen at the moment the
-user switched away.
+worktree name stays in the row's accessible description.
 
 Adopting a worktree as a Workbench Root auto-registers a Project for it, and that Project never
 occupies a top-level slot in the PrimarySidebar. The list shows the Projects the user added; a
-worktree is a property of the Session working in it, which the Session's hover card already
-names. A second top-level row per worktree would double the list without naming
+worktree is a property of the Session working in it, which the Session's accessible description
+already names. A second top-level row per worktree would double the list without naming
 anything new, and no PrimarySidebar affordance (reorder, delete, disclosure) applies to a row the
 user never created. The consequence is that such a Project is reachable only through its owner:
 deleting the owner deletes it, and the confirmation names the ones about to go.
 
 Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged
-is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, with failures in
-`--danger`; never overlay a badge on the small PR glyph or recolor it for CI. The existing animated
+is `--merged`, and draft is `--muted`. Never overlay a badge on the small PR glyph or recolor it for CI. The existing animated
 yellow Session attention ring keeps its separate meaning in the row's right-edge slot. A production
 deployment that succeeded uses the rocket in `--merged`: shipping is where a merged pull request goes
 next, and a green rocket read as the same state as an open PR.
@@ -635,9 +624,7 @@ current Workbench Root's repositories, including hidden and truncated entries. E
 view's description reaches the accessible description and the tab tooltip whatever the chip shows, so
 a displaced tally stays announced and stays hoverable. Badge reads activate declared providers even
 before their views open. Zero, no selected Session, and unavailable extension states hide the badge;
-counts never carry across Workbench scopes. A Session hover card's `Changes` row does not cross that
-line: the card is explicitly about the Session it names, and the count it shows is that Session's
-own Workbench Root, never the selected one's.
+counts never carry across Workbench scopes.
 
 **Trees**: a tree is `role="tree"` with `role="treeitem"` rows, and the role sits on the element
 that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selected`, and the roving
@@ -1307,7 +1294,8 @@ reference is written, while Enter waits. Both lists show only while the input ha
 messages list in the composer strip (below) as 13px rows laid out like the Codex app's queue: a
 `--muted` queue glyph, the message, then its actions, always shown rather than revealed on hover: a
 labeled ghost `Steer` (`Send now` with no turn running), an Edit icon (back into the composer), and a
-Delete icon; Edit is not tucked into a More menu, since a menu holding one item costs a click and hides nothing. A waiting queue has no header, since its rows already read as what goes
+Delete icon, which moves a text-only message back into an empty composer (so a mis-click is recoverable) and deletes it
+outright when the composer holds a draft or the message carries images; Edit is not tucked into a More menu, since a menu holding one item costs a click and hides nothing. A waiting queue has no header, since its rows already read as what goes
 next. While a turn runs and the input is empty, Enter steers the first queued message and the
 placeholder says so; no chip on the row repeats it. A paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send

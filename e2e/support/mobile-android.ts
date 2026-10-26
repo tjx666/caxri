@@ -338,9 +338,15 @@ export const tapMobileCheck = (
 
 /**
  * React Native can expose a visible Pressable with `clickable=false` in Android's accessibility dump. Tap its verified
- * device bounds and prove the resulting product state separately.
+ * device bounds and prove the resulting product state separately. Semantic capture keeps only the first node per check
+ * ID and carries no text, so a later row of an equal-height list (every tree row is `tree-row`) is reached with
+ * `rowOffset`: the tap moves that many row heights below the first match.
  */
-export async function tapMobileCheckByBounds(serial: string, checkId: string): Promise<void> {
+export async function tapMobileCheckByBounds(
+    serial: string,
+    checkId: string,
+    { rowOffset = 0 }: { rowOffset?: number } = {},
+): Promise<void> {
     const nodes = await mobileSemantics(serial);
     const target = nodes.find((node) => node.checkId === checkId);
     const bounds = target && androidBounds(target.bounds);
@@ -354,7 +360,9 @@ export async function tapMobileCheckByBounds(serial: string, checkId: string): P
         'input',
         'tap',
         String(Math.floor((bounds.left + bounds.right) / 2)),
-        String(Math.floor((bounds.top + bounds.bottom) / 2)),
+        String(
+            Math.floor((bounds.top + bounds.bottom) / 2 + rowOffset * (bounds.bottom - bounds.top)),
+        ),
     ]);
 }
 

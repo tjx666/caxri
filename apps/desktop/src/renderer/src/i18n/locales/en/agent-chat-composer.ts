@@ -130,6 +130,8 @@ export const agentChatComposer = {
     'agentChat.queue.sendFailed': "Couldn't send queued messages",
     'agentChat.queue.resume': 'Resume',
     'agentChat.queue.deleteMessage': 'Delete queued message',
+    'agentChat.queue.restoreMessage': 'Move queued message back to the composer',
+    'agentChat.queue.deleteRestoreTooltip': 'Remove from the queue and move back to the composer',
     'agentChat.queue.editMessage': 'Edit queued message',
     'agentChat.queue.sendNow': 'Send now',
     'agentChat.queue.steer': 'Steer',
@@ -202,7 +204,8 @@ export const agentChatComposer = {
         "Open a new Chat that reads this conversation's transcript and continues the work. Your draft goes with it.",
     'agentChat.context.continueInNewChat': 'Continue in new Chat',
     'agentChat.context.compact': 'Compact',
-    'agentChat.context.dismissCache': 'Dismiss until the next reply',
+    'agentChat.context.compactNow': 'Compact now',
+    'agentChat.context.dismissCache': 'Hide this notice',
     'agentChat.context.cacheCost': ' (est. ~{{cost}})',
     'agentChat.context.cacheText':
         'Idle {{duration}} · next reply re-reads the whole conversation{{cost}}',

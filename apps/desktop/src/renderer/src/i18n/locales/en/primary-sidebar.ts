@@ -13,7 +13,7 @@ export const primarySidebar = {
     // Project tree
     'primarySidebar.tree.ariaLabel': 'Primary Side Bar',
     'primarySidebar.tree.addFirstProject': 'Add your first Project',
-    'primarySidebar.reveal.showMore': 'Show more',
+    'primarySidebar.reveal.showMore': 'Show {{count}} more',
     'primarySidebar.subagents.ariaLabel': 'Subagents',
     'primarySidebar.subagents.rowAriaLabel': 'Subagent {{title}}, {{status}}',
     'primarySidebar.subagents.showMore': 'Show {{count}} more',

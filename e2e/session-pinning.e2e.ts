@@ -253,8 +253,7 @@ test('an over-full Pinned group closes with a reveal row instead of burying ever
         await expect.poll(() => pinnedOrder(page)).toEqual(pinnedIds.slice(0, 5));
         const reveal = page.locator('.pinned-session-group .session-reveal');
         await expect(reveal).toHaveAttribute('aria-label', 'Show 1 more pinned Session');
-        // The visible label carries no count; the accessible name above keeps it for screen readers.
-        await expect(reveal).toHaveText('Show more');
+        await expect(reveal).toHaveText('Show 1 more');
         await expect(reveal.locator('svg')).toHaveCount(0);
         await expectCompactSessionReveal(
             reveal,

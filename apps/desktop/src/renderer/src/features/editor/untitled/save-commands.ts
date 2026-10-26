@@ -13,7 +13,7 @@ import { patchSessionState } from '../../../stores/workbench';
 import { sessionStateOf } from '../session-pane-state';
 import { forgetUntitledLanguage } from './language-detection-client';
 import { untitledLanguageKey, useUntitledLanguageStore } from './language-store';
-import { untitledDisplayName, untitledSuggestedFileName } from './names';
+import { untitledSaveAsBaseName, untitledSuggestedFileName } from './names';
 
 export type UntitledSaveOutcome = 'canceled' | 'saved' | 'unavailable';
 
@@ -35,7 +35,7 @@ export async function saveUntitledDocument(
     const languageKey = untitledLanguageKey(scope, path);
     const extension = useUntitledLanguageStore.getState().candidates[languageKey]?.[0];
     const fileName = untitledSuggestedFileName(
-        untitledDisplayName(path, document.content),
+        untitledSaveAsBaseName(path, document.content),
         extension,
     );
     const result = await caxri.request('editor.saveUntitled', {

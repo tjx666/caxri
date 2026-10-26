@@ -4,10 +4,12 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { MethodResult } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
+import { treeChildrenView } from './tree-children-view';
 import { TreeItemIcon } from './tree-item-icon';
 import { useTreeChildren } from './use-panels';
 
@@ -33,11 +35,26 @@ const TreeChildren = ({
 }) => {
     const { t } = useTranslation();
     const children = useTreeChildren(sessionId, viewId, parentHandle);
-    if (children.isPending)
-        return depth === 0 ? (
-            <PendingPanelStatus fetchStatus={children.fetchStatus} theme={theme} />
-        ) : null;
-    if (children.isError)
+    const view = treeChildrenView({
+        depth,
+        isError: children.isError,
+        isPending: children.isPending,
+        itemCount: children.data?.items.length ?? 0,
+    });
+    if (view === 'root-loading')
+        return <PendingPanelStatus fetchStatus={children.fetchStatus} theme={theme} />;
+    if (view === 'nested-loading')
+        return (
+            <View style={[styles.row, { paddingLeft: 8 + depth * INDENT }]} testID="tree-loading">
+                <Spinner
+                    accessibilityLabel={t('panels.treeLoadingChildren')}
+                    color={theme.muted}
+                    isDelayed
+                    size={16}
+                />
+            </View>
+        );
+    if (view === 'error')
         return (
             <PanelStatus
                 message={t('panels.loadFailed')}
@@ -48,13 +65,26 @@ const TreeChildren = ({
                 theme={theme}
             />
         );
-    if (depth === 0 && children.data.items.length === 0)
+    if (view === 'root-empty')
         return (
             <PanelStatus message={t('panels.treeEmpty')} testID="tree-panel-empty" theme={theme} />
         );
+    if (view === 'nested-empty')
+        return (
+            <View
+                accessibilityLabel={t('panels.treeChildrenEmpty')}
+                accessible
+                style={[styles.row, { paddingLeft: 8 + depth * INDENT }]}
+                testID="tree-nested-empty"
+            >
+                <Text style={[styles.rowText, { color: theme.muted }]}>
+                    {t('panels.treeChildrenEmpty')}
+                </Text>
+            </View>
+        );
     return (
         <>
-            {children.data.items.map((item) => (
+            {(children.data?.items ?? []).map((item) => (
                 // eslint-disable-next-line @typescript-eslint/no-use-before-define, no-use-before-define -- Rows and their children recurse into each other.
                 <TreeRow
                     key={item.handle}

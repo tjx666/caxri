@@ -69,4 +69,5 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.center.empty': '暂无最近的通知',
     'toasts.center.list': '最近的通知',
     'toasts.center.footer': '此窗口的最近活动。窗口重新加载后会清除。',
+    'closedItems.nothingToReopen': '没有可重新打开的项目',
 };

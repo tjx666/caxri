@@ -60,6 +60,14 @@ export function untitledSuggestedFileName(
 }
 
 /**
+ * The base name Save As suggests: the first line, or the ASCII `Untitled-N`. It never uses the localized tab label, so
+ * the suggested file name stays portable across UI languages.
+ */
+export function untitledSaveAsBaseName(path: string, content: string): string {
+    return untitledFirstLineName(content) ?? `Untitled-${parseUntitledEditorTab(path) ?? 1}`;
+}
+
+/**
  * The name an untitled buffer goes by in its tab, prompts, and Save As: its first line, or `Untitled-N`.
  */
 export function untitledDisplayName(

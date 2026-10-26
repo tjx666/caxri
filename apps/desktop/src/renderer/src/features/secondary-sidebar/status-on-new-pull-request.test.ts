@@ -1,7 +1,11 @@
 import type { SessionPullRequests } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { isNewSessionPullRequest, selectPullRequestUrl } from './status-on-new-pull-request';
+import {
+    isNewSessionPullRequest,
+    selectPullRequestUrl,
+    shouldSwitchToStatusForNewPullRequest,
+} from './status-on-new-pull-request';
 
 const PR_534 = 'https://github.com/example/repo/pull/534';
 const PR_535 = 'https://github.com/example/repo/pull/535';
@@ -79,5 +83,17 @@ describe('isNewSessionPullRequest', () => {
                 { sessionId: 's2', url: PR_534 },
             ),
         ).toBe(false);
+    });
+});
+
+describe('shouldSwitchToStatusForNewPullRequest', () => {
+    it('switches only away from Source Control', () => {
+        expect(shouldSwitchToStatusForNewPullRequest('caxri.git')).toBe(true);
+    });
+
+    it('keeps the tab the user chose', () => {
+        expect(shouldSwitchToStatusForNewPullRequest('caxri.files')).toBe(false);
+        expect(shouldSwitchToStatusForNewPullRequest('caxri.project-status')).toBe(false);
+        expect(shouldSwitchToStatusForNewPullRequest(undefined)).toBe(false);
     });
 });

@@ -327,7 +327,7 @@ export const settingsCatalog = {
 
     'settings.agents.longRunningShellCommands.title': 'Long-running background commands',
     'settings.agents.longRunningShellCommands.description':
-        'A background shell started by Claude Code keeps its Session working until it ends, except one matching these patterns, such as a development server that runs for hours',
+        "Commands that keep running on purpose, like a dev server. Caxri won't wait for them to finish before treating the Agent's turn as done",
 
     'settings.agents.delegation.title': 'Agent delegation',
     'settings.agents.delegation.description':
