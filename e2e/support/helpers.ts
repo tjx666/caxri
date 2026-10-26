@@ -20,6 +20,7 @@ import {
     transferDesktopLease,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
 import { createE2ELaunchTimer } from '../../scripts/reporters/public-e2e-diagnostics.ts';
+import { agentChoiceName } from './agent-choice-name.ts';
 import { stubAppQuitDecision } from './app-quit.ts';
 import { assertE2EBuildIsFresh } from './build-freshness.ts';
 import type { ClipboardCapability, ClipboardSnapshot } from './clipboard.ts';
@@ -409,12 +410,11 @@ export async function waitForCreatedSession(
 }
 
 /**
- * Activates a Terminal choice through its keyboard contract. The choice handler synchronously closes the dialog, so a
- * pointer click can observe the button detaching after its click event already created the Session and then retry the
- * action until timeout. Enter dispatches the same accessible activation without waiting on the removed pointer target.
+ * Activates a Terminal choice by Enter: its handler closes the dialog synchronously, so a pointer click can see the
+ * button detach after the click already created the Session and retry until timeout.
  */
 export async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
-    const choice = page.getByRole('dialog').getByRole('button', { exact: true, name });
+    const choice = page.getByRole('dialog').getByRole('button', { name: agentChoiceName(name) });
     await choice.focus();
     await expect(choice).toBeFocused();
     await choice.press('Enter');
@@ -427,7 +427,7 @@ export async function chooseDefaultTerminal(page: Page, name: string): Promise<v
  */
 export async function chooseTerminalFromCreateMenu(page: Page, name: string): Promise<void> {
     const menu = page.getByRole('menu');
-    const choice = menu.getByRole('menuitem', { exact: true, name });
+    const choice = menu.getByRole('menuitem', { name: agentChoiceName(name) });
     await expect(choice).toBeVisible();
     /**
      * Base UI's floating focus manager claims focus for a freshly opened Menu one animation frame after the open, and
