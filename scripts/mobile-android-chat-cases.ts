@@ -175,4 +175,11 @@ export const androidChatCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-session-groups',
     },
+    'MOB-CHAT-29': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-saved-turn-artifacts',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
