@@ -4,7 +4,7 @@ import {
     composerActionsRequest,
     composerSuggestionTrigger,
     insertComposerSuggestion,
-} from './composer-suggestions';
+} from '../composer-suggestions';
 
 describe('composer suggestions', () => {
     it('detects a trailing action or file token', () => {

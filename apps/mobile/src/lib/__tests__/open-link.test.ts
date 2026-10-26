@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { openLink } from './open-link';
+import { openLink } from '../open-link';
 
 vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
 vi.mock('react-native', () => ({ Alert: { alert: vi.fn() }, Linking: { openURL: vi.fn() } }));

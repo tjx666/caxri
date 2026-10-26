@@ -1,7 +1,7 @@
 import { contrastRatio } from '@caxri/utils';
 import { describe, expect, it } from 'vitest';
 
-import { mobileTheme } from './tokens';
+import { mobileTheme } from '../tokens';
 
 const expectAccessibleContrast = (foreground: string, background: string): void => {
     expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(4.5);

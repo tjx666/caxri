@@ -1,10 +1,12 @@
-import { mkdir, mkdtemp, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
+
+import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
 const ACCEPTANCE_CASE_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?$/u;
@@ -62,10 +64,7 @@ export type OwnedProcess = z.infer<typeof ownedProcessSchema>;
  * Persists exact process receipts atomically so an interrupted cleanup never leaves partial ownership state.
  */
 export async function writeRuntimeState(path: string, state: RuntimeState): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-    await rename(temporary, path);
+    await writeJsonAtomic(path, state, { ensureParent: true });
 }
 
 export interface ProcessDiscoveryDependencies {

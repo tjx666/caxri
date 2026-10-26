@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { spawn } from 'node:child_process';
-import { appendFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { appendFile, readdir, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
@@ -16,6 +16,7 @@ import {
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import type { E2EPoolInvocation } from '../e2e/support/pools';
 import { createE2EPoolPlan } from '../e2e/support/pools';
+import { writeJsonAtomic } from './atomic-json';
 import { waitForChildExit } from './exec';
 import type {
     E2EAbortedInvocation,
@@ -312,10 +313,7 @@ export function finalizeAbortedPool(
 }
 
 async function writeReceipt(path: string, receipt: E2EPoolReceipt): Promise<void> {
-    await mkdir(resolve(path, '..'), { recursive: true });
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
-    await rename(temporary, path);
+    await writeJsonAtomic(path, receipt, { ensureParent: true });
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts

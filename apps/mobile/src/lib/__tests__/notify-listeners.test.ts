@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { notifyListeners } from './notify-listeners';
+import { notifyListeners } from '../notify-listeners';
 
 describe('notifyListeners', () => {
     it('delivers to a later listener when an earlier one throws', () => {

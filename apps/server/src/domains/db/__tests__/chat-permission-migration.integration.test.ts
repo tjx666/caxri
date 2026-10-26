@@ -7,6 +7,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabase } from '../index';
+import { createDatabaseBeforeMigration, seedSessionWithChat } from './pre-migration.fixture';
 
 async function openDatabase(): Promise<{ path: string; database: CaxriDatabase }> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-chat-permission-'));
@@ -16,30 +17,19 @@ async function openDatabase(): Promise<{ path: string; database: CaxriDatabase }
 }
 
 describe('Chat permission choices', () => {
-    it('adds the columns when upgrading from the previous schema version', async () => {
-        const { path, database } = await openDatabase();
-        const project = database.createProject(join(path, '..', 'project'));
-        const { session } = database.createSession(project.id, null);
-        const chat = database.createTerminal(session.id, 'codex', undefined, 'chat');
-        database.close();
-        const raw = new Database(path);
-        raw.exec(
-            'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
+    it('adds the columns when upgrading across 0006_chat_permission_modes', async () => {
+        let ids = { projectId: '', terminalId: '' };
+        const { path } = await createDatabaseBeforeMigration(
+            '0006_chat_permission_modes',
+            (raw) => {
+                ids = seedSessionWithChat(raw, 'codex');
+            },
         );
-        // `0007_benchmark_runs`, `0008_session_creator`, and `0009_agent_chat_persistence` came after these columns, so
-        // that version predates them too.
-        raw.exec('DROP TABLE benchmark_runs');
-        raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
-        raw.exec(
-            'DROP TABLE agent_chat_subagents; DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
-        );
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 5}`);
-        raw.close();
 
         const upgraded = new CaxriDatabase(path);
         onTestFinished(() => upgraded.close());
-        expect(upgraded.getProject(project.id)).not.toHaveProperty('chatDefaults');
-        expect(upgraded.getChatPermission(chat.id)).toEqual({ planMode: false });
+        expect(upgraded.getProject(ids.projectId)).not.toHaveProperty('chatDefaults');
+        expect(upgraded.getChatPermission(ids.terminalId)).toEqual({ planMode: false });
         const check = new Database(path, { readonly: true });
         onTestFinished(() => {
             check.close();

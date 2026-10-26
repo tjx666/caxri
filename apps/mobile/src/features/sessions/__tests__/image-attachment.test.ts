@@ -4,7 +4,7 @@ import {
     chatThumbnailSize,
     isWithinChatThumbnailLimit,
     splitMobileImage,
-} from './image-attachment';
+} from '../image-attachment';
 
 describe('mobile image chunking', () => {
     it('keeps each chunk within the encrypted gateway request limit', () => {

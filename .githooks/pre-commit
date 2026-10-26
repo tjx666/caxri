@@ -24,3 +24,16 @@ fi
 # Scans the whole tracked tree (the index included), so an em-dash in any staged text file fails here instead of in
 # CI's guards job; the pass is a single `git grep`.
 bun run em-dash-check
+
+# The same directory-density ratchet the `guards` job runs: it only changes when a file is added, deleted, or renamed
+# (a pure edit cannot move a directory's file count), so gate on those statuses and skip it for ordinary edits.
+if git diff --cached --name-status --diff-filter=ADR | grep -q .; then
+    bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts
+fi
+
+# The same React Compiler coverage test the `guards` job runs. It compiles every Renderer source (tens of seconds), so
+# run it only when a staged Renderer `.ts`/`.tsx` file, or the compiler's own options and known-bailout ledger, changed.
+if git diff --cached --name-only --diff-filter=ACMR |
+    grep -Eq '^apps/desktop/src/renderer/src/.*\.tsx?$|^scripts/react-compiler-[^/]*\.ts$'; then
+    bunx vitest run scripts/__tests__/react-compiler-coverage.test.ts
+fi

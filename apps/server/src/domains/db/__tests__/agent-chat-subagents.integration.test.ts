@@ -3,11 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MAX_TERMINAL_SUBAGENT_SUMMARIES } from '@caxri/protocol';
-import Database from 'better-sqlite3';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { AgentChatStateModel, CaxriDatabase } from '../index';
+import { createDatabaseBeforeMigration, seedSessionWithChat } from './pre-migration.fixture';
 
 async function openDatabase(): Promise<{ path: string; database: CaxriDatabase }> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-agent-chat-subagents-'));
@@ -23,21 +22,18 @@ function createChat(database: CaxriDatabase, path: string) {
 }
 
 describe('Agent Chat subagent summaries', () => {
-    it('adds the table when upgrading from the previous schema version', async () => {
-        const { path, database } = await openDatabase();
-        const chat = createChat(database, path);
-        database.close();
-        const raw = new Database(path);
-        raw.exec('DROP TABLE agent_chat_subagents');
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
-        raw.close();
+    it('adds the table when upgrading across 0010_agent_chat_subagents', async () => {
+        let chatId = '';
+        const { path } = await createDatabaseBeforeMigration('0010_agent_chat_subagents', (raw) => {
+            chatId = seedSessionWithChat(raw).terminalId;
+        });
 
         const upgraded = new CaxriDatabase(path);
         onTestFinished(() => upgraded.close());
         const { subagents } = new AgentChatStateModel(upgraded.database);
-        expect(subagents.list(chat.id)).toEqual([]);
-        subagents.sync(chat.id, [{ taskId: 't1', title: 'Explore', status: 'running' }]);
-        expect(subagents.list(chat.id)).toMatchObject([{ taskId: 't1', status: 'running' }]);
+        expect(subagents.list(chatId)).toEqual([]);
+        subagents.sync(chatId, [{ taskId: 't1', title: 'Explore', status: 'running' }]);
+        expect(subagents.list(chatId)).toMatchObject([{ taskId: 't1', status: 'running' }]);
     });
 
     it('writes only changed rows and keeps the first-seen start time', async () => {

@@ -7,51 +7,47 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabase } from '../index';
-import { BASELINE_SCHEMA_VERSION } from '../migrations/manifest';
+import { createDatabaseBeforeMigration } from './pre-migration.fixture';
 
 describe('0001_terminal_surface migration', () => {
     it('upgrades a baseline database in place, keeping Terminals, snapshots, and the Primary Agent', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-db-surface-'));
-        onTestFinished(() => rm(directory, { recursive: true, force: true }));
-        const databasePath = join(directory, 'state.db');
-        const previous = new CaxriDatabase(databasePath);
-        const project = previous.createProject(join(directory, 'project'));
-        const { session, terminal } = previous.createSession(project.id, 'codex');
-        previous.saveSnapshot({
-            terminalId: terminal!.id,
-            encodingVersion: 1,
-            cols: 80,
-            rows: 24,
-            lineCount: 1,
-            byteCount: 2,
-            payload: 'hi',
-            updatedAt: 1,
-        });
-        previous.close();
-        // Reproduce the schema-39 layout: the baseline had no `surface` column and none of the later tables.
-        const raw = new Database(databasePath);
-        raw.exec(
-            'DROP TABLE agent_session_usage; DROP TABLE pull_request_outcomes; DROP TABLE external_agent_usage; DROP TABLE commander_tasks; DROP TABLE commander_pending_notices; DROP TABLE commander_inbox_replies; DROP TABLE commander_inbox_items; DROP TABLE benchmark_runs; DROP TABLE agent_chat_subagents; DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups',
+        const terminalId = 'terminal-1';
+        const sessionId = 'session-1';
+        // The baseline had no `surface` column, so the seed writes only columns that existed then.
+        const { path: databasePath } = await createDatabaseBeforeMigration(
+            '0001_terminal_surface',
+            (raw) => {
+                raw.prepare(
+                    "INSERT INTO projects (id, root_path, display_title, created_at, last_opened_at) VALUES ('project-1', '/tmp/caxri-seed-project', 'project', 1, 1)",
+                ).run();
+                raw.prepare(
+                    "INSERT INTO sessions (id, project_id, created_at, last_opened_at, last_session_activity_at, display_title) VALUES (?, 'project-1', 1, 1, 1, 'session')",
+                ).run(sessionId);
+                raw.prepare(
+                    "INSERT INTO terminals (id, session_id, kind, provider, cwd, title, icon, order_index, last_process_state, created_at, updated_at) VALUES (?, ?, 'codex', 'codex', '/tmp/caxri-seed-project', 'codex', 'bot', 0, 'stopped', 1, 1)",
+                ).run(terminalId, sessionId);
+                raw.prepare('UPDATE sessions SET primary_agent_terminal_id = ? WHERE id = ?').run(
+                    terminalId,
+                    sessionId,
+                );
+                raw.prepare(
+                    "INSERT INTO terminal_snapshots (terminal_id, encoding_version, cols, rows, line_count, byte_count, payload, updated_at) VALUES (?, 1, 80, 24, 1, 2, 'hi', 1)",
+                ).run(terminalId);
+            },
         );
-        raw.exec('ALTER TABLE terminals DROP COLUMN surface');
-        raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
-        raw.exec('ALTER TABLE terminals DROP COLUMN agent_resume_at');
-        raw.exec(
-            'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
-        );
-        raw.pragma(`user_version = ${BASELINE_SCHEMA_VERSION}`);
-        raw.close();
+        const terminal = { id: terminalId };
+        const session = { id: sessionId };
 
         const upgraded = new CaxriDatabase(databasePath);
         onTestFinished(() => upgraded.close());
 
-        expect(upgraded.getTerminal(terminal!.id)).toMatchObject({
-            id: terminal!.id,
+        expect(upgraded.getTerminal(terminal.id)).toMatchObject({
+            id: terminal.id,
             kind: 'codex',
         });
-        expect(upgraded.getTerminal(terminal!.id)).not.toHaveProperty('surface');
-        expect(upgraded.getSession(session.id)?.primaryAgentTerminalId).toBe(terminal!.id);
-        expect(upgraded.getSnapshot(terminal!.id)?.payload).toBe('hi');
+        expect(upgraded.getTerminal(terminal.id)).not.toHaveProperty('surface');
+        expect(upgraded.getSession(session.id)?.primaryAgentTerminalId).toBe(terminal.id);
+        expect(upgraded.getSnapshot(terminal.id)?.payload).toBe('hi');
         const check = new Database(databasePath, { readonly: true });
         expect(check.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
         expect(check.prepare('SELECT surface FROM terminals').all()).toEqual([{ surface: 'pty' }]);

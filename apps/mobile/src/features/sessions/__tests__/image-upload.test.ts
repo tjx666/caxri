@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { didUploadImageChunks } from './image-upload';
+import { didUploadImageChunks } from '../image-upload';
 
 describe('didUploadImageChunks', () => {
     it('sends chunks in order and reports progress after acknowledgement', async () => {

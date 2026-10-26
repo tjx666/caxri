@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { chmod, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -8,6 +7,7 @@ import { createE2EAgentEnvironment } from '@caxri/system';
 import { z } from 'zod';
 
 import { delegationFixtureSource } from '../../../../scripts/agent-delegation-fixture';
+import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 import type { AcceptanceAgentFixtureId } from './agent-fixture-ids';
 import { acceptanceAgentFixtureIds, acceptanceAgentFixtureProviders } from './agent-fixture-ids';
 import { chatFixtureSource } from './chat-fixtures';
@@ -53,14 +53,6 @@ async function readAgentFeaturesAvailability(
     }
 }
 
-async function unlinkIfPresent(path: string): Promise<void> {
-    try {
-        await unlink(path);
-    } catch (error: unknown) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
-}
-
 /**
  * Changes one fixed provider availability flag beneath an owned Agent fixture profile. The closed input and strict
  * state schema prevent Acceptance runners from injecting executables, paths, source, or environment values.
@@ -79,21 +71,15 @@ export async function setAcceptanceAgentFixtureProviderAvailability(options: {
     if (JSON.stringify(current.unavailableProviders) === JSON.stringify(unavailableProviders))
         return;
     const target = join(root, AGENT_FEATURES_AVAILABILITY);
-    const temporary = join(root, `.${AGENT_FEATURES_AVAILABILITY}.${randomUUID()}.tmp`);
-    await writeFile(
-        temporary,
-        `${JSON.stringify({
+    await writeJsonAtomic(
+        target,
+        {
             fixtureId: 'agent-features-v1',
             schemaVersion: 1,
             unavailableProviders,
-        })}\n`,
-        { encoding: 'utf8', flag: 'wx', mode: 0o600 },
+        },
+        { mode: 0o600 },
     );
-    try {
-        await rename(temporary, target);
-    } finally {
-        await unlinkIfPresent(temporary);
-    }
 }
 
 export function validateAcceptanceAgentFixture(

@@ -1,10 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { lstat, mkdir, open, readFile, realpath, rename, rm, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, mkdir, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
 import { z } from 'zod';
 
+import { writeTextAtomic } from '../../../../scripts/atomic-json';
 import { sanitizeLedgerDetail } from './note-safety';
 import type { GoState } from './state-model';
 
@@ -239,20 +239,12 @@ async function writeArchive(
     const source = `${JSON.stringify({ entries, schemaVersion: 1 }, null, 2)}\n`;
     const digest = createHash('sha256').update(source).digest('hex');
     const destination = join(artifacts, `ledger-history-${digest}.json`);
-    const temporary = join(artifacts, `.ledger-history-${randomUUID()}.tmp`);
-    const handle = await open(
-        temporary,
-        constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-        0o600,
-    );
-    try {
-        await handle.writeFile(source, 'utf8');
-        await handle.sync();
-    } finally {
-        await handle.close();
-    }
-    await ensureArtifactDirectory(runDirectory, expectedRunDirectory);
-    await rename(temporary, destination);
+    await writeTextAtomic(destination, source, {
+        beforeRename: async () => {
+            await ensureArtifactDirectory(runDirectory, expectedRunDirectory);
+        },
+        mode: 0o600,
+    });
     return destination;
 }
 

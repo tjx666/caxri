@@ -3,12 +3,12 @@ import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import { assertDecodablePng } from '../.agents/skills/acceptance/scripts/png-integrity';
-import { writeJsonAtomic } from './atomic-json';
+import { writeJsonAtomic, writeTextAtomic } from './atomic-json';
 
 const COMMIT_PATTERN = /^[0-9a-f]{7,64}$/iu;
 const RECORDING_START_TIMEOUT_MS = 5_000;
@@ -279,9 +279,7 @@ export async function startMobileAcceptanceRecording(
 }
 
 export async function writeMobileAcceptanceArtifact(path: string, content: Buffer): Promise<void> {
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, content);
-    await rename(temporary, path);
+    await writeTextAtomic(path, content);
 }
 
 async function sha256(path: string): Promise<string> {

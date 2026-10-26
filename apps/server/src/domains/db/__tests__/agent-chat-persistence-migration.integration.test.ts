@@ -7,6 +7,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { AgentChatStateModel, CaxriDatabase } from '../index';
+import { createDatabaseBeforeMigration, seedSessionWithChat } from './pre-migration.fixture';
 
 async function openDatabase(): Promise<{ path: string; database: CaxriDatabase }> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-agent-chat-persistence-'));
@@ -16,27 +17,22 @@ async function openDatabase(): Promise<{ path: string; database: CaxriDatabase }
 }
 
 describe('Agent Chat persistence tables', () => {
-    it('adds the tables and the resume column when upgrading from the schema version before them', async () => {
-        const { path, database } = await openDatabase();
-        const project = database.createProject(join(path, '..', 'project'));
-        const { session } = database.createSession(project.id, null);
-        const chat = database.createTerminal(session.id, 'claude', undefined, 'chat');
-        database.close();
-        const raw = new Database(path);
-        raw.exec(
-            'DROP TABLE agent_chat_subagents; DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
+    it('adds the tables and the resume column when upgrading across 0009_agent_chat_persistence', async () => {
+        let chatId = '';
+        const { path } = await createDatabaseBeforeMigration(
+            '0009_agent_chat_persistence',
+            (raw) => {
+                chatId = seedSessionWithChat(raw).terminalId;
+            },
         );
-        // The persistence migration is followed by the subagent summaries migration, so both are pending here.
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 2}`);
-        raw.close();
 
         const upgraded = new CaxriDatabase(path);
         onTestFinished(() => upgraded.close());
         const state = new AgentChatStateModel(upgraded.database);
-        expect(state.resumeAt(chat.id)).toBeUndefined();
-        state.setResumeAt(chat.id, 'record-1');
-        expect(state.resumeAt(chat.id)).toBe('record-1');
-        expect(state.answeredNotices.list(chat.id)).toEqual([]);
+        expect(state.resumeAt(chatId)).toBeUndefined();
+        state.setResumeAt(chatId, 'record-1');
+        expect(state.resumeAt(chatId)).toBe('record-1');
+        expect(state.answeredNotices.list(chatId)).toEqual([]);
         expect(state.processGroups.list()).toEqual([]);
         const check = new Database(path, { readonly: true });
         onTestFinished(() => {

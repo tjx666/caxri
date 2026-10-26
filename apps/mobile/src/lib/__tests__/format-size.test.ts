@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatByteSize } from './format-size';
+import { formatByteSize } from '../format-size';
 
 describe('formatByteSize', () => {
     it('returns null for an undefined size', () => {

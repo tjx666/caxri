@@ -1,8 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
-import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
+
+import { writeJsonAtomic } from './atomic-json';
 
 const UNINSTALL_ARCHIVE_NAME =
     /^uninstall-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)-[a-z0-9]+$/iu;
@@ -56,15 +57,9 @@ export async function createArchiveDirectory(archiveRootPath: string): Promise<s
 }
 
 export async function writeArchiveManifest(manifest: UninstallArchiveManifest): Promise<void> {
-    const temporaryPath = join(
-        manifest.archiveDirectory,
-        `.manifest-${process.pid}-${randomUUID()}.tmp`,
-    );
-    await writeFile(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`, {
-        encoding: 'utf8',
+    await writeJsonAtomic(join(manifest.archiveDirectory, 'manifest.json'), manifest, {
         mode: 0o600,
     });
-    await rename(temporaryPath, join(manifest.archiveDirectory, 'manifest.json'));
 }
 
 export async function completedArchiveCandidates(

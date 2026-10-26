@@ -159,5 +159,10 @@ a standalone or repository-wide run.
   scans the whole tree in one `git grep`, so `check --lint`, the pre-commit hook, and the `guards`
   job run it unscoped.
 
+The pre-commit hook additionally runs two `guards` tests when the staged set can affect them, so a
+violation fails locally instead of in CI: `scripts/__tests__/directory-density-ratchet.test.ts` when
+the index adds, deletes, or renames a file, and `scripts/__tests__/react-compiler-coverage.test.ts`
+when a staged Renderer `.ts`/`.tsx` file or `scripts/react-compiler-*.ts` changed.
+
 All four also sit in the full CI platform-check manifest (`scripts/ci-platform-gates.ts`), so
 `bun run scripts/ci-platform-checks.ts` exercises them even outside a diff.

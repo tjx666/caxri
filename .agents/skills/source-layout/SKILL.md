@@ -137,6 +137,7 @@ When moving, `git mv`, then fix relative imports and `import.meta.url` paths in 
 | React components               | Do not unit-test the `.tsx`; extract logic     |
 | Renderer-wide contracts        | `apps/desktop/src/renderer/__tests__/`         |
 | Desktop, Server, packages, CLI | Domain-local `__tests__/`                      |
+| Mobile (`apps/mobile/src`)     | Sibling `__tests__/` of the module under test  |
 | Skill scripts                  | `scripts/*.test.ts` or `scripts/__tests__/`    |
 | Repo scripts                   | `scripts/__tests__/`                           |
 | Electron workflows             | `e2e/*.e2e.ts`                                 |
