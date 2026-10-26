@@ -28,25 +28,21 @@ export function AgentChoiceMenuItems({
     const unavailable = useAgentAvailability();
     return newTerminalAgentChoices(defaultAgent, openInChat, unavailable).map(
         ({ isDefault, isUnavailable, kind, surface }) => {
-            const item = (
-                <MenuItem key={kind} onClick={() => onChoose(kind, surface)}>
-                    <AgentIdentityIcon identity={kind} size={14} />
-                    <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
-                    {/* A text twin rather than a color or a check glyph: the marker has to survive a screen reader. */}
-                    <AgentChoiceMarker
-                        isDefault={isDefault}
-                        isUnavailable={isUnavailable}
-                        surface={surface}
-                    />
-                </MenuItem>
-            );
             const hint = isUnavailable ? agentInstallHint(kind, t) : undefined;
-            return hint ? (
-                <Tooltip key={kind} content={hint} side="right">
-                    {item}
+            // Always wrapped so availability resolving never remounts the row and drops the menu's keyboard highlight.
+            return (
+                <Tooltip key={kind} content={hint} disabled={!hint} side="right">
+                    <MenuItem onClick={() => onChoose(kind, surface)}>
+                        <AgentIdentityIcon identity={kind} size={14} />
+                        <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
+                        {/* A text twin rather than a color or a check glyph: the marker has to survive a screen reader. */}
+                        <AgentChoiceMarker
+                            isDefault={isDefault}
+                            isUnavailable={isUnavailable}
+                            surface={surface}
+                        />
+                    </MenuItem>
                 </Tooltip>
-            ) : (
-                item
             );
         },
     );

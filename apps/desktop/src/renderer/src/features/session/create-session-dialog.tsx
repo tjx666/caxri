@@ -80,28 +80,26 @@ function CreateSessionChoices() {
             {terminalKindSchema.options.map((kind) => {
                 const isUnavailable = unavailable.has(kind);
                 const hint = isUnavailable ? agentInstallHint(kind, t) : undefined;
-                const button = (
-                    <Button
-                        key={kind}
-                        className="justify-start"
-                        variant="secondary"
-                        onClick={() => choose(kind)}
-                    >
-                        <AgentIdentityIcon identity={kind} size={15} />
-                        <span className="flex-1 text-left">{resolveAgentIcon(kind).label}</span>
-                        <AgentChoiceMarker
-                            isDefault={false}
-                            isUnavailable={isUnavailable}
-                            surface={newAgentSurface(kind, openInChat)}
-                        />
-                    </Button>
-                );
-                return hint ? (
-                    <Tooltip key={kind} content={hint} side="right">
-                        {button}
+                /**
+                 * Always wrapped: swapping a bare button for a Tooltip when availability resolves would remount it and
+                 * drop the keyboard focus the dialog just placed on the first Agent.
+                 */
+                return (
+                    <Tooltip key={kind} content={hint} disabled={!hint} side="right">
+                        <Button
+                            className="justify-start"
+                            variant="secondary"
+                            onClick={() => choose(kind)}
+                        >
+                            <AgentIdentityIcon identity={kind} size={15} />
+                            <span className="flex-1 text-left">{resolveAgentIcon(kind).label}</span>
+                            <AgentChoiceMarker
+                                isDefault={false}
+                                isUnavailable={isUnavailable}
+                                surface={newAgentSurface(kind, openInChat)}
+                            />
+                        </Button>
                     </Tooltip>
-                ) : (
-                    button
                 );
             })}
             <p className="m-0 px-1 py-1 text-[12px] leading-4 text-muted">
