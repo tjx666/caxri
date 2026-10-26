@@ -290,6 +290,15 @@ export const usageMethods = {
         result: usageReportSchema,
     },
     /**
+     * The newest plan rate-limit reading of every provider Server Core has seen, from the usage ledger and running
+     * conversations, for a surface with no Agent Terminal in view. A provider with no reading yet is absent.
+     */
+    'usage.limits': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({}),
+        result: z.array(usageLimitSchema).max(agentProviderIds.length),
+    },
+    /**
      * Null when the Terminal has no bound Agent session, its transcript is not found, or it recorded no usage yet.
      * Polled by the status bar like `terminal.agentThroughput`; each call parses only bytes appended since the last.
      */

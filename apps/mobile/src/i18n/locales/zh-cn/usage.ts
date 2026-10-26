@@ -1,0 +1,36 @@
+import type { TranslatedNamespace } from '@caxri/protocol';
+
+import type { usage as source } from '../en/usage';
+
+export const usage: TranslatedNamespace<typeof source> = {
+    'usage.affectedComponents': '{{status}}：{{components}}',
+    'usage.back': '返回',
+    'usage.checkedAgo': '检查于 {{age}}',
+    'usage.failure.http': '状态不可用：状态页返回了错误',
+    'usage.failure.invalidResponse': '状态不可用：状态页格式已变更',
+    'usage.failure.network': '状态不可用：电脑无法访问状态页',
+    'usage.incidentPhase': '{{status}} · {{phase}}',
+    'usage.limitUpdated': '更新于 {{age}}',
+    'usage.loadFailed': '无法从这台电脑读取 Agent 用量。',
+    'usage.loading': '正在读取 Agent 用量…',
+    'usage.noLimit': '暂无限额读数。{{agent}} 运行时才会上报；使用 API key 时没有限额。',
+    'usage.noLimitClaude': '暂无限额读数。Claude Code 只有在它的 Chat 运行时才会上报。',
+    'usage.noSpeed': '还没有测量到回复。',
+    'usage.open': 'Agent 用量',
+    'usage.openHint': '查看每个 Agent 的限额、输出速度和 API 状态。',
+    'usage.openStatusPage': '打开状态页',
+    'usage.resetAt': '{{reset}} · {{time}}',
+    'usage.retry': '重试',
+    'usage.section.limits': '套餐限额',
+    'usage.section.speed': '输出速度',
+    'usage.section.status': 'API 状态',
+    'usage.service.majorOutage': '严重中断',
+    'usage.service.maintenance': '维护中',
+    'usage.service.degraded': '性能下降',
+    'usage.service.operational': '运行正常',
+    'usage.service.partialOutage': '部分中断',
+    'usage.service.unknown': '未知',
+    'usage.speedSource': '{{session}} 最近 {{count}} 次回复 · {{age}}',
+    'usage.speedSourceOne': '{{session}} 最近一次回复 · {{age}}',
+    'usage.title': 'Agent 用量',
+};

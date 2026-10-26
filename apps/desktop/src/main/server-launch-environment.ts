@@ -68,6 +68,8 @@ export function buildServerLaunchEnvironment(
                 processEnvironment.CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY,
             CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE:
                 processEnvironment.CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE,
+            // Server Core reads provider status pages from this fixture directory for `mobile.agentUsage.read`.
+            CAXRI_E2E_PROVIDER_STATUS_DIR: processEnvironment.CAXRI_E2E_PROVIDER_STATUS_DIR,
         }),
         ...(processEnvironment.CAXRI_E2E === '1' &&
             processEnvironment.CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME && {

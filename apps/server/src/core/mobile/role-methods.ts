@@ -9,6 +9,10 @@ const mobileEveryRoleMethods = [
     'mobile.attention.list',
     'mobile.pullRequest.read',
     /**
+     * Plan limits and public status pages are account facts; the speed source is chosen among this device's Sessions.
+     */
+    'mobile.agentUsage.read',
+    /**
      * Every paired role may update its own app; the bundle is Desktop's public build artifact, not Project data.
      */
     'mobile.update.check',

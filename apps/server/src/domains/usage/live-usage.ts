@@ -142,6 +142,13 @@ export class LiveAgentUsage {
         }
     }
 
+    /**
+     * The newest reading of every provider seen so far, for a surface that shows the plan without a Terminal in view.
+     */
+    limits(): UsageLimit[] {
+        return this.latestLimits.values().toArray();
+    }
+
     async read(terminalId: string): Promise<AgentUsageReadout | null> {
         const state = await this.refresh(terminalId);
         if (!state) return null;

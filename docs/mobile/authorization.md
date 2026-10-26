@@ -12,11 +12,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                            |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, and `mobile.pullRequest.read` |
-| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.takeQueued`, and `mobile.agentChat.runCommand`                        |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.commanderInbox.{list,reply}`, `mobile.host.status`, and `mobile.pullRequest.merge`  |
+| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                                                                      |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read` |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.takeQueued`, and `mobile.agentChat.runCommand`                                                  |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.commanderInbox.{list,reply}`, `mobile.host.status`, and `mobile.pullRequest.merge`                            |
 
 `mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
 effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a
@@ -108,6 +108,25 @@ Session's (`NOT_FOUND`) or has conflicts (`CONFLICT`), then calls Desktop's own
 method and passes `--match-head-commit`, so GitHub refuses the merge if new commits landed after the
 phone read the pull request. Any blocker other than conflicts still allows a merge; the phone
 first asks for a second confirmation that names it, as Desktop does.
+
+## Agent usage from mobile
+
+`mobile.agentUsage.read` answers the phone's Agent usage screen, reached from the gauge button in
+the Session list header. Every paired role may read it, because it shows account-wide figures and
+public status pages, not Session content. For Claude Code and Codex (plus any other provider that
+has reported a plan limit) it returns:
+
+- the latest plan-limit reading (`usage.limits`): each window's used percentage and reset time,
+  which the phone shows as what is left, a countdown, and the reset's clock time. Codex records it in
+  its transcripts; Claude Code reports it only from a running Chat, so the read first asks the
+  provider's newest Agent for its usage, which triggers that Chat's refresh for the next poll;
+- the output speed of the provider's most recently active Agent in a Session the device may see
+  (archived Sessions are skipped), as the recent-responses aggregate Desktop's tok/s chip shows,
+  with the Session title it came from;
+- the provider's public status page, read on the Server through the same reader as Desktop's Agent
+  status tab, without the uptime history and with at most four incidents.
+
+Each part fails on its own: a failed read leaves only that field absent.
 
 ## Mobile Session creation
 

@@ -4,10 +4,10 @@ import {
     MAX_LINK_PREVIEW_TITLE_LENGTH,
     MAX_LINK_PREVIEW_URL_LENGTH,
 } from '@caxri/protocol';
+import { readCappedBody } from '@caxri/system';
 
 import type { ManualRedirectFetch, PublicHttpsFetch, ResolveHost } from './public-https-fetch';
 import { createPublicHttpsFetch } from './public-https-fetch';
-import { readCappedBody } from './read-capped-body';
 
 type LinkPreview = MethodResult<'links.preview'>;
 

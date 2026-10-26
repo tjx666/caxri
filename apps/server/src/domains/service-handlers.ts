@@ -159,6 +159,7 @@ type ServiceHandlerMethods =
     | 'agentAvailability.get'
     | 'agentHooks.get'
     | 'agentSkills.get'
+    | 'usage.limits'
     | 'usage.report'
     | 'settings.update'
     | 'settings.trustDomain'
@@ -548,6 +549,7 @@ export function createServiceHandlers(services: {
         'agentAvailability.get': createAgentAvailabilityHandler({ configuration }),
         'agentHooks.get': () => agentHooks.getHealth(),
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
+        'usage.limits': () => usage.readLimits(),
         'usage.report': (parameters) => usage.report(parameters),
         'terminal.agentUsage': ({ terminalId }) => usage.readTerminal(terminalId),
         'terminal.agentTaskUsage': ({ terminalId, taskId }) =>

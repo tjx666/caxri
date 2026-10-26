@@ -17,6 +17,7 @@ import {
     isMobileAgentChatRead,
     isMobileAgentChatRequest,
 } from './agent-chat-requests';
+import { createMobileAgentUsageRequests } from './agent-usage-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { createMobileAuthorityQueue } from './authority-queue';
 import { invokeMobileCommanderInboxRequest } from './commander-inbox-requests';
@@ -83,6 +84,9 @@ export const openMobileAccessController = async (options: {
     let getExtensionService: (() => ExtensionService | undefined) | undefined;
     const hostDisplayName = mobileHostDisplayName(options.hostDisplayName ?? hostname());
     const updateRequests = createMobileUpdateRequests(options.updateDirectory);
+    const readAgentUsage = createMobileAgentUsageRequests({
+        ...(options.logger && { logger: options.logger }),
+    });
     const accessPersistence = createMobileAccessPersistence(registry, options.logger);
     let hostStatus: HostStatusSampler | undefined;
     /**
@@ -425,6 +429,12 @@ export const openMobileAccessController = async (options: {
                             applyMobileSessionManagement(domainService, principal, request, signal),
                         (principal) => currentPairedPrincipal(principal, request.method),
                     );
+                }
+                case 'mobile.agentUsage.read': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    const result = await readAgentUsage(domainService, principal);
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
                 }
                 case 'mobile.pullRequest.read': {
                     const principal = currentPairedPrincipal(context.principal, request.method);

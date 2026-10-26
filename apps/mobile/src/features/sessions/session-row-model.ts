@@ -37,7 +37,7 @@ export const sessionAgeLabel = (at: number, now: number, t: Translate = translat
 /**
  * A past moment relative to now, as in `just now` or `5m ago`.
  */
-const relativeAgeLabel = (at: number, now: number, t: Translate = translate): string =>
+export const relativeAgeLabel = (at: number, now: number, t: Translate = translate): string =>
     ageMinutes(at, now) < 1
         ? t('sessions.age.justNow')
         : t('sessions.age.ago', { age: sessionAgeLabel(at, now, t) });

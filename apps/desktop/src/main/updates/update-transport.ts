@@ -3,8 +3,7 @@ import type { FileHandle } from 'node:fs/promises';
 
 import type { UpdateState } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
-
-import { readCappedBody } from '../read-capped-body';
+import { readCappedBody } from '@caxri/system';
 
 export const MAX_RELEASE_RESPONSE_BYTES = 1024 * 1024;
 export const MAX_CHECKSUM_BYTES = 4 * 1024;

@@ -18,6 +18,7 @@ import { sessions } from './sessions';
 import { settings } from './settings';
 import { terminal } from './terminal';
 import { update } from './update';
+import { usage } from './usage';
 
 /**
  * English is the source language: every namespace's keys and placeholders are defined here first.
@@ -42,4 +43,5 @@ export const enResources = {
     ...settings,
     ...terminal,
     ...update,
+    ...usage,
 };

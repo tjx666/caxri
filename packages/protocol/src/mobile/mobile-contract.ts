@@ -17,6 +17,7 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { mobileDeviceRoleSchema } from './device-role.js';
 import { mobileAgentChatMethods } from './mobile-agent-chat-contract.js';
+import { mobileAgentUsageMethods } from './mobile-agent-usage-contract.js';
 import {
     mobileAttentionAnswerParametersSchema,
     mobileAttentionRequestSchema,
@@ -49,6 +50,7 @@ export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-agent-chat-contract.js';
 export * from './mobile-agent-chat-state-clip.js';
+export * from './mobile-agent-usage-contract.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-changes-contract.js';
 export * from './mobile-commander-inbox-contract.js';
@@ -443,6 +445,7 @@ export const mobileMethods = {
     },
     ...mobilePanelsMethods,
     ...mobilePullRequestMethods,
+    ...mobileAgentUsageMethods,
     ...mobileFilesMethods,
     ...mobileUpdateMethods,
     ...mobileCommanderInboxMethods,

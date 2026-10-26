@@ -39,6 +39,7 @@ import {
     executeMobileChatPinScrollScenario,
     executeMobileChatShimmerScenario,
 } from './mobile-agent-chat-timeline-scenario';
+import { executeMobileAgentUsageScenario } from './mobile-agent-usage-scenario';
 import {
     androidBounds,
     mobileSemantics,
@@ -530,6 +531,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileSavedTurnArtifactsScenario(environment, artifacts);
         case 'MOB-CHAT-30':
             return executeMobileChatBurstStreamScenario(environment, artifacts);
+        case 'MOB-CHAT-31':
+            return executeMobileAgentUsageScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

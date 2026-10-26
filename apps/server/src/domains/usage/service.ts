@@ -512,6 +512,22 @@ export class UsageService {
     }
 
     /**
+     * Newest plan rate-limit reading per provider, for a client that shows the plan with no Agent Terminal in view (a
+     * paired phone's Agent usage screen). Reads the ledger a Usage report reads, without building the report or
+     * starting its pull-request pass, and folds in what live conversations reported since.
+     */
+    async readLimits(): Promise<UsageLimit[]> {
+        await waitBriefly(this.syncs.run('ledger', () => this.syncLedger()));
+        const ledger: UsageLimit[] = [];
+        for (const row of this.options.database.agentSessionUsage.list()) {
+            const rateLimits = parseUsageRecord(row.usageJson)?.rateLimits;
+            if (rateLimits) ledger.push({ provider: row.provider, ...rateLimits });
+        }
+        this.live.observeLimits(ledger);
+        return this.live.limits();
+    }
+
+    /**
      * Running usage of one subagent of the conversation bound to an Agent Terminal, for its task tab.
      */
     async readTerminalTask(terminalId: string, taskId: string): Promise<AgentUsageReadout | null> {

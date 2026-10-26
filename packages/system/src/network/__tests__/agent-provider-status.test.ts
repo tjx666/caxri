@@ -4,12 +4,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createAgentProviderStatus, createE2EStatusPageFetch } from '../agent-provider-status';
+import { createAgentProviderStatus, createE2EStatusPageFetch } from '../agent-provider-status.js';
 import {
     parseClaudeStatusPage,
     parseCodexStatusPage,
     parseIncidentIoHistory,
-} from '../agent-provider-status-parsers';
+} from '../agent-provider-status-parsers.js';
 
 function statuspageSummary(
     overrides: { apiStatus?: string; incidents?: unknown[] } = {},
@@ -338,7 +338,7 @@ describe('createAgentProviderStatus', () => {
             const write = vi.fn();
             const read = createAgentProviderStatus({
                 fetch,
-                logger: () => ({ write }) as never,
+                logger: () => ({ write }),
                 now: (() => {
                     let time = 0;
                     return () => (time += 31_000);
@@ -393,7 +393,7 @@ describe('createAgentProviderStatus', () => {
         const read = createAgentProviderStatus({
             fetch: () =>
                 isOnline ? jsonResponse(incidentIoSummary()) : Promise.reject(new Error('offline')),
-            logger: () => ({ write }) as never,
+            logger: () => ({ write }),
             now: () => time,
         });
         await read('codex');
@@ -475,7 +475,7 @@ describe('createAgentProviderStatus Codex history', () => {
                 url.includes('/component_impacts')
                     ? jsonResponse(isHistoryUp ? history : { component_impacts: 'changed' })
                     : jsonResponse(incidentIoSummary()),
-            logger: () => ({ write }) as never,
+            logger: () => ({ write }),
             now: () => time,
         });
         await read('codex');

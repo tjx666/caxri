@@ -92,7 +92,7 @@ threat model.
   stops at `</head>`, parses only title, description, and an `https:` share image; cached per URL
   with the same 256-entry, insertion-order eviction and no caching of outright failures.
 - **Agent provider status** (`agentProviderStatus.read`,
-  `apps/desktop/src/main/agent-provider-status.ts`): the fixed public Statuspage endpoints for
+  `packages/system/src/network/agent-provider-status.ts`): the fixed public Statuspage endpoints for
   Claude and OpenAI, polled every 60 s while a status bar tok/s item or an Agent status tab for that
   provider is mounted. 10 s timeout, 2 MiB body cap (a larger body reads as `invalidResponse`); cached per
   provider for 60 s after success and 30 s after failure. E2E launches read
@@ -105,7 +105,7 @@ threat model.
 
 ## Server outbound requests
 
-Server Core makes only this outbound HTTP request; a new one belongs here with its trigger and caps.
+Server Core makes only these outbound HTTP requests; a new one belongs here with its trigger and caps.
 It uses Node's `fetch`, uploads no user data, and is replaced by an immediate failure under
 `CAXRI_E2E=1`, so E2E and Acceptance runs stay offline.
 
@@ -113,6 +113,13 @@ It uses Node's `fetch`, uploads no user data, and is replaced by an immediate fa
   `model_prices_and_context_window.json` on raw.githubusercontent.com when a Usage report finds the
   cached copy older than a day. 15 s timeout; the body is streamed and dropped past 16 MiB. Any
   failure falls back to the cached copy, then the snapshot bundled at build time.
+- **Agent provider status for mobile** (`mobile.agentUsage.read`,
+  `apps/server/src/core/mobile/agent-usage-requests.ts`): the same fixed Claude and OpenAI status
+  pages and caps as Desktop's `agentProviderStatus.read`, read through the shared
+  `packages/system/src/network/agent-provider-status.ts` while the phone's Agent usage screen is
+  open (it polls every 30 s; the 60 s cache bounds the requests). Node's `fetch` ignores the macOS
+  system proxy, so a machine that can reach the pages only through a proxy shows them as
+  unavailable on the phone. Under `CAXRI_E2E=1` it reads the same fixture directory instead.
 
 ### CLI-mediated egress
 

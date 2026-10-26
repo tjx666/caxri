@@ -65,6 +65,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.session.archive',
     'mobile.session.restore',
     'mobile.session.setPinned',
+    'mobile.agentUsage.read',
     'mobile.pullRequest.read',
     'mobile.pullRequest.merge',
     'mobile.terminal.takeOver',
