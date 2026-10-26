@@ -7,6 +7,7 @@ import { execFileAsync } from '@caxri/system';
 import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { expectCompactSessionReveal } from './support/session-reveal.ts';
 
 /**
  * Enough Sessions that the first reveal leaves the row on screen and the second one drains it, so both the
@@ -65,6 +66,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         await expect(reveal).toHaveText('Show more');
         // The row is not a collapsible branch, so it must not spend a twistie on a meaning it does not have.
         await expect(reveal.locator('svg')).toHaveCount(0);
+        await expectCompactSessionReveal(reveal, sessionCards.first());
 
         // The row is the tree's last stop, so End reaches it from the Project heading.
         await running.page.locator('.project-select').focus();

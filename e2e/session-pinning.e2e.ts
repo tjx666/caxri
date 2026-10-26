@@ -7,6 +7,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 import { chooseContextMenuItem } from './support/native-context-menu.ts';
+import { expectCompactSessionReveal } from './support/session-reveal.ts';
 
 /**
  * Session ids of the rows the Pinned group currently renders, in the order it renders them.
@@ -255,6 +256,10 @@ test('an over-full Pinned group closes with a reveal row instead of burying ever
         // The visible label carries no count; the accessible name above keeps it for screen readers.
         await expect(reveal).toHaveText('Show more');
         await expect(reveal.locator('svg')).toHaveCount(0);
+        await expectCompactSessionReveal(
+            reveal,
+            page.locator(`.pinned-session-group [data-session-id="${pinnedIds[0]}"]`),
+        );
         await reveal.click();
         await expect.poll(() => pinnedOrder(page)).toEqual(pinnedIds);
         // The final reveal unmounts the row itself, so focus lands on the row above it, not on the document body.

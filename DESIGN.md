@@ -540,7 +540,10 @@ header stays a title plus description. Project disclosures contain active Sessio
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
 plus a text-only `Show N more` row that reveals ten more per activation and disappears once the list
 is complete, so a busy Project never buries the Projects below it. The row has no disclosure chevron:
-it is not a collapsible branch, and a twistie would spend width on a meaning it does not have. The
+it is not a collapsible branch, and a twistie would spend width on a meaning it does not have. Project
+and Pinned groups share one `SessionRevealRow`: a 24px, 6px-radius, content-width `--muted` button
+whose label starts at the Session title's left edge, so its hover background and focus ring cover only
+the label instead of reading as a full-width selected Session row (the Codex app's compact fold). The
 selected Session always renders even when it sits below that window. The revealed count is
 per-Renderer-lifetime: a relaunch starts from the short list the same way it starts scrolled to the
 top. When the Session list has scrolled away from the top, a VS Code-style inset `--shadow` sits
