@@ -222,8 +222,8 @@ async function expectViewerPosition(serial: string, expected: string): Promise<v
 
 /**
  * `MOB-CHAT-12`: the phone attaches more images than its width holds (#1763). The attachment strip scrolls sideways to
- * reach the last one, each image keeps its remove control (#1825), the message sends with every image, and the viewer
- * pages through them and closes with a downward swipe (#1812).
+ * reach the last one, each image keeps its remove control (#1825), a pending image opens at full size before sending,
+ * the message sends with every image, and the viewer pages through them and closes with a downward swipe (#1812).
  */
 export async function executeMobileChatImageStripScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -270,6 +270,15 @@ export async function executeMobileChatImageStripScenario(
         }
         await waitForCheck(serial, 'session-image-remove-0');
         await capture(environment, 'strip-start', artifacts);
+
+        // A pending image opens at full size before sending, in the same viewer a sent message's images use.
+        await tapMobileCheckByBounds(serial, 'session-image-open-0');
+        await waitForCheck(serial, VIEWER_IMAGE);
+        await expectViewerPosition(serial, `1 / ${STRIP_IMAGE_COUNT}`);
+        await capture(environment, 'composer-viewer', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-image-viewer-close');
+        await waitForNoCheck(serial, 'agent-chat-image-viewer');
+        await waitForCheck(serial, 'session-image-remove-0');
 
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
         const sent = await waitForMobile(
@@ -324,6 +333,7 @@ export async function executeMobileChatImageStripScenario(
             attached: STRIP_IMAGE_COUNT,
             status: 'passed',
             strip: 'scrolled',
+            composerViewer: 'opened-and-closed',
             viewer: 'paged-and-swiped-closed',
         });
     } finally {
