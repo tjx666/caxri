@@ -6,6 +6,7 @@ import type {
     AgentChatRequest,
     AgentChatSnapshot,
     AgentChatTurn,
+    AgentChatUsageLimit,
 } from '@caxri/protocol';
 import {
     MAX_AGENT_CHAT_DIFF_LENGTH,
@@ -489,6 +490,7 @@ export function finishedClaudeTurn(
     id: string,
     status: AgentChatTurn['status'],
     error: string | undefined,
+    usageLimit?: AgentChatUsageLimit,
 ): { durationMs?: number; operations: AgentChatPatchOperation[] } {
     const operations: AgentChatPatchOperation[] = [];
     for (const item of snapshot.items) {
@@ -505,6 +507,7 @@ export function finishedClaudeTurn(
                 type: 'notice',
                 kind: 'error',
                 message: clip(error, 2_000),
+                ...(usageLimit && { usageLimit }),
             },
         });
     const existing = snapshot.turns.find((turn) => turn.id === id);

@@ -1,0 +1,44 @@
+/**
+ * Agent Chat's usage-limit surfaces: the recovery card on a turn a used-up plan limit failed (issue #2581), and the
+ * composer's weekly usage guard (issue #2580).
+ */
+export const agentChatUsageLimit = {
+    'agentChat.usageLimit.session': '{{provider}} used up its 5-hour limit',
+    'agentChat.usageLimit.weekly': '{{provider}} used up its weekly limit',
+    'agentChat.usageLimit.unknown': '{{provider}} used up its usage limit',
+    'agentChat.usageLimit.continueIn': 'Continue in {{provider}}',
+    'agentChat.usageLimit.continueElsewhere': 'Continue in another Agent',
+    'agentChat.usageLimit.chooseAgent': 'Choose another Agent',
+    'agentChat.usageLimit.continueTooltip':
+        'Opens a new Session in this Project where {{provider}} picks the work up from this conversation',
+    'agentChat.usageLimit.noTarget': 'No other Agent can take this over',
+    'agentChat.usageLimit.continueFailed': "Couldn't continue in another Agent",
+    'agentChat.usageLimit.unavailable.current': 'This Chat',
+    'agentChat.usageLimit.unavailable.notInstalled': 'Not installed',
+    'agentChat.usageLimit.unavailable.unsupported': 'No Chat support',
+    'agentChat.usageLimit.unavailable.usageLimited': 'Weekly usage at the guard',
+    'agentChat.usageLimit.unavailable.usageLimitedUntil': 'Weekly usage at the guard, {{reset}}',
+    'agentChat.message.sendBlockedUsageGuard': 'Weekly usage nearly used up. Hand off below',
+    'agentChat.queue.pausedUsageGuard': 'Queue paused · weekly usage nearly used up',
+    'agentChat.usageGuard.headline': '{{provider}} weekly usage at {{percent}}%',
+    'agentChat.usageGuard.detail':
+        'New requests are paused, {{reset}}. The rest is kept for one hand-off on this account.',
+    'agentChat.usageGuard.generate': 'Generate hand-off',
+    'agentChat.usageGuard.generateTooltip':
+        '{{provider}} writes a hand-off document on the kept budget. Once per account until the weekly reset',
+    'agentChat.usageGuard.generating': 'Writing the hand-off…',
+    'agentChat.usageGuard.used': 'This account already used its hand-off this week',
+    'agentChat.usageGuard.generateFailed': "Couldn't generate a hand-off",
+    'agentChat.usageGuard.openElsewhere': 'Open in another Agent',
+    'agentChat.usageGuard.document': 'Hand-off document',
+    'agentChat.usageGuard.copy': 'Copy hand-off',
+    'agentChat.usageGuard.failed.rejected':
+        'The hand-off was refused. Open in another Agent still carries this conversation',
+    'agentChat.usageGuard.failed.timeout':
+        'The hand-off timed out. Open in another Agent still carries this conversation',
+    'agentChat.usageGuard.failed.unavailable':
+        'The hand-off could not start. Open in another Agent still carries this conversation',
+    'agentChat.usageGuard.failed.empty':
+        'The hand-off came back empty. Open in another Agent still carries this conversation',
+    'agentChat.usageGuard.continuedIn': 'Continued in',
+} as const;

@@ -1,8 +1,4 @@
-import type {
-    AgentChatItem,
-    AgentChatPatchOperation,
-    AgentChatSnapshot,
-} from './agent-chat-contract.js';
+import type { AgentChatItem, AgentChatSnapshot } from './agent-chat-contract.js';
 import {
     MAX_AGENT_CHAT_ITEMS,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
@@ -11,6 +7,7 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
     MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH,
 } from './agent-chat-limits.js';
+import type { AgentChatPatchOperation } from './agent-chat-patch-contract.js';
 import type {
     AgentChatTaskPatchOperation,
     AgentChatTaskSnapshot,
@@ -208,10 +205,10 @@ export function applyAgentChatOperation(
         case 'reset': {
             /**
              * Commands, models, MCP servers, and the permission level and plan mode describe the running provider, and
-             * the follow-up queue belongs to Server Core; none is part of the conversation being replaced. A resumed
-             * Claude Code reports its models and permission before its history replay resets the Chat, and reports the
-             * permission again only when it changes, so dropping them here hid the model picker and showed "Custom" for
-             * the permission on every resumed Chat.
+             * the follow-up queue and the usage guard belong to Server Core; none is part of the conversation being
+             * replaced. A resumed Claude Code reports its models and permission before its history replay resets the
+             * Chat, and reports the permission again only when it changes, so dropping them here hid the model picker
+             * and showed "Custom" for the permission on every resumed Chat.
              */
             return {
                 ...emptyAgentChatSnapshot(snapshot.terminalId),
@@ -225,6 +222,7 @@ export function applyAgentChatOperation(
                 ...(snapshot.queueLength !== undefined && { queueLength: snapshot.queueLength }),
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
                 ...(snapshot.queuePauseReason && { queuePauseReason: snapshot.queuePauseReason }),
+                ...(snapshot.usageGuard && { usageGuard: snapshot.usageGuard }),
             };
         }
         case 'upsertItem': {
@@ -275,6 +273,7 @@ export function applyAgentChatOperation(
             if (state.queuePaused !== undefined) next.queuePaused = state.queuePaused;
             if (state.queuePauseReason !== undefined)
                 next.queuePauseReason = state.queuePauseReason ?? undefined;
+            if (state.usageGuard !== undefined) next.usageGuard = state.usageGuard ?? undefined;
             for (const key of [
                 'failure',
                 'activeTurnId',
@@ -290,6 +289,7 @@ export function applyAgentChatOperation(
                 'turnUsage',
                 'operation',
                 'queuePauseReason',
+                'usageGuard',
             ] as const)
                 if (next[key] === undefined) delete next[key];
             return next;

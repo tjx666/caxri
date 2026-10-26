@@ -1,13 +1,13 @@
 import { z } from 'zod';
 
-import { identifierSchema } from '../domain/identifiers.js';
+import { identifierSchema } from '../../domain/identifiers.js';
 import {
     projectStatusStateSchema,
     pullRequestMergeStateSchema,
-} from '../domain/project-status-state.js';
-import { sessionPullRequestStateSchema } from '../domain/session-pull-request.js';
-import type { MethodSpec } from '../transport/method-spec.js';
-import { commandPolicy } from '../transport/method-spec.js';
+} from '../../domain/project-status-state.js';
+import { sessionPullRequestStateSchema } from '../../domain/session-pull-request.js';
+import type { MethodSpec } from '../../transport/method-spec.js';
+import { commandPolicy } from '../../transport/method-spec.js';
 
 /**
  * Upper bounds that keep one Commander from growing the Inbox without limit. Open items are what the owner still owes,

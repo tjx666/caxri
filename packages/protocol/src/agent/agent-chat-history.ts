@@ -1,10 +1,6 @@
-import type {
-    AgentChatHistoryPage,
-    AgentChatItem,
-    AgentChatSnapshot,
-    AgentChatTurn,
-} from './agent-chat-contract.js';
+import type { AgentChatItem, AgentChatSnapshot, AgentChatTurn } from './agent-chat-contract.js';
 import { MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS } from './agent-chat-limits.js';
+import type { AgentChatHistoryPage } from './agent-chat-patch-contract.js';
 
 /**
  * The part of a Chat's conversation older than its live projection that a Client has read through

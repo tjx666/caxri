@@ -12,10 +12,10 @@ import type { AgentDelegationServiceOptions } from './service-options';
 /**
  * Resolves the Session a create request runs in, then admits it. `newSession` creates the Session here, right before
  * its Agent Terminal, so the Workbench never shows it empty while the caller composes a second command. Any Agent or
- * the owner may use it; an external delegation identity stays bound to its one Session. A retry of the same request
- * reuses the Session its first attempt created, and a request refused before any task was recorded removes the empty
- * Session again (metadata only; the Project folder is never touched). The Session carries the caller's title from the
- * start; see `agentDelegationCreateRequestSchema`.
+ * the owner (from the CLI or a Client) may use it; an external delegation identity stays bound to its one Session. A
+ * retry of the same request reuses the Session its first attempt created, and a request refused before any task was
+ * recorded removes the empty Session again (metadata only; the Project folder is never touched). The Session carries
+ * the caller's title from the start; see `agentDelegationCreateRequestSchema`.
  */
 export async function admitDelegationRequest(
     options: Pick<AgentDelegationServiceOptions, 'newSessions' | 'database'>,
@@ -29,14 +29,15 @@ export async function admitDelegationRequest(
     const { newSessions, database } = options;
     const existing = database.agentDelegations.get(id);
     if (existing) return admit({ ...fields, sessionId: existing.input.sessionId }, false);
-    if (
-        !newSessions ||
-        (authority.principal.kind !== 'agent' && authority.principal.kind !== 'human-cli')
-    )
+    const { kind } = authority.principal;
+    if (!newSessions || (kind !== 'agent' && kind !== 'human-cli' && kind !== 'desktop'))
         throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new Session');
     const isCommander = isAgentCommanderCaller(database, authority);
+    /**
+     * An Agent's own Session, or the Chat a Client continues in another Agent (`agentChat.continueInAgent`).
+     */
     const callerSessionId =
-        authority.principal.kind === 'agent' && authority.callerTerminalId
+        (kind === 'agent' || kind === 'desktop') && authority.callerTerminalId
             ? database.getTerminal(authority.callerTerminalId)?.sessionId
             : undefined;
     const sessionId = newSessions.create(

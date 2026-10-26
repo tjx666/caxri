@@ -137,6 +137,7 @@ export async function startChat(
                 if (isCurrent()) state.projection.applyTask(taskId, operations);
             },
             readTask: (taskId) => state.projection.tasks.get(taskId),
+            observePlanLimits: (reading) => options.usage?.observe(provider, reading),
             ...chatLifecycleHost(options, {
                 launchId,
                 provider,

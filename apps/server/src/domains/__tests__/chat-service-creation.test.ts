@@ -25,7 +25,10 @@ async function compose() {
     const chatInput = vi.fn<CommanderTerminalHooks['chatInput']>();
     const interruptTerminal = vi.fn<AgentDelegationService['interruptTerminal']>();
     const service = createAgentChatService({
-        agentRuntime: { dispatchState: { observe: vi.fn() } } as never,
+        agentRuntime: {
+            dispatchState: { observe: vi.fn() },
+            usageGuards: { subscribe: vi.fn() },
+        } as never,
         commanderHooks: {
             chatInput,
             chatReady: vi.fn<CommanderTerminalHooks['chatReady']>(),

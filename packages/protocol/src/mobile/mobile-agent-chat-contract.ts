@@ -1,19 +1,18 @@
 import { z } from 'zod';
 
-import type {
-    AgentChatHistoryPage,
-    AgentChatItem,
-    AgentChatPatch,
-    AgentChatPatchOperation,
-    AgentChatSnapshot,
-} from '../agent/agent-chat-contract.js';
+import type { AgentChatItem, AgentChatSnapshot } from '../agent/agent-chat-contract.js';
 import {
-    agentChatHistoryPageSchema,
     agentChatImageMediaTypeSchema,
     agentChatSnapshotSchema,
 } from '../agent/agent-chat-contract.js';
 import { MAX_AGENT_CHAT_IMAGES } from '../agent/agent-chat-limits.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
+import type {
+    AgentChatHistoryPage,
+    AgentChatPatch,
+    AgentChatPatchOperation,
+} from '../agent/agent-chat-patch-contract.js';
+import { agentChatHistoryPageSchema } from '../agent/agent-chat-patch-contract.js';
 import type { AgentChatTaskSnapshot } from '../agent/agent-chat-task-contract.js';
 import { agentChatTaskSnapshotSchema } from '../agent/agent-chat-task-contract.js';
 import { identifierSchema } from '../domain/identifiers.js';

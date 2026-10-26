@@ -348,6 +348,7 @@ export async function createDomainServices(
     });
     const agentCommands = createAgentCommandRuntime({
         agentChat,
+        usageGuards: agentRuntime.usageGuards,
         logger,
         settings: () => configuration.getSettings().value,
         database,

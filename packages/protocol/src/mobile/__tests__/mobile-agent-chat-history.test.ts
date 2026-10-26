@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatHistoryPage, AgentChatItem } from '../../agent/agent-chat-contract.js';
-import { agentChatHistoryPageSchema } from '../../agent/agent-chat-contract.js';
+import type { AgentChatItem } from '../../agent/agent-chat-contract.js';
+import type { AgentChatHistoryPage } from '../../agent/agent-chat-patch-contract.js';
+import { agentChatHistoryPageSchema } from '../../agent/agent-chat-patch-contract.js';
 import {
     MOBILE_AGENT_CHAT_CLIP_MARKER,
     MOBILE_AGENT_CHAT_MAX_BYTES,

@@ -20,6 +20,11 @@ export const errorCodes = [
     'FORBIDDEN',
     'IO',
     'GIT',
+    /**
+     * The provider account reached Caxri's weekly usage guard; `details` carries `provider` and `resetsAt`. Only a
+     * hand-off may still spend the account until the window resets.
+     */
+    'USAGE_LIMITED',
     'INTERNAL',
 ] as const;
 

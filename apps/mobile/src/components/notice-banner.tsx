@@ -43,16 +43,14 @@ export const NoticeBanner = ({
     onAction?: () => void;
     testID: string;
     theme: MobileTheme;
-    tone: 'danger' | 'muted';
+    tone: 'danger' | 'muted' | 'warning';
 }) => (
     <View
         accessibilityRole="alert"
         style={[styles.banner, { borderColor: theme.border }]}
         testID={testID}
     >
-        <Text style={[styles.text, { color: tone === 'danger' ? theme.danger : theme.muted }]}>
-            {message}
-        </Text>
+        <Text style={[styles.text, { color: theme[tone] }]}>{message}</Text>
         {actionLabel && onAction ? (
             <Pressable
                 accessibilityRole="button"

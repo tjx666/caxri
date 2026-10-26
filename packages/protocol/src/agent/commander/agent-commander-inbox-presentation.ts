@@ -1,5 +1,5 @@
-import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
-import { translateAgentChatLabel } from './agent-chat-labels.js';
+import type { AgentChatLabelTranslate } from '../agent-chat-labels.js';
+import { translateAgentChatLabel } from '../agent-chat-labels.js';
 import type { CommanderInboxKind } from './agent-commander-inbox-contract.js';
 
 /**

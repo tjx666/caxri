@@ -124,7 +124,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private readonly tasks: ClaudeTasks;
     private readonly toolClock = new ClaudeToolClock();
     private readonly turnUsage = new ChatTurnUsage();
-    private readonly planLimits = new ClaudePlanLimits();
+    private readonly planLimits = new ClaudePlanLimits((info) => this.turns.observeRateLimit(info));
 
     private query: Query | undefined;
 
@@ -224,9 +224,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
         return this.sessionId;
     }
 
-    private onAssistant(message: unknown): void {
+    private onAssistant(message: unknown, error?: string): void {
         if (!isRecord(message)) return;
         this.turns.ensure();
+        if (this.turns.isUsageLimitReply(error)) return;
         this.tasks.onAssistant(message);
         const turnId = this.options.read().activeTurnId;
         const mapped = claudeAssistantItems(message, turnId, this.stream.ids);
@@ -325,7 +326,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'assistant': {
                 if (didApplyClaudeFeedback(this.options, message)) return;
-                this.onAssistant(message.message);
+                this.onAssistant(message.message, message.error);
                 return;
             }
             case 'user': {

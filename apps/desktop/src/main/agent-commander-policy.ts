@@ -66,6 +66,7 @@ const TERMINAL_METHODS = new Set<string>([
     'agentActions.list',
     'agentActions.read',
     'agentChat.configure',
+    'agentChat.generateHandoff',
     'agentChat.interrupt',
     'agentChat.previewRestoreFiles',
     'agentChat.read',
@@ -110,14 +111,18 @@ const SESSION_METHODS = new Set<string>(['session.updateState']);
  * Commander window (the unit test walks the protocol registry). `agentChat.fork` opens a new Session in the Commander's
  * hidden system Project and selects it, and this window has no Workbench to show it; the window does not offer "Fork
  * from here". `agentChat.readContext` feeds the Context tab, a Workbench editor tab this window cannot open, so it does
- * not offer the meter's Details button either. `agentChat.askSideQuestion` feeds the Workbench's side chat tab, which
- * this window has no pane for, so it offers no `/btw` either. `agentChat.pendingRequests` lists every waiting Chat in
- * every Session for the Workbench's waiting popup, which this window does not mount, and it would reach past the
- * Commander Terminal. `project.setChatDefault` is not an `agentChat.*` method and stays refused with every other
- * write.
+ * not offer the meter's Details button either. `agentChat.continueInAgent` and the `agentChat.continuationTargets` read
+ * behind it open a new Session the same way, so the window offers neither "Continue in <Agent>" nor "Open in another
+ * Agent"; the usage guard's `agentChat.generateHandoff` stays admitted for the Commander Terminal.
+ * `agentChat.askSideQuestion` feeds the Workbench's side chat tab, which this window has no pane for, so it offers no
+ * `/btw` either. `agentChat.pendingRequests` lists every waiting Chat in every Session for the Workbench's waiting
+ * popup, which this window does not mount, and it would reach past the Commander Terminal. `project.setChatDefault` is
+ * not an `agentChat.*` method and stays refused with every other write.
  */
 const REFUSED_AGENT_CHAT_METHODS = new Set<string>([
     'agentChat.askSideQuestion',
+    'agentChat.continuationTargets',
+    'agentChat.continueInAgent',
     'agentChat.fork',
     'agentChat.pendingRequests',
     'agentChat.readContext',

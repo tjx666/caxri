@@ -35,6 +35,7 @@ import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import type { DomainDependencies } from '../domain-services';
 import { SessionAutoNamingService, SessionRenameService } from '../session';
+import { AgentUsageGuards } from '../usage';
 import type { WatchHub } from '../watch';
 import type { WorkbenchRootService } from '../workbench';
 import * as provenance from '../workbench';
@@ -102,10 +103,12 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         logger,
         workerPath: dependencies.searchWorkers?.session?.workerPath,
     });
+    const usageGuards = new AgentUsageGuards({ database, logger });
     const agents = new AgentService(
         logger,
         dependencies.agentAdapters ??
             createLocalAgentAdapters(agentEnvironment, agentLaunchSettings),
+        usageGuards,
     );
     const namingState: { service?: SessionAutoNamingService } = {};
     const coordinator = new AgentCoordinator(database, agents, send, logger, {
@@ -338,12 +341,18 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         },
         close: async () => {
             unsubscribeSettings();
+            usageGuards.close();
             await automaticNaming.close();
             await settingsReconcile;
             await agentHooks.close();
             await sessionSearchIndex.close();
         },
         coordinator,
+        /**
+         * The weekly usage guard of each provider account (issue #2580), shared by every path that sends a model
+         * request.
+         */
+        usageGuards,
         /**
          * Routes PTY and Chat Agent process state to dispatch receipts; the domain root binds the dispatch service.
          */

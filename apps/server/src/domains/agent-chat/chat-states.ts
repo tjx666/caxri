@@ -13,6 +13,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import type { UsageGuardPath } from '../usage';
 import { delegatedTaskDetails } from './chat-delegated-task';
 import { requireChatTerminal } from './chat-launch';
 import { ChatProjection } from './chat-projection';
@@ -21,8 +22,14 @@ import { ChatFollowUpQueue } from './chat-queue';
 import { chatStateStore } from './chat-state-store';
 import { ChatSubagentSummaries } from './chat-subagent-summaries';
 import { forgetTaskRevisions } from './chat-task-projections';
+import type { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 
 export type ChatTerminal = TerminalRecord & { provider: AgentProvider };
+
+/**
+ * Who asked a running turn to stop, as its fold label names it.
+ */
+export type ChatStopper = NonNullable<AgentChatSnapshot['turns'][number]['stoppedBy']>;
 
 /**
  * Why a Chat state is being torn down: `closed` (close, delete, archive, surface switch, shutdown), `detached` (handed
@@ -77,6 +84,10 @@ interface ChatStatesOptions {
      */
     enqueue(terminalId: string, state: ChatState, deliver: ChatStateDelivery): Promise<void>;
     onAgentStateChanged?(terminalId: string, state: ProcessState): void;
+    /**
+     * The weekly usage guard as each Chat sees it; see `ChatUsageContinuation`.
+     */
+    usage?: ChatUsageContinuation;
 }
 
 /**
@@ -139,6 +150,20 @@ export class ChatStates {
         });
     }
 
+    /**
+     * The weekly usage guard and cross-Agent continuation, when Server Core composed them.
+     */
+    get usage(): ChatUsageContinuation | undefined {
+        return this.options.usage;
+    }
+
+    /**
+     * Refuses an ordinary model request of this Chat while its account is at the weekly usage guard.
+     */
+    assertUsage(terminalId: string, path: UsageGuardPath): void {
+        this.options.usage?.assert(terminalId, path);
+    }
+
     get(terminalId: string): ChatState | undefined {
         return this.states.get(terminalId);
     }
@@ -172,6 +197,7 @@ export class ChatStates {
                 onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
                 delegatedTask: (delegationId) =>
                     delegatedTaskDetails(this.options.database, delegationId),
+                usageContinuedIn: (turnId) => this.options.usage?.continuedIn(terminalId, turnId),
                 answeredNotices: {
                     load: () =>
                         chatStateStore(this.options.database).answeredNotices.list(terminalId),
@@ -195,11 +221,15 @@ export class ChatStates {
                 read: () => state.projection.snapshot,
                 apply: (operations) => this.apply(terminalId, operations),
                 canDeliver: () =>
-                    this.states.get(terminalId) === state && state.session?.isOpen === true,
+                    this.states.get(terminalId) === state &&
+                    state.session?.isOpen === true &&
+                    !this.options.usage?.isBlocked(terminalId),
                 enqueue: (deliver) => this.options.enqueue(terminalId, state, deliver),
             }),
         };
         this.states.set(terminalId, state);
+        const usageGuard = this.options.usage?.view(terminalId);
+        if (usageGuard) state.projection.apply([{ op: 'state', state: { usageGuard } }]);
         return state;
     }
 

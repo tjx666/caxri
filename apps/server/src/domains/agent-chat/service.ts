@@ -29,7 +29,7 @@ import * as queueActions from './chat-queue-actions';
 import { saveChatDefaults } from './chat-session-logs';
 import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
-import type { ChatState, ChatStateDelivery } from './chat-states';
+import type { ChatState, ChatStateDelivery, ChatStopper } from './chat-states';
 import { ChatStates, requireOpenChatSession } from './chat-states';
 import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
 import type { ChatTaskHost } from './chat-task-read';
@@ -85,6 +85,12 @@ export class AgentChatService {
             enqueue: (terminalId, state, deliver) => this.enqueueOn(terminalId, state, deliver),
             onAgentStateChanged: (terminalId, state) =>
                 options.onAgentStateChanged?.(terminalId, state),
+            usage: options.usage,
+        });
+        options.usage?.attach({
+            states: this.states,
+            interrupt: (id) => this.interrupt(id, 'usageGuard'),
+            start: (id) => this.start(id),
         });
         this.maintenance = new ChatIdleMaintenance({
             database: options.database,
@@ -267,6 +273,7 @@ export class AgentChatService {
         origin: 'human' | 'delegation' = 'human',
     ): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), message.text);
+        this.states.assertUsage(terminalId, 'chat_send');
         if (origin === 'human') this.delegation.observeHumanInput(terminalId);
         await this.enqueue(terminalId, async (session, state) => {
             if (delivery === 'steer' && state.projection.snapshot.activeTurnId) {
@@ -284,6 +291,7 @@ export class AgentChatService {
 
     async runCommand(terminalId: string, name: string, arguments_?: string): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), `/${name}`);
+        this.states.assertUsage(terminalId, 'chat_command');
         await this.enqueue(terminalId, async (session, state) => {
             if (!isAgentChatCommandListed(state.projection.snapshot, name))
                 throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
@@ -322,7 +330,7 @@ export class AgentChatService {
      * message by surprise. Background tasks keep running. `by` names who asked, for the stopped turn's label: the
      * user's Stop, or another Agent through dispatch.
      */
-    async interrupt(terminalId: string, by: 'user' | 'agent' = 'user'): Promise<void> {
+    async interrupt(terminalId: string, by: ChatStopper = 'user'): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
         const state = this.states.get(terminalId);
         if (!state) return;

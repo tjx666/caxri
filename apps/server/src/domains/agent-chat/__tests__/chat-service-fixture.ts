@@ -12,6 +12,7 @@ import { expect, onTestFinished, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
 import { CaxriDatabase } from '../../db';
+import type { ChatUsageContinuation } from '../continuation/chat-usage-continuation';
 import { AgentChatService } from '../service';
 import type { AgentChatEndpoint, AgentChatServiceOptions } from '../service-options';
 
@@ -49,6 +50,10 @@ export async function fixture(
          * Also receives every lifecycle signal, after `signals` records it, as the Server's coordinator would.
          */
         observeLifecycleSignal?: (signal: AgentLifecycleSignal) => void;
+        /**
+         * Builds the weekly usage guard and continuation over the fixture's database.
+         */
+        usage?: (database: CaxriDatabase, logger: StructuredLogger) => ChatUsageContinuation;
     } = {},
 ) {
     const provider = options.provider ?? 'codex';
@@ -80,6 +85,7 @@ export async function fixture(
         (_executable: string, arguments_: string[], spawnOptions: SpawnOptionsWithoutStdio) =>
             spawn(process.execPath, [FAKE_CLIS[provider], ...arguments_], spawnOptions),
     );
+    const usage = options.usage?.(database, logger);
     const createService = () =>
         new AgentChatService({
             database,
@@ -122,6 +128,7 @@ export async function fixture(
             ...(options.endpoint && { endpoint: options.endpoint }),
             onAgentStateChanged: options.onAgentStateChanged,
             delegation: options.delegation,
+            usage,
         });
     const service = createService();
     /**
@@ -236,6 +243,7 @@ export async function fixture(
             .map((line) => JSON.parse(line) as Record<string, unknown>);
     };
     return {
+        usage,
         database,
         agentEnvironment,
         logWrite,

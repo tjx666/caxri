@@ -7,13 +7,11 @@ import { agentChatGoalSchema } from './agent-chat-goal-contract.js';
 import {
     MAX_AGENT_CHAT_DIFF_LENGTH,
     MAX_AGENT_CHAT_FILE_CHANGES,
-    MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS,
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_ITEMS,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
     MAX_AGENT_CHAT_MODELS,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
-    MAX_AGENT_CHAT_PATCH_OPERATIONS,
     MAX_AGENT_CHAT_PLAN_STEPS,
     MAX_AGENT_CHAT_QUEUE,
     MAX_AGENT_CHAT_TASKS,
@@ -25,6 +23,10 @@ import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
 import { agentChatTurnUsageSchema, agentChatUsageSchema } from './agent-chat-usage.js';
 import { agentChatDelegatedTaskSchema } from './agent-delegated-task.js';
+import {
+    agentChatUsageGuardSchema,
+    agentChatUsageLimitSchema,
+} from './agent-usage-continuation.js';
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
@@ -263,6 +265,10 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
             )
             .max(MAX_AGENT_CHAT_QUESTIONS)
             .optional(),
+        /**
+         * For `error`: the provider failed the turn on a used-up plan limit (`agentChatUsageLimitSchema`).
+         */
+        usageLimit: agentChatUsageLimitSchema.optional(),
     }),
 ]);
 
@@ -340,7 +346,7 @@ export const agentChatTurnSchema = z.strictObject({
      * the turn ended some other way (the provider process exited) or the stop predates this Server Core, as in replayed
      * history.
      */
-    stoppedBy: z.enum(['user', 'agent']).optional(),
+    stoppedBy: z.enum(['user', 'agent', 'usageGuard']).optional(),
     /**
      * What the finished turn produced and cost, recorded once when it ends so its reply can show them. Absent for a
      * turn still running, one replayed from provider history, or a provider that reports neither.
@@ -497,79 +503,11 @@ export const agentChatSnapshotSchema = z.strictObject({
      * `deliveryUnknown` after a send may have reached the provider unconfirmed. Clients tell a failure from a Stop by
      * it.
      */
-    queuePauseReason: z.enum(['stopped', 'sendFailed', 'deliveryUnknown']).optional(),
-});
-
-/**
- * One incremental change. `upsertItem` replaces an item by id (appending when new); `appendText` streams a delta into a
- * message, reasoning, or command output; `state` replaces the scalar parts of the snapshot that changed.
- */
-export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
-    z.strictObject({ op: z.literal('upsertItem'), item: agentChatItemSchema }),
-    z.strictObject({
-        op: z.literal('appendText'),
-        itemId: z.string().min(1).max(200),
-        delta: z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH),
-    }),
-    z.strictObject({
-        op: z.literal('state'),
-        /**
-         * Present keys replace their snapshot value; `null` clears an optional one (JSON cannot carry `undefined`).
-         */
-        state: z
-            .strictObject({
-                status: agentChatSnapshotSchema.shape.status,
-                failure: agentChatSnapshotSchema.shape.failure.unwrap().nullable(),
-                turns: agentChatSnapshotSchema.shape.turns,
-                activeTurnId: agentChatSnapshotSchema.shape.activeTurnId.unwrap().nullable(),
-                requests: agentChatSnapshotSchema.shape.requests,
-                plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
-                goal: agentChatSnapshotSchema.shape.goal.unwrap().nullable(),
-                model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
-                effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
-                ultracode: agentChatSnapshotSchema.shape.ultracode.unwrap().nullable(),
-                fast: agentChatSnapshotSchema.shape.fast.unwrap().nullable(),
-                permissionMode: agentChatSnapshotSchema.shape.permissionMode.unwrap().nullable(),
-                planMode: agentChatSnapshotSchema.shape.planMode.unwrap().nullable(),
-                models: agentChatSnapshotSchema.shape.models.unwrap(),
-                commands: agentChatSnapshotSchema.shape.commands.unwrap(),
-                mcpServers: agentChatSnapshotSchema.shape.mcpServers.unwrap(),
-                usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
-                turnUsage: agentChatSnapshotSchema.shape.turnUsage.unwrap().nullable(),
-                truncated: agentChatSnapshotSchema.shape.truncated,
-                historyId: agentChatSnapshotSchema.shape.historyId.unwrap(),
-                operation: agentChatSnapshotSchema.shape.operation.unwrap().nullable(),
-                tasks: agentChatSnapshotSchema.shape.tasks.unwrap(),
-                queue: agentChatSnapshotSchema.shape.queue.unwrap(),
-                queueLength: agentChatSnapshotSchema.shape.queueLength.unwrap(),
-                queuePaused: agentChatSnapshotSchema.shape.queuePaused.unwrap(),
-                queuePauseReason: agentChatSnapshotSchema.shape.queuePauseReason
-                    .unwrap()
-                    .nullable(),
-            })
-            .partial(),
-    }),
-    z.strictObject({ op: z.literal('reset') }),
-]);
-
-/**
- * One page of older history: the items right before the Client's oldest one, oldest first, with the turns they belong
- * to. `hasMore` asks for the next page with this page's oldest item; once it is false, `truncated` says whether the
- * conversation still goes back further than Chat can show (the provider's record is the only full copy).
- */
-export const agentChatHistoryPageSchema = z.strictObject({
-    historyId: agentChatSnapshotSchema.shape.historyId.unwrap(),
-    items: z.array(agentChatItemSchema).max(MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS),
-    turns: z.array(agentChatTurnSchema).max(MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS),
-    hasMore: z.boolean(),
-    truncated: z.boolean(),
-});
-
-export const agentChatPatchSchema = z.strictObject({
-    terminalId: identifierSchema,
-    baseRevision: z.number().int().nonnegative(),
-    revision: z.number().int().positive(),
-    operations: z.array(agentChatPatchOperationSchema).min(1).max(MAX_AGENT_CHAT_PATCH_OPERATIONS),
+    queuePauseReason: z.enum(['stopped', 'sendFailed', 'deliveryUnknown', 'usageGuard']).optional(),
+    /**
+     * Set while the provider's account is at the weekly usage guard (`agentChatUsageGuardSchema`).
+     */
+    usageGuard: agentChatUsageGuardSchema.optional(),
 });
 
 export type AgentChatItem = z.infer<typeof agentChatItemSchema>;
@@ -582,9 +520,6 @@ export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;
 export type AgentChatFailureReason = z.infer<typeof agentChatFailureReasonSchema>;
 export type AgentChatStatus = z.infer<typeof agentChatStatusSchema>;
 export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
-export type AgentChatPatchOperation = z.infer<typeof agentChatPatchOperationSchema>;
-export type AgentChatPatch = z.infer<typeof agentChatPatchSchema>;
-export type AgentChatHistoryPage = z.infer<typeof agentChatHistoryPageSchema>;
 export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
 /* eslint-enable unicorn/max-nested-calls */

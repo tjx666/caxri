@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
-import { agentChatSubagentLogEvents } from './logging-agent-chat-subagents.js';
-import { agentCommanderLogEvents } from './logging-agent-commander.js';
-import { benchmarkLogEvents } from './logging-benchmark.js';
-import { mobileGatewayLogEvents } from './logging-mobile-gateway.js';
-import { sessionContextLogEvents, sessionSearchLogEvents } from './logging-session.js';
-import { sshHostLogEvents } from './logging-ssh-host.js';
-import { windowLogEvents } from './logging-window.js';
+import { agentChatSubagentLogEvents } from './logging/logging-agent-chat-subagents.js';
+import { agentCommanderLogEvents } from './logging/logging-agent-commander.js';
+import { benchmarkLogEvents } from './logging/logging-benchmark.js';
+import { mobileGatewayLogEvents } from './logging/logging-mobile-gateway.js';
+import { sessionContextLogEvents, sessionSearchLogEvents } from './logging/logging-session.js';
+import { sshHostLogEvents } from './logging/logging-ssh-host.js';
+import { usageLogEvents } from './logging/logging-usage.js';
+import { windowLogEvents } from './logging/logging-window.js';
 
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
@@ -403,12 +404,7 @@ export const logEventCatalog = {
         providerSyncSkipped: 'session_rename.provider_sync_skipped',
         providerTitleMismatch: 'session_rename.provider_title_mismatch',
     },
-    usage: {
-        externalScan: 'usage.external_scan',
-        pricing: 'usage.pricing',
-        pullRequests: 'usage.pull_requests',
-        scan: 'usage.scan',
-    },
+    usage: usageLogEvents,
     sessionPullRequests: {
         cli: 'session_pull_requests.cli',
         cliSummary: 'session_pull_requests.cli_summary',

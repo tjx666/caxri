@@ -3,6 +3,7 @@ import type {
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentChatTurn,
+    AgentChatUsageLimit,
 } from '@caxri/protocol';
 
 import {
@@ -14,6 +15,7 @@ import {
     stringField,
 } from './chat-items';
 import { codexAgentName, mapCodexItem } from './codex-items';
+import { isCodexUsageLimitError } from './continuation/codex-usage-limit';
 
 /**
  * Pure turn bookkeeping for a Codex Chat: rebuilding the projection from resumed history and closing a finished turn.
@@ -179,13 +181,15 @@ export function historyOperations(
 /**
  * Operations that close one finished turn: its dangling items, an error notice for a failed turn, its final status and
  * duration, and the pending requests `shouldKeepRequest` releases. Items in `keepOpen` stay running: a background
- * terminal outlives the turn that started it and completes on its own.
+ * terminal outlives the turn that started it and completes on its own. A turn Codex failed on a used-up plan limit
+ * keeps that classification on its notice, from `usageLimit` or the `error` notification that came first.
  */
 export function finishedTurnOperations(
     snapshot: AgentChatSnapshot,
     turn: Json,
     shouldKeepRequest: (requestId: string, turnId: string) => boolean,
     keepOpen: ReadonlySet<string> = new Set(),
+    usageLimit: () => AgentChatUsageLimit = () => ({ window: 'unknown' }),
 ):
     | {
           id: string;
@@ -205,7 +209,11 @@ export function finishedTurnOperations(
         if (closed) operations.push({ op: 'upsertItem', item: closed });
     }
     const error = isRecord(turn.error) ? stringField(turn.error.message) : undefined;
-    if (status === 'failed' && error)
+    if (status === 'failed' && error) {
+        const notice = snapshot.items.find((item) => item.id === `${id}:error`);
+        const limit =
+            (notice?.type === 'notice' ? notice.usageLimit : undefined) ??
+            (isCodexUsageLimitError(turn.error) ? usageLimit() : undefined);
         operations.push({
             op: 'upsertItem',
             item: {
@@ -214,8 +222,10 @@ export function finishedTurnOperations(
                 type: 'notice',
                 kind: 'error',
                 message: clip(error, 2_000),
+                ...(limit && { usageLimit: limit }),
             },
         });
+    }
     const durationMs =
         typeof turn.durationMs === 'number' && turn.durationMs >= 0 ? turn.durationMs : undefined;
     const existing = snapshot.turns.find((candidate) => candidate.id === id);

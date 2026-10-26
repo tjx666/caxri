@@ -6,6 +6,7 @@ import { agentChatComposer } from './agent-chat-composer';
 import { agentChatContext } from './agent-chat-context';
 import { agentChatPane } from './agent-chat-pane';
 import { agentChatTimeline } from './agent-chat-timeline';
+import { agentChatUsageLimit } from './agent-chat-usage-limit';
 
 export const agentChat: TranslatedNamespace<typeof source> = {
     ...agentChatComposer,
@@ -13,4 +14,5 @@ export const agentChat: TranslatedNamespace<typeof source> = {
     ...agentChatChanges,
     ...agentChatPane,
     ...agentChatContext,
+    ...agentChatUsageLimit,
 };

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKRateLimitInfo, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
 
 import { shellCommandMatchesAny } from '../agents';
@@ -8,6 +8,8 @@ import { startedTurnOperation } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { chatTextDigest, chatTurnFinalMessage } from './chat-turn-answer';
 import { claudeContextWindow, finishedClaudeTurn } from './claude-items';
+import { claudeRateLimitEvent } from './claude-plan-limits';
+import { ClaudeUsageLimitTracker } from './continuation/claude-usage-limit';
 
 /**
  * Whether background work that holds the turn is still running: a subagent or workflow (both listed as `agent`), or a
@@ -49,6 +51,11 @@ export class ClaudeTurns {
      */
     private backgroundTurnId: string | undefined;
 
+    /**
+     * The plan limits Claude Code last reported as used up, which a failing turn ran into.
+     */
+    private readonly usageLimits = new ClaudeUsageLimitTracker();
+
     isInterruptRequested = false;
 
     count = 0;
@@ -84,12 +91,14 @@ export class ClaudeTurns {
         const status: AgentChatTurn['status'] = this.isInterruptRequested ? 'interrupted' : outcome;
         this.isInterruptRequested = false;
         this.options.settleRequests();
+        const usageLimit = status === 'failed' ? this.usageLimits.current() : undefined;
         const finished = finishedClaudeTurn(
             host.read(),
             id,
             status,
             // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty error carries no detail either
             error || 'Claude could not finish this turn',
+            usageLimit,
         );
         host.apply(finished.operations);
         if (this.contextWindowSize && snapshot.usage)
@@ -116,7 +125,8 @@ export class ClaudeTurns {
                       phase: 'turnFailed',
                       agentSessionId,
                       agentTurnId: id,
-                      agentFailure: 'provider_failed',
+                      // A used-up plan limit is the lifecycle's `quota_exhausted` failure, which `billing_error` maps to.
+                      agentFailure: usageLimit ? 'billing_error' : 'provider_failed',
                   }
                 : {
                       phase: 'turnFinished',
@@ -126,6 +136,25 @@ export class ClaudeTurns {
                       ...(isWaitingOnBackground && { agentBackgroundWork: true as const }),
                   },
         );
+    }
+
+    /**
+     * One `rate_limit_event`: remembers a used-up window for the turn it fails, and reports the window to the host for
+     * the account's weekly usage guard.
+     */
+    observeRateLimit(info: SDKRateLimitInfo): void {
+        this.usageLimits.observe(info);
+        const reading = claudeRateLimitEvent({ observedAt: 0, windows: [] }, info, Date.now());
+        if (reading) this.options.host.observePlanLimits?.(reading);
+    }
+
+    /**
+     * Whether an assistant message is Claude Code's synthetic reply to a used-up plan limit ("You've hit your session
+     * limit"). It fails the turn with the same text right after, and the turn's error notice carries it with the
+     * structured limit, so the reply is not shown a second time as if the model had said it.
+     */
+    isUsageLimitReply(error: string | undefined): boolean {
+        return error === 'rate_limit' && this.usageLimits.current() !== undefined;
     }
 
     get contextWindow(): number | undefined {

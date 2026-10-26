@@ -25,6 +25,7 @@ import {
 } from '../commander';
 import { coreRouted } from '../core-routed';
 import { createBackgroundSession, discardEmptySession } from '../session';
+import type { AgentUsageGuards } from '../usage';
 import type { DelegationChats } from './delegation-chats';
 import { delegationChatFor, didAcceptDelegationChatWrite } from './delegation-chats';
 
@@ -42,6 +43,11 @@ export function createAgentCommandRuntime(
         agentChat?: DelegationChats;
         settings(): Pick<AppSettings, 'agents.delegation' | 'session.openAgentsInChat'>;
         /**
+         * Refuses a dispatch or delegation launch while its provider's account is at the weekly usage guard (issue
+         * #2580). Optional so a unit test can construct this runtime without one.
+         */
+        usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted'>;
+        /**
          * Feeds every announced delegation receipt change to the Commander completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
          */
@@ -53,6 +59,10 @@ export function createAgentCommandRuntime(
 ) {
     const dispatchService = new AgentDispatchService({
         ...options,
+        launchSettings: (provider) => {
+            options.usageGuards?.assertAdmitted(provider, 'dispatch');
+            return options.launchSettings(provider);
+        },
         prepareLaunch: claudeTrustPreparer(options.agentEnvironment, options.logger),
     });
     const announce = (reason: FullStateChangeReason) =>
@@ -124,10 +134,12 @@ export function createAgentCommandRuntime(
             return accepted;
         },
         launchSettings: (provider) => options.launchSettings(provider),
-        verifyLaunch: async (launch, provider) =>
-            delegationAdapter(provider).verifyVersion(
+        verifyLaunch: async (launch, provider) => {
+            options.usageGuards?.assertAdmitted(provider, 'delegation');
+            return delegationAdapter(provider).verifyVersion(
                 await readVersion(provider, launch.executable),
-            ),
+            );
+        },
         readNativeTranscript: (terminalId, sessionId, offset, turnId) =>
             readDelegationTranscript(
                 options.database,

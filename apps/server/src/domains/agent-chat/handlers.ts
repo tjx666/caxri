@@ -1,3 +1,5 @@
+import { CaxriError } from '@caxri/protocol';
+
 import type { DomainHandlers } from '../domain-services';
 import type { createSessionCreator } from '../session';
 import { readChatImage } from './chat-images';
@@ -22,6 +24,9 @@ export function createAgentChatHandlers(
     DomainHandlers,
     | 'agentChat.askSideQuestion'
     | 'agentChat.configure'
+    | 'agentChat.continuationTargets'
+    | 'agentChat.continueInAgent'
+    | 'agentChat.generateHandoff'
     | 'agentChat.fork'
     | 'agentChat.interrupt'
     | 'agentChat.pendingRequests'
@@ -44,9 +49,23 @@ export function createAgentChatHandlers(
     | 'agentChat.stopTask'
     | 'agentChat.takeQueued'
 > {
+    const usage = () => {
+        const { usage: continuation } = agentChat.states;
+        if (!continuation) throw new CaxriError('UNAVAILABLE', 'Agent continuation is unavailable');
+        return continuation;
+    };
     return {
         'agentChat.askSideQuestion': ({ terminalId, question, history }) =>
             agentChat.askSideQuestion(terminalId, question, history),
+        'agentChat.continuationTargets': async ({ terminalId }) => ({
+            targets: await usage().targets(terminalId),
+        }),
+        'agentChat.continueInAgent': ({ terminalId, provider, turnId }) =>
+            usage().continueIn(terminalId, provider, turnId),
+        'agentChat.generateHandoff': ({ terminalId }) => {
+            usage().generateHandoff(terminalId);
+            return null;
+        },
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
         'agentChat.pendingRequests': () => ({
             chats: readWaitingChats(

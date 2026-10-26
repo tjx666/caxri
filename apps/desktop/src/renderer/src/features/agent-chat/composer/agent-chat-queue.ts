@@ -171,6 +171,13 @@ export function agentChatQueueHeader(
                 resumeLabel: t('agentChat.queue.resume'),
             };
         }
+        case 'usageGuard': {
+            return {
+                tone: 'paused',
+                text: t('agentChat.queue.pausedUsageGuard'),
+                resumeLabel: t('agentChat.queue.resume'),
+            };
+        }
         case 'stopped':
         case undefined: {
             return {

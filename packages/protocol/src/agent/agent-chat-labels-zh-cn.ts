@@ -82,6 +82,8 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.fold.stoppedByYou': '你已手动停止',
     'agentChat.fold.stoppedByAgentAfter': '{{duration}} 后被 Agent 停止',
     'agentChat.fold.stoppedByAgent': '已被 Agent 停止',
+    'agentChat.fold.stoppedByUsageGuardAfter': '{{duration}} 后因每周额度保护停止',
+    'agentChat.fold.stoppedByUsageGuard': '已因每周额度保护停止',
 
     // A work summary that counts unsuccessful items
     'agentChat.workGroup.andMore': '{{label}}，另有 {{count}} 项',

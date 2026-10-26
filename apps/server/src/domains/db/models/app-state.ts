@@ -1,4 +1,6 @@
 import {
+    agentChatHandoffSchema,
+    agentUsageGuardSchema,
     auxiliaryWindowStateSchema,
     CaxriError,
     commanderAgentSchema,
@@ -54,6 +56,22 @@ const appStateValueSchemas = {
      * `commander/handover.ts`.
      */
     commanderHandovers: z.array(commanderHandoverSchema).max(1_000),
+    /**
+     * Each provider account's weekly usage guard, so a restart neither lifts it early nor grants a second hand-off in
+     * the same window. See `usage/usage-guard.ts`.
+     */
+    agentUsageGuards: z
+        .array(
+            agentUsageGuardSchema.extend({
+                armedAt: z.number().int().positive(),
+                /**
+                 * The Chat that spent the hand-off lease, and what it produced.
+                 */
+                handoffTerminalId: identifierSchema.optional(),
+                document: agentChatHandoffSchema.optional(),
+            }),
+        )
+        .max(8),
 } as const;
 
 export type AppStateKey = keyof typeof appStateValueSchemas;

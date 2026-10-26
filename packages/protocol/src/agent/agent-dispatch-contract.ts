@@ -41,6 +41,7 @@ export const agentDispatchFailureSchema = z.strictObject({
         'FORBIDDEN',
         'IO',
         'GIT',
+        'USAGE_LIMITED',
         'INTERNAL',
     ]),
     reason: z.enum([

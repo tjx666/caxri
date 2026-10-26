@@ -134,6 +134,7 @@ import {
     threadPath,
     writeFakeConfig,
 } from './fake-codex-threads.ts';
+import { failOnUsageLimit } from './fake-codex-usage-limit.ts';
 
 if (process.argv.includes('--version')) {
     process.stdout.write('codex-cli 0.162.0\n');
@@ -339,6 +340,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runWorkRowCommands(io, turn);
     } else if (text.includes('table')) {
         await runMarkdownTable(io, turn);
+    } else if (text.includes('usage exhausted')) {
+        failOnUsageLimit(io, turn);
     } else if (text.includes('fail')) {
         turn.status = 'failed';
         turn.error = { message: 'Fake provider failure' };

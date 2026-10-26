@@ -61,6 +61,10 @@ export interface UsageServiceOptions {
      * (Claude Code). Undefined without a running Chat or a plan.
      */
     readPlanLimits?: (terminalId: string) => Promise<Omit<UsageLimit, 'provider'> | undefined>;
+    /**
+     * Each provider's newest plan-limit reading, from any source; see `LiveAgentUsage`.
+     */
+    onLimit?: (limit: UsageLimit) => void;
 }
 
 type ScanOutcome = 'scanned' | 'unchanged' | 'unavailable' | 'failed';
@@ -160,6 +164,7 @@ export class UsageService {
             options.environment,
             (model) => this.pricing.priceOf(model),
             () => this.now(),
+            options.onLimit,
         );
         this.planLimits = new PlanLimitRefresh(options.readPlanLimits, (limits) =>
             this.live.observeLimits(limits),

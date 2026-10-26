@@ -20,6 +20,7 @@ import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
 import { AgentChatCompactedNotice } from '../transcript/agent-chat-compacted-notice';
 import { openAgentChatLink } from '../transcript/agent-chat-links';
 import { AgentChatTurnArtifactList } from '../turns/agent-chat-turn-artifact-list';
+import { AgentChatUsageLimitNotice } from '../usage-limit/agent-chat-usage-limit-notice';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatMessageTime, AgentChatTurnMetricsLabel } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
@@ -146,6 +147,8 @@ export function AgentChatReply({
  */
 export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
     const { t } = useTranslation();
+    if (item.kind === 'error' && item.usageLimit)
+        return <AgentChatUsageLimitNotice item={item} usageLimit={item.usageLimit} />;
     if (item.title || item.kind === 'warning') return <AgentChatFeedback item={item} />;
     if (item.kind === 'compacted') return <AgentChatCompactedNotice item={item} />;
     if (item.kind === 'retrying') return <AgentChatRetryNotice item={item} />;

@@ -8,12 +8,11 @@ import {
     MAX_LONG_PASTE_BYTES,
     savedLongPasteSchema,
 } from '../domain/terminal-long-paste.js';
-import { commandPolicy } from '../transport/method-spec.js';
+import { commandPolicy, ownerOnlyCommandPolicy } from '../transport/method-spec.js';
 import { agentChatCommandSchema } from './agent-chat-commands.js';
 import { agentChatContextReportSchema } from './agent-chat-context.js';
 import {
     agentChatEffortSchema,
-    agentChatHistoryPageSchema,
     agentChatImageMediaTypeSchema,
     agentChatModelSchema,
     agentChatQueuedMessageSchema,
@@ -27,9 +26,11 @@ import {
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
 } from './agent-chat-limits.js';
+import { agentChatHistoryPageSchema } from './agent-chat-patch-contract.js';
 import { agentChatDefaultSchema, agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatDecisionSchema } from './agent-chat-requests.js';
 import { agentChatTaskSnapshotSchema } from './agent-chat-task-contract.js';
+import { agentChatContinuationTargetSchema } from './agent-usage-continuation.js';
 import { agentProviderSchema } from './agents.js';
 
 export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
@@ -334,6 +335,48 @@ export const agentChatMethods = {
                 .max(MAX_AGENT_CHAT_SIDE_QUESTION_HISTORY),
         }),
         result: z.strictObject({ response: z.string() }),
+    },
+    /**
+     * Every Agent provider with whether it can take this Chat's work over in a new Session
+     * (`agentChat.continueInAgent`), and why not. Reads executables and the usage guard only; starts nothing.
+     */
+    'agentChat.continuationTargets': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject(terminalTarget),
+        result: z.strictObject({
+            targets: z.array(agentChatContinuationTargetSchema).max(8),
+        }),
+    },
+    /**
+     * Continues this Chat's work in a new Session of the same Project with another Agent, without asking this Chat's
+     * provider anything: Server Core writes the brief from what the Chat already shows (its hand-off document when one
+     * was generated). `turnId` names the turn a usage limit failed; without it the continuation is the usage guard's
+     * "Open in another Agent". The same turn, or the same guard window, always resolves to the same Session, so a retry
+     * or double click opens it instead of creating another. Fails with `CONFLICT` when the Chat shows neither, and with
+     * `USAGE_LIMITED` when the target's own account is at the guard.
+     */
+    'agentChat.continueInAgent': {
+        ...ownerOnlyCommandPolicy('server', 'control'),
+        params: z.strictObject({
+            ...terminalTarget,
+            provider: agentProviderSchema,
+            turnId: z.string().min(1).max(200).optional(),
+        }),
+        result: z.strictObject({
+            sessionId: identifierSchema,
+            delegationId: identifierSchema,
+        }),
+    },
+    /**
+     * Spends the usage guard's reserved budget on one tool-less turn in which this Chat's own model writes a hand-off
+     * document. Returns once the lease is taken; the document lands in the snapshot's `usageGuard.document`. Once per
+     * account and weekly window: a second call, from this Chat or another one on the same account, fails with
+     * `CONFLICT`, as does a call while the Chat is not at the guard.
+     */
+    'agentChat.generateHandoff': {
+        ...ownerOnlyCommandPolicy('server', 'control'),
+        params: z.strictObject(terminalTarget),
+        result: z.null(),
     },
     /**
      * Stops one running task without ending the turn or the Chat.

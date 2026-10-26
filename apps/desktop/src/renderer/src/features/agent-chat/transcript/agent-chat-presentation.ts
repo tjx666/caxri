@@ -17,9 +17,10 @@ import { agentChatSendBlock, agentChatSendTooltip } from '../composer/send/agent
  * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
  * queues the message on Server Core until the provider is ready (opening a Chat and typing at once must not drop the
  * first Enter), and a running turn accepts a message into its queue or as steering. A failed provider, a Chat not
- * loaded yet, or one handed to another client refuses input. The hand-over lives only on the Terminal record
- * (`processState` is its `lastProcessState`): the projection of a detached Chat still reads `stopped`, yet Server Core
- * rejects its input until the user resumes it, so without this check Enter would fail instead of the pane saying why.
+ * loaded yet, one handed to another client, or one whose account is at the weekly usage guard refuses input. The
+ * hand-over lives only on the Terminal record (`processState` is its `lastProcessState`): the projection of a detached
+ * Chat still reads `stopped`, yet Server Core rejects its input until the user resumes it, so without this check Enter
+ * would fail instead of the pane saying why.
  */
 export function canSendAgentChatMessage(
     snapshot: AgentChatSnapshot | undefined,

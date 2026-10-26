@@ -17,7 +17,7 @@ export interface FakeClaudeIo {
     system(subtype: string, fields?: Json): void;
     assistant(messageId: string, block: Json): void;
     toolResult(toolUseId: string, content: string): void;
-    result(startedAt: number, text: string): void;
+    result(startedAt: number, text: string, isError?: boolean): void;
     didStreamFully(text: string, chunkDelayMs: number): Promise<boolean>;
     /**
      * Sends a control request to the SDK and resolves with its response.

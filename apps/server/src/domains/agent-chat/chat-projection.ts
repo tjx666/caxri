@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    AgentChatContinuation,
     AgentChatItem,
     AgentChatPatchOperation,
     AgentChatSnapshot,
@@ -22,6 +23,7 @@ import type { DelegatedTaskDetails } from './chat-delegated-task';
 import { stampDelegatedTasks } from './chat-delegated-task';
 import { ChatHistoryArchive } from './chat-history-archive';
 import { ChatTaskProjections } from './chat-task-projections';
+import { stampUsageContinuations } from './continuation/usage-continuation-stamp';
 
 /**
  * Streaming deltas are coalesced into one patch per frame-sized window so a fast provider does not flood every Client
@@ -52,6 +54,10 @@ interface ChatProjectionOptions {
      * The Session a delegated task came from and the task it asked; see {@link stampDelegatedTasks}.
      */
     delegatedTask(delegationId: string): DelegatedTaskDetails;
+    /**
+     * The Session another Agent continued a turn in; see {@link stampUsageContinuations}.
+     */
+    usageContinuedIn?(turnId: string): AgentChatContinuation | undefined;
     /**
      * Runs when the task list changed, with the new list (`undefined` once a `reset` cleared it). The sidebar's durable
      * subagent summaries follow it; see `ChatSubagentSummaries`.
@@ -410,8 +416,9 @@ export class ChatProjection {
             stampNewItems(this.snapshot, labeled, Date.now()),
             this.stops,
         );
-        const stamped = stampDelegatedTasks(timed, (delegationId) =>
-            this.options.delegatedTask(delegationId),
+        const stamped = stampUsageContinuations(
+            stampDelegatedTasks(timed, (delegationId) => this.options.delegatedTask(delegationId)),
+            (turnId) => this.options.usageContinuedIn?.(turnId),
         );
         if (isHistoryReplay) this.replacedItems = [];
         const isReplacement = stamped.some((operation) => operation.op === 'reset');

@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
-import { canceledResultSchema, identifierSchema } from '../domain/domain.js';
-import type { MethodSpec } from '../transport/method-spec.js';
-import { commandPolicy } from '../transport/method-spec.js';
+import { canceledResultSchema, identifierSchema } from '../../domain/domain.js';
+import type { MethodSpec } from '../../transport/method-spec.js';
+import { commandPolicy } from '../../transport/method-spec.js';
+import type { AgentProvider } from '../agents.js';
 import {
     commanderSnapshotSchema,
     commanderTaskSchema,
     MAX_COMMANDER_TASKS,
 } from './agent-commander-contract.js';
-import type { AgentProvider } from './agents.js';
 
 /**
  * Agent CLIs that can run the Agent Commander. Both read the generated workspace `AGENTS.md` natively (Claude Code

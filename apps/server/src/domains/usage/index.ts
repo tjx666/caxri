@@ -3,3 +3,5 @@ export { estimateCacheRewriteUsd, ModelPricing, offlinePriceListFetch } from './
 export { UsageService } from './service';
 export { recordChatTurnMetrics } from './turn-metrics';
 export { ChatTurnUsage, claudeTurnResponse, codexTurnResponse } from './turn-usage';
+export type { UsageGuardPath } from './usage-guard';
+export { AgentUsageGuards } from './usage-guard';

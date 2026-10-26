@@ -14,11 +14,12 @@ const PLAN_LIMITS_TIMEOUT_MS = 5_000;
 export const CLAUDE_PLAN_LIMITS_REFRESH_MS = 60_000;
 
 /**
- * The plan windows Caxri shows, keyed as Claude Code's `/usage` answer names them, with each window's length.
+ * The plan windows Caxri shows, keyed as Claude Code's `/usage` answer names them, with each window's length and scope.
+ * `seven_day` is the account's general weekly window; the per-model ones (`seven_day_opus`, ...) are not shown.
  */
 const PLAN_WINDOWS = [
-    ['five_hour', 300],
-    ['seven_day', 10_080],
+    ['five_hour', 300, 'session'],
+    ['seven_day', 10_080, 'weekly'],
 ] as const;
 
 type PlanLimitsQuery = Pick<Query, 'usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET'>;
@@ -35,7 +36,13 @@ export class ClaudePlanLimits {
     private reading: PlanLimitsReading | undefined;
     private askedAt = -Infinity;
 
-    constructor(private readonly now: () => number = Date.now) {}
+    /**
+     * `onEvent` sees every `rate_limit_event`, including one that arrives before the first `/usage` reading.
+     */
+    constructor(
+        private readonly onEvent?: (info: SDKRateLimitInfo) => void,
+        private readonly now: () => number = Date.now,
+    ) {}
 
     async read(query: PlanLimitsQuery | undefined): Promise<PlanLimitsReading | undefined> {
         if (!query) return undefined;
@@ -49,6 +56,7 @@ export class ClaudePlanLimits {
     }
 
     observe(info: SDKRateLimitInfo): void {
+        this.onEvent?.(info);
         if (!this.reading) return;
         const reading = claudeRateLimitEvent(this.reading, info, this.now());
         if (reading) this.reading = reading;
@@ -92,7 +100,7 @@ export function claudePlanLimits(
 ): Omit<UsageLimit, 'provider'> | undefined {
     if (!isRecord(answer) || !isRecord(answer.rate_limits)) return undefined;
     const limits = answer.rate_limits;
-    const windows = PLAN_WINDOWS.flatMap(([key, windowMinutes]) => {
+    const windows = PLAN_WINDOWS.flatMap(([key, windowMinutes, scope]) => {
         const window = limits[key];
         if (!isRecord(window)) return [];
         const used = window.utilization;
@@ -103,6 +111,7 @@ export function claudePlanLimits(
                 windowMinutes,
                 usedPercent: Math.min(100, Math.max(0, used)),
                 ...(Number.isFinite(resetsAt) && resetsAt > 0 && { resetsAt }),
+                scope,
             },
         ];
     });
@@ -121,8 +130,9 @@ export function claudeRateLimitEvent(
     info: SDKRateLimitInfo,
     now: number,
 ): PlanLimitsReading | undefined {
-    const windowMinutes = PLAN_WINDOWS.find(([key]) => key === info.rateLimitType)?.[1];
-    if (windowMinutes === undefined) return undefined;
+    const planWindow = PLAN_WINDOWS.find(([key]) => key === info.rateLimitType);
+    if (!planWindow) return undefined;
+    const [, windowMinutes, scope] = planWindow;
     const used =
         typeof info.utilization === 'number' && Number.isFinite(info.utilization)
             ? info.utilization * 100
@@ -136,6 +146,7 @@ export function claudeRateLimitEvent(
         windowMinutes,
         usedPercent: Math.min(100, Math.max(0, used)),
         ...(resetsAt !== undefined && { resetsAt }),
+        scope,
     };
     const others = reading.windows.filter((existing) => existing.windowMinutes !== windowMinutes);
     return {

@@ -230,18 +230,41 @@ function codexTotals(value: unknown): CodexTotals | undefined {
     };
 }
 
+/**
+ * Codex names its account-wide limit `codex`; any other `limit_id` is a model-specific limit whose windows are not the
+ * account's general 5-hour and weekly ones. A rollout without `limit_id` predates model-specific limits.
+ */
+const CODEX_GENERAL_LIMIT_ID = 'codex';
+
+/**
+ * Codex puts whichever windows a plan has in `primary` and `secondary` (a plan may have only a weekly one), and its own
+ * status line names each by its length, so the general limit's windows are scoped the same way. Lengths are matched
+ * with Codex's own tolerance for a server rounding the minutes.
+ */
+function codexWindowScope(windowMinutes: number): 'session' | 'weekly' | undefined {
+    const isAbout = (target: number) => Math.abs(windowMinutes - target) <= target * 0.05;
+    if (isAbout(300)) return 'session';
+    if (isAbout(10_080)) return 'weekly';
+    return undefined;
+}
+
 function codexRateLimits(value: unknown, at: number): RateLimitObservation | undefined {
     const limits = record(value);
     if (!limits) return;
+    const limitId = string(limits.limit_id);
+    const isGeneral = !limitId || limitId === CODEX_GENERAL_LIMIT_ID;
     const windows = [limits.primary, limits.secondary].flatMap((candidate) => {
         const window = record(candidate);
         if (!window || typeof window.used_percent !== 'number') return [];
         const resetsAt = number(window.resets_at);
+        const windowMinutes = Math.round(number(window.window_minutes));
+        const scope = isGeneral ? codexWindowScope(windowMinutes) : undefined;
         return [
             {
-                windowMinutes: Math.round(number(window.window_minutes)),
+                windowMinutes,
                 usedPercent: Math.min(100, Math.max(0, window.used_percent)),
                 ...(resetsAt > 0 && { resetsAt: Math.round(resetsAt * 1000) }),
+                ...(scope && { scope }),
             },
         ];
     });

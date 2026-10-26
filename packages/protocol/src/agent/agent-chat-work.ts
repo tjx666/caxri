@@ -67,6 +67,10 @@ const TURN_OUTCOME_LABELS = {
     stopped: ['agentChat.fold.stopped', 'agentChat.fold.stoppedAfter'],
     stoppedByYou: ['agentChat.fold.stoppedByYou', 'agentChat.fold.stoppedByYouAfter'],
     stoppedByAgent: ['agentChat.fold.stoppedByAgent', 'agentChat.fold.stoppedByAgentAfter'],
+    stoppedByUsageGuard: [
+        'agentChat.fold.stoppedByUsageGuard',
+        'agentChat.fold.stoppedByUsageGuardAfter',
+    ],
 } as const;
 
 /**
@@ -91,6 +95,7 @@ function turnOutcome(
     if (turn.status === 'failed') return 'failed';
     if (turn.status !== 'interrupted') return 'worked';
     if (turn.stoppedBy === 'user') return 'stoppedByYou';
+    if (turn.stoppedBy === 'usageGuard') return 'stoppedByUsageGuard';
     return turn.stoppedBy === 'agent' ? 'stoppedByAgent' : 'stopped';
 }
 

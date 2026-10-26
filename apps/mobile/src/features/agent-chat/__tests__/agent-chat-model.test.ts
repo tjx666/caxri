@@ -20,6 +20,7 @@ import {
     agentChatProviderName,
     agentChatRequestBlockedReason,
     agentChatSendFailureMessage,
+    agentChatUsageGuardBanner,
     canAttachAgentChatImages,
     isAgentChatFailureRetryable,
     isAgentChatHandedOff,
@@ -368,6 +369,31 @@ describe('Agent Chat model', () => {
                 snapshot: stopped,
             }),
         ).toEqual({ isEnabled: true });
+    });
+
+    it('disables sending at the weekly usage guard and lets the banner say why', () => {
+        const NOW = Date.parse('2026-03-02T10:00:00.000Z');
+        const usageGuard = {
+            provider: 'claude' as const,
+            usedPercent: 99.6,
+            resetsAt: NOW + (2 * 24 + 3) * 3_600_000,
+            handoff: 'available' as const,
+        };
+        const guarded: AgentChatSnapshot = { ...base, usageGuard };
+        const input = { deviceRole: 'control', isConnected: true, isHandedOff: false } as const;
+        expect(agentChatComposerAvailability({ ...input, snapshot: guarded })).toEqual({
+            isEnabled: false,
+        });
+        expect(agentChatDisabledReason({ ...input, snapshot: guarded })).toBe(
+            'Weekly usage is nearly used up. Hand off on your computer.',
+        );
+        // The model and permission level spend no usage, so they stay changeable.
+        expect(
+            agentChatDisabledReason({ ...input, action: 'configure', snapshot: guarded }),
+        ).toBeUndefined();
+        expect(agentChatUsageGuardBanner(usageGuard, 'Claude', NOW)).toBe(
+            'Claude weekly usage is at 99%. New requests are paused for 2d 3h, until it resets. Hand off to another Agent on your computer.',
+        );
     });
 
     it('does not invite a message into an empty Chat this device cannot send to', () => {

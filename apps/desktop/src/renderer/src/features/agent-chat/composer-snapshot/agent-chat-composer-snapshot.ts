@@ -37,6 +37,7 @@ type AgentChatComposerSnapshot = Pick<
     | 'turns'
     | 'ultracode'
     | 'usage'
+    | 'usageGuard'
 > & { items: AgentChatItem[] };
 
 /**
@@ -120,6 +121,7 @@ export function selectAgentChatComposerView(
             turns: snapshot.turns,
             ultracode: snapshot.ultracode,
             usage: snapshot.usage,
+            usageGuard: snapshot.usageGuard,
         },
     };
 }

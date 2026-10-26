@@ -205,6 +205,11 @@ export interface AgentChatSessionHost {
     readTask(taskId: string): AgentChatTaskSnapshot | undefined;
     lifecycle(event: ChatLifecycleEvent): void;
     /**
+     * Plan windows the provider reported while it ran (Claude Code's `rate_limit_event`), possibly only the one that
+     * changed. Feeds the account's weekly usage guard.
+     */
+    observePlanLimits?(reading: Omit<UsageLimit, 'provider'>): void;
+    /**
      * `lifecycle`, resolved once the shared lifecycle path has handled the event. A provider awaits it only where it
      * can hold the tool back: Claude Chat's PreToolUse hook blocks a `git worktree add` until Server Core captured the
      * before-snapshot that later proves which worktree it created.

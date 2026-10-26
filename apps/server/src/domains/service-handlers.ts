@@ -55,6 +55,7 @@ import {
     SessionSearchService,
 } from './session';
 import { resolveTerminalFileLink } from './terminal';
+import type { AgentUsageGuards } from './usage';
 import { offlinePriceListFetch, UsageService } from './usage';
 
 type ServiceHandlerMethods =
@@ -187,6 +188,7 @@ export function createServiceHandlers(services: {
     agentThroughput: Pick<AgentThroughputService, 'read'>;
     agentRuntime: {
         awaitSettingsReconcile: () => Promise<void>;
+        usageGuards: Pick<AgentUsageGuards, 'observe'>;
         sessionSearchIndex: Pick<SessionSearchIndex, 'describe' | 'inspect' | 'search'>;
     };
     commander: Omit<
@@ -314,6 +316,7 @@ export function createServiceHandlers(services: {
     const usage = new UsageService({
         database,
         readPlanLimits: (terminalId) => services.agentChat.readPlanLimits(terminalId),
+        onLimit: (limit) => services.agentRuntime.usageGuards.observe(limit.provider, limit),
         environment: agentEnvironment,
         ...(process.env.CAXRI_E2E === '1' && { fetch: offlinePriceListFetch }),
         logger,

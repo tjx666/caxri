@@ -212,7 +212,35 @@ export const agentChatDisabledReason = (
     t: Translate = translate,
 ): string | undefined => {
     const kind = agentChatDisabledReasonKind(input);
-    return kind === undefined ? undefined : t(DISABLED_REASONS[input.action ?? 'send'][kind]);
+    if (kind !== undefined) return t(DISABLED_REASONS[input.action ?? 'send'][kind]);
+    // The weekly usage guard refuses model requests only; the model and permission level stay changeable.
+    if ((input.action ?? 'send') === 'send' && input.snapshot?.usageGuard)
+        return t('chat.disabled.send.usageGuard');
+    return undefined;
+};
+
+/**
+ * The usage guard's banner (issue #2580): how much of the week the provider's account used, when it resets, and where
+ * the way forward is. Generating a hand-off and continuing in another Agent stay on the computer, which can open the
+ * new Session beside this one.
+ */
+export const agentChatUsageGuardBanner = (
+    guard: Pick<NonNullable<AgentChatSnapshot['usageGuard']>, 'resetsAt' | 'usedPercent'>,
+    providerName: string,
+    now: number,
+    t: Translate = translate,
+): string => {
+    const minutes = Math.max(1, Math.ceil((guard.resetsAt - now) / 60_000));
+    const hours = Math.floor(minutes / 60);
+    const reset =
+        hours >= 24
+            ? t('chat.usageGuard.resetDays', { days: Math.floor(hours / 24), hours: hours % 24 })
+            : t('chat.usageGuard.resetHours', { hours, minutes: minutes % 60 });
+    return t('chat.usageGuard.banner', {
+        provider: providerName,
+        percent: Math.floor(guard.usedPercent),
+        reset,
+    });
 };
 
 /**
@@ -238,7 +266,8 @@ export const agentChatComposerAvailability = (
     t: Translate = translate,
 ): { isEnabled: boolean; reason?: string } => {
     const kind = agentChatDisabledReasonKind(input);
-    if (kind === undefined) return { isEnabled: true };
+    // The usage guard's banner says why and when it lifts, like the handed-off and failed banners.
+    if (kind === undefined) return { isEnabled: input.snapshot?.usageGuard === undefined };
     const isBannerOwned = kind === 'handedOff' || kind === 'failed';
     return isBannerOwned
         ? { isEnabled: false }

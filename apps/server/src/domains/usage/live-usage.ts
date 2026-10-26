@@ -69,6 +69,10 @@ export class LiveAgentUsage {
         environment: AgentEnvironment,
         private readonly priceOf: ModelPriceLookup,
         private readonly now: () => number = Date.now,
+        /**
+         * Receives each provider's newest reading after every observation; the weekly usage guard arms on it.
+         */
+        private readonly onLimit?: (limit: UsageLimit) => void,
     ) {
         this.locator = new UsageTranscriptLocator(environment, new Map(), now);
     }
@@ -140,11 +144,11 @@ export class LiveAgentUsage {
      * reports the newest one for its provider instead of its own conversation's older reading.
      */
     observeLimits(limits: readonly UsageLimit[]): void {
-        for (const limit of limits)
-            this.latestLimits.set(
-                limit.provider,
-                newerUsageLimit(this.latestLimits.get(limit.provider), limit),
-            );
+        for (const limit of limits) {
+            const latest = newerUsageLimit(this.latestLimits.get(limit.provider), limit);
+            this.latestLimits.set(limit.provider, latest);
+            this.onLimit?.(latest);
+        }
     }
 
     async read(terminalId: string): Promise<AgentUsageReadout | null> {

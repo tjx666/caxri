@@ -23,11 +23,11 @@ import {
     describeAgentChatWork,
     summarizeAgentChatWork,
 } from '../agent-chat-work';
+import { agentToolLabel } from '../agent-tool-presentation';
 import {
     commanderInboxKindLabel,
     commanderInboxReplyState,
-} from '../agent-commander-inbox-presentation';
-import { agentToolLabel } from '../agent-tool-presentation';
+} from '../commander/agent-commander-inbox-presentation';
 
 const zh: AgentChatLabelTranslate = (key, parameters) =>
     interpolate(agentChatLabelsZhCN[key], parameters);

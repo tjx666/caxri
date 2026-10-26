@@ -28,6 +28,11 @@ export interface AgentChatHostCapabilities {
      * The context meter's Details button: it opens the Context tab, a Workbench editor tab.
      */
     canOpenContext: boolean;
+    /**
+     * "Continue in <Agent>" and the usage guard's "Open in another Agent": both open a new Session of the same Project,
+     * which only a Workbench can show.
+     */
+    canContinueInAgent: boolean;
 }
 
 export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCapabilities {
@@ -37,5 +42,6 @@ export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCap
         canOpenBesideChat: isWorkbench,
         canSaveProjectDefault: isWorkbench,
         canOpenContext: isWorkbench,
+        canContinueInAgent: isWorkbench,
     };
 }
