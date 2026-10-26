@@ -25,6 +25,7 @@ import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
+import { WorkingFigure } from '../agent-chat/loading';
 import { TranslucentSidebarStatus } from '../primary-sidebar/translucent-sidebar-status';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { EnumControl } from './enum-control';
@@ -88,6 +89,33 @@ const DELEGATION_DEPTH_SPEC: IntegerSettingSpec = {
     default: DEFAULT_DELEGATION_DEPTH,
 };
 
+/**
+ * Per-option adornments for enum rows whose names alone do not say what you get. The working indicator's dropdown items
+ * play the same figure the Chat shows, so you can compare them before choosing (issue caxri#2254); Reduce Motion stills
+ * them through `loading.css`, as in the Chat. The closed trigger shows only the name, so Settings does not loop an
+ * animation beside a value you are not choosing.
+ */
+function optionIconRenderer(
+    key: keyof AppSettings,
+): ((value: string | null, placement: 'item' | 'trigger') => ReactNode) | undefined {
+    if (key === 'session.defaultAgent')
+        return (value) => <AgentIdentityIcon identity={value} size={14} />;
+    if (key === 'agentChat.workingIndicator')
+        return (value, placement) =>
+            placement === 'item' && value !== null ? (
+                <span
+                    aria-hidden="true"
+                    className="flex h-5 w-7 shrink-0 items-center justify-center text-muted"
+                >
+                    <WorkingFigure
+                        indicator={value as AppSettings['agentChat.workingIndicator']}
+                        turnId={undefined}
+                    />
+                </span>
+            ) : undefined;
+    return undefined;
+}
+
 function rowControl(
     t: Translate,
     properties: SettingRowProperties,
@@ -149,11 +177,7 @@ function rowControl(
                             label={row.accessibleTitle}
                             spec={spec}
                             value={settings[binding.key] as string | null}
-                            renderOptionIcon={
-                                binding.key === 'session.defaultAgent'
-                                    ? (value) => <AgentIdentityIcon identity={value} size={14} />
-                                    : undefined
-                            }
+                            renderOptionIcon={optionIconRenderer(binding.key)}
                             onChange={(value) =>
                                 onFieldChange(binding.key, value as AppSettings[typeof binding.key])
                             }
