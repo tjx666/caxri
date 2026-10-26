@@ -24,6 +24,7 @@ export function InlineButton({
         event.currentTarget.click();
     }
     return (
+        // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- a native <button> cannot wrap across lines; see above.
         <span
             {...properties}
             className={cn('box-decoration-clone', className)}
