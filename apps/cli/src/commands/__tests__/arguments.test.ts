@@ -1,25 +1,44 @@
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, MAX_DELEGATION_WAIT_TIMEOUT_MS, methods } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { parseCliArguments } from '../arguments';
+import { assertCommandTimeout, commandTimeoutCeiling, parseCliArguments } from '../arguments';
 
 describe('parseCliArguments timeout bounds', () => {
-    it('accepts the lower and upper inclusive timeout bounds', () => {
+    it('defers the --timeout range to the selected command and caps the derived connect deadline', () => {
         expect(parseCliArguments(['--timeout', '100']).timeoutMs).toBe(100);
-        expect(parseCliArguments(['--timeout', '120000']).timeoutMs).toBe(120_000);
+        const parsed = parseCliArguments(['--timeout', String(MAX_DELEGATION_WAIT_TIMEOUT_MS)]);
+        expect(parsed.timeoutMs).toBe(MAX_DELEGATION_WAIT_TIMEOUT_MS);
+        expect(parsed.connectTimeoutMs).toBe(120_000);
     });
 
-    it('rejects a timeout just below the lower bound', () => {
-        expect(() => parseCliArguments(['--timeout', '99'])).toThrow(CaxriError);
-        expect(() => parseCliArguments(['--timeout', '99'])).toThrow(
+    it('accepts the inclusive bounds of each command and rejects the values just outside them', () => {
+        expect(() => assertCommandTimeout(100)).not.toThrow();
+        expect(() => assertCommandTimeout(120_000)).not.toThrow();
+        expect(() => assertCommandTimeout(99)).toThrow(CaxriError);
+        expect(() => assertCommandTimeout(99)).toThrow('--timeout must be 100-120000 milliseconds');
+        expect(() => assertCommandTimeout(120_001, 'agent.message.wait')).toThrow(
             '--timeout must be 100-120000 milliseconds',
         );
+        expect(() =>
+            assertCommandTimeout(MAX_DELEGATION_WAIT_TIMEOUT_MS, 'agent.delegation.wait'),
+        ).not.toThrow();
+        expect(() =>
+            assertCommandTimeout(MAX_DELEGATION_WAIT_TIMEOUT_MS + 1, 'agent.delegation.wait'),
+        ).toThrow(`--timeout must be 100-${MAX_DELEGATION_WAIT_TIMEOUT_MS} milliseconds`);
     });
 
-    it('rejects a timeout just above the upper bound', () => {
-        expect(() => parseCliArguments(['--timeout', '120001'])).toThrow(
-            '--timeout must be 100-120000 milliseconds',
-        );
+    it.each([
+        ['agent.message.wait', {}],
+        ['agent.dispatch.wait', { dispatchId: 'dispatch' }],
+        ['agent.delegation.wait', { delegationId: 'task' }],
+    ] as const)('matches the %s schema timeoutMs ceiling', (method, identity) => {
+        const ceiling = commandTimeoutCeiling(method);
+        const accepts = (timeoutMs: number) =>
+            methods[method].params.safeParse({ ...identity, timeoutMs }).success;
+        expect(accepts(ceiling)).toBe(true);
+        expect(accepts(ceiling + 1)).toBe(false);
+        expect(() => assertCommandTimeout(ceiling, method)).not.toThrow();
+        expect(() => assertCommandTimeout(ceiling + 1, method)).toThrow(CaxriError);
     });
 
     it('rejects a non-integer or unsafe timeout value', () => {

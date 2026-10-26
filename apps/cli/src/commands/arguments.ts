@@ -1,4 +1,5 @@
-import { CaxriError } from '@caxri/protocol';
+import type { CaxriMethod } from '@caxri/protocol';
+import { CaxriError, MAX_DELEGATION_WAIT_TIMEOUT_MS } from '@caxri/protocol';
 
 export interface ParsedCliArguments {
     connectTimeoutMs: number;
@@ -16,12 +17,62 @@ export interface ParsedCliArguments {
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_ARGUMENT_COUNT = 128;
 const MAX_ARGUMENT_LENGTH = 4_096;
+const MIN_TIMEOUT_MS = 100;
+/**
+ * Ceiling of `--connect-timeout`, and of `--timeout` on every command without its own long-poll ceiling.
+ */
+const MAX_REQUEST_TIMEOUT_MS = 120_000;
+/**
+ * Commands whose `--timeout` becomes the Server long-poll `timeoutMs`. A ceiling above `MAX_REQUEST_TIMEOUT_MS` is the
+ * method schema's own `timeoutMs` maximum, so `--help` and validation cannot disagree.
+ */
+const LONG_POLL_TIMEOUT_CEILINGS: Partial<Record<CaxriMethod, number>> = {
+    'agent.delegation.wait': MAX_DELEGATION_WAIT_TIMEOUT_MS,
+    'agent.dispatch.wait': MAX_REQUEST_TIMEOUT_MS,
+    'agent.message.wait': MAX_REQUEST_TIMEOUT_MS,
+};
 
 function takeValue(argv: readonly string[], index: number, option: string): [string, number] {
     const value = argv[index + 1];
     if (!value || value.startsWith('--'))
         throw new CaxriError('VALIDATION', `${option} requires a value`);
     return [value, index + 1];
+}
+
+function timeoutRangeError(option: string, ceiling: number) {
+    return new CaxriError(
+        'VALIDATION',
+        `${option} must be ${MIN_TIMEOUT_MS}-${ceiling} milliseconds`,
+    );
+}
+
+/**
+ * Rejects a `--timeout` outside the selected command's range. The ceiling is the method's long-poll maximum, or the
+ * request ceiling for every other command.
+ */
+export function assertCommandTimeout(timeoutMs: number, method?: CaxriMethod): void {
+    const ceiling = commandTimeoutCeiling(method);
+    if (timeoutMs < MIN_TIMEOUT_MS || timeoutMs > ceiling)
+        throw timeoutRangeError('--timeout', ceiling);
+}
+
+export function commandTimeoutCeiling(method?: CaxriMethod): number {
+    return (method && LONG_POLL_TIMEOUT_CEILINGS[method]) ?? MAX_REQUEST_TIMEOUT_MS;
+}
+
+/**
+ * Validates `--timeout` for a remote command and, for a long poll, maps it to the request's `timeoutMs`; the connect
+ * deadline stays separate.
+ */
+export function withCommandTimeout(
+    method: CaxriMethod,
+    parameters: unknown,
+    timeoutMs: number,
+): unknown {
+    assertCommandTimeout(timeoutMs, method);
+    return method in LONG_POLL_TIMEOUT_CEILINGS
+        ? { ...(parameters as object), timeoutMs }
+        : parameters;
 }
 
 interface ArgumentApplyResult {
@@ -86,8 +137,19 @@ function applyArgument(
         case '--connect-timeout': {
             const [value, consumed] = takeValue(argv, index, argument);
             const timeoutMs = Number(value);
-            if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000)
-                throw new CaxriError('VALIDATION', `${argument} must be 100-120000 milliseconds`);
+            if (!Number.isSafeInteger(timeoutMs))
+                throw new CaxriError(
+                    'VALIDATION',
+                    `${argument} must be an integer of milliseconds`,
+                );
+            /**
+             * `--timeout` depends on the command, so `assertCommandTimeout` checks its range once the command is known.
+             */
+            if (
+                argument === '--connect-timeout' &&
+                (timeoutMs < MIN_TIMEOUT_MS || timeoutMs > MAX_REQUEST_TIMEOUT_MS)
+            )
+                throw timeoutRangeError(argument, MAX_REQUEST_TIMEOUT_MS);
             if (argument === '--connect-timeout') {
                 parsed.connectTimeoutMs = timeoutMs;
                 isConnectTimeoutExplicit = true;
@@ -96,7 +158,8 @@ function applyArgument(
                 /**
                  * Preserve `--timeout` as the legacy transport/request deadline unless split.
                  */
-                if (!isConnectTimeoutExplicit) parsed.connectTimeoutMs = timeoutMs;
+                if (!isConnectTimeoutExplicit)
+                    parsed.connectTimeoutMs = Math.min(timeoutMs, MAX_REQUEST_TIMEOUT_MS);
             }
             index = consumed;
             break;

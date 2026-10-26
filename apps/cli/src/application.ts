@@ -17,11 +17,13 @@ import { CaxriError, describeCaxriMethod, methods } from '@caxri/protocol';
 
 import type { CliCommandDefinition, ParsedCliArguments, RemoteCommandDefinition } from './commands';
 import {
+    assertCommandTimeout,
     CLI_COMMANDS,
     CLI_GROUPS,
     describeCliCommand,
     findCliCommand,
     parseCliArguments,
+    withCommandTimeout,
 } from './commands';
 import type {
     AgentEndpointCredential,
@@ -541,6 +543,7 @@ export async function runCli(
                 ...(serverLaunch && { serverLaunch }),
             });
         if (selected.kind === 'local') {
+            assertCommandTimeout(parsed.timeoutMs);
             const parameters = selected.parseParams(parsed.tokens.slice(selected.path.length));
             if (selected.mutates) await confirmMutation(selected, parsed, automation, options, io);
             const home = options.home ?? environment.HOME ?? homedir();
@@ -619,16 +622,11 @@ export async function runCli(
             return 0;
         }
         const command = remoteCommand(parsed.tokens);
-        let parameters = await command.parseParams(parsed.tokens.slice(command.path.length));
-        /**
-         * Pull/lifecycle waits map `--timeout` to long poll; connect timing may be split.
-         */
-        if (command.method === 'agent.message.wait') parameters = { timeoutMs: parsed.timeoutMs };
-        else if (
-            command.method === 'agent.dispatch.wait' ||
-            command.method === 'agent.delegation.wait'
-        )
-            parameters = { ...(parameters as object), timeoutMs: parsed.timeoutMs };
+        const parameters = withCommandTimeout(
+            command.method,
+            await command.parseParams(parsed.tokens.slice(command.path.length)),
+            parsed.timeoutMs,
+        );
         if (endpointCredential?.kind !== 'agent' && command.requiresAgentEndpoint)
             throw new CaxriError(
                 'FORBIDDEN',

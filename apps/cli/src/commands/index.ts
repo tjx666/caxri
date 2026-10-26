@@ -1,4 +1,9 @@
-export { parseCliArguments, type ParsedCliArguments } from './arguments.js';
+export {
+    assertCommandTimeout,
+    parseCliArguments,
+    type ParsedCliArguments,
+    withCommandTimeout,
+} from './arguments.js';
 export {
     CLI_COMMANDS,
     CLI_GROUPS,

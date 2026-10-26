@@ -137,7 +137,9 @@ input returns the existing task; different input conflicts. Wait timeout reports
 without interrupting, restarting, or resubmitting the task. A disconnected caller can later fetch
 the saved answer using the same authorized identity. `wait` accepts up to 32 of the caller's own task
 IDs and returns the first one, in argument order, that has settled or blocked. On timeout it reports
-the first ID's receipt. The wait's own `timeoutMs` is its deadline: the client arms no transport timer
+the first ID's receipt. `--timeout` accepts 100 to 300000 milliseconds here
+(`MAX_DELEGATION_WAIT_TIMEOUT_MS`), above the 120000 ceiling of other CLI commands, and the CLI
+validates it against that same schema constant. The wait's own `timeoutMs` is its deadline: the client arms no transport timer
 of its own, which would fire first and turn that timeout result into an error. Server Core stops the
 wait when its caller disconnects, and a transcript read that outlives the deadline by five seconds
 fails the wait with `TIMEOUT` instead of holding it open.
