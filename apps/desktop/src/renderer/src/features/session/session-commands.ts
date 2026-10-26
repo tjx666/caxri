@@ -47,8 +47,9 @@ const selectionDispatch: { generation: number; inFlight?: Promise<void> } = { ge
 async function claimSelectionDispatch(): Promise<(() => void) | undefined> {
     const generation = ++selectionDispatch.generation;
     while (selectionDispatch.inFlight) {
-        // eslint-disable-next-line no-await-in-loop -- each pass waits for whichever selection holds the slot now
-        await selectionDispatch.inFlight;
+        // Each pass waits for whichever selection holds the slot now, so the waits are sequential by design.
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop -- see above
+        await selectionDispatch.inFlight; // eslint-disable-line no-await-in-loop -- see above
         if (generation !== selectionDispatch.generation) return undefined;
     }
     const slot = Promise.withResolvers<void>();
