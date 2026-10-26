@@ -4,7 +4,6 @@ import { cloneElement, useEffect } from 'react';
 import type { ProjectRecord } from '@caxri/protocol';
 import { SquareDashed, SquarePen } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
@@ -15,6 +14,7 @@ import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
 import { useSettings } from '../../stores/selectors';
+import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import {
     newAgentSurface,
     newSessionActionLabel,
@@ -227,25 +227,25 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
             anchor="heading"
             project={project}
             trigger={
-                <Button
+                <button
+                    type="button"
                     /**
                      * Base UI moves focus into the portalled popup, so the row loses `:focus-within` while the menu is
                      * open. Without the open-state override the trigger would fade out from under its own menu the
                      * moment it was used.
                      */
                     className={cn(
+                        sessionRowActionButton,
                         'pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100',
                         open && 'pointer-events-auto opacity-100',
                     )}
-                    size="icon"
-                    variant="ghost"
                     aria-label={t('session.create.newInProject', {
                         project: project.displayTitle,
                     })}
                     tabIndex={-1}
                 >
-                    <SquarePen size={13} />
-                </Button>
+                    <SquarePen size={12} />
+                </button>
             }
         />
     );
