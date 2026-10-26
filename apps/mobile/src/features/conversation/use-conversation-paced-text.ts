@@ -14,10 +14,16 @@ const MIN_REDRAW_MS = 32;
  * as steady typing, as Desktop paces it. Text present when the row mounts shows at once, and the whole text shows the
  * moment `isStreaming` turns false, so a completed, failed, or interrupted turn is never left mid-reveal. With reduced
  * motion enabled the typing effect is skipped and the full text shows as it arrives.
+ *
+ * `shownAt` is when the pacer last advanced the text (`performance.now()`), for a reply that fades in what it adds; it
+ * is read in the frame callback because a render must not read the clock.
  */
-export function useConversationPacedText(text: string, isStreaming: boolean): string {
+export function useConversationPacedText(
+    text: string,
+    isStreaming: boolean,
+): { text: string; shownAt: number } {
     const [pacer] = useState(() => createAgentChatStreamPacer(text));
-    const [shown, setShown] = useState(text);
+    const [shown, setShown] = useState(() => ({ text, shownAt: performance.now() }));
     const isReducedMotion = useReducedMotion();
     useEffect(() => {
         if (!isStreaming || isReducedMotion) return;
@@ -30,10 +36,12 @@ export function useConversationPacedText(text: string, isStreaming: boolean): st
             }
             lastRedrawAt = now;
             const next = pacer.next(text, now);
-            setShown(next);
+            setShown((current) =>
+                current.text === next ? current : { text: next, shownAt: performance.now() },
+            );
             if (next !== text) frame = requestAnimationFrame(step);
         });
         return () => cancelAnimationFrame(frame);
     }, [isReducedMotion, isStreaming, pacer, text]);
-    return isStreaming && !isReducedMotion ? shown : text;
+    return isStreaming && !isReducedMotion ? shown : { text, shownAt: shown.shownAt };
 }

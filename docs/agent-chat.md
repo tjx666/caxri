@@ -371,12 +371,20 @@ record is the source of truth.
   which never enters the durable journal. Deltas are coalesced into one patch per 16 ms window.
 - Providers deliver text in uneven bursts, so Clients pace a streaming reply onto the screen
   instead of drawing each patch as it lands (`agent-chat-stream-pacing.ts` in
-  `packages/protocol/src/agent/`, adapted from LobeHub's `useSmoothStreamContent`). Each animation
+  `packages/protocol/src/agent/streaming/`, adapted from LobeHub's `useSmoothStreamContent`). Each animation
   frame reveals a share of the hidden text proportional to the backlog, so a burst eases in over
   roughly 180 ms while a steady stream stays a few characters behind. Text already present when a
   reply mounts shows at once, a rewrite that does not extend the shown text shows whole, and the
   full text shows the moment the reply stops streaming (completed, failed, or interrupted). Desktop
   paces every frame; the phone redraws at most every 32 ms because each redraw re-parses the reply.
+- Each run of characters the pacer adds fades in over 500 ms on both Clients, so the reply's tail
+  reads as a soft gradient (`agent-chat-revealed-runs.ts` beside the pacer tracks the runs). Text a
+  reply mounted with shows at once, and reduced motion skips the fade. Desktop renders each run as a
+  CSS-animated span. The phone's Markdown renderer mints new keys on every parse, so Mobile keeps the
+  runs and their arrival times outside the rendered tree, by the order of text nodes, and draws each
+  run in a nested `Text` whose color alpha follows its age. It keeps at most 24 fading runs per text
+  node instead of Desktop's 90 and stops fading a reply past 2,000 characters, where splitting the
+  tail on every re-parse would start to drop frames.
 - Every patch carries `baseRevision` and `revision`. Server Core and every Client apply operations
   with the same reducer (`packages/protocol/src/agent/agent-chat-reducer.ts`); a Client whose
   revision does not match re-reads. Server Core flushes queued operations before each read so a

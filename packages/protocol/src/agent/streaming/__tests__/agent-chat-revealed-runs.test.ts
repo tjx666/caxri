@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { initialRevealedRuns, nextRevealedRuns, revealedRunRanges } from '../revealed-runs';
+import {
+    initialRevealedRuns,
+    nextRevealedRuns,
+    revealedRunRanges,
+} from '../agent-chat-revealed-runs.js';
 
 describe('revealed runs', () => {
     it('shows the text a reply mounted with at once and fades in each later run', () => {
@@ -39,5 +43,13 @@ describe('revealed runs', () => {
         expect(ranges).toHaveLength(90);
         expect(ranges[0]).toEqual([10, 11]);
         expect(runs.settledEnd).toBe(10);
+    });
+
+    it('settles past a smaller cap for a client that redraws less often', () => {
+        let runs = initialRevealedRuns('', 0, 0);
+        for (let length = 1; length <= 30; length += 1)
+            runs = nextRevealedRuns(runs, 'x'.repeat(length), 24);
+        expect(revealedRunRanges(runs)).toHaveLength(24);
+        expect(runs.settledEnd).toBe(6);
     });
 });

@@ -154,7 +154,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## LobeHub
 
 - **Chat composer prompt history**: ArrowUp in an empty input opens a list of sent prompts, newest at the bottom, deduplicated, 50 rows; Enter fills without sending; placeholder preview. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-prompt-history.ts`.
-- **Streaming reply pacing**: `useSmoothStreamContent`: reveal received text per animation frame at a rate that grows with the backlog, show a non-prefix rewrite at once, flush on finish. Evidence: `packages/protocol/src/agent/agent-chat-stream-pacing.ts`; `docs/agent-chat.md`.
+- **Streaming reply pacing**: `useSmoothStreamContent`: reveal received text per animation frame at a rate that grows with the backlog, show a non-prefix rewrite at once, flush on finish. Evidence: `packages/protocol/src/agent/streaming/agent-chat-stream-pacing.ts`; `docs/agent-chat.md`.
 - **Translucent primary sidebar**: Frosted-glass sidebar: the desktop blurs through a tinted sidebar while the main column stays opaque; a setting turns it off. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/translucent-sidebar.ts`.
 - **Chat composer path pills**: A dragged file or folder shows inline as its file-type icon and name; the message keeps the absolute path. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer-extensions.ts`.
 - **Sidebar subagent rows**: Indented child rows under a Session (LobeHub thread rows, 32px inset) with a bounded list and expander. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-subagent-rows.tsx`; `docs/agent-chat.md`.

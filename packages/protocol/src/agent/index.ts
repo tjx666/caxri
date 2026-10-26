@@ -26,7 +26,6 @@ export * from './agent-chat-reducer.js';
 export * from './agent-chat-requests.js';
 export * from './agent-chat-revision-convergence.js';
 export * from './agent-chat-rewind.js';
-export * from './agent-chat-stream-pacing.js';
 export * from './agent-chat-task-contract.js';
 export * from './agent-chat-tasks.js';
 export * from './agent-chat-turn-artifacts.js';
@@ -59,6 +58,8 @@ export * from './agents.js';
 export * from './delegation-access-contract.js';
 export * from './provider-autonomy.js';
 export * from './provider-messaging-contract.js';
+export * from './streaming/agent-chat-revealed-runs.js';
+export * from './streaming/agent-chat-stream-pacing.js';
 export type {
     AgentChatTrackerArtifact,
     AgentChatTrackerStatus,

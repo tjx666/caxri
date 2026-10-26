@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { memo, use, useState } from 'react';
 import { Text, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
 
@@ -42,8 +43,8 @@ const ConversationTurnDivider = ({
 );
 
 /**
- * Memoized so a streamed update redraws only the rows whose entry object changed; callers keep unchanged entries the
- * same objects across updates.
+ * A reply, paced onto the screen while it streams with its new text fading in, as Desktop's reply does. Reduced motion
+ * skips both.
  */
 const ConversationAgentMessage = ({
     isStreaming,
@@ -53,7 +54,22 @@ const ConversationAgentMessage = ({
     isStreaming: boolean;
     text: string;
     theme: MobileTheme;
-}) => <ConversationMarkdown text={useConversationPacedText(text, isStreaming)} theme={theme} />;
+}) => {
+    const [mountedAt] = useState(() => performance.now());
+    const isReducedMotion = useReducedMotion();
+    const paced = useConversationPacedText(text, isStreaming);
+    return (
+        <ConversationMarkdown
+            reveal={
+                isStreaming && !isReducedMotion
+                    ? { since: mountedAt, textShownAt: paced.shownAt }
+                    : undefined
+            }
+            text={paced.text}
+            theme={theme}
+        />
+    );
+};
 
 export const ConversationEntry = memo(
     ({
