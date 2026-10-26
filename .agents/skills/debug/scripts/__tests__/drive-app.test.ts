@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { chatChoiceName, parseDriveCommand, settingsSourceWithLanguage } from '../drive-app';
+import {
+    chatChoiceName,
+    parseDriveCommand,
+    settingsSourceWithLanguage,
+    splitHeldChord,
+} from '../drive-app';
 
 describe('drive-app', () => {
     it('reads a step, its argument, and a trailing screenshot path', () => {
@@ -52,6 +57,42 @@ describe('drive-app', () => {
         expect(parseDriveCommand(['open-chat', 'codex'], {}).argument).toBe('codex');
         expect(() => parseDriveCommand(['open-chat', 'shell'], {})).toThrow(/claude, codex/u);
         expect(() => parseDriveCommand(['open-chat'], {})).toThrow(/needs an argument/u);
+    });
+
+    it('creates a Shell Session by default or an Agent Session for a known provider', () => {
+        expect(parseDriveCommand(['new-session'], {}).argument).toBeUndefined();
+        expect(parseDriveCommand(['new-session', 'shell'], {}).argument).toBe('shell');
+        expect(parseDriveCommand(['new-session', 'grok'], {}).argument).toBe('grok');
+        expect(() => parseDriveCommand(['new-session', 'zsh'], {})).toThrow(/shell, claude/u);
+    });
+
+    it('holds the modifiers of a chord across a counted number of presses', () => {
+        expect(
+            parseDriveCommand(
+                ['hold-press', 'Control+Alt+Tab', '--times', '2', '--screenshot', '/tmp/a/mru.png'],
+                {},
+            ),
+        ).toEqual({
+            step: 'hold-press',
+            argument: 'Control+Alt+Tab',
+            screenshot: '/tmp/a/mru.png',
+            inspectorPort: undefined,
+            times: 2,
+        });
+        expect(parseDriveCommand(['hold-press', 'Control+Alt+Tab'], {}).times).toBeUndefined();
+        expect(splitHeldChord('Control+Alt+Tab')).toEqual({
+            modifiers: ['Control', 'Alt'],
+            key: 'Tab',
+        });
+        expect(splitHeldChord('Meta++')).toEqual({ modifiers: ['Meta'], key: '+' });
+        expect(() => parseDriveCommand(['hold-press', 'Tab'], {})).toThrow(/modifiers and a key/u);
+        expect(() => parseDriveCommand(['hold-press'], {})).toThrow(/needs an argument/u);
+        expect(() => parseDriveCommand(['hold-press', 'Control+Tab', '--times', '0'], {})).toThrow(
+            /positive count/u,
+        );
+        expect(() => parseDriveCommand(['send', 'hi', '--times', '2'], {})).toThrow(
+            /Only `hold-press`/u,
+        );
     });
 
     it('takes the Main inspector port from the flag or the variable the dev launch exported', () => {

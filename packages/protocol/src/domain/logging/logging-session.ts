@@ -54,3 +54,24 @@ export const sessionSearchLogEvents = {
      */
     workerExited: 'session_search.worker_exited',
 } as const;
+
+export const sessionCompactionLogEvents = {
+    checked: 'session.compaction_checked',
+    idle: 'session.idle_compaction',
+    maintenanceEnded: 'session.compaction_maintenance_ended',
+} as const;
+
+export const sessionRenameLogEvents = {
+    providerSyncSkipped: 'session_rename.provider_sync_skipped',
+    providerTitleMismatch: 'session_rename.provider_title_mismatch',
+} as const;
+
+export const sessionPullRequestsLogEvents = {
+    cli: 'session_pull_requests.cli',
+    cliSummary: 'session_pull_requests.cli_summary',
+    focusRefresh: 'session_pull_requests.focus_refresh',
+    lookupUnavailable: 'session_pull_requests.lookup_unavailable',
+    refresh: 'session_pull_requests.refresh',
+    refreshFailed: 'session_pull_requests.refresh_failed',
+    autoArchive: 'session_pull_requests.auto_archive',
+} as const;

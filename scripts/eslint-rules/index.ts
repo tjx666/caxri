@@ -6,6 +6,7 @@ import filenameExportMapping from './filename-export-mapping';
 import listenerFanoutIsolation from './listener-fanout-isolation';
 import nativeTitle from './native-title';
 import noDeclareImplicitAnyVariable from './no-declare-implicit-any-variable';
+import noSchemaVersionOffset from './no-schema-version-offset';
 import registeredColorUtilities from './registered-color-utilities';
 import serverReadsThroughQuery from './server-reads-through-query';
 
@@ -21,6 +22,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'listener-fanout-isolation': listenerFanoutIsolation,
         'native-title': nativeTitle,
         'no-declare-implicit-any-var': noDeclareImplicitAnyVariable,
+        'no-schema-version-offset': noSchemaVersionOffset,
         'registered-color-utilities': registeredColorUtilities,
         'server-reads-through-query': serverReadsThroughQuery,
     },

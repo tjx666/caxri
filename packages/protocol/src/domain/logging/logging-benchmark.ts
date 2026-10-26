@@ -30,3 +30,19 @@ export const benchmarkLogEvents = {
      */
     interruptedRunsClosed: 'benchmark.interrupted_runs_closed',
 } as const;
+
+/**
+ * The Benchmark window's own Renderer lifecycle, kept apart from the Workbench's so a crash loop in this optional
+ * window is never mistaken for the Workbench's. `requestDenied` names a request method its policy refused.
+ */
+export const benchmarkWindowLogEvents = {
+    consoleError: 'benchmark_window.console_error',
+    pageException: 'benchmark_window.page_exception',
+    preloadError: 'benchmark_window.preload_error',
+    renderProcessCrashLoop: 'benchmark_window.render_process_crash_loop',
+    renderProcessGone: 'benchmark_window.render_process_gone',
+    requestDenied: 'benchmark_window.request_denied',
+    responsive: 'benchmark_window.responsive',
+    unhandledRejection: 'benchmark_window.unhandled_rejection',
+    unresponsive: 'benchmark_window.unresponsive',
+} as const;
