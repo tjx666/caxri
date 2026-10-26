@@ -13,6 +13,7 @@ import { createBenchmarkService } from './benchmark-service-creation';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
+import { createClaudeWindowService } from './claude-window-service-creation';
 import { commanderHostOptions, CommanderTerminalHooks, createCommanderServices } from './commander';
 import { coreRoutedHandlers } from './core-routed';
 import { createDeletionHandlers } from './deletion-handlers';
@@ -201,13 +202,9 @@ export async function createDomainServices(
         onObservationLeaseReady: () => suspensionState.service?.requestSweep(),
         send,
     });
-    const benchmark = createBenchmarkService({
-        agentRuntime,
-        database,
-        dependencies,
-        logger,
-        send,
-    });
+    const providerServiceOptions = { agentRuntime, database, dependencies, logger, send };
+    const benchmark = createBenchmarkService(providerServiceOptions);
+    const claudeWindows = createClaudeWindowService(providerServiceOptions);
     const terminalRestores = new TerminalRestoreSupervisor();
     const terminalSupervision = createTerminalSupervision({
         agentChat,
@@ -393,6 +390,7 @@ export async function createDomainServices(
         commanderInbox.close();
         await agentChat.shutdown();
         await benchmark.service.shutdown();
+        claudeWindows.service.shutdown();
         await terminalSupervision.close();
         await coordinator.close();
         longPastes.close();
@@ -446,6 +444,7 @@ export async function createDomainServices(
             createSessionForProject,
         }),
         ...benchmark.handlers,
+        ...claudeWindows.handlers,
         ...createWindowStateHandlers(database),
         ...presenceEffects.handlers,
         ...createWorkbenchRootHandlers(workbenchRoots),

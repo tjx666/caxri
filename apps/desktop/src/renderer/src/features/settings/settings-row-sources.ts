@@ -28,6 +28,7 @@ export type SettingRowBinding =
     | { type: 'files-exclude'; key: 'files.exclude' | 'git.diffExclude' }
     | { type: 'archived-sessions' }
     | { type: 'mobile-access' }
+    | { type: 'claude-windows' }
     | { type: 'delegation-depth' }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
@@ -158,6 +159,28 @@ function providerRows(provider: AgentProvider): SettingRowSource[] {
                 ...providerTerms,
             ]),
         },
+        ...(provider === 'claude'
+            ? [
+                  {
+                      ...shared,
+                      id: 'agents.claude.windows',
+                      titleKey: 'settings.row.claudeWindows.title',
+                      descriptionKey: 'settings.row.claudeWindows.description',
+                      binding: { type: 'claude-windows' },
+                      searchTerms: lower([
+                          '5-hour windows',
+                          'keep 5-hour windows rolling',
+                          'first workday reset at',
+                          'rate limit',
+                          'usage limit',
+                          'reset',
+                          'warm-up',
+                          'subscription',
+                          ...providerTerms,
+                      ]),
+                  } satisfies SettingRowSource,
+              ]
+            : []),
         {
             ...shared,
             id: `agents.${provider}.skill`,

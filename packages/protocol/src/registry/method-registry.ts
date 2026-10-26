@@ -66,6 +66,7 @@ import {
 import { bootstrapParameters, bootstrapStateSchema } from '../domain/bootstrap.js';
 import { bugReportInternalMethods, bugReportMethods } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
+import { claudeWindowMethods } from '../domain/claude-window/contract.js';
 import {
     agentHookHealthMapSchema,
     agentTranscriptSchema,
@@ -176,6 +177,7 @@ export const methods = {
     ...agentInboxMethods,
     ...businessMethods,
     ...usageMethods,
+    ...claudeWindowMethods,
     ...benchmarkMethods,
     ...benchmarkShareMethods,
     ...bugReportMethods,

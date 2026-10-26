@@ -10,6 +10,8 @@ export type {
 } from './chat-provider';
 export { AgentChatStartError } from './chat-provider';
 export { chatStateStore } from './chat-state-store';
+export { claudePlanLimits } from './claude-plan-limits';
+export { withTimeout } from './claude-prompt-queue';
 export { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 export { createAgentChatHandlers } from './handlers';
 export { ProviderProcess, reapGroup } from './provider-process';

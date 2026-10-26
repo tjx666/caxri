@@ -27,6 +27,7 @@ export type TransientServerEvent = Extract<
             | 'agent.message.receipt'
             | 'agent.messaging.changed'
             | 'benchmark.changed'
+            | 'claudeWindow.changed'
             | 'command.execute'
             | 'commanderInbox.changed'
             | 'desktop.openRequested'
@@ -76,6 +77,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * A Benchmark view re-reads the run it shows on reconnect, so a replay would only repeat that read.
      */
     'benchmark.changed',
+    /**
+     * Settings and Desktop re-read `claudeWindow.status` on reconnect, so a replay would only repeat that read.
+     */
+    'claudeWindow.changed',
     'command.execute',
     /**
      * An Inbox reader that missed this re-reads the whole list on reconnect, and the list is small and bounded, so a

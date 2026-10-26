@@ -91,6 +91,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'bugReport.deliver': 'ordered',
     'bugReport.saveScreenshot': 'ordered',
     'bugReport.send': 'ordered',
+    'claudeWindow.reportBackground': 'ordered',
     'commander.clearData': 'ordered',
     'commander.ensure': 'ordered',
     'commander.inbox.ack': 'ordered',
@@ -300,6 +301,8 @@ const expectedLanes: Record<string, ControlLane> = {
     'viewContainers.viewOperation': 'repository',
     // self-serialized
     'agentChat.saveLongPaste': 'self-serialized',
+    'claudeWindow.tick': 'self-serialized',
+    'claudeWindow.update': 'self-serialized',
     'files.copy': 'self-serialized',
     'terminal.prepareLongPaste': 'self-serialized',
 };

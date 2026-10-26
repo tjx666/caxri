@@ -37,6 +37,7 @@ export const EVENT_AUDIENCE = {
     'sessionPullRequests.changed': 'all',
     'commanderInbox.changed': 'all',
     'benchmark.changed': 'all',
+    'claudeWindow.changed': 'all',
     'gitReview.changed': 'all',
     'workbench.candidate': 'focused',
     'workbench.changed': 'all',

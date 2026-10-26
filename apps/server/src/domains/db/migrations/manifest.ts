@@ -13,6 +13,7 @@ import benchmarkRunsMigrationSql from './0007_benchmark_runs.sql?raw';
 import sessionCreatorMigrationSql from './0008_session_creator.sql?raw';
 import agentChatPersistenceMigrationSql from './0009_agent_chat_persistence.sql?raw';
 import agentChatSubagentsMigrationSql from './0010_agent_chat_subagents.sql?raw';
+import claudeWindowSchedulesMigrationSql from './0011_claude_window_schedules.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -60,6 +61,7 @@ export const migrationManifest = [
     { tag: '0008_session_creator', sql: sessionCreatorMigrationSql },
     { tag: '0009_agent_chat_persistence', sql: agentChatPersistenceMigrationSql },
     { tag: '0010_agent_chat_subagents', sql: agentChatSubagentsMigrationSql },
+    { tag: '0011_claude_window_schedules', sql: claudeWindowSchedulesMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

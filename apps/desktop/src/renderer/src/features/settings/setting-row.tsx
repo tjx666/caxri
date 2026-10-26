@@ -28,6 +28,7 @@ import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { WorkingFigure } from '../agent-chat/loading';
 import { TranslucentSidebarStatus } from '../primary-sidebar/translucent-sidebar-status';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
+import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
 import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IgnoredChecksForm } from './ignored-checks-form';
@@ -485,6 +486,8 @@ function rowControl(
             };
         case 'mobile-access':
             return { control: <MobileAccessForm /> };
+        case 'claude-windows':
+            return { control: <ClaudeWindowsForm /> };
         case 'delegation-depth':
             return {
                 labelFor: controlId,

@@ -78,6 +78,13 @@
             "when": 1792518704007,
             "tag": "0010_agent_chat_subagents",
             "breakpoints": true
+        },
+        {
+            "idx": 11,
+            "version": "6",
+            "when": 1793013361163,
+            "tag": "0011_claude_window_schedules",
+            "breakpoints": true
         }
     ]
 }

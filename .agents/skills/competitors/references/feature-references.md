@@ -227,6 +227,14 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Sidebar Fork Session and Session menu grouping**: A sidebar menu entry that forks the whole conversation into a new chat; a Copy submenu; Archive and Delete grouped last. Reference: Codex app. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-row-menu.tsx`; `docs/agent-chat.md` (Fork Session).
 - **Muted reasoning summary titles**: Bold summary titles keep the dimmed reasoning color instead of full contrast. Reference: Codex TUI. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tools/work-detail/agent-chat-work-detail.tsx`.
 
+## CCLimitPing (MIT)
+
+- **Scheduled Claude window warm-up**: Start a Claude subscription's 5-hour window with a minimal request at a chosen time so later resets land on a predictable schedule, driven by a per-user launchd job. Borrowed: the anchor-then-renew schedule and the launchd wake. Evidence: `apps/server/src/domains/claude-windows/schedule.ts`; `apps/desktop/src/main/claude-windows/launch-agent.ts`; `docs/claude-windows.md`.
+
+## QuotaWarmer (no license; behavior reference only)
+
+- **First workday reset as the setting**: The user picks when the first window of the day should reset, and the warm-up time is derived five hours earlier. Borrowed: the behavior only, no code. Evidence: `apps/desktop/src/renderer/src/features/settings/claude-windows/claude-windows-form.tsx`; `docs/claude-windows.md`.
+
 ## Chromium and LobeHub
 
 - **Performance Monitor**: Chromium's "Frame Rate" HUD (fps, per-frame bars, GPU raster, GPU memory) and LobeHub's dev dock that reloads the window and times it. Evidence: `docs/performance-monitor.md`.

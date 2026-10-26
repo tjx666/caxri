@@ -29,6 +29,7 @@ import {
 } from './auxiliary-window-lifecycle';
 import type { BenchmarkWindowController } from './benchmark-window';
 import { stampBuildIdentity } from './build-identity';
+import { startClaudeWindowJob } from './claude-windows';
 import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
 import type { DesktopNotifications } from './desktop-notifications';
@@ -102,10 +103,8 @@ const ownsProfileInstance = hasProfileSingleInstanceLock(app, desktopProfile);
 if (!ownsProfileInstance) app.quit();
 installAgentChatMediaProtocol();
 
-// Scoped in a bare block (rather than left at module top level) so the mutable Desktop bootstrap
-// state below is a block-scoped variable, not a Program-scope one: the lifecycle callbacks that
-// mutate it genuinely need module-lifetime shared state, and this keeps each variable's storage
-// out of `unicorn/no-top-level-assignment-in-function`'s reach without changing any read/write site.
+// A bare block, not module top level, so the mutable bootstrap state below is block-scoped: its lifecycle callbacks
+// need module-lifetime shared state, and this keeps it out of `unicorn/no-top-level-assignment-in-function`'s reach.
 if (ownsProfileInstance) {
     /**
      * The primary Workbench window, which is also registered in `workbenchWindows` under `main`. Tear-off windows exist
@@ -499,9 +498,8 @@ if (ownsProfileInstance) {
         sshHostWindowMenu.setApplicationMenu(Menu.buildFromTemplate(template));
     }
 
-    // Top-level await is unavailable in this bundle target, so the bootstrap sequence below is
-    // deliberately fire-and-forget from module scope rather than awaited; `shouldContinueStartup`
-    // and each awaited step already report their own failures.
+    // Top-level await is unavailable in this bundle target, so the bootstrap below is deliberately fire-and-forget;
+    // `shouldContinueStartup` and each awaited step already report their own failures.
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
@@ -621,6 +619,7 @@ if (ownsProfileInstance) {
                 supervisor,
             });
             void notifications.initialize();
+            startClaudeWindowJob({ supervisor, logger: () => mainLogger, userDataPath });
             processExplorer.installIpc();
             serverReady.resolve();
             // `openMainWindow` alone only creates the window; wait for its Renderer too (see `reopenAuxiliaryWindowsAtStartup`).

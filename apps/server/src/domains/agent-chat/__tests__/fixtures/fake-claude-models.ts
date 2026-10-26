@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
+import { fakeClaudeWindowAccount, fakeClaudeWindowUsage } from './fake-claude-window.ts';
+
 /**
  * The models the fake Claude Code CLI's `initialize` lists: a default with three efforts, an `opus` alias that resolves
  * to a full model ID, and a model without effort control. Only the first two support Fast mode.
@@ -182,7 +184,7 @@ export function fakeClaudeSessionAnswer(
                 commands: FAKE_CLAUDE_COMMANDS,
                 agents: [],
                 models: FAKE_CLAUDE_MODELS,
-                account: {},
+                account: fakeClaudeWindowAccount() ?? {},
                 output_style: 'default',
                 available_output_styles: ['default'],
                 ...fakeClaudeFastMode(session),
@@ -207,7 +209,7 @@ export function fakeClaudeSessionAnswer(
             };
         }
         case 'get_usage': {
-            return fakeClaudeUsage();
+            return fakeClaudeWindowUsage() ?? fakeClaudeUsage();
         }
         case 'get_settings': {
             const isUltracodeAvailable =
