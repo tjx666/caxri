@@ -1,5 +1,12 @@
-import type { MethodResult, PaneSplitSide, TerminalKind, TerminalSurface } from '@caxri/protocol';
+import type {
+    MethodResult,
+    PaneLayout,
+    PaneSplitSide,
+    TerminalKind,
+    TerminalSurface,
+} from '@caxri/protocol';
 import {
+    findPane,
     findResourceTabs,
     isCaxriError,
     moveTab,
@@ -136,7 +143,13 @@ export async function createTerminalForSession(
                     ...currentState,
                     paneLayout:
                         split && target
-                            ? splitTabIntoPane(opened, target.tab.id, target.pane.id, split)
+                            ? splitKeepingPaneSelection(
+                                  opened,
+                                  target.tab.id,
+                                  target.pane.id,
+                                  split,
+                                  findPane(currentState.paneLayout, target.pane.id)?.activeTabId,
+                              )
                             : opened,
                 });
             }
@@ -156,6 +169,23 @@ export async function createTerminalForSession(
                     : { id: 'terminal.refresh' },
         },
     );
+}
+
+/**
+ * Splits a freshly placed Terminal off `paneId`, then shows that pane's previously selected tab again. Placing the
+ * Terminal selected it there first, and removing it leaves the pane on a neighbor instead: running a Chat reply's
+ * command from a pane that also held an Editor tab used to swap the Chat out for that file.
+ */
+function splitKeepingPaneSelection(
+    layout: PaneLayout,
+    tabId: string,
+    paneId: string,
+    side: PaneSplitSide,
+    previousTabId: string | undefined,
+): PaneLayout {
+    const split = splitTabIntoPane(layout, tabId, paneId, side);
+    if (!previousTabId || split === layout) return split;
+    return { ...selectTab(split, previousTabId), activePaneId: split.activePaneId };
 }
 
 export function closeTerminal(terminalId: string): void {

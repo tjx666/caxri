@@ -1,5 +1,13 @@
 import type { BootstrapState, PaneLayout, TerminalRecord } from '@caxri/protocol';
-import { CaxriError, createPaneLayout, findResourceTabs, listPanes } from '@caxri/protocol';
+import {
+    CaxriError,
+    createPaneLayout,
+    findPane,
+    findResourceTabs,
+    listPanes,
+    openResource,
+    selectTab,
+} from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -382,6 +390,32 @@ describe('createTerminal', () => {
         await createTerminal();
 
         expect(mocks.patchSessionState).not.toHaveBeenCalled();
+    });
+
+    it('leaves the split pane showing the tab it showed before a fresh Terminal splits off it', async () => {
+        let next = 0;
+        const id = () => `selection-${++next}`;
+        let layout = createPaneLayout({ kind: 'terminal', terminalId: 'terminal-chat' }, id);
+        layout = openResource(layout, { kind: 'terminal', terminalId: 'terminal-other' }, {}, id);
+        const chatTab = findResourceTabs(layout, {
+            kind: 'terminal',
+            terminalId: 'terminal-chat',
+        })[0];
+        layout = selectTab(layout, chatTab.tab.id);
+        stubSessionState(layout);
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(terminalFixture({ id: 'terminal-new' })));
+
+        await createTerminal('shell', { paneId: chatTab.pane.id, split: 'down' });
+
+        const nextLayout = (
+            mocks.patchSessionState.mock.calls as Array<[{ paneLayout: PaneLayout }]>
+        )[0]?.[0]?.paneLayout;
+        expect(findPane(nextLayout, chatTab.pane.id)?.activeTabId).toBe(chatTab.tab.id);
+        const newTerminal = findResourceTabs(nextLayout, {
+            kind: 'terminal',
+            terminalId: 'terminal-new',
+        })[0];
+        expect(nextLayout.activePaneId).toBe(newTerminal.pane.id);
     });
 
     it('keeps the active Terminal in place when opening a fresh Terminal in a split pane', async () => {
