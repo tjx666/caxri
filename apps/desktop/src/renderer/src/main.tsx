@@ -14,12 +14,17 @@ import { installPerformanceMonitorHostLink } from './features/performance-monito
 import { replayAttentionRipplesOnFocus } from './features/primary-sidebar/attention-ripple-replay';
 import { installRendererPerformanceMonitoring } from './features/renderer-performance/controller';
 import { installRendererJankMonitor } from './features/renderer-performance/jank-monitor';
+import {
+    recoveringSnapshotSource,
+    workbenchCrashBoundary,
+} from './features/workbench/render-crash-commands';
 import { observePowerSource } from './lib/power-source';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 import { RendererRoot } from './renderer-root';
 import { configureToastActions } from './stores/toast-actions';
+import { configureWorkbenchSnapshotSource } from './stores/workbench';
 import { syncWorkbenchLocale } from './stores/workbench-locale';
 
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
@@ -35,10 +40,12 @@ syncWorkbenchLocale();
 // Before the first render, because a notification raised during boot has to know what its button does the moment it is
 // shown; the store that records notifications may not reach the feature modules that answer for them.
 configureToastActions(toastActionHandlers);
+// Before `App` attaches: the first snapshot read must be able to move the window off a Session that keeps crashing.
+configureWorkbenchSnapshotSource(recoveringSnapshotSource);
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
-        <RendererRoot>
+        <RendererRoot boundary={workbenchCrashBoundary}>
             <App />
         </RendererRoot>
     </StrictMode>,

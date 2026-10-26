@@ -26,6 +26,13 @@ export type MobileGatewayFailureReason = keyof ReturnType<typeof emptyCounts>;
 export type MobileTerminalResyncReason =
     'capacity' | 'generation-changed' | 'source-gap' | 'resize';
 
+/**
+ * Why a Host observer or lease release failed: closed causes, no identifiers. The `*-observe-failed` reasons mean an
+ * observe rejected and the follow-up unobserve itself failed too, so an orphan Host observer may remain.
+ */
+export type MobileTerminalTeardownReason =
+    'close-lease-release' | 'close-unobserve' | 'refresh-observe-failed' | 'start-observe-failed';
+
 const resyncCountKey: Record<
     MobileTerminalResyncReason,
     keyof ReturnType<typeof emptyResyncCounts>
@@ -95,6 +102,15 @@ export class MobileGatewayDiagnostics {
         this.#resyncCounts[resyncCountKey[reason]] += 1;
         this.#resyncTotal += 1;
         if (this.now() - this.#lastSummaryAt >= 60_000) this.flush();
+    }
+
+    /**
+     * Rare and each one may mean an orphan Host observer, so every occurrence logs immediately with its closed reason.
+     */
+    terminalTeardownFailure(reason: MobileTerminalTeardownReason): void {
+        this.logger?.write('warn', logEventCatalog.mobileGateway.terminalTeardownFailed, {
+            fields: { reason },
+        });
     }
 
     /**

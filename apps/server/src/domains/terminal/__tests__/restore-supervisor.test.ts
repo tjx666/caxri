@@ -101,6 +101,70 @@ describe('TerminalRestoreSupervisor', () => {
         await expect(activeRestore).resolves.toEqual([true]);
     });
 
+    it('runs a request with extra operations after the active restore for the same Session settles', async () => {
+        const supervisor = new TerminalRestoreSupervisor(2);
+        const restoreStarted = Promise.withResolvers<void>();
+        const releaseRestore = Promise.withResolvers<void>();
+        const detachedRestores: string[] = [];
+
+        const selectRestore = supervisor.restore('session-a', [
+            async () => {
+                restoreStarted.resolve();
+                await releaseRestore.promise;
+                return true;
+            },
+        ]);
+        await restoreStarted.promise;
+
+        const resumeRestore = supervisor.restore(
+            'session-a',
+            () => [
+                () => {
+                    detachedRestores.push('detached');
+                    return Promise.resolve(true);
+                },
+            ],
+            { afterActive: true },
+        );
+        await Promise.resolve();
+        expect(detachedRestores).toEqual([]);
+        releaseRestore.resolve();
+
+        await expect(selectRestore).resolves.toEqual([true]);
+        await expect(resumeRestore).resolves.toEqual([true]);
+        expect(detachedRestores).toEqual(['detached']);
+    });
+
+    it('abandons a queued request when another Session is selected before the active restore settles', async () => {
+        const supervisor = new TerminalRestoreSupervisor(2);
+        const restoreStarted = Promise.withResolvers<void>();
+        const releaseRestore = Promise.withResolvers<void>();
+        let isQueuedRan = false;
+
+        const selectRestore = supervisor.restore('session-a', [
+            async () => {
+                restoreStarted.resolve();
+                await releaseRestore.promise;
+                return true;
+            },
+        ]);
+        await restoreStarted.promise;
+        const queued = supervisor.restore(
+            'session-a',
+            () => {
+                isQueuedRan = true;
+                return [() => Promise.resolve(true)];
+            },
+            { afterActive: true },
+        );
+        await supervisor.restore('session-b', []);
+        releaseRestore.resolve();
+        await selectRestore;
+
+        await expect(queued).resolves.toEqual([]);
+        expect(isQueuedRan).toBe(false);
+    });
+
     it('cancels active restore work when the newly selected Session has nothing to restore', async () => {
         const supervisor = new TerminalRestoreSupervisor(1);
         const restoreStarted = Promise.withResolvers<void>();

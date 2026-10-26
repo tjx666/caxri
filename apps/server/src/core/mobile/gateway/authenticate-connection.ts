@@ -25,7 +25,7 @@ export interface AuthenticateConnectionDependencies {
     dispatch: CommandDispatcher;
     diagnostics: Pick<
         MobileGatewayDiagnostics,
-        'pairingOutcome' | 'request' | 'flushIfDue' | 'terminalResync'
+        'pairingOutcome' | 'request' | 'flushIfDue' | 'terminalResync' | 'terminalTeardownFailure'
     >;
     now: () => number;
     options: Pick<
@@ -138,6 +138,8 @@ export async function authenticateConnection(
         reportRequest: (method) => dependencies.diagnostics.request(method),
         reportHeartbeat: () => dependencies.diagnostics.flushIfDue(),
         reportTerminalResync: (reason) => dependencies.diagnostics.terminalResync(reason),
+        reportTerminalTeardownFailure: (reason) =>
+            dependencies.diagnostics.terminalTeardownFailure(reason),
         reportHumanSteer: (terminalId) =>
             dependencies.options.logger?.write('info', logEventCatalog.terminal.humanSteer, {
                 fields: { terminalId, principalKind: 'paired-device' },

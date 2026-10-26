@@ -22,7 +22,7 @@ import {
 } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
-import type { MobileTerminalResyncReason } from './diagnostics';
+import type { MobileTerminalResyncReason, MobileTerminalTeardownReason } from './diagnostics';
 import { boundedMobileReply, forbiddenMobileReply } from './reply';
 import { MobileGatewaySubscriptions } from './subscriptions';
 
@@ -76,6 +76,7 @@ export interface MobileAppOptions {
     reportRequest?: (method: string) => void;
     reportHeartbeat?: () => void;
     reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
+    reportTerminalTeardownFailure?: (reason: MobileTerminalTeardownReason) => void;
     reportHumanSteer?: (terminalId: string) => void;
     send: (payload: MobileServerPayload) => Promise<void>;
     terminate: () => void;
@@ -109,6 +110,7 @@ export class MobileGatewayFrameRouter {
             randomId: options.randomSubscriptionId,
             send: options.send,
             reportTerminalResync: options.reportTerminalResync,
+            reportTerminalTeardownFailure: options.reportTerminalTeardownFailure,
             reportHumanSteer: options.reportHumanSteer,
             terminate: options.terminate,
             terminalExecution: options.terminalExecution,

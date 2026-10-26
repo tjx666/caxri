@@ -6,19 +6,11 @@ import type { TerminalWheelInput } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
-import type { MobileTerminalResyncReason } from './diagnostics';
+import type { MobileTerminalResyncReason, MobileTerminalTeardownReason } from './diagnostics';
 
 const LEASE_TIMEOUT_MS = 12_000;
 const MAXIMUM_BUFFERED_OUTPUT_BYTES = 640 * 1_024;
 type ResyncReason = MobileTerminalResyncReason;
-
-async function ignoreHostTeardown(task: Promise<void>): Promise<void> {
-    try {
-        await task;
-    } catch {
-        // A stopped Host has already discarded the observer and lease.
-    }
-}
 
 interface MobileTerminalObserverOptions {
     authorize: () => Promise<void>;
@@ -27,6 +19,11 @@ interface MobileTerminalObserverOptions {
     release: (bytes: number) => void;
     remove: () => void;
     reportResync?: (reason: ResyncReason) => void;
+    /**
+     * Called with a closed reason when a Host release (unobserve or lease release) fails, so an observer the Host may
+     * still hold is countable instead of silently swallowed.
+     */
+    reportTeardownFailure?: (reason: MobileTerminalTeardownReason) => void;
     reportHumanSteer?: (terminalId: string) => void;
     reserve: (bytes: number) => boolean;
     send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
@@ -69,17 +66,12 @@ export class MobileTerminalObserver {
     }
 
     async start(): Promise<void> {
-        const observed = await this.#options.port.observe(
-            this.#options.terminalId,
-            this.#options.holderId,
-        );
+        const observed = await this.#observe('start-observe-failed');
         this.#observed = true;
         // close() can run while observe() is pending, despite static narrowing.
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- close() may run during observe()
         if (!this.#active) {
-            await ignoreHostTeardown(
-                this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId),
-            );
+            await this.#teardown(this.#unobserveHost(), 'close-unobserve');
             return;
         }
         this.#generation = observed.generation;
@@ -137,18 +129,16 @@ export class MobileTerminalObserver {
             if (this.#leaseGeneration !== undefined) {
                 const generation = this.#leaseGeneration;
                 this.#leaseGeneration = undefined;
-                await ignoreHostTeardown(
+                await this.#teardown(
                     this.#options.port.releaseTakeOver(
                         this.#options.terminalId,
                         this.#options.holderId,
                         generation,
                     ),
+                    'close-lease-release',
                 );
             }
-            if (this.#observed)
-                await ignoreHostTeardown(
-                    this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId),
-                );
+            if (this.#observed) await this.#teardown(this.#unobserveHost(), 'close-unobserve');
         })();
         return this.#closePromise;
     }
@@ -255,6 +245,40 @@ export class MobileTerminalObserver {
             );
         } catch {
             this.#fail('generation-changed');
+        }
+    }
+
+    /**
+     * The Host registers an observer before it builds the snapshot, and Core records it only after the reply, so a
+     * rejected observe (TIMEOUT, CANCELLED, CONFLICT after the request was sent) can leave an orphan Host observer that
+     * keeps duplicating output to nobody. The failure path therefore releases the holder best-effort (unobserve is
+     * idempotent on the Host) before rethrowing, and never marks the holder observed.
+     */
+    async #observe(failure: MobileTerminalTeardownReason) {
+        try {
+            return await this.#options.port.observe(
+                this.#options.terminalId,
+                this.#options.holderId,
+            );
+        } catch (error) {
+            await this.#teardown(this.#unobserveHost(), failure);
+            throw error;
+        }
+    }
+
+    #unobserveHost(): Promise<void> {
+        return this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId);
+    }
+
+    /**
+     * A stopped Host has already discarded the observer and lease, so teardown never throws; the failure is reported
+     * with a closed reason so a Host that is still alive but kept the observer stays visible.
+     */
+    async #teardown(task: Promise<void>, reason: MobileTerminalTeardownReason): Promise<void> {
+        try {
+            await task;
+        } catch {
+            this.#options.reportTeardownFailure?.(reason);
         }
     }
 
@@ -422,19 +446,14 @@ export class MobileTerminalObserver {
             this.#pendingBytes -= item.bytes;
         }
         this.#pending.length = 0;
-        await this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId);
+        await this.#unobserveHost();
         this.#observed = false;
-        const observed = await this.#options.port.observe(
-            this.#options.terminalId,
-            this.#options.holderId,
-        );
+        const observed = await this.#observe('refresh-observe-failed');
         this.#observed = true;
         // close() can run while observe() is pending, despite static narrowing.
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- close() may run during observe()
         if (!this.#active) {
-            await ignoreHostTeardown(
-                this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId),
-            );
+            await this.#teardown(this.#unobserveHost(), 'close-unobserve');
             this.#observed = false;
             return;
         }

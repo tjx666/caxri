@@ -8,7 +8,7 @@ import type { Principal, ServerEvent } from '@caxri/protocol';
 import { assertNever, CaxriError, clipAgentChatPatchForMobile } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
-import type { MobileTerminalResyncReason } from './diagnostics';
+import type { MobileTerminalResyncReason, MobileTerminalTeardownReason } from './diagnostics';
 import { MobileTerminalObserver } from './terminal-observer';
 
 const MAXIMUM_SUBSCRIPTIONS = 32;
@@ -70,6 +70,7 @@ export interface MobileSubscriptionOptions {
     randomId: () => string;
     send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
     reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
+    reportTerminalTeardownFailure?: (reason: MobileTerminalTeardownReason) => void;
     reportHumanSteer?: (terminalId: string) => void;
     terminate: () => void;
     connectionId: string;
@@ -195,6 +196,7 @@ export class MobileGatewaySubscriptions {
                 release: (bytes) => this.#release(subscription, bytes),
                 send: this.#options.send,
                 reportResync: this.#options.reportTerminalResync,
+                reportTeardownFailure: this.#options.reportTerminalTeardownFailure,
                 reportHumanSteer: this.#options.reportHumanSteer,
                 remove: () => this.unsubscribe(id),
                 terminate: this.#options.terminate,

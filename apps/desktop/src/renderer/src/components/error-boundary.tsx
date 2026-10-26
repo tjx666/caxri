@@ -25,6 +25,19 @@ interface ErrorBoundaryProperties {
      */
     descriptionKey?: TranslationKey;
     /**
+     * Secondary recovery action shown beside Reload when `isAvailable()` is true at crash time; it replaces a plain
+     * reload with one that also changes what the next load restores.
+     */
+    recoveryAction?: {
+        isAvailable: () => boolean;
+        labelKey: TranslationKey;
+        run: () => void;
+    };
+    /**
+     * Called once when this boundary catches a render error, before the fallback offers any action. Must not throw.
+     */
+    onRenderError?: () => void;
+    /**
      * Prefix used by Main's mirrored console log to identify the failed Renderer entry.
      */
     logScope?: string;
@@ -92,6 +105,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
         location.reload();
     };
 
+    private handleRecover = (): void => {
+        this.props.recoveryAction?.run();
+        location.reload();
+    };
+
     /**
      * Pending timer that reverts the button label back to idle; re-clicking before it fires clears and restarts it so
      * rapid re-clicks never leave a stale "Copied"/"Copy failed" label stuck on screen.
@@ -122,6 +140,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
             error,
             errorInfo.componentStack,
         );
+        this.props.onRenderError?.();
         this.setState({ componentStack: errorInfo.componentStack ?? undefined });
     }
 
@@ -162,6 +181,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
                         <Button type="button" onClick={this.handleReload}>
                             {translate(this.props.reloadLabelKey ?? 'common.reload')}
                         </Button>
+                        {this.props.recoveryAction?.isAvailable() && (
+                            <Button type="button" variant="secondary" onClick={this.handleRecover}>
+                                {translate(this.props.recoveryAction.labelKey)}
+                            </Button>
+                        )}
                         {error !== undefined && (
                             <Button
                                 type="button"
