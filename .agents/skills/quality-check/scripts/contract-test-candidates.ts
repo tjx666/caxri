@@ -105,17 +105,30 @@ function pathReferenceContractTestCandidates(
 const DEPENDENCY_MANIFESTS = new Set(['package.json', 'pnpm-workspace.yaml']);
 
 /**
+ * A workspace manifest is read by the toolchain contract (every tracked `package.json`) and the workspace package
+ * contract (each workspace's exact `scripts`), but not by the root-only dependency contract. Editing every workspace
+ * `typecheck` script once passed the focused check and failed first in CI's sharded unit suite.
+ */
+const WORKSPACE_MANIFEST = /^(?:apps|packages|extensions)\/[^/]+\/package\.json$/u;
+
+/**
  * The dependency and toolchain contracts read the root manifests at runtime. `patchedDependencies` keys carry exact
  * versions, so a dependency upgrade that edited only `pnpm-workspace.yaml` once passed every focused gate and failed
  * first in CI's full suite.
  */
 function dependencyManifestContractTestCandidates(files: readonly string[]): string[] {
-    return files.some((file) => DEPENDENCY_MANIFESTS.has(file))
-        ? [
-              'scripts/__tests__/toolchain-contract.test.ts',
-              'scripts/__tests__/workspace-dependency-contract.test.ts',
-          ]
-        : [];
+    const normalized = files.map((file) => file.replaceAll('\\', '/'));
+    const rootManifestChanged = normalized.some((file) => DEPENDENCY_MANIFESTS.has(file));
+    const workspaceManifestChanged = normalized.some((file) => WORKSPACE_MANIFEST.test(file));
+    return [
+        ...(rootManifestChanged || workspaceManifestChanged
+            ? [
+                  'scripts/__tests__/toolchain-contract.test.ts',
+                  'scripts/__tests__/workspace-package-contract.test.ts',
+              ]
+            : []),
+        ...(rootManifestChanged ? ['scripts/__tests__/workspace-dependency-contract.test.ts'] : []),
+    ];
 }
 
 /**
