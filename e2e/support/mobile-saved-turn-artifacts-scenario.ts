@@ -78,8 +78,10 @@ export async function executeMobileSavedTurnArtifactsScenario(
 
         // Dense turns first, so the artifacts reply stays near the end; short replies then land the cut inside it.
         let snapshot = changed;
+        let cut = split(snapshot, turnId);
         for (let turns = 0; ; turns += 1) {
-            const { after, size } = split(snapshot, turnId);
+            cut = split(snapshot, turnId);
+            const { after, size } = cut;
             if (after < SAVED_ITEMS && after + size > SAVED_ITEMS) break;
             if (after >= SAVED_ITEMS || turns >= MAX_FILLER_TURNS)
                 throw new Error('The filler turns did not cut the artifacts turn');
@@ -129,14 +131,26 @@ export async function executeMobileSavedTurnArtifactsScenario(
         await tapMobileCheck(serial, row);
         await waitForCheck(serial, 'agent-chat-saved', 60_000);
         const saved = await mobileSemantics(serial);
-        if (hasCheck(saved, `agent-chat-turn-${turnId}`) || hasCheck(saved, card))
-            throw new Error('The saved copy kept a split turn');
+        const savedTurnRows = saved.filter(({ checkId }) =>
+            /^agent-chat-turn-(?!changes-)[^:]+$/u.test(checkId),
+        ).length;
         await capture(environment, 'saved', artifacts);
+        const hasSplitTurn = hasCheck(saved, `agent-chat-turn-${turnId}`) || hasCheck(saved, card);
+        if (hasSplitTurn) throw new Error('The saved copy kept a split turn');
+        if (savedTurnRows === 0) throw new Error('The saved copy shows no whole turn');
 
         await finish(environment, artifacts, {
-            liveCards: 'shown-under-reply',
-            reopenedOnline: 'stayed-at-end',
-            savedCopy: 'whole-turns-only',
+            fixture: {
+                itemsAfterSplitTurn: cut.after,
+                savedItemLimit: SAVED_ITEMS,
+                splitTurnItems: cut.size,
+                totalItems: snapshot.items.length,
+            },
+            observed: {
+                reopenedJumpLatestShown: false,
+                savedSplitTurnShown: hasSplitTurn,
+                savedTurnRowsVisible: savedTurnRows,
+            },
             status: 'passed',
         });
     } finally {
