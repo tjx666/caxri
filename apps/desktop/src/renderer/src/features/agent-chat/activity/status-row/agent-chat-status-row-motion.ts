@@ -2,18 +2,6 @@ import type { Transition } from 'motion/react';
 
 import { motionDurationMs, motionEasing } from '../../../../lib/motion';
 
-/**
- * Height and position changes in the status row (the row unfolding, the popover resizing, the active badge's pill
- * sliding) settle on a spring rather than a fixed duration, so a change that interrupts another one carries its
- * velocity instead of restarting. Stiff and well damped: it lands in about a quarter second without overshooting.
- */
-export const STATUS_ROW_SPRING: Transition = {
-    type: 'spring',
-    stiffness: 520,
-    damping: 42,
-    mass: 0.8,
-};
-
 const resolved: { swap?: Transition } = {};
 
 /**

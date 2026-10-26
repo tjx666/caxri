@@ -37,7 +37,6 @@ import { chatTextDigest } from './chat-turn-answer';
 import type { CodexThreadSettings } from './codex-chat-types';
 import { CodexComputerUseBindings } from './codex-computer-use';
 import { CodexDeliveryCheck } from './codex-delivery-check';
-import { CodexGoals } from './codex-goals';
 import {
     CODEX_COMMANDS,
     codexClientMessageId,
@@ -56,6 +55,7 @@ import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { codexTurnFailure, CodexUsageLimits } from './continuation/codex-usage-limit';
+import { CodexGoals } from './goals/codex-goals';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import { forkCodexThread, revertCodexThread } from './rewind/codex-rewind';
 import { CodexSideQuestions } from './side-question/codex-side-question';

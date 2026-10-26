@@ -10,6 +10,7 @@ import { chatTextDigest, chatTurnFinalMessage } from './chat-turn-answer';
 import { claudeContextWindow, finishedClaudeTurn } from './claude-items';
 import { claudeRateLimitEvent } from './claude-plan-limits';
 import { ClaudeUsageLimitTracker } from './continuation/claude-usage-limit';
+import { ClaudeGoals } from './goals/claude-goals';
 
 /**
  * Whether background work that holds the turn is still running: a subagent or workflow (both listed as `agent`), or a
@@ -60,6 +61,11 @@ export class ClaudeTurns {
 
     count = 0;
 
+    /**
+     * The session's `/goal`, which only a turn's end can show was met.
+     */
+    readonly goals: ClaudeGoals;
+
     constructor(
         private readonly options: {
             host: AgentChatSessionHost;
@@ -78,7 +84,9 @@ export class ClaudeTurns {
              */
             shellCommand?: (taskId: string) => string | undefined;
         },
-    ) {}
+    ) {
+        this.goals = new ClaudeGoals(options.host);
+    }
 
     /**
      * Ends the active turn, from its `result` or, when no result closed it, from Claude Code reporting `idle`.
@@ -118,6 +126,10 @@ export class ClaudeTurns {
                 this.options.shellCommand,
             );
         this.backgroundTurnId = isWaitingOnBackground ? id : undefined;
+        this.goals.onTurnEnded(
+            { id, status, startedAt: snapshot.turns.find((turn) => turn.id === id)?.startedAt },
+            isWaitingOnBackground,
+        );
         const answer = status === 'completed' ? chatTurnFinalMessage(host.read(), id) : undefined;
         host.lifecycle(
             status === 'failed'

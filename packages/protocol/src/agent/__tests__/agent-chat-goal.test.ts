@@ -41,6 +41,10 @@ describe('Agent Chat goals', () => {
             expect(agentChatGoalToggle({ ...goal, status })).toBeUndefined();
     });
 
+    it('offers neither for a provider that cannot pause', () => {
+        expect(agentChatGoalToggle({ ...goal, pausable: false })).toBeUndefined();
+    });
+
     it('adds the running turn to the reported time only while the goal is active', () => {
         expect(agentChatGoalElapsedSeconds(goal, 1_010_000, undefined)).toBe(60);
         // Counts from the later of the turn's start and the last report.

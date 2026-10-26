@@ -208,3 +208,38 @@ describe('ClaudeTurns delegation digests', () => {
         expect(events.at(-1)).not.toHaveProperty('agentResponseDigest');
     });
 });
+
+describe('ClaudeTurns goal', () => {
+    const goalSet = {
+        type: 'assistant',
+        uuid: 'goal',
+        local_command_run: { command: 'goal', args: 'Green CI' },
+        local_command_source: '<local-command-stdout>Goal set: Green CI</local-command-stdout>',
+    };
+
+    it('drops the goal when its turn completes with nothing left to wake Claude Code', () => {
+        const { host, turns } = harness();
+        turns.begin('turn-1');
+        turns.goals.applyFeedback(goalSet);
+        expect(host.read().goal).toMatchObject({ objective: 'Green CI', pausable: false });
+        turns.onSessionState('running');
+        turns.onSessionState('idle');
+        expect(host.read().goal).toBeUndefined();
+    });
+
+    it('keeps the goal through an interrupt and while background work will wake Claude Code', () => {
+        const { host, setTasks, turns } = harness();
+        turns.begin('turn-1');
+        turns.goals.applyFeedback(goalSet);
+        turns.isInterruptRequested = true;
+        turns.onSessionState('running');
+        turns.onSessionState('idle');
+        expect(host.read().goal).toMatchObject({ status: 'active' });
+
+        turns.begin('turn-2');
+        setTasks([backgroundTask()]);
+        turns.onSessionState('running');
+        turns.onSessionState('idle');
+        expect(host.read().goal).toMatchObject({ status: 'active' });
+    });
+});

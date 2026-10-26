@@ -22,8 +22,9 @@ export const agentChatGoalStatusSchema = z.enum([
 ]);
 
 /**
- * The goal the provider keeps working toward across turns (Codex `/goal`). Times are the provider's: `timeUsedSeconds`
- * is what it had counted at `updatedAt`, so a Client adds the running turn's time on top while the goal is active.
+ * The goal the provider keeps working toward across turns (Codex and Claude Code `/goal`). Times are the provider's:
+ * `timeUsedSeconds` is what it had counted at `updatedAt`, so a Client adds the running turn's time on top while the
+ * goal is active.
  */
 export const agentChatGoalSchema = z.strictObject({
     objective: z.string().max(MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH),
@@ -38,6 +39,11 @@ export const agentChatGoalSchema = z.strictObject({
      * When the provider last reported the goal, in epoch milliseconds.
      */
     updatedAt: z.number().int().nonnegative(),
+    /**
+     * `false` when the provider cannot pause the goal (Claude Code's `/goal` only sets and clears), so no Client offers
+     * Pause; a pause sent there would become a new goal named "pause".
+     */
+    pausable: z.literal(false).optional(),
 });
 
 export type AgentChatGoal = z.infer<typeof agentChatGoalSchema>;

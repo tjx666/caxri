@@ -1307,8 +1307,8 @@ at 60% of the pane and scrolls past it. Above everything in the dock, a recovery
 continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
-and Resume; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the status row
-(below) rather than in rows of their own. Its Background work popover lists failed then running
+and Resume; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the composer strip (below)
+as collapsible sections rather than cards or popovers. The Background work section lists failed then running
 tasks with elapsed time and their own Stop, notes that stopping the turn leaves them running, and
 its `N ended` disclosure (with a chevron, so it reads as a control) expands the ended tasks, most recent first, with how each ended; a shell is named by the Agent's
 description of it (Claude Code's `Bash` description) when there is one, with its command line atop
@@ -1327,36 +1327,37 @@ from the card's sides, its top corners radius-8 and its hairline resting on the 
 the `Editing an earlier message` bar and the idle context notices below use the same strip. Everything
 else that waits above the input joins that strip as hairline-divided sections instead of its own
 card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code's composer drawer):
-queued messages below the goal row, then the status row nearest the input, since it changes most
-often. The status row is the one place the Chat's live state shows: on the left Buddy, the turn's
-verb (which swaps with a short rise, blur, and fade), and the elapsed time (`4m 23s`); on the right
-the turn's spend as bare icon-and-figure pairs with details in tooltips (cost without a `$`), then
-two badges pinned to the far right, the plan (`ListTodo 2/5`) and background work (each running
-kind's glyph and count, no spinner since the count already says the work runs, subagents before background shells so one kind never hides
-the other, a `--danger` dot while a failure is unseen). Each badge opens one popover anchored to
-the row on click, showing only its own section; clicking the other badge swaps the content in place
-while a pill slides between the badges and the popover's height springs. After the turn the row
-stays only while something still needs the user, leading with it instead of the verb: one running
-task inline with its Stop, `N background tasks running`, unseen failures in `--danger`, or `Plan
-stopped at 2/5` with the current step. A failure counts as seen once the user opened the task list
-and closed the popover; opening the plan does not clear it, and only failures that ended during the
-latest turn count. The row and the strip's frame appear and leave at once, with no fade or
+the goal row, then the Plan and Background work sections, then queued messages, then the status row
+nearest the input, since it changes most often. The Plan and Background work sections each have a 32px
+header that folds and unfolds the list under it, remembered per Chat: a glyph, the label, the count
+on the right (`2/5`; `1 running · 2 failed` with the failures in `--danger`), and a trailing chevron
+that turns as the list opens. Folded, the Plan header also names the current step and the Background
+work header shows each running kind's glyph with its count (subagents before background shells, so
+one kind never hides the other), so folding never hides that work runs. The plan list scrolls past
+192px. The Plan section shows while the Chat is busy and after the turn only while the plan is
+unfinished; Background work shows while anything runs or a failure from the latest turn is
+unseen, and its X dismisses those failures. The status row is the one place the turn's live state
+shows: on the left Buddy, the turn's verb (which swaps with a short rise, blur, and fade), and the
+elapsed time (`4m 23s`); on the right the turn's spend as bare icon-and-figure pairs with details in
+tooltips (cost without a `$`). Rows and the strip's frame appear and leave at once, with no fade or
 unfolding height: animating them pushed the transcript up and back down whenever a turn started or
-ended, and with several rows trading places the composer's top edge read as jumping. Inside the
-row, badges pop in and out, numbers roll, and all of it honors reduced motion. References: the Codex app's and Mux's compact turn
-summaries, Warp's and VS Code's one-line agent status. While the provider pursues a goal, a goal row leads the strip, after the Codex
+ended, and with several rows trading places the composer's top edge read as jumping. Only a fold the
+user makes animates; inside the status row numbers roll, and all of it honors reduced motion.
+References: the Codex app's and Mux's compact turn summaries and the Codex app's collapsible plan
+and background lists above the composer. While the provider pursues a goal, a goal row leads the strip, after the Codex
 app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
 `Goal paused`, `Goal stalled`, `Goal hit usage limits`, `Goal budget reached`, `Goal achieved`), the
 objective truncated in `--muted`, the goal's time (`1h 37m 29s`, ticking each second only while an
 active goal's turn runs), and ghost icon buttons Clear, Pause or Resume, and Expand, which shows the
-whole objective below the row. A completed goal stays until cleared. Goal mode, entered by choosing
+whole objective below the row. A completed goal stays until cleared. Claude Code's `/goal` reads
+the same while it is pursued, without Pause, since Claude Code cannot pause a goal; the row leaves once
+Claude Code accepts the goal as met, and its time counts only the turns that worked on it. Goal mode, entered by choosing
 `/goal` from the suggestion list or Goal from `+`, adds a Goal chip after the permission picker,
 divided from it by a vertical hairline, and changes the placeholder to `Describe your goal, define
 measurable outcomes for best results`; Enter then sets the draft as the goal, and the chip or
 Backspace in an empty input leaves the mode. A working turn's label is one playful phrase chosen per turn from Caxri's own list (`Mapping the terrain…`),
 so a long turn reads as progress rather than a stall; a waiting one shows no row, since the
-approval or question card right above the composer is the waiting state, unless the plan or
-background work badges have something to show, and then the row holds only those badges. On an idle Chat the same row
+approval or question card right above the composer is the waiting state. On an idle Chat the strip
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
 and context high enough to read `consider compacting` in `--warning` (a suggestion, since nothing failed) with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort

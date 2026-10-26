@@ -436,8 +436,8 @@ export const agentChatSnapshotSchema = z.strictObject({
     requests: z.array(agentChatRequestSchema).max(20),
     plan: agentChatPlanSchema.optional(),
     /**
-     * The goal the provider pursues across turns. Present only for a provider with native goals (Codex) while one is
-     * set.
+     * The goal the provider pursues across turns. Present only for a provider with native goals (Codex, Claude Code)
+     * while one is set.
      */
     goal: agentChatGoalSchema.optional(),
     model: z.string().max(200).optional(),

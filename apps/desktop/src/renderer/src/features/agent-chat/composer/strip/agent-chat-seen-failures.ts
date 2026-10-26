@@ -4,13 +4,13 @@ const NONE: ReadonlySet<string> = new Set();
 
 interface AgentChatSeenFailuresState {
     /**
-     * Per Chat Terminal, the failed background tasks the user has looked at in the status row's task list.
+     * Per Chat Terminal, the failed background tasks the user dismissed from the Background work section.
      */
     seen: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 /**
- * Remembered for this window's lifetime only: after a restart, `agentChatStatusRowView` already ignores failures older
+ * Remembered for this window's lifetime only: after a restart, `agentChatBackgroundWork` already ignores failures older
  * than the latest turn, so only the latest turn's failures can call for attention again.
  */
 const useSeenFailuresStore = createStore<AgentChatSeenFailuresState>(
@@ -32,7 +32,7 @@ export function withSeenFailures(
 }
 
 /**
- * Marks failures as seen once the user opened the task list and closed it again, which clears the failure dot.
+ * Marks failures as seen once the user dismissed them, which moves them under the section's ended tasks.
  */
 export function markAgentChatFailuresSeen(terminalId: string, taskIds: readonly string[]): void {
     useSeenFailuresStore.setState(({ seen }) => ({

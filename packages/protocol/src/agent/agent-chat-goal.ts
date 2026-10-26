@@ -1,3 +1,4 @@
+import type { AgentChatItem } from './agent-chat-contract.js';
 import type { AgentChatGoal } from './agent-chat-goal-contract.js';
 
 /**
@@ -41,9 +42,10 @@ export function agentChatGoalArguments(change: AgentChatGoalChange): string {
 /**
  * Which of pause and resume the goal offers. An active goal can pause; one the user paused, the provider gave up on, or
  * a usage limit stopped can resume. A goal that reached its budget or completed can only be cleared, as in the Codex
- * CLI.
+ * CLI, and so can every goal of a provider without pause.
  */
 export function agentChatGoalToggle(goal: AgentChatGoal): 'pause' | 'resume' | undefined {
+    if (goal.pausable === false) return undefined;
     switch (goal.status) {
         case 'active': {
             return 'pause';
@@ -85,4 +87,64 @@ export function formatAgentChatGoalDuration(seconds: number): string {
     if (hours > 0) return `${hours}h ${minutes}m ${rest}s`;
     if (minutes > 0) return `${minutes}m ${rest}s`;
     return `${rest}s`;
+}
+
+type Notice = Extract<AgentChatItem, { type: 'notice' }>;
+
+/**
+ * A Claude Code `/goal` reply, read back into what happened to the goal: the transcript shows it as a goal event
+ * instead of raw command output, and Server Core keeps the snapshot's goal from it, since Claude Code reports no goal
+ * state.
+ */
+export interface AgentChatGoalReply {
+    action: 'set' | 'cleared' | 'active' | 'none';
+    /**
+     * The goal's condition as the user wrote it; empty for `none`.
+     */
+    objective: string;
+    /**
+     * Provider detail after the condition, such as the progress and the last check of an active goal.
+     */
+    detail?: string;
+}
+
+/**
+ * The title Server Core gives a built-in `/goal` command's output (`claude-feedback.ts`). A plugin's same-named command
+ * carries a `plugin · /goal` title and stays plain output.
+ */
+export const AGENT_CHAT_GOAL_COMMAND_TITLE = '/goal';
+
+const PREFIXES = [
+    ['Goal set: ', 'set'],
+    ['Goal cleared: ', 'cleared'],
+    ['Goal active: ', 'active'],
+] as const;
+
+/**
+ * Reads the replies Claude Code's `/goal` prints (verified with Claude Code 2.1.310): `Goal set: <condition>`, `Goal
+ * cleared: <condition>`, `No goal set`, and `Goal active: <condition> (<progress>)` optionally followed by a `Last
+ * check:` line. Anything else, such as the usage hint or the length error, returns `undefined` and keeps the plain
+ * command output, since only these replies say what the goal now is.
+ */
+export function parseAgentChatGoalReply(item: Notice): AgentChatGoalReply | undefined {
+    if (item.kind !== 'output' || item.title !== AGENT_CHAT_GOAL_COMMAND_TITLE) return undefined;
+    const text = item.message?.trim() ?? '';
+    if (text === 'No goal set') return { action: 'none', objective: '' };
+    for (const [prefix, action] of PREFIXES) {
+        if (!text.startsWith(prefix)) continue;
+        const body = text.slice(prefix.length);
+        if (action !== 'active') return { action, objective: body.trim() };
+        const [first = '', ...rest] = body.split('\n');
+        const progress = /^(.*\S)\s+\(([^()]*)\)$/.exec(first);
+        const detail = [progress?.[2], ...rest]
+            .map((line) => line?.trim())
+            .filter(Boolean)
+            .join('\n');
+        return {
+            action,
+            objective: (progress?.[1] ?? first).trim(),
+            ...(detail && { detail }),
+        };
+    }
+    return undefined;
 }

@@ -1,9 +1,9 @@
+import type { AgentChatGoalReply } from '@caxri/protocol';
 import { Goal } from 'lucide-react';
 
 import type { TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import type { AgentChatGoalReply } from './agent-chat-goal-reply';
 
 const ACTION_LABELS = {
     set: 'agentChat.goal.notice.set',

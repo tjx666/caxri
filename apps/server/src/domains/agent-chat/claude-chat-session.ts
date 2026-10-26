@@ -61,12 +61,7 @@ import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { withClaudeShellHooks } from './claude-shell-hooks';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
-import {
-    didApplyClaudeFeedback,
-    onClaudeApiRetry,
-    onClaudeCompactBoundary,
-    onClaudeStatus,
-} from './claude-system-notices';
+import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './claude-system-notices';
 import { ClaudeTasks } from './claude-tasks';
 import { ClaudeToolClock, settleClaudeToolResults } from './claude-tool-results';
 import { ClaudeTurns } from './claude-turns';
@@ -302,7 +297,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             default: {
-                didApplyClaudeFeedback(this.options, message, this.tasks.feedbackScope(message));
+                this.turns.goals.applyFeedback(message, this.tasks.feedbackScope(message));
             }
         }
     }
@@ -325,7 +320,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'assistant': {
-                if (didApplyClaudeFeedback(this.options, message)) return;
+                if (this.turns.goals.applyFeedback(message)) return;
                 this.onAssistant(message.message, message.error);
                 return;
             }
