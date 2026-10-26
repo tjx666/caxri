@@ -14,7 +14,10 @@ import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message
 import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-approval-store';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
 import { ConfirmationDialog } from './features/confirmations/confirmation-dialog';
-import { openFileForSession } from './features/editor/document-commands';
+import {
+    openFileForSession,
+    subscribeDocumentSaveFailureCleanup,
+} from './features/editor/document-commands';
 import { subscribeEditorBackups } from './features/editor/editor-backups';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
@@ -188,6 +191,7 @@ export function App() {
     useEffect(() => startViewEventBridge(), []);
     useEffect(() => subscribeHeldMessageQueue(), []);
     useEffect(() => subscribeUnsavedEditorRequests(), []);
+    useEffect(() => subscribeDocumentSaveFailureCleanup(), []);
     useEffect(() => subscribeEditorBackups(), []);
     useEffect(() => registerPickerFallbackFocus(activeWorkbenchFocusElement), []);
     useSessionMruSwitcherLifecycle();
