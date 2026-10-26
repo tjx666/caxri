@@ -121,7 +121,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.queue.sendFailed': '排队的消息发送失败',
     'agentChat.queue.resume': '恢复',
     'agentChat.queue.deleteMessage': '删除排队的消息',
-    'agentChat.queue.moreActions': '排队消息的更多操作',
+    'agentChat.queue.editMessage': '编辑排队消息',
     'agentChat.queue.sendNow': '立即发送',
     'agentChat.queue.steer': '引导',
     'agentChat.queue.steerNow': '立即引导',

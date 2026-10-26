@@ -130,7 +130,7 @@ export const agentChatComposer = {
     'agentChat.queue.sendFailed': "Couldn't send queued messages",
     'agentChat.queue.resume': 'Resume',
     'agentChat.queue.deleteMessage': 'Delete queued message',
-    'agentChat.queue.moreActions': 'More actions for queued message',
+    'agentChat.queue.editMessage': 'Edit queued message',
     'agentChat.queue.sendNow': 'Send now',
     'agentChat.queue.steer': 'Steer',
     'agentChat.queue.steerNow': 'Steer now',

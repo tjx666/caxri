@@ -126,6 +126,7 @@ describe('agentChatQueueCardLabels', () => {
     it('names each action, steering while a turn runs', () => {
         expect(agentChatQueueCardLabels(message)).toEqual({
             deleteTooltip: 'Delete',
+            editTooltip: 'Edit',
             sendTooltip: 'Add to the running turn now',
             sendAriaLabel: 'Steer now',
         });
@@ -150,6 +151,7 @@ describe('agentChatQueueCardLabels', () => {
             }),
         ).toEqual({
             deleteTooltip: 'Sending…',
+            editTooltip: 'Sending…',
             sendTooltip: 'Sending…',
             sendAriaLabel: 'Steer now',
         });

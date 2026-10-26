@@ -571,16 +571,16 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
   nothing is sent twice automatically.
 - The queue survives a restart of the Chat and goes out once the new process is ready; it is never
   persisted across Server Core restarts.
-- In the composer, Enter queues during a turn and Cmd+Enter steers. While a Codex main Agent waits
-  on its subagents (the active turn's newest running work is a `wait`), plain Enter steers too, as
-  it does in the Codex TUI: multi-agent v2's `wait_agent` returns as soon as a steer arrives, while a
-  queued message would sit behind the whole wait. The send button then shows the accent Steer glyph
-  and reads `Steer message`, its tooltip lists `Steer` Enter and `Stop turn` Esc, the placeholder
-  says Enter steers, and a slash command still queues. The
-  provider capability `chatSteerEndsWait` owns this; Claude Code's foreground `Agent` call and Grok
-  Build keep Enter queueing. Codex's older v1 `wait` does not wake on a steer, so there the steered
-  message is read once the wait returns. Queued entries form one list
-  above the composer, each with Edit (back into the composer), Delete, and Steer or Send now; a
+- In the composer, Enter steers during a turn and Cmd+Enter queues, for every provider: most of
+  the time a message typed mid-turn is meant for the work in progress, and Claude Code and the Codex
+  CLI also fold it in by default once the current tool call returns. A message that only makes sense
+  after the turn takes Cmd+Enter. While a Codex main Agent waits on its subagents, the steer also
+  ends multi-agent v2's `wait_agent` early (the older v1 `wait` reads it once the wait returns). The
+  send button reads `Steer message` while a turn runs and turns into an accent `Queue message` while
+  Cmd or Ctrl is held; its tooltip lists `Steer` Enter, `Queue` ⌘Enter, and `Stop turn` Esc. With
+  no turn running but the Chat busy (compacting, or draining the queue) Enter queues. A slash
+  command issued during a turn still queues. Queued entries form one list
+  above the composer, each with Steer or Send now, Edit (back into the composer), and Delete; a
   paused queue says so in the list header with Resume. Enter (or Cmd+Enter) in an empty composer
   sends the head of the queue now, as its Steer or Send now would, and the placeholder says so while
   one waits; a slash command at the head during a turn still waits. A phone queues the same way;

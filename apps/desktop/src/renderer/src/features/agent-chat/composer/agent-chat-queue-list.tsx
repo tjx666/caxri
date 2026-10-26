@@ -5,7 +5,6 @@ import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol'
 import {
     CircleAlert,
     CornerDownRight,
-    Ellipsis,
     ListEnd,
     Pause,
     Pencil,
@@ -15,7 +14,6 @@ import {
 } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
-import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../../components/ui/menu';
 import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
@@ -167,7 +165,8 @@ function QueueTextEditor({
 
 /**
  * One queued message as the Codex app lays it out: a queue glyph, the message, then its actions, always shown: Steer
- * (Send now with no turn running) as a labeled button, Delete, and a More menu holding Edit.
+ * (Send now with no turn running) as a labeled button, then Edit and Delete as icons. Edit is a button of its own
+ * rather than a More menu, since a menu holding one item costs a click and hides nothing.
  */
 function QueueCard({
     entry,
@@ -229,6 +228,21 @@ function QueueCard({
                     <CornerDownRight aria-hidden="true" className="size-3.5" />
                 </QueueCardAction>
                 <QueueCardAction
+                    ariaLabel={t('agentChat.queue.editMessage')}
+                    isDisabled={!entry.canEdit || isPending}
+                    tooltip={labels.editTooltip}
+                    onAction={() => {
+                        // A message with images is edited in its row, which keeps focus there until it closes.
+                        if (entry.imageCount === 0) onAction();
+                    }}
+                    onRun={() => {
+                        if (entry.imageCount > 0) setIsEditingText(true);
+                        else void editAgentChatQueued(terminalId, entry.id, onEdit);
+                    }}
+                >
+                    <Pencil aria-hidden="true" className="size-3.5" />
+                </QueueCardAction>
+                <QueueCardAction
                     ariaLabel={t('agentChat.queue.deleteMessage')}
                     isDisabled={isPending}
                     tooltip={labels.deleteTooltip}
@@ -237,39 +251,6 @@ function QueueCard({
                 >
                     <Trash2 aria-hidden="true" className="size-3.5" />
                 </QueueCardAction>
-                <Menu>
-                    <Tooltip content={t('common.more')}>
-                        <MenuTrigger
-                            render={
-                                <Button
-                                    aria-label={t('agentChat.queue.moreActions')}
-                                    className={cn(ACTION_CLASS_NAME, 'size-6')}
-                                    size="icon"
-                                    variant="ghost"
-                                >
-                                    <Ellipsis aria-hidden="true" className="size-3.5" />
-                                </Button>
-                            }
-                        />
-                    </Tooltip>
-                    <MenuContent align="end">
-                        <MenuItem
-                            disabled={!entry.canEdit || isPending}
-                            onClick={() => {
-                                // A message with images is edited in its row, which keeps focus there until it closes.
-                                if (entry.imageCount > 0) {
-                                    setIsEditingText(true);
-                                    return;
-                                }
-                                void editAgentChatQueued(terminalId, entry.id, onEdit);
-                                onAction();
-                            }}
-                        >
-                            <Pencil aria-hidden="true" className="size-3.5 text-muted" />
-                            {t('common.edit')}
-                        </MenuItem>
-                    </MenuContent>
-                </Menu>
             </span>
         </li>
     );

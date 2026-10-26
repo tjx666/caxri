@@ -26,7 +26,6 @@ import {
     canSendAgentChatMessage,
     isAgentChatBusy,
     isAgentChatInterruptKey,
-    isAgentChatSteerDefault,
     shouldAgentChatPaneEscapeStop,
     shouldConfirmUnmatchedSend,
     withOccurrenceKeys,
@@ -140,7 +139,7 @@ describe('agentChatRecoveryNotice', () => {
 });
 
 describe('agentChatSendAction', () => {
-    it('sends when idle, queues while busy, and offers steering only during a turn', () => {
+    it('sends when idle, queues while busy, and steers during a turn', () => {
         expect(agentChatSendAction({ isTurnRunning: false, isBusy: false }, 'Codex')).toEqual({
             kind: 'send',
             label: 'Send',
@@ -156,11 +155,12 @@ describe('agentChatSendAction', () => {
         });
         // A running turn's tooltip lists its keys instead of the placeholder spelling them out.
         expect(agentChatSendAction({ isTurnRunning: true, isBusy: true }, 'Codex')).toMatchObject({
-            label: 'Queue message',
-            placeholder: 'Queue a follow-up',
+            kind: 'steer',
+            label: 'Steer message',
+            placeholder: 'Add to this turn',
             keys: [
-                { label: 'Queue', shortcut: 'enter' },
-                { label: 'Steer', shortcut: 'cmd+enter' },
+                { label: 'Steer', shortcut: 'enter' },
+                { label: 'Queue', shortcut: 'cmd+enter' },
                 { label: 'Stop turn', shortcut: 'escape' },
             ],
         });
@@ -173,36 +173,7 @@ describe('agentChatSendAction', () => {
         // A running turn still invites a follow-up rather than a plan.
         expect(
             agentChatSendAction({ isTurnRunning: true, isBusy: true, isPlanMode: true }, 'Codex'),
-        ).toMatchObject({ placeholder: 'Queue a follow-up' });
-    });
-});
-
-describe('agentChatSendAction while the main Agent waits on subagents', () => {
-    it('offers to steer with Enter instead of queueing', () => {
-        expect(
-            agentChatSendAction(
-                { isTurnRunning: true, isBusy: true, isSteerDefault: true },
-                'Codex',
-            ),
-        ).toMatchObject({ kind: 'steer', shortcut: 'enter' });
-        expect(
-            agentChatSendAction(
-                { isTurnRunning: false, isBusy: false, isSteerDefault: true },
-                'Codex',
-            ),
-        ).toMatchObject({ kind: 'send' });
-    });
-});
-
-describe('isAgentChatSteerDefault', () => {
-    it('steers by default only while a Codex turn waits on its subagents', () => {
-        const waiting = { isTurnRunning: true, isWaitingOnAgents: true } as const;
-        expect(isAgentChatSteerDefault({ ...waiting, provider: 'codex' })).toBe(true);
-        expect(isAgentChatSteerDefault({ ...waiting, provider: 'claude' })).toBe(false);
-        expect(isAgentChatSteerDefault({ ...waiting, provider: undefined })).toBe(false);
-        expect(
-            isAgentChatSteerDefault({ ...waiting, isWaitingOnAgents: false, provider: 'codex' }),
-        ).toBe(false);
+        ).toMatchObject({ placeholder: 'Add to this turn' });
     });
 });
 
@@ -291,17 +262,16 @@ describe('agentChatSubmitDelivery', () => {
         expect(agentChatSubmitDelivery(key({ metaKey: true }), idle)).toBe('send');
     });
 
-    it('queues on Enter and steers on Cmd+Enter or Ctrl+Enter while a turn runs', () => {
-        expect(agentChatSubmitDelivery(key(), running)).toBe('queue');
-        expect(agentChatSubmitDelivery(key({ metaKey: true }), running)).toBe('steer');
-        expect(agentChatSubmitDelivery(key({ ctrlKey: true }), running)).toBe('steer');
-        expect(agentChatSubmitDelivery(key(), { ...running, isSteerDefault: true })).toBe('steer');
+    it('steers on Enter and queues on Cmd+Enter or Ctrl+Enter while a turn runs', () => {
+        expect(agentChatSubmitDelivery(key(), running)).toBe('steer');
+        expect(agentChatSubmitDelivery(key({ metaKey: true }), running)).toBe('queue');
+        expect(agentChatSubmitDelivery(key({ ctrlKey: true }), running)).toBe('queue');
     });
 
-    it('queues while compacting even with Cmd, since there is no turn to steer', () => {
-        expect(
-            agentChatSubmitDelivery(key({ metaKey: true }), { isTurnRunning: false, isBusy: true }),
-        ).toBe('queue');
+    it('queues while compacting with or without Cmd, since there is no turn to steer', () => {
+        const compacting = { isTurnRunning: false, isBusy: true };
+        expect(agentChatSubmitDelivery(key(), compacting)).toBe('queue');
+        expect(agentChatSubmitDelivery(key({ metaKey: true }), compacting)).toBe('queue');
     });
 
     it('leaves Shift+Enter, other keys, and an IME composition alone', () => {

@@ -242,9 +242,9 @@ if (process.argv.includes('app-server')) {
             .getByRole('button', { name: 'Searching slow in src', expanded: true })
             .click();
         await expect(thought).toHaveCount(0);
-        // Stop and Queue share one slot: typed content turns it into Queue message; Cmd+Enter steers instead.
+        // Stop and Steer share one slot: typed content turns it into Steer message; Cmd+Enter queues instead.
         await message.fill('steer');
-        await expect(session.getByRole('button', { name: 'Queue message' })).toBeEnabled();
+        await expect(session.getByRole('button', { name: 'Steer message' })).toBeEnabled();
         await expect(session.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('surface-switch-steer-draft.png') });
         await message.fill('');

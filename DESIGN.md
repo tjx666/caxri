@@ -1280,19 +1280,19 @@ from the next turn (Codex), it adds a `from next turn` caption while a turn runs
 accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
 with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
 checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
-circle holding a `--background` up arrow for Send (a return arrow while the message would queue),
+circle holding a `--background` up arrow for Send (an arrow-up-to-line while it would steer the running turn, a return arrow while the message would queue),
 a small filled square for Stop, or, after a stopped or failed turn with nothing typed, a 12px filled
 play glyph for Continue: smaller than the 16px arrows because a filled shape weighs more, and never
-`--accent`, since it rests on screen until the user acts. While a turn runs, holding Cmd (or Ctrl) turns Send into Steer before
-any key is pressed: an `--accent` circle with an arrow-up-to-line glyph named `Steer`, which a click
-then steers too. That slot
+`--accent`, since it rests on screen until the user acts. While a turn runs, holding Cmd (or Ctrl) turns Steer into Queue before
+any key is pressed: an `--accent` circle with a return glyph named `Queue message`, which a click
+then queues too. That slot
 shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
 never sit side by side. While Send cannot send, its tooltip says why (`Chat loading…`, `Reading
-image…`, `Type a message to send`, or the recovery row to use). While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
-the message and the placeholder says so (`Queue a follow-up`); Cmd+Enter steers it into the running
-turn instead. The keys live in Send's tooltip, one row each with its keycap (`Queue` Enter, `Steer`
-⌘Enter, `Stop turn` Esc; while a Codex main Agent waits on its subagents Enter itself steers, so
-Send wears the Steer glyph and lists `Steer` Enter and `Stop turn` Esc), never as a hint row above the input, since a hint shown on every turn
+image…`, `Type a message to send`, or the recovery row to use). While a turn runs, Enter and Send steer
+the message into it (Send reads `Steer message`, the placeholder `Add to this turn`); Cmd+Enter queues it for
+after the turn instead. While the Chat is otherwise busy (compacting, or draining the queue) Enter and Send queue
+(`Queue a follow-up`). The keys live in Send's tooltip, one row each with its keycap (`Steer` Enter, `Queue`
+⌘Enter, `Stop turn` Esc), never as a hint row above the input, since a hint shown on every turn
 costs a row the user learns once. Typing `/` or `$` opens the suggestion list above the card under
 `Commands` and `Skills` headings. Each row leads with a 16px muted glyph naming what it is, the
 same glyph that thing wears elsewhere: `SquareSlash` for a command and `Package` for a skill (the
@@ -1306,8 +1306,8 @@ match`, and after a choice the list becomes one spinner row (`Preparing “Title
 reference is written, while Enter waits. Both lists show only while the input has focus. Queued
 messages list in the composer strip (below) as 13px rows laid out like the Codex app's queue: a
 `--muted` queue glyph, the message, then its actions, always shown rather than revealed on hover: a
-labeled ghost `Steer` (`Send now` with no turn running), a Delete icon, and a More menu holding Edit
-(back into the composer). A waiting queue has no header, since its rows already read as what goes
+labeled ghost `Steer` (`Send now` with no turn running), an Edit icon (back into the composer), and a
+Delete icon; Edit is not tucked into a More menu, since a menu holding one item costs a click and hides nothing. A waiting queue has no header, since its rows already read as what goes
 next. While a turn runs and the input is empty, Enter steers the first queued message and the
 placeholder says so; no chip on the row repeats it. A paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send

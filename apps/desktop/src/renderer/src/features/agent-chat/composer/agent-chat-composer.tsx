@@ -86,10 +86,6 @@ interface AgentChatComposerProperties {
      */
     isShown: boolean;
     /**
-     * Whether Enter steers instead of queueing (`isAgentChatSteerDefault`).
-     */
-    isSteerDefault: boolean;
-    /**
      * Opens a background task's tab beside the Chat; absent where the host cannot (see `canOpenBesideChat`).
      */
     onOpenTask: ((taskId: string) => void) | undefined;
@@ -162,28 +158,27 @@ function caxriSkillToggle(
 }
 
 /**
- * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
- * message for after the turn and Cmd+Enter steers it into the running turn (Enter steers too while the main Agent waits
- * on subagents and the provider ends that wait for it, `isAgentChatSteerDefault`); queued messages wait as cards above
- * the input, and Enter in an empty input sends the first of them now. Escape or the Stop button that replaces Send
- * while the input is empty interrupts the turn. Images can be pasted, dropped, or picked from the `+` menu's Files when
- * the provider accepts them; any other dropped or picked file, Files entry, or Editor tab, and an image in a format or
- * size the provider cannot take, is inserted as its path. Text pasted past `agentChat.longPasteThreshold` is saved to a
- * file and the message cites it instead, with a notice whose Paste as Text undoes that; Cmd+Shift+V pastes as text
- * without the conversion. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a turn runs
- * and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph. A disabled
- * Send says why in its tooltip, and an Enter it refuses says the same in the strip for two seconds and through the live
- * region. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word that starts with
- * `@` offers other Sessions whose conversation the message can cite; both lists show only while the input has focus. It
- * shares the timeline's centered column so the input lines up with the conversation, and keeps the activity row,
- * attachments, the input, and its actions inside one card so they read as a single control. The action row picks the
- * model and effort for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue
- * action hands focus back to the input, since each of those controls disables or unmounts itself and would otherwise
- * drop focus to the document body. The unsent text survives switching Sessions and restarting Caxri, ArrowUp on an
- * empty input lists the prompts this Chat already sent, and Ctrl+S stashes the draft for later. "Edit from here" on an
- * earlier message (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then
- * rewinds the Chat to before that message and sends the draft in its place, and Escape or Cancel puts the previous
- * draft back.
+ * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter steers the
+ * message into the running turn and Cmd+Enter queues it for after the turn (`agentChatSubmitDelivery`); queued messages
+ * wait as cards above the input, and Enter in an empty input sends the first of them now. Escape or the Stop button
+ * that replaces Send while the input is empty interrupts the turn. Images can be pasted, dropped, or picked from the
+ * `+` menu's Files when the provider accepts them; any other dropped or picked file, Files entry, or Editor tab, and an
+ * image in a format or size the provider cannot take, is inserted as its path. Text pasted past
+ * `agentChat.longPasteThreshold` is saved to a file and the message cites it instead, with a notice whose Paste as Text
+ * undoes that; Cmd+Shift+V pastes as text without the conversion. A drag anywhere over the Chat tints the whole pane
+ * with a one-line caption. While a turn runs and something is typed, Send wears the steer glyph and its tooltip lists
+ * what Enter and Cmd+Enter do. A disabled Send says why in its tooltip, and an Enter it refuses says the same in the
+ * strip for two seconds and through the live region. A leading `/` or `$` offers the provider's commands and the
+ * discovered skills, and a word that starts with `@` offers other Sessions whose conversation the message can cite;
+ * both lists show only while the input has focus. It shares the timeline's centered column so the input lines up with
+ * the conversation, and keeps the activity row, attachments, the input, and its actions inside one card so they read as
+ * a single control. The action row picks the model and effort for the next turn and shows how full the context window
+ * is. Clicking Send, Stop, or a chip or queue action hands focus back to the input, since each of those controls
+ * disables or unmounts itself and would otherwise drop focus to the document body. The unsent text survives switching
+ * Sessions and restarting Caxri, ArrowUp on an empty input lists the prompts this Chat already sent, and Ctrl+S stashes
+ * the draft for later. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts its text in the input
+ * and the edit bar above it; sending then rewinds the Chat to before that message and sends the draft in its place, and
+ * Escape or Cancel puts the previous draft back.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -197,7 +192,6 @@ export function AgentChatComposer({
     isBusy,
     isQueuePaused,
     isShown,
-    isSteerDefault,
     onOpenTask,
     onSent,
     pendingQueue,
@@ -289,7 +283,6 @@ export function AgentChatComposer({
         edit: {
             inputReference,
             isBusy,
-            isSteerDefault,
             isTurnRunning,
             options: editOptions,
             providerName,
@@ -337,7 +330,6 @@ export function AgentChatComposer({
         isBusy,
         isEditing: edit.isEditing,
         isSendable,
-        isSteerDefault,
         isTurnRunning,
         nextQueuedId,
         pastePlainText,
@@ -449,7 +441,7 @@ export function AgentChatComposer({
                         canSaveProjectDefault={canSaveProjectDefault}
                         caxriSkill={caxriSkill}
                         isAttaching={isAttaching || sessionMenu.isPreparing}
-                        isQueueing={!edit.isEditing && !isSteerDefault && (isTurnRunning || isBusy)}
+                        isQueueing={!edit.isEditing && !isTurnRunning && isBusy}
                         isResume={isResume}
                         isSendable={isSendable || isResume}
                         isStopping={isStopping}
