@@ -4,7 +4,9 @@ import { delimiter, isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { stripVTControlCharacters } from 'node:util';
 
-import { execFileAsync, isAccessible, preferredShell, safeProcessEnvironment } from '@caxri/system';
+import { isAccessible, preferredShell, safeProcessEnvironment } from '@caxri/system';
+
+import { execFileInProcessGroup } from './process-group';
 
 const LOGIN_PATH_MARKER = '__CAXRI_LOGIN_PATH__';
 const LOGIN_ENVIRONMENT_START_MARKER = '__CAXRI_LOGIN_ENV_START__';
@@ -66,13 +68,11 @@ type RunFile = (
     },
 ) => Promise<{ stderr: string; stdout: string }>;
 
-async function runFile(
-    executable: string,
-    arguments_: string[],
-    options: Parameters<RunFile>[2],
-): Promise<{ stderr: string; stdout: string }> {
-    return execFileAsync(executable, arguments_, options);
-}
+/**
+ * Every Server-owned command runs in its own process group and is reaped as a whole when it times out; see
+ * {@link execFileInProcessGroup}.
+ */
+const runFile: RunFile = execFileInProcessGroup;
 
 async function isExecutable(path: string): Promise<boolean> {
     return isAccessible(path, constants.X_OK);

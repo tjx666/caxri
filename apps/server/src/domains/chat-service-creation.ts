@@ -10,7 +10,6 @@ import {
     AgentChatService,
     chatStateStore,
     ChatUsageContinuation,
-    reapGroup,
     reapStaleProviderGroups,
 } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
@@ -19,6 +18,7 @@ import type { CommanderTerminalHooks } from './commander';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
+import { reapGroup } from './process-group';
 import { discardEmptySession } from './session';
 
 /**

@@ -1,9 +1,10 @@
 import { homedir } from 'node:os';
 
-import { execFileAsync, safeProcessEnvironment } from '@caxri/system';
+import { safeProcessEnvironment } from '@caxri/system';
 
 import type { ExternalCommandDependencies } from '../executables';
 import { runExternalCommand } from '../executables';
+import { execFileInProcessGroup } from '../process-group';
 import { GitHubTokenCache } from './github-token';
 import { LINEAR_TEAM_KEYS_QUERY } from './linear';
 
@@ -324,7 +325,7 @@ export async function runExternalStatusCommand(
         if (source === 'git') {
             // `git` ships with macOS, so it skips login-shell resolution and stays on the sanitized
             // base environment.
-            const run = dependencies.run ?? execFileAsync;
+            const run = dependencies.run ?? execFileInProcessGroup;
             const { stdout } = await run('git', [...arguments_], {
                 cwd,
                 timeout: CLI_TIMEOUT_MS,

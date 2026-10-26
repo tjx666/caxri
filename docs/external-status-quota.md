@@ -372,6 +372,13 @@ login-shell PATH, never the constrained launchd PATH a packaged app inherits. A 
 never cached as absent; when the login PATH itself is older than a minute, a miss re-reads it once, so
 a CLI installed into a brand-new PATH directory is found without restarting Caxri.
 
+Each command leads its own process group. When Caxri stops one (its 8-second timeout, an output
+overflow, or an abort), it signals the whole group, SIGTERM then SIGKILL, and reports the failure
+only once the group is empty. Signaling the direct child alone orphaned the native binary the `vc`
+shim starts on macOS; with its pipes closed it hit an unbounded `EPIPE` loop in the Vercel CLI
+(<https://github.com/vercel/vercel/issues/17528>), and the orphans from successive polls exhausted
+memory until macOS panicked (#2637). A command that exits on its own keeps its group.
+
 Failures that describe the machine rather than one request (`not-found`, `not-logged-in`,
 `not-linked`, and `permission-denied`) render as prerequisites with the command that fixes them.
 `permission-denied` covers a signed-in account the service still refuses: an organization enforcing
