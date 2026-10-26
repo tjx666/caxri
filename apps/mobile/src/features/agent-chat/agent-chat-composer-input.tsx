@@ -8,7 +8,7 @@ import { sessionDetailStyles as styles } from '../sessions/components/session-de
 
 /**
  * The Chat's message field: Return inserts a new line, and the placeholder says whether a message starts a turn or
- * queues behind the running one.
+ * joins the running one.
  */
 export const AgentChatComposerInput = ({
     draft,
@@ -35,7 +35,7 @@ export const AgentChatComposerInput = ({
     return (
         <TextInput
             accessibilityHint={t(
-                isRunning ? 'chat.composer.inputHintQueue' : 'chat.composer.inputHintSend',
+                isRunning ? 'chat.composer.inputHintSteer' : 'chat.composer.inputHintSend',
             )}
             accessibilityLabel={t('chat.composer.messageProvider', { provider })}
             editable={isEditable}
@@ -49,7 +49,7 @@ export const AgentChatComposerInput = ({
             // Desktop's wording without its ⌘Enter hint, kept to one line so the input does not grow mid-turn.
             placeholder={
                 isRunning
-                    ? t('chat.composer.queuePlaceholder')
+                    ? t('chat.composer.steerPlaceholder')
                     : t('chat.composer.messageProvider', { provider })
             }
             placeholderTextColor={theme.muted}

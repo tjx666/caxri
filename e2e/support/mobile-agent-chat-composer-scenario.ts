@@ -57,7 +57,7 @@ async function scrollAwayFromLatest(serial: string): Promise<void> {
 /**
  * `MOB-CHAT-10`: the phone's Codex Chat composer and timeline. It covers the permission trigger and sheet, fenced code
  * highlighted by language, a finished multi-step turn folded behind `Worked for` with a failed command's exit code,
- * following the user's own send to the latest message, slash commands, the visible Steer button, editing a long queued
+ * following the user's own send to the latest message, slash commands, the visible Queue button, editing a long queued
  * message, and a message shown as `Sending…` before Server Core accepts it.
  */
 export async function executeMobileChatComposerScenario(
@@ -255,11 +255,11 @@ export async function executeMobileChatComposerScenario(
          */
         await sendFromPhone(serial, 'ask');
         await waitForCheck(serial, 'agent-chat-question-0-option-1');
-        // The Steer button (#1812) shows beside Queue once there is a draft during the turn.
+        // During a turn the main button steers (#2611); the Queue button beside it queues for the turn's end.
         await typeChatDraft(serial, LONG_QUEUED_MESSAGE);
-        await waitForCheck(serial, 'agent-chat-steer');
+        await waitForCheck(serial, 'agent-chat-queue');
         await capture(environment, 'steer-and-queue', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
+        await tapMobileCheckByBounds(serial, 'agent-chat-queue');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => (snapshot.queue?.length ?? 0) === 1,
@@ -279,7 +279,7 @@ export async function executeMobileChatComposerScenario(
         if (!restored.exists || !restored.textMatches)
             throw new Error('Edit did not restore the full queued text');
         await capture(environment, 'queue-edit-restored', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
+        await tapMobileCheckByBounds(serial, 'agent-chat-queue');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => (snapshot.queue?.length ?? 0) === 1,

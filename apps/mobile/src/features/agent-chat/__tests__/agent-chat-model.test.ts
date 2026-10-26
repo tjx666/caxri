@@ -8,6 +8,7 @@ import {
     agentChatApprovalRows,
     agentChatComposerAvailability,
     agentChatComposerButton,
+    agentChatComposerPressDeliveries,
     agentChatComposerRowControls,
     agentChatComposerSubmission,
     agentChatDisabledReason,
@@ -259,7 +260,18 @@ describe('Agent Chat model', () => {
         });
     });
 
-    it('labels the composer button Send, Queue, Stop, or Stopping', () => {
+    it('steers on a tap and queues on a hold during a turn, and sends on a tap otherwise (#2611)', () => {
+        expect(agentChatComposerPressDeliveries({ canSteer: true })).toEqual({
+            hold: 'queue',
+            tap: 'steer',
+        });
+        expect(agentChatComposerPressDeliveries({ canSteer: false })).toEqual({
+            hold: undefined,
+            tap: 'send',
+        });
+    });
+
+    it('labels the composer button Send, Steer, Stop, or Stopping', () => {
         const base = {
             isRunning: false,
             isStopAction: false,
@@ -271,7 +283,7 @@ describe('Agent Chat model', () => {
             label: 'Send message',
             testID: 'agent-chat-composer-send',
         });
-        expect(agentChatComposerButton({ ...base, isRunning: true }).label).toBe('Queue message');
+        expect(agentChatComposerButton({ ...base, isRunning: true }).label).toBe('Steer message');
         expect(agentChatComposerButton({ ...base, isRunning: true, isStopAction: true })).toEqual({
             kind: 'stop',
             label: 'Stop Codex',

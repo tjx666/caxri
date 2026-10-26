@@ -1,7 +1,7 @@
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MAX_AGENT_CHAT_IMAGES } from '@caxri/protocol';
-import { ArrowUp, CornerDownLeft, Paperclip, Square } from 'lucide-react-native';
+import { ArrowUp, ArrowUpToLine, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import { Spinner } from '../../components/spinner';
@@ -60,10 +60,10 @@ export const AttachButton = ({
 };
 
 /**
- * A compact outlined pill: with Queue beside it and attach stepped aside (`agentChatComposerRowControls`), the input
+ * A compact outlined pill: with Steer beside it and attach stepped aside (`agentChatComposerRowControls`), the input
  * keeps at least about 60% of a 360dp phone's composer row.
  */
-const steerStyles = StyleSheet.create({
+const queueStyles = StyleSheet.create({
     button: {
         alignItems: 'center',
         borderRadius: 26,
@@ -77,92 +77,92 @@ const steerStyles = StyleSheet.create({
 });
 
 /**
- * Steers the running turn with the draft, the phone's visible stand-in for Desktop's ⌘Enter, shown beside Queue only
- * while a turn runs and there is a draft to steer with. It reads `Steer` like the queue card's action and Desktop's,
- * and is outlined so the filled Queue button stays the default.
+ * Queues the draft for the end of the running turn, the visible route to what holding the composer's button does and
+ * the phone's stand-in for Desktop's Cmd+Enter. Shown beside Steer only while a turn runs and there is a draft; it is
+ * outlined so the filled Steer button stays the default, as Enter steers on Desktop (#2611).
  */
-export const AgentChatSteerButton = ({
-    onSteer,
+export const AgentChatQueueButton = ({
+    onQueue,
     provider,
     theme,
 }: {
-    onSteer: () => Promise<void>;
+    onQueue: () => Promise<void>;
     provider: string;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     return (
         <Pressable
-            accessibilityHint={t('chat.composer.steerButtonHint', { provider })}
-            accessibilityLabel={t('chat.queue.steerNow')}
+            accessibilityHint={t('chat.composer.queueButtonHint', { provider })}
+            accessibilityLabel={t('chat.composer.queueMessage')}
             accessibilityRole="button"
             onPress={() => {
-                void onSteer();
+                void onQueue();
             }}
             style={({ pressed }) => [
-                steerStyles.button,
+                queueStyles.button,
                 { borderColor: theme.primary, opacity: pressed ? 0.7 : 1 },
             ]}
-            testID="agent-chat-steer"
+            testID="agent-chat-queue"
         >
-            <Text style={[steerStyles.label, { color: theme.primary }]}>
-                {t('chat.composer.steer')}
+            <Text style={[queueStyles.label, { color: theme.primary }]}>
+                {t('chat.composer.queue')}
             </Text>
         </Pressable>
     );
 };
 
 /**
- * The composer's one button: Send, Queue during a turn, or Stop on an empty draft during a turn. Queue wears Desktop's
- * queue glyph (`CornerDownLeft`) instead of the send arrow, so a tap visibly does something different mid-turn. Holding
- * it, or the screen reader's long-press action, still steers the running turn as a shortcut; the Steer button beside it
- * is the visible route to the same result.
+ * The composer's main button: Send, Steer during a turn, or Stop on an empty draft during a turn. Steer wears Desktop's
+ * steer glyph (`ArrowUpToLine`) instead of the send arrow, so a tap visibly does something different mid-turn. Holding
+ * it, or the screen reader's long-press action, queues the message for the turn's end instead; the Queue button beside
+ * it is the visible route to the same result (`agentChatComposerPressDeliveries`).
  */
 export const AgentChatComposerButton = ({
-    canSteer,
+    canQueue,
     canSubmit,
     isBusy,
     isRunning,
     isStopAction,
     isStopping,
     onPress,
-    onSteer,
+    onQueue,
     provider,
     theme,
 }: {
-    canSteer: boolean;
+    canQueue: boolean;
     canSubmit: boolean;
     isBusy: boolean;
     isRunning: boolean;
     isStopAction: boolean;
     isStopping: boolean;
     onPress: () => Promise<void>;
-    onSteer: () => Promise<void>;
+    onQueue: () => Promise<void>;
     provider: string;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     const action = agentChatComposerButton({ isRunning, isStopAction, isStopping, provider }, t);
-    const Icon = action.kind === 'stop' ? Square : isRunning ? CornerDownLeft : ArrowUp;
+    const Icon = action.kind === 'stop' ? Square : isRunning ? ArrowUpToLine : ArrowUp;
     // A button that cannot act (offline, no access, an empty draft) drops the brand color for the neutral surface,
     // since a dimmed pink still read as enabled beside `Reconnect to send messages.`; busy keeps its color.
     const isDisabled = !canSubmit && !isBusy;
     return (
         <Pressable
             accessibilityActions={
-                canSteer ? [{ name: 'longpress', label: t('chat.queue.steerNow') }] : []
+                canQueue ? [{ name: 'longpress', label: t('chat.composer.queueMessage') }] : []
             }
             accessibilityHint={
-                canSteer ? t('chat.composer.holdToSteerHint', { provider }) : undefined
+                canQueue ? t('chat.composer.holdToQueueHint', { provider }) : undefined
             }
             accessibilityLabel={action.label}
             accessibilityRole="button"
             accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
             disabled={!canSubmit}
             onAccessibilityAction={({ nativeEvent }) => {
-                if (nativeEvent.actionName === 'longpress') void onSteer();
+                if (nativeEvent.actionName === 'longpress') void onQueue();
             }}
-            onLongPress={canSteer ? onSteer : undefined}
+            onLongPress={canQueue ? onQueue : undefined}
             onPress={onPress}
             style={[
                 styles.sendButton,
