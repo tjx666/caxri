@@ -311,7 +311,7 @@ export function agentActivityGroups({
  * Row id of a Session's copy inside the Pinned group. The prefix cannot collide with a Session id, which is an opaque
  * identifier with no `pinned:` scheme.
  */
-export function agentActivityPinnedRowId(sessionId: string): string {
+function agentActivityPinnedRowId(sessionId: string): string {
     return `pinned:${sessionId}`;
 }
 
