@@ -485,6 +485,11 @@ export const logEventCatalog = {
          */
         idleExitTriggered: 'server_core.idle_exit_triggered',
         /**
+         * One record per machine-load transition: entering `loaded` carries the load per core that crossed the
+         * threshold; leaving it carries the duration, peak, and per-`BackgroundWorkSource` deferred rounds.
+         */
+        loadChanged: 'server_core.load_changed',
+        /**
          * Another account on a shared Linux machine held this profile's lock names; `outcome` is the closed result
          * (`acquired` past them or `exhausted`), `squattedNames` how many were skipped. See `linux-profile-lock.ts`.
          */

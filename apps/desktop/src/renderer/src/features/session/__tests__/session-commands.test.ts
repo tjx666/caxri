@@ -315,6 +315,33 @@ describe('Session actions', () => {
         expect(cancel).not.toHaveBeenCalled();
     });
 
+    it('sends only the newest of the selections queued behind one in flight', async () => {
+        const first = Promise.withResolvers<unknown>();
+        mocks.caxriRequest.mockImplementation((...arguments_: unknown[]) =>
+            arguments_[1] && (arguments_[1] as { sessionId?: string }).sessionId === 'session-a'
+                ? first.promise
+                : Promise.resolve({ id: 'session-c' }),
+        );
+
+        const a = didSelectSession('session-a');
+        const b = didSelectSession('session-b');
+        const c = didSelectSession('session-c');
+        await vi.waitFor(() => expect(mocks.caxriRequest).toHaveBeenCalledOnce());
+
+        first.resolve({ id: 'session-a' });
+
+        await expect(a).resolves.toBe(true);
+        await expect(b).resolves.toBe(false);
+        await expect(c).resolves.toBe(true);
+        expect(mocks.caxriRequest.mock.calls.map((call: unknown[]) => [call[0], call[1]])).toEqual([
+            ['session.select', { sessionId: 'session-a' }],
+            ['session.select', { sessionId: 'session-c' }],
+        ]);
+        expect(mocks.registerSessionCommandConvergence).toHaveBeenCalledTimes(2);
+        expect(mocks.pushToast).not.toHaveBeenCalled();
+        mocks.caxriRequest.mockImplementation(() => Promise.resolve([]));
+    });
+
     it('keeps a relative reorder pending until its event-driven snapshot is applied', async () => {
         const convergence = Promise.withResolvers<void>();
         const cancel = vi.fn();

@@ -2,6 +2,9 @@ import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import { runAsBackgroundWork } from '../../observability/background-work';
+import type { BackgroundLoadGate } from '../../observability/machine-load';
+import { machineLoad } from '../../observability/machine-load';
 import type { ProjectStatusClock } from './options';
 
 /**
@@ -17,6 +20,10 @@ interface ResidentPollOptions {
      * When the cached snapshot of a Session goes stale; zero when nothing is cached yet.
      */
     expiresAt: (sessionId: string) => number;
+    /**
+     * A round that finds the machine loaded is skipped and retried on the poll's floor delay.
+     */
+    load?: BackgroundLoadGate;
     logger: StructuredLogger;
     refresh: (sessionId: string) => Promise<unknown>;
 }
@@ -41,12 +48,19 @@ export class ResidentPoll {
 
     private async run(): Promise<void> {
         if (this.isRunning || this.sessionIds.size === 0) return;
+        const { load = machineLoad } = this.options;
+        if (load.shouldDefer('project-status-poll')) {
+            this.schedule();
+            return;
+        }
         this.isRunning = true;
         try {
-            // One Session at a time keeps the `gh`/`vc` budget flat.
-            for (const sessionId of this.sessionIds)
-                // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential by design, see above
-                await this.pollSession(sessionId); // eslint-disable-line no-await-in-loop -- see above
+            await runAsBackgroundWork('project-status-poll', async () => {
+                // One Session at a time keeps the `gh`/`vc` budget flat.
+                for (const sessionId of this.sessionIds)
+                    // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential by design, see above
+                    await this.pollSession(sessionId); // eslint-disable-line no-await-in-loop -- see above
+            });
         } finally {
             this.isRunning = false;
             this.schedule();

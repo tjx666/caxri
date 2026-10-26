@@ -579,11 +579,9 @@ export class GitRepoService {
     }
 
     /**
-     * Working-tree content changed under a Session root: bump only the owning repositories' status generations and
-     * schedule one coalesced `git.changed` invalidation.
+     * Working-tree content changed in `roots`: bump their status generations and coalesce one `git.changed`.
      */
-    observeWorkingTreeChanges(sessionId: string, changePaths: readonly string[]): void {
-        const roots = this.options.tracker.mapChangesToRoots(sessionId, changePaths);
+    observeWorkingTreeChanges(roots: readonly string[]): void {
         if (roots.length === 0) return;
         for (const root of roots) this.statuses.bump(root);
         this.options.tracker.scheduleStatusChanged(roots);

@@ -12,6 +12,7 @@ import { logEventCatalog, mapWithConcurrency, SingleFlight } from '@caxri/system
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
+import { runBackgroundUnlessLoaded } from '../../observability/background-work';
 import type { AgentEnvironment } from '../agents';
 import { agentProviderStateRoot, defaultAgentEnvironment } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -707,10 +708,9 @@ export class SessionPullRequestService {
             if (entry?.value) pullRequests[session.id] = entry.value;
             if (entry?.unavailable) unavailable[session.id] = entry.unavailable;
         }
-        if (isStale) {
-            // Fire-and-forget: the sweep logs its own failure and emits the change event.
-            void this.refresh();
-        }
+        // Fire-and-forget: the sweep logs its own failure and emits the change event. A loaded machine keeps the last
+        // projection, and the Renderer's next poll asks again.
+        if (isStale) runBackgroundUnlessLoaded('pull-request-sweep', () => this.refresh());
         return {
             pullRequests,
             ...(Object.keys(unavailable).length > 0 && { unavailable }),
