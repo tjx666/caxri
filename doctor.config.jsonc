@@ -59,6 +59,7 @@
                     "apps/cli/scripts/validate-skill.ts",
                     "apps/server/src/domains/agents/external-conversations.ts",
                     "apps/server/src/domains/commander/handover.ts",
+                    "apps/server/src/domains/agent-chat/continuation/chat-usage-limit-waits.ts",
                     "packages/agent-skills/src/execute.ts",
                     "packages/agent-skills/src/filesystem.ts",
                     "apps/desktop/src/main/menu-refresh.ts",
