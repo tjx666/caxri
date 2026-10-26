@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     buildAgentTitlePrompt,
@@ -10,6 +10,7 @@ import {
     hasTitleNamingMaterial,
     normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
+    sampleAgentTitle,
 } from '../title-generation';
 import type { AgentTranscriptLocation } from '../transcript-security';
 
@@ -216,6 +217,76 @@ describe('Session title material', () => {
             'Session rename synchronization',
         );
         expect(normalizeGeneratedAgentTitle('会话标题同步')).toBe('会话标题同步');
+    });
+
+    it('rejects a labelled answer and kana mixed into a Chinese title', () => {
+        const context = {
+            opening: [
+                { role: 'user' as const, text: '<image> 他最后说的啥' },
+                { role: 'assistant' as const, text: '他撤回了之前的决定' },
+            ],
+            recent: [],
+        };
+        for (const title of [
+            'Chinese title: 默认请求模式讨论',
+            '标题如下：默认请求模式讨论',
+            '磁吧ぶ',
+        ])
+            expect(normalizeGeneratedAgentTitle(title, context)).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('默认请求模式讨论', context)).toBe('默认请求模式讨论');
+        expect(normalizeGeneratedAgentTitle('Fix: Session title sync')).toBe(
+            'Fix: Session title sync',
+        );
+    });
+});
+
+describe('Session title sampling', () => {
+    const context = {
+        opening: [
+            { role: 'user' as const, text: '<image>' },
+            { role: 'assistant' as const, text: 'The request decides the default transport' },
+        ],
+        recent: [],
+    };
+
+    it('re-samples a SKIP up to the allowed number of times', async () => {
+        const generate = vi
+            .fn<(prompt: string) => Promise<string>>()
+            .mockResolvedValueOnce('SKIP')
+            .mockResolvedValueOnce('SKIP')
+            .mockResolvedValue('Default transport decision');
+        await expect(sampleAgentTitle({ context, generate, skipRetries: 2 })).resolves.toEqual({
+            title: 'Default transport decision',
+        });
+        expect(generate).toHaveBeenCalledTimes(3);
+        expect(generate.mock.calls.every(([prompt]) => !prompt.includes('<retry>'))).toBe(true);
+    });
+
+    it('keeps a SKIP final when no re-sample is allowed', async () => {
+        const generate = vi.fn<(prompt: string) => Promise<string>>().mockResolvedValue('SKIP');
+        await expect(sampleAgentTitle({ context, generate, skipRetries: 0 })).resolves.toEqual({
+            reason: 'skipped',
+        });
+        expect(generate).toHaveBeenCalledOnce();
+    });
+
+    it('gives an invalid answer one corrective retry and reports it as rejected', async () => {
+        const generate = vi
+            .fn<(prompt: string) => Promise<string>>()
+            .mockResolvedValue('x'.repeat(81));
+        await expect(sampleAgentTitle({ context, generate, skipRetries: 2 })).resolves.toEqual({
+            reason: 'rejected',
+        });
+        expect(generate).toHaveBeenCalledTimes(2);
+        expect(generate.mock.calls[1]?.[0]).toContain('<retry>');
+    });
+
+    it('stops as soon as the caller is no longer eligible', async () => {
+        const generate = vi.fn<(prompt: string) => Promise<string>>().mockResolvedValue('SKIP');
+        await expect(
+            sampleAgentTitle({ context, generate, skipRetries: 2, shouldContinue: () => false }),
+        ).resolves.toEqual({ reason: 'abandoned' });
+        expect(generate).toHaveBeenCalledOnce();
     });
 });
 

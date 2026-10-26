@@ -217,9 +217,7 @@ describe('Automatic Session naming when the first turn starts', () => {
             .mockResolvedValueOnce('SKIP')
             .mockResolvedValue('Greeting');
         f.startTurn();
-        await vi.waitFor(() =>
-            expect(namingReasons(f.log)).toEqual(['turnStarted:insufficientContext']),
-        );
+        await vi.waitFor(() => expect(namingReasons(f.log)).toEqual(['turnStarted:skipped']));
         expect(f.database.getSession(f.sessionId)?.displayTitle).not.toBe('Greeting');
         f.finishTurn();
         await vi.waitFor(() =>
@@ -246,10 +244,7 @@ describe('Automatic Session naming when the first turn starts', () => {
         await vi.waitFor(() =>
             expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
         );
-        expect(namingReasons(f.log)).toEqual([
-            'turnStarted:insufficientContext',
-            'turnFinished:completed',
-        ]);
+        expect(namingReasons(f.log)).toEqual(['turnStarted:skipped', 'turnFinished:completed']);
     });
 
     it('hands a still-settling opening attempt over to the finished turn', async () => {

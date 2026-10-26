@@ -221,7 +221,7 @@ describe('Automatic Session rename synchronization', () => {
         }
     });
 
-    it('retains a useful completed turn received during the insufficient-context cooldown', async () => {
+    it('retains a useful completed turn received during the cooldown after repeated SKIP answers', async () => {
         const f = await fixture();
         vi.useFakeTimers();
         vi.spyOn(agentFunctions, 'locateAgentTranscript').mockResolvedValue({
@@ -238,8 +238,8 @@ describe('Automatic Session rename synchronization', () => {
         });
         const generate = vi
             .spyOn(f.agents, 'generateTitle')
-            .mockResolvedValueOnce('SKIP')
             .mockResolvedValue('Concrete task title');
+        for (let sample = 0; sample < 3; sample++) generate.mockResolvedValueOnce('SKIP');
         const logger = createLogger(join(f.directory, 'logs'));
         const log = vi.spyOn(logger, 'write');
         const service = new SessionAutoNamingService(
@@ -268,12 +268,12 @@ describe('Automatic Session rename synchronization', () => {
                 durationMs: expect.any(Number) as number,
                 fields: {
                     provider: 'codex',
-                    reason: 'insufficientContext',
+                    reason: 'skipped',
                     sessionId: f.sessionId,
                 },
             });
             service.observe(event);
-            expect(generate).toHaveBeenCalledOnce();
+            expect(generate).toHaveBeenCalledTimes(3);
             await vi.advanceTimersByTimeAsync(60_000);
             expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Concrete task title');
             expect(f.rename).toHaveBeenCalledOnce();

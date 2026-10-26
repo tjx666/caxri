@@ -406,7 +406,10 @@ export function normalizeGeneratedAgentTitle(
                     isBareIssueReferenceTitle(text) &&
                     title.toLowerCase().includes(text.trim().toLowerCase()),
             )) ||
-        (language === 'Chinese' && !/\p{Script=Han}/u.test(title)) ||
+        /^(?:[A-Z]+\s+)?title\s*[:：]|^标题[^:：]{0,4}[:：]/iu.test(title) ||
+        (language === 'Chinese' &&
+            (!/\p{Script=Han}/u.test(title) ||
+                /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title))) ||
         (language === 'Japanese' && !/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title)) ||
         (language === 'Korean' && !/\p{Script=Hangul}/u.test(title)) ||
         (language === 'Latin' &&
@@ -422,6 +425,49 @@ export function normalizeGeneratedAgentTitle(
         return;
     const parsed = sessionRenameTitleSchema.safeParse(title);
     return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Why sampling ended without a title: the model answered `SKIP` every time, its last answer failed validation, or the
+ * caller stopped it.
+ */
+export type AgentTitleSampling =
+    { title: string } | { reason: 'abandoned' | 'rejected' | 'skipped' };
+
+/**
+ * Generates a title until one passes {@link normalizeGeneratedAgentTitle}. An invalid answer gets one corrective retry.
+ * A `SKIP` is retried `skipRetries` times with the unchanged prompt, because the low-cost model answers it
+ * nondeterministically: one conversation whose reply plainly stated its subject drew `SKIP` in 4 of 20 samples, and a
+ * single unlucky sample left that Session `Untitled` until the user sent another message. A caller naming from the
+ * opening request alone passes `0`, since `SKIP` is the expected answer when that request has no subject of its own.
+ */
+export async function sampleAgentTitle(options: {
+    context: AgentTitleContext;
+    generate: (prompt: string) => Promise<string>;
+    skipRetries: number;
+    /**
+     * Checked after every model answer; returning `false` ends sampling as `abandoned`.
+     */
+    shouldContinue?: () => boolean;
+}): Promise<AgentTitleSampling> {
+    const { context, generate, skipRetries, shouldContinue } = options;
+    let skips = 0;
+    let isRetry = false;
+    for (;;) {
+        // Each answer decides whether another sample is needed, so the calls are inherently sequential.
+        // eslint-disable-next-line no-await-in-loop -- sequential resampling, see comment above
+        const candidate = await generate(buildAgentTitlePrompt(context, isRetry));
+        if (shouldContinue && !shouldContinue()) return { reason: 'abandoned' };
+        const title = normalizeGeneratedAgentTitle(candidate, context);
+        if (title) return { title };
+        if (candidate.trim() === 'SKIP') {
+            if (skips >= skipRetries) return { reason: 'skipped' };
+            skips++;
+        } else {
+            if (isRetry) return { reason: 'rejected' };
+            isRetry = true;
+        }
+    }
 }
 
 export const AGENT_TITLE_SYSTEM_INSTRUCTIONS = [

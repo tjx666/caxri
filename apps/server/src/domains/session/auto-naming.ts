@@ -6,14 +6,13 @@ import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 import type { AgentEnvironment, AgentLifecycleSignal, AgentService } from '../agents';
 import {
     agentProviderStateRoot,
-    buildAgentTitlePrompt,
     hasOpeningRequestMaterial,
     hasTitleNamingMaterial,
     isBareIssueReferenceTitle,
     locateAgentTranscript,
     lowCostSandboxFailureReason,
-    normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
+    sampleAgentTitle,
 } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { agentCommanderIdentity } from '../db';
@@ -31,6 +30,12 @@ const SESSION_RECORD_CAPACITY = 128;
  * without these short re-reads a one-turn Session kept its placeholder name until another turn finished.
  */
 const TRANSCRIPT_SETTLE_DELAYS_MS = [500, 2_000, 8_000] as const;
+
+/**
+ * Extra samples after a `SKIP` once the reply is available. Two keep a conversation that draws `SKIP` one time in five
+ * from staying `Untitled` in all but about one Session in a hundred; see `sampleAgentTitle`.
+ */
+const TURN_FINISHED_SKIP_RETRIES = 2;
 
 /**
  * One suppressed naming attempt. The Terminal is stored beside the launch because a record is only in force while the
@@ -205,6 +210,8 @@ export class SessionAutoNamingService {
                 | 'completed'
                 | 'ineligible'
                 | 'insufficientContext'
+                | 'rejected'
+                | 'skipped'
                 | 'transcriptPending'
                 | 'declined'
                 | 'failed'
@@ -256,27 +263,26 @@ export class SessionAutoNamingService {
                             reason = 'transcriptPending';
                             return;
                         }
-                        const candidate = await this.agents.generateTitle(target.provider, {
-                            cwd: terminal.cwd,
-                            prompt: buildAgentTitlePrompt(context),
-                            signal: controller.signal,
-                        });
-                        if (!isEligible()) return;
-                        title = normalizeGeneratedAgentTitle(candidate, context);
-                        if (!title && candidate.trim() !== 'SKIP') {
-                            title = normalizeGeneratedAgentTitle(
-                                await this.agents.generateTitle(target.provider, {
+                        const sampled = await sampleAgentTitle({
+                            context,
+                            generate: (prompt) =>
+                                this.agents.generateTitle(target.provider, {
                                     cwd: terminal.cwd,
-                                    prompt: buildAgentTitlePrompt(context, true),
+                                    prompt,
                                     signal: controller.signal,
                                 }),
-                                context,
-                            );
-                        }
-                        if (!title) {
-                            reason = 'insufficientContext';
+                            /**
+                             * The opening request alone may have no subject, so its `SKIP` is final; the completed turn
+                             * has the reply and re-samples one.
+                             */
+                            skipRetries: isOpening ? 0 : TURN_FINISHED_SKIP_RETRIES,
+                            shouldContinue: isEligible,
+                        });
+                        if (!('title' in sampled)) {
+                            if (sampled.reason !== 'abandoned') reason = sampled.reason;
                             return;
                         }
+                        title = sampled.title;
                     }
                     if (!isEligible()) return;
                     reason = (await this.renames.renameAutomatically(
@@ -429,6 +435,8 @@ export class SessionAutoNamingService {
             | 'completed'
             | 'noAgent'
             | 'insufficientContext'
+            | 'rejected'
+            | 'skipped'
             | 'cancelled'
             | 'failed'
             | NonNullable<ReturnType<typeof lowCostSandboxFailureReason>> = 'failed';
@@ -448,7 +456,7 @@ export class SessionAutoNamingService {
             }
             provider = terminal.provider;
             const terminalProvider = terminal.provider;
-            const title = await this.executions.run(async () => {
+            const sampled = await this.executions.run(async () => {
                 signal?.throwIfAborted();
                 const location = await locateAgentTranscript(
                     this.database,
@@ -460,29 +468,29 @@ export class SessionAutoNamingService {
                     ? await readAgentTitleMessages(location)
                     : { opening: [], recent: [] };
                 if (!hasTitleNamingMaterial(context)) return;
-                const generate = (isRetry: boolean): Promise<string> =>
-                    this.agents.generateTitle(terminalProvider, {
-                        cwd: terminal.cwd,
-                        prompt: buildAgentTitlePrompt(context, isRetry),
-                        signal,
-                    });
-                const candidate = await generate(false);
-                return (
-                    normalizeGeneratedAgentTitle(candidate, context) ??
-                    (candidate.trim() === 'SKIP'
-                        ? undefined
-                        : normalizeGeneratedAgentTitle(await generate(true), context))
-                );
+                return sampleAgentTitle({
+                    context,
+                    generate: (prompt) =>
+                        this.agents.generateTitle(terminalProvider, {
+                            cwd: terminal.cwd,
+                            prompt,
+                            signal,
+                        }),
+                    skipRetries: TURN_FINISHED_SKIP_RETRIES,
+                });
             });
-            if (!title) {
-                reason = 'insufficientContext';
+            if (!sampled || !('title' in sampled)) {
+                reason =
+                    sampled && sampled.reason !== 'abandoned'
+                        ? sampled.reason
+                        : 'insufficientContext';
                 throw new CaxriError(
                     'UNAVAILABLE',
                     'Not enough conversation to name this Session yet',
                 );
             }
             reason = 'completed';
-            return { displayTitle: title };
+            return { displayTitle: sampled.title };
         } catch (error) {
             if (signal?.aborted) reason = 'cancelled';
             else if (reason === 'failed') {
