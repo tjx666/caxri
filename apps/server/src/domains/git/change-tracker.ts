@@ -104,21 +104,21 @@ export class GitChangeTracker {
     }
 
     /**
-     * Maps Session-relative changed paths to the deepest known repository root of that Session, so a write inside a
-     * nested repository bumps only that repository.
+     * Groups Session-relative changed paths by the deepest known repository root of that Session that contains them, so
+     * a write inside a nested repository bumps only that repository. Paths come back absolute.
      */
-    mapChangesToRoots(sessionId: string, changePaths: readonly string[]): string[] {
+    groupChangesByRoot(sessionId: string, changePaths: readonly string[]): Map<string, string[]> {
+        const groups = new Map<string, string[]>();
         const session = this.sessions.get(sessionId);
-        if (!session) return [];
-        const roots = new Set<string>();
+        if (!session) return groups;
         for (const changePath of changePaths) {
             const absolute = resolve(session.sessionRoot, changePath);
             const owner = session.roots.find(
                 (root) => absolute === root || absolute.startsWith(`${root}${sep}`),
             );
-            if (owner) roots.add(owner);
+            if (owner) groups.set(owner, [...(groups.get(owner) ?? []), absolute]);
         }
-        return [...roots];
+        return groups;
     }
 
     scheduleStatusChanged(roots: readonly string[]): void {

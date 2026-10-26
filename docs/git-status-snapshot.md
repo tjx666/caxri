@@ -140,6 +140,16 @@ registers, via `registerSession`, the canonical roots it projected for one Sessi
 pending set and debounces a flush by 150ms (`CHANGE_EMIT_DELAY_MS`), folding a burst of bumps
 (rapid Agent writes, a rebase touching many refs) into one event.
 
+A working-tree write reaches that bump only when `IgnoredChangeFilter`
+(`apps/server/src/domains/git/ignored-changes.ts`) finds at least one path Git does not ignore. A
+build writing `out/` or `dist/` in a watched root used to bump the status generation on every
+batch, and each bump made the Renderer refetch `git.overview`, `git.summary`, and Source Control for
+a snapshot that never changed. The filter classifies each batch with one `git check-ignore --stdin`
+over the paths and their ancestor directories. An ignored directory that holds no tracked file is
+remembered, so later writes under it cost no Git process; a tracked file inside an ignored directory
+is never dropped. The cache is forgotten when the metadata watcher reports a status or topology
+change, when a batch overflows, or when it touches a `.gitignore`.
+
 The flushed event carries only opaque identifiers: `repositoryIds` (via `computeRepoId`, a
 truncated SHA-256 of the root path, never the path itself), `sessionIds` of every Session whose
 projection includes one of the changed roots (including sibling Sessions of other Workbench
@@ -254,8 +264,8 @@ reads them from the snapshot instead of running its own numstat.
 ## Measurement contract
 
 `apps/server/src/domains/git/index.ts`: `GitService.git()` wraps every `execFile('git', …)` call with a
-bounded `AsyncSemaphore` (`MAX_CONCURRENT_GIT_COMMANDS = 8`, unchanged) and logs `git.command` with
-`queueMs` (time spent waiting for a semaphore slot) split from `execMs` (actual process wall time),
+bounded `GitCommandBudget` (`apps/server/src/domains/git/command-budget.ts`, eight slots) and logs
+`git.command` with `queueMs` (time spent waiting for a slot) split from `execMs` (actual process wall time),
 plus `operation` (argv[0], or `argv[0].subcommand` for `worktree`/`remote`/`stash`/`submodule`,
 `classifyGitOperation`) and a non-reversible `repository` hash (`hashRepoPath`, SHA-256 of the cwd,
 truncated). No source content, Terminal output, or raw filesystem path is logged. Command failures
@@ -265,6 +275,20 @@ request aborted (fast Source Control navigation) records `reason: cancelled` wit
 and rejects with `CANCELLED` rather than `GIT`, even under `allowFailure`. The `git.summary` boundary event (see above) is the
 authoritative measurement for one summary's full wall time and command count; the startup benchmark
 asserts against it rather than the last `git.command` record.
+
+The budget has two classes. A command issued inside `runAsBackgroundWork`
+(`apps/server/src/observability/background-work.ts`: the Project Status resident poll, the delivery
+watch, and the pull request sweep) is background work; everything else is foreground and is always
+admitted first. While the machine is loaded (`machineLoad`, `apps/server/src/observability/machine-load.ts`:
+one-minute load average per core at or above 1.0, released below 0.7), background commands may hold
+at most two of the eight slots, so a burst of polls cannot fill the queue in front of a
+`session.select`. A shared producer (`sharedGitRequest`: a summary or topology load another request
+can join) always runs as foreground, so a request joining a load a poll started is not held to that
+cap. The pollers themselves also skip a round while loaded and retry at their own floor, but each
+source lets one round through after two minutes of deferring, so sustained load slows delivery
+status instead of freezing it. A slow `git.command` record carries `background` with the source that issued it.
+`server_core.load_changed` records each transition: `state: loaded` on entry, and `state: normal`
+on exit with the period's duration, peak load, and how many rounds each source deferred.
 
 ## Lifecycle and cleanup
 
@@ -293,5 +317,5 @@ asserts against it rather than the last `git.command` record.
   `RepoTopologyRegistry` (for Workbench Root candidate flows) without being reachable through Git
   SecondarySidebar, diff, history, Files, the CLI, or an Agent Endpoint; `GitRepoService` re-checks
   approved Project roots on every summary.
-- No increase to the global Git concurrency limit (`MAX_CONCURRENT_GIT_COMMANDS = 8`); reduced
-  command counts are the mechanism, not added parallelism.
+- No increase to the global Git concurrency limit (eight slots in `GitCommandBudget`); reduced
+  command counts and foreground priority are the mechanism, not added parallelism.

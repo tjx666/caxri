@@ -20,6 +20,7 @@ import {
     StructuredLogger,
 } from '@caxri/system';
 
+import { machineLoad } from '../observability/machine-load';
 import { writeCliLauncher } from './cli-launcher';
 import { createDesktopLauncher } from './desktop-launcher';
 import { extensionRootsForServer } from './extensions/discovery';
@@ -42,6 +43,8 @@ const logger = new StructuredLogger(
 );
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'server-core' });
 processErrorMonitor.attach(logger);
+// Only the real process gates background work on machine load; tests stay deterministic on a busy runner.
+machineLoad.attach(logger);
 const serverBundleDirectory = dirname(fileURLToPath(import.meta.url));
 /**
  * Captured once at startup: this is the fingerprint of the code this Server Core is actually running. A later watch

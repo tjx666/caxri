@@ -74,6 +74,12 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      `callerMethod`, `repository`. Answers whether Git queued or ran long and for which request.
      `callerMethod` travels with the request id in the async context, so it is present even when the
      Git command ran in a background refresh after the request (e.g. `git.summary`) had returned.
+     `background` names the poller (`project-status-poll`, `delivery-watch`, `pull-request-sweep`)
+     when one issued it.
+   - `server_core.load_changed` (`info`): `state: loaded` on entry, then `state: normal` with
+     `loadPerCore`, `peakLoadPerCore`, `durationMs`, and `deferred` (`source=count` rounds skipped). Answers whether
+     the machine itself was saturated and how much background work Caxri shed; see
+     [Git status snapshot](../../../docs/git-status-snapshot.md#measurement-contract).
 
    Recipe: (1) Find the `renderer.jank` record near the reported time. `total` splits into `request`
    (Server round trip), `converge` (state applied in the Renderer), and `paint` (next frame). Large

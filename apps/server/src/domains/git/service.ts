@@ -19,7 +19,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { AsyncSemaphore, readBoundedRegularFile, SingleFlight } from '@caxri/system';
+import { readBoundedRegularFile, SingleFlight } from '@caxri/system';
 
 import { ExternalStatusHub } from '../external-status';
 import { assertInsideRoot, isOutsideRoot } from '../path-security';
@@ -29,9 +29,11 @@ import { listLocalBranches } from './branches';
 import { GitChangeTracker } from './change-tracker';
 import type { GitCommandOptions } from './command';
 import { runGitCommand } from './command';
+import { GitCommandBudget } from './command-budget';
 import { parseCommitFiles, readCommitDetails } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { readGitHubPullRequestView } from './github';
+import { IgnoredChangeFilter, readIgnoredEntries } from './ignored-changes';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
 import { mobileChangesDiff, mobileChangesListForSummary } from './mobile-changes';
@@ -46,8 +48,6 @@ import type { GitSummaryRequester } from './summary-trace';
 import type { GitWorktreeTopology } from './topology';
 import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
-
-const MAX_CONCURRENT_GIT_COMMANDS = 8;
 
 interface DiffTarget {
     candidate: string;
@@ -77,7 +77,7 @@ interface GitServiceOptions {
 }
 
 export class GitService {
-    private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
+    private readonly commands = new GitCommandBudget();
     private readonly histories = new SingleFlight<string, GitCommitPage>();
     private readonly repositoryService: GitRepoService;
     private readonly blameService: GitBlameService;
@@ -85,6 +85,7 @@ export class GitService {
     private readonly pullRequestService: GitPullRequestService;
     private readonly topologyRegistry: RepoTopologyRegistry;
     private readonly changeTracker: GitChangeTracker;
+    private readonly ignoredChanges: IgnoredChangeFilter;
     private readonly metadataWatcher: GitMetadataWatcher;
     /**
      * `origin` remote host per repository root, resolved once and kept for the Server's lifetime: the commit-avatar
@@ -108,6 +109,7 @@ export class GitService {
             emit: options.emit,
             repositoryId: computeRepoId,
         });
+        this.ignoredChanges = new IgnoredChangeFilter(this.changeTracker, this.git.bind(this));
         this.repositoryService = new GitRepoService(this.paths, {
             git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
             logger: this.logger,
@@ -117,9 +119,14 @@ export class GitService {
         this.metadataWatcher = new GitMetadataWatcher({
             logger: this.logger,
             referencedRepositoryKeys: () => this.changeTracker.referencedRepositoryKeys(),
-            onStatusChanged: (repoKey, roots) =>
-                this.repositoryService.observeMetadataStatus(repoKey, roots),
-            onTopologyChanged: (repoKey) => this.repositoryService.observeMetadataTopology(repoKey),
+            onStatusChanged: (repoKey, roots) => {
+                this.ignoredChanges.forget(roots);
+                this.repositoryService.observeMetadataStatus(repoKey, roots);
+            },
+            onTopologyChanged: (repoKey) => {
+                this.ignoredChanges.forgetAll();
+                this.repositoryService.observeMetadataTopology(repoKey);
+            },
             subscribe: options.subscribe,
             watchHub: options.watchHub,
         });
@@ -360,14 +367,14 @@ export class GitService {
     }
 
     /**
-     * Working-tree change intake from the Project file watcher; maps Session-relative paths to repository identities
-     * and schedules coalesced invalidation.
+     * Working-tree change intake from the Project file watcher. Changes Git ignores are dropped first; the rest bump
+     * the owning repositories' status generations and schedule one coalesced invalidation.
      */
-    observeFilesChanged(payload: { sessionId: string; changes: ReadonlyArray<{ path: string }> }) {
-        this.repositoryService.observeWorkingTreeChanges(
-            payload.sessionId,
-            payload.changes.map((change) => change.path),
-        );
+    observeFilesChanged(payload: Parameters<IgnoredChangeFilter['relevantRoots']>[0]): void {
+        // Fire-and-forget: the filter never rejects, and keeps every root it could not classify.
+        void this.ignoredChanges
+            .relevantRoots(payload)
+            .then((roots) => this.repositoryService.observeWorkingTreeChanges(roots));
     }
 
     /**
@@ -402,25 +409,13 @@ export class GitService {
         };
     }
 
-    /**
-     * Returns ignored direct children using one NUL-delimited Git batch for the listed directory.
-     */
     async ignoredEntries(
         sessionId: string,
         directory: string,
         names: readonly string[],
     ): Promise<{ ignoredNames: ReadonlySet<string>; rulePaths: readonly string[] }> {
         const repo = await this.repositoryService.resolveDirectory(sessionId, directory);
-        if (!repo) return { ignoredNames: new Set(), rulePaths: [] };
-        if (names.length === 0) return { ignoredNames: new Set(), rulePaths: repo.ignoreRulePaths };
-        const output = await this.git(repo.directoryPath, ['check-ignore', '--stdin', '-z'], {
-            allowFailure: true,
-            input: `${names.join('\0')}\0`,
-        });
-        return {
-            ignoredNames: new Set(output.split('\0').filter(Boolean)),
-            rulePaths: repo.ignoreRulePaths,
-        };
+        return readIgnoredEntries(this.git.bind(this), repo, names);
     }
 
     async branches(

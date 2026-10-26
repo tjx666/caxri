@@ -3,6 +3,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { CaxriError } from '@caxri/protocol';
 import { waitForSharedOperation } from '@caxri/system';
 
+import { runAsSharedWork } from '../../observability/background-work';
+
 const requestSignals = new AsyncLocalStorage<AbortSignal | undefined>();
 
 export function withGitRequestSignal<Result>(
@@ -36,11 +38,12 @@ export async function authoritativeGitMutation<Result>(
 /**
  * Detaches a shared Git producer from one consumer's cancellation and cancels only that consumer's wait. A summary,
  * topology, history, or Pull Request load may be joined by another request, so killing its child process when the first
- * consumer leaves would incorrectly fail every waiter.
+ * consumer leaves would incorrectly fail every waiter. For the same reason the producer runs at foreground priority: a
+ * `session.select` joining a load a background poll started must not wait behind the background cap.
  */
 export async function sharedGitRequest<Result>(load: () => Promise<Result>): Promise<Result> {
     const signal = currentGitRequestSignal();
-    const operation = requestSignals.run(undefined, load);
+    const operation = requestSignals.run(undefined, () => runAsSharedWork(load));
     return waitForSharedOperation(
         operation,
         signal,

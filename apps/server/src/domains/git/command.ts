@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { AsyncSemaphore, StructuredLogger } from '@caxri/system';
 import { currentObservationContext, execFileAsync, logEventCatalog } from '@caxri/system';
 
+import { currentBackgroundWork } from '../../observability/background-work';
 import { requestActivity } from '../../observability/request-activity';
 import { classifyGitFailure, gitFailureLogLevel, resolveGitLaunch, toGitError } from './errors';
 import { gitSignalOptions } from './request-signal';
@@ -95,13 +96,14 @@ export function gitCommandLogLevel(timing: { execMs: number; queueMs: number }):
  * by the closed `GitFailureReason` plus the exit status from {@link gitFailureFields}, never by the fault message.
  */
 export async function runGitCommand(
-    commands: AsyncSemaphore,
+    commands: Pick<AsyncSemaphore, 'run'>,
     logger: StructuredLogger,
     cwd: string,
     arguments_: string[],
     options: GitCommandOptions = {},
 ): Promise<string> {
     const queuedAt = performance.now();
+    const background = currentBackgroundWork();
     return commands.run(async () => {
         const startedAt = performance.now();
         const timing = () => ({
@@ -148,6 +150,7 @@ export async function runGitCommand(
                     operation: classifyGitOperation(arguments_),
                     ...finished,
                     ...(callerMethod && { callerMethod }),
+                    ...(level === 'info' && background && { background }),
                 },
             });
             return stdout;

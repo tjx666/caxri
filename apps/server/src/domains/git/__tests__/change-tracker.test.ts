@@ -1,4 +1,4 @@
-import { sep } from 'node:path';
+import { resolve, sep } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
@@ -40,19 +40,21 @@ describe('GitChangeTracker', () => {
     it('maps changed paths to the deepest containing repository root', () => {
         const { tracker } = createTracker();
         tracker.registerSession('session-1', '/repo', [REPO_KEY], ['/repo', '/repo/vendor/child']);
-        const roots = tracker.mapChangesToRoots('session-1', [
+        const groups = tracker.groupChangesByRoot('session-1', [
             `vendor${sep}child${sep}lib.ts`,
             'src/app.ts',
         ]);
-        expect(roots).toEqual(expect.arrayContaining(['/repo/vendor/child', '/repo']));
-        expect(roots).toHaveLength(2);
+        expect(Object.fromEntries(groups)).toEqual({
+            '/repo': [resolve('/repo', 'src/app.ts')],
+            '/repo/vendor/child': [resolve('/repo', `vendor${sep}child${sep}lib.ts`)],
+        });
     });
 
     it('ignores paths outside every registered root and unknown sessions', () => {
         const { tracker } = createTracker();
         tracker.registerSession('session-1', '/elsewhere', [REPO_KEY], ['/repo']);
-        expect(tracker.mapChangesToRoots('session-1', ['src/app.ts'])).toEqual([]);
-        expect(tracker.mapChangesToRoots('missing', ['src/app.ts'])).toEqual([]);
+        expect(tracker.groupChangesByRoot('session-1', ['src/app.ts']).size).toBe(0);
+        expect(tracker.groupChangesByRoot('missing', ['src/app.ts']).size).toBe(0);
     });
 
     it('coalesces a burst of bumps into one git.changed event', async () => {

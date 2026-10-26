@@ -2,6 +2,9 @@ import type { ProjectStatusState, ProjectStatusSummary } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
+import { runAsBackgroundWork } from '../../observability/background-work';
+import type { BackgroundLoadGate } from '../../observability/machine-load';
+import { machineLoad } from '../../observability/machine-load';
 import type { SummaryCacheEntry } from './carry-over';
 
 /**
@@ -74,6 +77,10 @@ export interface DeliveryWatchOptions {
     clearTimer: (timer: NodeJS.Timeout) => void;
     isEnabled: () => boolean;
     listSessions: () => readonly string[];
+    /**
+     * A round that finds the machine loaded is skipped and retried on the pending delay.
+     */
+    load?: BackgroundLoadGate;
     logger: StructuredLogger;
     /**
      * The Sessions the resident poll already covers (the visible ones); the background watch skips them.
@@ -130,6 +137,11 @@ export class DeliveryWatch {
 
     private async run(): Promise<void> {
         if (this.isRunning || this.isDisposed) return;
+        const { load = machineLoad } = this.options;
+        if (load.shouldDefer('delivery-watch')) {
+            this.schedule(WATCH_PENDING_DELAY_MS);
+            return;
+        }
         this.isRunning = true;
         const startedAt = performance.now();
         const outcomes: Record<WatchOutcome, number> = {
@@ -154,19 +166,21 @@ export class DeliveryWatch {
             const sessionIds = this.options
                 .listSessions()
                 .filter((sessionId) => !polled.has(sessionId));
-            await mapWithConcurrency(sessionIds, WATCH_CONCURRENCY, async (sessionId) => {
-                try {
-                    const outcome = await this.options.watchSession(
-                        sessionId,
-                        covered,
-                        this.isPendingRound,
-                    );
-                    outcomes[outcome] += 1;
-                    if (isInFlight(this.options.summaryOf(sessionId))) hasInFlight = true;
-                } catch {
-                    outcomes.failed += 1;
-                }
-            });
+            await runAsBackgroundWork('delivery-watch', () =>
+                mapWithConcurrency(sessionIds, WATCH_CONCURRENCY, async (sessionId) => {
+                    try {
+                        const outcome = await this.options.watchSession(
+                            sessionId,
+                            covered,
+                            this.isPendingRound,
+                        );
+                        outcomes[outcome] += 1;
+                        if (isInFlight(this.options.summaryOf(sessionId))) hasInFlight = true;
+                    } catch {
+                        outcomes.failed += 1;
+                    }
+                }),
+            );
         } finally {
             this.isRunning = false;
             this.options.logger.write('debug', logEventCatalog.projectStatus.watch, {

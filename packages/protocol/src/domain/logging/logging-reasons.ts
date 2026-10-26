@@ -45,3 +45,9 @@ export type ServerIdleExitReason = 'idle-timeout';
  * `apps/server/src/core/server-core.ts`), so it must always be conservative and defer.
  */
 export type ServerIdleExitDeferralReason = 'active-pty';
+
+/**
+ * Closed set of Server Core background drivers that yield to foreground work while the machine is loaded. Named in
+ * `server_core.load_changed` deferral counts and in a slow `git.command` record's `background` field.
+ */
+export type BackgroundWorkSource = 'delivery-watch' | 'project-status-poll' | 'pull-request-sweep';

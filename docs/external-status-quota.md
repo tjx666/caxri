@@ -311,6 +311,12 @@ window, so a backgrounded Caxri really does spend nothing; a visible one still a
 the sidebar sweep covers every active Session rather than only the rows on screen. What the TTL and
 the circuit control is how many of those reads reach a CLI.
 
+Under machine load the background readers step aside. The resident poll and the delivery watch
+skip a round and retry at their own floor, and a stale `snapshot()` does not start a pull request
+sweep while the one-minute load average per core stays at or above 1.0. Each source still runs one
+round after two minutes of skipping; see the budget section of
+[Git status snapshot](./git-status-snapshot.md#measurement-contract).
+
 ## Acceptance reports
 
 A LobeHub acceptance report is the record of an independent reviewer running a change's checks and
