@@ -21,7 +21,6 @@ export const hostStatus = {
     'hostStatus.sessions.title': 'Sessions',
     'hostStatus.sessions.empty': 'No Session has a running Terminal.',
     'hostStatus.sessions.terminal': 'Terminal',
-    'hostStatus.sessions.untitled': 'Untitled Session',
     'hostStatus.sessions.high': 'High resource use',
     'hostStatus.sessions.moreTerminalsOne': '+{{count}} more Terminal',
     'hostStatus.sessions.moreTerminalsOther': '+{{count}} more Terminals',

@@ -124,11 +124,15 @@ describe('host status model', () => {
             session({ title: '', terminals: [session().terminals[1]], terminalTotal: 1 }),
         ]);
         expect(quiet).toMatchObject({
-            title: 'Untitled Session',
+            title: 'Untitled',
             isHigh: false,
             hiddenTerminals: 0,
         });
         expect(quiet.processes).toBe('6 processes');
+        const [defaultTitle] = sessionRows([session({ title: 'Untitled' })], (key, parameters) =>
+            key === 'sessions.untitled' ? '未命名' : String(parameters?.count ?? key),
+        );
+        expect(defaultTitle.title).toBe('未命名');
         expect(quiet.terminals[0].processes).toBe('1 process');
         expect(moreTerminalsLabel(0)).toBeUndefined();
         expect(moreTerminalsLabel(1)).toBe('+1 more Terminal');

@@ -8,11 +8,17 @@ import type {
     MobileHostTerminalLoad,
     TerminalKind,
 } from '@caxri/protocol';
-import { formatCpuPercent, formatMemoryMb, isTerminalResourceUsageHigh } from '@caxri/protocol';
+import {
+    DEFAULT_SESSION_TITLE,
+    formatCpuPercent,
+    formatMemoryMb,
+    isTerminalResourceUsageHigh,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { mobileAgentDisplayName } from '../sessions/agent-display-name';
+import { sessionTitleForDisplay } from '../sessions/session-row-model';
 
 /**
  * How often the screen re-reads while it is visible, the cadence Desktop's Process Explorer and the resource popovers
@@ -198,7 +204,7 @@ export const sessionRows = (
         }));
         return {
             id: session.sessionId,
-            title: session.title || t('hostStatus.sessions.untitled'),
+            title: sessionTitleForDisplay(session.title || DEFAULT_SESSION_TITLE, t),
             isHigh: terminals.some((terminal) => terminal.isHigh),
             kind: terminals[0]?.kind,
             processes: processCount(session.processCount, t),

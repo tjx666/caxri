@@ -24,7 +24,6 @@ export const hostStatus: TranslatedNamespace<typeof source> = {
     'hostStatus.sessions.title': '会话',
     'hostStatus.sessions.empty': '没有正在运行终端的会话。',
     'hostStatus.sessions.terminal': '终端',
-    'hostStatus.sessions.untitled': '未命名会话',
     'hostStatus.sessions.high': '资源占用过高',
     'hostStatus.sessions.moreTerminalsOne': '另有 {{count}} 个终端',
     'hostStatus.sessions.moreTerminalsOther': '另有 {{count}} 个终端',
