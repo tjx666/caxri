@@ -121,9 +121,12 @@ export function mobileServiceStatus(status: AgentProviderStatus): AgentProviderS
  * Every provider the screen lists: the fixed pair first, then any other that has reported a plan limit.
  */
 function mobileAgentUsageProviders(limits: readonly UsageLimit[]): AgentProvider[] {
-    const providers: AgentProvider[] = [...MOBILE_AGENT_USAGE_PROVIDERS];
-    for (const { provider } of limits) if (!providers.includes(provider)) providers.push(provider);
-    return providers;
+    return [
+        ...new Set<AgentProvider>([
+            ...MOBILE_AGENT_USAGE_PROVIDERS,
+            ...limits.map(({ provider }) => provider),
+        ]),
+    ];
 }
 
 /**
