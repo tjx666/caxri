@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import type { MobileHostStatus } from '@caxri/protocol';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 
@@ -71,6 +72,141 @@ const StatusMessage = ({
 };
 
 /**
+ * The sections under a reading: Session load, Caxri's services, and the top processes.
+ */
+const HostStatusProcesses = ({
+    onOpenSession,
+    onSortChange,
+    processes,
+    sort,
+    theme,
+}: {
+    onOpenSession: (sessionId: string) => void;
+    onSortChange: (sort: ProcessSort) => void;
+    processes: NonNullable<MobileHostStatus['processes']>;
+    sort: ProcessSort;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const sessions = sessionRows(processes.sessions, t);
+    const services = serviceRows(processes.services);
+    const top = topProcessRows(processes.topProcesses, sort);
+    return (
+        <>
+            <HostStatusSection
+                footer={
+                    processes.sessionTotal > sessions.length
+                        ? t('hostStatus.sessions.truncated', {
+                              shown: sessions.length,
+                              total: processes.sessionTotal,
+                          })
+                        : undefined
+                }
+                testID="host-status-sessions"
+                theme={theme}
+                title={t('hostStatus.sessions.title')}
+            >
+                {sessions.length === 0 ? (
+                    <Text style={[styles.empty, { color: theme.muted }]}>
+                        {t('hostStatus.sessions.empty')}
+                    </Text>
+                ) : (
+                    sessions.map((row, index) => (
+                        <HostSessionRow
+                            isLast={index === sessions.length - 1}
+                            key={row.id}
+                            onOpen={onOpenSession}
+                            row={row}
+                            theme={theme}
+                        />
+                    ))
+                )}
+            </HostStatusSection>
+            {services.length > 0 ? (
+                <HostStatusSection
+                    testID="host-status-services"
+                    theme={theme}
+                    title={t('hostStatus.services.title')}
+                >
+                    {services.map((row, index) => (
+                        <HostProcessRow
+                            isLast={index === services.length - 1}
+                            key={row.id}
+                            row={row}
+                            testID={`host-status-service-${row.id}`}
+                            theme={theme}
+                        />
+                    ))}
+                </HostStatusSection>
+            ) : null}
+            <HostStatusSection
+                accessory={<ProcessSortToggle onChange={onSortChange} sort={sort} theme={theme} />}
+                footer={t('hostStatus.processes.count', { count: processes.processCount })}
+                testID="host-status-processes"
+                theme={theme}
+                title={t('hostStatus.processes.title')}
+            >
+                {top.map((row, index) => (
+                    <HostProcessRow
+                        isLast={index === top.length - 1}
+                        key={row.id}
+                        row={row}
+                        testID={`host-status-process-${row.id}`}
+                        theme={theme}
+                    />
+                ))}
+            </HostStatusSection>
+        </>
+    );
+};
+
+/**
+ * A reading on screen: the system card, then the process sections when `ps` answered.
+ */
+const HostStatusReady = ({
+    onOpenSession,
+    onSortChange,
+    sort,
+    status,
+    theme,
+}: {
+    onOpenSession: (sessionId: string) => void;
+    onSortChange: (sort: ProcessSort) => void;
+    sort: ProcessSort;
+    status: MobileHostStatus;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            <HostStatusSection
+                testID="host-status-system"
+                theme={theme}
+                title={t('hostStatus.system.title')}
+            >
+                <HostSystemCard system={systemModel(status.system, t)} theme={theme} />
+            </HostStatusSection>
+            {status.processes ? (
+                <HostStatusProcesses
+                    onOpenSession={onOpenSession}
+                    onSortChange={onSortChange}
+                    processes={status.processes}
+                    sort={sort}
+                    theme={theme}
+                />
+            ) : (
+                <Text
+                    style={[styles.statusText, { color: theme.muted }]}
+                    testID="host-status-processes-unavailable"
+                >
+                    {t('hostStatus.processesUnavailable')}
+                </Text>
+            )}
+        </>
+    );
+};
+
+/**
  * The paired computer at a glance: system CPU and memory, each Session's load from its running Terminals, Caxri's own
  * services, and the busiest processes. The phone counterpart of Desktop's Process Explorer, read-only.
  */
@@ -103,10 +239,6 @@ export const HostStatusScreen = () => {
             router.navigate(`/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(sessionId)}`),
         [hostId, router],
     );
-    const processes = data?.processes;
-    const sessions = processes ? sessionRows(processes.sessions, t) : [];
-    const services = processes ? serviceRows(processes.services) : [];
-    const top = processes ? topProcessRows(processes.topProcesses, sort) : [];
     const banner =
         state.kind === 'ready' && (state.isStale || state.hasRefreshError)
             ? {
@@ -181,97 +313,13 @@ export const HostStatusScreen = () => {
                         theme={theme}
                     />
                 ) : (
-                    <>
-                        <HostStatusSection
-                            testID="host-status-system"
-                            theme={theme}
-                            title={t('hostStatus.system.title')}
-                        >
-                            <HostSystemCard system={systemModel(data.system, t)} theme={theme} />
-                        </HostStatusSection>
-                        {processes ? (
-                            <>
-                                <HostStatusSection
-                                    footer={
-                                        processes.sessionTotal > sessions.length
-                                            ? t('hostStatus.sessions.truncated', {
-                                                  shown: sessions.length,
-                                                  total: processes.sessionTotal,
-                                              })
-                                            : undefined
-                                    }
-                                    testID="host-status-sessions"
-                                    theme={theme}
-                                    title={t('hostStatus.sessions.title')}
-                                >
-                                    {sessions.length === 0 ? (
-                                        <Text style={[styles.empty, { color: theme.muted }]}>
-                                            {t('hostStatus.sessions.empty')}
-                                        </Text>
-                                    ) : (
-                                        sessions.map((row, index) => (
-                                            <HostSessionRow
-                                                isLast={index === sessions.length - 1}
-                                                key={row.id}
-                                                onOpen={openSession}
-                                                row={row}
-                                                theme={theme}
-                                            />
-                                        ))
-                                    )}
-                                </HostStatusSection>
-                                {services.length > 0 ? (
-                                    <HostStatusSection
-                                        testID="host-status-services"
-                                        theme={theme}
-                                        title={t('hostStatus.services.title')}
-                                    >
-                                        {services.map((row, index) => (
-                                            <HostProcessRow
-                                                isLast={index === services.length - 1}
-                                                key={row.id}
-                                                row={row}
-                                                testID={`host-status-service-${row.id}`}
-                                                theme={theme}
-                                            />
-                                        ))}
-                                    </HostStatusSection>
-                                ) : null}
-                                <HostStatusSection
-                                    accessory={
-                                        <ProcessSortToggle
-                                            onChange={setSort}
-                                            sort={sort}
-                                            theme={theme}
-                                        />
-                                    }
-                                    footer={t('hostStatus.processes.count', {
-                                        count: processes.processCount,
-                                    })}
-                                    testID="host-status-processes"
-                                    theme={theme}
-                                    title={t('hostStatus.processes.title')}
-                                >
-                                    {top.map((row, index) => (
-                                        <HostProcessRow
-                                            isLast={index === top.length - 1}
-                                            key={row.id}
-                                            row={row}
-                                            testID={`host-status-process-${row.id}`}
-                                            theme={theme}
-                                        />
-                                    ))}
-                                </HostStatusSection>
-                            </>
-                        ) : (
-                            <Text
-                                style={[styles.statusText, { color: theme.muted }]}
-                                testID="host-status-processes-unavailable"
-                            >
-                                {t('hostStatus.processesUnavailable')}
-                            </Text>
-                        )}
-                    </>
+                    <HostStatusReady
+                        onOpenSession={openSession}
+                        onSortChange={setSort}
+                        sort={sort}
+                        status={data}
+                        theme={theme}
+                    />
                 )}
             </ScrollView>
         </SafeAreaView>
