@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { initialRevealedRuns, nextRevealedRuns, revealedRunRanges } from './revealed-runs';
+import { initialRevealedRuns, nextRevealedRuns, revealedRunRanges } from '@caxri/protocol';
 
 /**
  * One Markdown text node of a reply still streaming in. Every run of characters the pacer adds in one render becomes
