@@ -32,6 +32,20 @@ async function box(locator: Locator) {
 }
 
 /**
+ * Where the transcript's text starts: its centered column's left edge plus the column's left padding.
+ */
+function contentLeft(log: Locator): Promise<number> {
+    return log.evaluate((element) => {
+        const column = element.firstElementChild;
+        if (!(column instanceof HTMLElement)) throw new Error('Expected a transcript column');
+        return (
+            column.getBoundingClientRect().left +
+            Number(getComputedStyle(column).paddingLeft.replace('px', ''))
+        );
+    });
+}
+
+/**
  * Asserts the one open card sits right of `tick` and inside the window.
  */
 async function expectCardBeside(page: Page, card: Locator, tick: Locator) {
@@ -80,12 +94,30 @@ test('The message rail previews each tick in one fixed-size card for pointer and
             await message.press('Enter');
             await expect(chat.getByText(reply).first()).toBeVisible({ timeout: 30_000 });
         };
+        const setWindowWidth = (width: number) =>
+            running.app.evaluate(({ BrowserWindow }, nextWidth) => {
+                const window = BrowserWindow.getAllWindows()[0];
+                window.setBounds({ ...window.getBounds(), width: nextWidth });
+            }, width);
+        await setWindowWidth(1800);
         await send(MESSAGES[0], /You said: Fix the flaky build/u);
+        const transcriptLeft = () => contentLeft(chat.getByRole('log'));
+        const leftWithoutRail = await transcriptLeft();
         await send(MESSAGES[1], /You said: Summarize topic0/u);
         await send(MESSAGES[2], /You said: Open/u);
         const rail = chat.getByRole('navigation', { name: 'Messages' });
         const ticks = rail.getByRole('button');
         await expect(ticks).toHaveCount(3);
+
+        // A wide Chat's centered column already clears the rail, so its appearing never moves the transcript.
+        expect(await transcriptLeft()).toBeCloseTo(leftWithoutRail, 0);
+        // A narrow Chat loses that margin, and the transcript then pads past the ticks instead of running under them.
+        await setWindowWidth(900);
+        await expect
+            .poll(transcriptLeft)
+            .toBeGreaterThanOrEqual((await box(rail)).x + (await box(rail)).width);
+        await page.screenshot({ path: testInfo.outputPath('rail-narrow-transcript.png') });
+        await setWindowWidth(1800);
         const ids = await ticks.evaluateAll((elements) =>
             elements.map((element) => element.dataset.agentChatRailTick ?? ''),
         );

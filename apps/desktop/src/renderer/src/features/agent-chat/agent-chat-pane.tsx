@@ -323,8 +323,9 @@ export function AgentChatPane({
                         <div
                             className={cn(
                                 'mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none',
-                                // The rail sits at `left-1` and is 20px wide; 28px clears it with the usual gap.
-                                isAgentChatMessageRailShown(railMarks) && 'pl-7',
+                                // Clear the rail only by what the centering margin lacks (DESIGN.md "Spacing and radius").
+                                isAgentChatMessageRailShown(railMarks) &&
+                                    'pl-[clamp(1rem,calc(1.75rem_-_(100%_-_48rem)_/_2),1.75rem)]',
                             )}
                             ref={contentReference}
                         >
