@@ -7,8 +7,9 @@ import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db';
+import { reapGroup } from '../../process-group';
 import { chatStateStore } from '../chat-state-store';
-import { ProviderProcess, reapGroup } from '../provider-process';
+import { ProviderProcess } from '../provider-process';
 import type { ProcessTableEntry, ProviderGroupLedger } from '../provider-process-groups';
 import { reapStaleProviderGroups } from '../provider-process-groups';
 

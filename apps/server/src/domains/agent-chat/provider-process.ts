@@ -1,18 +1,13 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
-import { setTimeout as delay } from 'node:timers/promises';
 
+import { reapGroup } from '../process-group';
 import type { SpawnChatProcess } from './chat-provider';
 import type { ProviderGroupRegistration } from './provider-process-groups';
 import { registerProviderGroup } from './provider-process-groups';
 
 const TERMINATION_GRACE_MS = 1_000;
-
-/**
- * How often the group reaper re-probes whether any member of the provider's process group is still alive.
- */
-const GROUP_PROBE_INTERVAL_MS = 25;
 
 async function hasSettledWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
     let timer: NodeJS.Timeout | undefined;
@@ -28,56 +23,6 @@ async function hasSettledWithin(promise: Promise<unknown>, timeoutMs: number): P
     } finally {
         clearTimeout(timer);
     }
-}
-
-/**
- * Whether group `pgid` still has a member this process may signal. Signal 0 delivers nothing: `kill` fails with ESRCH
- * once the group is empty, and with EPERM when only members this user cannot signal remain, which nothing here could
- * stop either.
- */
-function isGroupAlive(pgid: number): boolean {
-    try {
-        process.kill(-pgid, 0);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-function signalGroup(pgid: number, signal: NodeJS.Signals): void {
-    try {
-        process.kill(-pgid, signal);
-    } catch {
-        // The group emptied after the last probe.
-    }
-}
-
-async function hasGroupEmptiedWithin(pgid: number, timeoutMs: number): Promise<boolean> {
-    const deadline = Date.now() + timeoutMs;
-    while (isGroupAlive(pgid)) {
-        if (Date.now() >= deadline) return false;
-        // eslint-disable-next-line no-await-in-loop -- each probe must observe the group after the previous interval
-        await delay(GROUP_PROBE_INTERVAL_MS);
-    }
-    return true;
-}
-
-/**
- * Stops whatever is left of a provider's process group after its leader exited: SIGTERM, a bounded grace while probing
- * liveness, then SIGKILL. Takes at most two grace periods, and returns at once when the group is already empty.
- *
- * The leader's exit does not end the group. A background tool the Agent started (a dev server, a watcher) inherits the
- * group, survives the leader, and would otherwise keep a port or keep writing files after the Chat stopped. Signaling
- * `-pgid` after the leader is gone is still precise: POSIX keeps a process group ID reserved while any member lives, so
- * the kernel cannot hand that ID to an unrelated process or group until the probe reports the group empty, and the
- * reaper stops signaling there.
- */
-export async function reapGroup(pgid: number): Promise<void> {
-    if (!isGroupAlive(pgid)) return;
-    signalGroup(pgid, 'SIGTERM');
-    if (await hasGroupEmptiedWithin(pgid, TERMINATION_GRACE_MS)) return;
-    signalGroup(pgid, 'SIGKILL');
-    await hasGroupEmptiedWithin(pgid, TERMINATION_GRACE_MS);
 }
 
 /**

@@ -14,7 +14,7 @@ export { claudePlanLimits } from './claude-plan-limits';
 export { withTimeout } from './claude-prompt-queue';
 export { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 export { createAgentChatHandlers } from './handlers';
-export { ProviderProcess, reapGroup } from './provider-process';
+export { ProviderProcess } from './provider-process';
 export { reapStaleProviderGroups } from './provider-process-groups';
 export { AgentChatService } from './service';
 export type { AgentChatServiceOptions } from './service-options';
