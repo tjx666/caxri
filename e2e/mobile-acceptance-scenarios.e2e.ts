@@ -30,8 +30,7 @@ import {
     waitForMobile,
 } from './support/mobile-android.ts';
 import { executeMobileChangesScenario } from './support/mobile-changes-scenarios.ts';
-import { executeMobileConversationScenario } from './support/mobile-conversation-scenarios.ts';
-import { executeMobileConversationTransitionScenario } from './support/mobile-conversation-transition-scenario.ts';
+import { executeMobileConversationCase } from './support/mobile-conversation-cases.ts';
 import {
     countByteSequence,
     executeMobileEndToEndScenario,
@@ -629,9 +628,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-PANELS-01':
             await executeMobileProjectPanelsScenario(environment, artifacts);
             break;
-        case 'MOB-CONV-05':
-            await executeMobileConversationTransitionScenario(environment, artifacts);
-            break;
         case 'MOB-MOTION-01':
         case 'MOB-MOTION-02':
         case 'MOB-MOTION-03':
@@ -642,9 +638,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-CONV-02':
         case 'MOB-CONV-03':
         case 'MOB-CONV-04':
+        case 'MOB-CONV-05':
         case 'MOB-UI-04':
             if (environment.caseId === 'MOB-CONV-01') test.setTimeout(420_000);
-            await executeMobileConversationScenario(
+            await executeMobileConversationCase(
                 { ...environment, launchId, sourceCommit },
                 artifacts,
             );
