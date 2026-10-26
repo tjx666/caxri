@@ -41,7 +41,8 @@ export function agentChatRequestDock(
  * The question card's footer beside Skip.
  *
  * - One question with options and no typed answer has no Submit: a tap on an option sends it, so a Submit would only
- *   repeat what the tap already did.
+ *   repeat what the tap already did. A `multiSelect` question is the exception: a tap ticks an option, and Submit
+ *   sends.
  * - One question answered by typing (a free-text question, or a typed "Other") shows Submit.
  * - Several questions step with Back and Next; the last question, or any question once every question has been opened and
  *   has an answer, shows Submit instead of Next. A recommended default does not count until its question was opened, so
@@ -80,8 +81,12 @@ export function agentChatQuestionFooter({
     const question = request.questions.at(index);
     const canSubmit = Object.keys(answers).length > 0;
     if (count <= 1) {
+        // A multiSelect tap only ticks an option, so that question always needs Submit.
         const isTapSends =
-            question !== undefined && question.options.length > 0 && !typed[question.id]?.trim();
+            question !== undefined &&
+            !question.multiSelect &&
+            question.options.length > 0 &&
+            !typed[question.id]?.trim();
         return { isBackShown: false, primary: isTapSends ? undefined : 'submit', canSubmit };
     }
     const isComplete = request.questions.every(

@@ -75,7 +75,8 @@ async function placeholderLanguage(serial: string): Promise<'chinese' | 'english
  * Typing `/` lists the provider's commands under Commands and the Project's discovered skills under Skills; `/to`
  * narrows the menu to the two skills that share the prefix. Then a two-question `AskUserQuestion` card: with the
  * keyboard closed it fits wholly inside its dock, its options are compact rows, the first option carries the
- * Recommended badge, and an inline Other row sits under the options. Answering both questions finishes the turn.
+ * Recommended badge, and an inline Other row sits under the options. Answering both questions finishes the turn. Last,
+ * a `multiSelect` question keeps its card open across two ticks and sends both on Submit.
  */
 async function executeSkillsAndQuestionFlow(
     environment: MobileAgentScenarioEnvironment,
@@ -239,6 +240,26 @@ async function executeSkillsAndQuestionFlow(
         await waitForNoCheck(serial, 'agent-chat-request');
         await capture(environment, 'question-sent', artifacts);
 
+        // A multiSelect question ticks options instead of answering on the first tap, and Submit sends every tick.
+        await typeChatDraft(serial, 'ask multi');
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
+        await waitForCheck(serial, 'agent-chat-question-0-option-0');
+        await hideChatKeyboard(serial);
+        await waitForCheck(serial, 'agent-chat-question-submit');
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-0');
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
+        // Two taps leave the card open: a single-choice card would have sent after the first.
+        await waitForCheck(serial, 'agent-chat-question-0-option-2');
+        await capture(environment, 'question-multi-ticked', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                /Running Lint.*Unit tests\./u.test(agentText(snapshot)) && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-request');
+        await capture(environment, 'question-multi-sent', artifacts);
+
         await finish(environment, artifacts, {
             language,
             menu: 'commands-and-skills',
@@ -246,6 +267,7 @@ async function executeSkillsAndQuestionFlow(
             optionRowHeightsDp: optionHeights,
             placeholderLanguage: placeholder,
             question: 'fully-visible-and-answered',
+            multiSelect: 'two-ticks-submitted',
             status: 'passed',
         });
     } finally {

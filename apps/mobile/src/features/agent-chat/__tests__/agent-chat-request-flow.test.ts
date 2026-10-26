@@ -106,6 +106,22 @@ describe('agentChatQuestionFooter', () => {
         ).toMatchObject({ primary: 'submit', canSubmit: false });
     });
 
+    it('keeps Submit for one multiSelect question, since a tap only ticks an option', () => {
+        const request = ask({ ...question('a', ['Red', 'Blue']), multiSelect: true });
+        expect(
+            agentChatQuestionFooter({ answers: {}, index: 0, request, seen: ALL, typed: {} }),
+        ).toEqual({ isBackShown: false, primary: 'submit', canSubmit: false });
+        expect(
+            agentChatQuestionFooter({
+                answers: { a: ['Red', 'Blue'] },
+                index: 0,
+                request,
+                seen: ALL,
+                typed: {},
+            }),
+        ).toMatchObject({ primary: 'submit', canSubmit: true });
+    });
+
     it('steps through several questions with Back and Next, then Submit', () => {
         const request = ask(question('a', ['1']), question('b', ['2']), question('c', []));
         expect(
