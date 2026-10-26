@@ -13,11 +13,17 @@ import { AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME } from '../../agent-chat-stop-butt
 import type { AgentChatSendKey } from './agent-chat-send-tooltip';
 import { useIsSteerChordHeld } from './use-is-steer-chord-held';
 
+/**
+ * Each state's glyph with its own optical size. The outline arrows fill the 28px circle at 16px, but a filled Play at
+ * that size reads as an enlarged media button, so it drops to 12px, as the Codex app draws its Resume glyph. No nudge
+ * is needed to center it: lucide already draws the path one unit right of the view box's center, which balances the
+ * triangle's weight toward its flat side.
+ */
 const SEND_GLYPHS = {
-    queue: CornerDownLeft,
-    resume: Play,
-    send: ArrowUp,
-    steer: ArrowUpToLine,
+    queue: { className: 'size-4', Icon: CornerDownLeft },
+    resume: { className: 'size-3 fill-current', Icon: Play },
+    send: { className: 'size-4', Icon: ArrowUp },
+    steer: { className: 'size-4', Icon: ArrowUpToLine },
 } as const;
 
 function sendGlyph(state: {
@@ -38,8 +44,9 @@ function sendGlyph(state: {
  * While a turn runs, its tooltip lists what Enter, Cmd+Enter, and Esc do, and holding Cmd or Ctrl turns it into Steer
  * (an accent "insert into this turn" glyph) so the chord's effect shows before the press; a click then steers too,
  * through the button's `delivery` value. While Enter itself steers (`isSteerDefault`), the button is Steer without a
- * chord. After a stopped or failed turn with nothing typed (`isResume`), it is Continue: an accent play glyph, as in
- * the Codex app, that sends "Continue" for the user.
+ * chord. After a stopped or failed turn with nothing typed (`isResume`), it is Continue: a small play glyph on the same
+ * neutral circle as Send, as in the Codex app, that sends "Continue" for the user. Only Steer takes the accent, because
+ * it is a state the user is holding, not one left resting on screen.
  */
 export function AgentChatSendButton({
     isQueueing,
@@ -66,8 +73,7 @@ export function AgentChatSendButton({
     const isChordHeld = useIsSteerChordHeld() && keys !== undefined;
     const isSteering = isChordHeld || sendAction.kind === 'steer';
     const glyph = sendGlyph({ isQueueing, isResume, isSteering });
-    const isAccent = glyph === 'resume' || glyph === 'steer';
-    const Glyph = SEND_GLYPHS[glyph];
+    const { className: glyphClassName, Icon: Glyph } = SEND_GLYPHS[glyph];
     // Continue names itself; otherwise a held chord turns the action into Steer.
     const resumeOrSteerLabel = t(
         glyph === 'resume' ? 'agentChat.composer.resume' : 'agentChat.queue.steer',
@@ -85,7 +91,7 @@ export function AgentChatSendButton({
                 className={cn(
                     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
                     'transition-[background-color,border-color,color]',
-                    isAccent &&
+                    glyph === 'steer' &&
                         'border-accent bg-accent text-accent-foreground enabled:not-aria-disabled:hover:bg-accent',
                 )}
                 name="delivery"
@@ -104,10 +110,7 @@ export function AgentChatSendButton({
                             initial={{ opacity: 0, scale: 0.6 }}
                             transition={{ duration: 0.12 }}
                         >
-                            <Glyph
-                                className={cn('size-4', glyph === 'resume' && 'fill-current')}
-                                strokeWidth={2.25}
-                            />
+                            <Glyph className={glyphClassName} strokeWidth={2.25} />
                         </m.span>
                     </AnimatePresence>
                 </LazyMotion>

@@ -1277,8 +1277,10 @@ from the next turn (Codex), it adds a `from next turn` caption while a turn runs
 accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
 with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
 checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
-circle holding a `--background` up arrow for Send (a return arrow while the message would queue), or
-a small filled square for Stop. While a turn runs, holding Cmd (or Ctrl) turns Send into Steer before
+circle holding a `--background` up arrow for Send (a return arrow while the message would queue),
+a small filled square for Stop, or, after a stopped or failed turn with nothing typed, a 12px filled
+play glyph for Continue: smaller than the 16px arrows because a filled shape weighs more, and never
+`--accent`, since it rests on screen until the user acts. While a turn runs, holding Cmd (or Ctrl) turns Send into Steer before
 any key is pressed: an `--accent` circle with an arrow-up-to-line glyph named `Steer`, which a click
 then steers too. That slot
 shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
