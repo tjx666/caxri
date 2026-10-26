@@ -12,6 +12,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card';
 import { CopyIconButton } from './copy-icon-button';
+import { InlineButton } from './inline-button';
 import { useLinkContextMenu } from './link-context-menu';
 import { LinkFavicon } from './link-favicon';
 import { PULL_REQUEST_ICONS } from './pull-request-icons';
@@ -72,14 +73,13 @@ export function WebLink({
                 closeDelay={120}
                 delay={350}
                 render={
-                    <button
+                    <InlineButton
                         className={cn(
-                            'cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-3 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent',
+                            'cursor-pointer underline-offset-3 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent',
                             className,
                             // Once the state is known the text takes the icon's tone; unknown keeps the caller's color.
                             pullState && PULL_REQUEST_ICONS[pullState].tone,
                         )}
-                        type="button"
                         onClick={() => onOpen(href)}
                         onContextMenu={onContextMenu}
                     />

@@ -4,12 +4,13 @@ import { useTranslation } from '../../i18n';
 import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { Tooltip } from '../ui/tooltip';
+import { InlineButton } from './inline-button';
 import { useMarkdownContext } from './markdown-context';
 import { RevealingText } from './revealing-text';
 import { WebLink } from './web-link';
 
 const LINK_CLASS_NAME =
-    'cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent';
+    'cursor-pointer text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent';
 
 export function InlineNodes({ nodes }: { nodes: readonly MarkdownInline[] }) {
     return nodes.map((node, position) => (
@@ -44,16 +45,15 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
      */
     return (
         <Tooltip content={t('core.markdown.openFile', { file })}>
-            <button
+            <InlineButton
                 className={cn(
                     className,
                     'cursor-pointer underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
                 )}
-                type="button"
                 onClick={() => onOpenFile(file)}
             >
                 {node.value}
-            </button>
+            </InlineButton>
         </Tooltip>
     );
 }
@@ -79,9 +79,9 @@ function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> 
         );
     return (
         <Tooltip content={href ?? `Open ${file}`}>
-            <button className={LINK_CLASS_NAME} type="button" onClick={open}>
+            <InlineButton className={LINK_CLASS_NAME} onClick={open}>
                 <InlineNodes nodes={node.children} />
-            </button>
+            </InlineButton>
         </Tooltip>
     );
 }
