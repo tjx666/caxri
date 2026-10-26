@@ -166,7 +166,6 @@ type ServiceHandlerMethods =
     | 'theme.get'
     | 'theme.update'
     | 'theme.importPath'
-    | 'config.paths'
     | 'diagnostics.exportPath'
     | 'diagnostics.snapshot'
     | 'logs.query';
@@ -577,11 +576,6 @@ export function createServiceHandlers(services: {
             database.setAppState('activeThemeId', result.value.id);
             return result;
         },
-        'config.paths': () => ({
-            settings: configuration.settingsPath,
-            keybindings: configuration.keybindingsPath,
-            theme: configuration.themePath,
-        }),
         'diagnostics.exportPath': ({ destination }) => diagnostics.export(destination),
         'diagnostics.snapshot': () => diagnostics.snapshot(),
         'logs.query': (parameters) => introspection.logs.query(parameters),

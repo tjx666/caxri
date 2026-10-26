@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import { fileSystemCode, readPrivateJsonFile, replacePrivateJsonFile } from '../private-json-store';
 
+const CURRENT_REGISTRY_VERSION = 2;
 const MAXIMUM_REGISTRY_BYTES = 128 * 1024;
 const credentialSchema = z
     .string()
@@ -32,7 +33,7 @@ const mobileDeviceRecordSchema = z.strictObject({
 });
 
 const mobileDeviceStoreSchema = z.strictObject({
-    version: z.literal(2),
+    version: z.literal(CURRENT_REGISTRY_VERSION),
     preferredPort: z.number().int().min(1).max(65_535).optional(),
     /**
      * The owner left mobile access on, so the next Server start reopens the gateway without another click.
@@ -40,15 +41,6 @@ const mobileDeviceStoreSchema = z.strictObject({
     accessEnabled: z.literal(true).optional(),
     devices: z.array(mobileDeviceRecordSchema).max(128),
 });
-const legacyMobileDeviceStoreSchema = z.strictObject({
-    version: z.literal(1),
-    preferredPort: z.number().int().min(1).max(65_535).optional(),
-    devices: z.array(mobileDeviceRecordSchema.omit({ role: true })).max(128),
-});
-const readableMobileDeviceStoreSchema = z.discriminatedUnion('version', [
-    legacyMobileDeviceStoreSchema,
-    mobileDeviceStoreSchema,
-]);
 
 export type MobileDeviceRecord = z.infer<typeof mobileDeviceRecordSchema>;
 
@@ -82,9 +74,7 @@ function publicRecord(record: MobileDeviceRecord): MobileDeviceSummary {
     };
 }
 
-async function readPrivateStore(
-    path: string,
-): Promise<z.infer<typeof readableMobileDeviceStoreSchema>> {
+async function readPrivateStore(path: string): Promise<z.infer<typeof mobileDeviceStoreSchema>> {
     const source = await readPrivateJsonFile({
         path,
         maxBytes: MAXIMUM_REGISTRY_BYTES,
@@ -95,8 +85,22 @@ async function readPrivateStore(
             wrongOwner: 'Mobile device registry belongs to another user',
         },
     });
+    /**
+     * Unpublished builds wrote other store versions. Opening one as empty would silently fence every paired phone
+     * without explanation, so fail with the recovery step instead of keeping a legacy reader.
+     */
+    if (
+        typeof source === 'object' &&
+        source !== null &&
+        'version' in source &&
+        source.version !== CURRENT_REGISTRY_VERSION
+    )
+        throw new CaxriError(
+            'VALIDATION',
+            'Mobile device registry has an unsupported version; delete mobile-devices.json from the Server profile directory and pair phones again',
+        );
     try {
-        return readableMobileDeviceStoreSchema.parse(source);
+        return mobileDeviceStoreSchema.parse(source);
     } catch (error) {
         if (error instanceof CaxriError) throw error;
         throw new CaxriError('VALIDATION', 'Mobile device registry is malformed');
@@ -111,7 +115,7 @@ async function writePrivateStore(
     random: (bytes: number) => Uint8Array,
 ): Promise<void> {
     const value = mobileDeviceStoreSchema.parse({
-        version: 2,
+        version: CURRENT_REGISTRY_VERSION,
         ...(preferences.preferredPort && { preferredPort: preferences.preferredPort }),
         ...(preferences.isAccessEnabled && { accessEnabled: true }),
         devices: [...devices],
@@ -134,26 +138,16 @@ export class MobileDeviceRegistry {
     static async open(options: MobileDeviceRegistryOptions): Promise<MobileDeviceRegistry> {
         try {
             const store = await readPrivateStore(options.path);
-            /**
-             * Legacy grants have no role and cannot authenticate until the owner explicitly pairs again.
-             */
-            return new MobileDeviceRegistry(
-                options,
-                store.version === 2 ? store.devices : [],
-                {
-                    isAccessEnabled: store.version === 2 && store.accessEnabled === true,
-                    preferredPort: store.preferredPort,
-                },
-                store.version === 1,
-            );
+            return new MobileDeviceRegistry(options, store.devices, {
+                isAccessEnabled: store.accessEnabled === true,
+                preferredPort: store.preferredPort,
+            });
         } catch (error) {
             if (fileSystemCode(error) === 'ENOENT')
-                return new MobileDeviceRegistry(
-                    options,
-                    [],
-                    { isAccessEnabled: false, preferredPort: undefined },
-                    false,
-                );
+                return new MobileDeviceRegistry(options, [], {
+                    isAccessEnabled: false,
+                    preferredPort: undefined,
+                });
             throw error;
         }
     }
@@ -162,7 +156,6 @@ export class MobileDeviceRegistry {
     readonly #options: MobileDeviceRegistryOptions;
     readonly #random: (bytes: number) => Uint8Array;
     #preferences: MobileGatewayPreferences;
-    #isLegacyStore: boolean;
     #records: Map<string, MobileDeviceRecord>;
     #writeTail = Promise.resolve();
 
@@ -170,13 +163,11 @@ export class MobileDeviceRegistry {
         options: MobileDeviceRegistryOptions,
         records: MobileDeviceRecord[],
         preferences: MobileGatewayPreferences,
-        isLegacyStore: boolean,
     ) {
         this.#options = options;
         this.#now = options.now ?? Date.now;
         this.#random = options.random ?? randomBytes;
         this.#preferences = preferences;
-        this.#isLegacyStore = isLegacyStore;
         this.#records = new Map(records.map((record) => [record.deviceId, record]));
         if (this.#records.size !== records.length)
             throw new CaxriError('VALIDATION', 'Mobile device registry contains duplicate devices');
@@ -207,7 +198,6 @@ export class MobileDeviceRegistry {
                 this.#random,
             );
             this.#records = records;
-            this.#isLegacyStore = false;
             return result;
         })();
         this.#writeTail = (async (): Promise<void> => {
@@ -229,10 +219,6 @@ export class MobileDeviceRegistry {
         const previousWrite = this.#writeTail;
         const operation = (async (): Promise<void> => {
             await previousWrite;
-            if (this.#isLegacyStore) {
-                this.#preferences = next;
-                return;
-            }
             await writePrivateStore(
                 this.#options.directory,
                 this.#options.path,

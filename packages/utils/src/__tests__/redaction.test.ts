@@ -3,6 +3,23 @@ import { describe, expect, it } from 'vitest';
 import { redactArgv, redactCommandLine, redactSecretText } from '../redaction';
 
 describe('secret redaction', () => {
+    it('redacts URL userinfo credentials while keeping host and path', () => {
+        expect(redactSecretText('clone https://user:p%40ss@example.com/org/repo.git now')).toBe(
+            'clone https://[REDACTED]@example.com/org/repo.git now',
+        );
+        expect(redactSecretText('ssh://deploy:pw@git.example.com:2222/repo')).toBe(
+            'ssh://[REDACTED]@git.example.com:2222/repo',
+        );
+        expect(redactSecretText('https://abc123token@example.com/a?b=c')).toBe(
+            'https://[REDACTED]@example.com/a?b=c',
+        );
+    });
+
+    it('leaves URLs without userinfo unchanged', () => {
+        const url = 'https://example.com/path/user@host?x=1#a@b';
+        expect(redactSecretText(url)).toBe(url);
+    });
+
     it('redacts quoted JSON secret fields without breaking their structure', () => {
         const source = JSON.stringify({
             token: 'v_token_7x',

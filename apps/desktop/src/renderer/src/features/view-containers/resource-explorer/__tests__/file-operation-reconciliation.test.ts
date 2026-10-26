@@ -230,6 +230,7 @@ describe('file mutation reconciliation', () => {
             id: 'operation-late-move',
             kind: 'move',
             sessionId: 'session-a',
+            workbenchProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -337,6 +338,7 @@ describe('file mutation reconciliation', () => {
             id: 'operation-retry-move',
             kind: 'move',
             sessionId: 'session-a',
+            workbenchProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -471,6 +473,7 @@ describe('file mutation reconciliation', () => {
             id: operationId,
             kind: 'move',
             sessionId: 'session-a',
+            workbenchProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,
@@ -521,6 +524,7 @@ describe('file mutation reconciliation', () => {
             id: 'operation-ack-retry',
             kind: 'move',
             sessionId: 'session-a',
+            workbenchProjectId: 'project-1',
             phase: 'completed',
             input: {
                 path: previousPath,

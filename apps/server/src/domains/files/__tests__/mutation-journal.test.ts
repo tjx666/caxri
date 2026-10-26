@@ -27,6 +27,7 @@ function createOperation(
         id,
         kind: 'create',
         sessionId,
+        workbenchProjectId: 'project-1',
         phase: 'pre_stage',
         input: { directory, kind: 'file', name: `${id}.txt` },
         startedAt: now,
@@ -112,6 +113,36 @@ describe('FileMutationJournal', () => {
         await journal.close();
     });
 
+    it('rejects a persisted record without workbenchProjectId and leaves user files untouched', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-legacy-'));
+        temporaryDirectories.push(directory);
+        const journalPath = join(directory, 'operations.json');
+        const source = join(directory, 'source.txt');
+        const target = join(directory, 'operation-legacy.txt');
+        await writeFile(source, 'keep', 'utf8');
+        const legacy: Partial<FileMutationOperation> = createOperation(
+            'operation-legacy',
+            directory,
+        );
+        delete legacy.workbenchProjectId;
+        const journalSource = `${JSON.stringify([legacy])}\n`;
+        await writeFile(journalPath, journalSource, 'utf8');
+        const journal = new FileMutationJournal(
+            journalPath,
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+
+        await expect(journal.initialize()).rejects.toMatchObject({ code: 'VALIDATION' });
+        await expect(journal.get('operation-legacy')).rejects.toMatchObject({
+            code: 'VALIDATION',
+        });
+        expect(await readFile(source, 'utf8')).toBe('keep');
+        await expect(access(target)).rejects.toThrow();
+        expect(await readFile(journalPath, 'utf8')).toBe(journalSource);
+        await journal.close();
+    });
+
     it('times out a stuck pre-stage operation before it can mutate files', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-pre-stage-'));
         temporaryDirectories.push(directory);
@@ -192,6 +223,7 @@ describe('FileMutationJournal', () => {
                 id: 'operation-3',
                 kind: 'rename',
                 sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
                 phase: 'pre_stage',
                 input: { name: 'target.txt', path: source },
                 startedAt,
@@ -320,6 +352,7 @@ describe('FileMutationJournal', () => {
                 id: 'operation-foreign-target',
                 kind: 'rename',
                 sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
                 phase: 'pre_stage',
                 input: { name: 'target.txt', path: source },
                 startedAt: 1,
@@ -400,6 +433,7 @@ describe('FileMutationJournal', () => {
                     id: 'operation-final-retry',
                     kind: 'rename',
                     sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
                     phase: 'pre_stage',
                     input: { name: 'target.txt', path: source },
                     startedAt,

@@ -1,10 +1,5 @@
-import type { ProjectRecord, SessionRecord, SessionState, TerminalRecord } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    agentProviderIds,
-    createPaneLayout,
-    openResource,
-} from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -18,7 +13,6 @@ import {
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
     shutdownOutcome,
-    withTerminalRemovedFromLayout,
 } from '../session-policy';
 
 function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
@@ -675,24 +669,5 @@ describe('selectFallbackAfterDeletion', () => {
             projectId: null,
             sessionId: null,
         });
-    });
-});
-
-describe('withTerminalRemovedFromLayout', () => {
-    it('composes the shared pure pane layout reducer instead of editing the tree inline', () => {
-        const layout = createPaneLayout({ kind: 'terminal', terminalId: 'terminal-1' });
-        const paneLayout = openResource(layout, { kind: 'terminal', terminalId: 'terminal-2' });
-        const state: SessionState = {
-            sessionId: 'session-1',
-            revision: 0,
-            workbenchProjectId: 'project-1',
-            desiredSecondarySidebarViewContainerId: 'caxri.files',
-            paneLayout,
-        };
-
-        const next = withTerminalRemovedFromLayout(state, 'terminal-2');
-
-        expect(next).not.toBe(state);
-        expect(next.paneLayout).not.toBe(state.paneLayout);
     });
 });

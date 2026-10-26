@@ -511,32 +511,3 @@ export function createEventJournal(options: {
         },
     };
 }
-
-/**
- * Drops duplicate replay and reports the first gap so a client can request convergence.
- */
-export function acceptEventSequence(
-    currentCursor: number,
-    incoming: readonly ProtocolEventEnvelope[],
-):
-    | { kind: 'accepted'; cursor: number; events: ServerEvent[] }
-    | { kind: 'gap'; cursor: number; expectedCursor: number; receivedCursor: number } {
-    cursorSchema.parse(currentCursor);
-    const events: ServerEvent[] = [];
-    let cursor = currentCursor;
-    for (const value of incoming) {
-        const envelope = protocolEventEnvelopeSchema.parse(value);
-        if (envelope.cursor <= cursor) continue;
-        if (envelope.cursor !== cursor + 1) {
-            return {
-                kind: 'gap',
-                cursor,
-                expectedCursor: cursor + 1,
-                receivedCursor: envelope.cursor,
-            };
-        }
-        cursor = envelope.cursor;
-        events.push(envelope.event);
-    }
-    return { kind: 'accepted', cursor, events };
-}

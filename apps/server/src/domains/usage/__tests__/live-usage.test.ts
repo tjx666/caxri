@@ -163,6 +163,28 @@ describe('LiveAgentUsage.readTask', () => {
         expect((await usage.readTask('terminal-1', 'toolu_a'))?.tokens.output).toBe(9);
     });
 
+    it('ignores a subagent sidecar that is oversized or not a regular file', async () => {
+        const { environment, directory } = await claudeProject();
+        await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));
+        const root = join(directory, FIRST, 'subagents');
+        await mkdir(root, { recursive: true });
+        await writeFile(join(root, 'agent-big.jsonl'), line('s1', 7));
+        await writeFile(
+            join(root, 'agent-big.meta.json'),
+            JSON.stringify({ toolUseId: 'toolu_big', padding: 'x'.repeat(70 * 1024) }),
+        );
+        await writeFile(join(root, 'agent-dir.jsonl'), line('s2', 11));
+        await mkdir(join(root, 'agent-dir.meta.json'));
+        const usage = new LiveAgentUsage(
+            boundTerminal({ agentSessionId: FIRST }),
+            environment,
+            () => PRICE,
+            () => T0,
+        );
+        expect(await usage.readTask('terminal-1', 'toolu_big')).toBeNull();
+        expect(await usage.readTask('terminal-1', 'toolu_dir')).toBeNull();
+    });
+
     it('reports nothing for an unknown task or a provider without subagent transcripts', async () => {
         const { environment, directory } = await claudeProject();
         await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));

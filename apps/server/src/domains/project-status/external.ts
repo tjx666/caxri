@@ -1,9 +1,8 @@
-import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { ProjectStatusDeployment, ProjectStatusError } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 
 import type { CliFailureKind, ExternalStatusSource } from '../external-status';
 import { retryTimeLabel } from '../retry-time';
@@ -47,6 +46,8 @@ const REFERENCE_IDENTIFIER_PATTERN = /^([a-z][a-z0-9]*-[1-9]\d*)(?![\w-])/iu;
 const REFERENCE_PREFIX_PATTERN = /^(?:[^\S\n]+|[:：]|issues?\b)/iu;
 const REFERENCE_SEPARATOR_PATTERN = /^(?:[^\S\n]+|[,;、&+]|and\b|issues?\b|#\d+\b)/iu;
 
+const MAX_VERCEL_LINK_BYTES = 16_384;
+
 /**
  * A deployment search cannot prove whether `vc link` succeeded: a newly linked project may have no deployments yet.
  * Vercel writes the link IDs to this local file. Read a bounded regular file without following a symlink.
@@ -54,23 +55,22 @@ const REFERENCE_SEPARATOR_PATTERN = /^(?:[^\S\n]+|[,;、&+]|and\b|issues?\b|#\d+
  * @see https://vercel.com/docs/cli/project-linking
  */
 export async function hasLocalVercelLink(rootPath: string): Promise<boolean> {
-    let file: Awaited<ReturnType<typeof open>>;
+    let text: string;
     try {
-        file = await open(
+        text = await readBoundedRegularFileText(
             join(rootPath, '.vercel', 'project.json'),
-            constants.O_RDONLY | constants.O_NOFOLLOW,
+            MAX_VERCEL_LINK_BYTES,
+            { symlinks: 'nofollow' },
         );
     } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT') return false;
+        // Oversized and non-regular files are refused by the shared reader as CAPACITY and IO errors.
+        if (error instanceof CaxriError) return false;
         throw error;
     }
     try {
-        const stats = await file.stat();
-        if (!stats.isFile() || stats.size > 16_384) return false;
-        const buffer = Buffer.alloc(16_385);
-        const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-        if (bytesRead === buffer.length) return false;
-        const link: unknown = JSON.parse(buffer.toString('utf8', 0, bytesRead));
+        const link: unknown = JSON.parse(text);
         return (
             link !== null &&
             typeof link === 'object' &&
@@ -81,8 +81,6 @@ export async function hasLocalVercelLink(rootPath: string): Promise<boolean> {
     } catch (error) {
         if (error instanceof SyntaxError) return false;
         throw error;
-    } finally {
-        await file.close();
     }
 }
 

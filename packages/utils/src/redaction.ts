@@ -31,7 +31,12 @@ const SECRET_VALUE =
  * Not named `URL`: bundlers hoist this module into the Renderer's top-level scope, where that name can shadow the
  * global `URL` constructor that asset imports (`new URL(asset, import.meta.url)`) rely on.
  */
-const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
+const URL_PATTERN = /(?:https?|ssh|git|ftps?):\/\/[^\s<>"']+/gi;
+/**
+ * The `user:password@` or `token@` authority prefix of a URL. The userinfo ends at the last `@` before the first path,
+ * query, or fragment delimiter.
+ */
+const URL_USERINFO = /^([a-z][a-z\d+.-]*:\/\/)[^\s/?#]*@/i;
 const PRESIGNED_QUERY_PARAMETER =
     /(?:^|&)(?:x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential|signature|sig)=/i;
 
@@ -49,11 +54,19 @@ function redactPresignedUrl(value: string): string {
 }
 
 /**
+ * Embedded userinfo credentials (`https://user:password@host`, `https://token@host`) are secrets, so the whole userinfo
+ * is replaced while the scheme, host, and path stay readable.
+ */
+function redactUrlUserinfo(value: string): string {
+    return value.replace(URL_USERINFO, (_match, scheme: string) => `${scheme}${REDACTED}@`);
+}
+
+/**
  * Browser-safe subset shared by diagnostics and user-previewed bug reports.
  */
 export function redactSecretText(value: string): string {
     return value
-        .replaceAll(URL_PATTERN, (match) => redactPresignedUrl(match))
+        .replaceAll(URL_PATTERN, (match) => redactPresignedUrl(redactUrlUserinfo(match)))
         .replaceAll(SECRET_VALUE, '[REDACTED]')
         .replaceAll(SECRET_ASSIGNMENT, (_match, prefix: string, secret: string) => {
             const quote =

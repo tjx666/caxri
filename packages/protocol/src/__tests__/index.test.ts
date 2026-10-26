@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CommandAdapter, CommandExecutionContext, ServerEvent } from '../index';
 import {
-    acceptEventSequence,
     agentSkillHealthSchema,
     capabilityIds,
     CAXRI_PROTOCOL_VERSION,
@@ -579,20 +578,12 @@ describe('recoverable event cursor', () => {
                 agentRevision: 1,
             }),
         });
-        const first = journal.publish(changed('project.create'));
+        journal.publish(changed('project.create'));
         const second = journal.publish(changed('session.create'));
         await expect(journal.recover(1)).resolves.toEqual({
             kind: 'events',
             cursor: 2,
             events: [second],
-        });
-        const accepted = acceptEventSequence(0, [first, first, second]);
-        expect(accepted).toMatchObject({ kind: 'accepted', cursor: 2 });
-        expect(acceptEventSequence(0, [second])).toEqual({
-            kind: 'gap',
-            cursor: 0,
-            expectedCursor: 1,
-            receivedCursor: 2,
         });
         journal.publish(changed('project.create'));
         await expect(journal.recover(0)).resolves.toMatchObject({

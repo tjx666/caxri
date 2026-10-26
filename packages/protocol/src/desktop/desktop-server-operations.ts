@@ -16,7 +16,6 @@ export const desktopServerOperationIds = [
     'app.windowState.update',
     'bugReport.deliver',
     'commander.clearData',
-    'config.paths',
     'settings.trustDomain',
     'settings.trustFolder',
     'diagnostics.exportPath',

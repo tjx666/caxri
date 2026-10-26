@@ -556,15 +556,6 @@ export const internalMethods = {
     },
     ...windowStateInternalMethods,
     ...bugReportInternalMethods,
-    'config.paths': {
-        ...serverRead,
-        params: noParameters,
-        result: z.object({
-            settings: z.string(),
-            keybindings: z.string(),
-            theme: z.string(),
-        }),
-    },
     'settings.trustDomain': {
         ...serverWrite,
         params: z.object({ domain: z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH) }),

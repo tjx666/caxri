@@ -1,13 +1,5 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
-import { compareSessionActivityRecency, compareSessionSidebarOrder } from '@caxri/protocol';
-
-/**
- * Session Activity is a product-owned work clock, not visit history. The deterministic fallbacks matter for upgraded
- * rows and independently created records that can legitimately share one timestamp.
- */
-export function sessionsByActivity(sessions: readonly SessionRecord[]): SessionRecord[] {
-    return sessions.toSorted(compareSessionActivityRecency);
-}
+import { compareSessionSidebarOrder } from '@caxri/protocol';
 
 /**
  * Produces the exact visible Session sequence: Project order remains explicit and stable, while only Sessions inside
