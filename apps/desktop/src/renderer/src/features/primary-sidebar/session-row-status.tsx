@@ -26,8 +26,8 @@ export function SessionRowStatus({
     terminal,
 }: {
     /**
-     * Collapses the slot on row hover so Pin and Archive own the right edge; what the glyph said stays in the hover
-     * card.
+     * Collapses the slot on row hover so Pin and Archive own the right edge; the hover card restates a non-default
+     * status as one muted line.
      */
     className: string;
     pullRequest?: SessionPullRequest;
