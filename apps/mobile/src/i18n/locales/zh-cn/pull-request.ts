@@ -51,6 +51,8 @@ export const pullRequest: TranslatedNamespace<typeof source> = {
     'pullRequest.merged.squash': '已压缩合并 #{{number}}。',
     'pullRequest.merged.merge': '已通过合并提交合并 #{{number}}。',
     'pullRequest.merged.rebase': '已变基合并 #{{number}}。',
+    'pullRequest.mergedConfirmed': '已合并 #{{number}}。',
+    'pullRequest.mergeNotCompleted': '合并没有完成，可以再试一次。',
     'pullRequest.mergeFailed': 'GitHub 未合并此 Pull Request。{{reason}}',
     'pullRequest.mergeLostConnection': '在 GitHub 回应之前连接中断。正在检查此 Pull Request…',
     'pullRequest.mergeConflict': '此 Pull Request 现在存在冲突。',
