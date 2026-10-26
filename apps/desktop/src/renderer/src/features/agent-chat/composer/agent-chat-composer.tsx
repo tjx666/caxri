@@ -355,12 +355,14 @@ export function AgentChatComposer({
             <div className="relative">
                 <AgentChatComposerStrip
                     activeTurnId={activeTurnId}
+                    activity={activity}
                     isQueuePaused={isQueuePaused}
                     isTurnRunning={isTurnRunning}
                     pendingQueue={pendingQueue}
                     queue={queue}
                     snapshot={snapshot}
                     terminalId={terminalId}
+                    onOpenTask={onOpenTask}
                     onQueueAction={focusInput}
                     onQueueEdit={restoreQueued}
                 >
@@ -382,8 +384,6 @@ export function AgentChatComposer({
                         terminalId={terminalId}
                         onCompact={compact}
                         onContinueInNewChat={continueInNewChat}
-                        onOpenTask={onOpenTask}
-                        onPopoverClosed={() => inputReference.current?.element ?? null}
                     />
                 </AgentChatComposerStrip>
                 <form

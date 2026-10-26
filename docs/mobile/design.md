@@ -349,7 +349,7 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   `48dp` row shows or hides them, and a
   running turn never folds. The Agent's plan
   is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
-  expands to its steps. Below it one quiet status row, as Desktop's, leads with what the turn is
+  expands to its steps. Below it one quiet status row leads with what the turn is
   doing and carries a badge of the running subagents and background shells (a glyph and count per
   kind); once the turn ended, the running work leads the row instead
   (`Still running in the background: bun run dev`). The badge, or that row, opens a sheet listing each with its glyph, title,

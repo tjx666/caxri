@@ -2,13 +2,13 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { openBackgroundWork } from './support/agent-chat-background-work.ts';
 import { expectComposerValue } from './support/agent-chat-composer.ts';
 import {
     fakeClaudeChatAgentMode,
     fakeCodexChatAgentMode,
     openAgentChat,
 } from './support/agent-chat-fixture.ts';
-import { openBackgroundWork } from './support/agent-chat-status-row.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -49,8 +49,8 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
 
         await message.fill('start a subagent hold');
         await message.press('Enter');
-        // The status row's Background work popover lists the running subagent.
-        const strip = await openBackgroundWork(page, chat);
+        // The composer strip's Background work section lists the running subagent.
+        const strip = await openBackgroundWork(chat);
         const openSubagent = strip.getByRole('button', { name: /^Open Inspect the fixtures/u });
         await expect(openSubagent).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-subagent-strip.png') });
@@ -73,7 +73,7 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
         await message.press('Enter');
         await expect(chat.getByText('The dev server is running in the background.')).toBeVisible();
         await (
-            await openBackgroundWork(page, chat)
+            await openBackgroundWork(chat)
         )
             .getByRole('button', { name: /^Open .*bun run dev/u })
             .click();
@@ -275,11 +275,11 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
 
         await message.fill('run in background');
         await message.press('Enter');
-        const strip = await openBackgroundWork(page, chat);
+        const strip = await openBackgroundWork(chat);
         await strip.getByRole('button', { name: /^Open / }).click();
         // The Bash call's description names the shell; its tab still shows the command line above the output.
         await expect(
-            (await openBackgroundWork(page, chat)).getByRole('button', {
+            (await openBackgroundWork(chat)).getByRole('button', {
                 name: 'Open Print ticks',
             }),
         ).toBeVisible();
@@ -288,8 +288,7 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-shell-tab.png') });
         await strip.getByRole('button', { name: /^Stop / }).click();
-        // The status row is live status: it folds away, popover and all, once nothing runs.
-        await expect(chat.locator('[data-agent-chat-status-row]')).toHaveCount(0);
+        // Background work is live status: the section leaves once nothing runs.
         await expect(strip).toHaveCount(0);
         await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('claude-shell-stopped.png') });

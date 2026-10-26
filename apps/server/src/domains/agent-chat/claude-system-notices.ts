@@ -16,20 +16,21 @@ type AgentChatNoticeCompaction = NonNullable<
     Extract<AgentChatItem, { type: 'notice' }>['compaction']
 >;
 
+type Notice = Extract<AgentChatItem, { type: 'notice' }>;
 type NoticeHost = Pick<AgentChatSessionHost, 'apply' | 'lifecycle' | 'read'>;
 type RetryCause = NonNullable<Extract<AgentChatItem, { type: 'notice' }>['retry']>['cause'];
 
 /**
- * Only explicit feedback belongs in Chat; successful Hook diagnostics remain internal.
+ * Only explicit feedback belongs in Chat; successful Hook diagnostics remain internal. Returns the notices it added.
  */
-export function didApplyClaudeFeedback(
+export function applyClaudeFeedback(
     host: NoticeHost,
     message: Json,
     scope: 'agent' | 'session' = 'session',
-): boolean {
+): Notice[] {
     const items = claudeFeedbackItems(message, host.read().activeTurnId, scope);
     if (items.length > 0) host.apply(items.map((item) => ({ op: 'upsertItem', item })));
-    return items.length > 0;
+    return items;
 }
 
 function didClearCompacting(host: NoticeHost): boolean {

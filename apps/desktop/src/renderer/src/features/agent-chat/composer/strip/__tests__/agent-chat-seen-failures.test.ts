@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { withSeenFailures } from './agent-chat-seen-failures';
+import { withSeenFailures } from '../agent-chat-seen-failures';
 
 describe('withSeenFailures', () => {
     it('adds failures per Chat Terminal', () => {

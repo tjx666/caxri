@@ -1,7 +1,7 @@
-import type { AgentChatItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { parseAgentChatGoalReply } from '../agent-chat-goal-reply';
+import type { AgentChatItem } from '../agent-chat-contract.js';
+import { parseAgentChatGoalReply } from '../agent-chat-goal.js';
 
 function output(message: string, title = '/goal'): Extract<AgentChatItem, { type: 'notice' }> {
     return { id: 'notice', type: 'notice', kind: 'output', title, message };

@@ -3,7 +3,11 @@ import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import type { MarkdownBlockOptions } from '@caxri/markdown';
 import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
 import type { AgentChatItem, AgentChatTurnArtifacts, AgentChatTurnMetrics } from '@caxri/protocol';
-import { agentChatNoticeMessage, agentChatRetryHeadline } from '@caxri/protocol';
+import {
+    agentChatNoticeMessage,
+    agentChatRetryHeadline,
+    parseAgentChatGoalReply,
+} from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import { Check, CircleAlert, Hourglass, RotateCw, ServerCrash, WifiOff } from 'lucide-react';
 
@@ -13,7 +17,6 @@ import { MarkdownBlocks } from '../../../components/markdown/markdown-blocks';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { AgentChatGoalNotice } from '../activity/agent-chat-goal-notice';
-import { parseAgentChatGoalReply } from '../activity/agent-chat-goal-reply';
 import { useAgentChatDiagrams } from '../hooks/use-agent-chat-diagrams';
 import { useAgentChatPacedText } from '../hooks/use-agent-chat-paced-text';
 import { useAgentChatReplyMenu } from '../hooks/use-agent-chat-reply-menu';

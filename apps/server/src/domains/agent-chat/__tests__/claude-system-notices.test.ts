@@ -2,7 +2,7 @@ import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatSessionHost } from '../chat-provider';
-import { didApplyClaudeFeedback, onClaudeApiRetry } from '../claude-system-notices';
+import { applyClaudeFeedback, onClaudeApiRetry } from '../claude-system-notices';
 
 function harness() {
     let snapshot = emptyAgentChatSnapshot('terminal-1');
@@ -38,13 +38,13 @@ describe('Claude system output visibility', () => {
         { subtype: 'unknown_diagnostic', content: 'Provider diagnostic.' },
     ])('keeps $subtype diagnostics out of the conversation', (frame) => {
         const host = harness();
-        didApplyClaudeFeedback(host, frame);
+        applyClaudeFeedback(host, frame);
         expect(host.read().items).toEqual([]);
     });
 
     it('keeps readable failure details without control JSON', () => {
         const host = harness();
-        didApplyClaudeFeedback(host, {
+        applyClaudeFeedback(host, {
             subtype: 'hook_response',
             hook_name: 'Example',
             outcome: 'error',
@@ -67,7 +67,7 @@ describe('Claude system output visibility', () => {
         'preserves explicit %s feedback',
         (subtype) => {
             const host = harness();
-            didApplyClaudeFeedback(host, {
+            applyClaudeFeedback(host, {
                 subtype,
                 content: 'Explicit feedback.',
                 stdout: '{}',
@@ -80,7 +80,7 @@ describe('Claude system output visibility', () => {
 
     it('preserves explicit local command results as a reply', () => {
         const host = harness();
-        didApplyClaudeFeedback(host, {
+        applyClaudeFeedback(host, {
             subtype: 'local_command_output',
             content: 'Command result.',
         });
@@ -97,7 +97,7 @@ describe('Claude system output visibility', () => {
     it('preserves long explicit feedback without turning unrelated fields into content', () => {
         const host = harness();
         const content = 'Synthetic feedback. '.repeat(250);
-        didApplyClaudeFeedback(host, {
+        applyClaudeFeedback(host, {
             subtype: 'informational',
             content,
             output: 'Diagnostic.',

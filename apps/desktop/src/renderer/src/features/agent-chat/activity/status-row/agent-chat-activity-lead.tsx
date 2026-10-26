@@ -80,20 +80,19 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 /**
  * The status row's lead while the Chat starts, works, or compacts: the working glyph, the turn's verb under a sweeping
  * highlight, and how long it has run, so a long turn reads as progress rather than a stall. A new verb (or `Stopping…`)
- * rises in while the old one lifts away. A turn waiting on the user shows no lead: its request card right above already
- * says so. The status row's live region announces the text, so this copy stays out of the accessibility tree.
+ * rises in while the old one lifts away. The activity bar's live region announces the text, so this copy stays out of
+ * the accessibility tree.
  */
 export function AgentChatActivityLead({
     activity,
     isStopping,
     turnId,
 }: {
-    activity: AgentChatActivity;
+    activity: Exclude<AgentChatActivity, { kind: 'waiting' }>;
     isStopping: boolean;
     turnId: string | undefined;
 }) {
     const { t } = useTranslation();
-    if (activity.kind === 'waiting') return null;
     const text = isStopping ? t('agentChat.activity.stopping') : activity.text;
     return (
         <span aria-hidden="true" className="flex min-w-0 items-center gap-2">

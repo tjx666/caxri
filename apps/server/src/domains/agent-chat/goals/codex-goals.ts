@@ -5,9 +5,9 @@ import {
     MAX_AGENT_CHAT_GOAL_OBJECTIVE_LENGTH,
 } from '@caxri/protocol';
 
-import { clip, isRecord, stringField } from './chat-items';
-import type { AgentChatSessionHost } from './chat-provider';
-import type { JsonRpcConnection } from './json-rpc-connection';
+import { clip, isRecord, stringField } from '../chat-items';
+import type { AgentChatSessionHost } from '../chat-provider';
+import type { JsonRpcConnection } from '../json-rpc-connection';
 
 const GOAL_REQUEST_TIMEOUT_MS = 10_000;
 /**

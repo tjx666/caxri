@@ -27,7 +27,7 @@ const TASK_ENTRY_CLASS_NAME =
  * Stops one background task. While the stop is pending it spins and refuses clicks; `aria-disabled` rather than
  * `disabled` keeps a keyboard user's focus on it.
  */
-export function AgentChatTaskStopButton({
+function AgentChatTaskStopButton({
     task,
     terminalId,
 }: {
@@ -62,8 +62,9 @@ export function AgentChatTaskStopButton({
 }
 
 /**
- * One background task in the status row's task list: its kind, title, elapsed time, and status, opening its side tab on
- * click where the host can open one, with Stop while it runs. Stopping the turn with Esc never stops it.
+ * One background task in the composer strip's Background work list: its kind, title, elapsed time, and status, opening
+ * its side tab on click where the host can open one, with Stop while it runs. Stopping the turn with Esc never stops
+ * it.
  */
 export function AgentChatTaskEntry({
     task,

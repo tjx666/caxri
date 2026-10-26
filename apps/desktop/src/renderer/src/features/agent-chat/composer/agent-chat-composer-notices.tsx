@@ -21,8 +21,6 @@ export function AgentChatComposerNotices({
     notice,
     onCompact,
     onContinueInNewChat,
-    onOpenTask,
-    onPopoverClosed,
     snapshot,
     terminalId,
 }: {
@@ -34,10 +32,7 @@ export function AgentChatComposerNotices({
     notice: string | undefined;
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
-    onOpenTask: ((taskId: string) => void) | undefined;
-    onPopoverClosed: () => HTMLElement | null;
-    snapshot:
-        Pick<AgentChatSnapshot, 'plan' | 'tasks' | 'turns' | 'usage' | 'usageGuard'> | undefined;
+    snapshot: Pick<AgentChatSnapshot, 'usage' | 'usageGuard'> | undefined;
     terminalId: string;
 }) {
     const guard = snapshot?.usageGuard;
@@ -47,11 +42,8 @@ export function AgentChatComposerNotices({
             <AgentChatActivityBar
                 activity={activity}
                 notice={notice}
-                snapshot={snapshot}
                 terminalId={terminalId}
                 turnId={activeTurnId}
-                onOpenTask={onOpenTask}
-                onPopoverClosed={onPopoverClosed}
             />
             <AgentChatEditBar edit={edit} />
             {guard && <AgentChatUsageGuardCard guard={guard} terminalId={terminalId} />}

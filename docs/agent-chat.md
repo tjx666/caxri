@@ -495,9 +495,9 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   breakdown share this side pane. A subagent tab is a read-only
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
-  in the composer status row's Background work popover, where each opens or stops on its own, and an `N
-ended` disclosure expands the ended ones. The row is live status, not a log: it lets go of tasks once the
-  last one ends and its failures were seen, since the Agent reports the result in the conversation
+  in the composer strip's collapsible Background work section, where each opens or stops on its own, and an `N
+ended` disclosure expands the ended ones. The section is live status, not a log: it leaves once the
+  last task ends and its failures were dismissed, since the Agent reports the result in the conversation
   (`agentChatTaskStrip` in `packages/protocol/src/agent/agent-chat-tasks.ts`, whose `agentChatTaskStripView` the
   phone shows; see [Mobile](#mobile)). A finished task stays reachable from its
   timeline row.
@@ -832,8 +832,8 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   pie is a neutral glyph with no number; from 85%, where compacting is suggested, it turns `--warning` and shows the percentage, and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
-  A single status row at the top of the composer card says whether the Chat is starting or working, and after the turn
-  what still needs the user (`agentChatStatusRowView`); a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
+  A single status row at the top of the composer card says whether the Chat is starting or working, with the plan and
+  background work as collapsible sections above it (`agentChatPlanSection`, `agentChatBackgroundWork`); a working turn shows one verb chosen per turn from its id, its elapsed time, and on the right what the turn
   has spent so far, as LobeHub's composer tray does: steps, tokens (the Usage page's `total`), and
   the cost estimated from the bundled price list (a bare figure, its currency in the tooltip), each behind an icon with a pointer tooltip. A figure still at zero
   is hidden, a single step too, and a strip narrower than 360px keeps only tokens. The elapsed time, these figures, and
@@ -846,12 +846,11 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   ordinary message, the one the user would otherwise type (`isAgentChatTurnResumable`). The Codex app starts an
   empty turn instead, which not every provider supports. Enter in the empty input stays inert, so a stray press never
   sends; typing, an attachment, a queued message, Goal mode, or "Edit from here" brings Send back. The plan
-  (`ListTodo 2/5`) and background work badges sit at the row's far right and each opens one popover anchored to the
-  row with only its own section; after the turn, the row leads with a running task (inline Stop), several running
-  tasks, unseen failures, or `Plan stopped at 2/5`. A failure counts as seen once the task list was opened and the
-  popover closed (`agentChatSeenTaskFailures`, per window), and only failures that ended during the latest turn light
-  up, so reopening a Chat never resurfaces old ones. Only the row's summary is the polite live
-  region, so the ticking time is never announced.
+  and background work are collapsible sections in the strip above the row, each folded or unfolded per Chat for the
+  window's lifetime (`agentChatStripFolds`). A failure from the latest turn stays in the Background work section until
+  the user dismisses it with the section's X (`agentChatSeenTaskFailures`, per window), and only failures that ended
+  during the latest turn count, so reopening a Chat never resurfaces old ones. Only the activity summary and the strip's
+  `N running · M failed` counts are polite live regions, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
   keeps its own text.
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
@@ -1144,8 +1143,8 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   `Stopped after X` row (`agentChatTurnLabel`) that a tap expands, and a turn with nothing to fold
   keeps the row, without a chevron, before its reply. A steered turn folds per segment there too. The Chat view holds the expanded fold keys (the turn id, suffixed by the segment index after the first),
   not the rows, so FlashList recycling never moves one turn's state onto another. The window keeps `plan`, so the phone docks a
-  one-row plan card above its composer (Desktop shows the same plan in its composer status row's
-  plan popover instead) (`agentChatDockedPlan`: the latest plan
+  one-row plan card above its composer (Desktop shows the same plan as its composer strip's
+  collapsible Plan section instead) (`agentChatDockedPlan`: the latest plan
   stays until the next turn starts, its step spinning only during a turn), and the line above the composer reads `agentChatActivity`:
   the turn's verb, the elapsed time after a second, `Compacting context…`, or what the turn waits
   on. The elapsed time compares the computer's `startedAt` with the phone's clock. Code lives in
@@ -1242,7 +1241,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
 - Background work. The snapshot and `state` patches carry the Chat's `tasks` as a bounded copy
   (`clipAgentChatTasksForMobile`: every running task up to 24, the newest started kept, and the 10
   that ended most recently, with titles and command lines cut to 300 characters and summaries to
-  200). Above its composer the phone shows one status row, as Desktop's: the turn's activity
+  200). Above its composer the phone shows one status row: the turn's activity
   leads with a badge of the running work's kinds and counts beside it, and once the turn ended the
   running work leads the row (`Still running in the background: bun run dev`, or
   `2 background tasks running`). What counts as running follows Desktop's strip rule
@@ -1435,8 +1434,8 @@ A goal is an objective the provider keeps working toward across turns. Codex has
 (app-server `thread/goal/*`), so a Codex Chat lists `/goal` and reports the snapshot's `goal`
 (objective, status, tokens, and the time Codex has counted). Claude Code's built-in `/goal` (the
 command list's `builtin` row, not a same-named skill) also carries the goal mark, so choosing it
-enters Goal mode and Enter sends `/goal <condition>` as prompt text; Caxri does not report a Claude
-Code goal in the snapshot, so its Chat shows no goal row. The rest of this section describes Codex.
+enters Goal mode and Enter sends `/goal <condition>` as prompt text. The list below describes Codex;
+[Claude Code goals](#claude-code-goals) follows it.
 
 - `/goal <objective>` sets the goal, and `/goal pause`, `/goal resume`, and `/goal clear` act on it,
   as in the Codex CLI (`parseAgentChatGoalArguments`). Bare `/goal` is refused. Every change carries
@@ -1459,6 +1458,25 @@ Code goal in the snapshot, so its Chat shows no goal row. The rest of this secti
   since the later of its start and that report (`agentChatGoalElapsedSeconds`).
 - Desktop shows the goal as a row in the composer strip and enters Goal mode from `/goal` or the Add
   menu (see `DESIGN.md`). The phone runs `/goal` as a command and shows no goal row.
+
+### Claude Code goals
+
+Claude Code streams no goal state to the SDK: its `active_goal` frames stay internal outside remote
+sessions, and its `goal_status` attachments reach only the transcript (verified with Claude Code
+2.1.304). Server Core keeps the snapshot's `goal` from what it does stream (`ClaudeGoals` in
+`apps/server/src/domains/agent-chat/goals/claude-goals.ts`):
+
+- The `/goal` replies (`parseAgentChatGoalReply`): `Goal set:` and `Goal active:` show the goal as
+  `active`; `Goal cleared:`, `No goal set`, and Claude Code's `Goal cleared after an unrecoverable
+error` warning drop it.
+- `/goal <condition>` is one query that keeps going while the goal's Stop hook finds the condition
+  unmet, so a turn that completes with no background work left to wake Claude Code passed that check,
+  and the goal leaves. An interrupted or failed turn, one waiting on background work, and one that
+  only printed the goal's status keep it, with the turn's time added to `timeUsedSeconds`.
+- The goal carries `pausable: false`, so no Client offers Pause: Claude Code's `/goal pause` would set
+  a goal named `pause`. Clear sends `/goal clear`.
+- A Chat reopened from history shows no goal until the next `/goal` reply, since the replay does not
+  read the transcript's goal records.
 
 ## Side chat
 

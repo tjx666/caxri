@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import type { CommanderSnapshot } from '@caxri/protocol';
 
-import { openBackgroundWork } from './support/agent-chat-status-row.ts';
+import { openBackgroundWork } from './support/agent-chat-background-work.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -77,9 +77,9 @@ if (process.argv.includes('app-server')) {
         await message.fill('start a subagent hold');
         await message.press('Enter');
 
-        // The status row's Background work popover lists the subagent; the window cannot open its tab.
+        // The composer strip's Background work section lists the subagent; the window cannot open its tab.
         const chat = commander.locator('body');
-        const strip = await openBackgroundWork(commander, chat);
+        const strip = await openBackgroundWork(chat);
         await expect(strip.getByText('Inspect the fixtures')).toBeVisible();
         await expect(
             strip.getByRole('button', { name: /^Open Inspect the fixtures/u }),
@@ -115,7 +115,7 @@ if (process.argv.includes('app-server')) {
         });
 
         // Clicking the row opens nothing, and the Commander Session's stored layout never gains a task tab.
-        await (await openBackgroundWork(commander, chat)).getByText('Inspect the fixtures').click();
+        await (await openBackgroundWork(chat)).getByText('Inspect the fixtures').click();
         const { identity, workbench } = await pageRequest<CommanderSnapshot>(
             running.page,
             'commander.snapshot',
@@ -125,9 +125,9 @@ if (process.argv.includes('app-server')) {
         );
         expect(JSON.stringify(state ?? {})).not.toContain('caxri-agent-task://');
 
-        // Once the subagent ends and the status row moves on, the folded row still names it.
+        // Once the subagent ends and the Background work section leaves, the folded row still names it.
         await (
-            await openBackgroundWork(commander, chat)
+            await openBackgroundWork(chat)
         )
             .getByRole('button', { name: /^Stop Inspect the fixtures/u })
             .click();
