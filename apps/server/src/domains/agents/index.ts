@@ -92,12 +92,11 @@ export {
 export { AgentTimelineService } from './timeline';
 export type { AgentTitleContext } from './title-generation';
 export {
-    buildAgentTitlePrompt,
     hasOpeningRequestMaterial,
     hasTitleNamingMaterial,
     isBareIssueReferenceTitle,
-    normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
+    sampleAgentTitle,
 } from './title-generation';
 export type { AgentTranscriptIdentity, DelegationTranscriptBatch } from './transcript';
 export {

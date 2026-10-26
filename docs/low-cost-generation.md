@@ -49,9 +49,15 @@ the primary Agent's turn starts, from the opening request alone. The provider ho
 before the request reaches the transcript, so the read is retried after short settle delays. A
 request with no subject of its own makes the model answer `SKIP`; that attempt sets no cooldown,
 and the completed turn names the Session from the request and its reply. Either path names a
-Session once: a title applied at turn start is not revised when the turn completes. Each attempt
-logs `agent.automatic_naming_finished` with a closed `reason` and a `trigger` of `turnStarted` or
-`turnFinished`.
+Session once: a title applied at turn start is not revised when the turn completes.
+
+The low-cost model also answers `SKIP` nondeterministically when the reply plainly states the
+subject, so the completed turn re-samples a `SKIP` up to twice before giving up; otherwise one
+unlucky sample leaves the Session `Untitled` until the user sends another message. An answer that
+fails validation gets one corrective retry. Each attempt logs `agent.automatic_naming_finished` with
+a `trigger` of `turnStarted` or `turnFinished` and a closed `reason`: `skipped` when every sample
+answered `SKIP`, `rejected` when the last answer failed validation, and `insufficientContext` when
+the transcript never held enough material to ask.
 
 ## Rename with AI
 
