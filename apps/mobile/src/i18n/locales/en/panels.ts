@@ -23,6 +23,8 @@ export const panels = {
         'This file changed on your computer. Discard and reload before editing again.',
     'panels.saveFailed': 'Unable to save this file. Try again.',
     'panels.saveFile': 'Save file',
+    'panels.treeChildrenEmpty': 'Nothing to show',
+    'panels.treeLoadingChildren': 'Loading items',
     'panels.treeEmpty': 'Nothing to show.',
     'panels.upOneFolder': 'Up one folder',
     'panels.viewOnComputerOnly': '{{title}} is only available on your computer.',
