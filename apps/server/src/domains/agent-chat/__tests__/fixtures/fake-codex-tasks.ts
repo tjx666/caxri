@@ -165,6 +165,66 @@ export async function runSubagent(
     await io.streamMessage(turn, 'The helper finished.', 0);
 }
 
+/**
+ * Areas the `manyagents` turn hands one helper each: seven long titles overflow a Chat's fold row, as an audit fanning
+ * out reviewers does.
+ */
+const MANY_SUBAGENT_AREAS = [
+    'UX review: Chat composer and controls',
+    'UX review: Chat transcript and rail',
+    'UX review: Primary Sidebar Sessions',
+    'UX review: workbench, editor, settings',
+    'UX review: Mobile Chat surfaces',
+    'Desktop visual capture of every surface',
+    'Mobile emulator capture of every screen',
+];
+
+/**
+ * Spawns a helper per {@link MANY_SUBAGENT_AREAS} entry, lets each finish, and waits for all of them in one call.
+ */
+export async function runManySubagents(io: FakeCodexIo, turn: FakeTurn) {
+    const parent = io.currentThread();
+    const children: FakeThread[] = [];
+    for (const area of MANY_SUBAGENT_AREAS) {
+        const child: FakeThread = { id: crypto.randomUUID(), turns: [], parentThreadId: parent.id };
+        tasks.children.set(child.id, child);
+        children.push(child);
+        const prompt = `${area}\nReport what you find.`;
+        const spawn = {
+            type: 'collabAgentToolCall',
+            id: crypto.randomUUID(),
+            tool: 'spawnAgent',
+            status: 'completed',
+            senderThreadId: parent.id,
+            receiverThreadIds: [child.id],
+            prompt,
+            model: 'fake-codex-mini',
+            reasoningEffort: null,
+            agentsStates: { [child.id]: { status: 'pendingInit', message: null } },
+        };
+        io.startItem(turn, { ...spawn, status: 'inProgress', receiverThreadIds: [] });
+        const childTurn = beginChildTurn(io, child, prompt);
+        io.completeItem(turn, spawn);
+        // Each helper answers in turn, so the waits below never race the transcript writes.
+        // eslint-disable-next-line no-await-in-loop
+        await io.streamMessage(childTurn, 'Reviewed.', 0);
+        finishChildTurn(io, child, childTurn);
+    }
+    const wait = {
+        ...waitCall(parent.id, children[0].id),
+        receiverThreadIds: children.map((child) => child.id),
+    };
+    io.startItem(turn, { ...wait });
+    io.completeItem(turn, {
+        ...wait,
+        status: 'completed',
+        agentsStates: Object.fromEntries(
+            children.map((child) => [child.id, { status: 'completed', message: 'Reviewed.' }]),
+        ),
+    });
+    await io.streamMessage(turn, 'Every reviewer finished.', 0);
+}
+
 function waitCall(parentId: string, childId: string) {
     return {
         type: 'collabAgentToolCall',

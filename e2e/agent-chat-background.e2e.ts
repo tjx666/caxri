@@ -278,3 +278,40 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex turn that spawned many subagents keeps its Worked label readable beside their chips', async ({}, testInfo) => {
+    const { directory, agentMode, userData, root } = await fixture(
+        'caxri-agent-chat-many-subagents-',
+        'codex',
+    );
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+
+        await message.fill('manyagents please');
+        await message.press('Enter');
+        await expect(chat.getByText('Every reviewer finished.')).toBeVisible();
+        const fold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last();
+        await expect(fold).toBeVisible();
+        // Seven chips overflow the row, so they truncate while the toggle keeps its whole label on one line.
+        await expect(chat.getByRole('button', { name: /^Open subagent UX review: /u })).toHaveCount(
+            5,
+        );
+        const toggle = await fold.evaluate((element) => ({
+            width: element.getBoundingClientRect().width,
+            scrollWidth: element.scrollWidth,
+            height: element.getBoundingClientRect().height,
+        }));
+        expect(toggle.width).toBeGreaterThanOrEqual(toggle.scrollWidth);
+        expect(toggle.height).toBeLessThan(32);
+        await page.screenshot({ path: testInfo.outputPath('codex-many-subagents.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});

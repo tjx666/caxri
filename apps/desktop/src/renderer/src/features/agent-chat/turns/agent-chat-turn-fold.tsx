@@ -121,12 +121,14 @@ function TurnFoldHeader({
     tone: ReturnType<typeof agentChatTurnTone>;
 }) {
     const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
+    // The toggle keeps its label's width; the subagent chips beside it are what shrink and truncate when a turn
+    // spawned more of them than the row fits.
     const toggleButton = (
         <button
             aria-controls={detailId}
             aria-expanded={isExpanded}
             className={cn(
-                'flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 pt-0.5 pb-0.5 text-left focus-visible:outline focus-visible:outline-accent',
+                'flex flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 pt-0.5 pb-0.5 text-left whitespace-nowrap focus-visible:outline focus-visible:outline-accent',
                 tone === 'danger'
                     ? 'text-danger'
                     : tone === 'warning'
