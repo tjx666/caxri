@@ -1,8 +1,7 @@
 import type { AgentChatItem, AgentChatWorkItem } from '@caxri/protocol';
-import { describeAgentChatWork } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentChatWorkRowPresentation, agentChatWorkRowVerb } from '../agent-chat-work-row';
+import { agentChatWorkRowPresentation } from '../agent-chat-work-row';
 
 type Command = Extract<AgentChatItem, { type: 'command' }>;
 
@@ -108,30 +107,14 @@ describe('agentChatWorkRowPresentation for a subagent call', () => {
     });
 
     it('says Running agent while the subagent it started still runs', () => {
-        expect(agentChatWorkRowPresentation(agentCall, undefined, false, true)).toMatchObject({
+        expect(
+            agentChatWorkRowPresentation(agentCall, undefined, false, {
+                kind: 'agent',
+                status: 'running',
+            }),
+        ).toMatchObject({
             isRunning: true,
             verb: 'Running agent',
         });
-    });
-});
-
-describe('agentChatWorkRowVerb', () => {
-    const agentCall: AgentChatWorkItem = {
-        id: 'a1',
-        turnId: 't1',
-        type: 'toolCall',
-        name: 'Task',
-        status: 'completed',
-    };
-    const presentation = describeAgentChatWork(agentCall);
-
-    it('keeps the present tense while a settled call still has its subagent running', () => {
-        expect(agentChatWorkRowVerb(agentCall, presentation, undefined, true)).toBe(
-            'Running agent',
-        );
-    });
-
-    it('uses the settled verb once the subagent ended', () => {
-        expect(agentChatWorkRowVerb(agentCall, presentation)).toBe('Ran agent');
     });
 });

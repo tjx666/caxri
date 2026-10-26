@@ -4,6 +4,7 @@ import type {
     AgentChatItem,
     AgentChatItemStatus,
     AgentChatSnapshot,
+    AgentChatTask,
     AgentChatTurn,
 } from './agent-chat-contract.js';
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
@@ -210,8 +211,39 @@ function describeAgentChatWorkAction(
     }
 }
 
+/**
+ * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
+ * Codex's collab `spawnAgent` (also seen as `spawn_agent`).
+ */
+const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent', 'spawnagent']);
+
+function normalizedToolName(name: string): string {
+    return name.toLowerCase().replaceAll(/[^a-z]/gu, '');
+}
+
+/**
+ * The subagent tools whose settled verb is `Ran agent`: Claude Code's `Task` and `Agent`.
+ */
+const RAN_AGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent']);
+
 export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
     item.type === 'reasoning' ? item.streaming : item.status === 'running';
+
+/**
+ * Whether a work row reads as running: the item itself runs, or the subagent it started still works. Claude Code's
+ * `Task`/`Agent` call returns as soon as a background subagent launches, so its settled `Ran agent` would contradict
+ * the running task beside it. Codex's `spawnAgent` reads `Started agent`, already true once it returns, and a
+ * background shell keeps its own settled facts (`Background`, `Exit N`), so neither follows its task.
+ */
+export const isAgentChatWorkRowRunning = (
+    item: AgentChatWorkItem,
+    linkedTask?: Pick<AgentChatTask, 'kind' | 'status'>,
+): boolean =>
+    isAgentChatWorkRunning(item) ||
+    (linkedTask?.kind === 'agent' &&
+        linkedTask.status === 'running' &&
+        item.type === 'toolCall' &&
+        RAN_AGENT_TOOL_NAMES.has(normalizedToolName(item.name)));
 
 /**
  * A stable group still describes its current action, preferring the newest running tool over reasoning. A command reads
@@ -266,16 +298,20 @@ export function isAgentChatWaitingOnAgents(
 }
 
 /**
- * The verb a work row leads with: present tense while the item runs (`Running`, `Editing`), else the settled verb
+ * The verb a work row and its detail title lead with: present tense while the row runs (`Running`, `Editing`, `Running
+ * agent` while the subagent `linkedTask` names still works; see `isAgentChatWorkRowRunning`), else the settled verb
  * `describeAgentChatWork` chose (`Ran`, `Failed to edit`).
  */
 export function agentChatWorkVerb(
     item: AgentChatWorkItem,
     presentation?: Pick<AgentToolPresentation, 'kind' | 'label'>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
+    linkedTask?: Pick<AgentChatTask, 'kind' | 'status'>,
 ): string {
     const described = presentation ?? describeAgentChatWork(item, t);
-    return isAgentChatWorkRunning(item) ? agentToolActiveLabel(described, t) : described.label;
+    return isAgentChatWorkRowRunning(item, linkedTask)
+        ? agentToolActiveLabel(described, t)
+        : described.label;
 }
 
 /**
@@ -288,16 +324,6 @@ export function agentChatWorkDuration(
     return item.type === 'command' || item.type === 'toolCall'
         ? formatAgentChatFinishedDuration(item.durationMs, item.status, t)
         : null;
-}
-
-/**
- * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
- * Codex's collab `spawnAgent` (also seen as `spawn_agent`).
- */
-const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent', 'spawnagent']);
-
-function normalizedToolName(name: string): string {
-    return name.toLowerCase().replaceAll(/[^a-z]/gu, '');
 }
 
 /**

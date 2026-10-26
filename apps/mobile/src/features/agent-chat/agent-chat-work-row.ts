@@ -1,11 +1,10 @@
-import type { AgentChatWorkItem, AgentToolKind, AgentToolPresentation } from '@caxri/protocol';
+import type { AgentChatTask, AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
 import {
     agentChatItemStatusLabel,
     agentChatWorkVerb,
-    agentToolActiveLabel,
     describeAgentChatWork,
     describeAgentChatWorkRow,
-    isAgentChatWorkRunning,
+    isAgentChatWorkRowRunning,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
@@ -39,24 +38,8 @@ export interface AgentChatWorkRowPresentation {
 }
 
 /**
- * The verb a work row and its detail title share. A subagent's tool call returns while the subagent keeps working, so
- * its settled `Ran agent` would contradict a spinner; the linked task still running keeps the present tense (`Running
- * agent`).
- */
-export function agentChatWorkRowVerb(
-    item: AgentChatWorkItem,
-    presentation: AgentToolPresentation,
-    t: Translate = translate,
-    isTaskRunning = false,
-): string {
-    return isTaskRunning
-        ? agentToolActiveLabel(presentation, t)
-        : agentChatWorkVerb(item, presentation, t);
-}
-
-/**
- * `isTaskRunning`: the background task this row started still runs, so the row reads as running even though the item
- * itself settled.
+ * `linkedTask`: the background task this row started. A subagent still working keeps the row running even though the
+ * item itself settled (`isAgentChatWorkRowRunning`).
  *
  * `hasServerIcon`: the row draws its MCP server's own icon, so the title is the tool alone (`Web search exa`) as on
  * Desktop; without an icon the server's name stays in the title so the row still says which server answered.
@@ -65,13 +48,13 @@ export function agentChatWorkRowPresentation(
     item: AgentChatWorkItem,
     t: Translate = translate,
     hasServerIcon = false,
-    isTaskRunning = false,
+    linkedTask?: Pick<AgentChatTask, 'kind' | 'status'>,
 ): AgentChatWorkRowPresentation {
     const presentation = hasServerIcon
         ? describeAgentChatWorkRow(item, t)
         : describeAgentChatWork(item, t);
-    const isRunning = isAgentChatWorkRunning(item) || isTaskRunning;
-    const verb = agentChatWorkRowVerb(item, presentation, t, isTaskRunning);
+    const isRunning = isAgentChatWorkRowRunning(item, linkedTask);
+    const verb = agentChatWorkVerb(item, presentation, t, linkedTask);
     const isSettledCommand = item.type === 'command' && !isRunning;
     const isBackground = isSettledCommand && item.background === true;
     const failedExitCode =

@@ -12,8 +12,9 @@ import {
     agentChatWorkSummaryGlyph,
     agentChatWorkSummaryItems,
     agentChatWorkSummaryPhrases,
-    agentToolActiveLabel,
+    agentChatWorkVerb,
     describeAgentChatWorkRow,
+    isAgentChatWorkRowRunning,
     isAgentChatWorkRunning,
     mergeAgentChatReasoning,
     splitAgentChatWork,
@@ -251,11 +252,12 @@ const AgentChatWorkRow = memo(
     ({ item, onOpenFile }: { item: AgentChatWorkItem; onOpenFile?: (target: string) => void }) => {
         const { t } = useTranslation();
         const presentation = describeAgentChatWorkRow(item, t);
-        const isRunning = isAgentChatWorkRunning(item);
         const link = useAgentChatTaskLink(item);
         const task = link?.task;
         const taskActivity = task && agentChatTaskActivity(task, t);
-        const verb = isRunning ? agentToolActiveLabel(presentation, t) : presentation.label;
+        // A subagent call settles as soon as the subagent launches; the row keeps running until the subagent ends.
+        const isRunning = isAgentChatWorkRowRunning(item, task);
+        const verb = agentChatWorkVerb(item, presentation, t, task);
         const { path, subject } = presentation;
         return (
             <DisclosureRow

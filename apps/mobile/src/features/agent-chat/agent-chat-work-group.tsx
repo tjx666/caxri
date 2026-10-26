@@ -143,12 +143,7 @@ const AgentChatWorkRow = memo(
         const { t } = useTranslation();
         const task = useAgentChatSubagentTask(item.id);
         const mcpIconUrls = useMcpIconUrls(item.type === 'toolCall' ? item.name : undefined);
-        const row = agentChatWorkRowPresentation(
-            item,
-            t,
-            mcpIconUrls.length > 0,
-            task?.status === 'running',
-        );
+        const row = agentChatWorkRowPresentation(item, t, mcpIconUrls.length > 0, task);
         const activity = task && agentChatTaskActivity(task, t);
         return (
             <ConversationToolRowView

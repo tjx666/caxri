@@ -80,14 +80,20 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await message.hover();
         await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
-        // The meter measures against the compaction window and its tooltip lists what fills the context.
-        await chat.getByRole('meter', { name: /^\d+% of context used, /u }).hover();
+        // The meter measures against the compaction window and its card lists what fills the context. The card opens on
+        // click only, so passing the pointer over the composer's bottom row never covers the draft.
+        const contextMeter = chat.getByRole('meter', { name: /^\d+% of context used, /u });
+        await contextMeter.hover();
+        await expect(page.getByText('Auto-compacts at 160k of the 200k window')).toHaveCount(0);
+        await contextMeter.click();
         await expect(page.getByText('Context', { exact: true })).toBeVisible();
         await expect(page.getByText('Messages', { exact: true })).toBeVisible();
         await expect(page.getByText('Auto-compacts at 160k of the 200k window')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-context-breakdown.png') });
-        // The breakdown card sits over the composer, so leave it toward the transcript.
-        await chat.getByText('Hello from fake Claude. You said: hi there').hover();
+        // Escape closes the card and hands focus back to the meter.
+        await page.keyboard.press('Escape');
+        await expect(page.getByText('Auto-compacts at 160k of the 200k window')).toHaveCount(0);
+        await expect(contextMeter).toBeFocused();
 
         await message.fill('please approve this');
         await message.press('Enter');
