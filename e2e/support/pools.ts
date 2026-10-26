@@ -239,6 +239,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['clipboard'],
         why: 'Requests the system pasteboard (clipboard: true).',
     },
+    'e2e/source-control-keyboard-tree.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
     'e2e/startup.performance.e2e.ts': {
         reasons: ['benchmark', 'opt-in-only'],
         why: 'Startup benchmark; skipped outside its benchmark command.',
