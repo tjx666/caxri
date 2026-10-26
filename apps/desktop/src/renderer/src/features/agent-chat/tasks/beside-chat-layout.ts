@@ -1,4 +1,4 @@
-import type { PaneLayout, PaneNode } from '@caxri/protocol';
+import type { PaneLayout, PaneLayoutNode, PaneNode } from '@caxri/protocol';
 import {
     adjacentPaneId,
     findPane,
@@ -95,4 +95,24 @@ export function besideChatSplitRatio(hostWidth: number): number | undefined {
     const sideWidth = Math.max(BESIDE_CHAT_MIN_SIDE_WIDTH, available - BESIDE_CHAT_MAX_CHAT_WIDTH);
     const ratio = (available - sideWidth) / available;
     return Math.min(MAX_SPLIT_RATIO, Math.max(MIN_SPLIT_RATIO, ratio));
+}
+
+/**
+ * The fraction of width added to the whole Workbench that reaches pane `paneId`. Each split child grows by `flex: ratio
+ * 1 0%` (`pane-view.tsx`), so a horizontal split hands its first child `ratio` of any extra width and its second child
+ * the rest, while a vertical split passes all of it to both children. The share is the product of those fractions down
+ * the path; `0` when the pane is not in the layout.
+ */
+export function workbenchWidthShare(layout: PaneLayout, paneId: string): number {
+    return widthShareWithin(layout.root, paneId) ?? 0;
+}
+
+function widthShareWithin(node: PaneLayoutNode, paneId: string): number | undefined {
+    if (node.type === 'pane') return node.id === paneId ? 1 : undefined;
+    const isHorizontal = node.direction === 'horizontal';
+    const first = widthShareWithin(node.first, paneId);
+    if (first !== undefined) return isHorizontal ? first * node.ratio : first;
+    const second = widthShareWithin(node.second, paneId);
+    if (second === undefined) return undefined;
+    return isHorizontal ? second * (1 - node.ratio) : second;
 }

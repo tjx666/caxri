@@ -17,6 +17,7 @@ import {
     besideChatSplitRatio,
     besideChatTabTerminalId,
     hasBesideChatArrangement,
+    workbenchWidthShare,
 } from '../beside-chat-layout';
 
 function ids(): () => string {
@@ -125,5 +126,62 @@ describe('besideChatSplitRatio', () => {
 
     it('never exceeds the reducer bounds', () => {
         expect(besideChatSplitRatio(800 + 360 + 4)).toBeLessThanOrEqual(MAX_SPLIT_RATIO);
+    });
+});
+
+describe('workbenchWidthShare', () => {
+    const chatPane = (layout: PaneLayout): string => {
+        const pane = findResourceTabs(layout, { kind: 'terminal', terminalId: 'chat' }).at(0)?.pane;
+        if (!pane) throw new Error('missing Chat pane');
+        return pane.id;
+    };
+
+    it('gives a Chat that fills the Workbench all of the released width', () => {
+        const layout = createPaneLayout({ kind: 'terminal', terminalId: 'chat' }, ids());
+        expect(workbenchWidthShare(layout, layout.root.id)).toBe(1);
+    });
+
+    it('gives a Chat stacked above another pane all of the released width', () => {
+        const layout = splitBeside('chat', ['/project/a.ts'], 'down');
+        expect(workbenchWidthShare(layout, chatPane(layout))).toBe(1);
+    });
+
+    it('gives a Chat beside another pane only its split fraction', () => {
+        const layout = splitBeside('chat', ['/project/a.ts'], 'right');
+        if (layout.root.type !== 'split') throw new Error('expected a split');
+        expect(workbenchWidthShare(layout, chatPane(layout))).toBeCloseTo(layout.root.ratio);
+        expect(workbenchWidthShare(layout, chatPane(layout))).toBeLessThan(1);
+    });
+
+    it('multiplies the fractions of nested horizontal splits and skips vertical ones', () => {
+        const layout: PaneLayout = {
+            ...createPaneLayout({ kind: 'terminal', terminalId: 'chat' }, ids()),
+            root: {
+                type: 'split',
+                id: 'outer',
+                direction: 'horizontal',
+                ratio: 0.25,
+                first: { type: 'pane', id: 'left', tabs: [] },
+                second: {
+                    type: 'split',
+                    id: 'stack',
+                    direction: 'vertical',
+                    ratio: 0.5,
+                    first: {
+                        type: 'split',
+                        id: 'inner',
+                        direction: 'horizontal',
+                        ratio: 0.6,
+                        first: { type: 'pane', id: 'target', tabs: [] },
+                        second: { type: 'pane', id: 'right', tabs: [] },
+                    },
+                    second: { type: 'pane', id: 'bottom', tabs: [] },
+                },
+            },
+        };
+        expect(workbenchWidthShare(layout, 'target')).toBeCloseTo(0.75 * 0.6);
+        expect(workbenchWidthShare(layout, 'right')).toBeCloseTo(0.75 * 0.4);
+        expect(workbenchWidthShare(layout, 'bottom')).toBeCloseTo(0.75);
+        expect(workbenchWidthShare(layout, 'missing')).toBe(0);
     });
 });
