@@ -28,7 +28,9 @@
  * of one commit to completion, including runs that only start after another run completes (`on: workflow_run`, read
  * from `.github/workflows/*.yml`): after a release PR merges, `--sha <merge commit>` covers its CI run and the Release
  * macOS run that CI triggers. A run whose jobs are all skipped counts as success, and the failed runs are printed by
- * name. It cannot be combined with another selector. Exits 0 when every watched run succeeded, 1 otherwise.
+ * name. A run that `cancel-in-progress` cancelled because a newer push to the branch contains this commit is replaced
+ * by that push's run of the same workflow. It cannot be combined with another selector. Exits 0 when every watched run
+ * succeeded, 1 otherwise.
  */
 
 import { readFile } from 'node:fs/promises';

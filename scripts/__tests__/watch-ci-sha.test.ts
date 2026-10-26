@@ -9,6 +9,7 @@ import type { CommitRun } from '../watch-ci-sha';
 import {
     DOWNSTREAM_GRACE_MS,
     followCommit,
+    followSupersedingRuns,
     isSuccessfulConclusion,
     nextFollowStep,
     parseWorkflowRunChains,
@@ -186,5 +187,66 @@ describe('followCommit', () => {
         await expect(
             followCommit('sha', () => Promise.resolve(true), { chains, listRuns: broken, wait }),
         ).rejects.toThrow('offline');
+    });
+});
+
+describe('followSupersedingRuns', () => {
+    const cancelled = run({ conclusion: 'cancelled', id: '10', status: 'completed' });
+    const origin = (conclusion: string) => ({
+        branch: 'main',
+        conclusion,
+        event: 'push',
+        workflowId: '7',
+    });
+
+    it('follows the newer push run that cancelled this one when its commit contains this commit', async () => {
+        const isRunGood = vi.fn(() => Promise.resolve(true));
+        const result = await followSupersedingRuns(cancelled, 'a'.repeat(40), isRunGood, {
+            contains: (base, head) =>
+                Promise.resolve(base === 'a'.repeat(40) && head === 'b'.repeat(40)),
+            listPushRuns: () =>
+                Promise.resolve([
+                    { id: '11', sha: 'b'.repeat(40) },
+                    { id: '10', sha: 'a'.repeat(40) },
+                ]),
+            readRun: () => Promise.resolve(origin('cancelled')),
+        });
+        expect(result).toBe(true);
+        expect(isRunGood).toHaveBeenCalledWith('11');
+    });
+
+    it('chases a superseding run that was itself cancelled, and reports a real failure as failed', async () => {
+        const conclusions = new Map([
+            ['10', 'cancelled'],
+            ['11', 'cancelled'],
+            ['12', 'failure'],
+        ]);
+        const isRunGood = vi.fn((runId: string) => Promise.resolve(runId === 'never'));
+        const result = await followSupersedingRuns(cancelled, 'a', isRunGood, {
+            contains: () => Promise.resolve(true),
+            listPushRuns: () =>
+                Promise.resolve([
+                    { id: '12', sha: 'c' },
+                    { id: '11', sha: 'b' },
+                ]),
+            readRun: (runId) => Promise.resolve(origin(conclusions.get(runId) ?? '')),
+        });
+        expect(result).toBe(false);
+        expect(isRunGood.mock.calls).toEqual([['12']]);
+    });
+
+    it('leaves a run alone when it was not cancelled by a newer push of the same branch', async () => {
+        const isRunGood = vi.fn(() => Promise.resolve(true));
+        const notSuperseded = await followSupersedingRuns(cancelled, 'a', isRunGood, {
+            contains: () => Promise.resolve(false),
+            listPushRuns: () => Promise.resolve([{ id: '11', sha: 'b' }]),
+            readRun: () => Promise.resolve(origin('cancelled')),
+        });
+        const manuallyCancelled = await followSupersedingRuns(cancelled, 'a', isRunGood, {
+            listPushRuns: () => Promise.resolve([{ id: '10', sha: 'a' }]),
+            readRun: () => Promise.resolve(origin('cancelled')),
+        });
+        expect([notSuperseded, manuallyCancelled]).toEqual([undefined, undefined]);
+        expect(isRunGood).not.toHaveBeenCalled();
     });
 });

@@ -242,7 +242,109 @@ export async function followCommit(
 }
 
 /**
- * Resolves `sha`, follows its runs with `isRunGood`, and prints each failed run by name; returns the failed runs.
+ * How many superseding pushes to chase before reporting the cancellation; each hop is one more merge landing on `main`
+ * while the previous run was still going.
+ */
+const MAX_SUPERSEDING_HOPS = 5;
+
+interface RunOrigin {
+    branch: string;
+    conclusion: string;
+    event: string;
+    workflowId: string;
+}
+
+/**
+ * Seams for {@link followSupersedingRuns}; production reads GitHub.
+ */
+export interface SupersedeDependencies {
+    /**
+     * Whether `head` contains `base`.
+     */
+    contains?: (base: string, head: string) => Promise<boolean>;
+    /**
+     * Push runs of one workflow on one branch, newest first.
+     */
+    listPushRuns?: (
+        workflowId: string,
+        branch: string,
+    ) => Promise<Array<{ id: string; sha: string }>>;
+    readRun?: (runId: string) => Promise<RunOrigin>;
+}
+
+async function readRunOrigin(runId: string): Promise<RunOrigin> {
+    const [workflowId = '', branch = '', event = '', conclusion = ''] = (
+        await ghApi(
+            `actions/runs/${runId}`,
+            '[.workflow_id, .head_branch, .event, (.conclusion // "")] | @tsv',
+        )
+    ).split('\t', 4);
+    return { branch, conclusion, event, workflowId };
+}
+
+async function listPushRuns(
+    workflowId: string,
+    branch: string,
+): Promise<Array<{ id: string; sha: string }>> {
+    const output = await ghApi(
+        `actions/workflows/${workflowId}/runs?branch=${encodeURIComponent(branch)}&event=push&per_page=10`,
+        '.workflow_runs[] | [.id, .head_sha] | @tsv',
+    );
+    return output
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+            const [id = '', runSha = ''] = line.split('\t', 2);
+            return { id, sha: runSha };
+        });
+}
+
+async function hasCommitAncestor(base: string, head: string): Promise<boolean> {
+    const status = await ghApi(`compare/${base}...${head}`, '.status');
+    return status === 'ahead' || status === 'identical';
+}
+
+/**
+ * Resolves a run that `concurrency: cancel-in-progress` cancelled because a newer push to the same branch started the
+ * same workflow. On `main` that happens whenever another pull request merges while this commit's CI is running: the
+ * cancelled run proves nothing, and the newer run, whose commit contains this one, is the evidence to wait for. Returns
+ * whether that newest run (chasing further supersessions) succeeded, or `undefined` when the run was not superseded.
+ */
+export async function followSupersedingRuns(
+    run: CommitRun,
+    sha: string,
+    isRunGood: (runId: string) => Promise<boolean>,
+    {
+        contains = hasCommitAncestor,
+        listPushRuns: listRuns = listPushRuns,
+        readRun = readRunOrigin,
+    }: SupersedeDependencies = {},
+): Promise<boolean | undefined> {
+    let current = { id: run.id, sha };
+    for (let hop = 0; hop < MAX_SUPERSEDING_HOPS; hop += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each hop depends on the run the previous one found
+        const origin = await readRun(current.id);
+        if (origin.conclusion !== 'cancelled' || origin.event !== 'push')
+            return hop === 0 ? undefined : false;
+        // eslint-disable-next-line no-await-in-loop -- see above
+        const candidates = await listRuns(origin.workflowId, origin.branch);
+        const newer = candidates.find((candidate) => candidate.sha !== current.sha);
+        // eslint-disable-next-line no-await-in-loop -- see above
+        if (!newer || !(await contains(current.sha, newer.sha)))
+            return hop === 0 ? undefined : false;
+        console.log(
+            `${run.name} (run ${current.id}) was cancelled by a newer push; following run ${newer.id} on ${newer.sha.slice(0, 9)}, which contains it`,
+        );
+        current = newer;
+        // eslint-disable-next-line no-await-in-loop -- see above
+        if (await isRunGood(current.id)) return true;
+    }
+    return false;
+}
+
+/**
+ * Resolves `sha`, follows its runs with `isRunGood`, and prints each failed run by name; returns the failed runs. A run
+ * cancelled by a newer push is replaced by that push's run of the same workflow.
  */
 export async function followAndReport(
     sha: string,
@@ -250,8 +352,16 @@ export async function followAndReport(
 ): Promise<CommitRun[]> {
     const fullSha = await resolveCommitSha(sha);
     console.log(`following every workflow run of commit ${fullSha}`);
-    const failed = await followCommit(fullSha, isRunGood);
-    for (const run of failed) {
+    const finished = await followCommit(fullSha, isRunGood);
+    const failed: CommitRun[] = [];
+    for (const run of finished) {
+        const superseded =
+            run.conclusion === 'cancelled'
+                ? // eslint-disable-next-line no-await-in-loop -- reported in order, and at most one or two runs ever fail
+                  await followSupersedingRuns(run, fullSha, isRunGood)
+                : undefined;
+        if (superseded) continue;
+        failed.push(run);
         console.error(`FAILED: ${run.name} (run ${run.id}): ${run.conclusion || 'failed'}`);
     }
     return failed;

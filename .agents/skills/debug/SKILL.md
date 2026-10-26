@@ -319,7 +319,10 @@ declares a public release.
 Every Caxri process records at `debug`, so `<userData>/logs/*.jsonl` already holds per-request detail.
 Each request the Renderer sent has an `ipc.request` line in `server-core.jsonl` with its `method`,
 `durationMs`, and the request id as `correlationId`; the ones that came through the control relay add
-`queueMs`, `queueDepth`, and `principal`, which is where admission backlog shows up.
+`queueMs`, `queueDepth`, and `principal`, which is where admission backlog shows up. A relayed request
+writes two `ipc.request` lines with different `correlationId`s, an inner one without `principal` and
+the relay's own, so count requests by the lines that carry `principal`: four lines for two
+`session.select` clicks is two requests, not four.
 
 `CAXRI_LOG_LEVEL=info` (or `warn`/`error`) quiets a process, useful when reproducing something that
 floods the log and you want the incident to survive rotation. Anything unrecognized stays at `debug`,
