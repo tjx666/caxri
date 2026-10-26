@@ -101,7 +101,6 @@ test('active and inactive Project navigation keeps full contrast', async () => {
             )
             .not.toBe(restingBackground);
         await running.page.mouse.move(500, 300);
-
         const cards = running.page.locator('.session-card');
         await expect(cards).toHaveCount(2);
         const colors = await Promise.all([
@@ -112,6 +111,7 @@ test('active and inactive Project navigation keeps full contrast', async () => {
             cards.nth(1).evaluate((element) => getComputedStyle(element).color),
         ]);
         expect(new Set(colors).size).toBe(1);
+        await expect(running.page.locator('.session-selection-glide')).toBeHidden();
         const backgrounds = await Promise.all([
             cards.nth(0).evaluate((element) => getComputedStyle(element).backgroundColor),
             cards.nth(1).evaluate((element) => getComputedStyle(element).backgroundColor),
