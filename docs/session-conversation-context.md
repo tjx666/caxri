@@ -124,7 +124,14 @@ Session sends `session.conversationReference` with only its id, and the Server
    writes each file with `0600` and an exclusive create.
 
 The Renderer receives only the path and inserts `@<path> contains the conversation from Session
-"<title>".` without sending it. The composer's list follows the `@word` at the caret only after the
+"<title>".` without sending it. That sentence is what the Agent receives, but it is not what the user
+sees: `agentChatSessionReferenceRanges` (`packages/protocol/src/domain/session-conversation-reference.ts`)
+finds each such span ahead of the generic path parsers, and every Chat surface draws it as one Session
+chip, the Session glyph, `@`, and the title. The composer chip is atomic (the caret steps over it,
+Backspace and Delete remove it whole, a click selects it, and Undo brings back the typed `@word`), the
+sent bubble shows the same chip, and the queue, the message rail, and Copy write it as `@<title>`.
+Because the chip is read from the text rather than recorded when chosen, a draft stash, a Session
+switch, a restart, prompt history, a queued message, and Edit from here all show it again. The composer's list follows the `@word` at the caret only after the
 user edits the draft, clicks in it, or moves the caret with a key: a restored draft that ends in
 `@word` does not open the list when the Chat is shown or its composer takes focus. Each write first prunes reference files older than 7 days and the
 oldest ones past a 64 MiB total, the retention long pastes use; files the Server did not name are

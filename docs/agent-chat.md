@@ -1394,7 +1394,8 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
   toast says why and the command text comes back into the input.
 - **Session references.** Typing `@` at the start of a word lists other Sessions with an Agent
   conversation, searched by title. Choosing one replaces the typed `@word` with a reference to a
-  condensed copy of that conversation; see
+  condensed copy of that conversation, shown in the composer and the sent message as an atomic
+  `@<title>` Session chip while the Agent receives the reference file and its sentence; see
   [Citing another Session](session-conversation-context.md#citing-another-session-with-).
 - Image bytes, thumbnails, and command arguments never reach logs.
 

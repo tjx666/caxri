@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 
 import type { AgentChatDelegatedTask, AgentChatSkillReference } from '@caxri/protocol';
-import { parseAgentChatPathReferences } from '@caxri/protocol';
+import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
@@ -10,7 +10,11 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { linkSummary } from '../../../lib/link-summary';
 import { cn } from '../../../lib/utilities';
-import { AgentChatImagePill, AgentChatPathPill } from '../attachments/agent-chat-image-pill';
+import {
+    AgentChatImagePill,
+    AgentChatPathPill,
+    AgentChatSessionReferencePill,
+} from '../attachments/agent-chat-image-pill';
 import { AgentChatMessageImages } from '../attachments/agent-chat-message-images';
 import { AgentChatMessageVideos } from '../attachments/agent-chat-message-videos';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
@@ -101,7 +105,12 @@ export function AgentChatUserMessage({
             {words && (
                 <CopyIconButton
                     className="-mr-1"
-                    copy={() => writeToClipboardWithFeedback(navigator.clipboard, words)}
+                    copy={() =>
+                        writeToClipboardWithFeedback(
+                            navigator.clipboard,
+                            agentChatTextWithSessionMentions(words),
+                        )
+                    }
                     label={t('agentChat.message.copy')}
                 />
             )}
@@ -259,6 +268,14 @@ function UserMessageText({
                     key={position}
                     number={segment.number}
                     thumbnail={images?.[segment.index]?.thumbnail}
+                />
+            );
+        if (segment.kind === 'session')
+            return (
+                <AgentChatSessionReferencePill
+                    key={position}
+                    path={segment.path}
+                    title={segment.title}
                 />
             );
         if (segment.kind === 'path')

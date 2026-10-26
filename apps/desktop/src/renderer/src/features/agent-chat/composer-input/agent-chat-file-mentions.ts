@@ -69,7 +69,7 @@ export function agentChatFileSuggestion(relativePath: string): SuggestionOption 
 
 /**
  * What lands in the input for a chosen file: the `@` mention every Agent composer resolves, quoted when the path holds
- * whitespace, since an unquoted mention ends at the first space (the rule `formatSessionReference` follows).
+ * whitespace, since an unquoted mention ends at the first space (the rule `formatAgentChatSessionReference` follows).
  */
 export function formatAgentChatFileMention(relativePath: string): string {
     return `@${/\s/u.test(relativePath) ? JSON.stringify(relativePath) : relativePath}`;

@@ -1,4 +1,4 @@
-import type { ProjectRecord, SessionConversationReference, SessionRecord } from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 
 /**
  * One row of the `@` Sessions group: a Session whose Agent conversation can be cited.
@@ -64,17 +64,23 @@ export function searchSessionReferences(
 }
 
 /**
- * What lands in the input: the `@` mention every Agent composer resolves as a file, then one sentence saying what the
- * file is so the Agent reads it as another conversation rather than as project source. A path with whitespace is
- * quoted, since an unquoted mention ends at the first space.
+ * The Project of each Session this window cited, by its reference file, so a Session chip's tooltip can name it. The
+ * reference text carries only the title; a chip restored after a restart names only that.
  */
-export function formatSessionReference(
-    reference: Pick<SessionConversationReference, 'filePath' | 'title'>,
-): string {
-    const path = /\s/u.test(reference.filePath)
-        ? JSON.stringify(reference.filePath)
-        : reference.filePath;
-    return `@${path} contains the conversation from Session ${JSON.stringify(reference.title)}.`;
+const citedProjects = new Map<string, string>();
+
+export function rememberSessionReferenceProject(
+    path: string,
+    projectTitle: string | undefined,
+): void {
+    if (projectTitle) citedProjects.set(path, projectTitle);
+}
+
+/**
+ * The Project of the Session whose reference file is `path`, when this window cited it.
+ */
+export function sessionReferenceProjectTitle(path: string): string | undefined {
+    return citedProjects.get(path);
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { MouseEvent, RefObject } from 'react';
 import { useState } from 'react';
 
-import { parseAgentChatPathReferences } from '@caxri/protocol';
+import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { translate } from '../../../i18n';
@@ -59,8 +59,9 @@ export function useAgentChatUserMessageMenu({
             !edit && readBackHistory
                 ? translate('agentChat.userMenu.historyUnavailable')
                 : undefined;
-        // Copy takes the user's words, not the file and folder references the provider received ahead of them.
-        const words = parseAgentChatPathReferences(text).text;
+        // Copy takes the user's words, not the file and folder references the provider received ahead of them, and
+        // names each cited Session by its `@title` rather than its reference file.
+        const words = agentChatTextWithSessionMentions(parseAgentChatPathReferences(text).text);
         return agentChatUserMessageMenu({
             text: words,
             selectedText,

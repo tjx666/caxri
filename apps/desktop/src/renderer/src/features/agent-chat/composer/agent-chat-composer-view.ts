@@ -1,3 +1,4 @@
+import { isolateHistory } from '@codemirror/commands';
 import type { ChangeSpec, TransactionSpec } from '@codemirror/state';
 import { EditorSelection, Transaction } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
@@ -174,7 +175,9 @@ export function agentChatDraftChange(
  * restored stash). The caret moves to the end, as a textarea's does when its value is set, so text added from another
  * surface is followed by the caret; a caller that wants it elsewhere (a picked mention) places it afterwards. A
  * replaced or cleared draft stays off the undo stack, so Cmd+Z cannot bring back a message that was sent; an insertion
- * into existing text, such as a picked mention, can be undone like typing.
+ * into existing text, such as a picked mention, can be undone like typing. It is its own undo step: CodeMirror would
+ * otherwise join it with typing less than half a second away, and undoing a cited Session that was ready quickly would
+ * also remove the `@word` it replaced.
  */
 export function agentChatDraftTransaction(
     current: string,
@@ -187,7 +190,7 @@ export function agentChatDraftTransaction(
     return {
         changes,
         selection: EditorSelection.cursor(next.length),
-        ...(isReplaced && { annotations: Transaction.addToHistory.of(false) }),
+        annotations: isReplaced ? Transaction.addToHistory.of(false) : isolateHistory.of('full'),
     };
 }
 

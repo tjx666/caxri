@@ -1,3 +1,5 @@
+import { history, redo, undo } from '@codemirror/commands';
+import type { Transaction as TransactionType } from '@codemirror/state';
 import { EditorSelection, EditorState, Transaction } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 
@@ -37,8 +39,18 @@ describe('agentChatDraftTransaction', () => {
         );
     });
 
-    it('lets an insertion into the draft be undone', () => {
-        expect(agentChatDraftTransaction('ask ', 'ask @session-1 ')?.annotations).toBeUndefined();
+    it('lets an insertion into the draft be undone on its own, apart from the typing it replaced', () => {
+        let state = EditorState.create({ doc: '', extensions: [history()] });
+        const dispatch = (transaction: TransactionType) => {
+            state = transaction.state;
+        };
+        dispatch(state.update({ changes: { from: 0, insert: '@fix' }, userEvent: 'input.type' }));
+        const chosen = '@/tmp/s.md contains the conversation from Session "Fix login". ';
+        dispatch(state.update(agentChatDraftTransaction('@fix', chosen)!));
+        expect(undo({ state, dispatch })).toBe(true);
+        expect(state.doc.toString()).toBe('@fix');
+        expect(redo({ state, dispatch })).toBe(true);
+        expect(state.doc.toString()).toBe(chosen);
     });
 });
 

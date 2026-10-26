@@ -1,11 +1,7 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import {
-    formatSessionReference,
-    searchSessionReferences,
-    sessionReferenceQuery,
-} from '../session-reference';
+import { searchSessionReferences, sessionReferenceQuery } from '../session-reference';
 
 function session(id: string, displayTitle: string, extra: Partial<SessionRecord> = {}) {
     return {
@@ -47,22 +43,6 @@ describe('searchSessionReferences', () => {
                 (candidate) => candidate.sessionId,
             ),
         ).toEqual(['prefix', 'word', 'substring']);
-    });
-});
-
-describe('formatSessionReference', () => {
-    it('cites the file and names the Session in one sentence', () => {
-        expect(
-            formatSessionReference({ filePath: '/tmp/refs/session-1.md', title: 'Fix "login"' }),
-        ).toBe(
-            String.raw`@/tmp/refs/session-1.md contains the conversation from Session "Fix \"login\"".`,
-        );
-    });
-
-    it('quotes a path with whitespace so the mention does not end early', () => {
-        expect(formatSessionReference({ filePath: '/a b/c.md', title: 'T' })).toBe(
-            '@"/a b/c.md" contains the conversation from Session "T".',
-        );
     });
 });
 

@@ -41,10 +41,12 @@
                     "apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer-editor.tsx",
                     "apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer-extensions.ts",
                     "apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer-view.ts",
+                    "apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-session-chips.ts",
                     // `@caxri/desktop` reports its findings relative to its own root.
                     "src/renderer/src/features/agent-chat/composer/agent-chat-composer-editor.tsx",
                     "src/renderer/src/features/agent-chat/composer/agent-chat-composer-extensions.ts",
                     "src/renderer/src/features/agent-chat/composer/agent-chat-composer-view.ts",
+                    "src/renderer/src/features/agent-chat/composer-input/agent-chat-session-chips.ts",
                 ],
                 "rules": ["react-doctor/prefer-dynamic-import"],
             },
