@@ -1,68 +1,16 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
 
-import type { BootstrapState } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 
-import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import {
-    closeAppQuietly,
-    createAdditionalShellSession,
-    createProjectSession,
-    launchCaxri,
-    pageRequest,
-    sessionCard,
-    VISIBLE_SESSION,
-} from './support/helpers.ts';
-
-async function launchWithChat() {
-    const created = await mkdtemp(join(tmpdir(), 'caxri-session-return-'));
-    const directory = await realpath(created);
-    const userData = join(directory, 'user-data');
-    const root = join(directory, 'project');
-    await mkdir(root, { recursive: true });
-    const agentMode = await fakeCodexChatAgentMode(directory, userData);
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
-    return { directory, running };
-}
+import { closeAppQuietly, sessionCard, VISIBLE_SESSION } from './support/helpers.ts';
+import { finishTwoTurnsAway, launchWithChat } from './support/session-return-fixture.ts';
 
 /**
  * Runs two Codex Chat turns while another Session is selected, then returns to the Chat.
  */
 async function returnAfterTwoTurns(page: Page): Promise<void> {
-    const chatId = await createProjectSession(page, 'shell');
-    await openAgentChat(page, 'Codex Chat');
-    const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
-    await message.fill('longstream please');
-    await message.press('Enter');
-    // A follow-up sent during the turn queues and runs as a second turn.
-    await message.fill('hello after this');
-    await message.press('Enter');
-    await createAdditionalShellSession(page);
-    const state = await pageRequest<BootstrapState>(page, 'app.bootstrap');
-    const chatTerminal = state.terminals.find(
-        ({ sessionId, provider }) => sessionId === chatId && provider === 'codex',
-    );
-    if (!chatTerminal) throw new Error('Chat Terminal missing');
-    // Both turns end while another Session is selected.
-    await expect
-        .poll(
-            async () => {
-                const snapshot = await pageRequest<{
-                    turns: Array<{ status: string }>;
-                    queue?: unknown[];
-                }>(page, 'agentChat.read', { terminalId: chatTerminal.id });
-                return {
-                    completed: snapshot.turns.filter(({ status }) => status === 'completed').length,
-                    queued: snapshot.queue?.length ?? 0,
-                };
-            },
-            { timeout: 60_000 },
-        )
-        .toEqual({ completed: 2, queued: 0 });
-    await sessionCard(page, chatId).click();
+    await sessionCard(page, await finishTwoTurnsAway(page)).click();
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.

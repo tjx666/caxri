@@ -43,4 +43,16 @@ describe('advanceSessionLook', () => {
         state = dismissSessionReturn(advanceSessionLook(state, 'a', 9), 'a');
         expect(state.returns).toEqual({});
     });
+
+    it('falls back to the persisted boundary for a Session not yet left in this window', () => {
+        const state = advanceSessionLook(initialSessionLookState, 'a', 50, 20);
+        expect(state.returns).toEqual({ a: { boundary: 20, capturedAt: 50 } });
+    });
+
+    it('prefers an in-window leave over the persisted boundary', () => {
+        let state = advanceSessionLook(initialSessionLookState, 'a', 10, 1);
+        state = advanceSessionLook(state, undefined, 30);
+        state = advanceSessionLook(state, 'a', 40, 1);
+        expect(state.returns.a).toEqual({ boundary: 30, capturedAt: 40 });
+    });
 });

@@ -14,6 +14,7 @@ function setup() {
     let clock = 0;
     const presence = new WindowPresence(() => ++clock);
     const watchSessionInBackground = vi.fn();
+    const recordLeave = vi.fn();
     const effects = createPresenceEffects({
         coordinator: { probeSessionPrimaryAgent: vi.fn() },
         database: { windowOpenSessions: { all: () => ({}) } } as never,
@@ -21,10 +22,11 @@ function setup() {
         projectStatus: { setPolledSessions: vi.fn() },
         restoreInterruptedTerminalsInBackground: vi.fn(),
         sendFullStateChange: vi.fn(),
+        sessionViews: { recordLeave },
         terminalSuspension: { observeVisibility: vi.fn() },
         watchSessionInBackground,
     });
-    return { effects, presence, watchSessionInBackground };
+    return { effects, presence, recordLeave, watchSessionInBackground };
 }
 
 describe('createPresenceEffects watcher', () => {
@@ -57,5 +59,20 @@ describe('createPresenceEffects watcher', () => {
         presence.report('c', report('w1', 'a', true));
 
         expect(watchSessionInBackground).not.toHaveBeenCalled();
+    });
+});
+
+describe('createPresenceEffects last viewed boundary', () => {
+    it('records the Session the user stops looking at, including when Desktop disconnects', () => {
+        const { presence, recordLeave } = setup();
+        presence.report('c', report('w1', 'a', true));
+        expect(recordLeave).not.toHaveBeenCalled();
+
+        presence.report('c', report('w1', 'b', true));
+        expect(recordLeave).toHaveBeenLastCalledWith('a');
+
+        presence.dropConnection('c');
+        expect(recordLeave).toHaveBeenLastCalledWith('b');
+        expect(recordLeave).toHaveBeenCalledTimes(2);
     });
 });

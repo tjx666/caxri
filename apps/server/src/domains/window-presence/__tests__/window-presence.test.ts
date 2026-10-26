@@ -154,4 +154,33 @@ describe('WindowPresence', () => {
         // A window that closed is a confirmed absence, not a gap to wait out.
         expect(presence.isSettled()).toBe(true);
     });
+
+    it('reports leaving the watched Session on a switch, a focus loss, and a dropped connection', () => {
+        const { presence } = fixture();
+        const left: string[] = [];
+        presence.onWatchedLeave((sessionId) => left.push(sessionId));
+
+        presence.report('c1', report('w1', 'a', { focused: true }));
+        expect(presence.watchedSessionId()).toBe('a');
+        presence.noteViewing('w1', 'b');
+        presence.report('c1', report('w1', 'b'));
+        expect(presence.watchedSessionId()).toBeUndefined();
+        presence.report('c1', report('w1', 'b', { focused: true }));
+        presence.dropConnection('c1');
+
+        expect(left).toEqual(['a', 'b', 'b']);
+    });
+
+    it('never treats a hidden or unfocused window as watched', () => {
+        const { presence } = fixture();
+        const onLeave = vi.fn();
+        presence.onWatchedLeave(onLeave);
+
+        presence.report('c1', report('w1', 'a', { focused: true, visible: false }));
+        presence.report('c1', report('w2', 'b'));
+        presence.dropConnection('c1');
+
+        expect(presence.watchedSessionId()).toBeUndefined();
+        expect(onLeave).not.toHaveBeenCalled();
+    });
 });

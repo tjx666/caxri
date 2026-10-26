@@ -231,6 +231,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['wall-clock'],
         why: "1s assertions and a not-yet-renamed check race the fake Agent's real 4s timer.",
     },
+    'e2e/session-return-restart.e2e.ts': {
+        reasons: ['visible-window', 'window-focus'],
+        why: 'Server Core records the last viewed boundary only while a visible window holds OS focus.',
+    },
     'e2e/session-title-scroll.e2e.ts': {
         reasons: ['wall-clock'],
         why: 'Samples marquee speed with performance.now() and asserts motion windows of 500ms to 2.5s.',
