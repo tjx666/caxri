@@ -97,6 +97,18 @@ function surfaceEntryElement(surfaceId: ChromeSurfaceId, surface: Element): HTML
     return surface.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
 }
 
+/**
+ * The selected tab of the active pane on screen. Kept-alive Sessions leave their own panes mounted but hidden, each
+ * still marked `active`, so visibility picks the selected Session's.
+ */
+function activePaneSelectedTab(): HTMLElement | null {
+    for (const pane of document.querySelectorAll<HTMLElement>('.workbench-pane.active')) {
+        if (!pane.checkVisibility()) continue;
+        return pane.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    }
+    return null;
+}
+
 function focusSurfaceEntry(surfaceId: ChromeSurfaceId): void {
     const surface = document.querySelector(SURFACE_SELECTORS[surfaceId]);
     if (surface) surfaceEntryElement(surfaceId, surface)?.focus({ preventScroll: true });
@@ -186,9 +198,13 @@ export function handOffChromeFocus(surfaceId: ChromeSurfaceId, isRevealing: bool
             focusSurfaceEntry(surfaceId);
             return;
         }
-        // Same question a closing picker asks, so it reuses the workbench's one registered answer instead of growing a
-        // second fallback chain: the recorded element when it is still connected, else the active pane's Terminal.
-        const target = resolvePickerFinalFocus(handoff.target === 'origin' ? origin : null);
+        // Same question a closing picker asks, so it reuses the workbench's one registered answer: the recorded element
+        // when it is still connected, else the active pane's Terminal. That answer is deliberately empty for an editor
+        // or a virtual tab such as a Chat's Context, where a picker keeps Base UI's own restore; a hidden surface has no
+        // such restore, so it lands on the active pane's selected tab instead of `document.body`.
+        const target =
+            resolvePickerFinalFocus(handoff.target === 'origin' ? origin : null) ||
+            activePaneSelectedTab();
         if (target) target.focus({ preventScroll: true });
     });
 }
