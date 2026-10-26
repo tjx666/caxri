@@ -14,7 +14,19 @@ import { notifyListeners } from '../../lib/notify-listeners';
 export type PullRequestMergeState =
     | { state: 'idle' }
     | { state: 'merging'; number: number }
-    | { state: 'checking'; number: number }
+    | {
+          state: 'checking';
+          number: number;
+          /**
+           * When the last read that counted was taken (the transport failure itself at first), so a read from before
+           * it, or the same read seen twice, never counts as an attempt.
+           */
+          lastReadAt: number;
+          /**
+           * How many fresh reads still showed the pull request open.
+           */
+          reads: number;
+      }
     | { state: 'merged'; message: string; number: number }
     | { state: 'failed'; message: string };
 
@@ -79,24 +91,27 @@ export function overlayMerge(
 }
 
 /**
- * Resolves a `checking` merge from a fresh read of the pull request. `isFinalRead` marks the last attempt: an open pull
- * request is not an answer before that, because the Server keeps running `gh pr merge` after the phone disconnects and
- * the first read after reconnecting can land before it finishes.
+ * Resolves a `checking` merge from a successful read of the pull request taken at `readAt`. An open pull request is not
+ * an answer until `maxReads` fresh reads showed it, because the Server keeps running `gh pr merge` after the phone
+ * disconnects and the first read after reconnecting can land before it finishes. A read no newer than the last one
+ * counted changes nothing.
  *
- * Returns the same object while the outcome is still open.
+ * Returns the same object when the read changes nothing.
  */
 export function settleCheckedMerge(
     merge: PullRequestMergeState,
-    read: MobilePullRequest | undefined,
-    isFinalRead: boolean,
+    read: { pullRequest: MobilePullRequest | undefined; readAt: number },
+    maxReads: number,
     messages: { merged: (number: number) => string; notCompleted: string },
 ): PullRequestMergeState {
-    if (merge.state !== 'checking') return merge;
-    if (read?.number === merge.number && read.lifecycle === 'merged')
+    if (merge.state !== 'checking' || read.readAt <= merge.lastReadAt) return merge;
+    const { pullRequest } = read;
+    if (pullRequest?.number === merge.number && pullRequest.lifecycle === 'merged')
         return { state: 'merged', number: merge.number, message: messages.merged(merge.number) };
-    if (!isFinalRead) return merge;
+    const reads = merge.reads + 1;
     // The pull request is gone from the Session or still open: the merge did not happen, so say so.
-    return { state: 'failed', message: messages.notCompleted };
+    if (reads >= maxReads) return { state: 'failed', message: messages.notCompleted };
+    return { ...merge, lastReadAt: read.readAt, reads };
 }
 
 /**

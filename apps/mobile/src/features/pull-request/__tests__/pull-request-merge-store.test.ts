@@ -25,7 +25,7 @@ const pr = (overrides: Partial<MobilePullRequest> = {}): MobilePullRequest => ({
 });
 
 const messages = { merged: (number: number) => `Merged #${number}.`, notCompleted: 'Not done' };
-const checking = { state: 'checking', number: 42 } as const;
+const checking = { state: 'checking', number: 42, lastReadAt: 1000, reads: 0 } as const;
 
 describe('Session-scoped pull request merge store', () => {
     it('keeps a merge result across re-entry so a stale read does not regress the chip', () => {
@@ -66,30 +66,44 @@ describe('Session-scoped pull request merge store', () => {
 });
 
 describe('settling a merge whose request died in transport', () => {
-    it('converges to merged as soon as the re-read shows the merge', () => {
-        expect(settleCheckedMerge(checking, pr({ lifecycle: 'merged' }), false, messages)).toEqual({
+    const open = pr();
+    const merged = pr({ lifecycle: 'merged' });
+    const read = (pullRequest: typeof open | undefined, readAt = 2000) => ({ pullRequest, readAt });
+    const openRead = read(open);
+    const mergedRead = read(merged);
+    const staleMergedRead = read(merged, 900);
+    const countedRead = read(open, 1000);
+
+    it('converges to merged as soon as a fresh read shows the merge', () => {
+        expect(settleCheckedMerge(checking, mergedRead, 3, messages)).toEqual({
             state: 'merged',
             number: 42,
             message: 'Merged #42.',
         });
     });
 
-    it('keeps checking while the pull request is open until the final read', () => {
-        expect(settleCheckedMerge(checking, pr(), false, messages)).toBe(checking);
+    it('ignores a read from before the failure, or one already counted', () => {
+        expect(settleCheckedMerge(checking, staleMergedRead, 3, messages)).toBe(checking);
+        expect(settleCheckedMerge(checking, countedRead, 1, messages)).toBe(checking);
     });
 
-    it('reports the merge as not completed when the final read still shows it open', () => {
-        expect(settleCheckedMerge(checking, pr(), true, messages)).toEqual({
+    it('counts open reads, and reports the merge as not completed at the last one', () => {
+        const once = settleCheckedMerge(checking, openRead, 3, messages);
+        expect(once).toEqual({ ...checking, lastReadAt: 2000, reads: 1 });
+        const laterRead = read(open, 3000);
+        const twice = settleCheckedMerge(once, laterRead, 3, messages);
+        expect(twice).toMatchObject({ state: 'checking', reads: 2 });
+        const lastRead = read(open, 4000);
+        expect(settleCheckedMerge(twice, lastRead, 3, messages)).toEqual({
             state: 'failed',
             message: 'Not done',
         });
-        expect(settleCheckedMerge(checking, undefined, true, messages).state).toBe('failed');
+        const goneRead = read(undefined);
+        expect(settleCheckedMerge(checking, goneRead, 1, messages).state).toBe('failed');
     });
 
     it('never touches a state that is not checking', () => {
         const merging = { state: 'merging', number: 42 } as const;
-        expect(settleCheckedMerge(merging, pr({ lifecycle: 'merged' }), true, messages)).toBe(
-            merging,
-        );
+        expect(settleCheckedMerge(merging, mergedRead, 1, messages)).toBe(merging);
     });
 });
