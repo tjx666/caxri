@@ -96,6 +96,27 @@ describe('worktree process ownership', () => {
         expect(stoppedIds(599)).toEqual([599, 600, 601, 602, 603, 604]);
     });
 
+    it("claims Metro started from a workspace node_modules, and only this checkout's (#2243)", () => {
+        const metro = `node ${WORKTREE}/apps/mobile/node_modules/.bin/../../../../node_modules/.pnpm/expo@58.0.16_abc/node_modules/expo/bin/cli start --port 8081`;
+        expect(isWorktreeOwnedCommand(metro, WORKTREE)).toBe(true);
+        expect(
+            isWorktreeOwnedCommand(
+                metro.replace(WORKTREE, '/Users/me/code/caxri-worktrees/fix-other-9z8y7x6w'),
+                WORKTREE,
+            ),
+        ).toBe(false);
+        // A source path, even one inside a workspace, still is not an artifact this checkout started.
+        expect(isWorktreeOwnedCommand(`vim ${WORKTREE}/apps/mobile/src/app.tsx`, WORKTREE)).toBe(
+            false,
+        );
+        expect(
+            isWorktreeOwnedCommand(
+                `rg needle ${WORKTREE}/apps/mobile/src/node_modules_list.ts`,
+                WORKTREE,
+            ),
+        ).toBe(false);
+    });
+
     it('reaches the launcher and the window process, neither of which any path can match', () => {
         /**
          * `dev` spawns `bun run dev` with the worktree as its working directory, and the window process reports the app

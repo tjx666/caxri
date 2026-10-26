@@ -195,7 +195,8 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop
 ```
 
 Stops the recorded `dev` launcher with its whole subtree, plus anything still executing out of this
-worktree after an interrupted run. An orphaned `Caxri Dev` main process is selected only when a
+worktree after an interrupted run, including Metro started from `apps/mobile` (any workspace's
+`node_modules` counts as this checkout's). An orphaned `Caxri Dev` main process is selected only when a
 worktree-owned child and its exact cwd confirm ownership. SIGTERM comes first, SIGKILL only for
 survivors; a final process scan fails if a child was restarted or ownership could not be confirmed.
 Ownership is re-checked across bounded rounds, so a process that was not yet visible in the first
