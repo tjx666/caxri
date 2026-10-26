@@ -40,7 +40,7 @@ describe('command registry', () => {
                 { key: 'cmd+p', command: 'pathBrowser.open' },
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+shift+a', command: 'agentActions.open' },
-                { key: 'cmd+`', command: 'session.switchMru' },
+                { key: 'ctrl+alt+tab', command: 'session.switchMru' },
                 { key: 'cmd+alt+3', command: 'secondarySidebar.showStatus' },
                 { key: 'cmd+t', command: 'terminal.new' },
                 { key: 'cmd+\\', command: 'terminal.newInSplit' },
@@ -59,7 +59,7 @@ describe('command registry', () => {
         ).toEqual([{ key: 'cmd+p', command: 'pathBrowser.open' }]);
         expect(
             defaultKeybindings.filter((binding) => binding.command === 'session.switchMru'),
-        ).toEqual([{ key: 'cmd+`', command: 'session.switchMru' }]);
+        ).toEqual([{ key: 'ctrl+alt+tab', command: 'session.switchMru' }]);
         expect(
             defaultKeybindings.filter(
                 (binding) => binding.command === 'secondarySidebar.showStatus',

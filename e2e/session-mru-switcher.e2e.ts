@@ -17,10 +17,25 @@ import {
 } from './support/helpers.ts';
 import { openSettingsSection, openSettingsTab } from './support/settings.ts';
 
-async function quickSwitch(page: Parameters<typeof selectedSessionId>[0]): Promise<void> {
-    await page.keyboard.down('Meta');
-    await page.keyboard.press('Backquote');
-    await page.keyboard.up('Meta');
+type Page = Parameters<typeof selectedSessionId>[0];
+
+/**
+ * Holds the default `Ctrl+Alt+Tab` Session MRU modifiers; the switcher stays open until they are released.
+ */
+async function holdMruModifiers(page: Page): Promise<void> {
+    await page.keyboard.down('Control');
+    await page.keyboard.down('Alt');
+}
+
+async function releaseMruModifiers(page: Page): Promise<void> {
+    await page.keyboard.up('Alt');
+    await page.keyboard.up('Control');
+}
+
+async function quickSwitch(page: Page): Promise<void> {
+    await holdMruModifiers(page);
+    await page.keyboard.press('Tab');
+    await releaseMruModifiers(page);
 }
 
 test('Session MRU switching cycles, respects editable focus, and persists across restart', async () => {
@@ -71,8 +86,8 @@ test('Session MRU switching cycles, respects editable focus, and persists across
         const terminalInput = running.page.locator(VISIBLE_TERMINAL_INPUT).last();
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
-        await running.page.keyboard.down('Meta');
-        await running.page.keyboard.press('Backquote');
+        await holdMruModifiers(running.page);
+        await running.page.keyboard.press('Tab');
         const switcher = running.page.getByRole('listbox', { name: 'Recently used Sessions' });
         await expect(switcher).toBeVisible();
         await expect(switcher.getByRole('option').nth(0)).toHaveAttribute('aria-selected', 'true');
@@ -86,7 +101,7 @@ test('Session MRU switching cycles, respects editable focus, and persists across
         );
         await expect(running.page.getByRole('status').filter({ hasText: '1 of 2' })).toBeAttached();
 
-        await running.page.keyboard.press('Backquote');
+        await running.page.keyboard.press('Tab');
         await expect(switcher.getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true');
         await expect(switcher.getByRole('option').nth(1)).toHaveAttribute(
             'data-session-id',
@@ -97,9 +112,9 @@ test('Session MRU switching cycles, respects editable focus, and persists across
             `session-mru-option-${sessionA}`,
         );
         await expect(running.page.getByRole('status').filter({ hasText: '2 of 2' })).toBeAttached();
-        await running.page.keyboard.press('Shift+Backquote');
+        await running.page.keyboard.press('Shift+Tab');
         await expect(switcher.getByRole('option').nth(0)).toHaveAttribute('aria-selected', 'true');
-        await running.page.keyboard.up('Meta');
+        await releaseMruModifiers(running.page);
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
         await expect(switcher).toBeHidden();
 
@@ -109,11 +124,11 @@ test('Session MRU switching cycles, respects editable focus, and persists across
         await quickSwitch(running.page);
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
 
-        await running.page.keyboard.down('Meta');
-        await running.page.keyboard.press('Backquote');
+        await holdMruModifiers(running.page);
+        await running.page.keyboard.press('Tab');
         await expect(switcher).toBeVisible();
         await running.page.keyboard.press('Escape');
-        await running.page.keyboard.up('Meta');
+        await releaseMruModifiers(running.page);
         await expect(switcher).toBeHidden();
         expect(await selectedSessionId(running.page)).toBe(sessionB);
 
@@ -124,20 +139,20 @@ test('Session MRU switching cycles, respects editable focus, and persists across
          * because the scrim covers the card, and a scrim that stopped taking pointer events would make the click
          * succeed.
          */
-        await running.page.keyboard.down('Meta');
-        await running.page.keyboard.press('Backquote');
+        await holdMruModifiers(running.page);
+        await running.page.keyboard.press('Tab');
         await expect(switcher).toBeVisible();
         await sessionCard(running.page, sessionC).click({ force: true });
         await expect(switcher).toBeHidden();
-        await running.page.keyboard.up('Meta');
+        await releaseMruModifiers(running.page);
         expect(await selectedSessionId(running.page)).toBe(sessionB);
 
         // Make A the durable previous Session while ending on B. Creation-order fallback would
         // still choose C after restart, so the final assertion proves persisted MRU state.
-        await running.page.keyboard.down('Meta');
-        await running.page.keyboard.press('Backquote');
-        await running.page.keyboard.press('Backquote');
-        await running.page.keyboard.up('Meta');
+        await holdMruModifiers(running.page);
+        await running.page.keyboard.press('Tab');
+        await running.page.keyboard.press('Tab');
+        await releaseMruModifiers(running.page);
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
         await quickSwitch(running.page);
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
@@ -174,7 +189,9 @@ test('Session MRU default reaches through Monaco and form focus without intercep
         }>(running.page, 'keybindings.get');
         expect(
             keybindings.value.filter((binding) => binding.command === 'session.switchMru'),
-        ).toEqual([{ key: 'cmd+`', command: 'session.switchMru' }]);
+        ).toEqual([{ key: 'ctrl+alt+tab', command: 'session.switchMru' }]);
+        // `Cmd+Backquote` belongs to the macOS window cycle, so no default may claim it.
+        expect(keybindings.value.filter((binding) => binding.key === 'cmd+`')).toEqual([]);
 
         await running.page.keyboard.press('Meta+P');
         const pathDialog = running.page.getByRole('dialog');
@@ -209,12 +226,13 @@ test('Session MRU default reaches through Monaco and form focus without intercep
         const composingEventWasNotCanceled = await searchInput.evaluate((target) =>
             target.dispatchEvent(
                 new KeyboardEvent('keydown', {
+                    altKey: true,
                     bubbles: true,
                     cancelable: true,
-                    code: 'Backquote',
+                    code: 'Tab',
+                    ctrlKey: true,
                     isComposing: true,
-                    key: '`',
-                    metaKey: true,
+                    key: 'Tab',
                 }),
             ),
         );
@@ -239,7 +257,7 @@ test('Session MRU default reaches through Monaco and form focus without intercep
     }
 });
 
-test('Session MRU starts in reverse with Cmd+Shift+Backquote and commits only on Command release', async () => {
+test('Session MRU starts in reverse with Ctrl+Alt+Shift+Tab and commits only on modifier release', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-mru-reverse-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -251,9 +269,9 @@ test('Session MRU starts in reverse with Cmd+Shift+Backquote and commits only on
         await createAdditionalShellSession(running.page);
         await createAdditionalShellSession(running.page);
 
-        await running.page.keyboard.down('Meta');
+        await holdMruModifiers(running.page);
         await running.page.keyboard.down('Shift');
-        await running.page.keyboard.press('Backquote');
+        await running.page.keyboard.press('Tab');
         const switcher = running.page.getByRole('listbox', { name: 'Recently used Sessions' });
         await expect(switcher).toBeVisible();
         await expect(switcher.getByRole('option').nth(1)).toHaveAttribute(
@@ -264,7 +282,7 @@ test('Session MRU starts in reverse with Cmd+Shift+Backquote and commits only on
 
         await running.page.keyboard.up('Shift');
         await expect(switcher).toBeVisible();
-        await running.page.keyboard.up('Meta');
+        await releaseMruModifiers(running.page);
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
         await expect(switcher).toBeHidden();
     } finally {

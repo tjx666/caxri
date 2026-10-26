@@ -237,10 +237,13 @@ the mounted component.
 
 ### `Cmd+Shift+N`, and why not `Cmd+Shift+` backtick
 
-The natural pairing would be the shifted form of Session MRU's `Cmd+` backtick. It is unusable: on a
-US macOS layout Shift turns Backquote's printable value into a tilde, so the chord never matches a
-stored `cmd+shift+` backtick, and `resolveKeydownBinding`'s unshifted fallback then hands that exact
-stroke to `session.switchMru` for reverse cycling.
+The natural pairing was the shifted form of Session MRU's `Cmd+` backtick, its default when this
+chord was chosen. Session MRU now defaults to `Ctrl+Alt+Tab` so that `Cmd+` backtick stays with the
+macOS window cycle across Caxri windows, but the shifted chord is unusable either way: on a US macOS
+layout Shift turns Backquote's printable value into a tilde, so the chord never matches a stored
+`cmd+shift+` backtick, and for a user who rebinds Session MRU to `Cmd+` backtick,
+`resolveKeydownBinding`'s unshifted fallback hands that exact stroke to `session.switchMru` for
+reverse cycling.
 `use-command-shortcuts.test.ts` guards the shipped default set against a future binding that walks
 into the same trap.
 

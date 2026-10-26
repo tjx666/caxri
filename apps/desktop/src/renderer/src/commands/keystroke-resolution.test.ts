@@ -56,18 +56,30 @@ describe('resolveKeydownBinding', () => {
     });
 
     /**
-     * Guards the whole shipped default set rather than one binding: a new `cmd+shift+\`` default looks reachable in the
-     * catalog and is dead on arrival, because the fallback above claims that physical stroke for reverse MRU before the
-     * new command can ever see it. `session.focusNextAttention` was written that way first.
+     * Guards the whole shipped default set rather than one binding: macOS cycles the current app's windows with
+     * `Cmd+Backquote` and `Cmd+Shift+Backquote`, and Caxri opens several windows, so no default may resolve either
+     * stroke. Session MRU reverses on `Ctrl+Alt+Shift+Tab` through the unshifted fallback instead.
      */
-    it('leaves Cmd+Shift+Backquote to reverse Session MRU across the shipped defaults', () => {
-        const binding = resolveKeydownBinding(
-            buildShortcutMap(defaultKeybindings),
-            shiftedBackquoteEvent(),
-            { terminalFocus: false },
-        );
+    it('leaves Cmd+Backquote to the macOS window cycle across the shipped defaults', () => {
+        const shortcutMap = buildShortcutMap(defaultKeybindings);
 
-        expect(binding?.command).toBe('session.switchMru');
+        expect(
+            resolveKeydownBinding(
+                shortcutMap,
+                keyEvent('`', { code: 'Backquote', metaKey: true }),
+                { terminalFocus: false },
+            ),
+        ).toBeUndefined();
+        expect(
+            resolveKeydownBinding(shortcutMap, shiftedBackquoteEvent(), { terminalFocus: false }),
+        ).toBeUndefined();
+        expect(
+            resolveKeydownBinding(
+                shortcutMap,
+                keyEvent('Tab', { altKey: true, code: 'Tab', ctrlKey: true, shiftKey: true }),
+                { terminalFocus: true },
+            )?.command,
+        ).toBe('session.switchMru');
     });
 
     /**
