@@ -384,9 +384,8 @@ export class ExecutableResolver {
     private withFallbackDirectories(path: string | undefined): string | undefined {
         if (this.fallbackDirectories.size === 0) return path;
         const existing = pathDirectories(path);
-        const extra = [...this.fallbackDirectories].filter(
-            (directory) => !existing.includes(directory),
-        );
+        const present = new Set(existing);
+        const extra = [...this.fallbackDirectories].filter((directory) => !present.has(directory));
         return [...existing, ...extra].join(delimiter);
     }
 

@@ -273,8 +273,8 @@ export function createAgentNotificationDelivery({
             const startAfterModeResolution = async (): Promise<void> => {
                 try {
                     const { mode } = await resolveMode();
-                    if (isClosed) return;
-                    delivery = deliver(mode, notification, onClick, () => isClosed);
+                    // Closing while the mode resolves cancels delivery before anything is shown.
+                    if (!isClosed) delivery = deliver(mode, notification, onClick, () => isClosed);
                 } catch {
                     reportOperationFailure('delivery_start_failed');
                 }
