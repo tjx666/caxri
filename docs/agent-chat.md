@@ -1235,7 +1235,14 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   same Terminal and grant checks as `send`. The row hides at once and returns with an inline error
   when Core refuses; that error clears once its row or the whole queue is gone. Rows are named by
   `agentChatQueueEntry`, which Desktop shares. Edit gets the full text the preview cut from
-  `agentChat.takeQueued`, puts it ahead of the draft, and focuses the composer. The gateway first
+  `agentChat.takeQueued`, puts it ahead of the draft, and focuses the composer. A message with
+  images or file and folder references is edited in place instead, as on Desktop: Edit first calls
+  `mobile.agentChat.readQueued` (the full text the user typed with the reference block split off by
+  `agentChatQueuedTextEdit`, the image count, and whether references ride with it), then the row
+  becomes an editor showing only that text and "N images attached"; Save calls
+  `mobile.agentChat.editQueued`, and the gateway puts the message's own reference block back ahead
+  of the text before forwarding `agentChat.editQueued`, so references stay attached and images stay
+  on Server Core. A failed save keeps the editor open with the typed text. The gateway first
   checks the text against the 16 KiB a phone may send, so a longer message stays queued for the
   computer; that refusal, and an entry that left the queue first, show as an alert, because the
   row is already gone from the card. While a turn runs the Send button wears the queue glyph and the placeholder reads

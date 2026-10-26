@@ -3,7 +3,7 @@ import type {
     AgentChatQueueEntry,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { agentChatQueueEntry, parseAgentChatPathReferences } from '@caxri/protocol';
+import { agentChatQueueEntry } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import { translate } from '../../../i18n';
@@ -52,22 +52,6 @@ export function agentChatQueueEntries(
 }
 
 /**
- * A queued message's text split for editing in place: the file, folder, and skill lines a message may carry ahead of
- * what the user typed stay as they are (`prefix`), and only `body` is edited.
- */
-export function agentChatQueuedTextEdit(text: string): { prefix: string; body: string } {
-    const { text: body } = parseAgentChatPathReferences(text);
-    return { prefix: text.slice(0, text.length - body.length), body };
-}
-
-/**
- * The text an in-place edit saves: the edited `body` after the untouched `prefix`.
- */
-export function agentChatQueuedTextAfterEdit(prefix: string, body: string): string {
-    return `${prefix}${body}`;
-}
-
-/**
  * The queued message Enter in an empty composer sends now: the head of Server Core's queue, so the shortcut does what
  * the first card's Steer or Send now does. `undefined` when the queue is empty or its head must wait for the turn (a
  * command cannot steer).
@@ -89,9 +73,6 @@ function queueEntryView(
         ...agentChatQueueEntry(message, isTurnRunning),
         text: message.text,
         imageCount,
-        // Images stay on Server Core, so the shared row refuses Edit (the phone has no in-place editor). Desktop edits
-        // such a message's text in the row itself (`agentChatQueuedTextEdit`), leaving the images where they are.
-        canEdit: true,
         // The shared row names its images in English for the phone; Desktop names them in the active language.
         imageLabel:
             imageCount === 0

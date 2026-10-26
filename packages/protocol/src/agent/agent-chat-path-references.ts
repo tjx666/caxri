@@ -176,6 +176,22 @@ export function agentChatPathReferenceName(
 }
 
 /**
+ * A queued message's text split for editing in place: the file, folder, and skill lines a message may carry ahead of
+ * what the user typed stay as they are (`prefix`), and only `body` is edited.
+ */
+export function agentChatQueuedTextEdit(text: string): { prefix: string; body: string } {
+    const { text: body } = parseAgentChatPathReferences(text);
+    return { prefix: text.slice(0, text.length - body.length), body };
+}
+
+/**
+ * The text an in-place edit saves: the edited `body` after the untouched `prefix`.
+ */
+export function agentChatQueuedTextAfterEdit(prefix: string, body: string): string {
+    return `${prefix}${body}`;
+}
+
+/**
  * A one-line summary of a message for a queue row or the message rail: the user's words, each cited Session as its
  * `@title` mention, or the names of the files and folders it cites when it has no words. A preview clipped inside the
  * reference block names the references it still holds.

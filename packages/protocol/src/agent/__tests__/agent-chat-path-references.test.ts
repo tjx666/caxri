@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatPathReferenceName,
     agentChatPathReferencePreview,
+    agentChatQueuedTextAfterEdit,
+    agentChatQueuedTextEdit,
     agentChatTextWithPathReferences,
     CAXRI_SKILL_NAME,
     parseAgentChatPathReferences,
@@ -116,5 +118,21 @@ describe('agent chat path references', () => {
         // A queue preview clipped inside the block still names the references it holds.
         expect(agentChatPathReferencePreview(message.slice(0, 70))).toBe('prettier-config');
         expect(agentChatPathReferencePreview('plain')).toBe('plain');
+    });
+});
+
+describe('agentChatQueuedTextEdit', () => {
+    it('edits only what the user typed and keeps the cited files ahead of it', () => {
+        const text =
+            '# Files mentioned by the user:\n\n## a.ts: /tmp/a.ts\n\n## My request:\nlook here';
+        const { prefix, body } = agentChatQueuedTextEdit(text);
+        expect(body).toBe('look here');
+        expect(agentChatQueuedTextAfterEdit(prefix, 'look there')).toBe(
+            '# Files mentioned by the user:\n\n## a.ts: /tmp/a.ts\n\n## My request:\nlook there',
+        );
+    });
+
+    it('treats plain text as all body', () => {
+        expect(agentChatQueuedTextEdit('plain')).toEqual({ prefix: '', body: 'plain' });
     });
 });

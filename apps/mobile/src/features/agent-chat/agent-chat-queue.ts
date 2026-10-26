@@ -112,7 +112,6 @@ export const agentChatQueueSendNowText = (
 
 export const agentChatQueueRowHints = (
     entry: AgentChatQueueRow,
-    imagesUnsupported: string,
     t: Translate = translate,
 ): { sendNow: string | undefined; edit: string | undefined } => {
     if (entry.isPending) {
@@ -124,8 +123,46 @@ export const agentChatQueueRowHints = (
             ? t('chat.queue.steerHint')
             : undefined
         : t('chat.queue.commandWaits');
-    return { sendNow, edit: entry.canEdit ? undefined : imagesUnsupported };
+    return { sendNow, edit: undefined };
 };
+
+/**
+ * What `mobile.agentChat.readQueued` says about a queued message the user taps Edit on, and the text to edit.
+ */
+export interface AgentChatQueueEditTarget {
+    /**
+     * What the user typed: the file, folder, and skill references the message carries are not part of it.
+     */
+    text: string;
+    imageCount: number;
+    hasReferences: boolean;
+}
+
+/**
+ * How Edit treats a queued message. `draft`: a plain message is taken out of the queue and its text goes back into the
+ * composer. `inPlace`: a message with images or references is rewritten where it stands, because neither can return to
+ * the composer, and editing must neither drop them nor show their serialized block as text.
+ */
+export const agentChatQueueEditMode = (
+    target: Pick<AgentChatQueueEditTarget, 'hasReferences' | 'imageCount'>,
+): 'draft' | 'inPlace' => (target.imageCount > 0 || target.hasReferences ? 'inPlace' : 'draft');
+
+/**
+ * Whether an in-place edit may be saved: an emptied message with no images has nothing left to send, as on Desktop.
+ */
+export const canSaveAgentChatQueueEdit = (text: string, imageCount: number): boolean =>
+    text.trim() !== '' || imageCount > 0;
+
+/**
+ * The note under an in-place editor saying how many images ride with the message, worded as Desktop's.
+ */
+export const agentChatQueueImagesAttached = (
+    imageCount: number,
+    t: Translate = translate,
+): string =>
+    imageCount === 1
+        ? t('chat.queue.imagesAttachedOne')
+        : t('chat.queue.imagesAttachedOther', { count: imageCount });
 
 export type AgentChatQueueRowAction = 'remove' | 'sendNow' | 'edit';
 

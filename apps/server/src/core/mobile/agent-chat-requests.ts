@@ -10,6 +10,8 @@ import type {
 } from '@caxri/protocol';
 import {
     agentChatMethods,
+    agentChatQueuedTextAfterEdit,
+    agentChatQueuedTextEdit,
     canMobileAgentChatSend,
     CaxriError,
     clipAgentChatTaskSnapshotForMobile,
@@ -47,6 +49,16 @@ const mobileAgentChatReads: ReadonlySet<MobileAgentChatRequest['method']> = new 
 
 export const isMobileAgentChatRead = (request: MobileAgentChatRequest): boolean =>
     mobileAgentChatReads.has(request.method);
+
+/**
+ * One entry of the Chat's follow-up queue with its full text; a message that already left the queue is a `CONFLICT`.
+ */
+async function queuedEntry(domainService: ServerDomainService, terminalId: string, id: string) {
+    const { queue } = await domainService.request('agentChat.read', { terminalId });
+    const entry = queue?.find((candidate) => candidate.id === id);
+    if (!entry) throw new CaxriError('CONFLICT', 'This message is no longer queued');
+    return entry;
+}
 
 /**
  * Forwards a Server operation through Core's mutation admission, the same path a Desktop request takes.
@@ -210,6 +222,7 @@ export async function invokeMobileAgentChatRequest(
     | UsageLimit
     | (ImageData & { chunkIndex: number; chunkCount: number })
     | { text: string }
+    | { text: string; imageCount: number; hasReferences: boolean }
     | null
 > {
     if (!forwardOperation)
@@ -412,9 +425,7 @@ export async function invokeMobileAgentChatRequest(
              * leaves the queue in between still fails the take with `CONFLICT`.
              */
             const { id } = request.params;
-            const { queue } = await domainService.request('agentChat.read', { terminalId });
-            const entry = queue?.find((candidate) => candidate.id === id);
-            if (!entry) throw new CaxriError('CONFLICT', 'This message is no longer queued');
+            const entry = await queuedEntry(domainService, terminalId, id);
             if (!canMobileAgentChatSend(entry.text))
                 throw new CaxriError('VALIDATION', 'This message is too long to edit on a phone');
             reauthorize();
@@ -422,6 +433,29 @@ export async function invokeMobileAgentChatRequest(
                 await forward({ method: 'agentChat.takeQueued', params: { terminalId, id } }),
             );
             return { text: taken.text };
+        }
+        case 'mobile.agentChat.readQueued': {
+            const entry = await queuedEntry(domainService, terminalId, request.params.id);
+            reauthorize();
+            if (!canMobileAgentChatSend(entry.text))
+                throw new CaxriError('VALIDATION', 'This message is too long to edit on a phone');
+            const { prefix, body } = agentChatQueuedTextEdit(entry.text);
+            return { text: body, imageCount: entry.imageCount ?? 0, hasReferences: prefix !== '' };
+        }
+        case 'mobile.agentChat.editQueued': {
+            /**
+             * The phone sends only what the user typed. The message's own reference block is read here and put back
+             * ahead of it, so the references stay attached and a phone never composes the serialized block.
+             */
+            const { id, text } = request.params;
+            const entry = await queuedEntry(domainService, terminalId, id);
+            reauthorize();
+            const { prefix } = agentChatQueuedTextEdit(entry.text);
+            await forward({
+                method: 'agentChat.editQueued',
+                params: { terminalId, id, text: agentChatQueuedTextAfterEdit(prefix, text) },
+            });
+            return null;
         }
         case 'mobile.agentChat.runCommand': {
             // Core checks the name against the Chat's listed commands, so a phone's stale list cannot run another.

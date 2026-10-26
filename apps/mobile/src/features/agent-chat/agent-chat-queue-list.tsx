@@ -1,7 +1,8 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { useCallback, useRef, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
@@ -24,10 +25,13 @@ import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
 import {
     agentChatQueueCardLayout,
+    agentChatQueueImagesAttached,
     agentChatQueueRowHints,
     agentChatQueueSendNowText,
+    canSaveAgentChatQueueEdit,
 } from './agent-chat-queue';
 import type { AgentChatController } from './use-agent-chat';
+import type { AgentChatQueueInPlaceEdit } from './use-agent-chat-queue-actions';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
 import { useIsKeyboardShown } from './use-keyboard-shown';
 
@@ -140,9 +144,7 @@ const QueueRowActions = ({
 }) => {
     const { t } = useTranslation();
     const isSteer = entry.sendNowLabel === 'Steer';
-    // Desktop's reason a message with images has no Edit, shown when the disabled button is tapped.
-    const imagesUnsupported = t('chat.queue.imagesUnsupported');
-    const hints = agentChatQueueRowHints(entry, imagesUnsupported, t);
+    const hints = agentChatQueueRowHints(entry, t);
     return (
         <>
             <Pressable
@@ -175,13 +177,8 @@ const QueueRowActions = ({
                 accessibilityHint={hints.edit}
                 accessibilityLabel={t('chat.queue.editMessage')}
                 color={theme.muted}
-                disabled={isPending || !entry.canEdit}
+                disabled={isPending}
                 icon={Pencil}
-                onDisabledPress={
-                    isPending
-                        ? undefined
-                        : () => Alert.alert(t('chat.queue.cannotEdit'), imagesUnsupported)
-                }
                 onPress={() => {
                     void onEdit(entry.id);
                 }}
@@ -194,12 +191,95 @@ const QueueRowActions = ({
 };
 
 /**
+ * Edits the text of a queued message that carries images or file references, in its own row: neither can return to the
+ * composer, so the message is rewritten where it stands. Only what the user typed is shown; the references stay
+ * attached, and a note says how many images ride with it, worded as Desktop's. A failed save keeps the typed text.
+ */
+const QueueTextEditor = ({
+    editing,
+    isSaving,
+    onCancel,
+    onSave,
+    theme,
+}: {
+    editing: AgentChatQueueInPlaceEdit;
+    isSaving: boolean;
+    onCancel: () => void;
+    onSave: (text: string) => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const [value, setValue] = useState(editing.text);
+    const canSave = !isSaving && canSaveAgentChatQueueEdit(value, editing.imageCount);
+    return (
+        <View style={styles.editor} testID="agent-chat-queue-editor">
+            <TextInput
+                accessibilityLabel={t('chat.queue.editLabel')}
+                autoFocus
+                multiline
+                onChangeText={setValue}
+                placeholderTextColor={theme.muted}
+                style={[
+                    styles.editorInput,
+                    {
+                        backgroundColor: theme.elevated,
+                        borderColor: theme.border,
+                        color: theme.text,
+                    },
+                ]}
+                testID="agent-chat-queue-editor-input"
+                value={value}
+            />
+            <View style={styles.editorFooter}>
+                <Text style={[styles.imagesText, styles.editorNote, { color: theme.muted }]}>
+                    {editing.imageCount > 0
+                        ? agentChatQueueImagesAttached(editing.imageCount, t)
+                        : ''}
+                </Text>
+                <Pressable
+                    accessibilityRole="button"
+                    disabled={isSaving}
+                    onPress={onCancel}
+                    style={styles.editorButton}
+                    testID="agent-chat-queue-editor-cancel"
+                >
+                    <Text style={[styles.resumeText, { color: theme.muted }]}>
+                        {t('chat.queue.cancelEdit')}
+                    </Text>
+                </Pressable>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ busy: isSaving, disabled: !canSave }}
+                    disabled={!canSave}
+                    onPress={() => onSave(value)}
+                    style={[
+                        styles.editorButton,
+                        styles.editorSave,
+                        { backgroundColor: theme.primary, opacity: canSave ? 1 : 0.38 },
+                    ]}
+                    testID="agent-chat-queue-editor-save"
+                >
+                    {isSaving ? (
+                        <Spinner color={theme.primaryForeground} />
+                    ) : (
+                        <Text style={[styles.steerText, { color: theme.primaryForeground }]}>
+                            {t('chat.queue.saveEdit')}
+                        </Text>
+                    )}
+                </Pressable>
+            </View>
+        </View>
+    );
+};
+
+/**
  * One queued follow-up: up to two lines of preview, its command and image count, then Steer (or Send now) and Edit.
  * Swiping the row left reveals Delete, like a chat list's row action, and only a tap on it deletes, so a stray swipe
  * never loses a message. The screen reader reaches the same Delete as an action on the row.
  */
 const QueueRow = ({
     canAct: canActOnQueue,
+    editor,
     entry,
     onEdit,
     onRemove,
@@ -207,6 +287,10 @@ const QueueRow = ({
     theme,
 }: {
     canAct: boolean;
+    /**
+     * The in-place editor that replaces the row while its message is being edited.
+     */
+    editor: ReactNode;
     entry: AgentChatQueueRow;
     onEdit: (id: string) => Promise<boolean>;
     onRemove: (id: string) => Promise<boolean>;
@@ -240,6 +324,7 @@ const QueueRow = ({
         ),
         [deleteLabel, remove, t, theme],
     );
+    if (editor) return <>{editor}</>;
     const isPending = entry.isPending === true;
     // A message still on its way holds every action until Server Core lists it, as on Desktop.
     const canAct = canActOnQueue && !isPending;
@@ -313,8 +398,9 @@ const QueueRow = ({
 /**
  * The follow-up messages waiting for the running turn, as one card docked above the composer, like Desktop's queue.
  * Each can be sent now (steering the running turn), edited, or deleted; after Stop the queue pauses, and the header
- * offers Resume. Edit takes the message out of the queue and hands its full text to `onEdit`, the composer draft. A
- * device that cannot send sees the card without actions.
+ * offers Resume. Edit takes a plain message out of the queue and hands its full text to `onEdit`, the composer draft; a
+ * message with images or references is edited in place instead. A device that cannot send sees the card without
+ * actions.
  */
 export const AgentChatQueueList = ({
     canAct,
@@ -330,8 +416,20 @@ export const AgentChatQueueList = ({
     onEdit: (text: string) => void;
     theme: MobileTheme;
 }) => {
-    const { edit, entries, error, header, isResuming, remove, resume, sendNow } =
-        useAgentChatQueueActions(chat, onEdit);
+    const {
+        cancelEdit,
+        edit,
+        editing,
+        entries,
+        error,
+        header,
+        isResuming,
+        isSavingEdit,
+        remove,
+        resume,
+        saveEdit,
+        sendNow,
+    } = useAgentChatQueueActions(chat, onEdit);
     const { t } = useTranslation();
     const isComposing = useIsKeyboardShown();
     const [isExpanded, setExpanded] = useState(false);
@@ -343,6 +441,19 @@ export const AgentChatQueueList = ({
         ({ item }: ListRenderItemInfo<AgentChatQueueRow>) => (
             <QueueRow
                 canAct={canAct}
+                editor={
+                    editing?.id === item.id ? (
+                        <QueueTextEditor
+                            editing={editing}
+                            isSaving={isSavingEdit}
+                            onCancel={cancelEdit}
+                            onSave={(text) => {
+                                void saveEdit(text);
+                            }}
+                            theme={theme}
+                        />
+                    ) : null
+                }
                 entry={item}
                 onEdit={edit}
                 onRemove={remove}
@@ -350,7 +461,7 @@ export const AgentChatQueueList = ({
                 theme={theme}
             />
         ),
-        [canAct, edit, remove, sendNow, theme],
+        [canAct, cancelEdit, edit, editing, isSavingEdit, remove, saveEdit, sendNow, theme],
     );
     // An entry that failed to delete because it already left the queue leaves nothing to explain the error against.
     if (!header) return null;
@@ -461,5 +572,27 @@ const styles = StyleSheet.create({
     },
     swipeActionText: { fontSize: 13, fontWeight: '700' },
     error: { fontSize: 13, paddingBottom: 8, paddingHorizontal: 12 },
+    editor: { gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+    editorInput: {
+        borderRadius: 10,
+        borderWidth: 1,
+        fontSize: 14,
+        lineHeight: 19,
+        maxHeight: 140,
+        minHeight: 44,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        textAlignVertical: 'top',
+    },
+    editorFooter: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+    editorNote: { flex: 1 },
+    editorButton: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 40,
+        minWidth: 64,
+        paddingHorizontal: 12,
+    },
+    editorSave: { borderRadius: 20 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

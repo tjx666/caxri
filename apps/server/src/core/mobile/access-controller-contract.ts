@@ -69,6 +69,8 @@ export type MobileControlRequest = Extract<
             | 'mobile.agentChat.sendQueuedNow'
             | 'mobile.agentChat.resumeQueue'
             | 'mobile.agentChat.takeQueued'
+            | 'mobile.agentChat.readQueued'
+            | 'mobile.agentChat.editQueued'
             | 'mobile.agentChat.runCommand'
             | 'mobile.commanderInbox.list'
             | 'mobile.commanderInbox.reply'

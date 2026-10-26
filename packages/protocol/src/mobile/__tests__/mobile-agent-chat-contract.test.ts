@@ -442,4 +442,19 @@ describe('mobile Agent Chat projection', () => {
         expect(result.safeParse({ text: 'x'.repeat(5_000) }).success).toBe(true);
         expect(result.safeParse({ text: 'x'.repeat(17_000) }).success).toBe(false);
     });
+
+    it('reads a queued message for editing only when the phone could send its text again', () => {
+        const methods = mobileAgentChatMethods;
+        const read = methods['mobile.agentChat.readQueued'].result;
+        const body = { imageCount: 1, hasReferences: true };
+        expect(read.safeParse({ ...body, text: 'x'.repeat(5_000) }).success).toBe(true);
+        expect(read.safeParse({ ...body, text: 'x'.repeat(17_000) }).success).toBe(false);
+        const edit = methods['mobile.agentChat.editQueued'].params;
+        expect(edit.safeParse({ terminalId: 'terminal-1', id: 'q', text: 'ok' }).success).toBe(
+            true,
+        );
+        expect(
+            edit.safeParse({ terminalId: 'terminal-1', id: 'q', text: 'x'.repeat(17_000) }).success,
+        ).toBe(false);
+    });
 });
