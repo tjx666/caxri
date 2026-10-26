@@ -31,7 +31,13 @@ export const createChatSendFaultGate = (fault: string | undefined) => {
  * is the `unknown` path of `classifyMobileWriteFailure`, which no Server-side failure can reproduce on demand. Expo
  * replaces the environment expression while bundling, so a production build carries a gate that never fires.
  */
+// eslint-disable-next-line n/prefer-global/process
+const acceptanceFault: unknown = process.env.EXPO_PUBLIC_CAXRI_ACCEPTANCE_FAULT;
+
+/**
+ * `process.env` is typed only by Expo's generated, gitignored `expo-env.d.ts`, so a clean checkout reads it as `any`;
+ * narrowing here keeps the type-aware lint identical with and without that file.
+ */
 export const chatSendFaultGate = createChatSendFaultGate(
-    // eslint-disable-next-line n/prefer-global/process
-    process.env.EXPO_PUBLIC_CAXRI_ACCEPTANCE_FAULT,
+    typeof acceptanceFault === 'string' ? acceptanceFault : undefined,
 );
