@@ -140,7 +140,11 @@ describe('Agent Chat images and slash commands with a fake Claude Code CLI', () 
         // The compaction notice stands for the command; `/compact` never shows as a user message.
         expect(snapshot.items.map((item) => item.type)).toEqual(['notice']);
         expect(snapshot.items[0]).toMatchObject({ kind: 'compacted' });
-        expect(snapshot.commands?.map((command) => command.name)).toEqual(['compact', 'review']);
+        expect(snapshot.commands?.map((command) => command.name)).toEqual([
+            'compact',
+            'review',
+            'goal',
+        ]);
     });
 
     it('clears compaction when Claude Code exits mid-compaction, so later messages are not held', async () => {

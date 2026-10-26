@@ -27,11 +27,11 @@
  *
  * A message with images is answered with how many it received. `/compact` compacts the conversation, reporting `status:
  * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
- * reports `/compact`, `/review`, and the terminal-bound `/exit` as its commands. A message steered with `priority:
- * 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control; `set_model` and an
- * `effortLevel` flag setting change what the next init message and hook input report. Ultracode is a flag setting
- * offered only on models with effort control, and an effort change without an `ultracode` key turns it off. A
- * `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and the result report.
+ * reports `/compact`, `/review`, the built-in `/goal`, and the terminal-bound `/exit` as its commands. A message
+ * steered with `priority: 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control;
+ * `set_model` and an `effortLevel` flag setting change what the next init message and hook input report. Ultracode is a
+ * flag setting offered only on models with effort control, and an effort change without an `ultracode` key turns it
+ * off. A `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and the result report.
  *
  * A `side_question` control request is answered at once, even mid-turn (`fake-claude-side.ts`).
  *

@@ -1,9 +1,13 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expectComposerValue } from './support/agent-chat-composer.ts';
-import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
+import {
+    fakeClaudeChatAgentMode,
+    fakeCodexChatAgentMode,
+    openAgentChat,
+} from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -139,6 +143,53 @@ test('Goal mode dims attachments, says they stay for the next message, and keeps
         await expect(attached.getByRole('listitem')).toHaveCount(1);
         await expect(attached).toHaveCSS('opacity', '1');
         await page.screenshot({ path: testInfo.outputPath('goal-attachments-kept.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test("a Claude Code Chat's built-in /goal enters Goal mode on Tab instead of sending a bare /goal", async ({}, testInfo) => {
+    // Claude Code keys its transcript directory by its real working directory, so the Project root must be resolved.
+    const created = await mkdtemp(join(tmpdir(), 'caxri-claude-chat-goal-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expect(message).toHaveAttribute('aria-placeholder', 'Message Claude');
+
+        await message.fill('/go');
+        const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
+        await expect(commands.getByRole('option').first()).toHaveText(/^\/goal/u);
+        await message.press('Tab');
+        const goalChip = chat.getByRole('button', {
+            name: 'Goal mode',
+            exact: true,
+            pressed: true,
+        });
+        await expect(goalChip).toBeVisible();
+        await expectComposerValue(message, '');
+        await expect(message).toHaveAttribute(
+            'aria-placeholder',
+            'Describe your goal, define measurable outcomes for best results',
+        );
+        await page.screenshot({ path: testInfo.outputPath('claude-goal-mode.png') });
+
+        // Enter sets the goal through Claude Code's own `/goal <condition>` and leaves Goal mode.
+        await message.fill('the fixtures pass');
+        await message.press('Enter');
+        await expect(goalChip).toHaveCount(0);
+        await expect(chat.getByText('/goal the fixtures pass').first()).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-goal-set.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

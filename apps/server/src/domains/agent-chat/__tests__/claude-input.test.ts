@@ -1,6 +1,7 @@
+import type { AgentChatCommand } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { claudeUserPrompt } from '../claude-input';
+import { ClaudeCommandList, claudeUserPrompt } from '../claude-input';
 
 const image = {
     mediaType: 'image/png' as const,
@@ -39,5 +40,34 @@ describe('claudeUserPrompt', () => {
             images: [image],
         });
         expect(message.message.content).toHaveLength(1);
+    });
+});
+
+describe('ClaudeCommandList', () => {
+    function published(commands: unknown): AgentChatCommand[] {
+        let result: AgentChatCommand[] = [];
+        new ClaudeCommandList((next) => {
+            result = next;
+        }).report(commands);
+        return result;
+    }
+
+    it("marks Claude Code's built-in /goal so the composer enters Goal mode", () => {
+        expect(
+            published([
+                {
+                    name: 'goal',
+                    description: 'Set a goal',
+                    argumentHint: '',
+                    builtin: true,
+                },
+            ]),
+        ).toEqual([{ name: 'goal', description: 'Set a goal', goal: true }]);
+    });
+
+    it('leaves a custom /goal unmarked, running like any other command', () => {
+        expect(
+            published([{ name: 'goal', description: 'My goal skill', argumentHint: '' }]),
+        ).toEqual([{ name: 'goal', description: 'My goal skill' }]);
     });
 });
