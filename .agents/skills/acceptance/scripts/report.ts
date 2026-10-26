@@ -37,6 +37,7 @@ import {
     validateExistingReportDirectory,
     writeJsonAtomically,
 } from './report-paths';
+import { assertRequiredEvidence } from './report-required-evidence';
 import { validateCaseVisualizations, visualizationCaseSchema } from './report-visualizations';
 import { assertUniqueAcceptanceCaseIds, isAcceptanceCaseId } from './runtime-state';
 import { validateHumanText, validateReportLanguage } from './validate-report';
@@ -532,43 +533,26 @@ export async function finalizeReport(input: FinalizeReportInput) {
             status: item.status,
             surface: item.surface,
         });
-        const actualEvidence: Array<{ source?: (typeof MEDIA_SOURCES)[number]; type: string }> = [];
+        const actualEvidence: Array<{
+            path: string;
+            source?: (typeof MEDIA_SOURCES)[number];
+            type: string;
+        }> = [];
         for (const evidence of item.evidence) {
+            const path = evidencePath(evidence);
             // Sequential await preserves deterministic, index-ordered failure reporting when
             // multiple evidence entries are invalid; Promise.all would report whichever
             // filesystem check settles first instead of the first evidence entry in plan order.
             // eslint-disable-next-line no-await-in-loop
-            const type = await validateEvidenceFile(directory, evidencePath(evidence));
-            actualEvidence.push({ source: evidence.source, type });
+            const type = await validateEvidenceFile(directory, path);
+            actualEvidence.push({ path, source: evidence.source, type });
         }
         if (failureDiagnostic) {
             // eslint-disable-next-line no-await-in-loop
             await validateFailureDiagnostic(directory, item.id, failureDiagnostic);
         }
-        const missing =
-            item.status === 'blocked'
-                ? []
-                : requiredEvidenceTypes(planned).filter((required) =>
-                      actualEvidence.every(
-                          (actual) =>
-                              !(
-                                  actual.type === required.type &&
-                                  (!('source' in required) ||
-                                      !required.source ||
-                                      actual.source === required.source)
-                              ),
-                      ),
-                  );
-        if (missing.length > 0) {
-            throw new Error(
-                `Case ${item.id} is missing required evidence: ${missing
-                    .map(({ type, ...required }) =>
-                        'source' in required && required.source
-                            ? `${type}:${required.source}`
-                            : type,
-                    )
-                    .join(', ')}`,
-            );
+        if (item.status !== 'blocked') {
+            assertRequiredEvidence(item.id, requiredEvidenceTypes(planned), actualEvidence);
         }
         if (
             item.status === 'blocked' &&
