@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { defaultAgentProviderSettings } from '@caxri/protocol';
+import { applyEdits, modify } from 'jsonc-parser';
 
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -281,9 +282,20 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
     });
     try {
         const initial = await pageRequest<{ source: string }>(running.page, 'settings.get');
-        const legalSource = initial.source
-            .replace(/"terminal\.fontSize":\s*\d+/, '"terminal.fontSize": 17')
-            .replace(/\n\}\s*$/, '\n  // keep-source-comment\n}\n');
+        /**
+         * Set the key structurally rather than by regex: the E2E profile seeds a sparse `settings.jsonc` (see
+         * `e2e-profile.ts`) that omits `terminal.fontSize`, so replacing its default text silently matched nothing and
+         * pasted back an unchanged 13.
+         */
+        const withFontSize = applyEdits(
+            initial.source,
+            modify(initial.source, ['terminal.fontSize'], 17, {
+                formattingOptions: { insertSpaces: true, tabSize: 2 },
+            }),
+        );
+        const legalSource = withFontSize.replace(/\n\}\s*$/, '\n  // keep-source-comment\n}\n');
+        expect(legalSource).toContain('"terminal.fontSize": 17');
+        expect(legalSource).toContain('keep-source-comment');
 
         // `settingsTab` stays valid for the whole test: unlike the former dialog, this Workbench
         // tab is never actually closed below, only navigated within (UI/Source view, Settings /
