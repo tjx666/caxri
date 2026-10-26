@@ -78,6 +78,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    every spec that relies on what it changed: search `e2e/` for specs reading that value or helper
    and list them too. Changing `e2e/support/e2e-profile.ts` defaults while listing only
    `editor-auto-save.e2e.ts` left `settings.e2e.ts` failing on `main`.
+   A diff that changes a default keybinding or what a key does in a surface breaks specs that
+   press that key for the old meaning: search `e2e/` for `press('<key>')` (with and without
+   modifiers, such as `'Enter'` and `'Meta+Enter'`) and list every spec it reaches. Making plain
+   Enter steer a running Chat turn (#2610) left `session-return-context.e2e.ts` failing on `main`.
    Run `bun run scripts/surface-matrix.ts` against the pushed diff (`--base origin/main` is the
    default) and paste its Markdown output into the PR body. It reports which product surfaces the
    diff touches (Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,
