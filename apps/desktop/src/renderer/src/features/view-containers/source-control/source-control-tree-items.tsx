@@ -18,7 +18,10 @@ import { openFile } from '../../editor/document-commands';
 import { observeKeepAliveElementRect } from '../virtual-tree-keep-alive';
 import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
-import { sourceControlActionMenuItems } from './source-control-row-menu';
+import {
+    sourceControlActionMenuItems,
+    sourceControlResourcePathMenu,
+} from './source-control-row-menu';
 import type { SourceControlTreeNode } from './source-control-tree';
 import {
     sourceControlDirectoryExpansionKeys,
@@ -368,6 +371,11 @@ function SourceControlVirtualRow({
                 rowId={row.rowId}
                 level={level + depth}
                 menuItems={sourceControlActionMenuItems(trailingActions, runAction)}
+                pathMenu={
+                    resourcePath
+                        ? () => sourceControlResourcePathMenu(resourcePath, repositoryRootPath)
+                        : undefined
+                }
                 className={cn(
                     resourceRowClassName,
                     'hover:bg-elevated',

@@ -43,3 +43,14 @@ export function copyFilePath(path: string, projectRoot?: string): Promise<void |
         );
     });
 }
+
+/**
+ * Copies the final segment of a filesystem path, the name a user types after `@` or into a search box, and reports it
+ * through the same toasts as `copyFilePath`.
+ */
+export function copyFileName(path: string): Promise<void | undefined> {
+    return tryCommand(translate('core.files.copyPathFailed'), async () => {
+        await navigator.clipboard.writeText(path.slice(path.lastIndexOf('/') + 1));
+        pushToast('success', translate('core.files.nameCopied'));
+    });
+}

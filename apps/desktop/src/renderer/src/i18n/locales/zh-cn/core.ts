@@ -77,6 +77,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.files.pathOutsideProject': '路径不在所选项目内',
     'core.files.relativePathCopied': '已复制相对路径',
     'core.files.pathCopied': '已复制路径',
+    'core.files.nameCopied': '已复制文件名',
     'core.files.noSessionSelected': '未选择会话',
     'core.files.revealFailed': '无法在访达中显示该项目',
     'core.files.openWithDefaultAppFailed': '无法使用默认应用打开该项目',

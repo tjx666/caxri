@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { dismissToast, getToasts } from '../stores/toasts';
-import { copyFilePath, relativePathRoot } from './copy-file-path';
+import { copyFileName, copyFilePath, relativePathRoot } from './copy-file-path';
 
 describe('relativePathRoot', () => {
     it.each([
@@ -50,5 +50,22 @@ describe('copyFilePath', () => {
         expect(writeText).not.toHaveBeenCalled();
         expect(getToasts().at(-1)?.type).toBe('error');
         expect(getToasts().at(-1)?.title).toContain('Path is outside');
+    });
+});
+
+describe('copyFileName', () => {
+    afterEach(() => {
+        dismissToast();
+        vi.unstubAllGlobals();
+    });
+
+    it('copies only the final path segment', async () => {
+        const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+        vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+        await copyFileName('/project/src/notes.ts');
+
+        expect(writeText).toHaveBeenLastCalledWith('notes.ts');
+        expect(getToasts().at(-1)?.title).toBe('Name copied');
     });
 });

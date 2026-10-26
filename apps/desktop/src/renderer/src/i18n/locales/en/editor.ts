@@ -144,6 +144,7 @@ export const editor = {
     'editor.pathMenu.openInTerminal': 'Open in Terminal',
     'editor.pathMenu.copyPath': 'Copy Path',
     'editor.pathMenu.copyRelativePath': 'Copy Relative Path',
+    'editor.pathMenu.copyName': 'Copy Name',
     'editor.pathMenu.repositoryLoadFailed': 'Unable to load repository information',
     'editor.pathMenu.repositoryLoading': 'Repository information is still loading',
     'editor.pathMenu.pathUnavailable': 'The file path is unavailable',

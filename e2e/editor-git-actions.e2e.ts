@@ -105,6 +105,12 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
 
         const copyTabPaths = async (tabName: string): Promise<void> => {
             const tab = running.page.getByRole('tab', { name: tabName, exact: true }).first();
+            // Copy Name runs first: it writes the same string as Copy Relative Path for this root-level file, so only a
+            // different clipboard value before it proves the entry wrote anything.
+            await tab.click({ button: 'right' });
+            await chooseContextMenuItem(running.app, 'Copy Name');
+            await expect.poll(() => running.clipboard.textEquals('tracked.txt')).toBe(true);
+            await running.clipboard.claimText('tracked.txt');
             await tab.click({ button: 'right' });
             await chooseContextMenuItem(running.app, 'Copy Path');
             const absolutePath = await realpath(join(root, 'tracked.txt'));

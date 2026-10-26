@@ -2,7 +2,7 @@ import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
-import { copyFilePath } from '../../lib/copy-file-path';
+import { copyFileName, copyFilePath } from '../../lib/copy-file-path';
 import {
     openExternalDocumentInTerminal,
     openExternalDocumentWithDefaultApp,
@@ -105,6 +105,12 @@ export function documentTabPathMenu(
             onSelect: () =>
                 resolution?.relativeRoot &&
                 copyFilePath(resolution.absolutePath, resolution.relativeRoot),
+        },
+        {
+            label: t('editor.pathMenu.copyName'),
+            disabled: !resolution,
+            disabledReason: unavailableReason,
+            onSelect: () => resolution && copyFileName(resolution.absolutePath),
         },
     ];
 }
