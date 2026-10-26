@@ -1,3 +1,5 @@
+import { syncSpinPhase } from './shared-spin-phase';
+
 /**
  * A thin open ring that spins in the surrounding text color, the way Codex marks a working thread. It is deliberately
  * monochrome: a colored arc on every running row reads as a wall of color once several Agents work at once, and the
@@ -8,7 +10,8 @@
  *
  * The spin sits on an HTML wrapper, not the `<svg>`: Chromium runs a transform animation on an inline SVG root on the
  * main thread, restyling every frame (ten running rows cost about 35 ms of main thread per second on a 120 Hz display),
- * while the same animation on an HTML element runs on the compositor (about 3 ms).
+ * while the same animation on an HTML element runs on the compositor (about 3 ms). Every running ring shares one
+ * rotation phase, so rows that started working at different moments still turn as one column (`syncSpinPhase`).
  */
 export function RunningArc() {
     return (
@@ -16,6 +19,7 @@ export function RunningArc() {
             aria-hidden="true"
             className="inline-flex size-2.5 flex-none motion-safe:animate-spin"
             data-session-status-arc=""
+            ref={syncSpinPhase}
         >
             <svg className="size-full" viewBox="0 0 20 20">
                 <circle
@@ -37,6 +41,7 @@ export function RunningArc() {
  * A running Session waiting on its own background work: the running ring's footprint drawn as a dotted ring that turns
  * slowly, still in `--muted`, so it reads as "working, nothing to watch" next to a live turn's spinning arc. Like
  * Orca's "Monitoring background tasks" and t3code's quiet "Waiting", it never pulses. Reduced motion leaves it still.
+ * Background rings share their own rotation phase, like running rings do.
  */
 export function BackgroundArc() {
     return (
@@ -44,6 +49,7 @@ export function BackgroundArc() {
             aria-hidden="true"
             className="inline-flex size-2.5 flex-none motion-safe:animate-spin motion-safe:[animation-duration:3s]"
             data-session-status-background=""
+            ref={syncSpinPhase}
         >
             <svg className="size-full" viewBox="0 0 20 20">
                 <circle
