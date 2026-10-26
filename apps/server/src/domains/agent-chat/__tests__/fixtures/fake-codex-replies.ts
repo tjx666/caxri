@@ -225,7 +225,8 @@ function delay(ms: number) {
 }
 
 /**
- * The `burststream` reply: three paragraphs cut into uneven deltas of 40 to 160 characters.
+ * The `burststream` reply: seven paragraphs cut into 23 uneven deltas of 30 to 140 characters, long enough (about ten
+ * seconds at 400ms apart) for a recording to show whether text keeps typing between deltas.
  */
 const BURST_STREAM_DELTAS = [
     'Here is how the stream pacing works. Providers deliver ',
@@ -234,6 +235,21 @@ const BURST_STREAM_DELTAS = [
     'The pacer reveals what arrived a little behind it, ',
     'a share of the hidden text on every frame, so a burst eases in over a few frames while a steady stream stays only a few characters behind. ',
     'It never holds text back for long.\n\n',
+    'On a phone the same stream crosses a cellular or VPN link, ',
+    'and the network often hands it over in clumps: nothing for a few hundred milliseconds, ',
+    'then several deltas together. ',
+    'Draining each clump quickly and then waiting for the next one reads as blocks of text jumping in.\n\n',
+    'So the pacer watches how far apart the clumps land ',
+    'and how much text each one brings. ',
+    'It stretches its window to cover the gap and keeps revealing at about the rate text arrives, ',
+    'so the reply keeps typing between clumps instead of stopping.\n\n',
+    'A paragraph that lands all at once still eases in over a few frames, ',
+    'because the followed rate has a ceiling. ',
+    'A long pause, such as a tool running or the model thinking, ',
+    'teaches the pacer nothing about the link, so the next reply starts from the usual short window.\n\n',
+    'Text that already arrived never waits long: ',
+    'the window never stretches past a fraction of a second, ',
+    'so a reader on a slow link sees the reply a moment late but never sees it stall.\n\n',
     'When the turn completes, fails, or is interrupted, ',
     'everything that arrived shows at once, so the reply is never left half drawn after the Agent has stopped.',
 ];

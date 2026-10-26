@@ -216,9 +216,10 @@ export async function executeMobileChatPinScrollScenario(
 }
 
 /**
- * `MOB-CHAT-15`: the activity line's shimmer sweep, recorded with animations on. The runner turns the batch's reduced
- * motion off for this case alone, so the scenario reads no semantics while the shimmer runs: UIAutomator never finds an
- * idle window on a screen that keeps moving. Framebuffer frames and the recording carry the evidence.
+ * `MOB-CHAT-15`: the shimmer sweep of the activity line and of the collapsed work group summary while its command runs,
+ * recorded with animations on. The runner turns the batch's reduced motion off for this case alone, so the scenario
+ * reads no semantics while the shimmer runs: UIAutomator never finds an idle window on a screen that keeps moving.
+ * Framebuffer frames and the recording carry the evidence.
  */
 export async function executeMobileChatShimmerScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -237,7 +238,8 @@ export async function executeMobileChatShimmerScenario(
             () => chat.read(),
             (snapshot) =>
                 Boolean(snapshot.activeTurnId) &&
-                snapshot.items.some((item) => item.type === 'reasoning'),
+                snapshot.items.some((item) => item.type === 'reasoning') &&
+                snapshot.items.some((item) => item.type === 'command'),
         );
         // Frames a fraction of a second apart catch the sweep at different positions.
         for (let frame = 1; frame <= 3; frame += 1) {

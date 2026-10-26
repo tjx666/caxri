@@ -6,9 +6,11 @@ import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import {
     agentChatQuestionAnswers,
     agentChatQuestionDefaults,
+    agentChatQuestionMultiDefaults,
     agentChatQuestionOption,
+    toggleAgentChatQuestionOption,
 } from '@caxri/protocol';
-import { Circle, CircleDot } from 'lucide-react-native';
+import { Circle, CircleDot, Square, SquareCheck } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
@@ -40,16 +42,19 @@ const useIsKeyboardVisible = (): boolean => {
 };
 
 /**
- * One compact answer row: a radio glyph, the option, and at most two lines of its description. Claude Code's
- * `(Recommended)` label suffix becomes a badge, as on Desktop; the answer still sends the provider its original label.
+ * One compact answer row: a radio glyph (a checkbox for a `multiSelect` question), the option, and at most two lines of
+ * its description. Claude Code's `(Recommended)` label suffix becomes a badge, as on Desktop; the answer still sends
+ * the provider its original label.
  */
 const QuestionOptionRow = ({
+    isMulti,
     isSelected,
     onPress,
     option,
     testID,
     theme,
 }: {
+    isMulti: boolean;
     isSelected: boolean;
     onPress: () => void;
     option: QuestionRequest['questions'][number]['options'][number];
@@ -58,14 +63,14 @@ const QuestionOptionRow = ({
 }) => {
     const { t } = useTranslation();
     const { isRecommended, text } = agentChatQuestionOption(option.label);
-    const Glyph = isSelected ? CircleDot : Circle;
+    const Glyph = isMulti ? (isSelected ? SquareCheck : Square) : isSelected ? CircleDot : Circle;
     return (
         <Pressable
             accessibilityHint={option.description || undefined}
             accessibilityLabel={
                 isRecommended ? t('chat.question.recommendedLabel', { text }) : text
             }
-            accessibilityRole="radio"
+            accessibilityRole={isMulti ? 'checkbox' : 'radio'}
             accessibilityState={{ checked: isSelected }}
             onPress={onPress}
             style={({ pressed }) => [
@@ -116,6 +121,7 @@ const QuestionOptionRow = ({
  */
 const QuestionOtherRow = ({
     hasOptions,
+    isMulti,
     isOpen,
     onChange,
     onFocusChange,
@@ -128,6 +134,10 @@ const QuestionOtherRow = ({
     value,
 }: {
     hasOptions: boolean;
+    /**
+     * A `multiSelect` question's typed answer joins its ticks, so it wears a checkbox like they do.
+     */
+    isMulti: boolean;
     isOpen: boolean;
     onChange: (value: string) => void;
     onFocusChange: (isFocused: boolean) => void;
@@ -141,7 +151,7 @@ const QuestionOtherRow = ({
 }) => {
     const { t } = useTranslation();
     const isAnswered = value.trim().length > 0;
-    const Glyph = isAnswered ? CircleDot : Circle;
+    const Glyph = isMulti ? (isAnswered ? SquareCheck : Square) : isAnswered ? CircleDot : Circle;
     const glyph = hasOptions ? (
         <Glyph
             aria-hidden
@@ -284,20 +294,21 @@ const QuestionActions = ({
 };
 
 /**
- * The options in their own scroll area, which shrinks first when space runs out. An option shows as selected only while
- * no typed answer replaces it.
+ * The options in their own scroll area, which shrinks first when space runs out. A one-option question's option shows
+ * as selected only while no typed answer replaces it; a `multiSelect` question's ticks stay beside a typed answer,
+ * which joins them.
  */
 const QuestionOptions = ({
+    isSelected,
     onChoose,
     question,
     questionIndex,
-    selectedLabel,
     theme,
 }: {
+    isSelected: (label: string) => boolean;
     onChoose: (label: string) => void;
     question: QuestionRequest['questions'][number];
     questionIndex: number;
-    selectedLabel: string | undefined;
     theme: MobileTheme;
 }) => (
     <ScrollView
@@ -311,7 +322,8 @@ const QuestionOptions = ({
         {question.options.map((option, optionIndex) => (
             <QuestionOptionRow
                 key={option.label}
-                isSelected={selectedLabel === option.label}
+                isMulti={question.multiSelect === true}
+                isSelected={isSelected(option.label)}
                 onPress={() => onChoose(option.label)}
                 option={option}
                 testID={`agent-chat-question-${questionIndex}-option-${optionIndex}`}
@@ -341,6 +353,10 @@ export const AgentChatQuestionForm = ({
 }) => {
     const isKeyboardVisible = useIsKeyboardVisible();
     const [selected, setSelected] = useState(() => agentChatQuestionDefaults(request));
+    /**
+     * The ticked options of each `multiSelect` question, starting on its recommended option as Desktop does.
+     */
+    const [picked, setPicked] = useState(() => agentChatQuestionMultiDefaults(request));
     const [typed, setTyped] = useState<Record<string, string>>({});
     const [openOther, setOpenOther] = useState<Record<string, true>>({});
     /**
@@ -358,7 +374,7 @@ export const AgentChatQuestionForm = ({
         setQuestionIndex(nextIndex);
         setSeen((current) => (current.has(nextIndex) ? current : new Set([...current, nextIndex])));
     };
-    const { answers } = agentChatQuestionAnswers(request, selected, typed);
+    const { answers } = agentChatQuestionAnswers(request, { ...selected, ...picked }, typed);
     const footer = agentChatQuestionFooter({
         answers,
         index: questionIndex,
@@ -378,7 +394,11 @@ export const AgentChatQuestionForm = ({
     const advance = (nextSelected: Record<string, string>, nextTyped: Record<string, string>) => {
         setSelected(nextSelected);
         setTyped(nextTyped);
-        const nextAnswers = agentChatQuestionAnswers(request, nextSelected, nextTyped).answers;
+        const nextAnswers = agentChatQuestionAnswers(
+            request,
+            { ...nextSelected, ...picked },
+            nextTyped,
+        ).answers;
         const step = agentChatQuestionAdvance(request, nextAnswers, questionIndex, seen);
         if (step.kind === 'move') openQuestion(step.index);
         else if (actions.isShowsActions && !actions.isDisabled)
@@ -386,6 +406,17 @@ export const AgentChatQuestionForm = ({
                 kind: 'answers',
                 answers: nextAnswers,
             });
+    };
+    const isMulti = question.multiSelect === true;
+    /**
+     * A `multiSelect` tap ticks or unticks the option and stays on the question; Next or Submit moves on, as on
+     * Desktop.
+     */
+    const toggleOption = (label: string): void => {
+        setPicked((current) => ({
+            ...current,
+            [question.id]: toggleAgentChatQuestionOption(current[question.id] ?? [], label),
+        }));
     };
     const answerWithOption = (label: string): void => {
         // Picking an option replaces a typed answer for this question, as on Desktop.
@@ -415,10 +446,14 @@ export const AgentChatQuestionForm = ({
             />
             {isOptionsShown ? (
                 <QuestionOptions
-                    onChoose={answerWithOption}
+                    isSelected={(label) =>
+                        isMulti
+                            ? (picked[question.id] ?? []).includes(label)
+                            : !typedAnswer.trim() && selected[question.id] === label
+                    }
+                    onChoose={isMulti ? toggleOption : answerWithOption}
                     question={question}
                     questionIndex={questionIndex}
-                    selectedLabel={typedAnswer.trim() ? undefined : selected[question.id]}
                     theme={theme}
                 />
             ) : null}
@@ -427,6 +462,7 @@ export const AgentChatQuestionForm = ({
                     <QuestionOtherRow
                         key={question.id}
                         hasOptions={hasOptions}
+                        isMulti={isMulti}
                         isOpen={!hasOptions || openOther[question.id] || !!typedAnswer}
                         onChange={(value) =>
                             setTyped((current) => ({ ...current, [question.id]: value }))

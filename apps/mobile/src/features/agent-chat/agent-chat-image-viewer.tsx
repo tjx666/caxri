@@ -2,7 +2,8 @@
 /* oxlint-disable typescript/no-deprecated -- Gesture Handler 3 deprecates the `Gesture` builder but still ships it. The
    hook API renames the end callbacks and changes composition, so the viewer moves only with on-device pinch and swipe
    verification. */
-import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Fragment, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -208,6 +209,118 @@ const SwipeArea = ({
 };
 
 /**
+ * What one page of the viewer needs from the pager: whether there is an image either side, and how to turn or close.
+ */
+interface ViewerPageProperties {
+    canTurnTo: { next: boolean; previous: boolean };
+    index: number;
+    onSwipe: (swipe: AgentChatViewerSwipe) => void;
+}
+
+/**
+ * The full-screen frame every image source shares: a modal over the scrim, the `2 / 3` counter, Close, and paging
+ * through `count` images with a sideways swipe (a downward swipe closes). `renderPage` draws the picture at `index`;
+ * each page mounts fresh, so turning the page starts the next image at its fitted size.
+ */
+const ImageViewerModal = ({
+    count,
+    onClose,
+    renderPage,
+    startIndex,
+    theme,
+}: {
+    count: number;
+    onClose: () => void;
+    renderPage: (page: ViewerPageProperties) => ReactNode;
+    /**
+     * The image opened first; `null` keeps the viewer closed.
+     */
+    startIndex: number | null;
+    theme: MobileTheme;
+}) => (
+    <Modal
+        animationType="fade"
+        onRequestClose={onClose}
+        statusBarTranslucent
+        transparent
+        visible={startIndex !== null}
+    >
+        {startIndex === null ? null : (
+            <ViewerPager
+                count={count}
+                onClose={onClose}
+                renderPage={renderPage}
+                start={startIndex}
+                theme={theme}
+            />
+        )}
+    </Modal>
+);
+
+const ViewerPager = ({
+    count,
+    onClose,
+    renderPage,
+    start,
+    theme,
+}: {
+    count: number;
+    onClose: () => void;
+    renderPage: (page: ViewerPageProperties) => ReactNode;
+    start: number;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
+    const [index, setIndex] = useState(start);
+    const onSwipe = (swipe: AgentChatViewerSwipe): void => {
+        if (swipe === 'dismiss') {
+            onClose();
+            return;
+        }
+        const next = agentChatViewerPage(index, count, swipe);
+        if (next !== null) setIndex(next);
+    };
+    const counter = agentChatViewerPosition(index, count);
+    return (
+        <GestureHandlerRootView
+            style={[styles.backdrop, { backgroundColor: theme.scrim }]}
+            testID="agent-chat-image-viewer"
+        >
+            <Fragment key={index}>
+                {renderPage({
+                    canTurnTo: { next: index < count - 1, previous: index > 0 },
+                    index,
+                    onSwipe,
+                })}
+            </Fragment>
+            {counter ? (
+                <Text
+                    accessibilityLiveRegion="polite"
+                    style={[styles.counter, { color: theme.onScrim, top: insets.top + 22 }]}
+                    testID="agent-chat-image-viewer-position"
+                >
+                    {counter}
+                </Text>
+            ) : null}
+            <Pressable
+                accessibilityLabel={t('chat.image.close')}
+                accessibilityRole="button"
+                hitSlop={12}
+                onPress={onClose}
+                style={[
+                    styles.close,
+                    { backgroundColor: theme.scrimControl, top: insets.top + 12 },
+                ]}
+                testID="agent-chat-image-viewer-close"
+            >
+                <X color={theme.onScrim} size={22} strokeWidth={2.5} />
+            </Pressable>
+        </GestureHandlerRootView>
+    );
+};
+
+/**
  * A message image at full size over a black backdrop. The original is read from the provider's record on open, so the
  * viewer shows its progress, and says so when the record no longer has the image. A message with several images pages
  * through them with a sideways swipe under a `2 / 3` counter; a downward swipe closes the viewer.
@@ -229,71 +342,77 @@ export const AgentChatImageViewer = ({
     target: Omit<AgentChatImageTarget, 'variant'> | null;
     theme: MobileTheme;
 }) => (
-    <Modal
-        animationType="fade"
-        onRequestClose={onClose}
-        statusBarTranslucent
-        transparent
-        visible={target !== null}
-    >
-        {target ? (
-            <ViewerPager count={count} onClose={onClose} start={target} theme={theme} />
-        ) : null}
-    </Modal>
+    <ImageViewerModal
+        count={count}
+        onClose={onClose}
+        renderPage={(page) =>
+            target ? (
+                <MessageImagePage
+                    {...page}
+                    target={{ ...target, index: page.index }}
+                    theme={theme}
+                />
+            ) : null
+        }
+        startIndex={target?.index ?? null}
+        theme={theme}
+    />
 );
 
 /**
- * Keeps which image of the message is shown. Each page is its own `ViewerContent`, so turning the page starts the next
- * image at its fitted size.
+ * Images still on the phone, such as the composer's pending attachments, at full size. They are local files, so each
+ * page shows at once with nothing to load.
  */
-const ViewerPager = ({
-    count,
+export const LocalImageViewer = ({
     onClose,
-    start,
+    startIndex,
     theme,
+    uris,
 }: {
-    count: number;
     onClose: () => void;
-    start: Omit<AgentChatImageTarget, 'variant'>;
+    /**
+     * The image opened first; `null` keeps the viewer closed.
+     */
+    startIndex: number | null;
     theme: MobileTheme;
+    uris: readonly string[];
 }) => {
-    const [index, setIndex] = useState(start.index);
-    const onSwipe = (swipe: AgentChatViewerSwipe): void => {
-        if (swipe === 'dismiss') {
-            onClose();
-            return;
-        }
-        const next = agentChatViewerPage(index, count, swipe);
-        if (next !== null) setIndex(next);
-    };
+    const { t } = useTranslation();
     return (
-        <ViewerContent
-            canTurnTo={{ next: index < count - 1, previous: index > 0 }}
-            key={index}
+        <ImageViewerModal
+            count={uris.length}
             onClose={onClose}
-            onSwipe={onSwipe}
-            position={agentChatViewerPosition(index, count)}
-            target={{ ...start, index }}
+            renderPage={({ canTurnTo, index, onSwipe }) => {
+                const uri = uris.at(index);
+                return uri ? (
+                    <ZoomableImage
+                        accessibilityLabel={t('sessions.image.position', {
+                            count: uris.length,
+                            index: index + 1,
+                        })}
+                        canTurnTo={canTurnTo}
+                        onSwipe={onSwipe}
+                        uri={uri}
+                    />
+                ) : (
+                    <SwipeArea canTurnTo={canTurnTo} onSwipe={onSwipe} />
+                );
+            }}
+            startIndex={startIndex}
             theme={theme}
         />
     );
 };
 
-const ViewerContent = ({
+/**
+ * One message image: the original once read, the thumbnail standing in while it loads, and why it is missing.
+ */
+const MessageImagePage = ({
     canTurnTo,
-    onClose,
     onSwipe,
-    position: counter,
     target,
     theme,
-}: {
-    canTurnTo: { next: boolean; previous: boolean };
-    onClose: () => void;
-    onSwipe: (swipe: AgentChatViewerSwipe) => void;
-    /**
-     * The `2 / 3` counter, or `null` for a message with one image.
-     */
-    position: string | null;
+}: ViewerPageProperties & {
     target: Omit<AgentChatImageTarget, 'variant'>;
     theme: MobileTheme;
 }) => {
@@ -306,10 +425,7 @@ const ViewerContent = ({
     const content = agentChatViewerContent(original, thumbnail.uri, t);
     const number = target.index + 1;
     return (
-        <GestureHandlerRootView
-            style={[styles.backdrop, { backgroundColor: theme.scrim }]}
-            testID="agent-chat-image-viewer"
-        >
+        <>
             {content.placeholderUri ? (
                 <Image
                     accessibilityIgnoresInvertColors
@@ -372,29 +488,7 @@ const ViewerContent = ({
                     ) : null}
                 </View>
             ) : null}
-            {counter ? (
-                <Text
-                    accessibilityLiveRegion="polite"
-                    style={[styles.counter, { color: theme.onScrim, top: insets.top + 22 }]}
-                    testID="agent-chat-image-viewer-position"
-                >
-                    {counter}
-                </Text>
-            ) : null}
-            <Pressable
-                accessibilityLabel={t('chat.image.close')}
-                accessibilityRole="button"
-                hitSlop={12}
-                onPress={onClose}
-                style={[
-                    styles.close,
-                    { backgroundColor: theme.scrimControl, top: insets.top + 12 },
-                ]}
-                testID="agent-chat-image-viewer-close"
-            >
-                <X color={theme.onScrim} size={22} strokeWidth={2.5} />
-            </Pressable>
-        </GestureHandlerRootView>
+        </>
     );
 };
 
