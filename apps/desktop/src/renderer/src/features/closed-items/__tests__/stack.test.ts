@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ClosedItem } from './stack';
-import { createClosedItemStack, didReopenOrReportNothing, isRecordableTabPath } from './stack';
+import type { ClosedItem } from '../stack';
+import { createClosedItemStack, didReopenOrReportNothing, isRecordableTabPath } from '../stack';
 
 const tab = (sessionId: string, path: string, index = 0): ClosedItem => ({
     kind: 'tab',

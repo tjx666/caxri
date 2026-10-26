@@ -16,6 +16,7 @@ import { sessionStateOf } from '../editor/session-pane-state';
 import { restoreArchivedSession } from '../session/session-archive-commands';
 import { didSelectSession } from '../session/session-commands';
 import { movePaneTab } from '../workbench/pane-actions';
+import { isReopenableFile } from './reopen-client';
 import type { ClosedItem, ClosedSessionItem, ClosedTabItem } from './stack';
 import { closedItems, didReopenOrReportNothing } from './stack';
 
@@ -36,10 +37,20 @@ async function didReopenSession(item: ClosedSessionItem): Promise<boolean> {
     return didShowSession(item.sessionId);
 }
 
+/**
+ * Whether a closed file tab can still come back, asked before showing its Session. A file deleted or replaced by a
+ * folder since the close is skipped without switching Sessions, like VS Code's Reopen Closed Editor (issue #2502).
+ * Virtual tabs (previews, external documents with their captured copy) do not depend on a file on disk here.
+ */
+async function isReopenableTab(item: ClosedTabItem): Promise<boolean> {
+    return isVirtualEditorTabPath(item.path) || isReopenableFile(item.sessionId, item.path);
+}
+
 async function didReopenTab(item: ClosedTabItem): Promise<boolean> {
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === item.sessionId);
     // An archived Session's tabs come back with the Session (its own entry is newer), not into a hidden Session.
     if (!session || session.archivedAt !== undefined) return false;
+    if (!(await isReopenableTab(item))) return false;
     if (!(await didShowSession(item.sessionId))) return false;
     const before = sessionStateOf(item.sessionId);
     if (!before) return false;
