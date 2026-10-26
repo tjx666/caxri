@@ -5,8 +5,15 @@ import { HoverCard, HoverCardContent } from '../../../components/ui/hover-card';
 import { Skeleton } from '../../../components/ui/skeleton';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
+import { localeDateTimeFormat } from '../../../lib/locale-format';
 import { cn } from '../../../lib/utilities';
+import { useClockTick } from '../hooks/use-clock-tick';
 import type { AgentChatRailMark, AgentChatRailMarkKind } from './agent-chat-rail-marks';
+import {
+    agentChatRailCaption,
+    agentChatRailCardText,
+    agentChatRailTimeFormatOptions,
+} from './agent-chat-rail-marks';
 
 const KIND_ICON: Record<AgentChatRailMarkKind, LucideIcon> = {
     delegated: Forward,
@@ -35,7 +42,7 @@ function kindLabel(kind: AgentChatRailMarkKind, t: Translate): string {
 /**
  * The card's one geometry, shared by the skeleton and the content: a title row over a body exactly three lines tall, so
  * swapping one for the other never resizes or moves the card, and a short message leaves its body empty rather than
- * shrinking the card.
+ * shrinking the card (it shows the message's position and time instead).
  */
 const CARD_CLASS = 'flex w-72 max-w-full flex-col gap-1.5 px-3 py-2.5';
 
@@ -62,13 +69,34 @@ function PreviewSkeleton({ label }: { label: string }) {
     );
 }
 
-function PreviewContent({ mark }: { mark: AgentChatRailMark }) {
+function PreviewContent({
+    loadedCount,
+    mark,
+    position,
+    total,
+}: {
+    mark: AgentChatRailMark;
+    position: number;
+    total: number | undefined;
+    loadedCount: number;
+}) {
     const { t } = useTranslation();
     const Icon = KIND_ICON[mark.kind];
+    const now = useClockTick('minute');
+    const time =
+        mark.createdAt === undefined
+            ? undefined
+            : localeDateTimeFormat(agentChatRailTimeFormatOptions(mark.createdAt, now)).format(
+                  mark.createdAt,
+              );
+    const text = agentChatRailCardText(
+        mark,
+        agentChatRailCaption(position, total, loadedCount, time, t),
+    );
     return (
         <div className={CARD_CLASS} data-agent-chat-rail-preview={mark.id}>
             <div className="flex h-5 min-w-0 items-center gap-2">
-                <span className="min-w-0 flex-1 truncate font-medium">{mark.title}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">{text.title}</span>
                 <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted">
                     <Icon aria-hidden="true" className="size-3" />
                     {kindLabel(mark.kind, t)}
@@ -77,10 +105,11 @@ function PreviewContent({ mark }: { mark: AgentChatRailMark }) {
             <p
                 className={cn(
                     BODY_CLASS,
-                    'm-0 line-clamp-3 text-[12px] leading-5 wrap-anywhere whitespace-pre-line text-muted',
+                    'm-0 text-[12px] leading-5 wrap-anywhere whitespace-pre-line text-muted',
+                    text.isBodyCaption ? 'truncate' : 'line-clamp-3',
                 )}
             >
-                {mark.summary}
+                {text.body}
             </p>
         </div>
     );
@@ -97,8 +126,11 @@ function PreviewContent({ mark }: { mark: AgentChatRailMark }) {
 export function AgentChatRailPreviewCard({
     anchor,
     isOpen,
+    loadedCount,
     mark,
     onDismiss,
+    position,
+    total,
 }: {
     anchor: HTMLElement | null;
     isOpen: boolean;
@@ -107,6 +139,18 @@ export function AgentChatRailPreviewCard({
      */
     mark: AgentChatRailMark | undefined;
     onDismiss: () => void;
+    /**
+     * The 1-based place of `mark` among the loaded messages.
+     */
+    position: number;
+    /**
+     * How many messages the whole conversation has, or `undefined` while earlier history is still unloaded.
+     */
+    total: number | undefined;
+    /**
+     * How many messages are loaded, which is what `position` counts within.
+     */
+    loadedCount: number;
 }) {
     const { t } = useTranslation();
     return (
@@ -127,7 +171,12 @@ export function AgentChatRailPreviewCard({
             >
                 {mark &&
                     (mark.isReady ? (
-                        <PreviewContent mark={mark} />
+                        <PreviewContent
+                            loadedCount={loadedCount}
+                            mark={mark}
+                            position={position}
+                            total={total}
+                        />
                     ) : (
                         <PreviewSkeleton label={t('agentChat.rail.loadingPreview')} />
                     ))}

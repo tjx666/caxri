@@ -264,6 +264,26 @@ export function agentChatUndismissedContextAlerts(
 }
 
 /**
+ * How the context row presents `alerts`: whether it shows at all (`isShown` is whether the strip has room), whether the
+ * cache notice is the expired one, and whether it offers Compact. Compact appears for high context pressure and, as
+ * "Compact now", while idle compaction counts down, so the user can run the same compaction without waiting; both need
+ * the provider's compact command (`hasCompact`).
+ */
+export function agentChatContextRowState(
+    alerts: AgentChatContextAlerts,
+    isShown: boolean,
+    hasCompact: boolean,
+): { canCompact: boolean; isCompacting: boolean; isExpired: boolean; isVisible: boolean } {
+    const isCompacting = alerts.cache?.state === 'compacting';
+    return {
+        canCompact: hasCompact && (alerts.pressure !== undefined || isCompacting),
+        isCompacting,
+        isExpired: alerts.cache?.state === 'expired',
+        isVisible: isShown && (alerts.cache !== undefined || alerts.pressure !== undefined),
+    };
+}
+
+/**
  * What the context row's live region says: one fixed phrase per notice state, never the countdown or the idle time. The
  * visible row ticks every minute, and a live region holding it would announce each tick; this text changes only when a
  * notice appears, the cache goes from expiring to expired, or a notice goes away.

@@ -13,6 +13,7 @@ import { useClockTick } from '../hooks/use-clock-tick';
 import {
     agentChatContextAlerts,
     agentChatContextAnnouncement,
+    agentChatContextRowState,
     agentChatUndismissedContextAlerts,
 } from './agent-chat-context';
 import {
@@ -91,12 +92,18 @@ function ContextNotice({
  * otherwise), and a dismiss button while a cache notice shows (`onDismissCache`).
  */
 function ContextActions({
+    isCompacting,
     isContinuing,
     isExpired,
     onCompact,
     onContinueInNewChat,
     onDismissCache,
 }: {
+    /**
+     * True while idle compaction is counting down: the button then reads "Compact now", since the user would otherwise
+     * wait for the same compaction.
+     */
+    isCompacting: boolean;
     isContinuing: boolean;
     isExpired: boolean;
     onCompact: (() => void) | undefined;
@@ -126,7 +133,7 @@ function ContextActions({
             )}
             {onCompact && (
                 <Button className={ACTION_CLASS} size="sm" variant="secondary" onClick={onCompact}>
-                    {t('agentChat.context.compact')}
+                    {t(isCompacting ? 'agentChat.context.compactNow' : 'agentChat.context.compact')}
                 </Button>
             )}
             {onDismissCache && (
@@ -150,12 +157,13 @@ function ContextActions({
  * The composer's first row while an idle Chat's context needs attention: the prompt cache is about to expire
  * (`--warning`: still avoidable by replying now), the cache expired, so the next reply re-reads the whole conversation
  * (`--muted`: a cost fact, not a fault), or the context is high enough to compact first (`--warning`: a suggestion,
- * since nothing failed, with a Compact button when the provider reports a compact command). It takes the activity bar's
- * place and shape, so it is hidden while a turn runs, when neither notice is actionable. Expiry is judged on a minute
- * clock, which runs while the composer is mounted so the live region below can follow the state. An expired cache also
- * offers to continue in a new Chat, which reads the old transcript through a cheap subagent instead of rewriting it. A
- * cache notice shows only when the rewrite is worth mentioning (`isAgentChatCacheRewriteNoticeable`), and its dismiss
- * button hides it for this Chat until the next reply restarts the cache.
+ * since nothing failed, with a Compact button when the provider reports a compact command, also offered as "Compact
+ * now" while idle compaction counts down). It takes the activity bar's place and shape, so it is hidden while a turn
+ * runs, when neither notice is actionable. Expiry is judged on a minute clock, which runs while the composer is mounted
+ * so the live region below can follow the state. An expired cache also offers to continue in a new Chat, which reads
+ * the old transcript through a cheap subagent instead of rewriting it. A cache notice shows only when the rewrite is
+ * worth mentioning (`isAgentChatCacheRewriteNoticeable`), and its dismiss button hides it for this Chat until the next
+ * reply restarts the cache.
  *
  * The row itself is not a live region, because its countdown and idle time change every minute; a separate polite
  * region stays mounted and announces only a change of state (`agentChatContextAnnouncement`). Each notice's text is a
@@ -199,9 +207,11 @@ export function AgentChatContextAlerts({
         lastResponseAt,
         dismissedResponseAt,
     );
-    const isVisible = isShown && (alerts.cache !== undefined || alerts.pressure !== undefined);
-    const canCompact = alerts.pressure !== undefined && onCompact !== undefined;
-    const isExpired = alerts.cache?.state === 'expired';
+    const { canCompact, isCompacting, isExpired, isVisible } = agentChatContextRowState(
+        alerts,
+        isShown,
+        onCompact !== undefined,
+    );
     return (
         <>
             <span aria-live="polite" className="sr-only" role="status">
@@ -231,6 +241,7 @@ export function AgentChatContextAlerts({
                         />
                     )}
                     <ContextActions
+                        isCompacting={isCompacting}
                         isContinuing={isContinuing}
                         isExpired={isExpired}
                         onCompact={canCompact ? onCompact : undefined}

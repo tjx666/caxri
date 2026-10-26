@@ -388,6 +388,7 @@ export function AgentChatPane({
                     />
                     <AgentChatMessageRail
                         activeIndex={rail.activeIndex}
+                        hasEarlierHistory={history.hasMore || history.history.truncated}
                         marks={railMarks}
                         onJump={jumpToMessage}
                     />

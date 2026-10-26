@@ -462,8 +462,11 @@ export async function editAgentChatQueued(
     terminalId: string,
     id: string,
     restore: (text: string) => void,
+    failureKey:
+        | 'agentChat.commands.editQueuedFailed'
+        | 'agentChat.commands.removeQueuedFailed' = 'agentChat.commands.editQueuedFailed',
 ): Promise<void> {
-    const taken = await tryCommand(translate('agentChat.commands.editQueuedFailed'), () =>
+    const taken = await tryCommand(translate(failureKey), () =>
         caxri.request('agentChat.takeQueued', { terminalId, id }),
     );
     if (taken) restore(taken.text);

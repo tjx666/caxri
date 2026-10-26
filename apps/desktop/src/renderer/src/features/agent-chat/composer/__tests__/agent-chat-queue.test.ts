@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatNextQueuedId,
     agentChatQueueCardLabels,
+    agentChatQueueDeleteOutcome,
     agentChatQueuedTextAfterEdit,
     agentChatQueuedTextEdit,
     agentChatQueueEntries,
@@ -125,6 +126,7 @@ describe('agentChatQueueCardLabels', () => {
 
     it('names each action, steering while a turn runs', () => {
         expect(agentChatQueueCardLabels(message)).toEqual({
+            deleteAriaLabel: 'Delete queued message',
             deleteTooltip: 'Delete',
             editTooltip: 'Edit',
             sendTooltip: 'Add to the running turn now',
@@ -150,6 +152,7 @@ describe('agentChatQueueCardLabels', () => {
                 isPending: true,
             }),
         ).toEqual({
+            deleteAriaLabel: 'Delete queued message',
             deleteTooltip: 'Sending…',
             editTooltip: 'Sending…',
             sendTooltip: 'Sending…',
@@ -171,5 +174,31 @@ describe('agentChatQueuedTextEdit', () => {
 
     it('treats plain text as all body', () => {
         expect(agentChatQueuedTextEdit('plain')).toEqual({ prefix: '', body: 'plain' });
+    });
+});
+
+describe('agentChatQueueDeleteOutcome', () => {
+    it('moves the text back into an empty composer so a mis-click is recoverable', () => {
+        expect(agentChatQueueDeleteOutcome(true, { imageCount: 0 })).toBe('restore');
+    });
+
+    it('deletes outright when the user has a draft, so it is never clobbered', () => {
+        expect(agentChatQueueDeleteOutcome(false, { imageCount: 0 })).toBe('drop');
+    });
+
+    it('deletes outright a message whose images cannot return to the composer', () => {
+        expect(agentChatQueueDeleteOutcome(true, { imageCount: 2 })).toBe('drop');
+    });
+
+    it('words the delete tooltip and accessible name by the outcome', () => {
+        const entry = { canSendNow: true, sendNowLabel: 'Steer' as const };
+        expect(agentChatQueueCardLabels(entry, undefined, 'restore')).toMatchObject({
+            deleteAriaLabel: 'Move queued message back to the composer',
+            deleteTooltip: 'Remove from the queue and move back to the composer',
+        });
+        expect(agentChatQueueCardLabels(entry, undefined, 'drop')).toMatchObject({
+            deleteAriaLabel: 'Delete queued message',
+            deleteTooltip: 'Delete',
+        });
     });
 });

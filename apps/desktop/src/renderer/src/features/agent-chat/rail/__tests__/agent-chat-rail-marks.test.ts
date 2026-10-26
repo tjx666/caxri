@@ -4,12 +4,15 @@ import type { AgentChatRailMark } from '../agent-chat-rail-marks';
 import {
     agentChatActiveRailIndex,
     agentChatRailActiveTick,
+    agentChatRailCaption,
+    agentChatRailCardText,
     agentChatRailFocusStep,
     agentChatRailMarks,
     agentChatRailPreview,
     agentChatRailPreviewParts,
     agentChatRailSampleIndices,
     agentChatRailTickCapacity,
+    agentChatRailTimeFormatOptions,
     isAgentChatMessageRailShown,
     MAX_AGENT_CHAT_RAIL_MARKS,
     sampleAgentChatRailMarks,
@@ -134,10 +137,10 @@ describe('agentChatRailPreviewParts', () => {
         });
     });
 
-    it('keeps a long line whole in the summary when no first sentence fits the title', () => {
+    it('leaves the title empty and keeps a long line whole in the summary when no first sentence fits', () => {
         const line = 'Open /work/project/src/very/deeply/nested/module/index.ts please';
         expect(agentChatRailPreviewParts(`${line}\nthen tidy`, 0)).toEqual({
-            title: line,
+            title: '',
             summary: `${line}\nthen tidy`,
         });
     });
@@ -234,5 +237,65 @@ describe('agentChatRailFocusStep', () => {
         expect(agentChatRailFocusStep(2, 5, 'Home')).toBe(0);
         expect(agentChatRailFocusStep(2, 5, 'End')).toBe(4);
         expect(agentChatRailFocusStep(2, 5, 'Enter')).toBeUndefined();
+    });
+});
+
+describe('agentChatRailCardText', () => {
+    const caption = agentChatRailCaption(3, 12, 12, '17:59');
+
+    it('words the caption with position and time, or position alone', () => {
+        expect(caption).toBe('Message 3 of 12 · 17:59');
+        expect(agentChatRailCaption(3, 12, 12, undefined)).toBe('Message 3 of 12');
+    });
+
+    it('does not claim a total while earlier history is unloaded', () => {
+        expect(agentChatRailCaption(3, undefined, 8, '17:59')).toBe('Sent at 17:59');
+        expect(agentChatRailCaption(3, undefined, 8, undefined)).toBe('Message 3 of 8 loaded');
+    });
+
+    it('fills an otherwise empty body with the caption', () => {
+        expect(agentChatRailCardText({ title: 'table', summary: '' }, caption)).toEqual({
+            title: 'table',
+            body: caption,
+            isBodyCaption: true,
+        });
+    });
+
+    it('heads a title-less message with the caption and shows its full text once', () => {
+        const parts = agentChatRailPreviewParts('word '.repeat(60), 0);
+        const text = agentChatRailCardText(parts, caption);
+        expect(text.title).toBe(caption);
+        expect(text.body).toBe(parts.summary);
+        expect(text.body).not.toContain(text.title);
+    });
+
+    it('keeps a title and its remainder as they are', () => {
+        expect(
+            agentChatRailCardText({ title: 'Fix the build', summary: 'then ship' }, caption),
+        ).toEqual({
+            title: 'Fix the build',
+            body: 'then ship',
+            isBodyCaption: false,
+        });
+    });
+});
+
+describe('agentChatRailTimeFormatOptions', () => {
+    const now = new Date(2026, 9, 26, 21, 15).getTime();
+
+    it('shows the clock alone for a message sent today', () => {
+        expect(agentChatRailTimeFormatOptions(new Date(2026, 9, 26, 0, 5).getTime(), now)).toEqual({
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    });
+
+    it('adds the date for a message sent on an earlier day', () => {
+        expect(
+            agentChatRailTimeFormatOptions(new Date(2026, 9, 25, 23, 59).getTime(), now),
+        ).toMatchObject({
+            month: 'short',
+            day: 'numeric',
+        });
     });
 });

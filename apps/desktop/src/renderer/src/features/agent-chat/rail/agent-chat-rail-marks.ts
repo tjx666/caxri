@@ -20,13 +20,20 @@ export interface AgentChatRailMark {
      */
     preview: string;
     /**
-     * The card's heading: the message's first line, or its first sentence when that line runs long.
+     * The card's heading: the message's first line, or its first sentence when that line runs long. Empty when the
+     * first line is too long for any title to show whole; the summary then carries the full text and the card heads
+     * itself with the message's position (see {@link agentChatRailCardText}).
      */
     title: string;
     /**
-     * The card's body: what follows the title, with the message's line breaks kept. The card clamps it to three lines.
+     * The card's body: what follows the title (never the title itself), with the message's line breaks kept. The card
+     * clamps it to three lines.
      */
     summary: string;
+    /**
+     * When the message entered the conversation, in epoch milliseconds, when the timeline knows it.
+     */
+    createdAt?: number;
     kind: AgentChatRailMarkKind;
     /**
      * False while the message has no content to show yet (no text and no images), when the card holds its skeleton
@@ -99,9 +106,9 @@ function titleWidth(text: string): number {
 
 /**
  * The title for a message whose first line is `line`, and what the summary shows after it. A line that fits is the
- * title; a long line whose first sentence fits is titled by that sentence. Any other long line stays whole in the
- * summary under its own clipped start, because a title cut where the row's ellipsis lands would lose the words between
- * the cut and the summary.
+ * title; a long line whose first sentence fits is titled by that sentence. Any other long line gets an empty title and
+ * stays whole in the summary: a title cut where the row's ellipsis lands would repeat the start of the summary, so the
+ * rule is that the title and summary never share text. The card heads such a message with its position instead.
  */
 function splitTitle(line: string): { title: string; rest: string } {
     if (titleWidth(line) <= TITLE_WIDTH) return { title: line, rest: '' };
@@ -113,7 +120,7 @@ function splitTitle(line: string): { title: string; rest: string } {
         return { title: line.slice(0, end), rest: line.slice(end).trim() };
     }
     // The row clips the title; past this it only costs memory per mark.
-    return { title: line.slice(0, SUMMARY_LENGTH), rest: line };
+    return { title: '', rest: line };
 }
 
 /**
@@ -155,7 +162,7 @@ export function agentChatRailMarks(
     const marks: AgentChatRailMark[] = [];
     for (const entry of timeline) {
         if (entry.kind !== 'item' || entry.item.type !== 'userMessage') continue;
-        const { id, text, images, delivery, delegatedTask } = entry.item;
+        const { id, text, images, delivery, delegatedTask, createdAt } = entry.item;
         const imageCount = images?.length ?? 0;
         const words = delegatedTask
             ? (delegatedTask.prompt ?? t('agentChat.delegated.task'))
@@ -173,9 +180,65 @@ export function agentChatRailMarks(
                     ? 'images'
                     : 'message',
             isReady,
+            ...(createdAt !== undefined && { createdAt }),
         });
     }
     return marks;
+}
+
+/**
+ * How the rail card formats a message's send time: the clock alone for a message sent today, and the month and day
+ * before it otherwise, so a message from last week does not read as sent today.
+ */
+export function agentChatRailTimeFormatOptions(
+    createdAt: number,
+    now: number,
+): Intl.DateTimeFormatOptions {
+    const sent = new Date(createdAt);
+    const today = new Date(now);
+    const isToday =
+        sent.getFullYear() === today.getFullYear() &&
+        sent.getMonth() === today.getMonth() &&
+        sent.getDate() === today.getDate();
+    const clock: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+    return isToday ? clock : { month: 'short', day: 'numeric', ...clock };
+}
+
+/**
+ * Where a message sits in the conversation, as the card words it: "Message 3 of 12", with the time appended when the
+ * timeline knows it (`time` is already formatted for the interface language). The rail only holds loaded messages, so
+ * while earlier history is still unloaded (`total` undefined) the position would be wrong: the card then names the time
+ * alone, or the position among the loaded messages when there is no time.
+ */
+export function agentChatRailCaption(
+    position: number,
+    total: number | undefined,
+    loadedCount: number,
+    time: string | undefined,
+    t: Translate = translate,
+): string {
+    if (total === undefined)
+        return time
+            ? t('agentChat.rail.sentAt', { time })
+            : t('agentChat.rail.positionLoaded', { position, total: loadedCount });
+    return time
+        ? t('agentChat.rail.positionTime', { position, total, time })
+        : t('agentChat.rail.position', { position, total });
+}
+
+/**
+ * The words of a preview card. A mark with a title keeps it, and its body is the summary, or, when the message has
+ * nothing after the title, the muted `caption` so the fixed three-line body never reads as a failed load. A mark whose
+ * title is empty (a first line too long to show whole) takes the caption as its heading and keeps the full text as the
+ * body. The title and body therefore never repeat each other.
+ */
+export function agentChatRailCardText(
+    mark: Pick<AgentChatRailMark, 'summary' | 'title'>,
+    caption: string,
+): { title: string; body: string; isBodyCaption: boolean } {
+    if (!mark.title) return { title: caption, body: mark.summary, isBodyCaption: false };
+    if (!mark.summary) return { title: mark.title, body: caption, isBodyCaption: true };
+    return { title: mark.title, body: mark.summary, isBodyCaption: false };
 }
 
 /**

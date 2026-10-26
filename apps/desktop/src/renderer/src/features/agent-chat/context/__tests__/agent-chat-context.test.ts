@@ -6,6 +6,7 @@ import {
     agentChatContextAnnouncement,
     agentChatContextLimit,
     agentChatContextPercent,
+    agentChatContextRowState,
     agentChatContextUsage,
     agentChatUndismissedContextAlerts,
     isAgentChatCacheRewriteNoticeable,
@@ -252,5 +253,31 @@ describe('agentChatContextPercent', () => {
         expect(agentChatContextPercent(150_000, 160_000)).toBe(94);
         expect(agentChatContextPercent(200_000, 160_000)).toBe(100);
         expect(agentChatContextPercent(10, 0)).toBe(0);
+    });
+});
+
+describe('agentChatContextRowState', () => {
+    const notice = { text: 'notice', detail: 'detail' };
+
+    it('offers Compact now while idle compaction counts down', () => {
+        expect(
+            agentChatContextRowState({ cache: { ...notice, state: 'compacting' } }, true, true),
+        ).toEqual({ canCompact: true, isCompacting: true, isExpired: false, isVisible: true });
+    });
+
+    it('offers Compact for context pressure but not for a plain cache countdown', () => {
+        expect(agentChatContextRowState({ pressure: notice }, true, true).canCompact).toBe(true);
+        expect(
+            agentChatContextRowState({ cache: { ...notice, state: 'expiring' } }, true, true)
+                .canCompact,
+        ).toBe(false);
+    });
+
+    it('never offers Compact without a provider compact command, and hides without room', () => {
+        expect(
+            agentChatContextRowState({ cache: { ...notice, state: 'compacting' } }, true, false)
+                .canCompact,
+        ).toBe(false);
+        expect(agentChatContextRowState({ pressure: notice }, false, true).isVisible).toBe(false);
     });
 });

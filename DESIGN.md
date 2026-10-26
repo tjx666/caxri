@@ -1294,7 +1294,8 @@ reference is written, while Enter waits. Both lists show only while the input ha
 messages list in the composer strip (below) as 13px rows laid out like the Codex app's queue: a
 `--muted` queue glyph, the message, then its actions, always shown rather than revealed on hover: a
 labeled ghost `Steer` (`Send now` with no turn running), an Edit icon (back into the composer), and a
-Delete icon; Edit is not tucked into a More menu, since a menu holding one item costs a click and hides nothing. A waiting queue has no header, since its rows already read as what goes
+Delete icon, which moves a text-only message back into an empty composer (so a mis-click is recoverable) and deletes it
+outright when the composer holds a draft or the message carries images; Edit is not tucked into a More menu, since a menu holding one item costs a click and hides nothing. A waiting queue has no header, since its rows already read as what goes
 next. While a turn runs and the input is empty, Enter steers the first queued message and the
 placeholder says so; no chip on the row repeats it. A paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send
