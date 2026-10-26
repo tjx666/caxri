@@ -5,8 +5,8 @@ import { delegatedTaskPointer } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { waitForCheck } from './mobile-agent-chat-helpers';
-import { tapMobileCheck, waitForMobile } from './mobile-android';
+import { checkBounds, waitForCheck } from './mobile-agent-chat-helpers';
+import { mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
 
 const RECORDED_DELEGATION = `dispatch-${'a'.repeat(64)}`;
 
@@ -57,6 +57,14 @@ async function seedDelegationRecord(
     } finally {
         database.close();
     }
+}
+
+/**
+ * The laid-out height of check `id`, or 0 while it is off screen.
+ */
+async function promptHeight(serial: string, id: string): Promise<number> {
+    const bounds = checkBounds(await mobileSemantics(serial), id);
+    return bounds ? bounds.bottom - bounds.top : 0;
 }
 
 /**
@@ -121,11 +129,16 @@ export async function executeMobileChatDelegatedTaskScenario(
         await capture(environment, 'delegated-expanded', artifacts);
         // Fold the pointer again so the recorded task above it is back on screen.
         await tapMobileCheck(environment.serial, `agent-chat-delegated-toggle-${pointer.id}`);
-        const promptToggle = `agent-chat-delegated-prompt-${recorded.id}-toggle`;
-        await waitForCheck(environment.serial, promptToggle);
+        const promptId = `agent-chat-delegated-prompt-${recorded.id}`;
+        await waitForCheck(environment.serial, `${promptId}-toggle`);
+        const clamped = await promptHeight(environment.serial, promptId);
         await capture(environment, 'delegated-prompt-clamped', artifacts);
-        await tapMobileCheck(environment.serial, promptToggle);
-        await waitForCheck(environment.serial, promptToggle);
+        await tapMobileCheck(environment.serial, `${promptId}-toggle`);
+        // The toggle stays in both states, so only the prompt's own height shows it unfolded.
+        await waitForMobile(
+            () => promptHeight(environment.serial, promptId),
+            (height) => height > clamped,
+        );
         await capture(environment, 'delegated-prompt-expanded', artifacts);
         await finish(environment, artifacts, {
             delegatedTask: 'collapsed-and-expanded-visible',
