@@ -215,6 +215,48 @@ describe('Session search index', () => {
         expect(hit.title).toContain('chart legend');
     });
 
+    it('indexes a conversation whose first visible prompt lies past the head budget', async () => {
+        // Injected context recorded before the first prompt pushes it past the head read; no title record follows.
+        const context = Array.from({ length: 40 }, (_, index) => ({
+            type: 'system',
+            cwd: PROJECT,
+            entrypoint: 'cli',
+            sessionId: BILLING,
+            content: `${index}`.padEnd(16 * 1024, 'c'),
+        }));
+        await writeTranscript(
+            BILLING,
+            [
+                ...context,
+                user(BILLING, 'Why does the chart legend overlap the axis?'),
+                assistant(BILLING, 'The legend is anchored before the axis labels are measured.'),
+            ],
+            NOW - DAY,
+        );
+        // Only built-in commands follow the same injected context, so the conversation stays excluded.
+        await writeTranscript(
+            ONBOARDING,
+            [
+                ...context.map((record) => ({ ...record, sessionId: ONBOARDING })),
+                user(
+                    ONBOARDING,
+                    '<command-name>/clear</command-name><command-message>clear</command-message>',
+                ),
+            ],
+            NOW - DAY,
+        );
+
+        const { excluded } = await engine.indexer.refresh();
+
+        expect(excluded).toEqual({ missingPrompt: 1 });
+        const [hit] = engine.search({ query: 'axis labels are measured', limit: 10 }).hits;
+        expect(hit).toMatchObject({
+            agentSessionId: BILLING,
+            field: 'content',
+            title: 'Why does the chart legend overlap the axis?',
+        });
+    });
+
     it('counts each transcript the pass excludes by its cause', async () => {
         await seed();
         const sidechain = '9c4f5d6e-7081-4c92-8da3-c5e6f708192a';

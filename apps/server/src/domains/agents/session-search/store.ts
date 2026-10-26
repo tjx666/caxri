@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
  * Bumped whenever the schema or what is extracted from a transcript changes. The index is derived data, so a mismatch
  * drops the file and rebuilds it from the providers' transcripts instead of migrating.
  */
-const INDEX_VERSION = 3;
+const INDEX_VERSION = 4;
 
 const SCHEMA = `
 CREATE TABLE transcripts (

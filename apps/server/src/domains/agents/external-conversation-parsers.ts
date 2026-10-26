@@ -68,6 +68,12 @@ const TITLE_MAX_CHARACTERS = 120;
  * Claude Code appends `ai-title` / `custom-title` records after later turns, so the newest title lives at the end.
  */
 const TAIL_BYTES = 64 * 1024;
+/**
+ * How far past the head read a Claude transcript is scanned for its first visible user message when the head held none.
+ * Attachments, injected context, and tool results recorded before that message have pushed it to about 4 MiB in real
+ * transcripts; only a transcript still missing its prompt after the head pays for this read.
+ */
+const CLAUDE_PROMPT_SCAN_BYTES = 16 * 1024 * 1024;
 const GROK_SUMMARY_MAX_BYTES = 64 * 1024;
 const GROK_CWD_MARKER_MAX_BYTES = 16 * 1024;
 const CODEX_ID_QUERY_CHUNK = 500;
@@ -261,37 +267,65 @@ async function parseClaudeConversation(
     let resumableCwd: string | undefined;
     let firstEntrypoint: string | undefined;
     let hasStoppedEarly = false;
+    /**
+     * Folds one record into the scan, returning an exclusion reason, `true` once every needed field is found, or
+     * `false` to keep reading.
+     */
+    const accept = (record: Record<string, unknown>): ConversationExclusionReason | boolean => {
+        scanClaudeTitle(record, titles);
+        /**
+         * The first entry point names how the conversation started. A `--print` run (`sdk-cli`) is a scripted one-shot.
+         * A later `sdk-cli` record does not reclassify a conversation: Caxri runs `/rename` through `claude -p
+         * --resume`, which appends one to an Agent Chat transcript.
+         */
+        firstEntrypoint ??= stringField(record, 'entrypoint');
+        if (firstEntrypoint === 'sdk-cli') return 'scripted';
+        if (record.type === 'user' && record.isSidechain === true && !prompt.prompt)
+            return 'sidechain';
+        const cwd = stringField(record, 'cwd');
+        if (cwd && isAbsolute(cwd)) {
+            firstCwd ??= cwd;
+            if (!resumableCwd && claudeTranscriptRoot(configDirectory, cwd) === projectRoot)
+                resumableCwd = cwd;
+        }
+        prompt.accept(record);
+        return Boolean(resumableCwd && firstEntrypoint !== undefined && prompt.isComplete);
+    };
     try {
         const headEnd = Math.min(opened.size, HEAD_BUDGET_BYTES);
         for await (const record of readHeadRecords(opened.handle, opened.size, head)) {
-            scanClaudeTitle(record, titles);
-            /**
-             * The first entry point names how the conversation started. A `--print` run (`sdk-cli`) is a scripted
-             * one-shot. A later `sdk-cli` record does not reclassify a conversation: Caxri runs `/rename` through
-             * `claude -p --resume`, which appends one to an Agent Chat transcript.
-             */
-            firstEntrypoint ??= stringField(record, 'entrypoint');
-            if (firstEntrypoint === 'sdk-cli') return 'scripted';
-            if (record.type === 'user' && record.isSidechain === true && !prompt.prompt)
-                return 'sidechain';
-            const cwd = stringField(record, 'cwd');
-            if (cwd && isAbsolute(cwd)) {
-                firstCwd ??= cwd;
-                if (!resumableCwd && claudeTranscriptRoot(configDirectory, cwd) === projectRoot)
-                    resumableCwd = cwd;
-            }
-            prompt.accept(record);
-            if (resumableCwd && firstEntrypoint !== undefined && prompt.isComplete) {
+            const verdict = accept(record);
+            if (typeof verdict === 'string') return verdict;
+            if (verdict) {
                 hasStoppedEarly = true;
                 break;
+            }
+        }
+        /**
+         * A head with no visible user message keeps reading, within a bound, until one appears, so a conversation
+         * opened by long attachments or injected context is still indexed under its prompt. Starting one byte early
+         * makes the range's dropped leading fragment exactly the record the head read already finished (or the newline
+         * ending the head), so no record is skipped or scanned twice.
+         */
+        let scannedEnd = headEnd;
+        if (!hasStoppedEarly && !prompt.prompt && opened.size > headEnd) {
+            scannedEnd = Math.min(opened.size, headEnd + CLAUDE_PROMPT_SCAN_BYTES);
+            const records = readJsonRecords(opened.handle, headEnd - 1, scannedEnd);
+            for await (const record of records) {
+                const verdict = accept(record);
+                if (typeof verdict === 'string') return verdict;
+                if (prompt.isComplete) {
+                    hasStoppedEarly = true;
+                    break;
+                }
             }
         }
         /**
          * Title records follow the first turn, so whatever the head scan did not reach is covered by a bounded tail
          * read. Overlap with the head is harmless: a later title record overrides an earlier one.
          */
-        if (hasStoppedEarly || opened.size > headEnd) {
-            const tailStart = Math.max(hasStoppedEarly ? 0 : headEnd, opened.size - TAIL_BYTES);
+        if (hasStoppedEarly || opened.size > scannedEnd) {
+            const tailStart = Math.max(hasStoppedEarly ? 0 : scannedEnd, opened.size - TAIL_BYTES);
             for await (const record of readJsonRecords(opened.handle, tailStart, opened.size))
                 scanClaudeTitle(record, titles);
         }
