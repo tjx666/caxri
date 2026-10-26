@@ -131,18 +131,6 @@ async function executeSuccessfulCreate(
             sessions: Array<{ id: string }>;
         }>(fixture.running.page, 'app.bootstrap');
         if (!before.selectedSessionId) throw new Error('Desktop Session selection is unavailable');
-        // Agents open in Chat by default now, so pin the setting off for the Terminal default asserted below.
-        const desktopSettings = await pageRequest<{ value: Record<string, unknown> }>(
-            fixture.running.page,
-            'settings.get',
-        );
-        await pageRequest(fixture.running.page, 'settings.update', {
-            source: JSON.stringify(
-                { ...desktopSettings.value, 'session.openAgentsInChat': false },
-                null,
-                2,
-            ),
-        });
         await desktop.capture('before');
         if (environment.caseId === 'MOB-CROSS-01') {
             if (!environment.remoteVideoPath)

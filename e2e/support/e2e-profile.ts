@@ -9,8 +9,14 @@ import { stageDevelopmentTestExtension } from './test-extension.ts';
  * `files.autoSave` defaults to `onFocusChange` in the product, but most Editor specs type into a buffer and then click
  * elsewhere while asserting it is still unsaved (the close and quit confirmations, Workbench Root switches, Session
  * deletion). They opt out of auto save so that focus moves stay inert; `editor-auto-save.e2e.ts` covers the default.
+ *
+ * `session.openAgentsInChat` defaults to true for users, but most specs drive the PTY Agent surface by its plain
+ * create-menu name ("Claude", not "Claude Chat"), so the baseline keeps Terminal; Chat specs turn it on themselves.
  */
-const E2E_DEFAULT_SETTINGS = { 'files.autoSave': 'off' } as const;
+const E2E_DEFAULT_SETTINGS = {
+    'files.autoSave': 'off',
+    'session.openAgentsInChat': false,
+} as const;
 
 export function e2eSettingsPath(userDataDirectory: string): string {
     return join(userDataDirectory, 'config', 'settings.jsonc');

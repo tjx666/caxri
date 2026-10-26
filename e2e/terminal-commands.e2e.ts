@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
-import { openAgentsInTerminal } from './support/agent-surface-settings.ts';
 import type { E2EApp } from './support/electron-app.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -543,7 +542,6 @@ test('unsupported shells and Agent Terminals remain usable without inferred boun
             .filter({ has: running.page.getByRole('button', { name: /^New Session in /u }) })
             .hover();
         await running.page.getByRole('button', { name: /^New Session in /u }).click();
-        await openAgentsInTerminal(running.page);
         await chooseTerminalFromCreateMenu(running.page, 'Codex');
         await expect.poll(() => selectedSessionId(running.page)).not.toBe(shellSessionId);
         const agentTerminalId = await waitForNewTerminalId(running.page, [shellTerminalId]);

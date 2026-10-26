@@ -187,7 +187,6 @@ process.stdout.write('Fake Claude spin phase ready\r\n');
         const current = await pageRequest<{ value: AppSettings }>(page, 'settings.get');
         const settings = structuredClone(current.value);
         settings['agents.providers'].claude.hooks.enabled = true;
-        settings['session.openAgentsInChat'] = false;
         await pageRequest(page, 'settings.update', { source: JSON.stringify(settings, null, 2) });
         await expect
             .poll(() => readFileIfPresent(join(config, 'settings.json')))
