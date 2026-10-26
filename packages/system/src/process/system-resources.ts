@@ -20,6 +20,11 @@ export interface SystemMemory {
      * Swap in use, where the platform reports it.
      */
     swapUsedMb?: number;
+    /**
+     * Set when the platform's own reading failed and `usedMb` is the coarse `os.totalmem() - os.freemem()`, which on
+     * macOS overstates use; the caller logs it so a phone showing a nearly full Mac can be explained.
+     */
+    fallbackReason?: 'tool-failed' | 'unrecognized-output';
 }
 
 const roundMb = (bytes: number): number => Math.round((bytes / BYTES_PER_MB) * 10) / 10;
@@ -107,21 +112,23 @@ async function sampleDarwinMemory(): Promise<SystemMemory> {
         run('/usr/bin/vm_stat', []),
         run('/usr/sbin/sysctl', ['-n', 'vm.swapusage']),
     ]);
-    const usedBytes =
-        (vmStat.status === 'fulfilled' ? parseVmStatUsedBytes(vmStat.value) : undefined) ??
-        totalBytes - os.freemem();
+    const parsed = vmStat.status === 'fulfilled' ? parseVmStatUsedBytes(vmStat.value) : undefined;
+    const usedBytes = parsed ?? totalBytes - os.freemem();
     const swapBytes = swap.status === 'fulfilled' ? parseSwapUsageBytes(swap.value) : undefined;
     return {
         totalMb: roundMb(totalBytes),
         usedMb: roundMb(Math.min(usedBytes, totalBytes)),
         ...(swapBytes !== undefined && { swapUsedMb: roundMb(swapBytes) }),
+        ...(parsed === undefined && {
+            fallbackReason: vmStat.status === 'fulfilled' ? 'unrecognized-output' : 'tool-failed',
+        }),
     };
 }
 
-async function sampleLinuxMemory(): Promise<SystemMemory | undefined> {
+async function sampleLinuxMemory(): Promise<SystemMemory | SystemMemory['fallbackReason']> {
     try {
         const parsed = parseMeminfo(await readFile('/proc/meminfo', 'utf8'));
-        if (!parsed) return;
+        if (!parsed) return 'unrecognized-output';
         return {
             totalMb: roundMb(parsed.totalBytes),
             usedMb: roundMb(parsed.usedBytes),
@@ -130,7 +137,7 @@ async function sampleLinuxMemory(): Promise<SystemMemory | undefined> {
             }),
         };
     } catch {
-        return;
+        return 'tool-failed';
     }
 }
 
@@ -143,9 +150,13 @@ export async function sampleSystemMemory(
 ): Promise<SystemMemory> {
     if (platform === 'darwin') return sampleDarwinMemory();
     const linux = platform === 'linux' ? await sampleLinuxMemory() : undefined;
-    if (linux) return linux;
+    if (typeof linux === 'object') return linux;
     const totalBytes = os.totalmem();
-    return { totalMb: roundMb(totalBytes), usedMb: roundMb(totalBytes - os.freemem()) };
+    return {
+        totalMb: roundMb(totalBytes),
+        usedMb: roundMb(totalBytes - os.freemem()),
+        ...(linux && { fallbackReason: linux }),
+    };
 }
 
 interface CpuTimes {

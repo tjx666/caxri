@@ -33,7 +33,7 @@ const SHARED_SAMPLE_MS = 1_000;
 const CPU_BASELINE_MAX_AGE_MS = 10_000;
 const CPU_BASELINE_GAP_MS = 300;
 
-type SamplePart = 'processTable' | 'terminals';
+type SamplePart = 'memory' | 'processTable' | 'terminals';
 
 interface HostStatusSamplerOptions {
     logger?: Pick<StructuredLogger, 'write'>;
@@ -240,6 +240,8 @@ export class HostStatusSampler {
             },
             ...(processes && { processes }),
         });
+        if (memory.fallbackReason) this.record('memory', new Error(memory.fallbackReason));
+        else this.record('memory');
         this.latest = { at: this.now(), status };
         return status;
     }

@@ -153,6 +153,32 @@ describe('computer status sampling', () => {
         ]);
     });
 
+    it('logs once when memory falls back to the coarse figure', async () => {
+        let now = 0;
+        const write = vi.fn();
+        const sampler = new HostStatusSampler({
+            cpuBaselineGapMs: 0,
+            logger: { write },
+            now: () => now,
+            sampleProcessTable: () => Promise.resolve(table()),
+            sampleSystemMemory: () =>
+                Promise.resolve({
+                    totalMb: 32_768,
+                    usedMb: 32_000,
+                    fallbackReason: 'tool-failed' as const,
+                }),
+            serverPid: SERVER_PID,
+            system,
+            terminals: () => Promise.resolve([]),
+        });
+        expect((await sampler.status()).system.memoryUsedMb).toBe(32_000);
+        now = 5_000;
+        await sampler.status();
+        expect(
+            write.mock.calls.map((call) => (call[2] as { fields: { part: string } }).fields.part),
+        ).toEqual(['memory']);
+    });
+
     it('keeps Session load empty but the rest of the reply when the Terminal list fails', async () => {
         const sampler = new HostStatusSampler({
             cpuBaselineGapMs: 0,

@@ -47,11 +47,13 @@ one sample for a second and coalesces concurrent requests, so several phones nev
 - **Top processes**: the union of the ten busiest by CPU and the ten largest by memory, so the
   phone's CPU and memory sort each show a true top ten.
 
-The reply never carries a command line, only executable names (an interpreter adds its script
-name), because command lines can hold credentials. If `ps` fails, the reply keeps the system figures
+The reply never carries a command line, only executable names, because command lines can hold
+credentials. An interpreter adds its script's file name, but inline code (`python -c`, `node -e`)
+or an argument that is not a plain file name leaves just the interpreter. If `ps` fails, the reply keeps the system figures
 and omits the process sections, and the screen says processes are unavailable. If the Terminal list
 fails, the Session section is empty but the rest stays. Each failing part logs
-`mobile_gateway.host_status_sample_failed` once with a closed `part` (`processTable` or `terminals`),
+`mobile_gateway.host_status_sample_failed` once with a closed `part` (`processTable`, `terminals`, or `memory` when the
+platform memory reading failed and the coarse figure was served),
 and logs again only after that part has recovered and failed anew.
 
 ## Authorization and size

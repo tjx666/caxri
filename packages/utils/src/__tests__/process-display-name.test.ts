@@ -18,4 +18,14 @@ describe('processDisplayName', () => {
         expect(processDisplayName('(git)')).toBe('git');
         expect(processDisplayName('node')).toBe('node');
     });
+
+    it('never turns inline code or an argument fragment into the name', () => {
+        expect(
+            processDisplayName(`python3 -c import requests; requests.get("https://h/x?token=t0k")`),
+        ).toBe('python3');
+        expect(processDisplayName('node -e console.log(process.env.KEY)')).toBe('node');
+        expect(processDisplayName('ruby -e puts 1')).toBe('ruby');
+        expect(processDisplayName('node --inspect=9229 server.js')).toBe('node server.js');
+        expect(processDisplayName('perl /tmp/x?token=t0k')).toBe('perl');
+    });
 });
