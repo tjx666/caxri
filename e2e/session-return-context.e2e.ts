@@ -1,71 +1,10 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
 
-import type { BootstrapState } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 
-import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import {
-    closeAppQuietly,
-    createAdditionalShellSession,
-    createProjectSession,
-    launchCaxri,
-    pageRequest,
-    sessionCard,
-    VISIBLE_SESSION,
-} from './support/helpers.ts';
-
-async function launchWithChat(options: { preserveHostOnClose?: boolean } = {}) {
-    const created = await mkdtemp(join(tmpdir(), 'caxri-session-return-'));
-    const directory = await realpath(created);
-    const userData = join(directory, 'user-data');
-    const root = join(directory, 'project');
-    await mkdir(root, { recursive: true });
-    const agentMode = await fakeCodexChatAgentMode(directory, userData);
-    const launchOptions = { agentMode, userDataDir: userData, testRootPath: root, ...options };
-    const running = await launchCaxri(launchOptions);
-    return { directory, launchOptions, running };
-}
-
-/**
- * Runs two Codex Chat turns while another Session is selected, leaving that other Session selected. Returns the Chat's
- * Session.
- */
-async function finishTwoTurnsAway(page: Page): Promise<string> {
-    const chatId = await createProjectSession(page, 'shell');
-    await openAgentChat(page, 'Codex Chat');
-    const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
-    await message.fill('longstream please');
-    await message.press('Enter');
-    // A follow-up sent during the turn queues and runs as a second turn.
-    await message.fill('hello after this');
-    await message.press('Enter');
-    await createAdditionalShellSession(page);
-    const state = await pageRequest<BootstrapState>(page, 'app.bootstrap');
-    const chatTerminal = state.terminals.find(
-        ({ sessionId, provider }) => sessionId === chatId && provider === 'codex',
-    );
-    if (!chatTerminal) throw new Error('Chat Terminal missing');
-    // Both turns end while another Session is selected.
-    await expect
-        .poll(
-            async () => {
-                const snapshot = await pageRequest<{
-                    turns: Array<{ status: string }>;
-                    queue?: unknown[];
-                }>(page, 'agentChat.read', { terminalId: chatTerminal.id });
-                return {
-                    completed: snapshot.turns.filter(({ status }) => status === 'completed').length,
-                    queued: snapshot.queue?.length ?? 0,
-                };
-            },
-            { timeout: 60_000 },
-        )
-        .toEqual({ completed: 2, queued: 0 });
-    return chatId;
-}
+import { closeAppQuietly, sessionCard, VISIBLE_SESSION } from './support/helpers.ts';
+import { finishTwoTurnsAway, launchWithChat } from './support/session-return-fixture.ts';
 
 /**
  * Runs two Codex Chat turns while another Session is selected, then returns to the Chat.
@@ -158,32 +97,6 @@ test('sending a message retires the return hint', async ({}) => {
         await message.press('Enter');
         await expect(hint).toBeHidden();
     } finally {
-        await closeAppQuietly(running.app);
-        await rm(directory, { recursive: true, force: true });
-    }
-});
-
-// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the return hint survives a Desktop restart', async ({}, testInfo) => {
-    // Server Core keeps the Chat's turns across the restart; only the boundary has to be durable.
-    const { directory, launchOptions, running } = await launchWithChat({
-        preserveHostOnClose: true,
-    });
-    let second: Awaited<ReturnType<typeof launchCaxri>> | undefined;
-    try {
-        const chatId = await finishTwoTurnsAway(running.page);
-        await running.app.close();
-
-        // The second launch stops Server Core when it closes, so the test leaves nothing running.
-        second = await launchCaxri({ ...launchOptions, preserveHostOnClose: false });
-        await sessionCard(second.page, chatId).click();
-        const hint = second.page.getByRole('status').filter({ hasText: 'new replies' });
-        await expect(hint).toContainText('2 new replies');
-        await second.page.screenshot({
-            path: testInfo.outputPath('return-hint-after-restart.png'),
-        });
-    } finally {
-        if (second) await closeAppQuietly(second.app);
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
     }
