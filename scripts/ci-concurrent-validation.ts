@@ -2,10 +2,11 @@
 
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
+import { writeJsonAtomic } from './atomic-json';
 import { prepareChecksWorktree } from './ci-checks-worktree';
 import { sanitizedChildEnvironment } from './ci-child-environment';
 import type {
@@ -432,10 +433,7 @@ async function runE2E(
 }
 
 async function writeReceipt(receipt: ConcurrentValidationReceipt): Promise<void> {
-    await mkdir(resolve(receiptPath, '..'), { recursive: true });
-    const temporary = `${receiptPath}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
-    await rename(temporary, receiptPath);
+    await writeJsonAtomic(receiptPath, receipt, { ensureParent: true });
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts

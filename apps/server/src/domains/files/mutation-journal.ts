@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-
 import type {
     FileMutationOperation,
     MovedFileEntry,
@@ -22,6 +20,7 @@ import {
     operationFailure,
     pathIdentity,
     pathKind,
+    readJournalRecords,
 } from './mutation-journal-support';
 
 type FileMutationResult = MutableFileEntry | MovedFileEntry;
@@ -125,15 +124,8 @@ export class FileMutationJournal {
     private async loadAndReconcile(): Promise<void> {
         if (this.initialized) return;
         if (this.path) {
-            try {
-                const parsed = z
-                    .array(fileMutationOperationSchema)
-                    .max(MAXIMUM_RETAINED_OPERATIONS)
-                    .parse(JSON.parse(await readFile(this.path, 'utf8')));
-                for (const operation of parsed) this.records.set(operation.id, operation);
-            } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-            }
+            const parsed = await readJournalRecords(this.path, MAXIMUM_RETAINED_OPERATIONS);
+            for (const operation of parsed) this.records.set(operation.id, operation);
         }
         this.initialized = true;
         /**
@@ -392,9 +384,7 @@ export class FileMutationJournal {
         operation: FileMutationOperation,
         scope: FileMutationOperationScope,
     ): boolean {
-        return operation.workbenchProjectId
-            ? operation.workbenchProjectId === scope.workbenchProjectId
-            : operation.sessionId === scope.sessionId;
+        return operation.workbenchProjectId === scope.workbenchProjectId;
     }
 
     private requireOperationInScope(
@@ -574,9 +564,7 @@ export class FileMutationJournal {
             payload: {
                 operationId: snapshot.id,
                 sessionId: snapshot.sessionId,
-                ...(snapshot.workbenchProjectId && {
-                    workbenchProjectId: snapshot.workbenchProjectId,
-                }),
+                workbenchProjectId: snapshot.workbenchProjectId,
             },
         });
         this.logger.write(

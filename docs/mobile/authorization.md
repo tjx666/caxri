@@ -60,9 +60,10 @@ still ends the connection.
 
 New pairings always receive `control` for the selected Projects: the Server hardcodes the role at pairing
 (`apps/server/src/core/mobile/device-registry.ts`) and no API changes it afterward. `view` and `reply` are defined
-and enforced by the gateway but cannot be assigned yet; see [issue #2334](https://github.com/tjx666/caxri/issues/2334). A pre-role device registry opens with no
-active grants; its old credentials cannot authenticate. The old store remains untouched until an
-explicit new pairing replaces it. Revocation rotates the credential and generation, sends a sealed
+and enforced by the gateway but cannot be assigned yet; see [issue #2334](https://github.com/tjx666/caxri/issues/2334). A device registry written by another
+store version is not read: Server startup fails with an error that tells the operator to delete
+`mobile-devices.json` from the Server profile directory and pair phones again. The file is never
+modified or migrated. Revocation rotates the credential and generation, sends a sealed
 revocation notice to authenticated connections, and closes them. An old generation cannot resume or
 submit another request.
 

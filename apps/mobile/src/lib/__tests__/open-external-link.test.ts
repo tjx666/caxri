@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { openExternalLink } from './open-external-link';
+import { openExternalLink } from '../open-external-link';
 
 vi.mock('react-native', () => ({ Alert: { alert: vi.fn() }, Linking: { openURL: vi.fn() } }));
 

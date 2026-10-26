@@ -75,14 +75,32 @@ Main encode a `CaxriError` into protocol replies, and Client or Preload boundari
 other side, so a code survives every process hop instead of degrading into an opaque message.
 Unrecognized codes decay to `INTERNAL`, and only `INTERNAL` failures log a stack.
 
-The workbench preload exposes one `request` method backed by a fixed method union plus `onEvent` and
-a content-free `reportError` classifier. The Process Explorer preload has the same error classifier
+The workbench preload (`apps/desktop/src/preload/index.ts`) exposes these globals and nothing else; a key-set
+test (`apps/desktop/src/preload/__tests__/exposed-globals.test.ts`) fails when the list drifts, so update it here
+in the same change:
+
+- `caxri` (`CaxriBridge`, `packages/protocol/src/transport/transport.ts`): `negotiate` (protocol version handshake),
+  `request` and `requestWithId` (the fixed method union; the latter takes a caller-owned request ID so the Renderer can
+  cancel a long Core read without passing an `AbortSignal` across the bridge), `onEvent` (journal-backed event stream),
+  `reportError` (content-free classifier), `reportDiagnostic` (strict content-free Renderer lifecycle snapshot), and
+  `pathForFile` (`webUtils.getPathForFile` for a `File` the user dropped; reads no file).
+- `performanceMonitorHost`: `isActive`, `onControl`, and `publish` let the Workbench publish its own frame pacing to a
+  detached Performance Monitor window through Main. Main drops a publish that does not come from the monitored window,
+  so a companion Renderer sharing this preload gains nothing.
+- `__caxriWorktree`: a local path string, present only when `switch-worktree dev` sets `CAXRI_WORKTREE_PATH`, so a CDP
+  connection can verify which worktree's window it reached.
+- `caxriE2E`: request gates, call counters, the one-shot mobile pairing link bridge, and the poll-interval override,
+  present only when `CAXRI_E2E=1` at runtime (see Accepted test seams in `security.md`).
+
+The Process Explorer preload (`processExplorer`) has the same error classifier
 beside its snapshot, theme, and language methods and one narrow action, `stopTerminal(terminalId)`.
 `stopTerminal` has a dedicated channel; Main checks the sender and the identifier, then calls
 `terminal.suspend` for that one Terminal. It is not a request bridge and does not terminate arbitrary
-processes. Renderer entries report only `page-exception` or
+processes. The Performance Monitor preload (`performanceMonitor`) offers state, metrics, reload, overlay and
+always-on-top controls, theme, language, snapshot and state subscriptions, and the classifier; Main checks the
+sender on each channel. Renderer entries report only `page-exception` or
 `unhandled-rejection`; exception values never cross the bridge. Main validates both the sender and
-kind, then writes stable structured events. The Agent Commander window reuses the workbench preload;
+kind, then writes stable structured events. The Agent Commander and Benchmark windows reuse the workbench preload;
 Main identifies it as the companion sender and applies `AgentCommanderRendererPolicy` before dispatch
 (see `docs/agent-commander.md`). The preload does not expose `ipcRenderer`, Electron
 objects, environment data, or generic filesystem/process access. Server Core, Desktop Main, Terminal

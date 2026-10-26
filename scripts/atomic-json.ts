@@ -41,6 +41,19 @@ export async function writeJsonAtomic(
     value: unknown,
     options: AtomicJsonWriteOptions = {},
 ): Promise<void> {
+    await writeTextAtomic(path, `${JSON.stringify(value, null, 2)}\n`, options);
+}
+
+/**
+ * Publishes arbitrary text or bytes with the same exclusive, no-follow, synced temporary file and identity checks as
+ * `writeJsonAtomic`. This and `writeJsonAtomic` are the only sanctioned write-then-rename publishers in repository
+ * tooling; `scripts/__tests__/atomic-write-contract.test.ts` rejects an inline pair.
+ */
+export async function writeTextAtomic(
+    path: string,
+    content: string | Uint8Array,
+    options: AtomicJsonWriteOptions = {},
+): Promise<void> {
     const parent = dirname(path);
     if (options.ensureParent) await mkdir(parent, { recursive: true });
     const temporary = join(parent, `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
@@ -51,7 +64,7 @@ export async function writeJsonAtomic(
             options.mode ?? 0o666,
         );
         try {
-            await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+            await handle.writeFile(content);
             await handle.sync();
             const opened = await handle.stat();
             const identity = { dev: opened.dev, ino: opened.ino };

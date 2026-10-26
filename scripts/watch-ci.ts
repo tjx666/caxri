@@ -31,13 +31,14 @@
  * name. It cannot be combined with another selector. Exits 0 when every watched run succeeded, 1 otherwise.
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
+import { writeJsonAtomic } from './atomic-json';
 import { execFileAsync } from './exec';
 import { resolvePrRuns } from './watch-ci-pr';
 import { followAndReport, isSuccessfulConclusion } from './watch-ci-sha';
@@ -250,11 +251,7 @@ async function readState(runId: string): Promise<WatchState | undefined> {
  * Write-then-rename keeps follower sessions from ever reading a torn JSON document.
  */
 async function writeState(state: WatchState): Promise<void> {
-    await mkdir(STATE_DIRECTORY, { recursive: true });
-    const finalPath = statePath(state.runId);
-    const temporaryPath = `${finalPath}.${process.pid}.tmp`;
-    await writeFile(temporaryPath, `${JSON.stringify(state, undefined, 2)}\n`, 'utf8');
-    await rename(temporaryPath, finalPath);
+    await writeJsonAtomic(statePath(state.runId), state, { ensureParent: true });
 }
 
 /**

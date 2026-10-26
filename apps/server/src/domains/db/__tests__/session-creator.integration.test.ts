@@ -7,6 +7,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabase } from '../index';
+import { createDatabaseBeforeMigration, seedSessionWithChat } from './pre-migration.fixture';
 
 async function openDatabase(): Promise<{ path: string; database: CaxriDatabase }> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-session-creator-'));
@@ -59,24 +60,16 @@ describe('Session creator', () => {
         expect(database.getSession(child.id)).not.toHaveProperty('createdBySessionId');
     });
 
-    it('adds the column when upgrading from the previous schema version, keeping every Session', async () => {
-        const { path, database } = await openDatabase();
-        const project = database.createProject(join(path, '..', 'project'));
-        const { session } = database.createSession(project.id, null);
-        database.close();
-        const raw = new Database(path);
-        raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
-        // `0009_agent_chat_persistence` came after this column, so that version predates it too.
-        raw.exec(
-            'DROP TABLE agent_chat_subagents; DROP TABLE agent_chat_answered_notices; DROP TABLE agent_chat_process_groups; ALTER TABLE terminals DROP COLUMN agent_resume_at',
-        );
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 3}`);
-        raw.close();
+    it('adds the column when upgrading across 0008_session_creator, keeping every Session', async () => {
+        let sessionId = '';
+        const { path } = await createDatabaseBeforeMigration('0008_session_creator', (raw) => {
+            sessionId = seedSessionWithChat(raw).sessionId;
+        });
 
         const upgraded = new CaxriDatabase(path);
         onTestFinished(() => upgraded.close());
-        expect(upgraded.getSession(session.id)).toMatchObject({ id: session.id });
-        expect(upgraded.getSession(session.id)).not.toHaveProperty('createdBySessionId');
+        expect(upgraded.getSession(sessionId)).toMatchObject({ id: sessionId });
+        expect(upgraded.getSession(sessionId)).not.toHaveProperty('createdBySessionId');
         const check = new Database(path, { readonly: true });
         onTestFinished(() => {
             check.close();

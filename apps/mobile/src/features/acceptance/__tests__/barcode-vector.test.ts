@@ -6,7 +6,7 @@ import {
     BARCODE_VECTOR_PNG_BASE64,
     BARCODE_VECTOR_TEXT,
     verifyBarcodeVector,
-} from './barcode-vector';
+} from '../barcode-vector';
 
 describe('barcode vector', () => {
     it('encodes text as long as a five-address pairing link', () => {

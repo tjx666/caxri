@@ -1,10 +1,11 @@
 #!/usr/bin/env bun
 
 import { createHash } from 'node:crypto';
-import { appendFile, readFile, rename, writeFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
+import { writeJsonAtomic } from './atomic-json';
 import type {
     E2EFailureGroup,
     E2EPoolReceipt,
@@ -109,9 +110,7 @@ async function main(): Promise<void> {
     );
     const manifest = summarizeE2EReceipts(receipts);
     const output = resolve('test-results/receipts/combined.json');
-    const temporary = `${output}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-    await rename(temporary, output);
+    await writeJsonAtomic(output, manifest);
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (summary) {
         await appendFile(

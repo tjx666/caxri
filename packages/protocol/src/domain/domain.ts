@@ -323,10 +323,7 @@ const fileMutationPhaseSchema = z.enum(['pre_stage', 'staged', 'completed', 'fai
 const fileMutationOperationBase = {
     id: identifierSchema,
     sessionId: identifierSchema,
-    /**
-     * Optional only so journals written before Workbench Roots remain recoverable.
-     */
-    workbenchProjectId: identifierSchema.optional(),
+    workbenchProjectId: identifierSchema,
     phase: fileMutationPhaseSchema,
     startedAt: z.number(),
     updatedAt: z.number(),

@@ -7,7 +7,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabase } from '../index';
-import { BASELINE_SCHEMA_VERSION } from '../migrations/manifest';
+import { createDatabaseBeforeMigration } from './pre-migration.fixture';
 
 async function openDatabase() {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-usage-'));
@@ -101,42 +101,11 @@ describe('Agent Session usage ledger', () => {
         ]);
     });
 
-    it('creates the usage tables when upgrading from each earlier schema version', async () => {
-        /**
-         * Absolute versions: `0002_agent_session_usage` is schema 40 and `0003_external_agent_usage` schema 41. Every
-         * later table and column is dropped too, because a database at either version predates it.
-         */
-        const laterTables = [
-            'commander_tasks',
-            'commander_pending_notices',
-            'commander_inbox_replies',
-            'commander_inbox_items',
-            'benchmark_runs',
-            'agent_chat_subagents',
-            'agent_chat_answered_notices',
-            'agent_chat_process_groups',
-        ];
-        const upgrades = [
-            {
-                from: BASELINE_SCHEMA_VERSION + 1,
-                drop: ['agent_session_usage', 'pull_request_outcomes', 'external_agent_usage'],
-            },
-            { from: BASELINE_SCHEMA_VERSION + 2, drop: ['external_agent_usage'] },
-        ];
-        for (const { from, drop } of upgrades) {
+    it('creates the usage tables when upgrading across each of their migrations', async () => {
+        const tags = ['0002_agent_session_usage', '0003_external_agent_usage'] as const;
+        for (const tag of tags) {
             // eslint-disable-next-line no-await-in-loop -- each upgrade gets its own database
-            const { path, database } = await openDatabase();
-            database.close();
-            const raw = new Database(path);
-            for (const table of [...drop, ...laterTables]) raw.exec(`DROP TABLE ${table}`);
-            // `0006_chat_permission_modes` and `0008_session_creator` added these columns later still.
-            raw.exec(
-                'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
-            );
-            raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
-            raw.exec('ALTER TABLE terminals DROP COLUMN agent_resume_at');
-            raw.pragma(`user_version = ${from}`);
-            raw.close();
+            const { path } = await createDatabaseBeforeMigration(tag);
 
             const upgraded = new CaxriDatabase(path);
             onTestFinished(() => upgraded.close());

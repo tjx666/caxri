@@ -1,10 +1,13 @@
 import { Buffer } from 'node:buffer';
-import { lstat, open, readdir, readFile } from 'node:fs/promises';
+import { lstat, open, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { claudeTranscriptRoot, resolveClaudeConfigDirectory } from '../agents';
-import { isRecord } from './chat-items';
+import {
+    claudeTranscriptRoot,
+    readClaudeSubagentToolUseId,
+    resolveClaudeConfigDirectory,
+} from '../agents';
 
 /**
  * Claude Code writes each subagent's conversation beside the session transcript: `<config>/projects/<project
@@ -22,8 +25,6 @@ const SESSION_ID = /^[\w-]{1,200}$/u;
  */
 const MAX_SUBAGENT_METAS = 1_000;
 
-const MAX_META_BYTES = 64 * 1024;
-
 /**
  * Tail of a subagent transcript read for its tab; the task projection keeps far less than this anyway.
  */
@@ -33,17 +34,6 @@ export interface ClaudeSubagentTranscript {
     toolUseId: string;
     content: string;
     truncated: boolean;
-}
-
-async function readMetaToolUseId(path: string): Promise<string | undefined> {
-    try {
-        const stats = await lstat(path);
-        if (!stats.isFile() || stats.size > MAX_META_BYTES) return undefined;
-        const meta: unknown = JSON.parse(await readFile(path, 'utf8'));
-        return isRecord(meta) && typeof meta.toolUseId === 'string' ? meta.toolUseId : undefined;
-    } catch {
-        return undefined;
-    }
 }
 
 async function readTail(
@@ -93,7 +83,7 @@ export async function readClaudeSubagentTranscript(options: {
     const owners = await Promise.all(
         metas.map(async (name) => ({
             name,
-            owner: await readMetaToolUseId(join(directory, name)),
+            owner: await readClaudeSubagentToolUseId(join(directory, name)),
         })),
     );
     const match = owners.find((entry) => entry.owner === toolUseId);

@@ -1,10 +1,11 @@
-import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
+import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 import { acceptanceAgentFixtureIds } from './agent-fixture-ids';
 import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
 import type { StateIsolation } from './case-lifecycle';
@@ -623,9 +624,7 @@ export async function finalizeReport(input: FinalizeReportInput) {
     };
     const finalized = { ...report, summary };
     validateReportLanguage({ notes, proposal, report: finalized, requirement });
-    const temporaryPath = `${resultPath}.${process.pid}.tmp`;
-    await writeFile(temporaryPath, `${JSON.stringify(finalized, null, 2)}\n`, 'utf8');
-    await rename(temporaryPath, resultPath);
+    await writeJsonAtomic(resultPath, finalized);
     return finalized;
 }
 

@@ -1,9 +1,9 @@
-import { lstat, readFile, rename, writeFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import process from 'node:process';
 
 import { z } from 'zod';
 
+import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 import type { IssueExpectationDrift } from './issue-drift';
 import { assertIssueExpectationDriftReady } from './issue-drift';
 
@@ -179,9 +179,7 @@ export async function generateFinalization(
         verifiedAt,
     });
     const path = join(runDirectory, 'finalization.json');
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
-    await rename(temporary, path);
+    await writeJsonAtomic(path, receipt);
     state.finalization = receipt;
     return receipt;
 }
@@ -198,9 +196,7 @@ export async function recordFinalizationDelivery(
     assertFinalizationDriftReady(state, state.finalization.headSha);
     state.finalization.deliveredAt = deliveredAt;
     const path = join(runDirectory, state.finalization.path);
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(state.finalization, null, 2)}\n`, 'utf8');
-    await rename(temporary, path);
+    await writeJsonAtomic(path, state.finalization);
     return state.finalization;
 }
 

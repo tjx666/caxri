@@ -1,7 +1,7 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { activeSessionsInSidebarOrder, sessionsByActivity } from '../session-activity-order';
+import { activeSessionsInSidebarOrder } from '../session-activity-order';
 
 function project(id: string, orderIndex: number): ProjectRecord {
     return {
@@ -41,25 +41,6 @@ function session(
 }
 
 describe('Session Activity order', () => {
-    it('orders newest activity first without using last-opened time', () => {
-        expect(
-            sessionsByActivity([
-                session('older', 'project-1', 10, { lastOpenedAt: 1_000 }),
-                session('newer', 'project-1', 20, { lastOpenedAt: 1 }),
-            ]).map(({ id }) => id),
-        ).toEqual(['newer', 'older']);
-    });
-
-    it('breaks equal activity times by creation time and then id', () => {
-        expect(
-            sessionsByActivity([
-                session('session-c', 'project-1', 20, { createdAt: 10 }),
-                session('session-b', 'project-1', 20, { createdAt: 20 }),
-                session('session-a', 'project-1', 20, { createdAt: 20 }),
-            ]).map(({ id }) => id),
-        ).toEqual(['session-a', 'session-b', 'session-c']);
-    });
-
     it('preserves Project order while excluding archived Sessions', () => {
         const projects = [project('project-1', 0), project('project-2', 1)];
         expect(

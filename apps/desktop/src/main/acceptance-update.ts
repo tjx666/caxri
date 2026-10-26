@@ -1,7 +1,6 @@
-import { constants } from 'node:fs';
-import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { appendAcceptanceReceipt } from './acceptance-fixtures/fixture-io';
 import type { AcceptanceUpdateDiscovery } from './update-service-contract';
 
 /**
@@ -83,19 +82,11 @@ export function createAcceptanceUpdateFixture(options: {
         async discover() {
             if (isServed)
                 throw new Error('The Acceptance update fixture was already served in this launch.');
-            await appendFile(
-                receiptPath,
-                `${JSON.stringify({ caseId: admission.caseId, fixture: ACCEPTANCE_UPDATE_FIXTURE_ID, version: admission.release.version })}\n`,
-                {
-                    encoding: 'utf8',
-                    mode: 0o600,
-                    flag:
-                        constants.O_CREAT |
-                        constants.O_APPEND |
-                        constants.O_WRONLY |
-                        constants.O_NOFOLLOW,
-                },
-            );
+            await appendAcceptanceReceipt(receiptPath, {
+                caseId: admission.caseId,
+                fixture: ACCEPTANCE_UPDATE_FIXTURE_ID,
+                version: admission.release.version,
+            });
             isServed = true;
             return admission.release;
         },

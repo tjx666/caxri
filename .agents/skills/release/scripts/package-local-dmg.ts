@@ -1,12 +1,14 @@
 import type { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { execFileAsync } from '@caxri/system';
+
+import { writeTextAtomic } from '../../../../scripts/atomic-json';
 
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
 const RELEASE_OUTPUT_DIRECTORY = 'release.noindex';
@@ -150,13 +152,7 @@ async function sha256(path: string): Promise<string> {
 }
 
 async function restoreFileAtomic(path: string, source: string): Promise<void> {
-    const temporary = `${path}.caxri-local-dmg-${process.pid}-${Date.now()}`;
-    try {
-        await writeFile(temporary, source, 'utf8');
-        await rename(temporary, path);
-    } finally {
-        await rm(temporary, { force: true });
-    }
+    await writeTextAtomic(path, source);
 }
 
 function signingField(source: string, name: string): string | null {

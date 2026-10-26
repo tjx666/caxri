@@ -1,11 +1,11 @@
-import { randomUUID } from 'node:crypto';
-import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 import { gt, inc, valid } from 'semver';
 
+import { writeTextAtomic } from '../../../../scripts/atomic-json';
 import {
     discoverReleaseManifestPaths,
     parseManifest,
@@ -55,13 +55,7 @@ function nextVersion(currentVersion: string, target: string): string {
 }
 
 async function writeAtomic(path: string, source: string): Promise<void> {
-    const temporaryPath = `${path}.caxri-release-${process.pid}-${randomUUID()}`;
-    try {
-        await writeFile(temporaryPath, source, 'utf8');
-        await rename(temporaryPath, path);
-    } finally {
-        await rm(temporaryPath, { force: true });
-    }
+    await writeTextAtomic(path, source);
 }
 
 /**

@@ -21,7 +21,7 @@ import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
 import type { PendingFileOperation } from '../file-operation-state';
 import {
-    CANCEL_REVEAL_THRESHOLD_MS,
+    cancelRevealDelayMs,
     isPathBlockedByFileOperations,
     useFileOperationStore,
 } from '../file-operation-state';
@@ -140,12 +140,11 @@ function useIsCancelRevealed(operation: PendingFileOperation | undefined): boole
     const isCancelable = operation?.cancelable ?? false;
     const startedAt = operation?.startedAt;
     useEffect(() => {
-        if (!isCancelable || startedAt === undefined) {
-            const timer = setTimeout(() => setIsRevealed(false), 0);
-            return () => clearTimeout(timer);
-        }
-        const remaining = startedAt + CANCEL_REVEAL_THRESHOLD_MS - Date.now();
-        const timer = setTimeout(() => setIsRevealed(true), Math.max(remaining, 0));
+        const delay =
+            startedAt === undefined
+                ? undefined
+                : cancelRevealDelayMs({ cancelable: isCancelable, startedAt }, Date.now());
+        const timer = setTimeout(() => setIsRevealed(delay !== undefined), delay ?? 0);
         return () => clearTimeout(timer);
     }, [isCancelable, startedAt]);
     return isRevealed;

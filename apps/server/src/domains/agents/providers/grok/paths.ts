@@ -1,12 +1,30 @@
-import { Buffer } from 'node:buffer';
 import type { Dir } from 'node:fs';
-import { constants } from 'node:fs';
-import type { FileHandle } from 'node:fs/promises';
-import { open, opendir } from 'node:fs/promises';
+import { opendir } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+
+import { readBoundedRegularFileText } from '@caxri/system';
 
 import type { AgentEnvironment } from '../../contract';
 import { isOpaqueAgentSessionId } from '../../contract';
+
+const MAX_GROK_CWD_BYTES = 16_384;
+
+/**
+ * The trimmed cwd recorded in a Grok session directory's `.cwd` marker, or `undefined` when the marker is missing,
+ * oversized, not a regular file, a symlink, or empty. Such a marker cannot name or authorize a transcript directory.
+ */
+export async function readGrokCwdMarker(directory: string): Promise<string | undefined> {
+    try {
+        const cwd = (
+            await readBoundedRegularFileText(join(directory, '.cwd'), MAX_GROK_CWD_BYTES, {
+                symlinks: 'nofollow',
+            })
+        ).trim();
+        return cwd || undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 export function grokHome(environment: AgentEnvironment): string {
     const configured = environment.variables.GROK_HOME;
@@ -58,26 +76,8 @@ export async function grokProjectRoot(
         signal?.throwIfAborted();
         if (++count > 512) return;
         if (!entry.isDirectory()) continue;
-        let handle: FileHandle | undefined;
-        try {
-            handle = await open(
-                join(base, entry.name, '.cwd'),
-                constants.O_RDONLY | constants.O_NOFOLLOW,
-            );
-            const stats = await handle.stat();
-            if (!stats.isFile() || stats.size > 16_384) continue;
-            const buffer = Buffer.alloc(16_385);
-            const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-            if (
-                bytesRead <= 16_384 &&
-                buffer.subarray(0, bytesRead).toString('utf8').trim() === cwd
-            )
-                return join(base, entry.name);
-        } catch {
-            // Missing or unsafe identity markers cannot authorize a transcript directory.
-        } finally {
-            await handle?.close();
-        }
+        if ((await readGrokCwdMarker(join(base, entry.name))) === cwd)
+            return join(base, entry.name);
     }
     return;
 }

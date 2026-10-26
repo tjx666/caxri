@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import process from 'node:process';
 
 import type { FullConfig, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
+
+import { writeJsonAtomic } from '../atomic-json';
 
 export type E2ETestVerdict = 'fail' | 'pass' | 'skipped' | 'timeout' | 'unknown';
 
@@ -442,10 +444,7 @@ class E2EReceiptReporter implements Reporter {
             tests: this.planned.values().toArray(),
         });
         const output = resolve(destination);
-        await mkdir(dirname(output), { recursive: true });
-        const temporary = `${output}.${process.pid}.tmp`;
-        await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
-        await rename(temporary, output);
+        await writeJsonAtomic(output, receipt, { ensureParent: true });
         // The complete receipt supersedes the journal; removing it keeps a stale journal from ever being read.
         await rm(e2eProgressJournalPath(output), { force: true });
     }

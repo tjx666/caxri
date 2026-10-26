@@ -1,10 +1,10 @@
-import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import { appendFile, open, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { MessageBoxOptions } from 'electron';
 import { z } from 'zod';
+
+import { appendAcceptanceReceipt, readAcceptanceCommand } from './acceptance-fixtures/fixture-io';
 
 /**
  * The Acceptance cases allowed to answer the Session deletion confirmation without a real macOS sheet, and the only
@@ -51,22 +51,10 @@ export function createAcceptanceSessionDeleteFixture(options: {
 
     return {
         async confirm(sessionId: string, prompt: MessageBoxOptions): Promise<{ response: number }> {
-            const handle = await open(
-                commandPath,
-                constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-            );
             let command: z.infer<typeof commandSchema>;
             try {
-                const metadata = await handle.stat();
-                if (!metadata.isFile() || metadata.size > 4096)
-                    throw new Error('Invalid Acceptance session delete command file');
-                const buffer = Buffer.alloc(4097);
-                const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-                if (bytesRead > 4096)
-                    throw new Error('Acceptance session delete command is too large');
-                command = commandSchema.parse(JSON.parse(buffer.toString('utf8', 0, bytesRead)));
+                command = await readAcceptanceCommand(commandPath, commandSchema);
             } finally {
-                await handle.close();
                 await rm(commandPath, { force: true });
             }
             if (
@@ -76,25 +64,13 @@ export function createAcceptanceSessionDeleteFixture(options: {
             )
                 throw new Error('Acceptance session delete command does not match this deletion');
             lastSequence = command.sequence;
-            await appendFile(
-                receiptPath,
-                `${JSON.stringify({
-                    buttons: prompt.buttons,
-                    caseId,
-                    decision: command.decision,
-                    sequence: command.sequence,
-                    sessionId,
-                })}\n`,
-                {
-                    encoding: 'utf8',
-                    mode: 0o600,
-                    flag:
-                        constants.O_CREAT |
-                        constants.O_APPEND |
-                        constants.O_WRONLY |
-                        constants.O_NOFOLLOW,
-                },
-            );
+            await appendAcceptanceReceipt(receiptPath, {
+                buttons: prompt.buttons,
+                caseId,
+                decision: command.decision,
+                sequence: command.sequence,
+                sessionId,
+            });
             if (command.decision === 'cancel')
                 return { response: prompt.cancelId ?? (prompt.buttons?.length ?? 2) - 1 };
             return { response: 0 };

@@ -1,7 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import type { FileHandle } from 'node:fs/promises';
-import { open, opendir } from 'node:fs/promises';
+import { opendir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import type { AgentProvider } from '@caxri/protocol';
@@ -11,7 +9,7 @@ import { isOpaqueAgentSessionId } from './contract';
 import { agentProviders } from './providers';
 import { resolveCodexHome } from './providers/codex/paths';
 import { parseCodexRolloutName } from './providers/codex/rollouts';
-import { grokHome } from './providers/grok/paths';
+import { grokHome, readGrokCwdMarker } from './providers/grok/paths';
 import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
 
@@ -29,7 +27,6 @@ const MAX_DIRECTORY_ENTRIES = 8_192;
  * instructions can run to tens of kilobytes before the next record.
  */
 const CWD_HEAD_BYTES = 256 * 1024;
-const MAX_GROK_CWD_BYTES = 16_384;
 /**
  * The record-level `"cwd"` key. A literal inside string content is escaped (`\"cwd\":\"`), so only a record's own key
  * matches.
@@ -205,21 +202,8 @@ async function discoverCodex(environment: AgentEnvironment): Promise<DiscoveredT
  * the encoded name would exceed a path segment.
  */
 async function grokDirectoryCwd(directory: string, name: string): Promise<string | undefined> {
-    let handle: FileHandle | undefined;
-    try {
-        handle = await open(join(directory, '.cwd'), constants.O_RDONLY | constants.O_NOFOLLOW);
-        const stats = await handle.stat();
-        if (stats.isFile() && stats.size <= MAX_GROK_CWD_BYTES) {
-            const buffer = Buffer.alloc(stats.size);
-            const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-            const cwd = buffer.subarray(0, bytesRead).toString('utf8').trim();
-            if (cwd) return cwd;
-        }
-    } catch {
-        // No marker: the directory name is the encoded cwd.
-    } finally {
-        await handle?.close();
-    }
+    const marker = await readGrokCwdMarker(directory);
+    if (marker) return marker;
     try {
         const cwd = decodeURIComponent(name);
         return cwd.startsWith('/') ? cwd : undefined;

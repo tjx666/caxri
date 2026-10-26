@@ -67,6 +67,8 @@ function paneLayout(path: string) {
  * client method added later would then be `undefined` here while every call site silently took its failure path and the
  * tests stayed green (issue #909). Requiring every key restores that check without constraining the return types.
  */
+const operationScope = { sessionId: 'session-a', workbenchProjectId: 'project-1' } as const;
+
 const client = {
     viewId: 'publisher.files.explorer',
     acknowledgeOperation: (operationId: string) =>
@@ -171,7 +173,7 @@ describe('file action lifecycle', () => {
         const staged: FileMutationOperation = {
             id: 'operation-timeout',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'staged',
             input: {
                 path: '/project/source.txt',
@@ -239,7 +241,7 @@ describe('file action lifecycle', () => {
         const staged: FileMutationOperation = {
             id: 'operation-final-retry',
             kind: 'rename',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'staged',
             input: { path: '/project/source.txt', name: 'renamed.txt' },
             expectedResult: {
@@ -306,8 +308,7 @@ describe('file action lifecycle', () => {
                 sessions: [session('session-a', 'project-1')],
                 sessionStates: [
                     {
-                        sessionId: 'session-a',
-                        workbenchProjectId: 'project-1',
+                        ...operationScope,
                         desiredSecondarySidebarViewContainerId: 'caxri.files',
                         paneLayout: paneLayout('/project/source.txt'),
                     },
@@ -354,8 +355,7 @@ describe('file action lifecycle', () => {
                 sessions: [session('session-a', 'project-1')],
                 sessionStates: [
                     {
-                        sessionId: 'session-a',
-                        workbenchProjectId: 'project-1',
+                        ...operationScope,
                         desiredSecondarySidebarViewContainerId: 'caxri.files',
                         paneLayout: paneLayout('/project/source.txt'),
                     },
@@ -398,8 +398,7 @@ describe('file action lifecycle', () => {
         expect(useSessionViewStore.getState().documents['session-a']).toEqual({});
         // The durable snapshot cleanup has to name the same root: it is the only copy for a Session parked elsewhere.
         expect(mocks.request).toHaveBeenCalledWith('session.workbenchRoot.forgetEditorPath', {
-            sessionId: 'session-a',
-            workbenchProjectId: 'project-1',
+            ...operationScope,
             path: '/project/source.txt',
         });
     });
@@ -410,8 +409,7 @@ describe('file action lifecycle', () => {
                 sessions: [session('session-a', 'project-1')],
                 sessionStates: [
                     {
-                        sessionId: 'session-a',
-                        workbenchProjectId: 'project-1',
+                        ...operationScope,
                         desiredSecondarySidebarViewContainerId: 'caxri.files',
                         paneLayout: paneLayout('/project/source.txt'),
                     },
@@ -476,7 +474,7 @@ describe('moveFile conflict prompt', () => {
         const failed: FileMutationOperation = {
             id: 'conflict-replace-1',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'failed',
             input: { path: source, directory, conflict: 'reject' },
             error: { code: 'CONFLICT', message: 'A file or folder with that name already exists' },
@@ -492,7 +490,7 @@ describe('moveFile conflict prompt', () => {
         const completed: FileMutationOperation = {
             id: 'conflict-replace-2',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'completed',
             input: { path: source, directory, conflict: 'replace' },
             result: movedResult,
@@ -543,7 +541,7 @@ describe('moveFile conflict prompt', () => {
         const failed: FileMutationOperation = {
             id: 'conflict-keep-both-1',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'failed',
             input: { path: source, directory, conflict: 'reject' },
             error: { code: 'CONFLICT', message: 'A file or folder with that name already exists' },
@@ -559,7 +557,7 @@ describe('moveFile conflict prompt', () => {
         const completed: FileMutationOperation = {
             id: 'conflict-keep-both-2',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'completed',
             input: { path: source, directory, conflict: 'rename' },
             result: movedResult,
@@ -602,7 +600,7 @@ describe('moveFile conflict prompt', () => {
         const failed: FileMutationOperation = {
             id: 'conflict-cancel-1',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'failed',
             input: { path: source, directory, conflict: 'reject' },
             error: { code: 'CONFLICT', message: 'A file or folder with that name already exists' },
@@ -656,7 +654,7 @@ describe('moveFile conflict prompt', () => {
         const failed: FileMutationOperation = {
             id: 'generic-failure-1',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'failed',
             input: { path: source, directory, conflict: 'reject' },
             error: { code: 'IO', message: 'Disk is full' },
@@ -697,7 +695,7 @@ describe('moveFile conflict prompt', () => {
         const completed: FileMutationOperation = {
             id: 'no-leak-1',
             kind: 'move',
-            sessionId: 'session-a',
+            ...operationScope,
             phase: 'completed',
             input: { path: source, directory, conflict: 'reject' },
             result: movedResult,

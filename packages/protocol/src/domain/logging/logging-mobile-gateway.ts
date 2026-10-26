@@ -8,6 +8,11 @@ export const mobileGatewayLogEvents = {
     failureSummary: 'mobile_gateway.failure_summary',
     terminalResyncSummary: 'mobile_gateway.terminal_resync_summary',
     /**
+     * A Host observer or lease release that failed when a phone's Terminal subscription closed or its observe failed,
+     * with a closed `reason`; the Host may still hold an observer for that subscription.
+     */
+    terminalTeardownFailed: 'mobile_gateway.terminal_teardown_failed',
+    /**
      * One record per Android update download request, with a closed `outcome`, served bytes, and duration.
      */
     updateDownload: 'mobile_gateway.update_download',

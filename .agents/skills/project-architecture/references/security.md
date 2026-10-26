@@ -169,9 +169,25 @@ URLs (`isAgentChatPlayableVideo`), since its paths name files on the remote mach
 
 - **Preload E2E bridge** (`apps/desktop/src/preload/index.ts`): `window.caxriE2E` (request gates,
   call counters, the one-shot mobile pairing link bridge) and the poll-interval override are
-  exposed only when `CAXRI_E2E=1`, so a packaged install never has them. They record no arbitrary
-  requests and persist nothing. `__caxriWorktree` is exposed whenever `switch-worktree dev` sets
+  exposed only when the `CAXRI_E2E=1` environment variable is set at runtime. The code ships in
+  every build; the gate is the environment, not a build-time removal, so a packaged app launched
+  with that variable would expose it. They record no arbitrary requests and persist nothing.
+  `__caxriWorktree` is exposed whenever `switch-worktree dev` sets
   `CAXRI_WORKTREE_PATH`; it holds only a local path.
+- **Acceptance native-dialog fixtures** (`apps/desktop/src/main/acceptance-*.ts`, wired in
+  `main-methods.ts` and `desktop-update-service.ts`; `acceptance-accessibility.ts` in `index.ts`).
+  They ship in production Main and stay inert unless the isolated Acceptance launcher arms them.
+  Each needs `CAXRI_ACCEPTANCE=1` plus its own variable: external open
+  (`CAXRI_ACCEPTANCE_EXTERNAL_OPEN`, one fixed case and URL), Session deletion
+  (`CAXRI_ACCEPTANCE_SESSION_DELETE`, an allowlisted case id), theme import
+  (`CAXRI_ACCEPTANCE_THEME_IMPORT` or the explicit native authorization; an unarmed Acceptance
+  launch fails visibly), and the update fixture (`CAXRI_ACCEPTANCE_UPDATE`, never in a packaged
+  build). All but the accessibility switch also require `CAXRI_E2E=1`, and theme import
+  additionally the test root. They replace only the native dialog's answer or release discovery
+  from a one-shot, sequence-checked command file under the profile and write a receipt; Main
+  authorization and the Server operation stay in the path under test. The accessibility switch
+  (macOS with `CAXRI_ACCEPTANCE=1`) only enables Electron's full native Accessibility tree so
+  Acceptance can read real sheets.
 - **Root provider fault** (`apps/desktop/src/renderer/src/root-provider-fault.ts`,
   `root-provider-fault-probe.tsx`): a `sessionStorage` key makes the next root render throw so the
   recovery screen can be proven for a provider-level failure. Unlike the preload seams it is not

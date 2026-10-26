@@ -2,10 +2,11 @@
 
 import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import process from 'node:process';
 
+import { writeJsonAtomic } from './atomic-json';
 import { waitForChildExit } from './exec';
 import type { E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
 import { assertE2EPoolCensusComplete } from './reporters/e2e-receipt-reporter';
@@ -60,9 +61,7 @@ async function readReceipt(path: string): Promise<E2EPoolReceipt> {
 }
 
 async function writeReceipt(path: string, receipt: E2EPoolReceipt): Promise<void> {
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
-    await rename(temporary, path);
+    await writeJsonAtomic(path, receipt);
 }
 
 function testTarget(location: string): string {

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { PendingFileOperation } from '../file-operation-state';
 import {
     CANCEL_REVEAL_THRESHOLD_MS,
+    cancelRevealDelayMs,
     fileOperationsBlockingPath,
-    isFileOperationCancelable,
     isPathBlockedByFileOperations,
 } from '../file-operation-state';
 
@@ -55,24 +55,23 @@ describe('fileOperationsBlockingPath', () => {
     });
 });
 
-describe('isFileOperationCancelable', () => {
-    it('stays hidden before the reveal threshold even for a cancelable operation', () => {
+describe('cancelRevealDelayMs', () => {
+    it('waits out the remaining threshold for a cancelable operation', () => {
         const pending = operation({ cancelable: true, startedAt: 1_000 });
 
-        expect(isFileOperationCancelable(pending, 1_000 + CANCEL_REVEAL_THRESHOLD_MS - 1)).toBe(
-            false,
-        );
+        expect(cancelRevealDelayMs(pending, 1_000 + CANCEL_REVEAL_THRESHOLD_MS - 1)).toBe(1);
     });
 
-    it('reveals once a cancelable operation crosses the threshold', () => {
+    it('reveals immediately once a cancelable operation crosses the threshold', () => {
         const pending = operation({ cancelable: true, startedAt: 1_000 });
 
-        expect(isFileOperationCancelable(pending, 1_000 + CANCEL_REVEAL_THRESHOLD_MS)).toBe(true);
+        expect(cancelRevealDelayMs(pending, 1_000 + CANCEL_REVEAL_THRESHOLD_MS)).toBe(0);
     });
 
-    it('never reveals for a non-cancelable operation like a plain copy', () => {
+    it('never reveals for a non-cancelable or absent operation', () => {
         const pending = operation({ cancelable: false, startedAt: 0 });
 
-        expect(isFileOperationCancelable(pending, CANCEL_REVEAL_THRESHOLD_MS * 10)).toBe(false);
+        expect(cancelRevealDelayMs(pending, CANCEL_REVEAL_THRESHOLD_MS * 10)).toBeUndefined();
+        expect(cancelRevealDelayMs(undefined, 0)).toBeUndefined();
     });
 });

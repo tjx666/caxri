@@ -1,9 +1,9 @@
-import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import { appendFile, lstat, open, realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { z } from 'zod';
+
+import { appendAcceptanceReceipt, readAcceptanceCommand } from './acceptance-fixtures/fixture-io';
 
 /**
  * Mirrors the Acceptance report's case-id contract (`.agents/skills/acceptance/scripts/runtime-state.ts`), which Main
@@ -82,23 +82,7 @@ export function createAcceptanceThemeImportFixture(options: {
 
     return {
         async choose(): Promise<string> {
-            const handle = await open(
-                commandPath,
-                constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-            );
-            let command: z.infer<typeof commandSchema>;
-            try {
-                const metadata = await handle.stat();
-                if (!metadata.isFile() || metadata.size > 4096)
-                    throw new Error('Invalid Acceptance theme import command file');
-                const buffer = Buffer.alloc(4097);
-                const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-                if (bytesRead > 4096)
-                    throw new Error('Acceptance theme import command is too large');
-                command = commandSchema.parse(JSON.parse(buffer.toString('utf8', 0, bytesRead)));
-            } finally {
-                await handle.close();
-            }
+            const command = await readAcceptanceCommand(commandPath, commandSchema);
             if (command.caseId !== caseId || command.sequence <= lastSequence)
                 throw new Error('Acceptance theme import command does not match this launch');
             if (isAbsolute(command.relativePath))
@@ -119,19 +103,11 @@ export function createAcceptanceThemeImportFixture(options: {
             )
                 throw new Error('Acceptance theme import path resolves outside the test root');
             lastSequence = command.sequence;
-            await appendFile(
-                receiptPath,
-                `${JSON.stringify({ caseId, relativePath: within, sequence: command.sequence })}\n`,
-                {
-                    encoding: 'utf8',
-                    mode: 0o600,
-                    flag:
-                        constants.O_CREAT |
-                        constants.O_APPEND |
-                        constants.O_WRONLY |
-                        constants.O_NOFOLLOW,
-                },
-            );
+            await appendAcceptanceReceipt(receiptPath, {
+                caseId,
+                relativePath: within,
+                sequence: command.sequence,
+            });
             return canonical;
         },
     };

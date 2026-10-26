@@ -10,6 +10,7 @@ import type { CaxriDatabase } from '../db';
 import { isPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from './manager';
 import type { TerminalWorkingDirectoryIdentity } from './manager-types';
+import type { TerminalRestoreOperation } from './restore-supervisor';
 import { TerminalRestoreSupervisor } from './restore-supervisor';
 
 interface InterruptedTerminalRestorerOptions {
@@ -143,101 +144,126 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         sessionId: string,
         options: TerminalRestoreOptions = {},
     ): Promise<void> {
-        const sessionTerminals = database.listTerminals(sessionId);
-        // Every pane shows its own active tab, so more than one Terminal can be on screen at once; each of them waits
-        // for the attached grid size before replaying, which an off-screen Terminal has no reason to do.
-        const visibleTerminalIds = new Set(
-            visiblePaneTerminalIds(database.getSessionState(sessionId).paneLayout),
-        );
-        // A Chat resumes lazily on its next read; restore relaunches PTYs only.
-        const interrupted = sessionTerminals.filter(
-            (terminal) =>
-                isPtyTerminal(terminal) &&
-                (terminal.lastProcessState === 'interrupted' ||
-                    terminal.lastProcessState === 'suspended' ||
-                    (options.includeDetached && terminal.lastProcessState === 'detached')),
-        );
-        const restored = await terminalRestores.restore(
-            sessionId,
-            interrupted.map((terminal) => async (isCurrent, abortSignal) => {
-                const delegated = delegatedAgentRestore(database, terminal, userDataPath);
-                const shouldRestoreAgent =
-                    (delegated?.shouldRestoreAgent ?? true) &&
-                    ['detached', 'interrupted', 'running', 'starting', 'suspended'].includes(
-                        terminal.lastAgentProcessState ?? 'stopped',
-                    );
-                const resumeAgentSessionId = shouldRestoreAgent
-                    ? await resumableAgentSessionId(
-                          { agentEnvironment, database, logger },
-                          terminal,
-                          'restore',
-                      )
-                    : undefined;
-                if (shouldRestoreAgent && !resumeAgentSessionId && terminal.provider === 'grok') {
-                    database.updateTerminalState(
-                        terminal.id,
-                        'failed',
-                        'agent_session_unavailable',
-                    );
-                    send({
-                        event: 'state.changed',
-                        payload: { kind: 'records', sessionIds: [], terminalIds: [terminal.id] },
-                    });
-                    return false;
-                }
-                if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminal.id);
-                else if (shouldRestoreAgent) coordinator.prepareTerminalStart(terminal.id);
-                try {
-                    const expectedWorkingDirectory = await terminalDirectoryIdentity(terminal.cwd);
-                    const restarted = await terminals.restart(terminal.id, {
-                        expectedWorkingDirectory,
-                        launchAgent: shouldRestoreAgent,
-                        resumeAgentSessionId,
-                        ...(shouldRestoreAgent &&
-                            delegated?.launchSettings && {
-                                launchSettings: delegated.launchSettings,
-                            }),
-                        shouldStart: isCurrent,
-                        abortSignal,
-                        waitForAttachedSizeMs: visibleTerminalIds.has(terminal.id)
-                            ? visibleGridWaitMs
-                            : undefined,
-                    });
-                    if (restarted.lastProcessState !== 'running') return false;
-                } catch (error) {
-                    // Over the Terminal limit the record stays parked and restores once a slot frees, rather than
-                    // being marked failed for a reason that has nothing to do with its directory.
-                    if (error instanceof CaxriError && error.code === 'CAPACITY') return false;
-                    const current = database.getTerminal(terminal.id);
-                    if (
-                        current?.lastProcessState === 'interrupted' ||
-                        current?.lastProcessState === 'suspended' ||
-                        current?.lastProcessState === 'detached'
-                    ) {
-                        database.updateTerminalState(
-                            terminal.id,
-                            'failed',
-                            'working_directory_unavailable',
-                        );
-                        logger.write('warn', logEventCatalog.terminal.restoreCwdRejected, {
-                            fields: { terminalId: terminal.id },
-                        });
-                    }
-                    if (database.getTerminal(terminal.id)?.lastProcessState === 'failed')
-                        send({
-                            event: 'state.changed',
-                            payload: {
-                                kind: 'records',
-                                sessionIds: [],
-                                terminalIds: [terminal.id],
-                            },
-                        });
-                    return false;
-                }
-                if (terminal.provider) coordinator.probeTerminal(terminal.id);
-                return true;
-            }),
-        );
+        let interrupted: ReturnType<typeof database.listTerminals> = [];
+        /**
+         * Evaluated when the restore actually starts: a resume queued behind the selection restore must list Terminals
+         * after that restore has changed their state, not before.
+         */
+        const planOperations = (): TerminalRestoreOperation[] => {
+            const sessionTerminals = database.listTerminals(sessionId);
+            // Every pane shows its own active tab, so more than one Terminal can be on screen at once; each of them waits
+            // for the attached grid size before replaying, which an off-screen Terminal has no reason to do.
+            const visibleTerminalIds = new Set(
+                visiblePaneTerminalIds(database.getSessionState(sessionId).paneLayout),
+            );
+            // A Chat resumes lazily on its next read; restore relaunches PTYs only.
+            interrupted = sessionTerminals.filter(
+                (terminal) =>
+                    isPtyTerminal(terminal) &&
+                    (terminal.lastProcessState === 'interrupted' ||
+                        terminal.lastProcessState === 'suspended' ||
+                        (options.includeDetached && terminal.lastProcessState === 'detached')),
+            );
+            return interrupted.map(
+                (terminal) =>
+                    async (isCurrent, abortSignal): Promise<boolean> => {
+                        const delegated = delegatedAgentRestore(database, terminal, userDataPath);
+                        const shouldRestoreAgent =
+                            (delegated?.shouldRestoreAgent ?? true) &&
+                            [
+                                'detached',
+                                'interrupted',
+                                'running',
+                                'starting',
+                                'suspended',
+                            ].includes(terminal.lastAgentProcessState ?? 'stopped');
+                        const resumeAgentSessionId = shouldRestoreAgent
+                            ? await resumableAgentSessionId(
+                                  { agentEnvironment, database, logger },
+                                  terminal,
+                                  'restore',
+                              )
+                            : undefined;
+                        if (
+                            shouldRestoreAgent &&
+                            !resumeAgentSessionId &&
+                            terminal.provider === 'grok'
+                        ) {
+                            database.updateTerminalState(
+                                terminal.id,
+                                'failed',
+                                'agent_session_unavailable',
+                            );
+                            send({
+                                event: 'state.changed',
+                                payload: {
+                                    kind: 'records',
+                                    sessionIds: [],
+                                    terminalIds: [terminal.id],
+                                },
+                            });
+                            return false;
+                        }
+                        if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminal.id);
+                        else if (shouldRestoreAgent) coordinator.prepareTerminalStart(terminal.id);
+                        try {
+                            const expectedWorkingDirectory = await terminalDirectoryIdentity(
+                                terminal.cwd,
+                            );
+                            const restarted = await terminals.restart(terminal.id, {
+                                expectedWorkingDirectory,
+                                launchAgent: shouldRestoreAgent,
+                                resumeAgentSessionId,
+                                ...(shouldRestoreAgent &&
+                                    delegated?.launchSettings && {
+                                        launchSettings: delegated.launchSettings,
+                                    }),
+                                shouldStart: isCurrent,
+                                abortSignal,
+                                waitForAttachedSizeMs: visibleTerminalIds.has(terminal.id)
+                                    ? visibleGridWaitMs
+                                    : undefined,
+                            });
+                            if (restarted.lastProcessState !== 'running') return false;
+                        } catch (error) {
+                            // Over the Terminal limit the record stays parked and restores once a slot frees, rather than
+                            // being marked failed for a reason that has nothing to do with its directory.
+                            if (error instanceof CaxriError && error.code === 'CAPACITY')
+                                return false;
+                            const current = database.getTerminal(terminal.id);
+                            if (
+                                current?.lastProcessState === 'interrupted' ||
+                                current?.lastProcessState === 'suspended' ||
+                                current?.lastProcessState === 'detached'
+                            ) {
+                                database.updateTerminalState(
+                                    terminal.id,
+                                    'failed',
+                                    'working_directory_unavailable',
+                                );
+                                logger.write('warn', logEventCatalog.terminal.restoreCwdRejected, {
+                                    fields: { terminalId: terminal.id },
+                                });
+                            }
+                            if (database.getTerminal(terminal.id)?.lastProcessState === 'failed')
+                                send({
+                                    event: 'state.changed',
+                                    payload: {
+                                        kind: 'records',
+                                        sessionIds: [],
+                                        terminalIds: [terminal.id],
+                                    },
+                                });
+                            return false;
+                        }
+                        if (terminal.provider) coordinator.probeTerminal(terminal.id);
+                        return true;
+                    },
+            );
+        };
+        const restored = await terminalRestores.restore(sessionId, planOperations, {
+            afterActive: options.includeDetached === true,
+        });
         const restoredTerminalIds: string[] = [];
         for (const [index, terminal] of interrupted.entries())
             if (restored[index]) restoredTerminalIds.push(terminal.id);

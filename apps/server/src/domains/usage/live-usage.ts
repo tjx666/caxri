@@ -1,11 +1,9 @@
-import { readFile } from 'node:fs/promises';
-
 import type { AgentProvider, AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
 import type { AgentEnvironment, AgentTranscriptIdentity } from '../agents';
-import { boundAgentIdentity } from '../agents';
+import { boundAgentIdentity, readClaudeSubagentToolUseId } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { UsageRecord } from './record';
 import type { UsageTranscriptFiles } from './scanner';
@@ -118,16 +116,9 @@ export class LiveAgentUsage {
     private async sideFileOwner(path: string): Promise<string | undefined> {
         const known = this.sideFileOwners.get(path);
         if (known) return known;
-        try {
-            const meta = JSON.parse(
-                await readFile(path.replace(/\.jsonl$/, '.meta.json'), 'utf8'),
-            ) as { toolUseId?: unknown } | null;
-            const owner = typeof meta?.toolUseId === 'string' ? meta.toolUseId : undefined;
-            if (owner) rememberBounded(this.sideFileOwners, path, owner, MAX_SIDE_FILE_OWNERS);
-            return owner;
-        } catch {
-            return undefined;
-        }
+        const owner = await readClaudeSubagentToolUseId(path.replace(/\.jsonl$/, '.meta.json'));
+        if (owner) rememberBounded(this.sideFileOwners, path, owner, MAX_SIDE_FILE_OWNERS);
+        return owner;
     }
 
     private async refresh(terminalId: string): Promise<LiveScan | undefined> {

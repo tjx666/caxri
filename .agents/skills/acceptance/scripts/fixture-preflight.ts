@@ -1,4 +1,4 @@
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import stringWidth from 'string-width';
 import { z } from 'zod';
 
+import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 import { isAcceptanceCaseId } from './runtime-state';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -214,9 +215,7 @@ async function main(argv: string[]): Promise<void> {
     const receipt = createTerminalFixturePreflightReceipt(terminalFixtureSchema.parse(raw), caseId);
     if (output) {
         const outputPath = isAbsolute(output) ? output : resolve(output);
-        const temporary = `${outputPath}.${process.pid}.tmp`;
-        await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
-        await rename(temporary, outputPath);
+        await writeJsonAtomic(outputPath, receipt);
     }
     console.log(JSON.stringify(receipt, null, 2));
     if (receipt.result.status === 'fixture_blocked') process.exitCode = 2;

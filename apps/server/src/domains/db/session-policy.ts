@@ -6,7 +6,6 @@ import type {
     SessionActivityReason,
     SessionAttentionKind,
     SessionRecord,
-    SessionState,
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -16,7 +15,6 @@ import {
     DEFAULT_SESSION_TITLE,
     isTopLevelProject,
     normalizeTerminalTitle,
-    removePaneTerminal,
 } from '@caxri/protocol';
 
 import type { AgentLifecyclePhase } from '../agents';
@@ -489,15 +487,4 @@ export function selectFallbackAfterDeletion(
         projectId: fallbackSession?.projectId ?? fallbackProjectId,
         sessionId: fallbackSession?.id ?? null,
     };
-}
-
-/**
- * Removes a closed Terminal's occurrence from the persisted Workbench tree. Composes the pure reducer in
- * `../shared/pane-layout.ts` instead of letting the persistence layer perform its own JSON surgery on layout state.
- */
-export function withTerminalRemovedFromLayout(
-    state: SessionState,
-    terminalId: string,
-): SessionState {
-    return { ...state, paneLayout: removePaneTerminal(state.paneLayout, terminalId) };
 }

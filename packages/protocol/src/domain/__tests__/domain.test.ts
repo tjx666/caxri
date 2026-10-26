@@ -269,6 +269,7 @@ describe('fileMutationOperationSchema discriminated union', () => {
     const base = {
         id: 'operation-1',
         sessionId: 'session-1',
+        workbenchProjectId: 'project-1',
         phase: 'staged' as const,
         startedAt: 1,
         updatedAt: 2,

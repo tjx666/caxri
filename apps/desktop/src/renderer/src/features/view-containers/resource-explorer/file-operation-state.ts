@@ -144,6 +144,14 @@ export function fileOperationsBlockingPath(
  */
 export const CANCEL_REVEAL_THRESHOLD_MS = 1_500;
 
-export function isFileOperationCancelable(operation: PendingFileOperation, now: number): boolean {
-    return operation.cancelable && now - operation.startedAt >= CANCEL_REVEAL_THRESHOLD_MS;
+/**
+ * Milliseconds until the Cancel affordance should appear, or `undefined` when it must stay hidden because the operation
+ * is absent or not cancelable. Zero means the threshold has already passed.
+ */
+export function cancelRevealDelayMs(
+    operation: Pick<PendingFileOperation, 'cancelable' | 'startedAt'> | undefined,
+    now: number,
+): number | undefined {
+    if (!operation?.cancelable) return undefined;
+    return Math.max(operation.startedAt + CANCEL_REVEAL_THRESHOLD_MS - now, 0);
 }

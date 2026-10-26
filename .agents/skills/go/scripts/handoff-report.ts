@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, rename, writeFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import process from 'node:process';
 
 import { z } from 'zod';
 
+import { writeTextAtomic } from '../../../../scripts/atomic-json';
 import type { IssueExpectationDrift } from './issue-drift';
 import { assertIssueExpectationDriftReady } from './issue-drift';
 
@@ -311,9 +311,7 @@ export async function generateHandoffReport(
     const sections = validateHandoffSections(markdown);
     const evidence = buildHandoffEvidence(state, headSha);
     const path = join(runDirectory, 'handoff-report.md');
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, markdown, 'utf8');
-    await rename(temporary, path);
+    await writeTextAtomic(path, markdown);
     state.handoffReport = handoffReportSchema.parse({
         deliveredAt: null,
         evidence,

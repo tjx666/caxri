@@ -54,7 +54,11 @@ export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export type { ClaudeFolderTrustOutcome } from './providers/claude/folder-trust';
 export { grantClaudeFolderTrust } from './providers/claude/folder-trust';
-export { claudeTranscriptRoot, resolveClaudeConfigDirectory } from './providers/claude/paths';
+export {
+    claudeTranscriptRoot,
+    readClaudeSubagentToolUseId,
+    resolveClaudeConfigDirectory,
+} from './providers/claude/paths';
 export { probeOpenCodexSessionIds } from './providers/codex/open-sessions';
 export { resolveCodexHome } from './providers/codex/paths';
 export { parseCodexRolloutName } from './providers/codex/rollouts';

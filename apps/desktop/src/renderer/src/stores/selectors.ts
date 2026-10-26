@@ -104,10 +104,6 @@ export function getSessionProjectId(sessionId: string): string | undefined {
     return getBootstrap()?.sessions.find((session) => session.id === sessionId)?.workbenchProjectId;
 }
 
-export function getSessionOwnerProjectId(sessionId: string): string | undefined {
-    return getBootstrap()?.sessions.find((session) => session.id === sessionId)?.projectId;
-}
-
 export function getSessionState(): SessionState | undefined {
     return selectSessionState(getBootstrap());
 }

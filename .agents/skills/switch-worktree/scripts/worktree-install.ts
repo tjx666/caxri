@@ -1,9 +1,9 @@
 import type { Buffer } from 'node:buffer';
-import { randomUUID } from 'node:crypto';
-import { lstat, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { lstat, readFile, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 
+import { writeTextAtomic } from '../../../../scripts/atomic-json';
 import { CommandError, runInherited } from './process';
 import type { RepoContext } from './repo';
 import { ensureProfile, errorCode, isPathPresent, withRepoLock, worktreeIdentity } from './repo';
@@ -18,16 +18,10 @@ async function restoreManifest(path: string, source: Buffer | undefined): Promis
         await rm(path, { force: true });
         return;
     }
-    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    try {
-        await writeFile(temporary, source);
-        /**
-         * Same-directory rename replaces a symlink entry instead of following it to another file.
-         */
-        await rename(temporary, path);
-    } finally {
-        await rm(temporary, { force: true });
-    }
+    /**
+     * The same-directory rename replaces a symlink entry instead of following it to another file.
+     */
+    await writeTextAtomic(path, source);
 }
 
 /**

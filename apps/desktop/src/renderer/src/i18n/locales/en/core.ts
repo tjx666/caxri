@@ -9,6 +9,7 @@ export const core = {
         'Caxri ran into an unexpected error. Reloading will bring back your projects and sessions.',
     'core.errorBoundary.technicalDetails': 'Technical details',
     'core.errorBoundary.copyDetails': 'Copy details',
+    'core.errorBoundary.reloadWithoutSession': 'Reload without this Session',
     'core.errorBoundary.agentCommander.title': 'Agent Commander stopped rendering',
     'core.errorBoundary.agentCommander.description':
         'Reload Agent Commander to reconnect to its Terminal. The Commander keeps running meanwhile.',

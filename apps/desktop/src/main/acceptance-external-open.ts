@@ -1,10 +1,9 @@
-import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import { appendFile, open } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { MessageBoxOptions } from 'electron';
 import { z } from 'zod';
+
+import { appendAcceptanceReceipt, readAcceptanceCommand } from './acceptance-fixtures/fixture-io';
 
 const FIXTURE_ID = 'session-pr-open-parity-v1';
 const FIXTURE_URL = 'https://github.com/tjx666/project/pull/42';
@@ -33,13 +32,7 @@ export function createAcceptanceExternalOpenFixture(options: {
     let lastSequence = 0;
     let pending: z.infer<typeof commandSchema> | undefined;
     let isPrompting = false;
-    const record = (value: Record<string, unknown>) =>
-        appendFile(receiptPath, `${JSON.stringify(value)}\n`, {
-            encoding: 'utf8',
-            mode: 0o600,
-            flag:
-                constants.O_CREAT | constants.O_APPEND | constants.O_WRONLY | constants.O_NOFOLLOW,
-        });
+    const record = (value: Record<string, unknown>) => appendAcceptanceReceipt(receiptPath, value);
     const assertUrl = (url: string) => {
         if (url !== FIXTURE_URL) throw new Error('Unexpected Acceptance external URL');
     };
@@ -51,25 +44,7 @@ export function createAcceptanceExternalOpenFixture(options: {
                 throw new Error('Acceptance external open is already pending');
             isPrompting = true;
             try {
-                const file = await open(
-                    commandPath,
-                    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-                );
-                let command: z.infer<typeof commandSchema>;
-                try {
-                    const metadata = await file.stat();
-                    if (!metadata.isFile() || metadata.size > 4096)
-                        throw new Error('Invalid Acceptance external command file');
-                    const buffer = Buffer.alloc(4097);
-                    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-                    if (bytesRead > 4096)
-                        throw new Error('Acceptance external command is too large');
-                    command = commandSchema.parse(
-                        JSON.parse(buffer.toString('utf8', 0, bytesRead)),
-                    );
-                } finally {
-                    await file.close();
-                }
+                const command = await readAcceptanceCommand(commandPath, commandSchema);
                 if (command.sequence <= lastSequence)
                     throw new Error('Acceptance external command was already consumed');
                 lastSequence = command.sequence;

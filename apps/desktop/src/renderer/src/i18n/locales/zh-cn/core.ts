@@ -7,6 +7,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.errorBoundary.description': 'Caxri 遇到了意外错误。重新加载即可恢复你的项目和会话。',
     'core.errorBoundary.technicalDetails': '技术详细信息',
     'core.errorBoundary.copyDetails': '复制详细信息',
+    'core.errorBoundary.reloadWithoutSession': '不打开此会话并重新加载',
     'core.errorBoundary.agentCommander.title': 'Agent Commander 已停止渲染',
     'core.errorBoundary.agentCommander.description':
         '重新加载 Agent Commander 以重新连接到它的终端。在此期间 Commander 会继续运行。',
