@@ -38,15 +38,12 @@ export async function acknowledgeFileMutation(
     if (!operation)
         throw new CaxriError('PATH_DENIED', 'File operation is outside the selected Project');
     if (operation.phase === 'completed' && operation.kind !== 'create' && operation.result) {
-        const workbenchProjectId =
-            operation.workbenchProjectId ?? database.getSession(operation.sessionId)?.projectId;
-        if (workbenchProjectId)
-            database.remapWorkbenchEditorState(
-                workbenchProjectId,
-                operation.id,
-                operation.result.previousPath,
-                operation.result.path,
-            );
+        database.remapWorkbenchEditorState(
+            operation.workbenchProjectId,
+            operation.id,
+            operation.result.previousPath,
+            operation.result.path,
+        );
     }
     await files.acknowledgeScopedMutationOperation(sessionId, operationId);
 }

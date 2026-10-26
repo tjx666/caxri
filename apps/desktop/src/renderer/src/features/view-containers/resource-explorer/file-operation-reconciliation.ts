@@ -8,7 +8,7 @@ import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
-import { getSessionOwnerProjectId, useSelectedSessionScopeKey } from '../../../stores/selectors';
+import { useSelectedSessionScopeKey } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
 import { remapOpenEditorsDurably } from '../../editor/document-remap';
 import { availableResourceExplorerClient } from '../resource-explorer-catalog-client';
@@ -182,14 +182,6 @@ function operationAffectedPaths(operation: FileMutationOperation): string[] {
     ];
 }
 
-function operationProjectId(operation: FileMutationOperation): string {
-    return (
-        operation.workbenchProjectId ??
-        getSessionOwnerProjectId(operation.sessionId) ??
-        `session:${operation.sessionId}`
-    );
-}
-
 async function invalidateDirectory(
     client: ResourceExplorerClient,
     directory: string,
@@ -210,14 +202,13 @@ async function applyCompletedOperation(
     operation: FileMutationOperation,
 ): Promise<void> {
     if (!operation.result) throw new Error('Completed file operation has no result');
-    const workbenchProjectId = operationProjectId(operation);
     if (operation.kind === 'create') {
         await invalidateDirectory(client, operation.input.directory);
         return;
     }
     await remapOpenEditorsDurably(
         operation.sessionId,
-        workbenchProjectId,
+        operation.workbenchProjectId,
         operation.id,
         operation.result.previousPath,
         operation.result.path,
@@ -252,7 +243,7 @@ export function reconcileFileMutation(
     if (reconciled.has(operation.id)) return Promise.resolve();
     const existing = reconciling.get(operation.id);
     if (existing) return existing;
-    const projectId = operationProjectId(operation);
+    const projectId = operation.workbenchProjectId;
     const store = useFileOperationStore.getState();
     store.begin({
         id: operation.id,
