@@ -29,6 +29,7 @@ import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores
 import { useWorkbenchStore } from '../../stores/workbench';
 import { resumeSession } from '../session/session-agent-commands';
 import { canRestartResumeAgent } from './agent-restart-commands';
+import { useTerminalExitInfo } from './hooks/use-terminal-exit-info';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
 import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
 import { activateTerminal, restartTerminal, startNewAgentSession } from './terminal-commands';
@@ -191,6 +192,7 @@ function TerminalRecoveryActions({
 }
 
 function TerminalRecoveryBar({
+    cwd,
     failureDetail,
     failureReason,
     processState,
@@ -199,6 +201,7 @@ function TerminalRecoveryBar({
     sessionId,
     terminalId,
 }: {
+    cwd: string | undefined;
     failureDetail: string | undefined;
     failureReason: TerminalFailureReason | undefined;
     processState: ProcessState;
@@ -209,10 +212,12 @@ function TerminalRecoveryBar({
 }) {
     // Subscribes to the locale so the translated exit copy below follows a language change.
     useTranslation();
+    const exit = useTerminalExitInfo(terminalId, processState);
     const exitPresentation = getTerminalExitPresentation(
         processState,
         failureReason,
         failureDetail,
+        { cwd, exit, isAgent: provider !== undefined },
     );
     if (!exitPresentation) return null;
     const ExitIcon =
@@ -502,6 +507,7 @@ export function TerminalPane({
                 </div>
             )}
             <TerminalRecoveryBar
+                cwd={terminal?.cwd}
                 failureDetail={terminal?.failureDetail}
                 failureReason={terminal?.failureReason}
                 processState={processState}

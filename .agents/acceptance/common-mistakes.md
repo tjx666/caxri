@@ -197,8 +197,8 @@ not word-split and fails with `command not found`. See the canonical
 
 ## Choosing an Agent Terminal while bootstrapping an isolated Project
 
-**Situation:** `Cmd+O` opens the Add Project flow and the "Choose the default Terminal" dialog offers
-`Claude Code`, `Codex`, `Shell`, and `Start without a Terminal`.
+**Situation:** `Cmd+O` opens the Add Project flow and the "Start a Session" dialog offers
+`Claude Code`, `Codex`, `Shell`, and `Empty Session`.
 
 **Does not work:** Picking an Agent or `Shell` when the case does not need a Terminal. Acceptance
 blocks Agent shims, so the Agent buttons render an executable-not-found panel, and `Shell` renders a
@@ -206,7 +206,7 @@ live prompt. Both put the machine's shell prompt, user name, and Project path in
 screenshot of that launch: private values the round must never capture, so the artifact has to be
 deleted and the case relaunched.
 
-**Works:** Choose `Start without a Terminal` unless the case's own claim is about the Terminal.
+**Works:** Choose `Empty Session` unless the case's own claim is about the Terminal.
 Declare `agentFixture` in the frozen plan when fake Agent processes are genuinely required. Also
 snapshot before focusing any dialog `@ref`: ref numbering is assigned per launch, so a ref memorized
 from an earlier launch silently activates a different button.
@@ -347,7 +347,7 @@ a Project before any Session can be prepared.
 **Does not work:** Calling `project.create` over the bridge with the fixture path. The launcher only
 queues the test root for the real Add Project flow, so the direct call fails with `PATH_DENIED`.
 
-**Works:** Press `Cmd+O` and choose `Start without a Terminal`; the queued `CAXRI_TEST_ROOT_PATH`
+**Works:** Press `Cmd+O` and choose `Empty Session`; the queued `CAXRI_TEST_ROOT_PATH`
 fixture is added without a native file picker. Use the bridge afterwards for `session.create`,
 `session.rename`, and `session.archive` to shape the fixture state.
 

@@ -17,6 +17,7 @@ interface BugReportPreviewProperties {
     imageDeliveryNotice: string;
     onBack: () => void;
     onCopyReport: () => void;
+    onOpenGithubIssue: () => void;
     onSelectedTargetChange: (value: string | undefined) => void;
     onSend: () => void;
     report: string;
@@ -40,6 +41,7 @@ export function BugReportPreview({
     imageDeliveryNotice,
     onBack,
     onCopyReport,
+    onOpenGithubIssue,
     onSelectedTargetChange,
     onSend,
     report,
@@ -120,6 +122,9 @@ export function BugReportPreview({
                 <div className="flex gap-2">
                     <Button variant="secondary" onClick={onCopyReport}>
                         {t('bugReport.preview.copyReport')}
+                    </Button>
+                    <Button variant="secondary" onClick={onOpenGithubIssue}>
+                        {t('bugReport.preview.openGithubIssue')}
                     </Button>
                     <Button disabled={busy || sessionChanged || !target} onClick={onSend}>
                         {t(busy ? 'bugReport.preview.sending' : 'bugReport.preview.sendToAgent')}

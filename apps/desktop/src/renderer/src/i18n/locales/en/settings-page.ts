@@ -68,7 +68,7 @@ export const settingsPage = {
     'settings.row.archivedSessions.manage': 'Manage…',
     'settings.row.mobileAccess.title': 'Mobile access',
     'settings.row.mobileAccess.description':
-        'Pair phones and tablets on this local network to review scoped Agent Sessions and send short replies',
+        'Pair Android phones on this local network to review scoped Agent Sessions and send short replies',
     'settings.row.hardwareAcceleration.title': 'Hardware acceleration',
     'settings.row.hardwareAcceleration.description':
         'Controls whether the whole app draws with your graphics hardware, including Terminal hardware acceleration below. Off, Caxri uses software rendering, which is slower but keeps working when graphics fail. Caxri only changes this after you confirm it, and a change takes effect after a restart.',
@@ -90,7 +90,7 @@ export const settingsPage = {
         'Actions and skills are unavailable for {{provider}}.',
     'settings.row.providerHooks.title': 'Lifecycle hooks',
     'settings.row.providerHooks.description':
-        'Keeps background Session unread state accurate. Caxri only receives lifecycle phases, never prompt or response content. Restart Agent Terminals opened before lifecycle hooks were enabled.',
+        'Keeps background Session unread state accurate. Caxri adds only its own marked entries to ~/.claude/settings.json, ~/.codex/hooks.json, and ~/.grok/hooks/caxri.json, and turning this off removes them. It only receives lifecycle phases, never prompt or response content. Restart Agent Terminals opened before lifecycle hooks were enabled.',
     'settings.row.providerHooks.label': '{{provider}} lifecycle hooks',
     'settings.row.providerMessaging.title': 'Peer messaging',
     'settings.row.providerMessaging.description':

@@ -274,7 +274,7 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.handover.notePlaceholder':
         '可选：Commander 要做什么，例如“完成迁移并提交 pull request”',
     'agentCommander.handover.takeBackHint':
-        '在已转交的会话里输入内容，或在其 Chat 中发送消息或停止，会将其收回。',
+        '在已转交的会话里输入内容，或在其对话中发送消息或停止，会将其收回。',
     'agentCommander.handover.selectedCount': '已选 {{count}} 项',
     'agentCommander.handover.submit': '转交',
     'agentCommander.handover.submitting': '正在转交…',

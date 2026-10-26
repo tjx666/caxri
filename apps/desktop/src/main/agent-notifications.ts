@@ -116,14 +116,26 @@ const TURN_START_REASONS = new Set(['user_submission', 'agent_started']);
  */
 const REPLY_SUMMARY_TIMEOUT_MS = 1_500;
 
+/**
+ * A completed turn's length as the banner prints it, in the language Main resolves for `workbench.language` (`1h 5m` in
+ * English, `1 小时 5 分` in Simplified Chinese). Zero-valued trailing units are dropped.
+ */
 export function formatTurnDuration(durationMs: number): string {
     const totalSeconds = Math.max(1, Math.round(durationMs / 1_000));
     const hours = Math.floor(totalSeconds / 3_600);
     const minutes = Math.floor((totalSeconds % 3_600) / 60);
-    if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    if (hours > 0) {
+        return minutes > 0
+            ? translateMain('desktop.duration.hoursMinutes', { hours, minutes })
+            : translateMain('desktop.duration.hours', { hours });
+    }
     const seconds = totalSeconds % 60;
-    if (minutes > 0) return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-    return `${seconds}s`;
+    if (minutes > 0) {
+        return seconds > 0
+            ? translateMain('desktop.duration.minutesSeconds', { minutes, seconds })
+            : translateMain('desktop.duration.minutes', { minutes });
+    }
+    return translateMain('desktop.duration.seconds', { seconds });
 }
 
 interface PendingBanner {

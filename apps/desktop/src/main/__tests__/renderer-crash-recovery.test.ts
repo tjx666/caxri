@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { observeRendererCrashes } from '../renderer-crash-recovery';
 
-vi.mock('electron', () => ({ app: {}, dialog: { showMessageBox: vi.fn() } }));
+vi.mock('electron', () => ({ app: {}, dialog: { showMessageBox: vi.fn() }, shell: {} }));
 
 /**
  * The observer only registers `render-process-gone` and calls `reload`, so a listener registry is enough to drive it
@@ -24,6 +24,7 @@ function observe(isQuitting: () => boolean) {
     const write = vi.fn();
     observeRendererCrashes(window, {
         isQuitting,
+        logDirectory: '/profile/logs',
         logger: () => ({ write }) as never,
         shutdown: vi.fn(),
     });

@@ -40,6 +40,7 @@ import {
     toggleTreeItemSubtree,
     treeItemSubtreeHandles,
 } from './extension-tree-state';
+import { localizeTreeChildren } from './extension-tree-text';
 import { useExtensionTreeChildren } from './hooks/use-extension-tree-children';
 import { useExtensionTreeState } from './hooks/use-extension-tree-state';
 import { runTreeItemCommand } from './tree-item-actions';
@@ -203,10 +204,14 @@ function ExtensionTreeViewContent({
         loadChildren,
         requests,
         rootLoads,
-        visibleChildren,
+        visibleChildren: loadedVisibleChildren,
         visibleErrors,
         visibleLoading,
     } = useExtensionTreeChildren(scope, updateTreeState, treeState);
+    const visibleChildren = useMemo(
+        () => localizeTreeChildren(scope.viewId, loadedVisibleChildren, t),
+        [loadedVisibleChildren, scope.viewId, t],
+    );
     const refreshLock = useRef<string | undefined>(undefined);
     const [pendingRefresh, setPendingRefresh] = useState<PendingTreeRefresh>();
     const activePendingRefresh = pendingRefresh

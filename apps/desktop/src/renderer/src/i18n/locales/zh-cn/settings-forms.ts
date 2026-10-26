@@ -41,7 +41,7 @@ export const settingsForms: TranslatedNamespace<typeof source> = {
     'settings.longRunningCommandsForm.inputLabel': '长期运行命令模式',
     'settings.longRunningCommandsForm.listLabel': '长期运行命令模式列表',
     'settings.longRunningCommandsForm.empty':
-        '没有模式。所有后台命令都会让 Session 保持工作中，直到命令结束。',
+        '没有模式。所有后台命令都会让会话保持工作中，直到命令结束。',
     'settings.longRunningCommandsForm.invalid':
         '请输入命令（如 npm run dev）或有效的 /正则表达式/。',
     'settings.longRunningCommandsForm.duplicate': '该模式已在列表中。',

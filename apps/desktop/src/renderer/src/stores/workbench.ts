@@ -26,6 +26,7 @@ import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { createStore } from '../lib/store';
 import { reportAutomaticNamingNotices } from './automatic-naming-notice';
+import { showConfigChangeError, syncConfigErrorNotice } from './config-error-notice';
 import { syncNotificationSettings } from './notifications';
 import {
     isSessionCommandConvergenceReason,
@@ -34,7 +35,7 @@ import {
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
 import type { WorkbenchEventHandlers } from './workbench-event-handlers';
-import { recordAgentNotification, recordProjectStatusAlert } from './workbench-event-notifications';
+import { recordNotificationEvent } from './workbench-event-notifications';
 import { isWorkbenchIgnoredEvent } from './workbench-ignored-events';
 import { reportWorkbenchRootChange } from './workbench-root-notice';
 import {
@@ -123,7 +124,6 @@ export function configureWorkbenchSnapshotSource(read: () => Promise<BootstrapSt
 const recordRefresh = { inFlight: undefined as Promise<void> | undefined };
 const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
-const configErrors = { reported: false };
 
 export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, get) => ({
     bootstrap: undefined,
@@ -344,9 +344,7 @@ function applySnapshot(
         current.automaticNamingUnavailable,
         useWorkbenchStore.getState().bootstrap,
     );
-    if (configErrors.reported) return;
-    configErrors.reported = true;
-    if (current.configurationErrors?.[0]) pushToast('error', current.configurationErrors[0]);
+    syncConfigErrorNotice(current.configurationErrors);
 }
 
 function applyRecordSnapshot(
@@ -614,7 +612,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'settings.changed':
             case 'keybindings.changed':
             case 'theme.changed':
-                if (event.payload.error) pushToast('error', event.payload.error);
+                if (event.payload.error) showConfigChangeError(event.payload.error);
                 // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
                 else void refreshWorkbench();
                 return;
@@ -661,10 +659,10 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             }
             case 'agent.notification':
-                recordAgentNotification(event.payload, useWorkbenchStore.getState().bootstrap);
-                return;
             case 'projectStatus.alert':
-                recordProjectStatusAlert(event.payload);
+            case 'notifications.helperUnavailable':
+            case 'session.autoArchived':
+                recordNotificationEvent(event, useWorkbenchStore.getState().bootstrap);
                 return;
             default:
                 return assertNever(event, 'Unhandled workbench Runtime event');

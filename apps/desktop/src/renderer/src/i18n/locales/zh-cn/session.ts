@@ -10,12 +10,15 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.create.newSession': '新建会话',
     'session.create.newInProject': '在 {{project}} 中新建会话',
     'session.create.actionInProject': '在 {{project}} 中{{action}}',
-    'session.create.withoutTerminal': '不启动终端',
-    'session.createDialog.title': '选择默认终端',
+    'session.create.withoutTerminal': '空会话',
+    'session.createDialog.title': '开始会话',
+    'session.createDialog.titleInProject': '在 {{project}} 中开始会话',
     'session.createDialog.description':
-        '创建一个会话。若有可用的元数据，其主 Agent 终端会提供会话标题。',
-    'session.createDialog.descriptionInProject':
-        '在 {{project}} 中创建一个会话。若有可用的元数据，其主 Agent 终端会提供会话标题。',
+        '选择谁来处理这个文件夹。之后可以随时在对话和终端之间切换。',
+    'session.createDialog.fullAccessNotice':
+        'Agent 以完全访问权限启动：无需询问即可编辑文件和运行命令。可在“设置 > Agent”中更改。',
+    'session.createDialog.alwaysUseAgent': '始终使用此 Agent',
+    'session.createDialog.makeDefaultFailed': '无法更改默认 Agent',
     'session.openInChat.label': '始终在对话中打开 Agent',
     'session.openInChat.failed': '无法更改 Agent 的打开方式',
 
@@ -105,6 +108,10 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.notice.restoredUntitled': '已恢复会话',
     'session.notice.restoredCount': '已恢复 {{count}} 个会话',
     'session.notice.undoArchive': '撤销归档 {{title}}',
+    'session.notice.quotedName': '“{{title}}”',
+    'session.notice.autoArchivedSession': '会话',
+    'session.notice.autoArchivedMerged': '因拉取请求已合并，已归档{{session}}',
+    'session.notice.autoArchivedClosed': '因拉取请求已关闭，已归档{{session}}',
 
     // Agent detach, resume, and identifiers
     'session.detach.confirm': '停止并分离',

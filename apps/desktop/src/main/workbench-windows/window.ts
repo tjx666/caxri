@@ -52,6 +52,10 @@ export interface WorkbenchWindowFactoryOptions {
      * Closes the tear-off windows without releasing their strips, once the primary window's close was decided.
      */
     closeTearOffsKeepingStrips: () => void;
+    /**
+     * The profile's diagnostic log folder, revealed by the Renderer crash-loop dialog.
+     */
+    logDirectory: string;
     rendererReadiness: RendererReadiness;
     sendEvent: (event: ServerEvent, windowKey?: string) => void;
     startupProfile: StartupProfile;
@@ -134,6 +138,7 @@ export function createWorkbenchWindowFactory(options: WorkbenchWindowFactoryOpti
         });
         installWorkbenchRendererGuards(window, {
             isQuitting: options.isQuitting,
+            logDirectory: options.logDirectory,
             logger,
             shutdown: () => supervisor().shutdown(),
         });

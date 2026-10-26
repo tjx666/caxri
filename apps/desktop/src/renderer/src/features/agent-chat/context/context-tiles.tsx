@@ -3,6 +3,7 @@ import { formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
 import { StatTile } from '../../../components/report-card';
 import { useTranslation } from '../../../i18n';
+import { formatCount } from '../../../lib/locale-format';
 import { localizedDuration } from '../../../lib/usage-format';
 import { useClockTick } from '../hooks/use-clock-tick';
 import type { CacheAnalysis } from './cache-analysis';
@@ -58,9 +59,7 @@ export function ContextTiles({
             />
             <StatTile
                 label={t('agentChat.contextPage.tile.misses')}
-                value={
-                    analysis.points.length > 0 ? analysis.misses.toLocaleString('en-US') : undefined
-                }
+                value={analysis.points.length > 0 ? formatCount(analysis.misses) : undefined}
                 detail={
                     analysis.misses > 0
                         ? [

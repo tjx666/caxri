@@ -108,6 +108,8 @@ export const core = {
         'Unable to refresh Projects and Sessions from the Server',
 
     // stores/workbench-root-notice.ts
+    'core.configurationErrors.multiple':
+        '{{count}} configuration files have errors and their defaults are in use. First: {{first}}',
     'core.workbenchRoot.fallback':
         'The active worktree is no longer available. Returned to {{title}}.',
     'core.workbenchRoot.followedNamed': 'Switched to worktree "{{title}}" — an Agent moved there.',
@@ -136,6 +138,8 @@ export const core = {
     'core.commands.openAgentCommanderFailed': 'Unable to open Agent Commander',
     'core.commands.diagnosticsExportFailed': 'Diagnostics export failed',
     'core.commands.diagnosticsExported': 'Diagnostics exported to {{path}}',
+    'core.commands.revealExportFailed': 'Unable to show the diagnostics file in Finder',
+    'core.commands.revealLogsFailed': 'Unable to show the log folder in Finder',
 
     // lib/usage-format.ts
     'core.usageFormat.lessThanMinute': '<1m',

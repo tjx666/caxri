@@ -7,7 +7,6 @@ import type {
     TerminalSnapshot,
     ThemeTokens,
 } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import type { Terminal } from '@xterm/xterm';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
@@ -15,7 +14,7 @@ import { useLatestReference } from '@/hooks/use-latest-reference';
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
-import { pushToast } from '../../../stores/toasts';
+import { describeFailure, pushToast } from '../../../stores/toasts';
 import { gpuIncidentBudget } from '../../gpu/gpu-incident-budget';
 import {
     beginRendererPerformanceTerminalStage,
@@ -193,7 +192,7 @@ export function useTerminalPaneRuntime({
             try {
                 await loadTerminalFonts();
             } catch (error) {
-                onError(errorMessage(error, translate('terminal.errors.fontsFailed')));
+                onError(describeFailure(error, translate('terminal.errors.fontsFailed')));
             }
             /**
              * A corrupt font must degrade to the system monospace stack instead of blocking the PTY. After the
@@ -377,7 +376,7 @@ export function useTerminalPaneRuntime({
             (error) => {
                 if (isClipboardFailureReported) return;
                 isClipboardFailureReported = true;
-                onError(errorMessage(error, translate('terminal.errors.copyFailed')));
+                onError(describeFailure(error, translate('terminal.errors.copyFailed')));
             },
         );
         const selectionDisposable = xterm.onSelectionChange(() => {
@@ -405,7 +404,7 @@ export function useTerminalPaneRuntime({
             try {
                 await longPaste.pasteFromClipboard(() => navigator.clipboard.readText());
             } catch (error) {
-                onError(errorMessage(error, translate('terminal.errors.pasteFailed')));
+                onError(describeFailure(error, translate('terminal.errors.pasteFailed')));
             }
         };
         pasteReference.current = pasteFromClipboard;

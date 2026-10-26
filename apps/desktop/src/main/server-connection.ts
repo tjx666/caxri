@@ -53,12 +53,6 @@ export class DesktopServerConnection extends EventTarget {
     private reconnectTask?: Promise<void>;
     private readonly backoff = new ReconnectBackoff();
     private lifecycle: ServerConnectionState = initialServerConnectionState;
-    /**
-     * Once this connection has replaced one stale Server, further mismatches only warn. Without this instance-level
-     * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
-     * and a persistent mismatch (e.g. two Desktops of different builds sharing one Server) becomes a kill/spawn storm.
-     */
-    private hasReplacedStaleServer = false;
     private isCoreRecoveryPending = false;
     /**
      * Set by {@link markQuitting} once Main has accepted a quit. Quit teardown still needs this attachment for its
@@ -68,6 +62,12 @@ export class DesktopServerConnection extends EventTarget {
     private isQuitting = false;
     private readonly serverSupervisor: DesktopServerSupervisor;
     private readonly unsubscribeServerLifecycle: () => void;
+    /**
+     * Once this connection has replaced one stale Server, further mismatches only warn. Without this instance-level
+     * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
+     * and a persistent mismatch (e.g. two Desktops of different builds sharing one Server) becomes a kill/spawn storm.
+     */
+    staleReplacement?: { stoppedTerminals: number };
 
     constructor(private readonly options: DesktopServerConnectionOptions) {
         super();
@@ -219,7 +219,7 @@ export class DesktopServerConnection extends EventTarget {
                 hostVersion: status.version,
             };
             if (isServerBuildStale(buildIdentity, status)) {
-                if (isFinalAttempt || this.hasReplacedStaleServer) {
+                if (isFinalAttempt || this.staleReplacement) {
                     this.options.logger.write(
                         'warn',
                         logEventCatalog.serverConnection.versionMismatch,
@@ -230,16 +230,16 @@ export class DesktopServerConnection extends EventTarget {
                 } else {
                     /**
                      * Live PTYs die with the stale Server, which is the intended trade: silently serving Terminals from
-                     * an older build is the failure mode this replaces.
+                     * an older build is the failure mode this replaces. The count is kept so Main can tell the user.
                      */
                     this.options.logger.write(
                         'warn',
                         logEventCatalog.serverConnection.staleBuildReplaced,
                         {
-                            fields: skewFields,
+                            fields: { ...skewFields, stoppedTerminalCount: status.activePtyCount },
                         },
                     );
-                    this.hasReplacedStaleServer = true;
+                    this.staleReplacement = { stoppedTerminals: status.activePtyCount };
                     await operator.request('host.stop', { confirmLivePtys: true });
                     this.serverSupervisor.releaseProcess(status.pid);
                     await waitForServerExit(this.serverSupervisor, status.pid);

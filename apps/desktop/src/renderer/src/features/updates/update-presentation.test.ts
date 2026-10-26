@@ -5,7 +5,10 @@ import {
     canRetryUpdateCheck,
     describeUpdateChip,
     describeUpdateStatus,
+    releaseNotesTarget,
+    releaseNotesUrl,
     resolveUpdateAnnouncement,
+    resolveUpdatedNotice,
     shouldExplainUnsignedInstall,
     updateRetryTimeLabel,
 } from './update-presentation';
@@ -187,7 +190,7 @@ describe('describeUpdateChip', () => {
             ),
         ).toEqual({
             label: 'Update ready',
-            description: 'Caxri 1.1.0 is downloaded and verified. Click to install it.',
+            description: 'Caxri 1.1.0 is downloaded and verified. Click to continue.',
             kind: 'ready',
         });
     });
@@ -381,4 +384,30 @@ it('explains network and integrity failures separately', () => {
     expect(describeUpdateStatus({ ...base, failureKind: 'integrity' }).description).toContain(
         'was not opened',
     );
+});
+
+describe('release notes', () => {
+    it('prefers the release page from Main and falls back to the tag page', () => {
+        expect(releaseNotesUrl('1.1.0')).toBe(
+            'https://github.com/tjx666/caxri/releases/tag/v1.1.0',
+        );
+        expect(releaseNotesUrl('1.1.0', 'https://github.com/tjx666/caxri/releases/tag/x')).toBe(
+            'https://github.com/tjx666/caxri/releases/tag/x',
+        );
+    });
+
+    it('targets a release only while one is in play', () => {
+        expect(releaseNotesTarget(available)?.version).toBe('1.1.0');
+        expect(
+            releaseNotesTarget({ status: 'up-to-date', currentVersion: '1.0.0' }),
+        ).toBeUndefined();
+        expect(releaseNotesTarget(undefined)).toBeUndefined();
+    });
+
+    it('raises the updated notice only when Main reports a replaced version', () => {
+        expect(resolveUpdatedNotice({ status: 'idle', currentVersion: '1.1.0' })).toBeUndefined();
+        expect(
+            resolveUpdatedNotice({ status: 'idle', currentVersion: '1.1.0', updatedFrom: '1.0.0' }),
+        ).toMatchObject({ version: '1.1.0' });
+    });
 });

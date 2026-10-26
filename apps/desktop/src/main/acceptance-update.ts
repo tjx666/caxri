@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
 import { appendAcceptanceReceipt } from './acceptance-fixtures/fixture-io';
-import type { AcceptanceUpdateDiscovery } from './update-service-contract';
+import type { AcceptanceUpdateDiscovery } from './updates/update-service-contract';
 
 /**
  * The one update state an Acceptance case can declare (`updateFixture` in the frozen plan). The launcher arms it as

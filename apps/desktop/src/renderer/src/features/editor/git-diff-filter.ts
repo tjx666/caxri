@@ -3,6 +3,7 @@ import { gitChangesDiffTabPath, gitPullRequestChangesDiffTabPath } from '@caxri/
 import { isGlobMatch } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 
 export interface FilteredGitDiffFiles {
     files: readonly GitFileStatus[];
@@ -39,7 +40,7 @@ export function describeHiddenGitDiffFiles(
     isTruncated: boolean,
     t: Translate,
 ): string {
-    const count = hiddenCount.toLocaleString();
+    const count = formatCount(hiddenCount);
     const isOne = hiddenCount === 1;
     if (areAllHidden) {
         if (isTruncated)

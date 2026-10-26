@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import type { CommandId, Keybinding } from '@caxri/protocol';
 import { buildChordLeadingChords } from '@caxri/protocol';
 
+import { publishPendingChord } from '../features/keyboard-shortcuts/pending-chord-store';
 import {
     executeEditableViewCatalogShortcut,
     executeViewCatalogShortcut,
@@ -88,6 +89,25 @@ export function dispatchGlobalKeydown(
     state: GlobalShortcutDispatchState,
     event: KeyboardEvent,
 ): void {
+    dispatchKeystroke(state, event);
+    publishChordHint(state);
+}
+
+/**
+ * Shows the pending chord hint for a sequence Caxri owns and lets the hint's timeout end it. A sequence released to
+ * Monaco is not shown: the editor draws its own chord feedback, and Caxri cannot see how its sequence ends.
+ */
+function publishChordHint(state: GlobalShortcutDispatchState): void {
+    const pending = state.pending;
+    publishPendingChord(
+        pending && !pending.yieldToEditor ? pending.leadingChord : undefined,
+        () => {
+            state.pending = undefined;
+        },
+    );
+}
+
+function dispatchKeystroke(state: GlobalShortcutDispatchState, event: KeyboardEvent): void {
     // Published before any early return so a later capture listener always reads the chord state this
     // keystroke arrived with, never the previous keystroke's.
     chordDispatchState.pendingAtLastKeystroke = state.pending?.leadingChord;
@@ -196,6 +216,7 @@ export function useCommandShortcuts(): void {
          */
         const cancelPendingChord = (): void => {
             state.pending = undefined;
+            publishChordHint(state);
         };
         addEventListener('keydown', onKeyDown, { capture: true });
         addEventListener('mousedown', cancelPendingChord, { capture: true });

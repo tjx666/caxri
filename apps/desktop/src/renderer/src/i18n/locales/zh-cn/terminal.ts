@@ -30,6 +30,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.search.invalidRegex': '正则表达式无效',
     'terminal.search.unavailable': '搜索不可用',
     'terminal.exit.failure.workingDirectoryUnavailable': '工作目录已不存在',
+    'terminal.exit.failure.workingDirectoryUnavailableAt': '文件夹已不存在：{{path}}',
     'terminal.exit.failure.executableNotFound': '未找到 Agent CLI 可执行文件',
     'terminal.exit.failure.spawnFailed': '无法启动终端进程',
     'terminal.exit.failure.agentSessionUnavailable':
@@ -39,6 +40,10 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.exit.stopped': '进程已正常退出',
     'terminal.exit.failed': '终端启动失败',
     'terminal.exit.dead': '终端意外停止',
+    'terminal.exit.deadWithReason': '终端意外停止（{{reason}}）',
+    'terminal.exit.agentEarly': 'Agent 启动后立即退出（{{reason}}）',
+    'terminal.exit.reason.code': '退出码 {{code}}',
+    'terminal.exit.reason.signal': '信号 {{signal}}',
     'terminal.exit.interrupted': '因应用关闭而中断，正在恢复',
     'terminal.exit.suspended': '已在后台挂起，正在恢复',
     'terminal.exit.detached': '已分离，在别处完成后可恢复',
@@ -221,6 +226,13 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.new.agentSession': '新建 {{agent}} 会话',
     'terminal.new.chatMarker': '对话',
     'terminal.new.defaultMarker': '默认',
+    'terminal.new.notInstalledMarker': '未安装',
+    'terminal.new.installHint.claude':
+        '未找到 Claude Code。请从 claude.com/claude-code 安装，或在“设置 > Agent”中指定它的位置。',
+    'terminal.new.installHint.codex':
+        '未找到 Codex。请运行 "npm install -g @openai/codex" 安装，或在“设置 > Agent”中指定它的位置。',
+    'terminal.new.installHint.grok':
+        '未找到 Grok Build。请从 x.ai 安装，或在“设置 > Agent”中指定它的位置。',
     'terminal.new.buttonWithAgent': '{{action}}（{{agent}}）',
     'terminal.new.selectAgent': '选择其他 Agent',
     'terminal.surface.terminal': '终端',

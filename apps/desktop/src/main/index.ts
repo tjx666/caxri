@@ -2,7 +2,7 @@ import { dirname } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import type { Keybinding, PersistedWindowState, ServerEvent } from '@caxri/protocol';
+import type { Keybinding, ServerEvent } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import type { EventLoopMonitor } from '@caxri/system';
 import {
@@ -14,26 +14,19 @@ import {
 import type { BrowserWindow, WebContents } from 'electron';
 import { app, dialog, Menu, powerMonitor, screen } from 'electron';
 
-import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { installAgentChatMediaProtocol } from './agent-chat/media-protocol';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { agentCommanderMenuOptions } from './agent-commander-window';
-import { applyDevelopmentAppIdentity, resolveDevelopmentDockIconPath } from './app-icon';
+import { applyDevelopmentAppIdentity } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
-import { createAppQuitHandler, createAppQuitPromptOptions, readAppQuitStatus } from './app-quit';
 import { installBeforeQuitTrigger, installSignalQuitTriggers } from './app-quit-triggers';
 import { updateArgvConfig } from './argv-config';
-import {
-    persistAllWindowState,
-    reopenAuxiliaryWindowsAtStartup,
-} from './auxiliary-window-lifecycle';
+import { reopenAuxiliaryWindowsAtStartup } from './auxiliary-window-lifecycle';
 import type { BenchmarkWindowController } from './benchmark-window';
 import { stampBuildIdentity } from './build-identity';
 import { startClaudeWindowJob } from './claude-windows';
 import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
-import type { DesktopNotifications } from './desktop-notifications';
-import { createDesktopNotifications } from './desktop-notifications';
 import { createDesktopOperationHandler } from './desktop-operations';
 import {
     configureDesktopProfile,
@@ -41,7 +34,6 @@ import {
     installSecondInstanceFocus,
     remoteDebuggingState,
 } from './desktop-profile';
-import { createDesktopUpdateService } from './desktop-update-service';
 import { e2eLaunchLogFields } from './e2e-launch';
 import { guardEnvironmentMethods } from './environment-method-policy';
 import { createMainEventRelay } from './event-relay';
@@ -51,29 +43,34 @@ import {
     createLocalWorkbenchEnvironment,
     createSshHostWindowMenu,
 } from './local-workbench-environment';
-import { setMainLanguage } from './locale';
 import { createMainMethodHandler } from './main-methods';
+import { createMainQuitHandler } from './main-quit-wiring';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
+import type { DesktopNotifications } from './notifications/desktop-notifications';
+import { createDesktopNotifications } from './notifications/desktop-notifications';
 import { companionWindowFor, createOnDemandWindows, isZoomingWithApp } from './on-demand-windows';
 import type { PerformanceMonitorWindowController } from './performance-monitor/window';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
+import { applyReadyAppearance, logAppReady } from './ready-setup';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { DesktopServerConnection } from './server-connection';
 import { resolveServerConnectionOptions } from './server-connection-options';
-import { shouldContinueStartup } from './server-startup';
 import { composeSshHostEnvironments } from './ssh/host-environment-composition';
 import type { SshHostEnvironments } from './ssh/host-environments';
+import { createStartupFailureWiring } from './startup/startup-failure-wiring';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
 import { createWorkbenchUnsavedEditors } from './unsaved-editors';
-import type { UpdateService } from './updates';
+import { createDesktopUpdateService } from './updates/desktop-update-service';
+import { offerMoveToApps as offerMoveToApps } from './updates/move-to-apps';
+import type { UpdateService } from './updates/updates';
 import { createWindowZoomController } from './window-chrome';
 import { bringWindowForward, resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
-import { defaultWindowState, readWindowState } from './window-placement';
+import { loadWindowPlacement } from './window-placement';
 import {
     createConnectionPresence,
     currentRequestWindowKey,
@@ -112,10 +109,6 @@ if (ownsProfileInstance) {
      */
     let mainWindow: BrowserWindow | undefined;
     const workbenchWindows = new WorkbenchWindows<BrowserWindow>();
-    /**
-     * Tear-off windows that must keep their Open Sessions when they close: the primary window closing takes them down
-     * with it, and a window whose move failed never had a strip. Every other close releases the strip.
-     */
     let supervisor: DesktopServerConnection;
     let mainLogger: ReturnType<typeof createDesktopLogger> | undefined;
     /**
@@ -218,8 +211,19 @@ if (ownsProfileInstance) {
     function requestWorkbenchWindow(): BrowserWindow | undefined {
         return workbenchWindows.get(currentRequestWindowKey() ?? '') ?? mainWindow;
     }
+    const startupFailure = createStartupFailureWiring({
+        logDirectory: desktopProfile.logDirectory,
+        prepareRelaunch: () => {
+            quitIntent = 'relaunch';
+        },
+        readSystemNotificationsEnabled: async () =>
+            (await supervisor.request('settings.get')).value['agents.notifications.enabled'],
+        userDataPath: desktopProfile.userDataPath,
+    });
     function sendEvent(event: ServerEvent, windowKey?: string): void {
         eventRelay.send(event, windowKey);
+        if (event.event === 'runtime.status')
+            startupFailure.runtimeFailurePrompt.observe(event.payload.status);
         notifications?.observe(event);
         if (event.event === 'settings.changed') windowZoom.refresh();
     }
@@ -243,43 +247,22 @@ if (ownsProfileInstance) {
         logger: () => mainLogger,
         sendEvent,
     });
-    const requestAppQuit = createAppQuitHandler({
-        acceptQuit: () => {
+    const requestAppQuit = createMainQuitHandler({
+        agentCommander: () => agentCommander,
+        focusedWindow: () => workbenchWindows.focusedOrPrimary(),
+        logger: () => mainLogger,
+        mainWindow: () => mainWindow,
+        onAccepted: () => {
             isQuitStarted = true;
-            (supervisor as DesktopServerConnection | undefined)?.markQuitting(); // Unset before ready.
             eventLoopMonitor?.stop();
             notifications?.dispose();
         },
-        closeDesktop: async () => {
-            await sshHostEnvironments?.detachAll();
-            await supervisor.shutdown();
-        },
-        ...createAppQuitPromptOptions(dialog, () => workbenchWindows.focusedOrPrimary()),
-        decideUnsavedEditors: () => unsavedEditors.decide('quit'),
-        detachAll: async () => {
-            await sshHostEnvironments?.detachTerminals();
-            return supervisor.request('terminal.detachAll');
-        },
-        exit: () => app.exit(0),
-        logFailure: (level, stage, error) =>
-            mainLogger?.write(level, logEventCatalog.app.quitFailed, {
-                fields: { stage, error },
-            }),
-        persistWindowState: async () => {
-            const window = mainWindow;
-            await persistAllWindowState([
-                () =>
-                    window && !window.isDestroyed()
-                        ? supervisor.request('app.windowState.update', readWindowState(window))
-                        : undefined,
-                () => agentCommander?.persistWindowState(),
-                () => processExplorer.persistWindowState(),
-            ]);
-        },
+        processExplorer: () => processExplorer,
         quitIntent: () => quitIntent,
-        readPendingReviewComments: () => supervisor.request('gitReview.pending', {}),
-        readStatus: () => readAppQuitStatus(supervisor),
-        stopServer: () => supervisor.stopServer(),
+        sshHostEnvironments: () => sshHostEnvironments,
+        // Unset before ready.
+        supervisor: () => supervisor,
+        unsavedEditors,
     });
     const quitTriggers = {
         app,
@@ -308,6 +291,7 @@ if (ownsProfileInstance) {
         closeTearOffsKeepingStrips: () => tearOffWindows.closeKeepingStrips(),
         currentDirectory,
         decideUnsavedEditors: (windowKey) => unsavedEditors.decide('close', windowKey),
+        logDirectory: desktopProfile.logDirectory,
         e2eWindowMode,
         eventRelay,
         isQuitting: () => isQuitStarted,
@@ -322,8 +306,21 @@ if (ownsProfileInstance) {
             // Closing the Workbench detaches every Terminal view, the Commander's included.
             agentCommander?.close();
         },
-        onPrimaryReadyToShow: () =>
-            updateService.startAutomaticCheck({ isE2E: process.env.CAXRI_E2E === '1' }),
+        onPrimaryReadyToShow: () => {
+            updateService.startAutomaticCheck({
+                isE2E: process.env.CAXRI_E2E === '1',
+                subscribeResume: (onResume) => powerMonitor.on('resume', onResume),
+            });
+            void offerMoveToApps({
+                prepareRelaunch: () => {
+                    quitIntent = 'relaunch';
+                },
+                restoreQuitIntent: () => {
+                    quitIntent = 'user';
+                },
+                userDataPath: desktopProfile.userDataPath,
+            });
+        },
         rendererReadiness,
         sendEvent,
         startupProfile,
@@ -334,17 +331,11 @@ if (ownsProfileInstance) {
         workbenchWindows.add(windowKey, window);
         localPresence.register(windowKey, window.webContents, window);
     }
-    async function readWindowPlacement(): Promise<WindowPlacement> {
-        const readState = async (): Promise<PersistedWindowState> => {
-            try {
-                return await supervisor.request('app.windowState.get');
-            } catch {
-                return defaultWindowState;
-            }
-        };
-        const [state, zoomLevel] = await Promise.all([readState(), windowZoom.load()]);
-        return { state, zoomLevel };
-    }
+    const readWindowPlacement = (): Promise<WindowPlacement> =>
+        loadWindowPlacement(
+            () => supervisor.request('app.windowState.get'),
+            () => windowZoom.load(),
+        );
 
     /**
      * Creates the Workbench window at once and shows it when `placement` lands. Startup passes a placement that waits
@@ -410,6 +401,9 @@ if (ownsProfileInstance) {
                 supervisor: () => supervisor,
             }),
             getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
+            getNotificationHelper: () => notifications?.helper,
+            relaunch: startupFailure.relaunch,
+            decideUnsavedEditorsBeforeRelaunch: () => unsavedEditors.decide('quit'),
             getUserDataPath: () => desktopProfile.userDataPath,
             getSupervisor: () => supervisor,
             getUpdateService: () => updateService,
@@ -503,36 +497,13 @@ if (ownsProfileInstance) {
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
-            setMainLanguage(null, [app.getLocale()]); // Dialogs shown before the first menu read follow the system.
-            if (
-                shouldEnableAcceptanceAccessibility({
-                    environment: process.env,
-                    platform: process.platform,
-                })
-            )
-                app.setAccessibilitySupportEnabled(true);
-            const developmentDockIconPath = resolveDevelopmentDockIconPath({
-                currentDirectory,
-                isPackaged: app.isPackaged,
-            });
-            if (developmentDockIconPath && app.dock) app.dock.setIcon(developmentDockIconPath);
+            applyReadyAppearance(currentDirectory);
             const { userDataPath } = desktopProfile;
             mainLogger ??= createMainLogger();
             processErrorMonitor.attach(mainLogger);
             eventLoopMonitor = startEventLoopMonitor(mainLogger);
             startupProfile.mark('appReady');
-            mainLogger.write('info', logEventCatalog.app.ready, {
-                durationMs: performance.now() - bootStartedAt,
-                fields: {
-                    profileId: desktopProfile.id,
-                    profileKind: desktopProfile.kind,
-                    remoteDebuggingPort:
-                        desktopProfile.remoteDebugging.transport === 'port'
-                            ? desktopProfile.remoteDebugging.port
-                            : null,
-                    remoteDebuggingTransport: desktopProfile.remoteDebugging.transport,
-                },
-            });
+            logAppReady(mainLogger, { bootStartedAt, profile: desktopProfile });
             gpuRecovery.recordBoot();
             // GPU collection is asynchronous and must never delay window startup.
             void gpuDiagnostics.captureBaseline();
@@ -590,12 +561,7 @@ if (ownsProfileInstance) {
             supervisor.onEvent(sendEvent);
             wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
             installSignalQuitTriggers(quitTriggers);
-            const attaching = shouldContinueStartup({
-                dialog,
-                logger: mainLogger,
-                quit: () => app.quit(),
-                supervisor,
-            });
+            const attaching = startupFailure.startServer(supervisor, mainLogger);
             // The window loads while Server Core starts; its IPC waits on `serverReady`, and it shows once placed.
             installIpc();
             const startupPlacement = async (): Promise<WindowPlacement> => {
@@ -624,6 +590,9 @@ if (ownsProfileInstance) {
             serverReady.resolve();
             // `openMainWindow` alone only creates the window; wait for its Renderer too (see `reopenAuxiliaryWindowsAtStartup`).
             await rendererReadiness.whenReady(mainWindow!.webContents);
+            // An upgrade that replaced a stale Server stopped its live Terminals; say so once the window is up.
+            // Fire-and-forget: it reads a Server setting, which must not delay reopening windows or second-instance focus.
+            void startupFailure.announceReplacement(supervisor);
             await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
             secondInstanceFocus.ready();
         })

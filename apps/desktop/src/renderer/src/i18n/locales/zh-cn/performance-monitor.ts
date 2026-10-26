@@ -8,7 +8,7 @@ export const performanceMonitor = {
     'performanceMonitor.low': '1% 低位 {{value}}',
     'performanceMonitor.frameGraph': '最近 {{count}} 帧的帧耗时',
     'performanceMonitor.waiting': '正在等待帧数据…',
-    'performanceMonitor.stale': '未收到帧数据，Workbench 可能已卡住',
+    'performanceMonitor.stale': '未收到帧数据，工作台可能已卡住',
     'performanceMonitor.paused': '窗口已隐藏，帧采样已暂停',
     'performanceMonitor.gpuRaster': 'GPU 光栅化',
     'performanceMonitor.gpuRaster.on': '开启',

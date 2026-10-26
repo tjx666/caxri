@@ -10,7 +10,7 @@ import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import { runInRequestWindow } from '../request-window';
 import type { DesktopServerConnection } from '../server-connection';
-import type { UpdateService } from '../updates';
+import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 const workbenchWindow = { isDestroyed: () => false } as never;

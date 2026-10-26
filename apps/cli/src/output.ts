@@ -1,6 +1,15 @@
+import { PROFILE_MISSING_MESSAGE, SERVER_NOT_RUNNING_MESSAGE } from '@caxri/client/supervise';
 import type { AgentEndpointRef, CaxriErrorCode, WireError } from '@caxri/protocol';
-import { agentEndpointRefSchema, CaxriError, isCaxriError } from '@caxri/protocol';
+import {
+    agentEndpointRefSchema,
+    CaxriError,
+    isCaxriError,
+    PATH_OUTSIDE_PROJECTS_MESSAGE,
+    SESSION_SELECTION_REQUIRED_MESSAGE,
+} from '@caxri/protocol';
 import type { z } from 'zod';
+
+import type { CliAutomation, ResolvedProfile } from './environment';
 
 export type CliOutputMode = 'human' | 'json' | 'quiet';
 
@@ -133,4 +142,69 @@ export function renderHumanValue(value: unknown): string {
     return Object.entries(value)
         .map(([key, entry]) => `${key}: ${renderHumanValue(entry)}`)
         .join('\n');
+}
+
+/**
+ * Whether a mutation may run without `--profile`. The explicit selector exists so a script or Agent can never change
+ * the wrong profile by accident. A person typing in a terminal against the single default profile has no other profile
+ * to confuse it with, so they may omit it; everything else (CI, Agent callers, piped streams, an inherited
+ * `CAXRI_USER_DATA_DIR`) keeps the strict rule.
+ */
+export function isProfileSelectionSatisfied(input: {
+    automation: CliAutomation;
+    io: { stdinIsTTY: boolean; stdoutIsTTY: boolean };
+    profileFlag: string | undefined;
+    profileSource: ResolvedProfile['source'];
+}): boolean {
+    if (input.profileFlag) return true;
+    return (
+        input.automation === 'human' &&
+        input.io.stdinIsTTY &&
+        input.io.stdoutIsTTY &&
+        input.profileSource === 'default'
+    );
+}
+
+/**
+ * The exact command to copy when `--profile` is required: the original arguments plus the resolved profile path.
+ */
+export function profileCommandHint(argv: readonly string[], profilePath: string): string {
+    const quote = (value: string): string =>
+        /^[\w./:@=+-]+$/u.test(value)
+            ? value
+            : `"${value.replaceAll(/["$\\`]/gu, String.raw`\$&`)}"`;
+    return ['caxri', ...argv.map(quote), '--profile', quote(profilePath)].join(' ');
+}
+
+/**
+ * Adds the next step to the two connection failures a first-time user meets, without changing the error code. The
+ * client keeps its short technical messages; this layer speaks to the person at the terminal.
+ */
+export function withNextStep(error: WireError): WireError {
+    if (error.code === 'PATH_DENIED' && error.message.startsWith(PATH_OUTSIDE_PROJECTS_MESSAGE))
+        return {
+            ...error,
+            message:
+                'This folder is not an added Project. Add it with `caxri project add <path>` (or from the Caxri app), then retry.',
+        };
+    if (error.code === 'CONFLICT' && error.message.startsWith(SESSION_SELECTION_REQUIRED_MESSAGE))
+        return {
+            ...error,
+            message:
+                'This Project has no single Session to use. Pass --session <id>; list them with `caxri session list`.',
+        };
+    if (error.code !== 'NOT_FOUND') return error;
+    if (error.message.startsWith(SERVER_NOT_RUNNING_MESSAGE))
+        return {
+            ...error,
+            message:
+                "Caxri isn't running. Open the Caxri app, or run `caxri desktop focus --launch`.",
+        };
+    if (error.message.startsWith(PROFILE_MISSING_MESSAGE))
+        return {
+            ...error,
+            message:
+                'The selected Caxri profile folder does not exist. Caxri creates it the first time the app starts: open the Caxri app once, or check the path given to --profile or CAXRI_USER_DATA_DIR.',
+        };
+    return error;
 }

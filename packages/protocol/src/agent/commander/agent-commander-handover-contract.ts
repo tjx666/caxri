@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { identifierSchema, pathSchema } from '../../domain/identifiers.js';
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { ownerOnlyCommandPolicy } from '../../transport/method-spec.js';
-import { delegationProviderSchema } from '../agent-delegation-settings.js';
+import { delegationProviderSchema } from '../delegation/agent-delegation-settings.js';
 
 /**
  * Upper bound on Sessions plus conversations one hand-over request names. Far above a real selection, so one runaway

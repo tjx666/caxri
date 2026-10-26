@@ -22,6 +22,7 @@ import {
 import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { localeDateTimeFormat } from '../../lib/locale-format';
 import {
     setArchivedSessionsOpen,
     setSessionSearchOpen,
@@ -46,13 +47,8 @@ import { sessionTitleForDisplay } from './session-title';
 
 const NO_RECORDS: never[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();
-const archivedTimestampFormatter = new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-});
-
 function archivedTimestamp(value: number): string {
-    return archivedTimestampFormatter.format(value);
+    return localeDateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(value);
 }
 
 /**

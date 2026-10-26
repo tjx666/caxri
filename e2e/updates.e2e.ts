@@ -16,7 +16,7 @@ test('Check for Updates opens the packaged-only update workflow', async () => {
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         await palette.getByPlaceholder('Search projects, sessions, and commands…').fill('updates');
-        await palette.getByText('Check for Updates', { exact: true }).click();
+        await palette.getByText('Check for Updates…', { exact: true }).click();
 
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.getByRole('heading', { name: 'Software Update' })).toBeVisible();
@@ -61,7 +61,7 @@ test('an admitted Acceptance update fixture announces its fixed release off the 
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         await palette.getByPlaceholder('Search projects, sessions, and commands…').fill('updates');
-        await palette.getByText('Check for Updates', { exact: true }).click();
+        await palette.getByText('Check for Updates…', { exact: true }).click();
 
         const dialog = running.page.getByRole('dialog');
         await expect(dialog).toHaveAttribute('data-update-status', 'available');

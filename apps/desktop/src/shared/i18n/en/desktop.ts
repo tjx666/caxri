@@ -207,6 +207,7 @@ export const desktop = {
         'The Caxri window has crashed repeatedly and automatic reload stopped.',
     'desktop.crash.detail': 'Relaunch Caxri, or quit to investigate.',
     'desktop.crash.relaunch': 'Relaunch',
+    'desktop.crash.revealLogs': 'Reveal Logs in Finder',
     'desktop.crash.quit': 'Quit',
 
     'desktop.chooseSession.title': 'Choose a Session',
@@ -240,9 +241,47 @@ export const desktop = {
     'desktop.notification.commanderInbox.title': 'Commander needs your action',
     'desktop.notification.commanderInbox.bodyOther': '{{count}} new items in the Inbox',
 
-    'desktop.reset.title': 'Caxri requires a local reset',
-    'desktop.reset.intro':
-        'This pre-release build does not migrate unpublished Host protocols. Quit Caxri, preview the reset plan, then apply it:',
-    'desktop.reset.outro':
-        'The reset removes Caxri application state and running Terminals, but never Project folders or user files.',
+    'desktop.reset.title': "This version of Caxri can't use the existing data",
+    'desktop.reset.message':
+        "This version of Caxri can't use the background service or data left by another build.",
+    'desktop.reset.detail':
+        'Quit Caxri, move the Caxri data folder to the Trash, then reopen Caxri. Your Project folders and files are never touched.',
+    'desktop.reset.revealData': 'Reveal Data Folder',
+    'desktop.reset.quit': 'Quit',
+
+    'desktop.startupFailed.title': "Caxri couldn't start its background service",
+    'desktop.startupFailed.message': "Caxri couldn't start its background service.",
+    'desktop.startupFailed.detail.timeout':
+        'The service took too long to start. Try again, or check the logs if it keeps happening.',
+    'desktop.startupFailed.detail.crashedOnBoot':
+        'The service stopped right after it started. Try again, or check the logs if it keeps happening.',
+    'desktop.startupFailed.detail.database':
+        "The service couldn't open Caxri's data. Check the logs for details before trying again.",
+    'desktop.startupFailed.detail.unknown': 'Try again, or check the logs if it keeps happening.',
+    'desktop.startupFailed.retry': 'Try Again',
+    'desktop.startupFailed.revealLogs': 'Reveal Logs in Finder',
+    'desktop.startupFailed.quit': 'Quit',
+
+    'desktop.runtimeFailed.title': 'Caxri stopped',
+    'desktop.runtimeFailed.message': 'Caxri stopped unexpectedly and could not recover on its own.',
+    'desktop.runtimeFailed.detail':
+        'Relaunch Caxri to continue. Your Projects and Sessions are kept.',
+    'desktop.runtimeFailed.relaunch': 'Relaunch Caxri',
+    'desktop.runtimeFailed.revealLogs': 'Reveal Logs in Finder',
+    'desktop.runtimeFailed.quit': 'Quit',
+
+    'desktop.moveToApplications.message': 'Move Caxri to the Applications folder?',
+    'desktop.moveToApplications.detail':
+        'Caxri is running from a download or disk image. Moving it to Applications lets it update itself and keeps it available after you eject the disk image.',
+    'desktop.moveToApplications.move': 'Move to Applications',
+    'desktop.moveToApplications.notNow': 'Not Now',
+    'desktop.serverReplaced.title': 'Caxri updated',
+    'desktop.serverReplaced.bodyOne': '1 running Terminal from the previous version was stopped.',
+    'desktop.serverReplaced.bodyOther':
+        '{{count}} running Terminals from the previous version were stopped.',
+    'desktop.duration.hoursMinutes': '{{hours}}h {{minutes}}m',
+    'desktop.duration.hours': '{{hours}}h',
+    'desktop.duration.minutesSeconds': '{{minutes}}m {{seconds}}s',
+    'desktop.duration.minutes': '{{minutes}}m',
+    'desktop.duration.seconds': '{{seconds}}s',
 } as const;

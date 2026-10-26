@@ -18,6 +18,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { cn } from '../../lib/utilities';
 import { sessionTitleForDisplay } from '../session/session-title';
+import { pullRequestUnavailableHint } from '../status-bar/pull-request-status-label';
 import { useSidebarDetailCard } from './hooks/use-sidebar-detail-card';
 import { ProjectIcon } from './project-icon';
 import {
@@ -65,7 +66,7 @@ function sessionCardDescription(
         !parts.pullRequestUnavailable && parts.pullRequestLabel,
         parts.pullRequestUnavailable &&
             t('primarySidebar.card.pullRequestUnknown', {
-                hint: parts.pullRequestUnavailable.hint,
+                hint: pullRequestUnavailableHint(parts.pullRequestUnavailable, t),
             }),
         parts.worktreeProject &&
             t('primarySidebar.card.worktreeSentence', {

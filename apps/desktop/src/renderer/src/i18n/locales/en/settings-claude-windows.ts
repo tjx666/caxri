@@ -8,7 +8,7 @@ export const settingsClaudeWindows = {
     'settings.claudeWindows.planLine': 'Plan: {{plan}}',
     'settings.claudeWindows.keepRolling': 'Keep 5-hour windows rolling',
     'settings.claudeWindows.keepRollingDescription':
-        'Starts each 5-hour window with one minimal request when the previous one resets, so your first window of the day resets when your workday starts. On by default for Pro; off by default for Max.',
+        'Starts each 5-hour window with one minimal request when the previous one resets, so your first window of the day resets when your workday starts. On by default for Pro; off by default for Max. To keep working while Caxri is closed, it registers a background job with macOS (listed under Login Items); turning this off removes it.',
     'settings.claudeWindows.firstWorkdayReset': 'First workday reset at',
     'settings.claudeWindows.warmUpNote':
         'Caxri starts a warm-up window at {{warmUp}}, five hours earlier, so it resets at {{reset}}.',

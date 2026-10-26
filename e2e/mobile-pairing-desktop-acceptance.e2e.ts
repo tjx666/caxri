@@ -106,7 +106,7 @@ test('pairs from Desktop Settings without capturing the pairing credential', asy
         const settingsTab = await openSettingsTab(fixture.running.page);
         await revealSettingsSection(settingsTab, 'Mobile');
         const mobileForm = settingsTab.getByTestId('mobile-access-form');
-        await expect(mobileForm).toContainText('Off by default');
+        await expect(mobileForm).toContainText('Turn on to let a phone pair with this computer');
 
         let frameIndex = 1;
         const captureFrames = async (): Promise<void> => {

@@ -16,7 +16,7 @@ import { commandPolicy } from '../../transport/method-spec.js';
 import {
     agentDelegationFailureSchema,
     agentDelegationStatusSchema,
-} from '../agent-delegation-contract.js';
+} from '../delegation/agent-delegation-contract.js';
 import {
     commanderHandoverMethods,
     commanderHandoverOwnershipReasonSchema,

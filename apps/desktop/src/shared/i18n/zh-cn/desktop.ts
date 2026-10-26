@@ -192,6 +192,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.crash.message': 'Caxri 窗口多次崩溃，已停止自动重新载入。',
     'desktop.crash.detail': '重新启动 Caxri，或退出以排查问题。',
     'desktop.crash.relaunch': '重新启动',
+    'desktop.crash.revealLogs': '在访达中显示日志',
     'desktop.crash.quit': '退出',
 
     'desktop.chooseSession.title': '选择会话',
@@ -224,9 +225,43 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.notification.commanderInbox.title': 'Commander 需要你处理',
     'desktop.notification.commanderInbox.bodyOther': '收件箱中有 {{count}} 项新事项',
 
-    'desktop.reset.title': 'Caxri 需要本地重置',
-    'desktop.reset.intro':
-        '此预发布版本不会迁移未发布的 Host 协议。请退出 Caxri，预览重置计划，然后执行：',
-    'desktop.reset.outro':
-        '重置会移除 Caxri 的应用状态和正在运行的终端，但绝不会删除项目文件夹或用户文件。',
+    'desktop.reset.title': '此版本的 Caxri 无法使用现有数据',
+    'desktop.reset.message': '此版本的 Caxri 无法使用其他版本遗留的后台服务或数据。',
+    'desktop.reset.detail':
+        '请退出 Caxri，把 Caxri 数据文件夹移到废纸篓，然后重新打开 Caxri。你的项目文件夹和文件不会受到影响。',
+    'desktop.reset.revealData': '显示数据文件夹',
+    'desktop.reset.quit': '退出',
+
+    'desktop.startupFailed.title': 'Caxri 无法启动后台服务',
+    'desktop.startupFailed.message': 'Caxri 无法启动后台服务。',
+    'desktop.startupFailed.detail.timeout': '服务启动用时过长。请重试；如果反复出现，请查看日志。',
+    'desktop.startupFailed.detail.crashedOnBoot':
+        '服务在启动后立即停止。请重试；如果反复出现，请查看日志。',
+    'desktop.startupFailed.detail.database':
+        '服务无法打开 Caxri 的数据。请先查看日志了解详情，再重试。',
+    'desktop.startupFailed.detail.unknown': '请重试；如果反复出现，请查看日志。',
+    'desktop.startupFailed.retry': '重试',
+    'desktop.startupFailed.revealLogs': '在访达中显示日志',
+    'desktop.startupFailed.quit': '退出',
+
+    'desktop.runtimeFailed.title': 'Caxri 已停止',
+    'desktop.runtimeFailed.message': 'Caxri 意外停止，且无法自行恢复。',
+    'desktop.runtimeFailed.detail': '重新启动 Caxri 即可继续。你的项目和会话都会保留。',
+    'desktop.runtimeFailed.relaunch': '重新启动 Caxri',
+    'desktop.runtimeFailed.revealLogs': '在访达中显示日志',
+    'desktop.runtimeFailed.quit': '退出',
+
+    'desktop.moveToApplications.message': '要将 Caxri 移到“应用程序”文件夹吗？',
+    'desktop.moveToApplications.detail':
+        'Caxri 目前从下载文件夹或磁盘映像中运行。移到“应用程序”后可以自行更新，推出磁盘映像后也能继续使用。',
+    'desktop.moveToApplications.move': '移到“应用程序”',
+    'desktop.moveToApplications.notNow': '暂不',
+    'desktop.serverReplaced.title': 'Caxri 已更新',
+    'desktop.serverReplaced.bodyOne': '上一版本中正在运行的 1 个终端已停止。',
+    'desktop.serverReplaced.bodyOther': '上一版本中正在运行的 {{count}} 个终端已停止。',
+    'desktop.duration.hoursMinutes': '{{hours}} 小时 {{minutes}} 分',
+    'desktop.duration.hours': '{{hours}} 小时',
+    'desktop.duration.minutesSeconds': '{{minutes}} 分 {{seconds}} 秒',
+    'desktop.duration.minutes': '{{minutes}} 分钟',
+    'desktop.duration.seconds': '{{seconds}} 秒',
 };

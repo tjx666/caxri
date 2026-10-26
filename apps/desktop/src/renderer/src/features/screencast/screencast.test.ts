@@ -58,7 +58,7 @@ describe('describeScreencastKey', () => {
                 leadingChord: 'cmd+k',
                 terminalFocus: false,
             }),
-        ).toEqual({ commandTitle: 'Open Keyboard Shortcuts', shortcut: 'cmd+k cmd+s' });
+        ).toEqual({ commandTitle: 'Edit Keyboard Shortcuts', shortcut: 'cmd+k cmd+s' });
     });
 
     it('never exposes printable input or IME composition', () => {

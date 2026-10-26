@@ -68,7 +68,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.archivedSessions.manage': '管理…',
     'settings.row.mobileAccess.title': '移动设备访问',
     'settings.row.mobileAccess.description':
-        '配对此局域网中的手机和平板，以查看授权范围内的 Agent 会话并发送简短回复',
+        '配对此局域网中的 Android 手机，以查看授权范围内的 Agent 会话并发送简短回复',
     'settings.row.hardwareAcceleration.title': '硬件加速',
     'settings.row.hardwareAcceleration.description':
         '控制整个应用是否使用图形硬件绘制，包括下方的终端硬件加速。关闭后，Caxri 使用软件渲染，速度较慢，但在图形出错时仍能正常工作。Caxri 只会在你确认后更改此项，更改在重启后生效。',
@@ -87,7 +87,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.providerActions.unavailable': '{{provider}} 不支持命令和 Skill。',
     'settings.row.providerHooks.title': '生命周期 Hook',
     'settings.row.providerHooks.description':
-        '让后台会话的未读状态保持准确。Caxri 只接收生命周期阶段，从不接收提示词或回复内容。请重启在启用生命周期 Hook 之前打开的 Agent 终端。',
+        '让后台会话的未读状态保持准确。Caxri 只会向 ~/.claude/settings.json、~/.codex/hooks.json 和 ~/.grok/hooks/caxri.json 添加带有 Caxri 标记的条目，关闭开关后会将其移除。它只接收生命周期阶段，从不接收提示词或回复内容。请重启在启用生命周期 Hook 之前打开的 Agent 终端。',
     'settings.row.providerHooks.label': '{{provider}} 生命周期 Hook',
     'settings.row.providerMessaging.title': '对等消息',
     'settings.row.providerMessaging.description':

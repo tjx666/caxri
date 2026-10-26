@@ -61,7 +61,7 @@ test('the empty-Project New Session row anchors the Terminal menu to itself', as
         await expect(emptyRow).toHaveAttribute('aria-expanded', 'true');
         await expect(pencil).toHaveAttribute('aria-expanded', 'false');
         const rowChoices = await menu.getByRole('menuitem').allInnerTexts();
-        expect(rowChoices).toContain('Start without a Terminal');
+        expect(rowChoices).toContain('Empty Session');
 
         await running.page.keyboard.press('Escape');
         await expect(menu).toBeHidden();
@@ -124,7 +124,7 @@ test('arrow keys reach the empty-Project New Session row and follow the Session 
          * Deliberately the Terminal-less choice: a Session created with a Terminal hands focus to that Terminal's
          * input, which would hide whether the sidebar released the row's focus safely or dropped it.
          */
-        await chooseTerminalFromCreateMenu(running.page, 'Start without a Terminal');
+        await chooseTerminalFromCreateMenu(running.page, 'Empty Session');
         const sessionCard = group.locator('.session-card');
         await expect(sessionCard).toHaveCount(1);
         await expect(emptyRow).toHaveCount(0);

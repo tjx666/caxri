@@ -52,6 +52,7 @@ export const bugReport = {
     'bugReport.preview.noAgentAvailable':
         'No running Agent or Agent Chat is available. You can still copy the report.',
     'bugReport.preview.copyReport': 'Copy Report',
+    'bugReport.preview.openGithubIssue': 'Open GitHub Issue',
     'bugReport.preview.sending': 'Sending…',
     'bugReport.preview.sendToAgent': 'Send to Agent',
 
@@ -66,6 +67,7 @@ export const bugReport = {
     'bugReport.flow.saveScreenshotFailed':
         'Unable to save the screenshot file. The report will not include an image path.',
     'bugReport.flow.copied': 'Bug report copied',
+    'bugReport.flow.copiedForIssue': 'Bug report copied. Paste it into the new GitHub issue.',
     'bugReport.flow.copyFailed': 'Unable to copy the bug report.',
     'bugReport.flow.agentStopped':
         'The selected Agent is no longer running. Choose another Agent or copy the report.',

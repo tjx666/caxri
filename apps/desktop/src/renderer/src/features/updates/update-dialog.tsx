@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 import type { UpdateState } from '@caxri/protocol';
 import { isUpdateVersionSkipped } from '@caxri/protocol';
-import { CheckCircle2, Download, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, ExternalLink, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
@@ -24,6 +24,7 @@ import {
     closeUpdateDialog,
     downloadUpdate,
     openDownloadedUpdate,
+    openReleaseNotes,
     skipUpdateVersion,
     subscribeUpdateState,
     useUpdateStore,
@@ -31,6 +32,7 @@ import {
 import {
     canRetryUpdateCheck,
     describeUpdateStatus,
+    releaseNotesTarget,
     shouldExplainUnsignedInstall,
 } from './update-presentation';
 
@@ -117,6 +119,7 @@ export function UpdateDialog() {
     const isSkipped =
         state?.status === 'available' && isUpdateVersionSkipped(state.version, skippedVersion);
     const copy = describeUpdateStatus(state, { skippedVersion, t });
+    const notesTarget = releaseNotesTarget(state);
     useEffect(subscribeUpdateState, []);
 
     const progress =
@@ -162,6 +165,20 @@ export function UpdateDialog() {
                         <Button variant="secondary" onClick={closeUpdateDialog}>
                             {t('common.close')}
                         </Button>
+                        {notesTarget && (
+                            <Button
+                                variant="secondary"
+                                onClick={() => {
+                                    openReleaseNotes({
+                                        version: notesTarget.version,
+                                        releaseUrl: notesTarget.url,
+                                    });
+                                }}
+                            >
+                                <ExternalLink aria-hidden="true" size={14} />
+                                {t('updates.action.releaseNotes')}
+                            </Button>
+                        )}
                         {state?.status === 'available' && !isSkipped && (
                             <Button
                                 variant="secondary"

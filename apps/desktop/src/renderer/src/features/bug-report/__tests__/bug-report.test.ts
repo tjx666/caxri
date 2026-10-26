@@ -3,13 +3,14 @@ import { bugReportText } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
-import type { BugReportContext, BugReportDraft } from '../bug-report';
+import type { BugReportContext, BugReportDraft, GithubIssueHandoff } from '../bug-report';
 import {
     bugReportAgentTargets,
     bugReportImageDeliveryNotice,
     buildBugReport,
     canAttachBugReportScreenshot,
     chooseBugReportTarget,
+    copyThenOpenGithubIssue,
 } from '../bug-report';
 import type { ScreenshotAnnotation } from '../screenshot-annotations';
 import { ANNOTATION_NOTE_MAX_LENGTH, MAX_ANNOTATIONS } from '../screenshot-annotations';
@@ -249,5 +250,55 @@ describe('bug report target selection', () => {
         expect(notice).not.toContain('clipboard');
         expect(canAttachBugReportScreenshot({ provider: 'grok', surface: 'chat' })).toBe(false);
         expect(canAttachBugReportScreenshot({ provider: 'codex' })).toBe(false);
+    });
+});
+
+describe('copyThenOpenGithubIssue', () => {
+    function handoff(overrides: Partial<GithubIssueHandoff> = {}) {
+        const calls: string[] = [];
+        const value: GithubIssueHandoff = {
+            copy: (text) => {
+                calls.push(`copy:${text}`);
+                return Promise.resolve();
+            },
+            onCopied: () => calls.push('copied'),
+            onCopyError: () => calls.push('copyError'),
+            onOpenError: (message) => calls.push(`openError:${message}`),
+            open: (url) => {
+                calls.push(`open:${url}`);
+                return Promise.resolve();
+            },
+            ...overrides,
+        };
+        return { calls, value };
+    }
+
+    it('does not open the issue form when the copy fails', async () => {
+        const { calls, value } = handoff({
+            copy: () => Promise.reject(new Error('denied')),
+        });
+        await copyThenOpenGithubIssue('report', value);
+        expect(calls).toEqual(['copyError']);
+    });
+
+    it('opens the public issue chooser after the copy succeeds', async () => {
+        const { calls, value } = handoff();
+        await copyThenOpenGithubIssue('report', value);
+        expect(calls).toEqual([
+            'copy:report',
+            'copied',
+            'open:https://github.com/tjx666/caxri/issues/new/choose',
+        ]);
+    });
+
+    it('surfaces an open failure', async () => {
+        const { calls, value } = handoff({
+            open: (_url, onError) => {
+                onError('blocked');
+                return Promise.resolve();
+            },
+        });
+        await copyThenOpenGithubIssue('report', value);
+        expect(calls).toEqual(['copy:report', 'copied', 'openError:blocked']);
     });
 });

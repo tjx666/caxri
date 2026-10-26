@@ -7,6 +7,7 @@
  */
 export const settingsCatalog = {
     'settings.category.general': 'General',
+    'settings.category.chat': 'Chat',
     'settings.category.notifications': 'Notifications',
     'settings.category.mobile': 'Mobile',
     'settings.category.terminal': 'Terminal',
@@ -161,10 +162,9 @@ export const settingsCatalog = {
     'settings.terminal.idleSuspension.afterMinutes.description':
         'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on.',
 
-    'settings.agentChat.idleCompaction.enabled.title':
-        'Compact idle Chats before the prompt cache expires',
+    'settings.agentChat.idleCompaction.enabled.title': 'Summarize idle Chats to keep replies fast',
     'settings.agentChat.idleCompaction.enabled.description':
-        'Compacts a Claude or Grok Build Chat that holds a large context and has waited long enough that its prompt cache is about to expire, so your next message re-reads the summary instead of the whole conversation.',
+        'When a long Claude or Grok Build Chat sits idle for a while, Caxri summarizes it in the background, so your next message is sent with the short summary instead of the whole conversation, which makes the reply faster and cheaper.',
     'settings.agentChat.autoContinueAtUsageLimit.title':
         'Continue automatically after a usage limit resets',
     'settings.agentChat.autoContinueAtUsageLimit.description':
@@ -339,7 +339,7 @@ export const settingsCatalog = {
 
     'settings.agents.notifications.enabled.title': 'System notifications',
     'settings.agents.notifications.enabled.description':
-        'Notify when a background Agent needs attention; provider lifecycle hooks must also be enabled',
+        'Notify when a background Agent needs attention. Agents running in Terminals also need their provider lifecycle hooks enabled; Chats do not',
 
     'settings.agents.notifications.completionThresholdSeconds.title': 'Completed turn threshold',
     'settings.agents.notifications.completionThresholdSeconds.description':

@@ -32,6 +32,7 @@ function BugReportDialogContent() {
         imageDeliveryNotice,
         isRestoredDraft,
         openAnnotator,
+        openGithubIssue,
         preview,
         previewDataUrl,
         removeScreenshot,
@@ -85,6 +86,9 @@ function BugReportDialogContent() {
                         onBack={backToForm}
                         onCopyReport={() => {
                             void copyReport();
+                        }}
+                        onOpenGithubIssue={() => {
+                            void openGithubIssue();
                         }}
                         onSelectedTargetChange={setSelectedTargetId}
                         onSend={() => {

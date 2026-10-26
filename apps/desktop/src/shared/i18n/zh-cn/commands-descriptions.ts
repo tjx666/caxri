@@ -132,6 +132,10 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.agentCommander.takeBack':
         '结束 Agent Commander 对所选会话的管理；会话中的 Agent 继续运行',
     'commands.description.help.showKeyboardShortcuts': '按类别列出所有键盘快捷键',
+    'commands.description.help.openDocumentation': '在浏览器中打开 Caxri 入门指南',
+    'commands.description.help.openReleaseNotes': '查看每个 Caxri 版本的更新内容',
+    'commands.description.help.reportIssue': '在浏览器中打开 Caxri 问题反馈页面',
+    'commands.description.help.revealLogs': '在访达中显示 Caxri 日志文件夹',
     'commands.description.processExplorer.open': '查看 Caxri 各进程的资源占用',
     'commands.description.developer.toggleScreencastMode': '显示点击和 Caxri 快捷键，便于外部录屏',
     'commands.description.developer.togglePerformanceMonitor': '显示或隐藏可拖拽的帧率与资源监视器',

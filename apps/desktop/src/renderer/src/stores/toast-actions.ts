@@ -55,6 +55,11 @@ export interface ToastActionParameters {
     'clipboard.copyCommand': { text: string };
     'diagnostics.copyFailure': { text: string };
     /**
+     * Shows the diagnostics bundle this window just exported in Finder. Carries nothing: Desktop Main remembers the
+     * path, so the notice cannot be replayed against another location.
+     */
+    'diagnostics.revealExport': undefined;
+    /**
      * Re-applies unsaved buffers a newer disk state replaced. Carries only the documents' identity: the discarded text
      * stays in the editor feature's own stash, because a follow-up must never hold a document body.
      */
@@ -79,6 +84,8 @@ export interface ToastActionParameters {
     'processExplorer.open': undefined;
     'session.unarchive': { sessionId: string };
     'settings.open': undefined;
+    'settings.openNotifications': undefined;
+    'settings.openSource': undefined;
     'settings.openHardwareAcceleration': undefined;
     'settings.turnOffHardwareAcceleration': undefined;
     'terminal.create': {
@@ -106,6 +113,10 @@ export interface ToastActionParameters {
         processId?: number;
     };
     'updates.show': undefined;
+    /**
+     * Opens the release page of the version Caxri just updated to.
+     */
+    'updates.releaseNotes': { version: string; releaseUrl?: string };
     'workbench.undoFollowedRoot': {
         sessionId: string;
         /**
@@ -148,12 +159,15 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'agentCommander.undoDismiss': 'toasts.action.undo',
     'clipboard.copyCommand': 'toasts.action.copyCommand',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
+    'diagnostics.revealExport': 'toasts.action.revealInFinder',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',
     'editor.retrySave': 'common.retry',
     'github.open': 'toasts.action.openOnGitHub',
     'processExplorer.open': 'toasts.action.viewDetails',
     'session.unarchive': 'toasts.action.undo',
     'settings.open': 'toasts.action.openSettings',
+    'settings.openNotifications': 'toasts.action.openSettings',
+    'settings.openSource': 'toasts.action.openSettingsFile',
     'settings.openHardwareAcceleration': 'toasts.action.openSettings',
     'settings.turnOffHardwareAcceleration': 'toasts.action.turnOffHardwareAcceleration',
     'terminal.create': 'common.retry',
@@ -161,6 +175,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'terminal.restart': 'common.retry',
     'terminal.stopRunaway': 'toasts.action.stop',
     'updates.show': 'toasts.action.showUpdate',
+    'updates.releaseNotes': 'updates.toast.releaseNotes',
     'workbench.undoFollowedRoot': 'toasts.action.undo',
 };
 

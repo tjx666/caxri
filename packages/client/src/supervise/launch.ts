@@ -74,11 +74,11 @@ export async function launchServer(
             { detached: true, env: environment, stdio: 'ignore' },
         );
         child.once('error', () =>
-            reject(new CaxriError('UNAVAILABLE', 'Caxri Host process failed to launch')),
+            reject(new CaxriError('UNAVAILABLE', 'Caxri Server process failed to launch')),
         );
         child.once('spawn', () => {
             if (child.pid === undefined) {
-                reject(new CaxriError('UNAVAILABLE', 'Caxri Host process failed to launch'));
+                reject(new CaxriError('UNAVAILABLE', 'Caxri Server process failed to launch'));
                 return;
             }
             child.unref();

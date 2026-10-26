@@ -63,6 +63,11 @@ export * from './mobile-update-contract.js';
 const noParameters = z.strictObject({}).default({});
 export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
+/**
+ * How long a freshly created pairing code stays valid. The Server ledger enforces it and the Desktop steps card quotes
+ * it.
+ */
+export const MOBILE_PAIRING_TTL_MS = 2 * 60_000;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
 export const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
 export const mobileProjectIdsSchema = z

@@ -233,7 +233,7 @@ export class ServerArtifactSupervisor extends EventTarget {
                     if (this.adapter.isProcessAlive(manifest.pid))
                         throw new CaxriError(
                             'CONFLICT',
-                            'Caxri Host process is alive but its authenticated endpoint is unavailable',
+                            'Caxri Server process is alive but its authenticated endpoint is unavailable',
                         );
                     if (this.knownProcessId() === manifest.pid)
                         this.forgetDeadProcess(manifest.pid);
@@ -263,7 +263,7 @@ export class ServerArtifactSupervisor extends EventTarget {
             await this.adapter.wait(waitMs);
         }
         if (this.terminalFailure) throw this.terminalFailure;
-        throw new CaxriError('TIMEOUT', 'Caxri Host did not become ready before the deadline');
+        throw new CaxriError('TIMEOUT', 'Caxri Server did not become ready before the deadline');
     }
 
     onLifecycle(listener: (event: ServerSupervisionEvent) => void): () => void {

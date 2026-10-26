@@ -6,8 +6,8 @@ import { setSessionSearchOpen } from '../../../stores/dialogs';
 import { pushToast, tryCommand } from '../../../stores/toasts';
 import { refreshWorkbench } from '../../../stores/workbench';
 import { handOffAgentChatFind } from '../../agent-chat/find/agent-chat-find-handoff';
-import { describeRestoredSession } from '../session-archive-commands';
 import { openSession } from '../session-commands';
+import { describeRestoredSession } from '../session-notice-copy';
 import { sessionSearchAction, sessionSearchFindQuery } from './session-search-model';
 
 /**

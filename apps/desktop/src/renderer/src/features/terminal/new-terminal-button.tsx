@@ -4,7 +4,7 @@ import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
+import { Menu, MenuContent, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import {
     SplitButton,
     SplitButtonAction,
@@ -16,14 +16,14 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useSettings, useTerminals } from '../../stores/selectors';
-import { AgentChoiceMarker, OpenInChatMenuItem } from '../session/open-in-chat-menu-item';
+import { AgentChoiceMenuItems } from '../session/agent-choice-menu-items';
+import { OpenInChatMenuItem } from '../session/open-in-chat-menu-item';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import {
     isSameNewTerminalTarget,
     newAgentSurface,
     newTerminalActionLabel,
-    newTerminalAgentChoices,
     newTerminalButtonText,
     newTerminalCommandTarget,
     resolveNewTerminalAgent,
@@ -77,16 +77,11 @@ export function NewTerminalButton({
      */
     const menu = (
         <MenuContent align="end">
-            {newTerminalAgentChoices(defaultAgent, openInChat).map(
-                ({ isDefault, kind, surface }) => (
-                    <MenuItem key={kind} onClick={() => create(kind, surface)}>
-                        <AgentIdentityIcon identity={kind} size={14} />
-                        <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
-                        {/* A text twin rather than a color or a check glyph: the marker has to survive a screen reader. */}
-                        <AgentChoiceMarker isDefault={isDefault} surface={surface} />
-                    </MenuItem>
-                ),
-            )}
+            <AgentChoiceMenuItems
+                defaultAgent={defaultAgent}
+                openInChat={openInChat}
+                onChoose={create}
+            />
             <MenuSeparator />
             <OpenInChatMenuItem />
         </MenuContent>

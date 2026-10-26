@@ -3,13 +3,12 @@ import type {
     MethodResult,
     TerminalFileLinkRefusalReason,
 } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { sessionViewScope } from '../../stores/session-view';
-import { pushToast } from '../../stores/toasts';
+import { describeFailure, pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { revealEditorNavigation } from '../editor/editor-reveal';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
@@ -105,6 +104,6 @@ export async function openTerminalFileTarget(
                 result.truncated,
             );
     } catch (error) {
-        onError(errorMessage(error, translate('terminal.links.fileLinkFailed')));
+        onError(describeFailure(error, translate('terminal.links.fileLinkFailed')));
     }
 }

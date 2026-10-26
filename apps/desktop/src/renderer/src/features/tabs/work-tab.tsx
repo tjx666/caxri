@@ -25,6 +25,7 @@ import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import type { GitDecoration } from '../../lib/git-decorations';
 import { gitDecorationClassName } from '../../lib/git-decorations';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { motionDurationMs, motionEasing } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
 import { workTabDescription } from './work-tab-accessibility';
@@ -301,6 +302,7 @@ function WorkTabTail({
     closable: boolean;
     isVisuallyActive: boolean;
 }) {
+    const closeShortcut = useCommandShortcut('workbench.closeActiveTab');
     // Nothing left to reserve the trailing slot for: no close button to reveal and no unsaved state to report.
     if (!closable && !dirty) return null;
     return (
@@ -318,7 +320,11 @@ function WorkTabTail({
                 </b>
             )}
             {closable && (
-                <Tooltip content={closeLabel}>
+                // Close Tab acts on the active tab only, so an inactive tab's close button must not advertise it.
+                <Tooltip
+                    content={closeLabel}
+                    shortcut={isVisuallyActive ? closeShortcut : undefined}
+                >
                     <button
                         type="button"
                         className={cn(

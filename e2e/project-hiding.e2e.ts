@@ -71,9 +71,7 @@ test('Hide Project removes it from the sidebar and re-adding the folder restores
                 .filter(({ projectId }) => projectId === hiddenProject.id)
                 .map(({ id }) => id),
         ).toEqual([hiddenSessionId]);
-        await expect(
-            page.getByRole('heading', { name: 'Choose the default Terminal' }),
-        ).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: 'Start a Session' })).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });

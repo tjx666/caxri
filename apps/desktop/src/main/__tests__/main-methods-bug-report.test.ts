@@ -27,7 +27,7 @@ vi.mock('electron', () => ({
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
-import type { UpdateService } from '../updates';
+import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 const screenshot = { dataUrl: 'data:image/jpeg;base64,Zm9v', height: 10, width: 20 };

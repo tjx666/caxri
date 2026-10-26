@@ -37,10 +37,12 @@ export type TransientServerEvent = Extract<
             | 'externalDocument.changed'
             | 'files.watchLimitAlert'
             | 'host.connectionChanged'
+            | 'notifications.helperUnavailable'
             | 'gpu.recoveryRequested'
             | 'gitReview.changed'
             | 'projectStatus.alert'
             | 'projectStatus.changed'
+            | 'session.autoArchived'
             | 'sessionPullRequests.changed'
             | 'settings.openRequested'
             | 'terminal.output'
@@ -60,6 +62,12 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'agentChat.patch',
     'agentChat.taskPatch',
     'agent.notification',
+    'notifications.helperUnavailable',
+    /**
+     * A reconnect must not replay the toast for an archive the user already saw; the Session list recovers from the
+     * snapshot.
+     */
+    'session.autoArchived',
     'agent.automaticNamingUnavailable',
     'agent.permissionAutoAllowChanged',
     'terminal.output',

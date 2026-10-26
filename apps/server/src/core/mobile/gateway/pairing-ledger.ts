@@ -1,9 +1,8 @@
 import { Buffer } from 'node:buffer';
 
 import { PAIRING_SECRET_BYTES } from '@caxri/mobile-transport';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, MOBILE_PAIRING_TTL_MS } from '@caxri/protocol';
 
-const PAIRING_TTL_MS = 2 * 60_000;
 const MAXIMUM_PENDING_PAIRINGS = 8;
 
 export interface PendingPairing {
@@ -39,7 +38,7 @@ export class MobilePairingLedger {
             pairingId: Buffer.from(this.#random(16)).toString('hex'),
             secret: Buffer.from(this.#random(PAIRING_SECRET_BYTES)).toString('hex'),
             projectIds: [...projectIds],
-            expiresAt: this.#now() + PAIRING_TTL_MS,
+            expiresAt: this.#now() + MOBILE_PAIRING_TTL_MS,
         };
         this.#pairings.set(pairing.pairingId, pairing);
         return pairing;

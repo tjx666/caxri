@@ -4,8 +4,7 @@ import { ArrowRight, FoldVertical } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
-
-const NUMBER_FORMAT = new Intl.NumberFormat();
+import { formatCount } from '../../../lib/locale-format';
 
 /**
  * A compaction is a boundary in the conversation: everything above it now reaches the model only as a summary. It reads
@@ -34,8 +33,8 @@ export function AgentChatCompactedNotice({
         hasSizes &&
             beforeTokens > 0 &&
             t('agentChat.message.contextCompactedDetail', {
-                before: NUMBER_FORMAT.format(beforeTokens),
-                after: NUMBER_FORMAT.format(afterTokens),
+                before: formatCount(beforeTokens),
+                after: formatCount(afterTokens),
                 percent: `${Math.round((1 - afterTokens / beforeTokens) * 100)}%`,
             }),
     ].filter(Boolean);

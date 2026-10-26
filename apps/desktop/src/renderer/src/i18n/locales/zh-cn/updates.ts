@@ -8,7 +8,7 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.dialog.description': 'Caxri 从官方 GitHub Release 下载更新。',
     'updates.dialog.downloadProgress': '更新下载进度',
     'updates.dialog.unsignedNotice':
-        'Caxri 目前未签名。打开已验证的 DMG 后，将 Caxri 拖到“应用程序”文件夹并确认替换现有应用。下载过程不会中断正在运行的终端。',
+        'Caxri 暂未获得 Apple 签名，所以 macOS 会请你确认。在“应用程序”中替换前请先退出 Caxri，替换后再重新打开。下载不会中断正在运行的终端，但退出 Caxri 会停止它们。',
     'updates.dialog.skipVersion': '跳过此版本',
     'updates.action.checking': '正在检查…',
     'updates.action.stopSkipping': '取消跳过',
@@ -17,6 +17,8 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.action.openDmg': '打开 DMG',
     'updates.action.retryDownload': '重新下载',
     'updates.action.checkAgain': '再次检查',
+    'updates.action.releaseNotes': '查看发行说明',
+    'updates.toast.releaseNotes': '发行说明',
 
     // Commands and notifications
     'updates.error.check': '无法检查更新',
@@ -27,6 +29,8 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.error.stopSkipping': '无法取消跳过此版本',
     'updates.skipped': '在发布更新的版本之前，Caxri 不会再提示 {{version}}。可在设置中撤销。',
     'updates.announcement.message': 'Caxri {{version}} 已可用。当前版本为 {{currentVersion}}。',
+    'updates.updated.message': '已更新到 Caxri {{version}}',
+    'updates.updated.releaseNotesLabel': 'Caxri {{version}} 的发行说明',
     'updates.announcement.showLabel': '查看 Caxri {{version}} 更新',
 
     // Dialog status copy
@@ -51,7 +55,7 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.status.downloading.progress': '{{received}} / {{total}}',
     'updates.status.downloading.received': '已下载 {{received}}',
     'updates.status.ready.title': 'Caxri {{version}} 已可安装',
-    'updates.status.ready.description': 'DMG 已通过 SHA-256 校验。',
+    'updates.status.ready.description': '已下载并验证。',
     'updates.status.error.title': '更新失败',
     'updates.status.error.network': '更新连接已中断。请检查网络后重试。',
     'updates.status.error.integrity': '下载的文件未通过验证，未予打开。请重新下载。',
@@ -65,7 +69,7 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.chip.downloading.labelPercent': '正在更新 {{percent}}%',
     'updates.chip.downloading.description': '正在下载 Caxri {{version}}。点击查看下载。',
     'updates.chip.ready.label': '更新已就绪',
-    'updates.chip.ready.description': 'Caxri {{version}} 已下载并通过验证。点击进行安装。',
+    'updates.chip.ready.description': 'Caxri {{version}} 已下载并通过验证。点击继续。',
     'updates.chip.failed.label': '更新失败',
     'updates.chip.failed.installDescription': 'Caxri {{version}} 安装失败。点击查看原因并重试。',
     'updates.chip.failed.downloadDescription': 'Caxri {{version}} 下载失败。点击查看原因并重试。',

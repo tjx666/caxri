@@ -1,4 +1,4 @@
 interface:
   display_name: 'Caxri CLI'
   short_description: 'Operate Caxri safely through its versioned CLI'
-  default_prompt: 'Use $caxri-cli to inspect and operate the current Caxri Host safely.'
+  default_prompt: 'Use $caxri-cli to inspect and operate the current Caxri Server safely.'

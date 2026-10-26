@@ -8,19 +8,15 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../c
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
 import { useSettings } from '../../stores/selectors';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
-import {
-    newAgentSurface,
-    newSessionActionLabel,
-    newTerminalAgentChoices,
-} from '../terminal/new-terminal-agent';
-import { AgentChoiceMarker, OpenInChatMenuItem } from './open-in-chat-menu-item';
+import { newAgentSurface, newSessionActionLabel } from '../terminal/new-terminal-agent';
+import { AgentChoiceMenuItems } from './agent-choice-menu-items';
+import { OpenInChatMenuItem } from './open-in-chat-menu-item';
 import {
     beginSessionCreation,
     chooseSessionTerminalKind,
@@ -184,18 +180,11 @@ function SessionCreationMenu({
             <MenuContent
                 aria-label={t('session.create.newInProject', { project: project.displayTitle })}
             >
-                {newTerminalAgentChoices(defaultAgent, openInChat).map(
-                    ({ isDefault, kind, surface }) => (
-                        <MenuItem
-                            key={kind}
-                            onClick={() => chooseSessionTerminalKind(project.id, kind)}
-                        >
-                            <AgentIdentityIcon identity={kind} size={14} />
-                            <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
-                            <AgentChoiceMarker isDefault={isDefault} surface={surface} />
-                        </MenuItem>
-                    ),
-                )}
+                <AgentChoiceMenuItems
+                    defaultAgent={defaultAgent}
+                    openInChat={openInChat}
+                    onChoose={(kind) => chooseSessionTerminalKind(project.id, kind)}
+                />
                 <MenuSeparator />
                 {/**
                  * Set apart by its separator and a muted icon: skipping the Terminal is an escape hatch, not a peer of the real

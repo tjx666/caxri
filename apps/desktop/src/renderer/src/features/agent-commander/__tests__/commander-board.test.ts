@@ -277,7 +277,7 @@ describe('commanderPullRequestBadge', () => {
         expect(
             commanderPullRequestBadge({
                 pullRequest: pullRequest({ checks: 'success' }),
-                pullRequestUnavailable: { reason: 'network', hint: 'Network unavailable' },
+                pullRequestUnavailable: { reason: 'network' },
             }),
         ).toBeUndefined();
     });
@@ -434,7 +434,7 @@ describe('patchCommanderBoardPullRequests', () => {
     it('marks a failed lookup unavailable and keeps the cached pull request beside it', () => {
         const cached = pullRequest();
         const target = row({ sessionId: 'target', pullRequest: cached });
-        const unavailable = { hint: 'Run gh auth login.', reason: 'not-logged-in' as const };
+        const unavailable = { reason: 'not-logged-in' as const };
 
         const after = patchCommanderBoardPullRequests(
             board([quiet, target]),
@@ -451,7 +451,7 @@ describe('patchCommanderBoardPullRequests', () => {
         const target = row({
             sessionId: 'target',
             pullRequest: pullRequest(),
-            pullRequestUnavailable: { hint: 'Retry later.', reason: 'network' },
+            pullRequestUnavailable: { reason: 'network' },
         });
 
         const after = patchCommanderBoardPullRequests(

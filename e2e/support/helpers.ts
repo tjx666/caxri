@@ -454,7 +454,7 @@ export async function createProjectSession(
 ): Promise<string> {
     const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     await openAddProjectDialog(page);
-    await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Start a Session' })).toBeVisible();
     await chooseDefaultTerminal(
         page,
         kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName,

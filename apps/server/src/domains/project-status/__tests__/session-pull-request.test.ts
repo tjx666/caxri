@@ -86,7 +86,7 @@ describe('Session pull request in Project Status', () => {
     });
 
     it('reports the Session’s failed lookup instead of repeating it', async () => {
-        const unavailable = { reason: 'rate-limited', hint: 'Retry later' } as const;
+        const unavailable = { reason: 'rate-limited' } as const;
         const { status, views } = await service({ unavailable });
 
         const overview = await status.overview('session-1');

@@ -2,6 +2,8 @@ import type { AgentHeldMessageDetail } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import { sortBy } from 'es-toolkit';
 
+import { formatTime } from '../../lib/locale-format';
+
 export type HeldMessageActionResult = 'confirmed' | 'rejected' | 'final-rejection';
 
 /**
@@ -295,7 +297,7 @@ export function presentedHeldMessage<T extends HeldMessageEntry>(
  * The wall-clock time an approval window closes, as every approval surface prints it.
  */
 export function heldMessageDeadlineLabel(expiresAt: number): string {
-    return new Date(expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return formatTime(expiresAt, { twoDigitHour: true });
 }
 
 /**

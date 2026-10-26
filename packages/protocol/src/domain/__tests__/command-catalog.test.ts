@@ -200,7 +200,13 @@ describe('command registry', () => {
         expect(
             getNativeMenuCommandGroups('help').map((group) => group.map((command) => command.id)),
         ).toEqual([
-            ['help.showKeyboardShortcuts'],
+            [
+                'help.showKeyboardShortcuts',
+                'help.openDocumentation',
+                'help.openReleaseNotes',
+                'help.reportIssue',
+                'help.revealLogs',
+            ],
             ['processExplorer.open', 'developer.togglePerformanceMonitor'],
             ['developer.reportBug', 'diagnostics.export'],
         ]);

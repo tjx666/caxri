@@ -12,7 +12,7 @@ import {
     parseAgentChatPathReferences,
 } from '../agent-chat-path-references';
 import { agentChatQueueEntry } from '../agent-chat-queue';
-import { agentDelegationCreateRequestSchema } from '../agent-delegation-contract';
+import { agentDelegationCreateRequestSchema } from '../delegation/agent-delegation-contract';
 
 const handoff = (note: string) =>
     agentChatSessionHandoffText({ note, projectId: 'project-1', provider: 'claude' });

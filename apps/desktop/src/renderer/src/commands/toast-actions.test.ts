@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
     executeCommand: vi.fn(),
     getBootstrap: vi.fn(),
     openHardwareAccelerationSettings: vi.fn(),
+    openReleaseNotes: vi.fn(),
     openSettings: vi.fn(),
+    request: vi.fn(),
     refreshTerminalState: vi.fn(),
     restartTerminalWithRecovery: vi.fn(),
     retrySaveDocument: vi.fn(),
@@ -38,7 +40,9 @@ vi.mock('../features/terminal/terminal-commands', () => ({
     refreshTerminalState: mocks.refreshTerminalState,
     restartTerminalWithRecovery: mocks.restartTerminalWithRecovery,
 }));
+vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 vi.mock('../features/updates/update-commands', () => ({
+    openReleaseNotes: mocks.openReleaseNotes,
     showUpdateDialog: mocks.showUpdateDialog,
 }));
 vi.mock('./execute', () => ({ executeCommand: mocks.executeCommand }));
@@ -90,6 +94,14 @@ describe('toast action handlers', () => {
 
         expect(runToastAction({ id: 'updates.show' })).toBeUndefined();
         expect(mocks.showUpdateDialog).toHaveBeenCalledOnce();
+
+        expect(
+            runToastAction({ id: 'updates.releaseNotes', params: { version: '1.2.3' } }),
+        ).toBeUndefined();
+        expect(mocks.openReleaseNotes).toHaveBeenCalledOnce();
+
+        expect(runToastAction({ id: 'diagnostics.revealExport' })).toBeUndefined();
+        expect(mocks.request).toHaveBeenCalledWith('diagnostics.revealExport');
 
         expect(runToastAction({ id: 'agentCommander.open' })).toBeUndefined();
         expect(mocks.executeCommand).toHaveBeenCalledWith('agentCommander.open');

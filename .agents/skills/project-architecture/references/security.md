@@ -97,7 +97,7 @@ threat model.
   provider is mounted. 10 s timeout, 2 MiB body cap (a larger body reads as `invalidResponse`); cached per
   provider for 60 s after success and 30 s after failure. E2E launches read
   fixtures instead.
-- **Update check and download** (`apps/desktop/src/main/updates.ts`): the GitHub latest-release API,
+- **Update check and download** (`apps/desktop/src/main/updates/updates.ts`): the GitHub latest-release API,
   once automatically per packaged launch (skipped in E2E and acceptance discovery) and on a manual
   check. 15 s timeout and 1 MiB response cap; 404 and rate-limit responses degrade to
   `unavailable`. Only a user-started download fetches the release checksum (4 KiB cap) and DMG

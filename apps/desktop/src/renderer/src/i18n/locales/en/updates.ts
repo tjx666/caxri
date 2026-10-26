@@ -4,7 +4,7 @@ export const updates = {
     'updates.dialog.description': 'Caxri downloads updates from its official GitHub Release.',
     'updates.dialog.downloadProgress': 'Update download progress',
     'updates.dialog.unsignedNotice':
-        'Caxri is currently unsigned. After opening the verified DMG, drag Caxri to Applications and approve replacing the existing app. Running Terminals are not interrupted by the download.',
+        "Caxri isn't signed by Apple yet, so macOS asks you to confirm. Quit Caxri before replacing it in Applications, then reopen it afterwards. Downloading does not interrupt running Terminals, but quitting stops them.",
     'updates.dialog.skipVersion': 'Skip This Version',
     'updates.action.checking': 'Checking…',
     'updates.action.stopSkipping': 'Stop Skipping',
@@ -13,6 +13,8 @@ export const updates = {
     'updates.action.openDmg': 'Open DMG',
     'updates.action.retryDownload': 'Retry Download',
     'updates.action.checkAgain': 'Check Again',
+    'updates.action.releaseNotes': 'View Release Notes',
+    'updates.toast.releaseNotes': 'Release Notes',
 
     // Commands and notifications
     'updates.error.check': 'Unable to check for updates',
@@ -25,6 +27,8 @@ export const updates = {
         'Caxri will not offer {{version}} again until a newer version is released. Settings can undo this.',
     'updates.announcement.message':
         'Caxri {{version}} is available. You are running {{currentVersion}}.',
+    'updates.updated.message': 'Updated to Caxri {{version}}',
+    'updates.updated.releaseNotesLabel': 'Release Notes for Caxri {{version}}',
     'updates.announcement.showLabel': 'Show Update for Caxri {{version}}',
 
     // Dialog status copy
@@ -50,7 +54,7 @@ export const updates = {
     'updates.status.downloading.progress': '{{received}} of {{total}}',
     'updates.status.downloading.received': '{{received}} downloaded',
     'updates.status.ready.title': 'Caxri {{version}} is ready to install',
-    'updates.status.ready.description': 'The DMG passed SHA-256 verification.',
+    'updates.status.ready.description': 'Downloaded and verified.',
     'updates.status.error.title': 'Update failed',
     'updates.status.error.network':
         'The update connection was interrupted. Check your network and try again.',
@@ -70,7 +74,7 @@ export const updates = {
         'Downloading Caxri {{version}}. Click to show the download.',
     'updates.chip.ready.label': 'Update ready',
     'updates.chip.ready.description':
-        'Caxri {{version}} is downloaded and verified. Click to install it.',
+        'Caxri {{version}} is downloaded and verified. Click to continue.',
     'updates.chip.failed.label': 'Update failed',
     'updates.chip.failed.installDescription':
         'Caxri {{version}} could not be installed. Click to see why and try again.',

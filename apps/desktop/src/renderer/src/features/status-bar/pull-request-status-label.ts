@@ -3,6 +3,7 @@ import type { ProjectStatusOverview, PullRequestUnavailable } from '@caxri/proto
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { formatTime } from '../../lib/locale-format';
 
 type OverviewPullRequest = NonNullable<
     NonNullable<ProjectStatusOverview['repository']>['pullRequest']
@@ -25,6 +26,46 @@ export function pullRequestUnavailableLabel(
     t: Translate = translate,
 ): string {
     return t(`statusBar.pullRequest.unavailable.${reason}`);
+}
+
+/**
+ * The command a user runs in a terminal to recover from each reason, shown in the hint and offered for copying.
+ * Commands are shell text, so they stay English in every language. Reasons without a command (network, timeout, TLS,
+ * rate limit, other) recover by waiting or by checking the connection.
+ */
+const RECOVERY_COMMANDS: Partial<Record<PullRequestUnavailable['reason'], string>> = {
+    'not-found': 'brew install gh',
+    'not-logged-in': 'gh auth login',
+    'not-linked': 'gh auth status',
+    'permission-denied': 'gh auth refresh',
+};
+
+/**
+ * The terminal command that fixes a failed pull request lookup, when there is one.
+ */
+export function pullRequestRecoveryCommand(
+    reason: PullRequestUnavailable['reason'],
+): string | undefined {
+    return RECOVERY_COMMANDS[reason];
+}
+
+/**
+ * The recovery sentence for a failed pull request lookup, in the interface language. The Server sends only the closed
+ * reason; a paused rate limit also carries its deadline, which is re-checked against `now` so a snapshot served after
+ * the deadline falls back to the generic sentence instead of promising a retry in the past.
+ */
+export function pullRequestUnavailableHint(
+    unavailable: Pick<PullRequestUnavailable, 'reason' | 'retryAt'>,
+    t: Translate = translate,
+    now: number = Date.now(),
+): string {
+    const { reason, retryAt } = unavailable;
+    if (reason === 'rate-limited' && retryAt !== undefined && retryAt > now)
+        return t('statusBar.pullRequest.hint.rate-limitedUntil', { time: formatTime(retryAt) });
+    const command = pullRequestRecoveryCommand(reason);
+    return command
+        ? t(`statusBar.pullRequest.hint.${reason}`, { command })
+        : t(`statusBar.pullRequest.hint.${reason}`);
 }
 
 /**

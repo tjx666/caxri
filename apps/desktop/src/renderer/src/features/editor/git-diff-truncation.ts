@@ -1,6 +1,7 @@
 import type { GitDiffTab } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 
 /**
  * The multi-diff document feeds from the same `changedFileCount`-capped `files[]` the Git panel's sidebar truncation
@@ -24,7 +25,7 @@ export function describeTruncatedGitChanges(
     t: Translate,
 ): string {
     return t('editor.gitDiff.truncated', {
-        visible: visibleCount.toLocaleString(),
-        total: totalCount.toLocaleString(),
+        visible: formatCount(visibleCount),
+        total: formatCount(totalCount),
     });
 }

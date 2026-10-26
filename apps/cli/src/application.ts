@@ -6,21 +6,17 @@ import { executeSkillCommand } from '@caxri/agent-skills';
 import type { ServerLaunchOptions } from '@caxri/client/supervise';
 import { connectToServer, ensureServer } from '@caxri/client/supervise';
 import type {
-    AgentContextResult,
-    AgentEndpointSummary,
     CaxriMethod,
     LogQueryResult,
     ObservableEventRecovery,
     ProtocolWelcome,
 } from '@caxri/protocol';
-import { CaxriError, describeCaxriMethod, methods } from '@caxri/protocol';
+import { CaxriError, methods } from '@caxri/protocol';
 
-import type { CliCommandDefinition, ParsedCliArguments, RemoteCommandDefinition } from './commands';
+import type { ParsedCliArguments, RemoteCommandDefinition } from './commands';
 import {
     assertCommandTimeout,
-    CLI_COMMANDS,
     CLI_GROUPS,
-    describeCliCommand,
     findCliCommand,
     parseCliArguments,
     withCommandTimeout,
@@ -37,15 +33,19 @@ import {
     resolveDelegationClientCredential,
     resolvePackagedServerLaunch,
 } from './environment';
+import { commandHelp, groupHelp, renderHelp, topLevelHelp } from './help';
+import { humanLocal, humanRemote, localResult } from './local-output';
 import type { CliOutputMode } from './output';
 import {
     exitCodeFor,
-    formatEndpointReference,
     hasQuietIds,
+    isProfileSelectionSatisfied,
     normalizeCliError,
+    profileCommandHint,
     quietLines,
     renderHumanValue,
     stableJson,
+    withNextStep,
 } from './output';
 import { CLI_PROTOCOL_VERSION, CLI_VERSION } from './version';
 
@@ -128,7 +128,7 @@ export function createCliServerConnector(options: CliServerConnectorOptions) {
             ) {
                 throw new CaxriError(
                     'UNAVAILABLE',
-                    'No Caxri Host is running; automated and Endpoint invocations cannot start one implicitly',
+                    'No Caxri Server is running; automated and Endpoint invocations cannot start one implicitly',
                 );
             }
             throw error;
@@ -154,90 +154,6 @@ function fallbackOutputMode(argv: readonly string[], automation: CliAutomation):
     if (argv.includes('--quiet')) return 'quiet';
     if (automation !== 'human' || argv.includes('--json')) return 'json';
     return 'human';
-}
-
-function topLevelHelp() {
-    const commands: Array<{ name: string; summary: string }> = [];
-    for (const command of CLI_COMMANDS) {
-        if (command.path.length !== 1) continue;
-        commands.push({ name: command.path.join(' '), summary: command.summary });
-    }
-    return {
-        usage: 'caxri <command> [options]',
-        commands,
-        groups: CLI_GROUPS,
-        options: [
-            '--json',
-            '--quiet',
-            '--profile <absolute-path>',
-            '--request-id <id>',
-            '--connect-timeout <milliseconds>',
-            '--timeout <milliseconds>',
-            '--yes',
-            '--help',
-            '--version',
-        ],
-    };
-}
-
-function groupHelp(group: string) {
-    const definition = CLI_GROUPS.find((candidate) => candidate.name === group);
-    if (!definition) throw new CaxriError('VALIDATION', `Unknown command group: ${group}`);
-    const commands: Array<{ name: string; summary: string; usage?: string }> = [];
-    for (const command of CLI_COMMANDS) {
-        if (command.path.length < 2 || command.path[0] !== group) continue;
-        commands.push({
-            name: command.path.slice(1).join(' '),
-            summary: command.summary,
-            ...('usage' in command && command.usage && { usage: command.usage }),
-        });
-    }
-    return {
-        usage: `caxri ${group} <command>`,
-        summary: definition.summary,
-        commands,
-    };
-}
-
-function commandHelp(command: CliCommandDefinition) {
-    return {
-        usage: `caxri ${command.path.join(' ')}${'usage' in command && command.usage ? ` ${command.usage}` : ''}`,
-        ...describeCliCommand(command),
-    };
-}
-
-function renderHelp(
-    value:
-        | ReturnType<typeof topLevelHelp>
-        | ReturnType<typeof groupHelp>
-        | ReturnType<typeof commandHelp>,
-): string {
-    const lines = [`Usage: ${value.usage}`];
-    if ('summary' in value && value.summary) lines.push('', value.summary);
-    if ('groups' in value) {
-        lines.push('', 'Groups:');
-        for (const group of value.groups) lines.push(`  ${group.name.padEnd(12)} ${group.summary}`);
-    }
-    if ('commands' in value && value.commands.length > 0) {
-        lines.push('', 'Commands:');
-        for (const command of value.commands)
-            lines.push(
-                `  ${`${command.name}${'usage' in command && command.usage ? ` ${command.usage}` : ''}`.padEnd(24)} ${command.summary}`,
-            );
-    }
-    if ('options' in value) {
-        lines.push('', 'Global options:');
-        for (const option of value.options) lines.push(`  ${option}`);
-    }
-    if ('method' in value && value.method) {
-        lines.push(
-            '',
-            `Method: ${value.method}`,
-            `Effect: ${value.effect}`,
-            `Capabilities: ${value.capabilities?.join(', ') ?? ''}`,
-        );
-    }
-    return `${lines.join('\n')}\n`;
 }
 
 function writeSuccess(
@@ -332,112 +248,6 @@ async function streamRemote(
             logPollDelayMs = Math.min(logPollDelayMs * 2, 2_000);
     }
     return 130;
-}
-
-function capabilities() {
-    return {
-        cliVersion: CLI_VERSION,
-        protocolVersion: CLI_PROTOCOL_VERSION,
-        groups: CLI_GROUPS,
-        commands: CLI_COMMANDS.map(describeCliCommand),
-        protocolMethods: (Object.keys(methods) as CaxriMethod[]).map(describeCaxriMethod),
-    };
-}
-
-function localResult(
-    command: CliCommandDefinition,
-    options: {
-        automation: CliAutomation;
-        mode: CliOutputMode;
-        profileSource: string;
-    },
-): unknown {
-    if (command.path[0] === 'capabilities') return capabilities();
-    if (command.path[0] === 'agent-context')
-        return {
-            status: 'unavailable',
-            reason: 'endpoint-credential-missing',
-            action: 'Run this command inside a directly managed Caxri Agent Terminal.',
-            automation: options.automation,
-            cliVersion: CLI_VERSION,
-            outputMode: options.mode,
-            profileSource: options.profileSource,
-            protocolVersion: CLI_PROTOCOL_VERSION,
-        };
-    return {
-        automation: options.automation,
-        cliVersion: CLI_VERSION,
-        outputMode: options.mode,
-        profileSource: options.profileSource,
-        protocolVersion: CLI_PROTOCOL_VERSION,
-    };
-}
-
-function isSkillContentValue(value: unknown): value is { content: string } {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        typeof Reflect.get(value, 'content') === 'string'
-    );
-}
-
-function humanLocal(command: CliCommandDefinition, value: unknown): string {
-    if (command.path[0] === 'skills' && command.path[1] === 'get' && isSkillContentValue(value))
-        return `${value.content.trimEnd()}\n`;
-    if (command.path[0] === 'agent-context' && isAgentContext(value))
-        return humanAgentContext(value);
-    if (command.path[0] !== 'capabilities') return `${renderHumanValue(value)}\n`;
-    return [
-        `Caxri CLI ${CLI_VERSION} (protocol ${CLI_PROTOCOL_VERSION})`,
-        `${CLI_GROUPS.length} command groups`,
-        `${CLI_COMMANDS.length} registered CLI commands`,
-        '',
-    ].join('\n');
-}
-
-const messagingActions: Record<AgentEndpointSummary['messaging']['nextAction'], string> = {
-    use_pull: 'Use caxri agent message wait or check.',
-    enable_integration: 'Enable peer messaging in Caxri Settings, then restart this Terminal.',
-    install_provider: 'Install the configured Provider executable, then restart this Terminal.',
-    upgrade_provider: 'Upgrade to a verified Provider version, then restart this Terminal.',
-    fix_configuration: 'Review the Provider launch configuration, then restart this Terminal.',
-    restart_terminal: 'Restart this Agent Terminal to restore the Caxri CLI adapter.',
-    none: '',
-};
-
-function humanAgentEndpoint(endpoint: AgentEndpointSummary): string {
-    const lines = [
-        `${endpoint.name} (${endpoint.provider})`,
-        `Endpoint: ${formatEndpointReference(endpoint.ref)}`,
-        `Project: ${endpoint.projectId}`,
-        `Delivery: ${endpoint.messaging.deliveryMode}`,
-        `Health: ${endpoint.messaging.health}`,
-        `Reason: ${endpoint.messaging.reason}`,
-    ];
-    const action = messagingActions[endpoint.messaging.nextAction];
-    if (action) lines.push(`Next: ${action}`);
-    return lines.join('\n');
-}
-
-function isAgentContext(value: unknown): value is AgentContextResult {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        Reflect.get(value, 'status') === 'active' &&
-        typeof Reflect.get(value, 'endpoint') === 'object'
-    );
-}
-
-function humanAgentContext(value: AgentContextResult): string {
-    return `${humanAgentEndpoint(value.endpoint)}\nCapabilities: ${value.capabilities.join(', ')}\n`;
-}
-
-function humanRemote(command: RemoteCommandDefinition, value: unknown): string | undefined {
-    if (value === null || typeof value !== 'object' || command.method !== 'agent.list')
-        return undefined;
-    const agents = (value as { agents?: unknown }).agents;
-    if (!Array.isArray(agents)) return undefined;
-    return `${agents.map((agent) => humanAgentEndpoint(agent as AgentEndpointSummary)).join('\n\n')}\n`;
 }
 
 function remoteCommand(tokens: readonly string[]): RemoteCommandDefinition {
@@ -599,7 +409,7 @@ export async function runCli(
                         if (!client.welcome.commands.includes('agent.context'))
                             throw new CaxriError(
                                 'CONFLICT',
-                                'The Caxri Host does not support Agent Endpoint context',
+                                'The Caxri Server does not support Agent Endpoint context',
                             );
                         value = await client.request('agent.context', {});
                     }
@@ -652,10 +462,19 @@ export async function runCli(
                 'VALIDATION',
                 'This command has no stable ID to print with --quiet; use --json',
             );
-        if (isMutates && !endpointCredential && !parsed.profile)
+        if (
+            isMutates &&
+            !endpointCredential &&
+            !isProfileSelectionSatisfied({
+                automation,
+                io,
+                profileFlag: parsed.profile,
+                profileSource: profile.source,
+            })
+        )
             throw new CaxriError(
                 'VALIDATION',
-                'Mutation commands require an explicit --profile Host selector',
+                `Mutation commands need an explicit --profile outside an interactive terminal. Run: ${profileCommandHint(argv, profile.path)}`,
             );
         if (isMutates)
             await confirmMutation(
@@ -679,13 +498,13 @@ export async function runCli(
         if (command.requiresServerVersionMatch && client.serverVersion !== CLI_VERSION)
             throw new CaxriError(
                 'CONFLICT',
-                'This command requires the CLI version bundled with the active Caxri Host',
+                'This command requires the CLI version bundled with the active Caxri Server',
                 { cliVersion: CLI_VERSION, hostVersion: client.serverVersion ?? 'unknown' },
             );
         if (!client.welcome.commands.includes(command.method))
             throw new CaxriError(
                 'CONFLICT',
-                `The Caxri Host does not support command ${command.method}`,
+                `The Caxri Server does not support command ${command.method}`,
             );
         if (command.stream)
             return await streamRemote(command, parameters, client, mode, io, options);
@@ -703,7 +522,9 @@ export async function runCli(
         return 0;
     } catch (error) {
         if (options.signal?.aborted) return 130;
-        const wire = normalizeCliError(error, options.home ?? environment.HOME ?? homedir());
+        const wire = withNextStep(
+            normalizeCliError(error, options.home ?? environment.HOME ?? homedir()),
+        );
         if (mode === 'json') io.writeStderr(`${stableJson(wire)}\n`);
         else io.writeStderr(`${wire.code}: ${wire.message}\n`);
         return exitCodeFor(wire);

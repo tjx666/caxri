@@ -7,56 +7,12 @@ import { getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { recordClosedSession } from '../closed-items/recording';
+import {
+    describeArchivedSession,
+    describeRestoredSession,
+    describeRestoredSessions,
+} from './session-notice-copy';
 import { sessionTitleForDisplay } from './session-title';
-
-/**
- * Longest Session title a lifecycle notice quotes. Titles are user- and Agent-authored and effectively unbounded, so a
- * runaway one would push the notice's own verb and its action button out of the toast's fixed width.
- */
-const SESSION_NOTICE_TITLE_MAX_LENGTH = 48;
-
-/**
- * Copy for a notice that records one Session lifecycle change. An empty `displayTitle` is representable in the Session
- * record (a Shell-only Session has no Agent to name it) and quoting nothing reads as a rendering bug, so that case
- * names the noun instead of the title.
- */
-function describeSessionNotice(
-    change: 'archived' | 'restored',
-    displayTitle: string | undefined,
-): string {
-    const title = sessionTitleForDisplay(displayTitle?.trim() ?? '', translate);
-    if (title.length === 0) return translate(`session.notice.${change}Untitled`);
-    // Count and cut by code point: an Agent-authored title can end on an emoji, and a UTF-16 cut would leave a lone
-    // surrogate that renders as the replacement character.
-    const characters = [...title];
-    const quoted =
-        characters.length <= SESSION_NOTICE_TITLE_MAX_LENGTH
-            ? title
-            : `${characters.slice(0, SESSION_NOTICE_TITLE_MAX_LENGTH).join('').trimEnd()}…`;
-    return translate(`session.notice.${change}`, { title: quoted });
-}
-
-export function describeArchivedSession(displayTitle: string | undefined): string {
-    return describeSessionNotice('archived', displayTitle);
-}
-
-/**
- * Restore's counterpart to {@link describeArchivedSession}. Archive and restore are one reversible pair, so they report
- * themselves in one shape; a restore that announced nothing was the only Session state change with no record at all,
- * and it happens inside a dialog large enough to cover the PrimarySidebar row it just brought back.
- */
-export function describeRestoredSession(displayTitle: string | undefined): string {
-    return describeSessionNotice('restored', displayTitle);
-}
-
-/**
- * Copy for a batch restore. Quoting a batch is not possible in a toast's width, so the count carries the record; a
- * single-Session batch still names its Session, because there the title is the useful part.
- */
-export function describeRestoredSessions(displayTitles: ReadonlyArray<string | undefined>): string {
-    if (displayTitles.length === 1) return describeRestoredSession(displayTitles[0]);
-    return translate('session.notice.restoredCount', { count: displayTitles.length });
-}
 
 /**
  * Archiving deliberately skips a confirmation because it is reversible, but the Archived Sessions dialog it relies on

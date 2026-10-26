@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ConfigService } from '../../config';
 import type { CaxriDatabase } from '../../db';
-import { createMobileAgentAvailabilityHandler } from '../agent-availability';
+import {
+    createAgentAvailabilityHandler,
+    createMobileAgentAvailabilityHandler,
+} from '../agent-availability';
 
 describe('mobile Agent availability', () => {
     it('checks Project grants before probing and returns only availability, never executable paths', async () => {
@@ -38,7 +41,7 @@ describe('mobile Agent availability', () => {
             { kind: 'grok', available: false, reason: 'Agent CLI is unavailable' },
             { kind: 'shell', available: true },
         ]);
-        expect(result.openAgentsInChat).toBe(false);
+        expect(result.openAgentsInChat).toBe(true);
         expect(JSON.stringify(result)).not.toContain('/fixture/bin');
     });
 
@@ -66,5 +69,26 @@ describe('mobile Agent availability', () => {
             },
         });
         expect(result.openAgentsInChat).toBe(true);
+    });
+});
+
+describe('desktop Agent availability', () => {
+    it('reports each provider from its configured executable without returning a path', async () => {
+        const discover = vi.fn((provider: string) =>
+            Promise.resolve(provider === 'codex' ? '/fixture/bin/codex' : undefined),
+        );
+        const handler = createAgentAvailabilityHandler({
+            configuration: {
+                getSettings: () => ({ value: defaultAppSettings }),
+            } as unknown as ConfigService,
+            discover,
+        });
+        const result = await handler();
+        expect(result.providers).toEqual([
+            { kind: 'claude', available: false },
+            { kind: 'codex', available: true },
+            { kind: 'grok', available: false },
+        ]);
+        expect(JSON.stringify(result)).not.toContain('/fixture/bin');
     });
 });

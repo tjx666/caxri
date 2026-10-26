@@ -11,7 +11,13 @@ export function LoadingScreen() {
     return (
         <main className="loading-screen flex h-screen w-screen items-center justify-center [-webkit-app-region:drag]">
             {typeof message === 'string' && (
-                <span role="status" className="mt-28 max-w-md px-6 text-center text-muted">
+                /*
+                The window is a drag region; the message opts out so its text can be selected and copied.
+                */
+                <span
+                    role="status"
+                    className="mt-28 max-w-md px-6 text-center text-muted select-text [-webkit-app-region:no-drag]"
+                >
                     {message}
                 </span>
             )}

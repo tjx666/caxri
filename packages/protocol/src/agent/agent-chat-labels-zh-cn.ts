@@ -308,7 +308,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
 
     // Provider failure banner on Desktop (`agentChatFailureMessage`)
     'agentChat.failure.executableNotFound':
-        '{{provider}} 未安装或不在 PATH 中。请先安装，然后重试。',
+        'Caxri 找不到 {{provider}}。请先安装，或在设置中指定它的位置。',
     'agentChat.failure.spawnFailed':
         '无法启动 {{provider}}。请重试，或检查 {{provider}} CLI 能否在终端中运行。',
     'agentChat.failure.handshakeFailed':

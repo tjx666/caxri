@@ -92,7 +92,7 @@ describe('Agent notification coordinator', () => {
                 attentionEpoch: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 69_999,
+                lastSessionActivityAt: 24_999,
                 lastSessionActivityReason: 'agent_completed',
             }),
         );
@@ -108,14 +108,14 @@ describe('Agent notification coordinator', () => {
                 attentionEpoch: 1,
                 hasUnread: true,
                 lastAttentionKind: 'completed',
-                lastSessionActivityAt: 70_000,
+                lastSessionActivityAt: 25_000,
                 lastSessionActivityReason: 'agent_completed',
             }),
         );
         longTurn.coordinator.observe(recordsChanged);
         await longTurn.coordinator.flush();
         expect(longTurn.shown).toHaveLength(1);
-        expect(longTurn.shown[0]?.body).toBe('Finished in 1m');
+        expect(longTurn.shown[0]?.body).toBe('Finished in 15s');
     });
 
     it('uses the latest reply as the completed-turn body and falls back when it is late', async () => {

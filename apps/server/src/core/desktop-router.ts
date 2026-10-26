@@ -9,7 +9,12 @@ import type {
     ServerOperationResult,
     WorkbenchRequestContext,
 } from '@caxri/protocol';
-import { CaxriError, isCaxriError } from '@caxri/protocol';
+import {
+    CaxriError,
+    isCaxriError,
+    PATH_OUTSIDE_PROJECTS_MESSAGE,
+    SESSION_SELECTION_REQUIRED_MESSAGE,
+} from '@caxri/protocol';
 
 import type { ServerDomainService } from '../core/domain-service';
 import { authorizeProjectRoot } from './project-root-target';
@@ -201,7 +206,7 @@ export class ServerDesktopRouter {
             )
         ).filter((value) => value !== undefined);
         if (matches.length === 0)
-            throw new CaxriError('PATH_DENIED', 'Path is outside every added Project');
+            throw new CaxriError('PATH_DENIED', PATH_OUTSIDE_PROJECTS_MESSAGE);
         matches.sort((left, right) => right.entry.root.path.length - left.entry.root.path.length);
         if (matches[1] && matches[1].entry.root.path.length === matches[0].entry.root.path.length)
             throw new CaxriError('CONFLICT', 'Path matches more than one Project');
@@ -209,8 +214,7 @@ export class ServerDesktopRouter {
         const sessions = activeSessions.filter((session) => session.projectId === projectId);
         const selected = sessions.find((session) => session.id === state.selectedSessionId);
         const session = selected ?? (sessions.length === 1 ? sessions[0] : undefined);
-        if (!session)
-            throw new CaxriError('CONFLICT', 'Select a Session explicitly for this Project');
+        if (!session) throw new CaxriError('CONFLICT', SESSION_SELECTION_REQUIRED_MESSAGE);
         const entry = await this.options.domainService.request('files.authorizeOpen', {
             sessionId: session.id,
             path,

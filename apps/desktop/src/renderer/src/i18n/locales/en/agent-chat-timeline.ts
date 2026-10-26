@@ -8,7 +8,7 @@ export const agentChatTimeline = {
     'agentChat.timeline.emptyDetached': 'Messages appear here once the Chat resumes.',
     'agentChat.timeline.emptyReady': 'Send a message to start working with {{provider}}.',
     'agentChat.timeline.emptyHint':
-        'Type / or $ for commands and skills · {{files}} · ⇧Enter for a new line',
+        'Type / or $ for commands and skills, @ for files and Sessions · {{files}} · ⇧Enter for a new line',
     'agentChat.timeline.emptyHintImages': 'paste or drop images and files',
     'agentChat.timeline.emptyHintPaths': 'drop files to insert paths',
     'agentChat.timeline.resumeFailureDetail':

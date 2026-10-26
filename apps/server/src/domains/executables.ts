@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { constants } from 'node:fs';
-import { delimiter, isAbsolute, join } from 'node:path';
+import { homedir } from 'node:os';
+import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { stripVTControlCharacters } from 'node:util';
 
@@ -213,6 +214,24 @@ function loginShellFailure(error: unknown): LoginShellFailure {
 }
 
 /**
+ * Directories where the supported Agent CLIs install themselves (the Claude Code native installer, Homebrew on Apple
+ * silicon and Intel, Bun, and `~/.local/bin`). Searched after the login-shell PATH, so a login shell that failed or
+ * timed out still finds a CLI the user installed in the usual place instead of reporting it missing. The PATH order
+ * always wins; this list only adds candidates.
+ *
+ * @param home The user's home directory.
+ */
+export function wellKnownExecutableDirectories(home: string): string[] {
+    return [
+        join(home, '.local', 'bin'),
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        join(home, '.claude', 'local'),
+        join(home, '.bun', 'bin'),
+    ];
+}
+
+/**
  * Resolves a fixed executable allowlist against the GUI environment plus a bounded interactive login-shell probe. The
  * probe reports PATH and the user's exported variables; Server commands take only its PATH, while Agent processes take
  * the whole environment so they see what the same Agent would see in the user's own terminal.
@@ -237,11 +256,14 @@ export class ExecutableResolver {
      */
     private loginGeneration = 0;
     private logger: Pick<StructuredLogger, 'write'> | undefined;
+    private readonly fallbackDirectories = new Set<string>();
 
     constructor(
         private readonly sourceEnvironment: () => NodeJS.ProcessEnv = () => process.env,
         private readonly run: RunFile = runFile,
         private readonly now: () => number = Date.now,
+        private readonly wellKnownDirectories: () => string[] = () =>
+            wellKnownExecutableDirectories(this.sourceEnvironment().HOME ?? homedir()),
     ) {}
 
     private cache(name: string, path: string): string {
@@ -356,6 +378,19 @@ export class ExecutableResolver {
     }
 
     /**
+     * Appends the well-known directories a CLI was resolved from, so a spawned process (and the CLI's own subprocesses)
+     * can find siblings there even though the failed login probe left PATH without them.
+     */
+    private withFallbackDirectories(path: string | undefined): string | undefined {
+        if (this.fallbackDirectories.size === 0) return path;
+        const existing = pathDirectories(path);
+        const extra = [...this.fallbackDirectories].filter(
+            (directory) => !existing.includes(directory),
+        );
+        return [...existing, ...extra].join(delimiter);
+    }
+
+    /**
      * Records each login-shell probe's outcome. Server Core attaches its logger at startup; the resolver is created
      * before any logger exists.
      */
@@ -370,6 +405,7 @@ export class ExecutableResolver {
         this.settledLoginSnapshot = undefined;
         this.loginSnapshotRequestedAt = 0;
         this.loginGeneration += 1;
+        this.fallbackDirectories.clear();
     }
 
     async resolve(requestedExecutable: string): Promise<string | undefined> {
@@ -392,9 +428,21 @@ export class ExecutableResolver {
         const login = await this.loginPath(cached ? 0 : undefined);
         const discovered = await this.findInPath(requested, login);
         if (discovered) return this.cache(requested, discovered);
-        if (this.now() - this.loginSnapshotRequestedAt < LOGIN_SHELL_REFRESH_MS) return undefined;
-        const refreshed = await this.findInPath(requested, await this.loginPath(0));
-        return refreshed ? this.cache(requested, refreshed) : undefined;
+        if (this.now() - this.loginSnapshotRequestedAt >= LOGIN_SHELL_REFRESH_MS) {
+            const refreshed = await this.findInPath(requested, await this.loginPath(0));
+            if (refreshed) return this.cache(requested, refreshed);
+        }
+        /**
+         * Only a login shell that timed out, failed, or printed no PATH leaves just the GUI's launchd PATH, which has
+         * none of these directories. A probe that succeeded is authoritative: the user's own PATH lacks the CLI, so it
+         * reads as missing (and "not installed" stays hermetic) instead of being found in a directory they never use.
+         */
+        if ((await this.loginSnapshot())?.path) return undefined;
+        const directories = this.wellKnownDirectories();
+        const wellKnown = await this.findInPath(requested, directories.join(delimiter));
+        if (!wellKnown) return undefined;
+        this.fallbackDirectories.add(dirname(wellKnown));
+        return this.cache(requested, wellKnown);
     }
 
     /**
@@ -408,9 +456,11 @@ export class ExecutableResolver {
         variables: NodeJS.ProcessEnv = this.sourceEnvironment(),
     ): Promise<NodeJS.ProcessEnv> {
         const loginPath = await this.loginPath();
+        const base = safeProcessEnvironment(variables);
+        const path = this.withFallbackDirectories(loginPath ?? base.PATH);
         return {
-            ...safeProcessEnvironment(variables),
-            ...(loginPath && { PATH: loginPath }),
+            ...base,
+            ...(path && { PATH: path }),
         };
     }
 
@@ -430,10 +480,11 @@ export class ExecutableResolver {
         variables: NodeJS.ProcessEnv = this.sourceEnvironment(),
     ): Promise<NodeJS.ProcessEnv> {
         const snapshot = await this.loginSnapshot(LOGIN_SHELL_REFRESH_MS, true);
+        const base = { ...snapshot?.variables, ...safeProcessEnvironment(variables) };
+        const path = this.withFallbackDirectories(snapshot?.path ?? base.PATH);
         return {
-            ...snapshot?.variables,
-            ...safeProcessEnvironment(variables),
-            ...(snapshot?.path && { PATH: snapshot.path }),
+            ...base,
+            ...(path && { PATH: path }),
         };
     }
 }

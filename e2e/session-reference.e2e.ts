@@ -13,6 +13,7 @@ import {
 } from './support/agent-chat-composer.ts';
 import { fakeCodexChatProvider, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { openAgentsInTerminal } from './support/agent-surface-settings.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     chooseTerminalFromCreateMenu,
@@ -153,6 +154,7 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
 
         running = await launchCaxri(options);
         const { page } = running;
+        await openAgentsInTerminal(page);
 
         // Terminal: the Agent CLI owns its own `@` list, so Sessions are cited from Caxri's picker.
         await page

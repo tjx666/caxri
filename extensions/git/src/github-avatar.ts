@@ -9,10 +9,10 @@ const GITHUB_NOREPLY_PATTERN = /^(?:(\d+)\+)?([\w-]+(?:\[bot\])?)@users\.noreply
  * avatar; any other email goes through GitHub's email lookup endpoint, which serves the linked account's avatar or a
  * generated identicon fallback. Returns `undefined` for an empty email so callers render their own placeholder.
  *
- * Revised owner decision (2026-08): sending ordinary author emails to GitHub's lookup endpoint matches GitLens's
- * default behavior, but it is a real network disclosure of the author's email. Callers must gate this behind
- * {@link shouldFetchGitHubAvatar} (the `git.fetchGitHubAvatars` setting and a confirmed `github.com` remote) instead of
- * calling it unconditionally.
+ * Revised owner decision (2026-10): sending ordinary author emails to GitHub's lookup endpoint is a real network
+ * disclosure of the author's email, so `git.fetchGitHubAvatars` is off by default and the lookup happens only after the
+ * user opts in (GitLens defaults it on; Caxri does not). Callers must gate this behind {@link shouldFetchGitHubAvatar}
+ * (the `git.fetchGitHubAvatars` setting and a confirmed `github.com` remote) instead of calling it unconditionally.
  */
 export function gitHubAvatarUrl(email: string, size: number): string | undefined {
     const trimmed = email.trim();

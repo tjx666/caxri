@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { agentDelegationReceiptSchema } from '../agent/agent-delegation-contract.js';
-import { agentDelegationSettingsSchema } from '../agent/agent-delegation-settings.js';
 import { commanderRunStateSchema } from '../agent/commander/agent-commander-contract.js';
+import { agentDelegationReceiptSchema } from '../agent/delegation/agent-delegation-contract.js';
+import { agentDelegationSettingsSchema } from '../agent/delegation/agent-delegation-settings.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
 import {

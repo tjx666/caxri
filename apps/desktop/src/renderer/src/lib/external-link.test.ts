@@ -64,6 +64,6 @@ describe('openExternalUrl', () => {
 
         await openExternalUrl('https://example.com', onError);
 
-        expect(onError).toHaveBeenCalledWith('boom');
+        expect(onError).toHaveBeenCalledWith('External link could not be opened. boom.');
     });
 });

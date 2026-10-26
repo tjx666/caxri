@@ -62,17 +62,19 @@ export function OpenInChatSwitch() {
 }
 
 /**
- * The one muted suffix an Agent row carries in the New Session and New Terminal menus and the Agent-choice dialog:
- * `Chat`, `Default`, or `Chat · Default` (`agentChoiceMarker`).
+ * The one muted suffix an Agent row carries in the New Session and New Terminal menus and the Agent-choice dialog: `Not
+ * installed`, `Chat`, `Default`, or those joined (`agentChoiceMarker`).
  */
 export function AgentChoiceMarker({
     isDefault,
+    isUnavailable = false,
     surface,
 }: {
     isDefault: boolean;
+    isUnavailable?: boolean;
     surface: TerminalSurface;
 }) {
     const { t } = useTranslation();
-    const marker = agentChoiceMarker({ isDefault, surface }, t);
+    const marker = agentChoiceMarker({ isDefault, isUnavailable, surface }, t);
     return marker ? <span className="text-muted">{marker}</span> : null;
 }

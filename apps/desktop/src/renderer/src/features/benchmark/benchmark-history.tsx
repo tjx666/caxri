@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { formatDate } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 
 /**
@@ -86,7 +87,7 @@ export function BenchmarkHistory({
                                 <span className="truncate tabular-nums">
                                     {t('benchmark.history.meta', {
                                         configs: run.entries.length,
-                                        date: new Date(run.createdAt).toLocaleDateString(),
+                                        date: formatDate(run.createdAt),
                                     })}
                                 </span>
                             </span>

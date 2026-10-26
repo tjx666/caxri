@@ -89,7 +89,9 @@ describe('reportTerminalOperationError', () => {
                 new CaxriError(code, 'Fixture failed'),
                 'terminal.errors.attachFailed',
             );
-            expect(getToasts().map((toast) => toast.title)).toEqual(['Fixture failed']);
+            expect(getToasts().map((toast) => toast.title)).toEqual([
+                'Terminal attachment failed. Fixture failed.',
+            ]);
         },
     );
 
@@ -99,7 +101,7 @@ describe('reportTerminalOperationError', () => {
             'terminal.errors.attachFailed',
         );
         expect(getToasts().map((toast) => toast.title)).toEqual([
-            'Terminal stream operation was cancelled',
+            'Terminal attachment failed. Terminal stream operation was cancelled.',
         ]);
     });
 });
@@ -151,7 +153,7 @@ describe('registerTerminalInputHandlers', () => {
             pending.reject(new CaxriError('UNAVAILABLE', 'Fixture transport failed'));
             await expect(pending.promise).rejects.toMatchObject({ code: 'UNAVAILABLE' });
             expect(getToasts().map((toast) => toast.title)).toEqual(
-                disposed ? [] : ['Fixture transport failed'],
+                disposed ? [] : ['Terminal input failed. Fixture transport failed.'],
             );
             if (!disposed) unregister();
         },

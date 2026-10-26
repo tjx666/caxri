@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
     pullRequestAriaLabel,
     pullRequestElsewhereBranch,
+    pullRequestRecoveryCommand,
     pullRequestTooltip,
+    pullRequestUnavailableHint,
     pullRequestUnavailableLabel,
 } from '../pull-request-status-label';
 
@@ -93,5 +95,42 @@ describe('pull request on another branch', () => {
             'Open pull request #12 for branch feat/hint, not the checked-out branch',
         );
         expect(pullRequestAriaLabel(pullRequest, 'feat/hint')).toBe('Open pull request #12');
+    });
+});
+
+describe('pull request unavailable recovery copy', () => {
+    it('names the exact command for the reasons a terminal command fixes', () => {
+        expect(pullRequestRecoveryCommand('not-found')).toBe('brew install gh');
+        expect(pullRequestRecoveryCommand('not-logged-in')).toBe('gh auth login');
+        expect(pullRequestRecoveryCommand('permission-denied')).toBe('gh auth refresh');
+        expect(pullRequestRecoveryCommand('network')).toBeUndefined();
+    });
+
+    it('writes a sentence for every reason, embedding the command when there is one', () => {
+        for (const reason of reasons) {
+            const hint = pullRequestUnavailableHint({ reason });
+            expect(hint, reason).not.toContain('{{');
+            const command = pullRequestRecoveryCommand(reason);
+            if (command) expect(hint, reason).toContain(command);
+        }
+        expect(pullRequestUnavailableHint({ reason: 'not-logged-in' })).toContain('GH_TOKEN');
+    });
+
+    it('states the retry time only while the deadline is still ahead', () => {
+        const now = Date.UTC(2026, 0, 1, 12, 0);
+        expect(
+            pullRequestUnavailableHint(
+                { reason: 'rate-limited', retryAt: now + 60_000 },
+                undefined,
+                now,
+            ),
+        ).toMatch(/^GitHub API rate limit reached\. Caxri retries after .+\.$/);
+        expect(
+            pullRequestUnavailableHint(
+                { reason: 'rate-limited', retryAt: now - 1 },
+                undefined,
+                now,
+            ),
+        ).toBe('GitHub API rate limit reached. Refresh after the limit resets.');
     });
 });

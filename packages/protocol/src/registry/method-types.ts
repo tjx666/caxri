@@ -193,6 +193,11 @@ export const effectfulCommandRecovery = {
     'project.openInEditor': 'durable',
     'project.openRoot': 'durable',
     'argv.update': 'memory',
+    /**
+     * Sends one generic test banner; a replay after a reconnect would raise a second banner the user did not ask for.
+     */
+    'notifications.sendTest': 'none',
+    'notifications.openSystemSettings': 'none',
     'gpu.restartInSafeMode': 'none',
     'gpu.testInjectContextLoss': 'none',
     'external.open': 'durable',
@@ -260,6 +265,9 @@ export const effectfulCommandRecovery = {
      */
     'sshHost.askpass.reply': 'none',
     'shellCommand.uninstall': 'memory',
+    'logs.reveal': 'none',
+    'app.relaunch': 'none',
+    'diagnostics.revealExport': 'none',
     'project.create': 'durable',
     'project.add': 'durable',
     'project.cancelCreate': 'durable',

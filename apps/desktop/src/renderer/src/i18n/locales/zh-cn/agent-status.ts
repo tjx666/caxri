@@ -37,7 +37,7 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.throughput.barDescription': '{{variant}}：{{sample}}，完成于 {{time}}',
     'agentStatus.throughput.averageLine': '平均 {{rate}}',
     'agentStatus.throughput.byModel': '按模型',
-    'agentStatus.throughput.byModelCaption': '本 Agent Session 中所有已测量的响应',
+    'agentStatus.throughput.byModelCaption': '本 Agent 会话中所有已测量的响应',
     'agentStatus.throughput.byModel.model': '模型',
     'agentStatus.throughput.byModel.mode': '模式',
     'agentStatus.throughput.byModel.rate': '速度',

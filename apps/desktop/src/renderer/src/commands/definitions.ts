@@ -449,6 +449,18 @@ export const commandDefinitions: CommandDefinition[] = [
         (context) => context.dialogs.openKeyboardShortcuts(),
         { allowInEditable: true },
     ),
+    fromCatalog('help.openDocumentation', (context) => context.help.open('documentation'), {
+        allowInEditable: true,
+    }),
+    fromCatalog('help.openReleaseNotes', (context) => context.help.open('releaseNotes'), {
+        allowInEditable: true,
+    }),
+    fromCatalog('help.reportIssue', (context) => context.help.open('reportIssue'), {
+        allowInEditable: true,
+    }),
+    fromCatalog('help.revealLogs', (context) => context.help.revealLogs(), {
+        allowInEditable: true,
+    }),
     fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer(), {
         when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),

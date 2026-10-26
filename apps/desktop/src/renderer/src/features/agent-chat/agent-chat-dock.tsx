@@ -1,11 +1,38 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { CircleAlert, Info, RotateCcw, SquareTerminal, Unplug } from 'lucide-react';
+import { agentProviderSchema } from '@caxri/protocol';
+import { CircleAlert, Info, RotateCcw, Settings2, SquareTerminal, Unplug } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { useDialogStore } from '../../stores/dialogs';
+import { useTerminal } from '../../stores/selectors';
 import type { AgentChatRecoveryNotice } from './transcript/agent-chat-presentation';
+import { agentChatRecoveryActions } from './transcript/agent-chat-presentation';
 import { AgentChatRequestCard } from './transcript/agent-chat-request-card';
+
+/**
+ * Opens Settings at the Chat's Agent Executable row, the target the Terminal recovery bar uses. It resolves the Agent
+ * from the Terminal, so it renders nothing for a Terminal that is not a provider's.
+ */
+function OpenExecutableSettingsButton({ terminalId }: { terminalId: string }) {
+    const { t } = useTranslation();
+    const provider = agentProviderSchema.safeParse(useTerminal(terminalId)?.kind);
+    if (!provider.success) return null;
+    return (
+        <Button
+            className="shrink-0 self-center"
+            size="sm"
+            variant="secondary"
+            onClick={() =>
+                useDialogStore.getState().openSettings('agent-executable', provider.data)
+            }
+        >
+            <Settings2 className="size-3.5" />
+            {t('terminal.recovery.openSettings')}
+        </Button>
+    );
+}
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
@@ -14,19 +41,23 @@ import { AgentChatRequestCard } from './transcript/agent-chat-request-card';
  * `status`. A hand-over to another client uses the PTY recovery bar's unplugged glyph and Resume; any other neutral
  * kind (a conversation open in another client) uses an info glyph and Retry, which reopens it once the other client
  * lets go. A failure the Chat cannot explain also offers Open as Terminal, where the provider's own output says what
- * went wrong.
+ * went wrong. A missing CLI offers Settings, at the same Executable row the Terminal recovery bar opens, ahead of
+ * Retry.
  */
 function AgentChatRecoveryBanner({
     notice,
+    terminalId,
     onOpenAsTerminal,
     onRecover,
 }: {
     notice: AgentChatRecoveryNotice | undefined;
+    terminalId: string;
     onOpenAsTerminal: (() => void) | undefined;
     onRecover: () => void;
 }) {
     const { t } = useTranslation();
     if (!notice) return null;
+    const actions = agentChatRecoveryActions(notice, Boolean(onOpenAsTerminal));
     const isFailure = notice.kind === 'failed';
     const isDetached = notice.kind === 'detached';
     const Icon = isFailure ? CircleAlert : isDetached ? Unplug : Info;
@@ -46,7 +77,10 @@ function AgentChatRecoveryBanner({
                 <p className="m-0 text-foreground">{notice.message}</p>
                 {notice.detail && <p className="m-0 wrap-anywhere text-muted">{notice.detail}</p>}
             </div>
-            {notice.canOpenAsTerminal && onOpenAsTerminal && (
+            {actions.includes('openSettings') && (
+                <OpenExecutableSettingsButton terminalId={terminalId} />
+            )}
+            {actions.includes('openAsTerminal') && onOpenAsTerminal && (
                 <Button
                     className="shrink-0 self-center"
                     size="sm"
@@ -64,7 +98,7 @@ function AgentChatRecoveryBanner({
                 onClick={onRecover}
             >
                 <RotateCcw className="size-3.5" />
-                {t(isDetached ? 'agentChat.dock.resume' : 'common.retry')}
+                {t(actions.includes('resume') ? 'agentChat.dock.resume' : 'common.retry')}
             </Button>
         </div>
     );
@@ -103,6 +137,7 @@ export function AgentChatDock({
         <div className="mx-auto flex max-h-[60%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
             <AgentChatRecoveryBanner
                 notice={recoveryNotice}
+                terminalId={terminalId}
                 onOpenAsTerminal={onOpenAsTerminal}
                 onRecover={onRecover}
             />

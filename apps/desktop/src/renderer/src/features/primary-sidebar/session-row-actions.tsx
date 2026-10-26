@@ -47,7 +47,7 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
                     {pinned ? <PinOff size={12} /> : <Pin size={12} />}
                 </button>
             </Tooltip>
-            <Tooltip content={t('primarySidebar.sessionRow.archive')}>
+            <Tooltip content={t('primarySidebar.sessionRow.archive')} shortcut="delete">
                 <button
                     type="button"
                     className={sessionRowActionButton}

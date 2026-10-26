@@ -26,7 +26,7 @@ export function hookHealthLabel(
             case 'unsupported':
                 return t('settings.providerHealth.hook.unsupported');
             case 'notInstalled':
-                // `AgentHookManager.reconcileNow()` appends `health.message`: "Install the {CLI} CLI, then restart
+                // `AgentHookManager.reconcileNow()` appends `health.message`: "Install {Claude Code|the Codex CLI}, then restart
                 // Caxri.", whenever an install hint exists (the common case), so this base label states only the
                 // status and leaves the specific instruction to that message (DESIGN.md principle 6, "say each
                 // meaning once"; same fix already applied to the `drifted` case in `hookHealthFor`). Without a

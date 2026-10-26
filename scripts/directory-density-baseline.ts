@@ -30,12 +30,12 @@ export interface DirectoryDensityFamily extends DirectoryDensityOwner {
 }
 
 export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
-    { cap: 115, directory: 'apps/desktop/src/main' },
+    { cap: 112, directory: 'apps/desktop/src/main' },
     { cap: 90, directory: 'apps/server/src/domains/agent-chat' },
     { cap: 9, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
     { cap: 20, directory: 'apps/desktop/src/main/ssh' },
-    { cap: 85, directory: 'packages/protocol/src/domain' },
-    { cap: 60, directory: 'packages/protocol/src/agent' },
+    { cap: 81, directory: 'packages/protocol/src/domain' },
+    { cap: 56, directory: 'packages/protocol/src/agent' },
     { cap: 15, directory: 'packages/protocol/src/domain/logging' },
     { cap: 48, directory: 'apps/desktop/src/renderer/src/features/agent-chat/hooks' },
     { cap: 20, directory: 'apps/desktop/src/renderer/src/features/agent-chat/transcript' },
@@ -61,11 +61,11 @@ export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
     { cap: 27, directory: 'apps/server/src/domains/agent-chat', prefix: 'claude-' },
     { cap: 16, directory: 'apps/server/src/domains/agent-chat', prefix: 'codex-' },
     { cap: 6, directory: 'apps/server/src/domains/agent-chat', prefix: 'grok-' },
-    { cap: 7, directory: 'apps/desktop/src/main', prefix: 'agent-' },
+    { cap: 6, directory: 'apps/desktop/src/main', prefix: 'agent-' },
     { cap: 8, directory: 'apps/desktop/src/main', prefix: 'external-' },
-    { cap: 7, directory: 'apps/desktop/src/main', prefix: 'desktop-' },
+    { cap: 5, directory: 'apps/desktop/src/main', prefix: 'desktop-' },
     { cap: 7, directory: 'apps/desktop/src/main', prefix: 'path-' },
-    { cap: 6, directory: 'apps/desktop/src/main', prefix: 'server-' },
+    { cap: 5, directory: 'apps/desktop/src/main', prefix: 'server-' },
     { cap: 5, directory: 'apps/desktop/src/main', prefix: 'acceptance-' },
 ];
 

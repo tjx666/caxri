@@ -47,6 +47,11 @@ export interface PullRequestSettlementOptions {
      */
     archive(sessionId: string): unknown;
     database: Pick<CaxriDatabase, 'getSession'>;
+    /**
+     * Tells the Desktop a Session was archived automatically, so it can say why the row left the PrimarySidebar and
+     * offer Undo. Sent only after the archive succeeded.
+     */
+    onArchived?(sessionId: string, pullRequestState: 'closed' | 'merged'): void;
     isAutoArchiveEnabled(): boolean;
     logger: Pick<StructuredLogger, 'write'>;
     now?: () => number;
@@ -76,6 +81,10 @@ interface PendingArchive {
     quietUntil: number;
     timer?: NodeJS.Timeout;
     url: string;
+    /**
+     * The settled state that scheduled this archive, named in the notice that follows it.
+     */
+    pullRequestState: 'closed' | 'merged';
     /**
      * The last logged deferral, so each distinct reason is logged once per pending archive.
      */
@@ -113,6 +122,7 @@ export class PullRequestSettlement {
                 ? this.now() + (this.options.turnGraceMs ?? MERGE_NOTICE_TURN_GRACE_MS)
                 : 0,
             url: pullRequest.url,
+            pullRequestState: pullRequest.state === 'merged' ? 'merged' : 'closed',
         });
         await this.attempt(sessionId);
     }
@@ -170,6 +180,7 @@ export class PullRequestSettlement {
         try {
             await this.options.archive(sessionId);
             this.log(sessionId, 'archived');
+            this.options.onArchived?.(sessionId, entry.pullRequestState);
         } catch (error) {
             this.log(sessionId, 'failed', { error: errorMessage(error, 'unknown') });
         }

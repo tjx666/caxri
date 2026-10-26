@@ -10,7 +10,7 @@ vi.mock('electron', () => ({
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
-import type { UpdateService } from '../updates';
+import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 function handler(overrides: Partial<Parameters<typeof createMainMethodHandler>[0]> = {}) {
@@ -74,5 +74,27 @@ describe('Main GPU recovery methods', () => {
             value: { hardwareAcceleration: true, remoteDebugging: true },
         });
         expect(updateArgvConfig).toHaveBeenCalledWith({ hardwareAcceleration: true });
+    });
+});
+
+describe('Main relaunch method', () => {
+    it('relaunches after the unsaved-Editor decision continues', async () => {
+        const relaunch = vi.fn();
+        const decide = vi.fn(() => Promise.resolve('continue' as const));
+        const handle = handler({ decideUnsavedEditorsBeforeRelaunch: decide, relaunch });
+
+        await expect(handle({ method: 'app.relaunch', params: {} })).resolves.toBeNull();
+        expect(relaunch).toHaveBeenCalledOnce();
+    });
+
+    it('aborts the relaunch when the user cancels the unsaved-Editor decision', async () => {
+        const relaunch = vi.fn();
+        const handle = handler({
+            decideUnsavedEditorsBeforeRelaunch: () => Promise.resolve('cancel'),
+            relaunch,
+        });
+
+        await expect(handle({ method: 'app.relaunch', params: {} })).resolves.toBeNull();
+        expect(relaunch).not.toHaveBeenCalled();
     });
 });
