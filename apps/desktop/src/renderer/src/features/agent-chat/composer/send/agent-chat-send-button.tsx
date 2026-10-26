@@ -11,7 +11,7 @@ import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME } from '../../agent-chat-stop-button';
 import type { AgentChatSendKey } from './agent-chat-send-tooltip';
-import { useIsSteerChordHeld } from './use-is-steer-chord-held';
+import { useIsQueueChordHeld } from './use-is-queue-chord-held';
 
 /**
  * Each state's glyph with its own optical size. The outline arrows fill the 28px circle at 16px, but a filled Play at
@@ -41,12 +41,12 @@ function sendGlyph(state: {
  * Chromium, so its tooltip, the one place that says why Send is unavailable, would never open. The composer's `submit`
  * refuses an unsendable draft itself.
  *
- * While a turn runs, its tooltip lists what Enter, Cmd+Enter, and Esc do, and holding Cmd or Ctrl turns it into Steer
- * (an accent "insert into this turn" glyph) so the chord's effect shows before the press; a click then steers too,
- * through the button's `delivery` value. While Enter itself steers (`isSteerDefault`), the button is Steer without a
- * chord. After a stopped or failed turn with nothing typed (`isResume`), it is Continue: a small play glyph on the same
- * neutral circle as Send, as in the Codex app, that sends "Continue" for the user. Only Steer takes the accent, because
- * it is a state the user is holding, not one left resting on screen.
+ * While a turn runs it is Steer (an arrow-up-to-line glyph: the message joins this turn), its tooltip lists what Enter,
+ * Cmd+Enter, and Esc do, and holding Cmd or Ctrl turns it into Queue (an accent circle with a return glyph) so the
+ * chord's effect shows before the press; a click then queues too, through the button's `delivery` value. After a
+ * stopped or failed turn with nothing typed (`isResume`), it is Continue: a small play glyph on the same neutral circle
+ * as Send, as in the Codex app, that sends "Continue" for the user. Only the held Queue takes the accent, because it is
+ * a state the user is holding, not one left resting on screen.
  */
 export function AgentChatSendButton({
     isQueueing,
@@ -62,7 +62,7 @@ export function AgentChatSendButton({
     isSendable: boolean;
     /**
      * The running turn's keys (`agentChatSendTooltipKeys`), listed in place of `tooltip`; their presence also lets Cmd
-     * turn the button into Steer.
+     * turn the button into Queue.
      */
     keys: readonly AgentChatSendKey[] | undefined;
     sendAction: { kind?: 'queue' | 'send' | 'steer'; label: string; tooltip: string };
@@ -70,14 +70,20 @@ export function AgentChatSendButton({
     tooltip: string;
 }) {
     const { t } = useTranslation();
-    const isChordHeld = useIsSteerChordHeld() && keys !== undefined;
-    const isSteering = isChordHeld || sendAction.kind === 'steer';
-    const glyph = sendGlyph({ isQueueing, isResume, isSteering });
+    const isChordHeld = useIsQueueChordHeld() && keys !== undefined;
+    const isSteerAction = sendAction.kind === 'steer';
+    const glyph = sendGlyph({
+        isQueueing: isQueueing || isChordHeld,
+        isResume,
+        isSteering: isSteerAction && !isChordHeld,
+    });
     const { className: glyphClassName, Icon: Glyph } = SEND_GLYPHS[glyph];
-    // Continue names itself; otherwise a held chord turns the action into Steer.
-    const resumeOrSteerLabel = t(
-        glyph === 'resume' ? 'agentChat.composer.resume' : 'agentChat.queue.steer',
-    );
+    const label =
+        glyph === 'resume'
+            ? t('agentChat.composer.resume')
+            : isChordHeld
+              ? t('agentChat.message.queue')
+              : sendAction.label;
     return (
         <Tooltip
             content={keys ? <AgentChatSendKeys keys={keys} /> : tooltip}
@@ -85,19 +91,17 @@ export function AgentChatSendButton({
         >
             <Button
                 aria-disabled={!isSendable || undefined}
-                aria-label={
-                    glyph === 'resume' || isChordHeld ? resumeOrSteerLabel : sendAction.label
-                }
+                aria-label={label}
                 className={cn(
                     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
                     'transition-[background-color,border-color,color]',
-                    glyph === 'steer' &&
+                    isChordHeld &&
                         'border-accent bg-accent text-accent-foreground enabled:not-aria-disabled:hover:bg-accent',
                 )}
                 name="delivery"
                 size="icon"
                 type="submit"
-                value={isSteering ? 'steer' : ''}
+                value={isSteerAction ? (isChordHeld ? 'queue' : 'steer') : ''}
                 variant="ghost"
             >
                 <LazyMotion strict features={domAnimation}>

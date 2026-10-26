@@ -32,7 +32,6 @@ export function useAgentChatComposerEnter({
     isBusy,
     isEditing,
     isSendable,
-    isSteerDefault,
     isTurnRunning,
     nextQueuedId,
     pastePlainText,
@@ -54,7 +53,6 @@ export function useAgentChatComposerEnter({
     isBusy: boolean;
     isEditing: boolean;
     isSendable: boolean;
-    isSteerDefault: boolean;
     isTurnRunning: boolean;
     /**
      * The queued message an empty composer's Enter sends now (`agentChatNextQueuedId`).
@@ -64,12 +62,12 @@ export function useAgentChatComposerEnter({
     sendAction: Parameters<typeof agentChatSendTooltip>[0];
     sendState: Parameters<typeof agentChatSendTooltip>[1];
     stop: () => void;
-    submit: (delivery?: 'steer') => Promise<void>;
+    submit: (delivery?: 'queue' | 'steer') => Promise<void>;
     terminalId: string;
 }) {
     const { t } = useTranslation();
     const refusalNotice = useAgentChatComposerNotice();
-    const submitFromKey = (delivery: 'steer' | undefined): void => {
+    const submitFromKey = (delivery: 'queue' | 'steer' | undefined): void => {
         const refusal = agentChatSendRefusal(sendAction, { ...sendState, isSendable }, t);
         if (refusal) refusalNotice.show(refusal);
         else void submit(delivery);
@@ -116,7 +114,6 @@ export function useAgentChatComposerEnter({
         const action = agentChatComposerKeyAction(key, {
             isBusy,
             isEditing,
-            isSteerDefault,
             isTurnRunning,
             nextQueuedId:
                 isEditing || hasPendingQueue || sendState.hasContent || sendState.isSending

@@ -57,12 +57,13 @@ test('Continue after a stopped turn is a quiet play button in the same slot as S
         await expect(stop).toBeVisible();
         const stopState = await primaryAction(stop);
 
-        // A typed message while the turn runs turns Stop into Send; holding Cmd turns that into the accent Steer.
+        // A typed message while the turn runs turns Stop into Steer; holding Cmd turns that into the accent Queue.
         await message.fill('steer this');
+        const steerState = await primaryAction(chat.getByRole('button', { name: 'Steer message' }));
         await page.keyboard.down('Meta');
-        const steer = chat.getByRole('button', { name: 'Steer', exact: true });
-        await expect(steer).toBeVisible();
-        const steerState = await primaryAction(steer);
+        const queue = chat.getByRole('button', { name: 'Queue message', exact: true });
+        await expect(queue).toBeVisible();
+        const queueState = await primaryAction(queue);
         await page.keyboard.up('Meta');
         await message.fill('');
 
@@ -79,10 +80,12 @@ test('Continue after a stopped turn is a quiet play button in the same slot as S
         expect(resumeState.slot).toEqual(sendState.slot);
         expect(stopState.slot).toEqual(sendState.slot);
         expect(steerState.slot).toEqual(sendState.slot);
+        expect(queueState.slot).toEqual(sendState.slot);
         expect(resumeState.composerHeight).toBe(sendState.composerHeight);
         expect(stopState.composerHeight).toBe(sendState.composerHeight);
         expect(resumeState.background).toBe(sendState.background);
-        expect(steerState.background).not.toBe(sendState.background);
+        expect(steerState.background).toBe(sendState.background);
+        expect(queueState.background).not.toBe(sendState.background);
         expect(sendState.glyph?.width).toBeCloseTo(16, 0);
         expect(resumeState.glyph?.height).toBeCloseTo(12, 0);
 

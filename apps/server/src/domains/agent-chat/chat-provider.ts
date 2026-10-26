@@ -438,8 +438,10 @@ export interface AgentChatProviderSession {
     stopTask(taskId: string): Promise<void>;
     /**
      * Steers a note from Caxri, not from the user, into the running turn, and never starts a turn: resolves `false`
-     * when no turn is running or it ended before the note arrived. Providers whose waits a stopped subagent still ends
-     * omit it (`chatSteerEndsWait`).
+     * when no turn is running or it ended before the note arrived. Codex offers it: an interrupted subagent
+     * deliberately does not notify its parent, while multi-agent v2's `wait_agent` returns as soon as a `turn/steer`
+     * arrives (v1's `wait` still runs to its result or timeout, and the note is read right after it). Providers whose
+     * waits a stopped subagent still ends omit it.
      */
     steerNotice?(text: string): Promise<boolean>;
     /**

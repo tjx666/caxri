@@ -256,7 +256,6 @@ export function AgentChatPane({
         hasConversation: Boolean(terminal?.agentSessionId),
         isSessionVisible,
         processState,
-        provider: terminal?.provider,
         providerName,
     });
     const openAsTerminal = openAsTerminalAction(terminal);
@@ -438,7 +437,6 @@ export function AgentChatPane({
                 inputReference={inputReference}
                 isBusy={composerView.isBusy}
                 isQueuePaused={composerView.isQueuePaused}
-                isSteerDefault={composerView.isSteerDefault}
                 isShown={isShown}
                 providerName={providerName}
                 onOpenTask={taskLinks.openTask}

@@ -10,8 +10,10 @@ function submitter(value?: string): HTMLElement {
 }
 
 describe('agentChatSubmitterDelivery', () => {
-    it('steers only from a Send button whose delivery value says so', () => {
+    it('steers or queues only from a Send button whose delivery value says so', () => {
         expect(agentChatSubmitterDelivery(submitter('steer'))).toBe('steer');
+        expect(agentChatSubmitterDelivery(submitter('queue'))).toBe('queue');
+        expect(agentChatSubmitterDelivery(submitter('send'))).toBeUndefined();
         expect(agentChatSubmitterDelivery(submitter(''))).toBeUndefined();
         expect(agentChatSubmitterDelivery(submitter())).toBeUndefined();
         expect(agentChatSubmitterDelivery(null)).toBeUndefined();

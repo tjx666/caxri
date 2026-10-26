@@ -131,15 +131,15 @@ export function useAgentChatComposerSend({
     const hasContent = draft.trim().length > 0 || (!isGoalMode && images.attachments.length > 0);
     const isSendable = edit.canSend && !isSending && !isAttaching && hasContent;
     /**
-     * Sends `text` as Enter would: queued or steered while a turn runs, and replacing the earlier message being edited.
+     * Sends `text` as Enter would: steered into a running turn unless `delivery` queues it, and replacing the earlier
+     * message being edited.
      */
-    const submitText = async (text: string, delivery?: 'steer'): Promise<void> => {
-        // Send, like Enter, steers while the running turn takes a steered message by default.
-        const sentDelivery =
-            delivery ?? (editInput.isSteerDefault && editInput.isTurnRunning ? 'steer' : undefined);
+    const submitText = async (text: string, delivery?: 'queue' | 'steer'): Promise<void> => {
+        // A caller without a key or a Send button (the turn review's "Back to Chat and Send") steers, as Enter does.
+        const sentDelivery = delivery ?? (editInput.isTurnRunning ? 'steer' : undefined);
         await edit.submit(text, async () => submitDraft(text, sentDelivery));
     };
-    const submit = async (delivery?: 'steer'): Promise<void> => {
+    const submit = async (delivery?: 'queue' | 'steer'): Promise<void> => {
         if (!isSendable) return;
         if (isGoalMode) {
             const isSet = await runCommand(draft, {

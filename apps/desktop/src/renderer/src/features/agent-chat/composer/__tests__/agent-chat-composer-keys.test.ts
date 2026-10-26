@@ -46,7 +46,7 @@ describe('agentChatComposerKeyAction', () => {
         ).toEqual({ kind: 'stop' });
     });
 
-    it('submits on Enter, steers on Cmd/Ctrl+Enter during a turn, and leaves Shift+Enter to the textarea', () => {
+    it('submits on Enter, steers during a turn, queues on Cmd/Ctrl+Enter, and leaves Shift+Enter to the textarea', () => {
         const running = { ...idle, isBusy: true, isTurnRunning: true };
         expect(agentChatComposerKeyAction(press('Enter'), idle)).toEqual({
             kind: 'submit',
@@ -54,36 +54,20 @@ describe('agentChatComposerKeyAction', () => {
         });
         expect(agentChatComposerKeyAction(press('Enter'), running)).toEqual({
             kind: 'submit',
-            delivery: undefined,
+            delivery: 'steer',
         });
         expect(agentChatComposerKeyAction(press('Enter', { metaKey: true }), running)).toEqual({
             kind: 'submit',
-            delivery: 'steer',
+            delivery: 'queue',
         });
         expect(agentChatComposerKeyAction(press('Enter', { ctrlKey: true }), running)).toEqual({
             kind: 'submit',
-            delivery: 'steer',
+            delivery: 'queue',
         });
         expect(
             agentChatComposerKeyAction(press('Enter', { shiftKey: true }), running),
         ).toBeUndefined();
         expect(agentChatComposerKeyAction(press('a'), running)).toBeUndefined();
-    });
-
-    it('steers on plain Enter while the main Agent waits on subagents its provider stops waiting for', () => {
-        const waiting = { ...idle, isBusy: true, isTurnRunning: true, isSteerDefault: true };
-        expect(agentChatComposerKeyAction(press('Enter'), waiting)).toEqual({
-            kind: 'submit',
-            delivery: 'steer',
-        });
-        expect(agentChatComposerKeyAction(press('Enter', { metaKey: true }), waiting)).toEqual({
-            kind: 'submit',
-            delivery: 'steer',
-        });
-        // Once the turn ends, Enter sends as usual.
-        expect(
-            agentChatComposerKeyAction(press('Enter'), { ...idle, isSteerDefault: true }),
-        ).toEqual({ kind: 'submit', delivery: undefined });
     });
 
     it('sends the head of the queue now when Enter lands in an empty composer', () => {
@@ -109,7 +93,7 @@ describe('agentChatComposerKeyAction', () => {
         const running = { ...idle, isBusy: true, isTurnRunning: true, nextQueuedId: 'q1' };
         expect(agentChatComposerKeyAction(press('Enter', { repeat: true }), running)).toEqual({
             kind: 'submit',
-            delivery: undefined,
+            delivery: 'steer',
         });
     });
 });

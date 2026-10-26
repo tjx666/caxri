@@ -1,4 +1,4 @@
-import type { AgentProvider, ProcessState } from '@caxri/protocol';
+import type { ProcessState } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { useCaxriQuery } from '../../../queries/client';
@@ -22,13 +22,12 @@ export function useAgentChatComposerSnapshot(
         hasConversation: boolean;
         isSessionVisible: boolean;
         processState: ProcessState | undefined;
-        provider: AgentProvider | undefined;
         providerName: string;
     },
 ): AgentChatComposerView {
     const { t } = useTranslation();
     const pendingMessages = useAgentChatPendingStore(selectAgentChatPendingMessages(terminalId));
-    const { hasConversation, isSessionVisible, processState, provider, providerName } = context;
+    const { hasConversation, isSessionVisible, processState, providerName } = context;
     const { data } = useCaxriQuery(
         'agentChat.read',
         { terminalId },
@@ -40,7 +39,6 @@ export function useAgentChatComposerSnapshot(
                     hasConversation,
                     pendingMessages,
                     processState,
-                    provider,
                     providerName,
                     t,
                 }),
@@ -53,7 +51,6 @@ export function useAgentChatComposerSnapshot(
             hasConversation,
             pendingMessages,
             processState,
-            provider,
             providerName,
             t,
         })

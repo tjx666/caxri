@@ -109,6 +109,7 @@ function queueEntryView(
  */
 export interface AgentChatQueueCardLabels {
     deleteTooltip: string;
+    editTooltip: string;
     sendTooltip: string;
     sendAriaLabel: string;
 }
@@ -125,12 +126,14 @@ export function agentChatQueueCardLabels(
         const sending = t('agentChat.message.sending');
         return {
             deleteTooltip: sending,
+            editTooltip: sending,
             sendTooltip: sending,
             ...sendLabels,
         };
     }
     return {
         deleteTooltip: t('common.delete'),
+        editTooltip: t('common.edit'),
         sendTooltip: entry.canSendNow
             ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
             : t('agentChat.queue.commandWaits'),

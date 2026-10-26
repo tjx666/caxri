@@ -1,10 +1,5 @@
-import type { AgentChatSnapshot, AgentProvider, ProcessState } from '@caxri/protocol';
-import {
-    agentChatFailureMessage,
-    agentProviderCatalog,
-    CAXRI_SKILL_NAME,
-    projectRelativePath,
-} from '@caxri/protocol';
+import type { AgentChatSnapshot, ProcessState } from '@caxri/protocol';
+import { agentChatFailureMessage, CAXRI_SKILL_NAME, projectRelativePath } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import { translate } from '../../../i18n';
@@ -210,10 +205,10 @@ export function isAgentChatBusy(
 }
 
 /**
- * What submitting the composer does. Enter sends when the Chat is idle and queues while a turn runs or the context is
- * compacting; Cmd+Enter (Ctrl+Enter off macOS) steers the running turn instead. While the main Agent waits on its
- * subagents and its provider ends that wait for a steered message (`isSteerDefault`), plain Enter steers too, as it
- * does in the Codex TUI: a queued message would sit behind the whole wait. Shift+Enter adds a line, and an IME
+ * What submitting the composer does. Enter sends when the Chat is idle. While a turn runs it steers that turn, so the
+ * Agent reads the message once its current tool call returns, as Claude Code and the Codex CLI do by default; Cmd+Enter
+ * (Ctrl+Enter off macOS) queues it for after the turn instead. While the Chat is otherwise busy (compacting, or
+ * draining the queue) there is no turn to steer, so a message waits its turn. Shift+Enter adds a line, and an IME
  * composition owns Enter until it commits, otherwise confirming a candidate would send a half-typed message.
  * `undefined` means the key is not a submit.
  */
@@ -225,34 +220,18 @@ export function agentChatSubmitDelivery(
         ctrlKey: boolean;
         isComposing: boolean;
     },
-    state: { isTurnRunning: boolean; isBusy: boolean; isSteerDefault?: boolean },
+    state: { isTurnRunning: boolean; isBusy: boolean },
 ): 'send' | 'queue' | 'steer' | undefined {
     if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return undefined;
-    const isSteerChord = event.metaKey || event.ctrlKey;
-    if (state.isTurnRunning && (isSteerChord || state.isSteerDefault)) return 'steer';
+    if (state.isTurnRunning) return event.metaKey || event.ctrlKey ? 'queue' : 'steer';
     return state.isBusy ? 'queue' : 'send';
 }
 
 /**
- * /** Whether Enter steers instead of queueing: a turn runs, its main Agent waits on subagents, and the provider ends
- * that wait for a steered message (`chatSteerEndsWait`).
- */
-export function isAgentChatSteerDefault(state: {
-    isTurnRunning: boolean;
-    isWaitingOnAgents: boolean;
-    provider: AgentProvider | undefined;
-}): boolean {
-    const { isTurnRunning, isWaitingOnAgents, provider } = state;
-    if (!isTurnRunning || !isWaitingOnAgents || provider === undefined) return false;
-    return agentProviderCatalog[provider].capabilities.chatSteerEndsWait;
-}
-
-/**
- * The composer's send affordance for the Chat's state: while a turn runs, Enter queues, Cmd+Enter steers, and Esc stops
- * the turn, which the tooltip lists as `keys` rather than the placeholder or a hint row spelling them out. While the
- * main Agent waits on its subagents and Enter steers (`isSteerDefault`, see {@link agentChatSubmitDelivery}), Send is
- * Steer and its keys say so. While the Chat is otherwise busy (compacting, or draining the queue) a message waits its
- * turn. An idle Chat in plan mode asks for what to plan, since the next message starts a plan rather than changes.
+ * The composer's send affordance for the Chat's state: while a turn runs, Enter steers, Cmd+Enter queues, and Esc stops
+ * the turn, which the tooltip lists as `keys` rather than the placeholder or a hint row spelling them out (see
+ * {@link agentChatSubmitDelivery}). While the Chat is otherwise busy (compacting, or draining the queue) a message waits
+ * its turn. An idle Chat in plan mode asks for what to plan, since the next message starts a plan rather than changes.
  * `kind` says which one it is, since the label is translated and must not be compared.
  */
 export function agentChatSendAction(
@@ -260,7 +239,6 @@ export function agentChatSendAction(
         isTurnRunning: boolean;
         isBusy: boolean;
         isPlanMode?: boolean;
-        isSteerDefault?: boolean;
     },
     providerName: string,
     t: Translate = translate,
@@ -278,30 +256,18 @@ export function agentChatSendAction(
     keys?: readonly AgentChatSendKey[];
     placeholder: string;
 } {
-    if (state.isTurnRunning && state.isSteerDefault)
+    if (state.isTurnRunning)
         return {
             kind: 'steer',
             label: t('agentChat.message.steer'),
             tooltip: t('agentChat.message.steerTooltip'),
             shortcut: 'enter',
             keys: [
-                { label: t('agentChat.queue.steer'), shortcut: 'enter' },
+                { label: t('agentChat.message.steerTooltip'), shortcut: 'enter' },
+                { label: t('agentChat.message.queueTooltip'), shortcut: 'cmd+enter' },
                 { label: t('agentChat.message.stopTurn'), shortcut: 'escape' },
             ],
-            placeholder: t('agentChat.message.steerWaitPlaceholder'),
-        };
-    if (state.isTurnRunning)
-        return {
-            kind: 'queue',
-            label: t('agentChat.message.queue'),
-            tooltip: t('agentChat.message.queueTooltip'),
-            shortcut: 'enter',
-            keys: [
-                { label: t('agentChat.message.queueTooltip'), shortcut: 'enter' },
-                { label: t('agentChat.queue.steer'), shortcut: 'cmd+enter' },
-                { label: t('agentChat.message.stopTurn'), shortcut: 'escape' },
-            ],
-            placeholder: t('agentChat.message.queuePlaceholder'),
+            placeholder: t('agentChat.message.steerPlaceholder'),
         };
     if (state.isBusy)
         return {

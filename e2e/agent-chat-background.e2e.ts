@@ -103,7 +103,7 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and steers on request or on an empty Enter', async ({}, testInfo) => {
+test('a Codex Chat steers Enter into a running turn, queues follow-ups on Cmd+Enter as one turn, and steers the queue on an empty Enter', async ({}, testInfo) => {
     const { directory, agentMode, userData, root } = await fixture(
         'caxri-agent-chat-queue-',
         'codex',
@@ -120,36 +120,36 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await message.press('Enter');
         await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
         await message.fill('hello after this');
+        // While a turn runs, Send steers; holding the queue modifier turns it into Queue before Enter is pressed.
+        await expect(chat.getByRole('button', { name: 'Steer message' })).toBeVisible();
+        await page.keyboard.down('ControlOrMeta');
         await expect(chat.getByRole('button', { name: 'Queue message' })).toBeVisible();
-        await message.press('Enter');
+        await page.screenshot({ path: testInfo.outputPath('codex-queue-held.png') });
+        await page.keyboard.up('ControlOrMeta');
+        await message.press('ControlOrMeta+Enter');
         // The message leaves the composer at once, before Server Core answers.
         await expectComposerValue(message, '');
         const queue = chat.getByRole('region', { name: 'Queued messages' });
         await expect(queue.getByText('hello after this')).toBeVisible();
         await message.fill('hello second');
-        await message.press('Enter');
+        await message.press('ControlOrMeta+Enter');
         await expect(queue.getByText('hello second')).toBeVisible();
         await message.fill('hello third');
-        await message.press('Enter');
+        await message.press('ControlOrMeta+Enter');
         await expect(queue.getByText('hello third')).toBeVisible();
         await message.fill('hello edit');
-        await message.press('Enter');
+        await message.press('ControlOrMeta+Enter');
         await expect(queue.getByText('hello edit')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue.png') });
 
         // A steer the provider refuses gives the message back to the composer instead of losing it, and says why.
         allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
         await message.fill('hello refuse');
-        await message.press('ControlOrMeta+Enter');
+        await message.press('Enter');
         await expectComposerValue(message, 'hello refuse');
         await expect(chat.locator('[data-agent-chat-pending]')).toHaveCount(0);
         await message.fill('hello steer');
-        // Holding the steer modifier turns Send into Steer before Enter is pressed.
-        await page.keyboard.down('ControlOrMeta');
-        await expect(chat.getByRole('button', { name: 'Steer', exact: true })).toBeVisible();
-        await page.screenshot({ path: testInfo.outputPath('codex-steer-held.png') });
-        await page.keyboard.press('Enter');
-        await page.keyboard.up('ControlOrMeta');
+        await message.press('Enter');
         await expect(chat.getByText('Steered')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-steered.png') });
 
@@ -157,8 +157,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await expect(chat.getByText('Queue paused')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-paused.png') });
         // Editing takes the message out of the queue and back into the empty composer.
-        await queue.getByRole('button', { name: 'More actions for queued message' }).last().click();
-        await page.getByRole('menuitem', { name: 'Edit' }).click();
+        await queue.getByRole('button', { name: 'Edit queued message' }).last().click();
         await expectComposerValue(message, 'hello edit');
         await expect(queue.getByText('hello edit')).toHaveCount(0);
         await message.fill('');
@@ -198,7 +197,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await message.press('Enter');
         await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
         await message.fill('hello fourth');
-        await message.press('Enter');
+        await message.press('ControlOrMeta+Enter');
         await expect(queue.getByText('hello fourth')).toBeVisible();
         await expect(message).toHaveAttribute(
             'aria-placeholder',
@@ -208,6 +207,7 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await page.mouse.move(0, 0);
         const fourthRow = queue.getByRole('listitem').filter({ hasText: 'hello fourth' });
         await expect(fourthRow.getByRole('button', { name: 'Steer now' })).toBeVisible();
+        await expect(fourthRow.getByRole('button', { name: 'Edit queued message' })).toBeVisible();
         await expect(
             fourthRow.getByRole('button', { name: 'Delete queued message' }),
         ).toBeVisible();
