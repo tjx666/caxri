@@ -171,7 +171,12 @@ and open that Agent in Chat (driving the dialog by hand lets the root grant expi
 stops changing the window, `search <query>` in Session search, `ready [seconds]` until a relaunched
 window's Workbench reports the Runtime ready (instead of a fixed sleep; a first launch spends about a
 minute pre-bundling Vite dependencies after CDP already answers), `select-session <id prefix|title>`
-to open a sidebar Session, `theme <built-in id|absolute JSON path>` for a light (`solarized-light`)
+to open a sidebar Session, `new-session [shell|claude|codex|grok]` to create a Session in the
+selected Project (a Shell Terminal by default, an Agent in Chat) and print its id instead of
+hand-writing a `session.create` request, `hold-press <modifiers+key> [--times <n>]` to keep
+modifiers down across several presses (`Control+Alt+Tab --times 2` walks the Session MRU switcher;
+its `--screenshot` captures before release, while the switcher is still open),
+`theme <built-in id|absolute JSON path>` for a light (`solarized-light`)
 or imported-theme capture without the native import dialog, and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
 which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
 throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as a string, never a
@@ -299,6 +304,13 @@ Do not measure durations (a hover-card open delay, an animation length) over CDP
 that is behind other apps: Chromium throttles its timers and pauses `requestAnimationFrame`, so a
 450ms hover delay read back as 1897ms and a rAF polling loop never finished. Assert the timing in
 a Playwright E2E spec, or report it as code-verified only rather than measured.
+
+A fake-provider dev instance (started with the `fake-agent-development-environment.ts` exports)
+reports `document.visibilityState` `hidden`, even after `drive-app.ts` brings it to the front, and
+its `requestAnimationFrame` callbacks never run. Behavior scheduled through rAF, such as focus
+handed back to the composer after a popup closes or an entry animation, therefore never happens
+there: a CDP read of `document.activeElement` or of the animated state proves nothing either way.
+Prove it in a Playwright E2E spec instead.
 
 ## Production debugging controls
 

@@ -20,6 +20,11 @@
  * - `theme <built-in id|absolute JSON path>`: replaces the active theme with a built-in palette (such as
  *   `solarized-light`) or a theme file, the way an imported theme lands, without the native import dialog.
  * - `select-session <id prefix|title>`: clicks that Session in the sidebar, as a user opening it would.
+ * - `new-session [shell|claude|codex|grok]`: creates a Session in the selected Project (a Shell Terminal by default, an
+ *   Agent in Chat), opens it from the sidebar, and prints its id.
+ * - `hold-press <modifiers+key> [--times <n>]`: holds the modifiers, presses the key n times (default 1), and releases
+ *   them, such as `Control+Alt+Tab --times 2` for the Session MRU switcher. `--screenshot` captures while they are
+ *   still held, so a surface that closes on release is still on screen.
  * - `stub-folder-dialog <absolute path>`: makes Main's native folder picker return that path. Needs the dev instance
  *   started with `V8_INSPECTOR_PORT=<port>` exported; pass the same port as `--inspector-port` or in that variable.
  * - `screenshot <absolute path>`.
@@ -47,6 +52,8 @@ const STEPS = [
     'idle',
     'ready',
     'select-session',
+    'new-session',
+    'hold-press',
     'stub-folder-dialog',
     'theme',
     'screenshot',
@@ -58,7 +65,18 @@ export interface DriveCommand {
     argument?: string;
     screenshot?: string;
     inspectorPort?: number;
+    /**
+     * How many times `hold-press` presses its key while the modifiers stay down.
+     */
+    times?: number;
 }
+
+const FLAGS = new Set(['--screenshot', '--inspector-port', '--times']);
+
+/**
+ * What `new-session` creates: a Shell Terminal, or that Agent in Chat.
+ */
+const NEW_SESSION_KINDS = ['shell', ...Object.keys(agentProviderCatalog)];
 
 const IDLE_POLL_MS = 1_000;
 /**
@@ -73,20 +91,30 @@ const DEFAULT_READY_SECONDS = 120;
 const OPEN_DIALOG_ATTEMPT_MS = 5_000;
 const OPEN_DIALOG_ATTEMPTS = 3;
 const OPEN_CHAT_TIMEOUT_MS = 30_000;
+/**
+ * How long `hold-press` waits before its screenshot. A surface that opens while keys are held can reveal after a delay
+ * (the Session MRU switcher waits 120ms), and a fake-provider dev window is hidden, so its timers run throttled.
+ */
+const HOLD_SCREENSHOT_DELAY_MS = 1_000;
 
 export function parseDriveCommand(
     argv: string[],
     environment: NodeJS.ProcessEnv = process.env,
 ): DriveCommand {
     const positional: string[] = [];
-    let screenshot: string | undefined;
-    let inspectorPort = environment.V8_INSPECTOR_PORT;
+    const flags: Record<string, string | undefined> = {
+        '--inspector-port': environment.V8_INSPECTOR_PORT,
+    };
     for (let index = 0; index < argv.length; index++) {
         const value = argv[index];
-        if (value === '--screenshot') screenshot = argv[++index];
-        else if (value === '--inspector-port') inspectorPort = argv[++index];
+        if (FLAGS.has(value)) flags[value] = argv[++index];
         else positional.push(value);
     }
+    const {
+        '--screenshot': screenshot,
+        '--inspector-port': inspectorPort,
+        '--times': times,
+    } = flags;
     const [step, argument, ...rest]: Array<string | undefined> = positional;
     if (!STEPS.includes(step as Step)) {
         throw new CommandError(`Pass a step: ${STEPS.join(', ')}`, 2);
@@ -94,7 +122,7 @@ export function parseDriveCommand(
     if (rest.length > 0) {
         throw new CommandError('Quote a multi-word argument as one shell word', 2);
     }
-    const isArgumentRequired = step !== 'idle' && step !== 'ready' && step !== 'paste-image';
+    const isArgumentRequired = !['idle', 'ready', 'paste-image', 'new-session'].includes(step);
     if (isArgumentRequired && !argument) throw new CommandError(`\`${step}\` needs an argument`, 2);
     if (step === 'open-chat' && !Object.hasOwn(agentProviderCatalog, argument)) {
         throw new CommandError(
@@ -118,6 +146,24 @@ export function parseDriveCommand(
     if (argument && step === 'paste-image' && !Number.isSafeInteger(Number(argument))) {
         throw new CommandError(`\`paste-image\` takes a count, not ${argument}`, 2);
     }
+    if (argument && step === 'new-session' && !NEW_SESSION_KINDS.includes(argument)) {
+        throw new CommandError(
+            `\`new-session\` takes ${NEW_SESSION_KINDS.join(', ')}, not ${argument}`,
+            2,
+        );
+    }
+    if (step === 'hold-press' && splitHeldChord(argument).modifiers.length === 0) {
+        throw new CommandError(
+            `\`hold-press\` takes modifiers and a key such as Control+Alt+Tab, not ${argument}`,
+            2,
+        );
+    }
+    if (times !== undefined && step !== 'hold-press') {
+        throw new CommandError('Only `hold-press` takes --times', 2);
+    }
+    if (times !== undefined && !(Number.isSafeInteger(Number(times)) && Number(times) > 0)) {
+        throw new CommandError(`--times takes a positive count, not ${times}`, 2);
+    }
     for (const path of [screenshot, step === 'screenshot' ? argument : undefined]) {
         // The page saves relative to the launcher's directory, which may be another checkout.
         if (path !== undefined && !isAbsolute(path)) {
@@ -131,7 +177,23 @@ export function parseDriveCommand(
             2,
         );
     }
-    return { step: step as Step, argument, screenshot, inspectorPort: port };
+    return {
+        step: step as Step,
+        argument,
+        screenshot,
+        inspectorPort: port,
+        ...(times !== undefined && { times: Number(times) }),
+    };
+}
+
+/**
+ * Splits a Playwright chord (`Control+Alt+Tab`) into the keys `hold-press` keeps down and the one it presses. A lone
+ * `+` key (`Control++`) stays the pressed key.
+ */
+export function splitHeldChord(chord: string): { modifiers: string[]; key: string } {
+    const parts = chord.endsWith('++') ? [...chord.slice(0, -2).split('+'), '+'] : chord.split('+');
+    const key = parts.pop() ?? '';
+    return { modifiers: parts.filter(Boolean), key };
 }
 
 /**
@@ -304,6 +366,70 @@ async function stubFolderDialog(inspectorPort: number, folder: string): Promise<
     }
 }
 
+/**
+ * Creates the Session through `session.create`, the request the sidebar's New Session menu sends, then opens it from
+ * its sidebar row so the window selects it the way a click does.
+ */
+async function newSession(page: Page, kind: string): Promise<void> {
+    await waitForWorkbench(page, OPEN_CHAT_TIMEOUT_MS);
+    const state = await request<{ selectedProjectId?: string; projects: Array<{ id: string }> }>(
+        page,
+        'app.bootstrap',
+    );
+    const projectId = state.selectedProjectId ?? state.projects[0]?.id;
+    if (!projectId) throw new CommandError('No Project yet; run `open-chat` or add one first');
+    const isShell = kind === 'shell';
+    const created = await request<{ session: { id: string } }>(page, 'session.create', {
+        projectId,
+        defaultAgent: isShell ? 'shell' : kind,
+        ...(!isShell && { surface: 'chat' }),
+    });
+    const { id } = created.session;
+    await page
+        .locator(`[data-session-id=${JSON.stringify(id)}]`)
+        .first()
+        .click();
+    const deadline = Date.now() + OPEN_CHAT_TIMEOUT_MS;
+    for (;;) {
+        // eslint-disable-next-line no-await-in-loop
+        const current = await request<{ selectedSessionId?: string }>(page, 'app.bootstrap');
+        if (current.selectedSessionId === id) break;
+        if (Date.now() > deadline) throw new Error(`Session ${id} was created but never opened`);
+        // eslint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(IDLE_POLL_MS);
+    }
+    process.stdout.write(`${id}\n`);
+}
+
+/**
+ * Keeps the modifiers down across every press, which a single `keyboard.press('Control+Alt+Tab')` cannot: it releases
+ * them after one press, so a switcher that stays open while they are held closes before the next Tab.
+ */
+async function holdPress(page: Page, chord: string, times: number, screenshot?: string) {
+    const { modifiers, key } = splitHeldChord(chord);
+    // A CDP connection does not focus the window, and the shortcut only reaches a focused document.
+    await page.bringToFront();
+    for (const modifier of modifiers) {
+        // eslint-disable-next-line no-await-in-loop -- keys go down in order, as a hand presses them.
+        await page.keyboard.down(modifier);
+    }
+    try {
+        for (let press = 0; press < times; press += 1) {
+            // eslint-disable-next-line no-await-in-loop
+            await page.keyboard.press(key);
+        }
+        if (screenshot) {
+            await page.waitForTimeout(HOLD_SCREENSHOT_DELAY_MS);
+            await page.screenshot({ path: screenshot });
+        }
+    } finally {
+        for (const modifier of modifiers.toReversed()) {
+            // eslint-disable-next-line no-await-in-loop
+            await page.keyboard.up(modifier);
+        }
+    }
+}
+
 async function runStep(page: Page, command: DriveCommand): Promise<void> {
     const argument = command.argument ?? '';
     switch (command.step) {
@@ -355,6 +481,10 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
             await row.first().click();
             return;
         }
+        case 'new-session':
+            return newSession(page, argument || 'shell');
+        case 'hold-press':
+            return holdPress(page, argument, command.times ?? 1, command.screenshot);
         case 'screenshot':
             await page.screenshot({ path: argument });
             return;
@@ -442,7 +572,9 @@ async function main(): Promise<void> {
     const { browser, page } = connection;
     try {
         await runStep(page, command);
-        if (command.screenshot) await page.screenshot({ path: command.screenshot });
+        // `hold-press` already captured while its modifiers were down.
+        if (command.screenshot && command.step !== 'hold-press')
+            await page.screenshot({ path: command.screenshot });
     } finally {
         // Closing a CDP-connected browser detaches without quitting the app.
         await browser.close();
