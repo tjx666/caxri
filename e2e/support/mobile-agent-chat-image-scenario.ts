@@ -279,6 +279,7 @@ export async function executeMobileChatImageStripScenario(
         await tapMobileCheckByBounds(serial, 'agent-chat-image-viewer-close');
         await waitForNoCheck(serial, 'agent-chat-image-viewer');
         await waitForCheck(serial, 'session-image-remove-0');
+        await capture(environment, 'composer-viewer-closed', artifacts);
 
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
         const sent = await waitForMobile(
