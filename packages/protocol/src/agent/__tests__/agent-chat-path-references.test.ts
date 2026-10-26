@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { agentChatSessionHandoffText, parseAgentChatSessionHandoff } from '../agent-chat-commands';
 import {
     agentChatPathReferenceName,
     agentChatPathReferencePreview,
@@ -134,5 +135,32 @@ describe('agentChatQueuedTextEdit', () => {
 
     it('treats plain text as all body', () => {
         expect(agentChatQueuedTextEdit('plain')).toEqual({ prefix: '', body: 'plain' });
+    });
+
+    it("edits only a hand-off's note and keeps its instructions", () => {
+        const text = agentChatSessionHandoffText({
+            note: 'ship the fix',
+            projectId: 'project-1',
+            provider: 'codex',
+        });
+        const { prefix, body } = agentChatQueuedTextEdit(text);
+        expect(body).toBe('ship the fix');
+        expect(agentChatQueuedTextAfterEdit(prefix, body)).toBe(text);
+        expect(
+            parseAgentChatSessionHandoff(agentChatQueuedTextAfterEdit(prefix, 'ship it later')),
+        ).toEqual({ note: 'ship it later' });
+    });
+
+    it('adds a note to a note-less hand-off', () => {
+        const text = agentChatSessionHandoffText({
+            note: '',
+            projectId: 'project-1',
+            provider: 'codex',
+        });
+        const { prefix, body } = agentChatQueuedTextEdit(text);
+        expect(body).toBe('');
+        expect(parseAgentChatSessionHandoff(agentChatQueuedTextAfterEdit(prefix, 'next'))).toEqual({
+            note: 'next',
+        });
     });
 });
