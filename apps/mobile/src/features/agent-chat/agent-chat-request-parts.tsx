@@ -74,16 +74,19 @@ export const ActionButton = ({
 };
 
 /**
- * Approval text clamped to `maxLines`, with a Show more / Show less toggle when the clamp hides content, so a long
- * command or plan can still be read before it is accepted.
+ * Text clamped to `maxLines`, with a Show more / Show less toggle when the clamp hides content, so a long command,
+ * plan, or delegated task can still be read. A row in a recycled list passes `expansion` so the list owns the state and
+ * a recycled row never carries another message's.
  */
 export const ClampedText = ({
+    expansion,
     maxLines,
     style,
     testID,
     text,
     theme,
 }: {
+    expansion?: { isExpanded: boolean; onToggle: () => void };
     maxLines: number;
     style: StyleProp<TextStyle>;
     testID?: string;
@@ -91,7 +94,8 @@ export const ClampedText = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const [isExpanded, setExpanded] = useState(false);
+    const [isLocallyExpanded, setLocallyExpanded] = useState(false);
+    const isExpanded = expansion?.isExpanded ?? isLocallyExpanded;
     const [isTruncatable, setTruncatable] = useState(false);
     return (
         <View>
@@ -117,7 +121,9 @@ export const ClampedText = ({
                     accessibilityRole="button"
                     accessibilityState={{ expanded: isExpanded }}
                     hitSlop={4}
-                    onPress={() => setExpanded((current) => !current)}
+                    onPress={() =>
+                        expansion ? expansion.onToggle() : setLocallyExpanded((current) => !current)
+                    }
                     style={styles.toggle}
                     testID={testID ? `${testID}-toggle` : undefined}
                 >
