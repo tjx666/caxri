@@ -227,6 +227,11 @@ const rosterParameters = z.strictObject({
  * Upper bound on the tasks one wait watches, including `delegationId`.
  */
 export const MAX_DELEGATION_WAIT_TASKS = 32;
+/**
+ * Longest single `agent.delegation.wait` long poll. Delegated tasks run for minutes, so this exceeds the 120-second
+ * ceiling of other CLI requests; the client transport sets no timer on this method (see `request-lifetime.ts`).
+ */
+export const MAX_DELEGATION_WAIT_TIMEOUT_MS = 300_000;
 const waitParameters = identitySchema.extend({
     /**
      * Further tasks of the same caller to watch. The wait returns the first watched task, in argument order, that has
@@ -236,7 +241,7 @@ const waitParameters = identitySchema.extend({
         .array(identifierSchema)
         .max(MAX_DELEGATION_WAIT_TASKS - 1)
         .optional(),
-    timeoutMs: z.number().int().min(0).max(300_000).default(30_000),
+    timeoutMs: z.number().int().min(0).max(MAX_DELEGATION_WAIT_TIMEOUT_MS).default(30_000),
 });
 /**
  * Upper bound on the tasks one `list` returns, newest first.
