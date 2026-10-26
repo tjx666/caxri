@@ -72,6 +72,9 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.goal.resume': '继续目标',
     'agentChat.goal.expand': '展开完整目标',
     'agentChat.goal.collapse': '收起目标',
+    'agentChat.goal.notice.set': '已设定目标',
+    'agentChat.goal.notice.cleared': '已清除目标',
+    'agentChat.goal.notice.none': '当前没有目标',
     'agentChat.goal.placeholder': '描述你的目标，定义可衡量的成果，以获得最佳效果',
 
     'agentChat.images.resizedNote': '已缩小以符合 {{size}} MB 上限',

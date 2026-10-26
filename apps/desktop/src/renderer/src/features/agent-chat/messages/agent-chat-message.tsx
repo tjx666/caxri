@@ -12,6 +12,8 @@ import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
 import { MarkdownBlocks } from '../../../components/markdown/markdown-blocks';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
+import { AgentChatGoalNotice } from '../activity/agent-chat-goal-notice';
+import { parseAgentChatGoalReply } from '../activity/agent-chat-goal-reply';
 import { useAgentChatDiagrams } from '../hooks/use-agent-chat-diagrams';
 import { useAgentChatPacedText } from '../hooks/use-agent-chat-paced-text';
 import { useAgentChatReplyMenu } from '../hooks/use-agent-chat-reply-menu';
@@ -152,6 +154,8 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
     const { t } = useTranslation();
     if (item.kind === 'error' && item.usageLimit)
         return <AgentChatUsageLimitNotice item={item} usageLimit={item.usageLimit} />;
+    const goal = parseAgentChatGoalReply(item);
+    if (goal) return <AgentChatGoalNotice notice={goal} />;
     if (item.title || item.kind === 'warning') return <AgentChatFeedback item={item} />;
     if (item.kind === 'compacted') return <AgentChatCompactedNotice item={item} />;
     if (item.kind === 'retrying') return <AgentChatRetryNotice item={item} />;

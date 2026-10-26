@@ -79,6 +79,9 @@ export const agentChatComposer = {
     'agentChat.goal.resume': 'Resume goal',
     'agentChat.goal.expand': 'Show the whole goal',
     'agentChat.goal.collapse': 'Collapse goal',
+    'agentChat.goal.notice.set': 'Goal set',
+    'agentChat.goal.notice.cleared': 'Goal cleared',
+    'agentChat.goal.notice.none': 'No goal set',
     'agentChat.goal.placeholder': 'Describe your goal, define measurable outcomes for best results',
 
     'agentChat.images.resizedNote': 'Resized to fit the {{size}} MB limit',
