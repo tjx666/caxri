@@ -360,6 +360,23 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             'aria-selected',
             'true',
         );
+
+        // Only a shell block offers Run; it types the block into a new Terminal once its shell shows a prompt.
+        await page.getByRole('tab', { name: 'Codex (Chat)', exact: true }).click();
+        await message.fill('codeblocks');
+        await message.press('Enter');
+        await expect(chat.getByText('Plain text without a language.')).toBeVisible();
+        const runInTerminal = chat.getByRole('button', { name: 'Run in Terminal' });
+        await expect(runInTerminal).toHaveCount(1);
+        await runInTerminal.click();
+        // Both lines of the block ran: shell integration reports each command's completion.
+        await expect(page.locator('[data-terminal-command-completed-count="2"]')).toHaveCount(1);
+        // The Terminal splits off below; the pane it left keeps showing the Chat rather than another of its tabs.
+        await expect(page.getByRole('tab', { name: 'Codex (Chat)', exact: true })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-run-in-terminal.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

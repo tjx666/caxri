@@ -100,6 +100,11 @@ export class TerminalCommandTracker {
          * pointer-only gutter glyph shows as its hover title.
          */
         private readonly announce?: (status: string) => void,
+        /**
+         * Runs each time the shell starts a prompt (`OSC 133;A`), the earliest moment typed input reaches its line
+         * editor instead of being discarded during startup.
+         */
+        private readonly onPrompt?: () => void,
     ) {
         this.protocolDisposables = [133, 633].map((protocol) =>
             terminal.parser.registerOscHandler(protocol, (data) => this.handle(data)),
@@ -132,6 +137,7 @@ export class TerminalCommandTracker {
     private startPrompt(): void {
         this.promptMarker?.dispose();
         this.promptMarker = this.terminal.registerMarker();
+        this.onPrompt?.();
     }
 
     private startCommand(): void {

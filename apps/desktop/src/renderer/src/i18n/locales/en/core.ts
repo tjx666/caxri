@@ -52,6 +52,7 @@ export const core = {
     'core.codeView.enableWordWrap': 'Enable word wrap',
     'core.codeView.disableWordWrap': 'Disable word wrap',
     'core.codeView.plainText': 'Text',
+    'core.codeView.runInTerminal': 'Run in Terminal',
     'core.markdown.openFile': 'Open {{file}}',
     'core.markdown.taskDone': 'Done: ',
     'core.markdown.taskTodo': 'To do: ',
