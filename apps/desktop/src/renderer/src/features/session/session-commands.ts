@@ -32,11 +32,57 @@ import { useSessionNavigationHistoryStore } from './session-navigation-history';
 const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
 
 /**
+ * At most one `session.select` round trip is outstanding per window. The Server runs selections one after another on
+ * the ordered lane, so a burst of clicks under load would otherwise replay every intermediate Session, each with its
+ * own full snapshot, before the one the user stopped on. A selection that arrives while another is in flight waits for
+ * it, and only the newest waiter is sent; the ones it overtook settle as not selected without reaching the Server.
+ */
+const selectionDispatch: { generation: number; inFlight?: Promise<void> } = { generation: 0 };
+
+/**
+ * Waits for the outstanding selection and claims the slot. Resolves to a release callback, or to nothing when a newer
+ * selection superseded this one while it waited. The check and the claim run in the same continuation, so two waiters
+ * that wake together cannot both send.
+ */
+async function claimSelectionDispatch(): Promise<(() => void) | undefined> {
+    const generation = ++selectionDispatch.generation;
+    while (selectionDispatch.inFlight) {
+        // eslint-disable-next-line no-await-in-loop -- each pass waits for whichever selection holds the slot now
+        await selectionDispatch.inFlight;
+        if (generation !== selectionDispatch.generation) return undefined;
+    }
+    const slot = Promise.withResolvers<void>();
+    selectionDispatch.inFlight = slot.promise;
+    return () => {
+        if (selectionDispatch.inFlight !== slot.promise) return;
+        // Cleared before waking the waiters, so the newest one finds the slot free.
+        selectionDispatch.inFlight = undefined;
+        slot.resolve();
+    };
+}
+
+/**
+ * Sends one selection once it holds the dispatch slot, or settles as not selected when a newer one overtook it.
+ */
+async function didRequestSelection(sessionId: string): Promise<boolean> {
+    const releaseDispatch = await claimSelectionDispatch();
+    // Superseded before it was sent: nothing was registered or timed, and the newer selection reports the outcome.
+    if (!releaseDispatch) return false;
+    try {
+        return await didSendSelection(sessionId, releaseDispatch);
+    } finally {
+        // Normally already released when the reply arrived; this covers a throw before the request went out, which
+        // would otherwise leave every later click waiting on the slot. Releasing twice is a no-op.
+        releaseDispatch();
+    }
+}
+
+/**
  * `session.select` publishes a full `state.changed` event before returning its result. That event is the convergence
  * path; register before sending so delayed Preload event replay still settles history after the event-driven snapshot,
  * without queueing a second full `app.bootstrap` behind it.
  */
-async function didRequestSelection(sessionId: string): Promise<boolean> {
+async function didSendSelection(sessionId: string, releaseDispatch: () => void): Promise<boolean> {
     const convergence = registerSessionCommandConvergence('session.select');
     const startedAtMs = performance.now();
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
@@ -45,6 +91,7 @@ async function didRequestSelection(sessionId: string): Promise<boolean> {
         try {
             return await caxri.request('session.select', { sessionId });
         } finally {
+            releaseDispatch();
             finishPerformanceRequest();
             switchTiming.replied();
         }

@@ -217,8 +217,8 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
     request(direction: SessionNavigationDirection): SessionNavigationRequest | undefined;
     confirm(request: SessionNavigationRequest): void;
     /**
-     * Drops a navigation the Server refused. Later requests stay queued: their selections were already dispatched and
-     * the Server's selection queue keeps running after a failure, so they will land and confirm themselves.
+     * Drops a navigation the Server refused, or one a newer selection superseded before it was sent. Later requests
+     * stay queued: each is either already dispatched or the newest waiter, so it will land and confirm itself.
      */
     abandon(request: SessionNavigationRequest): void;
     reset(): void;
