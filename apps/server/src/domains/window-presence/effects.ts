@@ -1,14 +1,19 @@
 import type { CaxriDatabase } from '../db';
+import { SessionViewsModel } from '../db';
 import { createWindowPresenceHandlers } from './handlers';
 import type { WindowPresence } from './window-presence';
 
 interface PresenceEffectsOptions {
     coordinator: { probeSessionPrimaryAgent(sessionId: string): unknown };
-    database: Pick<CaxriDatabase, 'windowOpenSessions'>;
+    database: Pick<CaxriDatabase, 'database' | 'windowOpenSessions'>;
     presence: WindowPresence;
     projectStatus: { setPolledSessions(sessionIds: ReadonlySet<string>): void };
     restoreInterruptedTerminalsInBackground: (sessionId: string) => void;
     sendFullStateChange: (reason: 'window.openSessions') => void;
+    /**
+     * Defaults to a model over `database`'s open handle; tests supply their own.
+     */
+    sessionViews?: Pick<SessionViewsModel, 'recordLeave'>;
     terminalSuspension: { observeVisibility(): void };
     watchSessionInBackground: (sessionId: string) => void;
 }
@@ -78,6 +83,13 @@ export function createPresenceEffects(options: PresenceEffectsOptions): {
     // Focus can flip between windows showing different Sessions without changing the visible set, which moves the
     // primary visible Session without firing the visible listener.
     const unsubscribeCurrent = presence.onCurrentChange(() => followPrimaryVisibleSession(true));
+    // The Renderer keeps the "since you last looked" boundary in memory; this durable copy is what a restarted one
+    // reads (`SessionRecord.lastViewedAt`). Recorded here rather than by the Renderer so quitting Desktop, which drops
+    // the connection and with it the watched window, still writes it.
+    const sessionViews = options.sessionViews ?? new SessionViewsModel(options.database.database);
+    const unsubscribeWatched = presence.onWatchedLeave((sessionId) => {
+        sessionViews.recordLeave(sessionId);
+    });
     return {
         handlers: createWindowPresenceHandlers({
             database: options.database,
@@ -89,6 +101,7 @@ export function createPresenceEffects(options: PresenceEffectsOptions): {
         unsubscribe: () => {
             unsubscribeVisible();
             unsubscribeCurrent();
+            unsubscribeWatched();
         },
     };
 }

@@ -17,21 +17,23 @@ import {
     VISIBLE_SESSION,
 } from './support/helpers.ts';
 
-async function launchWithChat() {
+async function launchWithChat(options: { preserveHostOnClose?: boolean } = {}) {
     const created = await mkdtemp(join(tmpdir(), 'caxri-session-return-'));
     const directory = await realpath(created);
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
     await mkdir(root, { recursive: true });
     const agentMode = await fakeCodexChatAgentMode(directory, userData);
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
-    return { directory, running };
+    const launchOptions = { agentMode, userDataDir: userData, testRootPath: root, ...options };
+    const running = await launchCaxri(launchOptions);
+    return { directory, launchOptions, running };
 }
 
 /**
- * Runs two Codex Chat turns while another Session is selected, then returns to the Chat.
+ * Runs two Codex Chat turns while another Session is selected, leaving that other Session selected. Returns the Chat's
+ * Session.
  */
-async function returnAfterTwoTurns(page: Page): Promise<void> {
+async function finishTwoTurnsAway(page: Page): Promise<string> {
     const chatId = await createProjectSession(page, 'shell');
     await openAgentChat(page, 'Codex Chat');
     const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
@@ -62,7 +64,14 @@ async function returnAfterTwoTurns(page: Page): Promise<void> {
             { timeout: 60_000 },
         )
         .toEqual({ completed: 2, queued: 0 });
-    await sessionCard(page, chatId).click();
+    return chatId;
+}
+
+/**
+ * Runs two Codex Chat turns while another Session is selected, then returns to the Chat.
+ */
+async function returnAfterTwoTurns(page: Page): Promise<void> {
+    await sessionCard(page, await finishTwoTurnsAway(page)).click();
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
@@ -149,6 +158,32 @@ test('sending a message retires the return hint', async ({}) => {
         await message.press('Enter');
         await expect(hint).toBeHidden();
     } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the return hint survives a Desktop restart', async ({}, testInfo) => {
+    // Server Core keeps the Chat's turns across the restart; only the boundary has to be durable.
+    const { directory, launchOptions, running } = await launchWithChat({
+        preserveHostOnClose: true,
+    });
+    let second: Awaited<ReturnType<typeof launchCaxri>> | undefined;
+    try {
+        const chatId = await finishTwoTurnsAway(running.page);
+        await running.app.close();
+
+        // The second launch stops Server Core when it closes, so the test leaves nothing running.
+        second = await launchCaxri({ ...launchOptions, preserveHostOnClose: false });
+        await sessionCard(second.page, chatId).click();
+        const hint = second.page.getByRole('status').filter({ hasText: 'new replies' });
+        await expect(hint).toContainText('2 new replies');
+        await second.page.screenshot({
+            path: testInfo.outputPath('return-hint-after-restart.png'),
+        });
+    } finally {
+        if (second) await closeAppQuietly(second.app);
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
     }

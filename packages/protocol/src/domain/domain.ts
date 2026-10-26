@@ -180,6 +180,12 @@ export const sessionRecordSchema = z.object({
     readAttentionEpoch: z.number().int().nonnegative(),
     lastAttentionKind: sessionAttentionKindSchema.optional(),
     /**
+     * When the user last stopped looking at this Session in a focused, visible Desktop window, recorded by Server Core
+     * from window presence. Absent until the first time they leave it. A Renderer that has not looked at the Session
+     * since it started uses this as the "since you last looked" boundary, so the hint survives a restart.
+     */
+    lastViewedAt: z.number().int().nonnegative().optional(),
+    /**
      * Derived read-model field; SQLite stores only the two epochs above.
      */
     hasUnread: z.boolean(),

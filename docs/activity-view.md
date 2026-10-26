@@ -311,8 +311,15 @@ the slot, so the two never overlap. The bottom keeps the pointer near the compos
 it across the pane.
 The Renderer records when the user stopped looking (Session switch, window blur, or hidden window)
 before it marks the Session read, and counts the Agent turns whose end time falls inside that
-absence, not the attention epoch, which also moves for questions inside one turn. The boundary lives
-in memory, so the first look after a restart shows nothing.
+absence, not the attention epoch, which also moves for questions inside one turn. The window keeps
+that boundary in memory; Server Core also records it from window presence in
+`sessions.last_viewed_at` whenever the Session stops being the one in the focused, visible window,
+including when Desktop quits and its connection drops. A restarted Renderer uses that durable copy
+(`SessionRecord.lastViewedAt`) for its first look at each Session, so the pill still counts what
+finished while Caxri was closed. Turn end times come from Server Core's live Chat projection, so a
+Server Core restart, whose replayed history carries no timing, still shows nothing. Reloading the
+Renderer while looking at a Session keeps the previous leave as its boundary, because presence never
+saw the user stop looking.
 
 ## Non-goals
 

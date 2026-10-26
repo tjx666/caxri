@@ -200,6 +200,7 @@ export const sessions = sqliteTable(
         attentionEpoch: integer('attention_epoch').notNull().default(0),
         readAttentionEpoch: integer('read_attention_epoch').notNull().default(0),
         lastAttentionKind: text('last_attention_kind'),
+        lastViewedAt: integer('last_viewed_at'),
         displayTitle: text('display_title').notNull(),
         titleMode: text('title_mode').notNull().default('automatic'),
         /**

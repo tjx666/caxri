@@ -22,5 +22,6 @@ export type {
     CommanderPendingNoticesModel,
     DeliveredNotice,
 } from './models/commander-pending-notices';
+export { SessionViewsModel } from './models/session-views';
 export { CaxriDatabase } from './repository';
 export { shutdownOutcome, type ShutdownReason } from './session-policy';

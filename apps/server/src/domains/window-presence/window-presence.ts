@@ -25,11 +25,12 @@ const EMPTY: ReadonlySet<string> = new Set();
 export const PRESENCE_SEED_GRACE_MS = 30_000;
 
 /**
- * Derives the visible set and the current Session from every reported window row.
+ * Derives the visible set, the current Session, and the watched Session from every reported window row.
  */
 function deriveViews(rows: ReadonlyMap<string, ReadonlyMap<string, PresenceRow>>): {
     current: string | undefined;
     visible: Set<string>;
+    watched: string | undefined;
 } {
     const visible = new Set<string>();
     let focusedBest: { at: number; sessionId: string } | undefined;
@@ -50,7 +51,9 @@ function deriveViews(rows: ReadonlyMap<string, ReadonlyMap<string, PresenceRow>>
         if (!recentBest || row.focusedAt >= recentBest.at)
             recentBest = { at: row.focusedAt, sessionId };
     }
-    return { current: (focusedBest ?? recentBest)?.sessionId, visible };
+    const watched =
+        focusedBest && visible.has(focusedBest.sessionId) ? focusedBest.sessionId : undefined;
+    return { current: (focusedBest ?? recentBest)?.sessionId, visible, watched };
 }
 
 /**
@@ -61,6 +64,9 @@ function deriveViews(rows: ReadonlyMap<string, ReadonlyMap<string, PresenceRow>>
  *   screen (file watching, status polling, Terminal suspension) keys off this set.
  * - **Current**: the focused window's Session, else the most recently focused window's. Anything that asks "which Session
  *   is the user in" (the CLI `current` selector, extension context, mobile panel checks) keys off this one.
+ * - **Watched**: the Session in the focused, visible window, the same test the Renderer's "since you last looked" tracker
+ *   applies. Unlike current, it ends when every window loses focus or Desktop disconnects, which is when the user
+ *   stopped looking.
  *
  * Rows are keyed `(connectionId, windowKey)` because one Desktop Main shares a single lease and connection across all
  * its windows, so a window is a level below the connection. Presence is memory only and cheap by construction: a report
@@ -72,8 +78,10 @@ export class WindowPresence {
     private readonly rows = new Map<string, Map<string, PresenceRow>>();
     private readonly visibleListeners = new Set<Listener>();
     private readonly currentListeners = new Set<Listener>();
+    private readonly watchedListeners = new Set<(previous: string) => void>();
     private visible: ReadonlySet<string> = EMPTY;
     private current: string | undefined;
+    private watched: string | undefined;
     /**
      * Until this time, an empty presence means "not reported yet" rather than "confirmed no visible window". Any report
      * or seed ends the wait; losing every connection that had rows starts it again.
@@ -89,15 +97,19 @@ export class WindowPresence {
      * view the same Session wakes no consumer.
      */
     private settle(): void {
-        const { current, visible } = deriveViews(this.rows);
+        const { current, visible, watched } = deriveViews(this.rows);
         const isVisibleChanged =
             visible.size !== this.visible.size ||
             [...visible].some((sessionId) => !this.visible.has(sessionId));
         if (isVisibleChanged) this.visible = visible.size === 0 ? EMPTY : visible;
         const isCurrentChanged = current !== this.current;
         this.current = current;
+        const previousWatched = this.watched;
+        this.watched = watched;
         if (isVisibleChanged) notifyListeners(this.visibleListeners, undefined);
         if (isCurrentChanged) notifyListeners(this.currentListeners, undefined);
+        if (previousWatched !== undefined && previousWatched !== watched)
+            notifyListeners(this.watchedListeners, previousWatched);
     }
 
     /**
@@ -210,6 +222,18 @@ export class WindowPresence {
     onVisibleChange(listener: Listener): () => void {
         this.visibleListeners.add(listener);
         return () => this.visibleListeners.delete(listener);
+    }
+
+    watchedSessionId(): string | undefined {
+        return this.watched;
+    }
+
+    /**
+     * Fires with the Session the user stopped watching, whenever the watched Session changes away from one.
+     */
+    onWatchedLeave(listener: (previous: string) => void): () => void {
+        this.watchedListeners.add(listener);
+        return () => this.watchedListeners.delete(listener);
     }
 
     /**

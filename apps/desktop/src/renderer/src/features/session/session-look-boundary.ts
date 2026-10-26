@@ -1,8 +1,10 @@
 import { createStore } from '../../lib/store';
 
 /**
- * What the Renderer knows about when the user last looked at each Session, in memory only (a restart forgets it, and
- * the "since you last looked" hint is simply absent until the Session has been looked at once in this window).
+ * What the Renderer knows about when the user last looked at each Session in this window. A restart forgets it; the
+ * first look at a Session after that falls back to the durable boundary Server Core records from window presence
+ * (`SessionRecord.lastViewedAt`), so the "since you last looked" hint still counts what finished while Caxri was
+ * closed.
  */
 export interface SessionLookState {
     /**
@@ -28,12 +30,14 @@ export const initialSessionLookState: SessionLookState = {
 /**
  * The next state when the Session being looked at becomes `next` (or nothing) at `now`. Leaving a Session records the
  * boundary; looking at one again freezes the absence so the hint keeps counting against the same window while the
- * Renderer later marks the Session read.
+ * Renderer later marks the Session read. `persistedBoundary` is `next`'s durable last-viewed time, used only when this
+ * window has not left `next` yet: an in-window leave is always newer.
  */
 export function advanceSessionLook(
     state: SessionLookState,
     next: string | undefined,
     now: number,
+    persistedBoundary?: number,
 ): SessionLookState {
     if (state.watching === next) return state;
     const leftAt = { ...state.leftAt };
@@ -43,7 +47,7 @@ export function advanceSessionLook(
         delete returns[state.watching];
     }
     if (next !== undefined) {
-        const boundary = leftAt[next];
+        const boundary = leftAt[next] ?? persistedBoundary;
         if (boundary !== undefined) {
             returns[next] = { boundary, capturedAt: now };
             delete leftAt[next];
@@ -64,8 +68,14 @@ export const useSessionLookStore = createStore<SessionLookState>(
     () => initialSessionLookState,
 );
 
-export function setWatchedSession(sessionId: string | undefined, now = Date.now()): void {
-    useSessionLookStore.setState((state) => advanceSessionLook(state, sessionId, now));
+export function setWatchedSession(
+    sessionId: string | undefined,
+    persistedBoundary?: number,
+    now = Date.now(),
+): void {
+    useSessionLookStore.setState((state) =>
+        advanceSessionLook(state, sessionId, now, persistedBoundary),
+    );
 }
 
 export function dismissReturn(sessionId: string): void {
