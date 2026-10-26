@@ -933,12 +933,18 @@ several callbacks can share one item, so the transport id is never the key.
   pages read, so nothing goes missing between them. Earlier messages are read-only: they offer
   no Edit, Fork, or Restore, because those act on the projection.
 - From the second user message, a message rail sits at the pane's left edge: one tick per user
-  message, the one being read longer and brighter. Hovering a tick previews its message, and
-  clicking it stops following new output and jumps there. The rail is a single tab stop: ArrowUp,
+  message, the one being read longer and brighter. Hovering a tick, or focusing it from the
+  keyboard, opens one fixed-size preview card beside it: the message's first line (or first
+  sentence) as the title, up to three lines of what follows, and a corner badge naming the kind of
+  message (sent by you, steered, a delegated task, or images only). A message with no content yet
+  shows a skeleton of the same size; content already in the timeline never waits behind it. An open
+  card moves to the next tick at once, and only the current tick's content is ever rendered, so a
+  sweep never flashes a passed message (`rail/agent-chat-rail-preview.ts`). Clicking a tick stops
+  following new output and jumps there. The rail is a single tab stop: ArrowUp,
   ArrowDown, Home, and End move among its ticks and Enter jumps. Ticks shrink together, down to a
   6px target each, rather than scroll when a long conversation would overflow the view; past 120 messages each tick stands for an even
   stretch of the conversation, so ticks stay apart
-  (`apps/desktop/src/renderer/src/features/agent-chat/transcript/agent-chat-rail-marks.ts`).
+  (`apps/desktop/src/renderer/src/features/agent-chat/rail/agent-chat-rail-marks.ts`).
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
   Jump to latest. It takes its own strip above the conversation rather than floating over it, so it
   never covers the text it searches, and its buttons' tooltips name Enter, Shift+Enter, and Escape. It reuses the Terminal's `terminal.find` command: a Chat registers itself as its

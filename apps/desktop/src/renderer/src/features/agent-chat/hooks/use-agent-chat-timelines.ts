@@ -4,8 +4,8 @@ import type { AgentChatOlderHistory, AgentChatSnapshot } from '@caxri/protocol';
 import { hasOlderAgentChatHistory, splitAgentChatHistory } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import type { AgentChatRailMark } from '../transcript/agent-chat-rail-marks';
-import { agentChatRailMarks, sampleAgentChatRailMarks } from '../transcript/agent-chat-rail-marks';
+import type { AgentChatRailMark } from '../rail/agent-chat-rail-marks';
+import { agentChatRailMarks, sampleAgentChatRailMarks } from '../rail/agent-chat-rail-marks';
 import type { AgentChatSettledChunk } from '../transcript/agent-chat-settled-chunks';
 import { agentChatSettledChunks } from '../transcript/agent-chat-settled-chunks';
 import { agentChatDayBreaks } from '../transcript/agent-chat-time';

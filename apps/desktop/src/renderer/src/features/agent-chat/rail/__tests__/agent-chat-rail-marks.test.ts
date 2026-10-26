@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentChatRailMark } from '../agent-chat-rail-marks';
 import {
     agentChatActiveRailIndex,
     agentChatRailActiveTick,
     agentChatRailFocusStep,
     agentChatRailMarks,
     agentChatRailPreview,
+    agentChatRailPreviewParts,
     agentChatRailSampleIndices,
     agentChatRailTickCapacity,
     isAgentChatMessageRailShown,
     MAX_AGENT_CHAT_RAIL_MARKS,
     sampleAgentChatRailMarks,
 } from '../agent-chat-rail-marks';
+
+function railMark(id: string): AgentChatRailMark {
+    return { id, preview: id, title: id, summary: '', kind: 'message', isReady: true };
+}
 
 /**
  * A message that cites one folder, as the composer sends it.
@@ -35,9 +41,53 @@ describe('agentChatRailMarks', () => {
                 },
             ]),
         ).toEqual([
-            { id: 'u1', preview: 'first line' },
-            { id: 'u2', preview: '2 images' },
+            {
+                id: 'u1',
+                preview: 'first line',
+                title: 'first',
+                summary: 'line',
+                kind: 'message',
+                isReady: true,
+            },
+            {
+                id: 'u2',
+                preview: '2 images',
+                title: '2 images',
+                summary: 'Images only, no text',
+                kind: 'images',
+                isReady: true,
+            },
         ]);
+    });
+
+    it('names a steered message and previews a delegated task by what its caller asked', () => {
+        expect(
+            agentChatRailMarks([
+                {
+                    kind: 'item',
+                    item: { id: 'u1', type: 'userMessage', text: 'also this', delivery: 'steered' },
+                },
+                {
+                    kind: 'item',
+                    item: {
+                        id: 'u2',
+                        type: 'userMessage',
+                        text: 'Read the delegated task from "/x/task.md" and carry it out. Delegation ID: d1.',
+                        delegatedTask: { delegationId: 'd1', prompt: 'Fix the build' },
+                    },
+                },
+            ]).map(({ kind, title }) => ({ kind, title })),
+        ).toEqual([
+            { kind: 'steered', title: 'also this' },
+            { kind: 'delegated', title: 'Fix the build' },
+        ]);
+    });
+
+    it('holds the skeleton only for a message with nothing to show yet', () => {
+        const [mark] = agentChatRailMarks([
+            { kind: 'item', item: { id: 'u1', type: 'userMessage', text: '  ' } },
+        ]);
+        expect(mark).toMatchObject({ isReady: false, title: '', summary: '' });
     });
 
     it('previews a message by its words, or by the folders it cites when it has none', () => {
@@ -49,9 +99,9 @@ describe('agentChatRailMarks', () => {
                 },
                 { kind: 'item', item: { id: 'u2', type: 'userMessage', text: FOLDER_MESSAGE } },
             ]),
-        ).toEqual([
-            { id: 'u1', preview: 'tidy it' },
-            { id: 'u2', preview: 'prettier-config' },
+        ).toMatchObject([
+            { id: 'u1', preview: 'tidy it', title: 'tidy it' },
+            { id: 'u2', preview: 'prettier-config', title: 'prettier-config' },
         ]);
     });
 
@@ -59,6 +109,62 @@ describe('agentChatRailMarks', () => {
         const preview = agentChatRailPreview('a'.repeat(500), 0);
         expect(preview).toHaveLength(120);
         expect(preview.endsWith('…')).toBe(true);
+    });
+});
+
+describe('agentChatRailPreviewParts', () => {
+    it('titles a message by its first line and keeps the rest as lines of summary', () => {
+        expect(
+            agentChatRailPreviewParts('Fix the  build\n\n  then run   tests\nand ship', 0),
+        ).toEqual({
+            title: 'Fix the build',
+            summary: 'then run tests\nand ship',
+        });
+    });
+
+    it('ends a long first line at its first sentence when that fits', () => {
+        expect(
+            agentChatRailPreviewParts(
+                'Please fix the flaky test. It fails on CI about once in ten runs and blocks every merge queue.',
+                0,
+            ),
+        ).toEqual({
+            title: 'Please fix the flaky test.',
+            summary: 'It fails on CI about once in ten runs and blocks every merge queue.',
+        });
+    });
+
+    it('keeps a long line whole in the summary when no first sentence fits the title', () => {
+        const line = 'Open /work/project/src/very/deeply/nested/module/index.ts please';
+        expect(agentChatRailPreviewParts(`${line}\nthen tidy`, 0)).toEqual({
+            title: line,
+            summary: `${line}\nthen tidy`,
+        });
+    });
+
+    it('measures full-width text at double width and splits it at its own sentence end', () => {
+        expect(
+            agentChatRailPreviewParts(
+                '修复构建。它在持续集成里大约每十次失败一次，先从缓存步骤查起。',
+                0,
+            ),
+        ).toEqual({
+            title: '修复构建。',
+            summary: '它在持续集成里大约每十次失败一次，先从缓存步骤查起。',
+        });
+    });
+
+    it('bounds the summary it hands the card', () => {
+        const { summary } = agentChatRailPreviewParts(`title\n${'b'.repeat(2000)}`, 0);
+        expect(summary).toHaveLength(400);
+        expect(summary.endsWith('…')).toBe(true);
+    });
+
+    it('names a message of one image', () => {
+        expect(agentChatRailPreviewParts('', 1)).toEqual({
+            title: 'Image',
+            summary: 'Images only, no text',
+        });
     });
 });
 
@@ -74,19 +180,14 @@ describe('agentChatActiveRailIndex', () => {
 describe('isAgentChatMessageRailShown', () => {
     it('shows the rail from the second message, when there is somewhere to jump', () => {
         expect(isAgentChatMessageRailShown([])).toBe(false);
-        expect(isAgentChatMessageRailShown([{ id: 'a', preview: 'one' }])).toBe(false);
-        expect(
-            isAgentChatMessageRailShown([
-                { id: 'a', preview: 'one' },
-                { id: 'b', preview: 'two' },
-            ]),
-        ).toBe(true);
+        expect(isAgentChatMessageRailShown([railMark('a')])).toBe(false);
+        expect(isAgentChatMessageRailShown([railMark('a'), railMark('b')])).toBe(true);
     });
 });
 
 describe('sampleAgentChatRailMarks', () => {
     const marks = (count: number) =>
-        Array.from({ length: count }, (_, index) => ({ id: `u${index}`, preview: `${index}` }));
+        Array.from({ length: count }, (_, index) => railMark(`u${index}`));
 
     it('keeps every mark of a conversation the rail can space apart', () => {
         const all = marks(MAX_AGENT_CHAT_RAIL_MARKS);
