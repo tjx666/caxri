@@ -27,7 +27,7 @@ import {
     AgentChatMcpServersContext,
 } from './agent-chat-mcp-icons';
 import { AgentChatTaskStatusGlyph } from './agent-chat-task-detail';
-import { useAgentChatTaskLink } from './agent-chat-task-links';
+import { useAgentChatSubagentTask } from './agent-chat-task-links';
 import { agentChatTaskRow } from './agent-chat-tasks';
 import { AgentChatWorkDetail } from './agent-chat-work-detail';
 import type { AgentChatWorkRowPresentation } from './agent-chat-work-row';
@@ -141,9 +141,7 @@ const AgentChatWorkRow = memo(
         theme: MobileTheme;
     }) => {
         const { t } = useTranslation();
-        // A background shell keeps its own row facts (`Background`, `Exit N`); a subagent's row follows its task.
-        const linked = useAgentChatTaskLink(item.id)?.task;
-        const task = linked?.kind === 'agent' ? linked : undefined;
+        const task = useAgentChatSubagentTask(item.id);
         const mcpIconUrls = useMcpIconUrls(item.type === 'toolCall' ? item.name : undefined);
         const row = agentChatWorkRowPresentation(
             item,

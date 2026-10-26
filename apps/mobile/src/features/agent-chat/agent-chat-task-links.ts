@@ -84,3 +84,12 @@ export function useAgentChatTaskLink(itemId: string): AgentChatTaskLinkTarget | 
     const read = useCallback(() => links.get(itemId), [itemId]);
     return useSyncExternalStore(subscribe, read, read);
 }
+
+/**
+ * The subagent the timeline item `itemId` started. A background shell keeps its own row facts (`Background`, `Exit N`),
+ * so only a subagent's row and detail title follow the task's status.
+ */
+export function useAgentChatSubagentTask(itemId: string): AgentChatTask | undefined {
+    const task = useAgentChatTaskLink(itemId)?.task;
+    return task?.kind === 'agent' ? task : undefined;
+}

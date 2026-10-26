@@ -1,4 +1,4 @@
-import type { AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
+import type { AgentChatWorkItem, AgentToolKind, AgentToolPresentation } from '@caxri/protocol';
 import {
     agentChatItemStatusLabel,
     agentChatWorkVerb,
@@ -39,6 +39,22 @@ export interface AgentChatWorkRowPresentation {
 }
 
 /**
+ * The verb a work row and its detail title share. A subagent's tool call returns while the subagent keeps working, so
+ * its settled `Ran agent` would contradict a spinner; the linked task still running keeps the present tense (`Running
+ * agent`).
+ */
+export function agentChatWorkRowVerb(
+    item: AgentChatWorkItem,
+    presentation: AgentToolPresentation,
+    t: Translate = translate,
+    isTaskRunning = false,
+): string {
+    return isTaskRunning
+        ? agentToolActiveLabel(presentation, t)
+        : agentChatWorkVerb(item, presentation, t);
+}
+
+/**
  * `isTaskRunning`: the background task this row started still runs, so the row reads as running even though the item
  * itself settled.
  *
@@ -54,12 +70,8 @@ export function agentChatWorkRowPresentation(
     const presentation = hasServerIcon
         ? describeAgentChatWorkRow(item, t)
         : describeAgentChatWork(item, t);
-    // A subagent's tool call returns while the subagent keeps working, so its settled `Ran agent` would sit beside a
-    // spinner; the linked task still running keeps the row in the present tense (`Running agent`).
     const isRunning = isAgentChatWorkRunning(item) || isTaskRunning;
-    const verb = isTaskRunning
-        ? agentToolActiveLabel(presentation, t)
-        : agentChatWorkVerb(item, presentation, t);
+    const verb = agentChatWorkRowVerb(item, presentation, t, isTaskRunning);
     const isSettledCommand = item.type === 'command' && !isRunning;
     const isBackground = isSettledCommand && item.background === true;
     const failedExitCode =
