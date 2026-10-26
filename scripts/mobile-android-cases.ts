@@ -379,6 +379,19 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'ui-audit-rename-keyboard-avoidance',
     },
+    'MOB-UI-09': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-host-status',
+    },
+    'MOB-UI-10': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-host-status',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
 
 export type MobileAndroidAcceptanceCaseId = keyof typeof androidCases;
