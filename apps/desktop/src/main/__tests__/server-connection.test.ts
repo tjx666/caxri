@@ -32,22 +32,27 @@ describe('Desktop Server attachment and build identity', () => {
         });
     });
 
-    it.each(['1', '0'])('forwards mobile fault seams only for E2E=%s', async (enabled) => {
-        vi.stubEnv('CAXRI_E2E', enabled);
-        vi.stubEnv('CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY', '1');
-        vi.stubEnv('CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE', '1');
-        mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
-        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
-        await connection.start();
-        const environment = vi.mocked(ensureServer).mock.calls[0]?.[1]?.environment;
-        for (const key of [
-            'CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY',
-            'CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE',
-        ]) {
-            if (enabled === '1') expect(environment).toHaveProperty(key, '1');
-            else expect(environment).not.toHaveProperty(key);
-        }
-    });
+    it.each(['1', '0'])(
+        'forwards mobile fault seams and status page fixtures only for E2E=%s',
+        async (enabled) => {
+            vi.stubEnv('CAXRI_E2E', enabled);
+            vi.stubEnv('CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY', '1');
+            vi.stubEnv('CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE', '1');
+            vi.stubEnv('CAXRI_E2E_PROVIDER_STATUS_DIR', '1');
+            mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
+            const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+            await connection.start();
+            const environment = vi.mocked(ensureServer).mock.calls[0]?.[1]?.environment;
+            for (const key of [
+                'CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY',
+                'CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE',
+                'CAXRI_E2E_PROVIDER_STATUS_DIR',
+            ]) {
+                if (enabled === '1') expect(environment).toHaveProperty(key, '1');
+                else expect(environment).not.toHaveProperty(key);
+            }
+        },
+    );
 
     it('forwards the synthetic mobile host label only to an E2E Server', async () => {
         vi.stubEnv('CAXRI_E2E', '1');
