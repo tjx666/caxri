@@ -24,7 +24,8 @@
         "@caxri/protocol": "workspace:*",
         "@caxri/utils": "workspace:*",
         "es-toolkit": "^1.52.0",
-        "jsonc-parser": "^3.3.1"
+        "jsonc-parser": "^3.3.1",
+        "zod": "catalog:"
     },
     "devDependencies": {
         "@types/node": "^24.19.2"

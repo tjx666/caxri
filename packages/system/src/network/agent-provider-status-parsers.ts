@@ -16,8 +16,8 @@ export type ParsedStatusPage = Pick<
     'components' | 'incidents' | 'pageName' | 'pageUrl'
 > & {
     /**
-     * Why the optional uptime history could not be read, while the current state still was. Main only logs it; it never
-     * reaches the Renderer.
+     * Why the optional uptime history could not be read, while the current state still was. The reader only logs it; it
+     * never reaches a client.
      */
     historyFailure?: AgentProviderStatusFailureReason;
 };

@@ -8,26 +8,27 @@ import type {
     AgentProviderStatusComponent,
     AgentProviderStatusFailureReason,
 } from '@caxri/protocol';
-import { agentProviderStatusSchema } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, SingleFlight } from '@caxri/system';
+import { agentProviderStatusSchema, logEventCatalog } from '@caxri/protocol';
 
-import type { ParsedStatusPage } from './agent-provider-status-parsers';
+import type { StructuredLogger } from '../observability/logger.js';
+import { SingleFlight } from '../process/single-flight.js';
+import type { ParsedStatusPage } from './agent-provider-status-parsers.js';
 import {
     parseClaudeStatusPage,
     parseCodexStatusPage,
     parseIncidentIoHistory,
     worstStatus,
-} from './agent-provider-status-parsers';
-import type { CappedBodyEnd } from './read-capped-body';
-import { readCappedBody } from './read-capped-body';
+} from './agent-provider-status-parsers.js';
+import type { CappedBodyEnd } from './read-capped-body.js';
+import { readCappedBody } from './read-capped-body.js';
 
 type Fetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
 
 const FETCH_TIMEOUT_MS = 10_000;
 /**
  * The largest status response read. The Statuspage summary is about 6 KiB and the 90-day incident.io impact history
- * about 100 KiB, so this leaves an order of magnitude of headroom while a runaway body never buffers whole in Main.
+ * about 100 KiB, so this leaves an order of magnitude of headroom while a runaway body never buffers whole in the
+ * reading process.
  */
 const MAX_STATUS_PAGE_BYTES = 2 * 1024 * 1024;
 /**
@@ -174,13 +175,14 @@ interface CachedStatus {
 }
 
 /**
- * Public status of the services an Agent CLI talks to, cached per provider. `fetch` is Electron's `net.fetch` in the
- * app, so the system proxy applies exactly as it does in a browser; an E2E launch passes a fetch that never leaves the
- * machine.
+ * Public status of the services an Agent CLI talks to, cached per provider. Each process that serves it brings its own
+ * transport: Desktop Main passes Electron's `net.fetch`, so the system proxy applies exactly as it does in a browser,
+ * and Server Core passes Node's `fetch` for paired phones (`mobile.agentUsage.read`), which honors no system proxy. An
+ * E2E launch passes a fetch that never leaves the machine.
  */
 export function createAgentProviderStatus(options: {
     fetch: Fetch;
-    logger?: () => StructuredLogger | undefined;
+    logger?: () => Pick<StructuredLogger, 'write'> | undefined;
     now?: () => number;
 }) {
     const now = options.now ?? Date.now;
@@ -260,7 +262,7 @@ export function createAgentProviderStatus(options: {
                     });
             }
         }
-        // Validated here so a page that changed shape fails in Main with a reason instead of at the IPC boundary.
+        // Validated here so a page that changed shape fails here with a reason instead of at the IPC boundary.
         const checked = agentProviderStatusSchema.safeParse(status);
         const result: AgentProviderStatus = checked.success
             ? checked.data

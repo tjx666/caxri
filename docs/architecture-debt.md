@@ -361,7 +361,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-sec-main-link-fetch-trust: [RESOLVED · Contract drift · S]
 
 - **Summary:** Rendering or hovering a transcript link made Main request the origin's favicon or the full URL without excluding loopback or private hosts, and redirects were followed; the provider status read had no body cap.
-- **Evidence:** `apps/desktop/src/main/public-https-fetch.ts` vets every hop of `link-favicons.ts` and `link-previews.ts`; `agent-provider-status.ts` reads through `read-capped-body.ts`. Covered by `public-https-fetch.test.ts`, `link-favicons.test.ts`, `link-previews.test.ts`, and `agent-provider-status.test.ts`.
+- **Evidence:** `apps/desktop/src/main/public-https-fetch.ts` vets every hop of `link-favicons.ts` and `link-previews.ts`; `packages/system/src/network/agent-provider-status.ts` reads through `packages/system/src/network/read-capped-body.ts`. Covered by `public-https-fetch.test.ts`, `link-favicons.test.ts`, `link-previews.test.ts`, and `agent-provider-status.test.ts`.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 with the fix
 - **Resolved:** 2026-10-13 via [issue caxri#1676](https://github.com/tjx666/caxri/issues/1676).
 - **Remediation target / Acceptance:** Internal, loopback, and redirect-to-internal URLs are never requested; an oversize status page is cancelled and reported as `invalidResponse`.
@@ -657,7 +657,7 @@ Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its 
 ### AD-perf-favicon-unbounded-read: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** A favicon without `content-length` was buffered whole before the 32 KiB cap applied, and a failed request was cached for the life of the app.
-- **Evidence:** `apps/desktop/src/main/read-capped-body.ts` is the one capped stream reader for favicons and link previews; `link-favicons.ts` forgets outright failures. Covered by `link-favicons.test.ts`.
+- **Evidence:** `packages/system/src/network/read-capped-body.ts` is the one capped stream reader for favicons and link previews; `link-favicons.ts` forgets outright failures. Covered by `link-favicons.test.ts`.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
 - **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
 - **Remediation target / Acceptance:** An oversize chunked body is cancelled early; a failed origin is retried on the next render.

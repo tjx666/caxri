@@ -9,6 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { createAgentProviderStatus, createE2EStatusPageFetch } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { dialog, net, shell } from 'electron';
 
@@ -16,7 +17,6 @@ import { createAcceptanceExternalOpenFixture } from './acceptance-external-open'
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
 import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
 import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat/path-picker';
-import { createAgentProviderStatus, createE2EStatusPageFetch } from './agent-provider-status';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import { handleBenchmarkShare, isBenchmarkShare } from './benchmark-share-methods';
 import {

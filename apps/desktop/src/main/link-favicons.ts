@@ -2,10 +2,10 @@ import { Buffer } from 'node:buffer';
 
 import type { MethodResult } from '@caxri/protocol';
 import { MAX_LINK_FAVICON_DATA_URL_LENGTH } from '@caxri/protocol';
+import { readCappedBody } from '@caxri/system';
 
 import type { ManualRedirectFetch, PublicHttpsFetch, ResolveHost } from './public-https-fetch';
 import { createPublicHttpsFetch } from './public-https-fetch';
-import { readCappedBody } from './read-capped-body';
 
 type LinkFavicon = MethodResult<'links.favicon'>;
 

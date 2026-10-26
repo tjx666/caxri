@@ -98,8 +98,8 @@ provider, a first read still pending, a provider without a status page, and a pa
 read raise no dot, because none of them is evidence of an incident (`providerStatusAlert` in
 `apps/desktop/src/renderer/src/features/agent-status/agent-provider-status-label.ts`).
 
-`agentProviderStatus.read` is a Desktop Main method
-(`apps/desktop/src/main/agent-provider-status.ts`). Main fetches through Electron's `net.fetch`
+`agentProviderStatus.read` is a Desktop Main method over the shared reader in
+`packages/system/src/network/agent-provider-status.ts`. Main fetches through Electron's `net.fetch`
 because it honors the system proxy, which Server Core's Node `fetch` does not, and the Renderer's
 CSP forbids the request. Results are cached per provider (60 s after success, 30 s after failure)
 and concurrent reads share one request. A failure is reported to the UI with a closed reason
