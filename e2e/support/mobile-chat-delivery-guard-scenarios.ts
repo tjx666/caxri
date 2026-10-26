@@ -144,19 +144,19 @@ export async function executeMobileChatUsageGuardScenario(
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-usage-guard');
         await capture(environment, 'guard-banner', artifacts);
-        await typeChatDraft(serial, 'one more thing');
-        await waitForCheck(serial, 'agent-chat-composer-reason');
-        const guarded = (await mobileSemantics(serial)).find(
-            ({ checkId }) => checkId === 'agent-chat-composer-send',
-        );
-        if (!guarded || guarded.enabled) throw new Error('Send stayed enabled under the guard');
+        // The guard disables the whole composer; its banner already says why, so no reason line repeats it.
+        const guarded = await mobileSemantics(serial);
+        const isEnabled = (id: string) =>
+            guarded.find(({ checkId }) => checkId === id)?.enabled ?? false;
+        if (isEnabled('agent-chat-composer-input') || isEnabled('agent-chat-composer-send'))
+            throw new Error('The composer stayed usable under the guard');
         await capture(environment, 'guard-banner-send-disabled', artifacts);
 
         // The window ends: the next plan reading shows a later week below the guard, which lifts it.
         await rm(guardFile, { force: true });
         await waitForMobile(readGuard, (guard) => guard === undefined, PLAN_READING_WAIT_MS);
         await waitForNoCheck(serial, 'agent-chat-usage-guard');
-        await waitForNoCheck(serial, 'agent-chat-composer-reason');
+        await typeChatDraft(serial, 'one more thing');
         await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>
