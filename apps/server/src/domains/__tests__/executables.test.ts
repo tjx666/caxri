@@ -262,14 +262,16 @@ describe('ExecutableResolver Agent environment', () => {
         expect(run).toHaveBeenCalledOnce();
     });
 
-    it('re-reads a stale snapshot for Agent launches and keeps it when a refresh fails', async () => {
+    it('serves a stale snapshot to Agent launches while one background probe refreshes it', async () => {
         let output = loginShellOutput('/login/bin', { SEARCH_API_KEY: 'first' });
         let isFails = false;
-        const run = vi.fn(() =>
-            isFails
-                ? Promise.reject(new Error('login shell timed out'))
-                : Promise.resolve({ stdout: output, stderr: '' }),
-        );
+        const refresh = Promise.withResolvers<void>();
+        const run = vi.fn(async () => {
+            if (isFails) throw Object.assign(new Error('login shell timed out'), { killed: true });
+            const stdout = output;
+            if (run.mock.calls.length > 1) await refresh.promise;
+            return { stdout, stderr: '' };
+        });
         let now = 1_000_000;
         const resolver = new ExecutableResolver(
             () => ({ HOME: '/home/user', PATH: '/usr/bin:/bin', SHELL: '/bin/zsh' }),
@@ -287,19 +289,141 @@ describe('ExecutableResolver Agent environment', () => {
         });
         expect(run).toHaveBeenCalledOnce();
 
+        // Past the refresh age, launches answer from the old snapshot while the new probe is still running.
         now += 60_000;
         await expect(resolver.agentEnvironment()).resolves.toMatchObject({
-            SEARCH_API_KEY: 'second',
+            SEARCH_API_KEY: 'first',
+        });
+        await expect(resolver.agentEnvironment()).resolves.toMatchObject({
+            SEARCH_API_KEY: 'first',
+        });
+        expect(run).toHaveBeenCalledTimes(2);
+        refresh.resolve();
+        await vi.waitFor(async () => {
+            await expect(resolver.agentEnvironment()).resolves.toMatchObject({
+                SEARCH_API_KEY: 'second',
+            });
         });
         expect(run).toHaveBeenCalledTimes(2);
 
         isFails = true;
         now += 60_000;
+        await resolver.agentEnvironment();
+        await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(3));
         await expect(resolver.agentEnvironment()).resolves.toMatchObject({
             SEARCH_API_KEY: 'second',
             PATH: '/login/bin',
         });
-        expect(run).toHaveBeenCalledTimes(3);
+    });
+
+    it('logs each probe failure by cause and counts dropped variables without naming them', async () => {
+        const write = vi.fn();
+        const failures: Array<[unknown, string]> = [
+            [Object.assign(new Error('timed out'), { killed: true, signal: 'SIGTERM' }), 'timeout'],
+            [Object.assign(new Error('exit 1'), { code: 1 }), 'exit'],
+            [
+                Object.assign(new Error('too much'), { code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' }),
+                'output_limit',
+            ],
+            [{ stdout: 'only a banner\n' }, 'missing_markers'],
+            [{ stdout: '__CAXRI_LOGIN_PATH__relative/bin\n' }, 'missing_path'],
+        ];
+        for (const [result, reason] of failures) {
+            const resolver = new ExecutableResolver(
+                () => ({ HOME: '/home/user', PATH: '/usr/bin', SHELL: '/bin/zsh' }),
+                () =>
+                    result instanceof Error
+                        ? Promise.reject(result)
+                        : Promise.resolve({ stderr: '', ...(result as { stdout: string }) }),
+            );
+            resolver.attachLogger({ write });
+            // eslint-disable-next-line no-await-in-loop -- each resolver logs one probe in order
+            await resolver.agentEnvironment();
+            expect(write).toHaveBeenLastCalledWith(
+                'warn',
+                'login_shell.probe',
+                expect.objectContaining({ fields: { outcome: 'failed', reason } }),
+            );
+        }
+
+        const many = Object.fromEntries(
+            Array.from({ length: 390 }, (_, index) => [`TOOL_VARIABLE_${index}`, 'value']),
+        );
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: '/home/user', PATH: '/usr/bin', SHELL: '/bin/zsh' }),
+            () =>
+                Promise.resolve({
+                    stdout: loginShellOutput('/login/bin', {
+                        'SECRET_FIXTURE_NAME': 'secret-fixture-value',
+                        'HUGE_VALUE': 'x'.repeat(64 * 1024 + 1),
+                        [`LONG_${'N'.repeat(256)}`]: 'value',
+                        'BAD-NAME': 'value',
+                        'PWD': '/probe',
+                        'CAXRI_ENDPOINT': 'value',
+                        ...many,
+                    }),
+                    stderr: '',
+                }),
+        );
+        resolver.attachLogger({ write });
+        await resolver.agentEnvironment();
+
+        expect(write).toHaveBeenLastCalledWith('info', 'login_shell.probe', {
+            durationMs: expect.any(Number) as number,
+            fields: {
+                outcome: 'read',
+                environment: 'parsed',
+                variables: 384,
+                dropped_caxri_key: 1,
+                dropped_entry_limit: 7,
+                dropped_invalid_name: 1,
+                dropped_name_too_long: 1,
+                dropped_session_key: 1,
+                dropped_value_too_long: 1,
+            },
+        });
+        const logged = JSON.stringify(write.mock.calls);
+        expect(logged).not.toContain('SECRET_FIXTURE_NAME');
+        expect(logged).not.toContain('secret-fixture-value');
+    });
+
+    it('starts one login-shell probe for concurrently invalidated cached executables', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-concurrent-'));
+        temporaryDirectories.push(directory);
+        const firstBin = join(directory, 'first');
+        const secondBin = join(directory, 'second');
+        await mkdir(firstBin);
+        await mkdir(secondBin);
+        const names = ['claude', 'codex', 'grok'];
+        for (const bin of [firstBin, secondBin])
+            for (const name of names) {
+                // eslint-disable-next-line no-await-in-loop -- tiny fixture setup
+                await writeFile(join(bin, name), '#!/bin/sh\n');
+                // eslint-disable-next-line no-await-in-loop -- tiny fixture setup
+                await chmod(join(bin, name), 0o700);
+            }
+        let loginBin = firstBin;
+        // A real login shell takes a while to start, which is what lets the invalidated lookups overlap.
+        const run = vi.fn(async () => {
+            const stdout = `__CAXRI_LOGIN_PATH__${loginBin}\n`;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            return { stdout, stderr: '' };
+        });
+        const resolver = new ExecutableResolver(
+            () => ({ PATH: '/nonexistent', SHELL: '/bin/zsh' }),
+            run,
+        );
+        for (const name of names)
+            // eslint-disable-next-line no-await-in-loop -- populate the cache in order
+            await expect(resolver.resolve(name)).resolves.toBe(join(firstBin, name));
+        expect(run).toHaveBeenCalledOnce();
+
+        await rm(firstBin, { recursive: true });
+        loginBin = secondBin;
+        await expect(Promise.all(names.map((name) => resolver.resolve(name)))).resolves.toEqual(
+            names.map((name) => join(secondBin, name)),
+        );
+        expect(run).toHaveBeenCalledTimes(2);
     });
 
     it('keeps a heavy shell environment inside the Terminal launch-plan limits', async () => {

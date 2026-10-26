@@ -70,7 +70,11 @@ A search more than 30 seconds after the last pass starts another in the backgrou
 from the index as it stands; the footer says when indexing is still running. Terms shorter than
 three characters fall back to a substring scan of the indexed text. A transcript's first prompt is
 read whole even when a pasted screenshot inlined in it outweighs the head read, with the image data
-collapsed as it is read, so such a conversation is never skipped as unreadable.
+collapsed as it is read, so such a conversation is never skipped as unreadable. When attachments,
+injected context, or tool results push a Claude conversation's first visible user message past the
+head read, reading continues up to 16 MiB further until that message appears, so the conversation
+is indexed and titled by it like any other. A conversation with only built-in commands such as
+`/clear`, or no messages at all, is still left out.
 
 The index is derived data. A schema or extraction change bumps its version, which drops and
 rebuilds it instead of migrating. The Worker starts on the first search and exits after a minute

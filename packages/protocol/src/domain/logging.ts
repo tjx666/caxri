@@ -4,7 +4,9 @@ import { claudeWindowLogEvents } from './claude-window/log-events.js';
 import { agentChatSubagentLogEvents } from './logging/logging-agent-chat-subagents.js';
 import { agentCommanderLogEvents } from './logging/logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging/logging-benchmark.js';
+import { loginShellLogEvents } from './logging/logging-login-shell.js';
 import { mobileGatewayLogEvents } from './logging/logging-mobile-gateway.js';
+import { pathBrowserLogEvents } from './logging/logging-path-browser.js';
 import { sessionContextLogEvents, sessionSearchLogEvents } from './logging/logging-session.js';
 import { sshHostLogEvents } from './logging/logging-ssh-host.js';
 import { usageLogEvents } from './logging/logging-usage.js';
@@ -318,23 +320,11 @@ export const logEventCatalog = {
         recordsDropped: 'log.records_dropped',
         rotated: 'log.rotated',
     },
-    pathBrowser: {
-        /**
-         * One record per `pathBrowser.browse` call that ran the Project-wide name search (memo hit or a fresh
-         * `files.search`), success or not. `file.search` already covers Server Core's own view of the scan; this event
-         * covers what Main did with the result: the memo/root-containment/budget steps a slow or missing search engine
-         * would otherwise hide behind an unremarkable empty result. See issue caxri#924.
-         */
-        searchFallback: 'path_browser.search_fallback',
-        /**
-         * The Project-wide name search could not run at all. Carries `PathBrowserSearchFailureReason` instead of the
-         * thrown error's message so a packaged install missing ripgrep reads as a diagnosable reason, not as silence.
-         */
-        searchFailed: 'path_browser.search_failed',
-    },
+    pathBrowser: pathBrowserLogEvents,
     process: {
         eventLoopStall: 'process.event_loop_stall',
     },
+    loginShell: loginShellLogEvents,
     agentCommander: agentCommanderLogEvents,
     agentChatSubagents: agentChatSubagentLogEvents,
     benchmark: benchmarkLogEvents,

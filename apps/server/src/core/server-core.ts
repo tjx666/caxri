@@ -79,7 +79,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const startedAt = Date.now();
     const { eventLoopMonitor, logger } = startServerObservability(options);
     // Fired before any `await` so the login-shell PATH probe overlaps startup instead of blocking the first command.
-    warmServerExecutablePath();
+    warmServerExecutablePath(logger);
     const lease = await acquireServerProfile({
         logger,
         startedAt,
