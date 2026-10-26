@@ -5,10 +5,12 @@ import {
     settingsPatchChangeSchema,
 } from '@caxri/protocol';
 
+import { booleanFlag } from './boolean-flag';
 import { COMMANDER_COMMANDS } from './commander';
 import { DELEGATION_COMMANDS } from './delegation';
 import { DELEGATION_ACCESS_COMMANDS } from './delegation-access';
 import { DELEGATION_IMPORT_COMMAND } from './delegation-import';
+import { HOST_COMMANDS } from './host';
 import { RECORD_COMMANDS } from './records';
 import { rejectOptions } from './reject-options';
 import { SKILL_COMMANDS } from './skills';
@@ -20,16 +22,6 @@ export {
     describeCliCommand,
     type RemoteCommandDefinition,
 } from './types';
-
-function booleanFlag(
-    tokens: readonly string[],
-    flag: string,
-    key: string,
-): Record<string, boolean> {
-    if (tokens.length === 0) return { [key]: false };
-    if (tokens.length === 1 && tokens[0] === flag) return { [key]: true };
-    throw new CaxriError('VALIDATION', `Unknown option: ${tokens[0].split('=', 1)[0]}`);
-}
 
 function desktopTarget(
     tokens: readonly string[],
@@ -531,22 +523,7 @@ export const CLI_COMMANDS = [
         },
         requiresAgentEndpoint: true,
     },
-    {
-        kind: 'remote',
-        path: ['host', 'status'],
-        method: 'host.status',
-        summary: 'Show the selected profile Host and Desktop status.',
-        parseParams: rejectOptions,
-    },
-    {
-        kind: 'remote',
-        path: ['host', 'stop'],
-        method: 'host.stop',
-        summary: 'Stop the selected profile Host and its Runtime.',
-        confirmation: 'Stop this Caxri Host and terminate its live Terminals?',
-        usage: '[--force]',
-        parseParams: (tokens) => booleanFlag(tokens, '--force', 'confirmLivePtys'),
-    },
+    ...HOST_COMMANDS,
     {
         kind: 'remote',
         path: ['desktop', 'status'],

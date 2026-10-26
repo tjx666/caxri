@@ -73,6 +73,10 @@ Desktop window commands stay behind authenticated Server and Project-root author
 non-interactive calls require `--profile`, `--yes`, and should use a stable `--request-id` when
 retried.
 
+`host claude-window-tick --profile <path>` runs one check of the
+[Claude 5-hour window keeper](claude-windows.md); the packaged app's LaunchAgent calls it at each
+planned time. It needs no `--yes`, sends at most one request per window, and refuses Agent callers.
+
 ## Agent automation
 
 `agent delegate import --from <file>` previews dianjiang presets; `--apply --yes` explicitly replaces

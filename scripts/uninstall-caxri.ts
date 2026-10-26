@@ -18,6 +18,7 @@ import {
     pruneCompletedArchives,
     writeArchiveManifest,
 } from './uninstall-archive-retention';
+import { discoverCaxriLaunchAgents, unloadCaxriLaunchAgents } from './uninstall-launch-agents';
 
 const HOST_SHUTDOWN_TIMEOUT_MS = 10_000;
 const HOST_ENTRY_PATTERN = /(?:^|\/)server\/bundles\/server-core\.js(?:\s|$)/u;
@@ -249,8 +250,7 @@ async function optionalMetadata(path: string) {
 }
 
 async function assertNotInsideGitWorktree(path: string): Promise<void> {
-    // Each ancestor check depends on the previous directory in the walk, so this must stay
-    // sequential rather than run concurrently.
+    // Each ancestor check depends on the previous directory in the walk, so this must stay sequential.
     for (let current = path; ; current = dirname(current)) {
         // eslint-disable-next-line no-await-in-loop -- sequential ancestor-directory walk
         if (await optionalMetadata(join(current, '.git')))
@@ -309,9 +309,8 @@ async function discoverManagedDevelopmentProfiles(
     for (const entry of entries) {
         if (!WORKTREE_PROFILE_ID.test(entry.name)) continue;
         const path = join(root, entry.name);
-        // Each candidate must be individually validated as safe before being trusted, and the
-        // validation order has no observable effect, but kept sequential to avoid opening many
-        // concurrent filesystem handles while walking an untrusted directory.
+        // Each candidate is validated before being trusted; sequential to avoid opening many concurrent filesystem
+        // handles while walking an untrusted directory.
         // eslint-disable-next-line no-await-in-loop -- sequential per-entry safety validation
         const entryMetadata = await lstat(path);
         if (
@@ -336,8 +335,7 @@ async function existingRealTargets(paths: readonly string[]): Promise<string[]> 
     const identities = new Set<string>();
     const targets: string[] = [];
     for (const path of paths) {
-        // Deduplication keeps the first occurrence of each filesystem identity, so paths must be
-        // checked in their given order rather than concurrently.
+        // Deduplication keeps the first occurrence of each filesystem identity, so paths are checked in order.
         // eslint-disable-next-line no-await-in-loop -- sequential first-occurrence deduplication
         const metadata = await optionalMetadata(path);
         if (!metadata) continue;
@@ -360,8 +358,7 @@ async function discoverProfilePaths(
         ...standardProfilePaths(options),
         ...managedDevelopmentProfiles,
     ]);
-    // Deduplication by canonical path keeps the first matching candidate, so candidates must be
-    // validated in order rather than concurrently.
+    // Deduplication by canonical path keeps the first matching candidate, so candidates are validated in order.
     for (const candidate of candidates) {
         // eslint-disable-next-line no-await-in-loop -- sequential first-occurrence deduplication
         const metadata = await optionalMetadata(candidate);
@@ -514,6 +511,7 @@ async function createUninstallPlan(
     ).filter((host): host is OwnedHost => host !== undefined);
     const targets = await existingRealTargets([
         ...resolveUninstallTargets(options, managedDevelopmentProfiles),
+        ...(await discoverCaxriLaunchAgents(options.homeDirectory)),
     ]);
     const hookConfigs = await planHookConfigCleanups(
         { homeDirectory: options.homeDirectory, variables: options.environmentVariables ?? {} },
@@ -573,6 +571,7 @@ export async function uninstallCaxri(
         };
 
     await stopOwnedHosts(plan.hosts, operations);
+    await unloadCaxriLaunchAgents(plan.targets);
 
     const failedTargets: FailedUninstallTarget[] = [];
     // Hooks are stripped after the Hosts stopped (so none reinstalls them mid-way) and before the bridge is archived.

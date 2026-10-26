@@ -15,6 +15,7 @@ export const SHORT_CONTROL_WIDTH_CLASS_NAME = 'w-52';
  * argument editor, or a health readout cannot be usefully compressed beside a label.
  */
 const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['type']> = new Set([
+    'claude-windows',
     'files-exclude',
     'ignored-checks',
     'long-running-commands',

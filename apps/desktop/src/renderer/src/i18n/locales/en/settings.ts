@@ -1,5 +1,6 @@
 import { settingsAgents } from './settings-agents';
 import { settingsCatalog } from './settings-catalog';
+import { settingsClaudeWindows } from './settings-claude-windows';
 import { settingsForms } from './settings-forms';
 import { settingsKeybindings } from './settings-keybindings';
 import { settingsMobile } from './settings-mobile';
@@ -14,6 +15,7 @@ export const settings = {
     ...settingsCatalog,
     ...settingsPage,
     ...settingsAgents,
+    ...settingsClaudeWindows,
     ...settingsMobile,
     ...settingsKeybindings,
     ...settingsTheme,

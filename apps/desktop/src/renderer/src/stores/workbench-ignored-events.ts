@@ -17,6 +17,8 @@ import type { ServerEvent } from '@caxri/protocol';
  *   `externalDocument.changed`.
  * - `environment.changed` and `environment.connectionReused` go to `subscribeEnvironment` in `stores/environment.ts`.
  * - `files.watchLimitAlert` goes to `subscribeFileWatchLimitAlerts` in `features/ssh-host/file-watch-limit-alert.ts`.
+ * - `claudeWindow.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the Claude 5-hour windows card's
+ *   `claudeWindow.status` read.
  * - `benchmark.changed` goes to `useBenchmarkEvents` in `features/benchmark/benchmark-queries.ts`, which refreshes the
  *   Benchmark tab's run list and the changed run.
  */
@@ -33,6 +35,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'agentHooks.changed',
     'agentTranscript.changed',
     'benchmark.changed',
+    'claudeWindow.changed',
     'commanderInbox.changed',
     'editor.unsavedRequest',
     'environment.changed',

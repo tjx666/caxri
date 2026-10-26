@@ -242,6 +242,11 @@ export const serverEventPayloads = {
      */
     'commanderInbox.changed': z.object({ itemIds: z.array(identifierSchema).max(64) }),
     /**
+     * The Claude 5-hour window keeper's state changed (a check, a trigger, or a settings change). Content-free; readers
+     * re-read `claudeWindow.status`, and Desktop refreshes the background job from it.
+     */
+    'claudeWindow.changed': z.object({}),
+    /**
      * A Benchmark run changed; Clients re-read it. `kind` is `progress` for live step counts, which change nothing the
      * history list shows, and `transition` for a status change, a new or removed run; only a transition needs the list
      * re-read. An absent `kind` means `transition`.

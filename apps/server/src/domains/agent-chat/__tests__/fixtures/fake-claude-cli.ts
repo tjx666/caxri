@@ -71,6 +71,7 @@ import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import { answerSideQuestion } from './fake-claude-side.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 import { didRunUsageLimitScenario } from './fake-claude-usage-limit.ts';
+import { noteFakeClaudeWindowRequest } from './fake-claude-window.ts';
 
 type Json = Record<string, unknown>;
 
@@ -590,6 +591,7 @@ lines.on('line', (line) => {
         return;
     }
     if (message.type === 'user') {
+        noteFakeClaudeWindowRequest();
         state.queued.push(queuedTurn(message));
         void drain();
     }

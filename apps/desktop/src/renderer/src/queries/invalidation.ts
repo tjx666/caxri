@@ -525,6 +525,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             invalidateAgentTranscriptQuery(queryClient, event.payload.terminalId);
             return;
         }
+        if (event.event === 'claudeWindow.changed') {
+            void queryClient.invalidateQueries({ queryKey: ['claudeWindow.status'] });
+            return;
+        }
         if (event.event === 'commanderInbox.changed') {
             invalidateCommanderInboxQuery(queryClient);
             return;

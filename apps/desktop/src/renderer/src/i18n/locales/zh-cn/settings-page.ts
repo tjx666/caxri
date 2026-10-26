@@ -98,6 +98,9 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.providerRecovery.description':
         '当 Agent 因 Caxri 可识别的网络错误或你添加的额外模式而停止时，Caxri 会等待、按下 Esc、再次等待，然后发送“continue”。默认关闭。',
     'settings.row.providerRecovery.label': '{{provider}} 网络错误恢复',
+    'settings.row.claudeWindows.title': '5 小时窗口',
+    'settings.row.claudeWindows.description':
+        '按计划开启 Claude 订阅窗口，让当天第一个窗口在上班时重置。',
     'settings.row.providerSkill.title': 'Caxri CLI Skill',
     'settings.row.providerSkill.description': '此提供方内置 Caxri Skill 的安装状态',
     'settings.row.providerExecutable.title': '可执行文件',

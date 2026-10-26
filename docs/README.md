@@ -28,6 +28,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [benchmark.md](benchmark.md)                                       | Benchmark tab: one prompt across Agents, models, and efforts        |
 | [bundle-size.md](bundle-size.md)                                   | Packaged app size baseline and the CI budget gate                   |
 | [ci-performance.md](ci-performance.md)                             | CI/E2E execution profiles and performance evidence                  |
+| [claude-windows.md](claude-windows.md)                             | Keeping Claude 5-hour windows rolling from a morning anchor         |
 | [client-local-data.md](client-local-data.md)                       | Device store, Editor hot exit, drafts, offline decisions            |
 | [cli.md](cli.md)                                                   | The `caxri` CLI manual                                              |
 | [editor-imports.md](editor-imports.md)                             | Editor import navigation                                            |

@@ -14,6 +14,8 @@ export type {
 } from './models/agent-session-usage';
 export type { AppStateValue } from './models/app-state';
 export { BenchmarkRunsModel } from './models/benchmark-runs';
+export type { ClaudeWindowSchedule } from './models/claude-window-schedules';
+export { ClaudeWindowSchedulesModel } from './models/claude-window-schedules';
 export type { StoredCommanderInboxItem } from './models/commander-inbox';
 export type {
     CommanderPendingNotice,

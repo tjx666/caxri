@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { claudeWindowLogEvents } from './claude-window/log-events.js';
 import { agentChatSubagentLogEvents } from './logging/logging-agent-chat-subagents.js';
 import { agentCommanderLogEvents } from './logging/logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging/logging-benchmark.js';
@@ -337,6 +338,7 @@ export const logEventCatalog = {
     agentCommander: agentCommanderLogEvents,
     agentChatSubagents: agentChatSubagentLogEvents,
     benchmark: benchmarkLogEvents,
+    claudeWindow: claudeWindowLogEvents,
     /**
      * The Benchmark window's own Renderer lifecycle, kept apart from the Workbench's so a crash loop in this optional
      * window is never mistaken for the Workbench's. `requestDenied` names a request method its policy refused.

@@ -7,6 +7,7 @@ export * from './agent-turn-review-tab.js';
 export * from './bootstrap.js';
 export * from './bug-report-contract.js';
 export * from './business-contract.js';
+export * from './claude-window/contract.js';
 export * from './color.js';
 export * from './command-catalog.js';
 export * from './commands.js';

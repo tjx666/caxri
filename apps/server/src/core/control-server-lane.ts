@@ -9,6 +9,9 @@ import type { ControlSocketTerminationReason } from './control-server-support';
 
 const SELF_SERIALIZED_OPERATIONS = new Set([
     'agentChat.saveLongPaste',
+    // A Claude window check can wait minutes on Claude Code; `ClaudeWindowService` runs one check at a time.
+    'claudeWindow.tick',
+    'claudeWindow.update',
     'files.copy',
     'terminal.prepareLongPaste',
 ]);

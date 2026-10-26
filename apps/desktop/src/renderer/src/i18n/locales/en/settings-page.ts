@@ -101,6 +101,9 @@ export const settingsPage = {
     'settings.row.providerRecovery.description':
         'When the Agent stops on a network error Caxri recognizes, or on one of your extra patterns, Caxri waits, presses Esc, waits again, and sends “continue”. Off by default.',
     'settings.row.providerRecovery.label': '{{provider}} network error recovery',
+    'settings.row.claudeWindows.title': '5-hour windows',
+    'settings.row.claudeWindows.description':
+        'Start Claude subscription windows on a schedule so the first one of the day resets when your workday begins.',
     'settings.row.providerSkill.title': 'Caxri CLI skill',
     'settings.row.providerSkill.description':
         'Installation health of the bundled Caxri skill for this provider',
