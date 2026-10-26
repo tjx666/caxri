@@ -409,6 +409,7 @@ async function hostStatus(
     await capture(environment, 'overview', artifacts, sessionRow);
     await scrollHostStatus(serial);
     await waitFor(serial, (nodes) => hasCheck(nodes, 'host-status-sort-memory'));
+    await capture(environment, 'processes-by-cpu', artifacts, 'host-status-processes');
     await tapMobileCheck(serial, 'host-status-sort-memory');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'host-status-processes'));
     await capture(environment, 'processes-by-memory', artifacts, 'host-status-processes');
@@ -420,6 +421,7 @@ async function hostStatus(
         await setMobileNetworkAvailable(serial, true);
     }
     await waitFor(serial, (nodes) => !hasCheck(nodes, 'host-status-stale'));
+    await capture(environment, 'recovered', artifacts, 'host-status-processes');
     await tapMobileCheck(serial, 'host-status-back');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'new-session-button'));
     await tapMobileCheck(serial, 'forget-device-button');
@@ -428,6 +430,7 @@ async function hostStatus(
     await waitFor(serial, (nodes) => hasCheck(nodes, sessionRow));
     await tapMobileCheck(serial, sessionRow);
     await waitFor(serial, (nodes) => hasCheck(nodes, 'session-detail-back'));
+    await capture(environment, 'session-opened', artifacts, 'session-detail-back');
     await finish(environment, artifacts, {
         offline: 'last-reading-kept-with-banner',
         sessionRow: 'opens-session',
