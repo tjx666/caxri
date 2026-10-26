@@ -430,6 +430,7 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
             /^\/new-session/u,
             /^\/compact/u,
             /^\/review/u,
+            /^\/goal/u,
         ]);
         await message.press('ArrowDown');
         await message.press('ArrowDown');

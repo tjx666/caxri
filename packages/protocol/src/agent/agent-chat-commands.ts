@@ -21,8 +21,9 @@ export const agentChatCommandSchema = z.strictObject({
      */
     argumentHint: z.string().max(200).optional(),
     /**
-     * Marks the provider's native goal command (Codex's `/goal`), which the composer's Goal mode drives. A same-named
-     * custom command, such as a Claude Code `/goal` skill, carries no mark and runs like any other command.
+     * Marks the provider's native goal command (Codex's `/goal`, or Claude Code's built-in `/goal`), which the
+     * composer's Goal mode drives. A same-named custom command, such as a user's Claude Code `/goal` skill, carries no
+     * mark and runs like any other command.
      */
     goal: z.literal(true).optional(),
 });

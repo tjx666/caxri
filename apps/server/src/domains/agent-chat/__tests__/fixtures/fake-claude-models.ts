@@ -94,7 +94,8 @@ export function hookCallbackRequest(
 }
 
 /**
- * The commands the fake CLI's `initialize` lists, including a terminal-bound one (`exit`) the Chat must leave out.
+ * The commands the fake CLI's `initialize` lists, including a terminal-bound one (`exit`) the Chat must leave out and
+ * Claude Code's built-in `/goal`, which the real CLI marks `builtin`.
  */
 export const FAKE_CLAUDE_COMMANDS = [
     {
@@ -103,6 +104,12 @@ export const FAKE_CLAUDE_COMMANDS = [
         argumentHint: '<optional custom summarization instructions>',
     },
     { name: 'review', description: 'Review a pull request', argumentHint: '' },
+    {
+        name: 'goal',
+        description: 'Set a goal and keep working until the condition is met',
+        argumentHint: '',
+        builtin: true,
+    },
     { name: 'exit', description: 'Exit the REPL', argumentHint: '' },
 ];
 

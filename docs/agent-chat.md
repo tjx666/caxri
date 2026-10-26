@@ -1409,9 +1409,12 @@ skill`, and `Skill`), so a request such as "open a Session for this" needs no pr
 
 ## Goals
 
-A goal is an objective the provider keeps working toward across turns. Only Codex has native goals
-(app-server `thread/goal/*`), so only a Codex Chat lists `/goal` and reports the snapshot's `goal`
-(objective, status, tokens, and the time Codex has counted).
+A goal is an objective the provider keeps working toward across turns. Codex has native goals
+(app-server `thread/goal/*`), so a Codex Chat lists `/goal` and reports the snapshot's `goal`
+(objective, status, tokens, and the time Codex has counted). Claude Code's built-in `/goal` (the
+command list's `builtin` row, not a same-named skill) also carries the goal mark, so choosing it
+enters Goal mode and Enter sends `/goal <condition>` as prompt text; Caxri does not report a Claude
+Code goal in the snapshot, so its Chat shows no goal row. The rest of this section describes Codex.
 
 - `/goal <objective>` sets the goal, and `/goal pause`, `/goal resume`, and `/goal clear` act on it,
   as in the Codex CLI (`parseAgentChatGoalArguments`). Bare `/goal` is refused. Every change carries

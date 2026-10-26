@@ -3,6 +3,7 @@ import type { UUID } from 'node:crypto';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatCommand, AgentChatImageInput, AgentChatItem } from '@caxri/protocol';
 import {
+    AGENT_CHAT_GOAL_COMMAND,
     MAX_AGENT_CHAT_COMMANDS,
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_TEXT_LENGTH,
@@ -16,7 +17,9 @@ const COMMAND_NAME = /^[\w:.-]{1,100}$/u;
 /**
  * Translates Claude Code's slash commands (`initialize`'s `commands`, or a `commands_changed` push) into the Chat's
  * command list. `hidden` holds the commands Claude Code marks as bound to its own terminal UI (`/exit`, `/statusline`),
- * which do nothing useful outside it. A name listed twice keeps its first row, which is the one `/name` runs.
+ * which do nothing useful outside it. A name listed twice keeps its first row, which is the one `/name` runs. Claude
+ * Code's own `/goal` (`builtin`) carries the goal mark, so the composer's Goal mode drives it as it does Codex's; a
+ * user's same-named skill does not.
  */
 function claudeChatCommands(commands: unknown, hidden: ReadonlySet<string>): AgentChatCommand[] {
     if (!Array.isArray(commands)) return [];
@@ -33,6 +36,8 @@ function claudeChatCommands(commands: unknown, hidden: ReadonlySet<string>): Age
             name,
             ...(description && { description: clip(description, 500) }),
             ...(argumentHint && { argumentHint: clip(argumentHint, 200) }),
+            ...(command.builtin === true &&
+                name === AGENT_CHAT_GOAL_COMMAND && { goal: true as const }),
         });
         if (result.length >= MAX_AGENT_CHAT_COMMANDS) break;
     }
