@@ -11,20 +11,39 @@ import { useTranslation } from '../../i18n';
  * would spend width on a meaning the row does not have.
  */
 export function SessionRevealRow({
-    ariaLabel,
+    count,
+    projectTitle,
     roving,
     rowId,
     onReveal,
 }: {
     /**
-     * Names the group and how many Sessions this activation reveals; the visible label carries no count.
+     * How many Sessions this activation reveals; only the accessible name carries it, not the visible label.
      */
-    ariaLabel: string;
+    count: number;
+    /**
+     * The Project group's title, named in the accessible name; omitted for the Pinned group.
+     */
+    projectTitle?: string;
     roving: boolean;
     rowId: string;
     onReveal: () => void;
 }) {
     const { t } = useTranslation();
+    const ariaLabel =
+        projectTitle === undefined
+            ? t(
+                  count === 1
+                      ? 'primarySidebar.pinned.revealAriaLabelOne'
+                      : 'primarySidebar.pinned.revealAriaLabelOther',
+                  { count },
+              )
+            : t(
+                  count === 1
+                      ? 'primarySidebar.project.revealAriaLabelOne'
+                      : 'primarySidebar.project.revealAriaLabelOther',
+                  { count, title: projectTitle },
+              );
     return (
         <button
             className="session-reveal mt-0.5 ml-5.5 flex h-6 w-fit max-w-[calc(100%-22px)] cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent px-2 text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"

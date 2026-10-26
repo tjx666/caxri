@@ -375,12 +375,8 @@ export function ProjectGroup({
                         ))}
                         {hiddenSessionCount > 0 && (
                             <SessionRevealRow
-                                ariaLabel={t(
-                                    nextRevealCount === 1
-                                        ? 'primarySidebar.project.revealAriaLabelOne'
-                                        : 'primarySidebar.project.revealAriaLabelOther',
-                                    { count: nextRevealCount, title: project.displayTitle },
-                                )}
+                                count={nextRevealCount}
+                                projectTitle={project.displayTitle}
                                 roving={revealRowId === rovingRowId}
                                 rowId={revealRowId}
                                 onReveal={onRevealMoreSessions}

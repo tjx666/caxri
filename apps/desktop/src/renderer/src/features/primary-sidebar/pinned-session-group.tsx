@@ -244,12 +244,7 @@ export function PinnedSessionGroup({
                         {hiddenSessionCount > 0 && (
                             // Same reveal row a Project group uses: a long Pinned list would push every Project off the screen.
                             <SessionRevealRow
-                                ariaLabel={t(
-                                    nextRevealCount === 1
-                                        ? 'primarySidebar.pinned.revealAriaLabelOne'
-                                        : 'primarySidebar.pinned.revealAriaLabelOther',
-                                    { count: nextRevealCount },
-                                )}
+                                count={nextRevealCount}
                                 roving={revealRowId === rovingRowId}
                                 rowId={revealRowId}
                                 onReveal={onRevealMoreSessions}
