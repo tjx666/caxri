@@ -4,7 +4,7 @@
  */
 export function agentChoiceName(label: string): RegExp {
     return new RegExp(
-        `^${label.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)}(?:Not installed)?$`,
+        `^${label.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)}(?: Not installed)?$`,
         'u',
     );
 }

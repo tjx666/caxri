@@ -43,3 +43,28 @@ export async function prepareE2EProfile(
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     }
 }
+
+/**
+ * `settings.update` replaces the whole settings file, so a spec that writes only the keys it cares about would also
+ * drop the `session.openAgentsInChat` baseline above and silently turn its Agent Sessions into Chats. Keeps that one
+ * key unless the spec sets it; other methods and any source that is not a plain JSON object pass through untouched.
+ */
+export function withE2EAgentSurfaceBaseline(method: string, parameters: unknown): unknown {
+    if (method !== 'settings.update' || !isRecord(parameters)) return parameters;
+    if (typeof parameters.source !== 'string') return parameters;
+    let settings: unknown;
+    try {
+        settings = JSON.parse(parameters.source);
+    } catch {
+        return parameters;
+    }
+    if (!isRecord(settings)) return parameters;
+    const baseline = {
+        'session.openAgentsInChat': E2E_DEFAULT_SETTINGS['session.openAgentsInChat'],
+    };
+    return { ...parameters, source: JSON.stringify({ ...baseline, ...settings }, null, 2) };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

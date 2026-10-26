@@ -32,7 +32,7 @@ import {
     writeClipboardFixture,
 } from './clipboard.ts';
 import { closeE2EApp } from './desktop-lease-lifecycle.ts';
-import { prepareE2EProfile } from './e2e-profile.ts';
+import { prepareE2EProfile, withE2EAgentSurfaceBaseline } from './e2e-profile.ts';
 import type { E2EApp } from './electron-app.ts';
 import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
 import { releaseE2EHost } from './host-shutdown.ts';
@@ -577,7 +577,7 @@ export function pageReply<T>(
                     caxri: { request(method: string, parameters_?: unknown): Promise<unknown> };
                 }
             ).caxri.request(requestMethod, requestParameters),
-        [method, parameters] as const,
+        [method, withE2EAgentSurfaceBaseline(method, parameters)] as const,
     ) as Promise<PageReply<T>>;
 }
 
