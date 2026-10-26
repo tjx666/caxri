@@ -368,6 +368,22 @@ export const agentChatMethods = {
         }),
     },
     /**
+     * Acts on the automatic continuation of the turn `turnId` that failed on a used-up plan limit (its notice's
+     * `usageLimit.autoContinue`): `cancel` drops a pending wait, so the turn stays failed as if the Chat never waited;
+     * `continueNow` continues the work in this Chat right away, the same way the wait would at the reset (also from a
+     * `missed` wait). Fails with `CONFLICT` when that turn is not the Chat's latest usage-limit failure or the Chat is
+     * busy.
+     */
+    'agentChat.usageLimitWait': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({
+            ...terminalTarget,
+            turnId: z.string().min(1).max(200),
+            action: z.enum(['cancel', 'continueNow']),
+        }),
+        result: z.null(),
+    },
+    /**
      * Spends the usage guard's reserved budget on one tool-less turn in which this Chat's own model writes a hand-off
      * document. Returns once the lease is taken; the document lands in the snapshot's `usageGuard.document`. Once per
      * account and weekly window: a second call, from this Chat or another one on the same account, fails with

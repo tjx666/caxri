@@ -14,6 +14,7 @@ import type { TerminalManagerOptions } from '../terminal';
 import type { ChatDelegationHooks } from './chat-delegation';
 import type { SpawnChatProcess } from './chat-provider';
 import type { ChatUsageContinuation } from './continuation/chat-usage-continuation';
+import type { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
 
 /**
  * Dependencies of `AgentChatService`, injected so tests can swap the provider process, environment, and executable.
@@ -90,6 +91,11 @@ export interface AgentChatServiceOptions {
      * service without it.
      */
     usage?: ChatUsageContinuation;
+    /**
+     * Continuing a Chat on its own once its used-up plan limit resets (issue #2220). Optional so a test can build the
+     * service without it.
+     */
+    usageLimitWaits?: ChatUsageLimitWaits;
 }
 
 export interface AgentChatEndpoint {

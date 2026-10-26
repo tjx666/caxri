@@ -1874,8 +1874,9 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Usage limits
 
-A turn that failed on a used-up plan limit offers `Continue in <Agent>`, and an account at 99% of its
-weekly window blocks new requests behind the weekly usage guard; see
+A turn that failed on a used-up plan limit offers `Continue in <Agent>` and, when the limit resets
+within a day, continues on its own after the reset; an account at 99% of its weekly window blocks
+new requests behind the weekly usage guard; see
 [Usage limits and cross-Agent continuation](agent-usage-continuation.md).
 
 ## Not yet supported

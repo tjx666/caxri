@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { agentChatSendBlock } from '../../composer/send/agent-chat-send-tooltip';
 import {
+    agentChatAutoContinueLabel,
     agentChatContinuationChoice,
     agentChatContinuationUnavailableLabel,
     agentChatUsageGuardOffer,
@@ -99,5 +100,26 @@ describe('agentChatSendBlock', () => {
             ),
         ).toBe('usageGuard');
         expect(agentChatSendBlock({ status: 'ready' }, 'running')).toBeUndefined();
+    });
+});
+
+describe('agentChatAutoContinueLabel', () => {
+    it('says when a waiting Chat continues, that it did, or why it will not', () => {
+        expect(agentChatAutoContinueLabel({ status: 'waiting', at: NOW + 7_380_000 }, NOW)).toMatch(
+            /^Continues automatically at .+ \(in 2h 3m\)$/u,
+        );
+        expect(agentChatAutoContinueLabel({ status: 'waiting', at: NOW + 30_000 }, NOW)).toBe(
+            'Continuing automatically…',
+        );
+        expect(agentChatAutoContinueLabel({ status: 'continued', at: NOW }, NOW)).toMatch(
+            /^Continued automatically at /u,
+        );
+        expect(agentChatAutoContinueLabel({ status: 'missed' }, NOW)).toBe('The limit has reset');
+        expect(agentChatAutoContinueLabel({ status: 'skipped', reason: 'attemptsUsed' }, NOW)).toBe(
+            'Stopped continuing automatically after 3 tries into the limit',
+        );
+        expect(agentChatAutoContinueLabel({ status: 'skipped', reason: 'resetTooFar' }, NOW)).toBe(
+            "Won't continue automatically: the limit resets more than 24 hours from now",
+        );
     });
 });

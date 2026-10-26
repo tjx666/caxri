@@ -72,6 +72,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'agentChat.sendQueuedNow': 'ordered',
     'agentChat.stopTask': 'ordered',
     'agentChat.takeQueued': 'ordered',
+    'agentChat.usageLimitWait': 'ordered',
     'agentCommander.clearData': 'ordered',
     'agentCommander.open': 'ordered',
     'agentCommander.openFileLink': 'ordered',

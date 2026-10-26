@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import { historyOperations, itemTimeOperations } from '../codex-turns';
 
+const TEXT = [{ type: 'text', text: 'hello' }];
+
 describe('historyOperations', () => {
     it('keeps the projection marked truncated when resumed history overflows the item budget', () => {
         const items = Array.from({ length: MAX_AGENT_CHAT_ITEMS + 5 }, (_, index) => ({
@@ -84,15 +86,15 @@ describe('historyOperations', () => {
                         status: 'completed',
                         startedAt: 1_760_000_000,
                         items: [
-                            { id: 'u', type: 'userMessage', clientId: null, content: [] },
+                            { id: 'u', type: 'userMessage', clientId: null, content: TEXT },
                             { id: 'm', type: 'agentMessage', text: 'hi' },
-                            { id: 's', type: 'userMessage', clientId: 'steered:1', content: [] },
+                            { id: 's', type: 'userMessage', clientId: 'steered:1', content: TEXT },
                         ],
                     },
                     {
                         id: 'turn-2',
                         status: 'completed',
-                        items: [{ id: 'u2', type: 'userMessage', content: [] }],
+                        items: [{ id: 'u2', type: 'userMessage', content: TEXT }],
                     },
                 ],
             },

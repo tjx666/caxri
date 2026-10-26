@@ -36,13 +36,16 @@ import type {
 import { chatTextDigest } from './chat-turn-answer';
 import type { CodexThreadSettings } from './codex-chat-types';
 import { CodexComputerUseBindings } from './codex-computer-use';
-import { CodexDeliveryCheck } from './codex-delivery-check';
+import {
+    CodexDeliveryCheck,
+    didSteerCodexTurn,
+    TURN_REQUEST_TIMEOUT_MS,
+} from './codex-delivery-check';
 import {
     CODEX_COMMANDS,
     codexClientMessageId,
     CodexThumbnails,
     codexUserInput,
-    isSteerTargetGone,
 } from './codex-input';
 import { didInterruptTimeout } from './codex-interrupt';
 import { loadCodexItemTimes } from './codex-item-times';
@@ -56,7 +59,7 @@ import { initializeCodexConnection, openCodexThread } from './codex-thread-open'
 import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { codexTurnFailure, CodexUsageLimits } from './continuation/codex-usage-limit';
 import { CodexGoals } from './goals/codex-goals';
-import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
+import { JsonRpcConnection } from './json-rpc-connection';
 import { forkCodexThread, revertCodexThread } from './rewind/codex-rewind';
 import { CodexSideQuestions } from './side-question/codex-side-question';
 
@@ -415,39 +418,17 @@ class CodexChatSession implements AgentChatProviderSession {
         this.thumbnails.remember(clientUserMessageId, message);
         const { activeTurnId } = this.options.read();
         if (activeTurnId && options.delivery === 'steered') {
-            try {
-                await this.deliveries.request(
-                    connection,
-                    'turn/steer',
-                    clientUserMessageId,
-                    (timeoutMs) =>
-                        connection.request(
-                            'turn/steer',
-                            {
-                                threadId: this.threadId,
-                                input,
-                                expectedTurnId: activeTurnId,
-                                clientUserMessageId,
-                            },
-                            timeoutMs,
-                        ),
-                );
-                return;
-            } catch (error) {
-                /**
-                 * The turn can finish between reading `activeTurnId` and the steer arriving; Codex then rejects the
-                 * precondition and the message starts the next turn instead of being lost. It was not steered after
-                 * all, so it goes out under a new id that carries no marker.
-                 */
-                if (!(error instanceof JsonRpcRequestError)) throw error;
-                if (!isSteerTargetGone(error))
-                    throw new CaxriError(
-                        'CONFLICT',
-                        'Codex cannot add this message to the running turn',
-                    );
-                clientUserMessageId = codexClientMessageId();
-                this.thumbnails.remember(clientUserMessageId, message);
-            }
+            const isSteered = await didSteerCodexTurn({
+                connection,
+                deliveries: this.deliveries,
+                threadId: this.threadId,
+                input,
+                expectedTurnId: activeTurnId,
+                clientUserMessageId,
+            });
+            if (isSteered) return;
+            clientUserMessageId = codexClientMessageId();
+            this.thumbnails.remember(clientUserMessageId, message);
         }
         this.pendingPromptDigest = chatTextDigest(message.text);
         let result: unknown;
@@ -478,6 +459,24 @@ class CodexChatSession implements AgentChatProviderSession {
         if (turnId) this.beginTurn(turnId);
         // A digest no turn consumed (no id came back) must not attach to a turn Codex later starts on its own.
         this.pendingPromptDigest = undefined;
+    }
+
+    /**
+     * Starts a turn with no new input once a used-up plan limit resets (issue #2220), as the Codex app's own Continue
+     * does: Codex runs the model on the thread as it stands, so the timeline gains no user message. A timeout is not
+     * retried: the turn may have started.
+     */
+    async continueAfterUsageLimit(): Promise<void> {
+        const connection = this.requireConnection();
+        const result = await this.models.startTurn(
+            connection,
+            { threadId: this.threadId, input: [], summary: 'detailed' },
+            this.options.turnRequestTimeoutMs ?? TURN_REQUEST_TIMEOUT_MS,
+        );
+        const turnId = stringField(
+            isRecord(result) && isRecord(result.turn) ? result.turn.id : undefined,
+        );
+        if (turnId) this.beginTurn(turnId);
     }
 
     isImmediateCommand(name: string): boolean {

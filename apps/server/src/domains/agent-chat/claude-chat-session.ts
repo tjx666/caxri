@@ -1,9 +1,9 @@
+import type { UUID } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 
 import type {
     Query,
     SDKMessage,
-    SDKUserMessage,
     SpawnedProcess,
     SpawnOptions,
 } from '@anthropic-ai/claude-agent-sdk';
@@ -37,8 +37,10 @@ import { claudeResponseUsage } from './claude-context';
 import { ClaudeContextTracker } from './claude-context-report';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import {
+    CLAUDE_USAGE_LIMIT_CONTINUE_PROMPT,
     ClaudeCommandList,
     claudePromptUuid,
+    claudeUsageLimitContinueUuid,
     claudeUserPrompt,
     isClaudeCompactCommand,
 } from './claude-input';
@@ -63,7 +65,7 @@ import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
 import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './claude-system-notices';
 import { ClaudeTasks } from './claude-tasks';
-import { ClaudeToolClock, settleClaudeToolResults } from './claude-tool-results';
+import { applyClaudeToolResults, ClaudeToolClock } from './claude-tool-results';
 import { ClaudeTurns } from './claude-turns';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';
@@ -242,22 +244,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.toolClock.start(mapped.items);
     }
 
-    private onToolResults(message: SDKUserMessage): void {
-        const content = isRecord(message.message) ? message.message.content : undefined;
-        if (!Array.isArray(content)) return;
-        const operations = settleClaudeToolResults(
-            content,
-            this.options.read().items,
-            message.tool_use_result,
-            (id) => ({
-                wasDeclined: this.requests.takeDeclined(id),
-                durationMs: this.toolClock.stop(id),
-            }),
-        );
-        if (operations.length > 0) this.options.apply(operations);
-        this.tasks.onToolResults(content);
-    }
-
     private onSystem(message: Json): void {
         if (this.tasks.onSystem(message)) return;
         if (this.tasks.onFeedback(message)) return;
@@ -325,7 +311,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'user': {
-                this.onToolResults(message);
+                const content = applyClaudeToolResults(this.options, message, (id) => ({
+                    wasDeclined: this.requests.takeDeclined(id),
+                    durationMs: this.toolClock.stop(id),
+                }));
+                if (content) this.tasks.onToolResults(content);
                 return;
             }
             case 'result': {
@@ -385,10 +375,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private submit(
         text: string,
         images: readonly AgentChatImageInput[],
-        options: ChatInputOptions & { isHidden?: boolean } = {},
+        options: ChatInputOptions & { isHidden?: boolean; uuid?: UUID } = {},
     ): void {
         this.requireOpen();
-        const uuid = claudePromptUuid(options.delivery);
+        const uuid = options.uuid ?? claudePromptUuid(options.delivery);
         const activeTurnId = this.options.read().activeTurnId;
         const turnId = activeTurnId ?? uuid;
         if (!activeTurnId) this.turns.begin(turnId, { isOwnPrompt: true, prompt: text });
@@ -483,6 +473,14 @@ class ClaudeChatSession implements AgentChatProviderSession {
     ): Promise<void> {
         const prompt = slashCommandPrompt(name, arguments_);
         this.submit(prompt, [], { ...options, isHidden: isClaudeCompactCommand(prompt) });
+        return Promise.resolve();
+    }
+
+    continueAfterUsageLimit(): Promise<void> {
+        this.submit(CLAUDE_USAGE_LIMIT_CONTINUE_PROMPT, [], {
+            isHidden: true,
+            uuid: claudeUsageLimitContinueUuid(),
+        });
         return Promise.resolve();
     }
 

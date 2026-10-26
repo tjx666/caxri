@@ -143,3 +143,41 @@ export class CodexDeliveryCheck {
         }
     }
 }
+
+/**
+ * One message steered into the turn Codex is running.
+ */
+export interface CodexSteer {
+    connection: JsonRpcConnection;
+    deliveries: CodexDeliveryCheck;
+    threadId: string | undefined;
+    input: ReturnType<typeof codexUserInput>;
+    expectedTurnId: string;
+    clientUserMessageId: string;
+}
+
+/**
+ * Adds a message to the running turn, and resolves `false` when that turn ended first.
+ *
+ * The turn can finish between reading its id and the steer arriving; Codex then rejects the precondition, and the
+ * caller starts the next turn with the message instead of losing it. It was not steered after all, so it goes out under
+ * a new id that carries no marker.
+ */
+export async function didSteerCodexTurn(steer: CodexSteer): Promise<boolean> {
+    const { connection, deliveries, threadId, input, expectedTurnId, clientUserMessageId } = steer;
+    try {
+        await deliveries.request(connection, 'turn/steer', clientUserMessageId, (timeoutMs) =>
+            connection.request(
+                'turn/steer',
+                { threadId, input, expectedTurnId, clientUserMessageId },
+                timeoutMs,
+            ),
+        );
+        return true;
+    } catch (error) {
+        if (!(error instanceof JsonRpcRequestError)) throw error;
+        if (!isSteerTargetGone(error))
+            throw new CaxriError('CONFLICT', 'Codex cannot add this message to the running turn');
+        return false;
+    }
+}

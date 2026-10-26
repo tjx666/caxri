@@ -85,4 +85,28 @@ export const agentChatSettingsSpec = [
         ],
         default: true,
     },
+    /**
+     * Named after Claude Code's own `autoContinueAtUsageLimit`, which its docs leave to the interactive CLI: a Chat
+     * driven through the Agent SDK does not get it, so Server Core owns the wait for both providers.
+     */
+    {
+        kind: 'boolean',
+        key: 'agentChat.autoContinueAtUsageLimit',
+        title: 'Continue automatically after a usage limit resets',
+        description:
+            'When a Claude or Codex Chat stops because your plan usage limit is used up, wait for the limit to reset (within 24 hours) and continue the task on its own. You can cancel the wait or continue right away from the Chat.',
+        category: 'agents',
+        keywords: [
+            'agent',
+            'chat',
+            'usage',
+            'limit',
+            'rate limit',
+            'reset',
+            'continue',
+            'resume',
+            'quota',
+        ],
+        default: true,
+    },
 ] as const satisfies readonly SettingSpec[];

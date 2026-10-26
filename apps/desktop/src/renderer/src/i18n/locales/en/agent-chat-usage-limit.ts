@@ -13,6 +13,24 @@ export const agentChatUsageLimit = {
         'Opens a new Session in this Project where {{provider}} picks the work up from this conversation',
     'agentChat.usageLimit.noTarget': 'No other Agent can take this over',
     'agentChat.usageLimit.continueFailed': "Couldn't continue in another Agent",
+    'agentChat.usageLimit.auto.waiting': 'Continues automatically at {{time}} (in {{duration}})',
+    'agentChat.usageLimit.auto.continuing': 'Continuing automatically…',
+    'agentChat.usageLimit.auto.continued': 'Continued automatically at {{time}}',
+    'agentChat.usageLimit.auto.missed': 'The limit has reset',
+    'agentChat.usageLimit.auto.skipped.resetUnknown':
+        "Won't continue automatically: no reset time was reported",
+    'agentChat.usageLimit.auto.skipped.resetTooFar':
+        "Won't continue automatically: the limit resets more than 24 hours from now",
+    'agentChat.usageLimit.auto.skipped.attemptsUsed':
+        'Stopped continuing automatically after {{count}} tries into the limit',
+    'agentChat.usageLimit.auto.skipped.usageGuard':
+        "Won't continue automatically while weekly usage is at the guard",
+    'agentChat.usageLimit.auto.continueNow': 'Continue now',
+    'agentChat.usageLimit.auto.continue': 'Continue',
+    'agentChat.usageLimit.auto.cancel': 'Cancel',
+    'agentChat.usageLimit.auto.cancelTooltip': 'Stop waiting; the Chat stays as it is',
+    'agentChat.usageLimit.auto.continueFailed': "Couldn't continue this Chat",
+    'agentChat.usageLimit.auto.cancelFailed': "Couldn't cancel the automatic continuation",
     'agentChat.usageLimit.unavailable.current': 'This Chat',
     'agentChat.usageLimit.unavailable.notInstalled': 'Not installed',
     'agentChat.usageLimit.unavailable.unsupported': 'No Chat support',

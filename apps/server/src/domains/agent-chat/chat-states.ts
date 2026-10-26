@@ -23,6 +23,8 @@ import { chatStateStore } from './chat-state-store';
 import { ChatSubagentSummaries } from './chat-subagent-summaries';
 import { forgetTaskRevisions } from './chat-task-projections';
 import type { ChatUsageContinuation } from './continuation/chat-usage-continuation';
+import type { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
+import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
 
 export type ChatTerminal = TerminalRecord & { provider: AgentProvider };
 
@@ -88,6 +90,10 @@ interface ChatStatesOptions {
      * The weekly usage guard as each Chat sees it; see `ChatUsageContinuation`.
      */
     usage?: ChatUsageContinuation;
+    /**
+     * Each Chat's automatic continuation after a used-up plan limit; see `ChatUsageLimitWaits`.
+     */
+    usageLimitWaits?: ChatUsageLimitWaits;
 }
 
 /**
@@ -150,11 +156,32 @@ export class ChatStates {
         });
     }
 
+    private projectionWaits(
+        terminalId: string,
+        waits: ChatUsageLimitWaits,
+    ): ProjectionUsageLimitWaits {
+        return {
+            stateOf: (turnId) => waits.stateOf(terminalId, turnId),
+            replayNotice: () => waits.replayNotice(terminalId),
+            observeFailure: (notice) => {
+                const provider = this.options.database.getTerminal(terminalId)?.provider;
+                if (provider) waits.observeFailure(terminalId, provider, notice);
+            },
+        };
+    }
+
     /**
      * The weekly usage guard and cross-Agent continuation, when Server Core composed them.
      */
     get usage(): ChatUsageContinuation | undefined {
         return this.options.usage;
+    }
+
+    /**
+     * The automatic continuation after a used-up plan limit, when Server Core composed it.
+     */
+    get usageLimitWaits(): ChatUsageLimitWaits | undefined {
+        return this.options.usageLimitWaits;
     }
 
     /**
@@ -198,6 +225,9 @@ export class ChatStates {
                 delegatedTask: (delegationId) =>
                     delegatedTaskDetails(this.options.database, delegationId),
                 usageContinuedIn: (turnId) => this.options.usage?.continuedIn(terminalId, turnId),
+                ...(this.options.usageLimitWaits && {
+                    usageLimitWaits: this.projectionWaits(terminalId, this.options.usageLimitWaits),
+                }),
                 answeredNotices: {
                     load: () =>
                         chatStateStore(this.options.database).answeredNotices.list(terminalId),

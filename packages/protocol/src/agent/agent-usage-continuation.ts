@@ -27,6 +27,48 @@ export const agentChatContinuationSchema = z.strictObject({
 export type AgentChatContinuation = z.infer<typeof agentChatContinuationSchema>;
 
 /**
+ * At most this far ahead may a reset be for the Chat to wait for it on its own: a 5-hour window always fits, a weekly
+ * window days away does not (issue #2220). Claude Code's own `autoContinueAtUsageLimit` uses the same horizon.
+ */
+export const AGENT_CHAT_AUTO_CONTINUE_HORIZON_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Automatic continuations a Chat makes in a row without the user's input. The first wait plus two more covers a reset
+ * that a provider reports a little early, as Claude Code's own wait does; a limit that keeps failing the continuation
+ * is left to the user.
+ */
+export const AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS = 3;
+
+/**
+ * Why a Chat does not continue on its own once this limit resets: the provider named no reset time, the reset is beyond
+ * {@link AGENT_CHAT_AUTO_CONTINUE_HORIZON_MS}, the Chat already continued {@link AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS}
+ * times in a row into the limit, or the account's weekly usage guard holds new requests back.
+ */
+export const agentChatAutoContinueSkipReasonSchema = z.enum([
+    'resetUnknown',
+    'resetTooFar',
+    'attemptsUsed',
+    'usageGuard',
+]);
+export type AgentChatAutoContinueSkipReason = z.infer<typeof agentChatAutoContinueSkipReasonSchema>;
+
+/**
+ * The Chat continuing on its own after the limit resets (issue #2220), as Server Core schedules it: `waiting` until
+ * `at` (the reset plus a short stagger), `continued` once a new turn started at `at`, `missed` when the Chat could not
+ * continue near the reset (the Mac slept through it, or Server Core was not running), so the user decides instead, and
+ * `skipped` with why it never waited. A cancelled wait drops the field. Server Core persists the latest wait per
+ * Terminal, so a restart keeps a `waiting` Chat waiting, and a history replay that lost the failed turn's notice
+ * (Claude Code's transcript keeps none) gets it back while the wait is `waiting` or `missed`.
+ */
+export const agentChatAutoContinueSchema = z.discriminatedUnion('status', [
+    z.strictObject({ status: z.literal('waiting'), at: z.number().int().positive() }),
+    z.strictObject({ status: z.literal('continued'), at: z.number().int().positive() }),
+    z.strictObject({ status: z.literal('missed') }),
+    z.strictObject({ status: z.literal('skipped'), reason: agentChatAutoContinueSkipReasonSchema }),
+]);
+export type AgentChatAutoContinue = z.infer<typeof agentChatAutoContinueSchema>;
+
+/**
  * Set on a turn's `error` notice when the provider failed it because the plan's usage limit is used up, so a Client can
  * offer to continue in another Agent instead of matching provider text. Ordinary rate limits, overload, network, and
  * authentication failures never carry it.
@@ -42,6 +84,10 @@ export const agentChatUsageLimitSchema = z.strictObject({
      * record, so it survives a history replay.
      */
     continuedIn: agentChatContinuationSchema.optional(),
+    /**
+     * Whether the Chat continues on its own once the limit resets; absent while that is off or was cancelled.
+     */
+    autoContinue: agentChatAutoContinueSchema.optional(),
 });
 export type AgentChatUsageLimit = z.infer<typeof agentChatUsageLimitSchema>;
 

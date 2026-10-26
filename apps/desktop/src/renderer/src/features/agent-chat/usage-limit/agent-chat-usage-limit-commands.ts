@@ -34,3 +34,22 @@ export async function generateAgentChatHandoff(terminalId: string): Promise<void
         caxri.request('agentChat.generateHandoff', { terminalId }),
     );
 }
+
+/**
+ * Ends the Chat's wait for the limit to reset (`cancel`), or continues it now (`continueNow`). A failure is a toast;
+ * the notice follows the Chat's projection either way.
+ */
+export async function answerAgentChatUsageLimitWait(
+    terminalId: string,
+    turnId: string,
+    action: 'cancel' | 'continueNow',
+): Promise<void> {
+    await tryCommand(
+        translate(
+            action === 'cancel'
+                ? 'agentChat.usageLimit.auto.cancelFailed'
+                : 'agentChat.usageLimit.auto.continueFailed',
+        ),
+        () => caxri.request('agentChat.usageLimitWait', { terminalId, turnId, action }),
+    );
+}

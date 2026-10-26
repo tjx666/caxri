@@ -398,5 +398,6 @@ export const settingRowSources: SettingRowSource[] = [
         enabledBy: 'terminal.idleSuspension.enabled',
     }),
     specRow('agentChat.idleCompaction.enabled'),
+    specRow('agentChat.autoContinueAtUsageLimit'),
     ...agentProviderIds.flatMap((provider) => providerRows(provider)),
 ];

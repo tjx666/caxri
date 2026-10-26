@@ -183,6 +183,8 @@ export function mapCodexItem(
                     title: 'Caxri told the Agent',
                     message: clip(userMessageText(raw.content), 2_000),
                 };
+            // A turn started with no input (the automatic continuation after a usage limit resets) has no message.
+            if (Array.isArray(raw.content) && raw.content.length === 0) return undefined;
             const imageCount = Math.min(codexUserImageCount(raw.content), MAX_AGENT_CHAT_IMAGES);
             const delivery = codexDelivery(raw);
             return {

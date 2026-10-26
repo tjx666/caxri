@@ -86,6 +86,7 @@ export const effectfulCommandRecovery = {
     'agentChat.configure': 'memory',
     'agentChat.continueInAgent': 'durable',
     'agentChat.generateHandoff': 'memory',
+    'agentChat.usageLimitWait': 'memory',
     'agentChat.stopTask': 'memory',
     'agentChat.removeQueued': 'memory',
     'agentChat.sendQueuedNow': 'memory',
