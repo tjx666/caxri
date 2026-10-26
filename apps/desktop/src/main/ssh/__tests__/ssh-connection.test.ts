@@ -99,6 +99,13 @@ describe('ssh connection', () => {
     });
 
     describe('SshConnection', () => {
+        it('negotiates compression on the master unless it is turned off', async () => {
+            await connect('ok', { compression: false }).start();
+            const master = (await calls()).find((argv) => argv.includes('-M')) ?? [];
+            expect(master).toContain('Compression=no');
+            expect(master).not.toContain('Compression=yes');
+        });
+
         it('starts a master, runs scripts with stdin, and stops without a close notification', async () => {
             const connection = connect('ok');
             let closes = 0;
@@ -126,6 +133,7 @@ describe('ssh connection', () => {
             expect(master.slice(0, 2)).toEqual(['-F', join(root, 'ssh_config')]);
             expect(master).toContain('ClearAllForwardings=yes');
             expect(master).toContain('ControlPersist=no');
+            expect(master).toContain('Compression=yes');
             expect(master.slice(-6)).toEqual(['-p', '2222', '-l', 'dev', '--', 'lab']);
             expect(client).toContain('BatchMode=yes');
             expect(client).toContain('ControlMaster=no');

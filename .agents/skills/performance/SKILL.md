@@ -35,6 +35,11 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    with the cache fully broken. Read the `cache` counters it prints beside the timings to tell a
    fast run from a cache that stopped working, and keep regression protection in the syscall-count
    assertions in `metadata-cache.test.ts` and `probe-fanout.test.ts`.
+   For an SSH Host window on a slow or distant link, run `bun run benchmark:ssh-link` (Docker, about
+   20 minutes; `--profiles slow --skip-build` for one profile). It times a real Desktop workload
+   through a simulated link and reports the bytes that crossed it; see
+   [Slow links](../../../docs/ssh-host.md#slow-links). The other benchmarks run locally, where wire
+   size never shows.
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
    from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`, `app.startup_profile`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,

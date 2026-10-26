@@ -173,6 +173,11 @@ export interface SshConnectionOptions {
      * user's `~/.ssh/config`.
      */
     configFile?: string;
+    /**
+     * Whether the master negotiates OpenSSH compression (default `true`), overriding the user's own `Compression`
+     * setting. Why it is on and what it costs: `docs/ssh-host.md#slow-links`.
+     */
+    compression?: boolean;
     connectTimeoutSeconds?: number;
     /**
      * Private 0700 directory for the control socket; created and verified by `start()`.
@@ -340,6 +345,8 @@ export class SshConnection {
                 'ControlPersist=no',
                 '-o',
                 `ControlPath=${this.controlPath}`,
+                '-o',
+                `Compression=${this.options.compression === false ? 'no' : 'yes'}`,
                 '-o',
                 'ServerAliveInterval=15',
                 '-o',
