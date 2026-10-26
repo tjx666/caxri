@@ -169,3 +169,40 @@ export function bugReportImageDeliveryNotice(
         return t('bugReport.imageDelivery.pasted');
     return t('bugReport.imageDelivery.savedPath');
 }
+
+/**
+ * Where a report goes when no Agent is available to receive it: GitHub's issue template chooser for this project.
+ */
+const BUG_REPORT_GITHUB_ISSUE_URL = 'https://github.com/tjx666/caxri/issues/new/choose';
+
+/**
+ * The hooks {@link copyThenOpenGithubIssue} needs, injected so the ordering is testable without a clipboard or window.
+ */
+export interface GithubIssueHandoff {
+    copy: (text: string) => Promise<void>;
+    onCopied: () => void;
+    onCopyError: (error: unknown) => void;
+    /**
+     * Opens `url`; reports a failure through `onError` rather than throwing, like `openExternalUrl`.
+     */
+    open: (url: string, onError: (message: string) => void) => Promise<void>;
+    onOpenError: (message: string) => void;
+}
+
+/**
+ * Copies the redacted report, then opens the GitHub issue chooser so the user can paste it into the form. A failed copy
+ * stops before opening: an empty issue form would look like success while the report text is lost.
+ */
+export async function copyThenOpenGithubIssue(
+    report: string,
+    handoff: GithubIssueHandoff,
+): Promise<void> {
+    try {
+        await handoff.copy(report);
+    } catch (error) {
+        handoff.onCopyError(error);
+        return;
+    }
+    handoff.onCopied();
+    await handoff.open(BUG_REPORT_GITHUB_ISSUE_URL, handoff.onOpenError);
+}

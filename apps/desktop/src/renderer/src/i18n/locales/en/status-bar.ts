@@ -3,8 +3,9 @@
  */
 export const statusBar = {
     'statusBar.runtime.failed': 'Caxri stopped',
-    'statusBar.runtime.failedDetail':
-        'Caxri stopped unexpectedly. Recovery is offered in the native Relaunch dialog.',
+    'statusBar.runtime.failedDetail': 'Caxri stopped unexpectedly. Click to relaunch it.',
+    'statusBar.runtime.relaunchAction': 'Relaunch Caxri',
+    'statusBar.runtime.relaunchFailed': "Couldn't relaunch Caxri",
     'statusBar.runtime.restarting': 'Reconnecting…',
     'statusBar.runtime.restartingDetail':
         'Caxri is reconnecting; this chip clears once it reconnects.',
@@ -157,6 +158,27 @@ export const statusBar = {
     'statusBar.pullRequest.unavailable.network': 'PR offline',
     'statusBar.pullRequest.unavailable.tls': 'PR TLS error',
     'statusBar.pullRequest.unavailable.other': 'PR unknown',
+    'statusBar.pullRequest.hint.copyCommand': 'Copy {{command}}',
+    'statusBar.pullRequest.hint.not-found':
+        'GitHub CLI is not installed. Run "{{command}}" in a terminal, then refresh.',
+    'statusBar.pullRequest.hint.not-logged-in':
+        'GitHub CLI is not signed in. Run "{{command}}" in a terminal, then refresh. A GH_TOKEN environment variable alone is not enough: Caxri does not forward personal shell credentials to CLI checks.',
+    'statusBar.pullRequest.hint.not-linked':
+        'GitHub CLI is not configured for this repository. Run "{{command}}" in a terminal to see what is missing, then refresh.',
+    'statusBar.pullRequest.hint.permission-denied':
+        'GitHub denied access to this repository. Run "{{command}}" in a terminal, authorize SSO for the organization if it requires it, then refresh.',
+    'statusBar.pullRequest.hint.rate-limited':
+        'GitHub API rate limit reached. Refresh after the limit resets.',
+    'statusBar.pullRequest.hint.rate-limitedUntil':
+        'GitHub API rate limit reached. Caxri retries after {{time}}.',
+    'statusBar.pullRequest.hint.timeout':
+        'GitHub CLI timed out. Check the connection, then refresh.',
+    'statusBar.pullRequest.hint.network':
+        'GitHub is unreachable. Check the connection, then refresh.',
+    'statusBar.pullRequest.hint.tls':
+        'GitHub secure connection failed. Check proxy or certificates, then refresh.',
+    'statusBar.pullRequest.hint.other':
+        'Could not check pull requests. Open the Logs panel for details, then refresh.',
     'statusBar.screencast.description':
         'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.',
     'statusBar.workbenchRoot.authorizeTitle': 'Authorize worktree?',

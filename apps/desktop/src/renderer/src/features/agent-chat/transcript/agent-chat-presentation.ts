@@ -112,6 +112,32 @@ export interface AgentChatRecoveryNotice {
      * cannot explain further (the provider could not resume the conversation).
      */
     canOpenAsTerminal?: true;
+    /**
+     * Offers Settings at the Agent's Executable row, for a provider Caxri could not find on this computer. Retry stays
+     * beside it: installing the CLI is the other way out.
+     */
+    canOpenSettings?: true;
+}
+
+/**
+ * One action a recovery banner can offer.
+ */
+export type AgentChatRecoveryAction = 'openAsTerminal' | 'openSettings' | 'resume' | 'retry';
+
+/**
+ * The banner's actions in display order: the notice's own way out first (Settings for a missing CLI, the provider's own
+ * Terminal for a conversation that would not resume), then the recovery itself. A hand-over resumes; everything else
+ * retries. Open as Terminal needs a Terminal to open, so it drops when `canOpenAsTerminal` is false.
+ */
+export function agentChatRecoveryActions(
+    notice: Pick<AgentChatRecoveryNotice, 'canOpenAsTerminal' | 'canOpenSettings' | 'kind'>,
+    canOpenAsTerminal: boolean,
+): AgentChatRecoveryAction[] {
+    return [
+        ...(notice.canOpenSettings ? (['openSettings'] as const) : []),
+        ...(canOpenAsTerminal && notice.canOpenAsTerminal ? (['openAsTerminal'] as const) : []),
+        notice.kind === 'detached' ? 'resume' : 'retry',
+    ];
 }
 
 /**
@@ -176,6 +202,21 @@ export function agentChatRecoveryNotice(
             detail: agentChatResumeFailureDetail(providerName, t),
             recovery,
             canOpenAsTerminal: true,
+        };
+    /**
+     * The provider's own detail for a missing CLI is an English line ("Claude CLI was not found") that only restates
+     * the localized heading, so it is dropped; the heading already names the way out.
+     */
+    if (snapshot.failure.reason === 'executable_not_found')
+        return {
+            kind: 'failed',
+            message: agentChatFailureMessage(
+                'executable_not_found',
+                { providerName, surface: 'desktop' },
+                t,
+            ),
+            recovery,
+            canOpenSettings: true,
         };
     return {
         kind: 'failed',

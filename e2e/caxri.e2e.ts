@@ -318,9 +318,7 @@ test('Info secondarySidebar lists only the current Session Terminals', async () 
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await openAddProjectDialog(running.page);
-        await expect(
-            running.page.getByRole('heading', { name: 'Choose the default Terminal' }),
-        ).toBeVisible();
+        await expect(running.page.getByRole('heading', { name: 'Start a Session' })).toBeVisible();
         await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(running.page.locator('.session-card')).toHaveCount(1);
 
@@ -586,9 +584,7 @@ test('canceling the Agent choice revokes the selected Project root grant', async
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await openAddProjectDialog(running.page);
-        await expect(
-            running.page.getByRole('heading', { name: 'Choose the default Terminal' }),
-        ).toBeVisible();
+        await expect(running.page.getByRole('heading', { name: 'Start a Session' })).toBeVisible();
         await running.page.keyboard.press('Escape');
 
         const denied = await pageReply(running.page, 'project.create', { rootPath: root });

@@ -228,10 +228,10 @@ describe('agentChatSendTooltip', () => {
 describe('agentChatEmptyHint', () => {
     it('names the composer gestures, offering images only when the provider takes them', () => {
         expect(agentChatEmptyHint(true)).toBe(
-            'Type / or $ for commands and skills · paste or drop images and files · ⇧Enter for a new line',
+            'Type / or $ for commands and skills, @ for files and Sessions · paste or drop images and files · ⇧Enter for a new line',
         );
         expect(agentChatEmptyHint(false)).toBe(
-            'Type / or $ for commands and skills · drop files to insert paths · ⇧Enter for a new line',
+            'Type / or $ for commands and skills, @ for files and Sessions · drop files to insert paths · ⇧Enter for a new line',
         );
     });
 });

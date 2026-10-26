@@ -54,3 +54,48 @@ export function localeDateTimeFormat(
 export function formatCount(count: number, locale: AppLocale = currentLocale()): string {
     return localeNumberFormat({}, locale).format(count);
 }
+
+/**
+ * A date and time in the interface language, the `toLocaleString()` shape (numeric date plus time with seconds).
+ */
+export function formatDateTime(value: number | Date, locale: AppLocale = currentLocale()): string {
+    return localeDateTimeFormat(
+        {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+        },
+        locale,
+    ).format(value);
+}
+
+/**
+ * A numeric date in the interface language, the `toLocaleDateString()` shape.
+ */
+export function formatDate(value: number | Date, locale: AppLocale = currentLocale()): string {
+    return localeDateTimeFormat(
+        { year: 'numeric', month: 'numeric', day: 'numeric' },
+        locale,
+    ).format(value);
+}
+
+/**
+ * A clock time in the interface language, without seconds unless `withSeconds` is set.
+ */
+export function formatTime(
+    value: number | Date,
+    options: { withSeconds?: boolean; twoDigitHour?: boolean } = {},
+    locale: AppLocale = currentLocale(),
+): string {
+    return localeDateTimeFormat(
+        {
+            hour: options.twoDigitHour === true ? '2-digit' : 'numeric',
+            minute: '2-digit',
+            ...(options.withSeconds === true && { second: '2-digit' }),
+        },
+        locale,
+    ).format(value);
+}

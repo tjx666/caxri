@@ -44,18 +44,19 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             name: 'Open Agents in Chat',
         });
         await expect(openInChat).not.toBeChecked();
+        // Only the fake Codex is installed, so the other Agents carry the "Not installed" annotation.
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
-            'Claude',
+            'ClaudeNot installed',
             'Codex',
-            'Grok Build',
+            'Grok BuildNot installed',
             'Shell',
         ]);
         await openInChat.click();
         await expect(openInChat).toBeChecked();
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
-            'ClaudeChat',
+            'ClaudeNot installed · Chat',
             'CodexChat',
-            'Grok BuildChat',
+            'Grok BuildNot installed · Chat',
             'Shell',
         ]);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-new-terminal-menu.png') });
@@ -223,9 +224,9 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await page.getByRole('tab', { name: 'Codex (Chat)', exact: true }).click();
         await expect(message).toBeVisible();
 
-        // A Files entry dropped on the composer is inserted as its path, relative to where the Agent runs.
+        // A Files entry dropped on the composer is inserted as its absolute path (a path pill since #2237).
         await page.getByRole('treeitem', { name: 'app.ts', exact: true }).dragTo(message);
-        await expectComposerValue(message, 'src/app.ts ');
+        await expectComposerValue(message, /\/project\/src\/app\.ts $/u);
         // A path written as plain prose, in the user's message and in the reply, opens in the Editor; the URL shows links' accent.
         await message.fill('see src/greeting.ts:2 next to https://github.com/example/repo');
         await message.press('Enter');

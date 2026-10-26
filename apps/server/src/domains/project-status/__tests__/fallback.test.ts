@@ -109,7 +109,6 @@ it('distinguishes an unavailable GitHub CLI from a branch without a pull request
     expect((await service.overview('session-1')).repository).toMatchObject({
         pullRequestUnavailable: {
             reason: 'not-found',
-            hint: 'GitHub CLI is not installed. Install gh, then refresh.',
         },
     });
 });

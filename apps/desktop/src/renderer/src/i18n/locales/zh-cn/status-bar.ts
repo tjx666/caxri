@@ -4,7 +4,9 @@ import type { statusBar as source } from '../en/status-bar';
 
 export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.runtime.failed': 'Caxri 已停止',
-    'statusBar.runtime.failedDetail': 'Caxri 意外停止。可在系统的“重新启动”对话框中恢复。',
+    'statusBar.runtime.failedDetail': 'Caxri 意外停止。点击即可重新启动。',
+    'statusBar.runtime.relaunchAction': '重新启动 Caxri',
+    'statusBar.runtime.relaunchFailed': '无法重新启动 Caxri',
     'statusBar.runtime.restarting': '正在重新连接…',
     'statusBar.runtime.restartingDetail': 'Caxri 正在重新连接；连接恢复后此标签会自动消失。',
     'statusBar.project.openFiles': '打开项目文件：{{name}}',
@@ -154,6 +156,22 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.pullRequest.unavailable.network': 'PR 离线',
     'statusBar.pullRequest.unavailable.tls': 'PR TLS 错误',
     'statusBar.pullRequest.unavailable.other': 'PR 未知',
+    'statusBar.pullRequest.hint.copyCommand': '复制 {{command}}',
+    'statusBar.pullRequest.hint.not-found':
+        '未安装 GitHub CLI。请在终端中运行“{{command}}”，然后刷新。',
+    'statusBar.pullRequest.hint.not-logged-in':
+        'GitHub CLI 尚未登录。请在终端中运行“{{command}}”，然后刷新。仅设置 GH_TOKEN 环境变量不够：Caxri 不会把你 shell 中的个人凭据转发给 CLI 检查。',
+    'statusBar.pullRequest.hint.not-linked':
+        '此仓库尚未配置 GitHub CLI。请在终端中运行“{{command}}”查看缺少什么，然后刷新。',
+    'statusBar.pullRequest.hint.permission-denied':
+        'GitHub 拒绝了对此仓库的访问。请在终端中运行“{{command}}”；如果组织要求 SSO，请先授权，然后刷新。',
+    'statusBar.pullRequest.hint.rate-limited': 'GitHub API 请求已达上限。额度重置后请刷新。',
+    'statusBar.pullRequest.hint.rate-limitedUntil':
+        'GitHub API 请求已达上限。Caxri 将在 {{time}} 后重试。',
+    'statusBar.pullRequest.hint.timeout': 'GitHub CLI 超时。请检查网络连接，然后刷新。',
+    'statusBar.pullRequest.hint.network': '无法连接 GitHub。请检查网络连接，然后刷新。',
+    'statusBar.pullRequest.hint.tls': '与 GitHub 的安全连接失败。请检查代理或证书，然后刷新。',
+    'statusBar.pullRequest.hint.other': '无法检查 Pull Request。请打开日志面板查看详情，然后刷新。',
     'statusBar.screencast.description':
         '录屏模式已开启，点击可关闭。它会叠加点击波纹和按键提示以便录制，但不会隐藏或遮盖屏幕上已有的任何内容。',
     'statusBar.workbenchRoot.authorizeTitle': '授权 Worktree？',

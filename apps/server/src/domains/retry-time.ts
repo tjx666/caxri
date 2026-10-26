@@ -2,7 +2,7 @@
  * The clock time a recovery sentence can name, from the limiter's pause deadline.
  *
  * Lives at the domains root rather than inside `external-status` because its two callers straddle that boundary: the
- * limiter's own `pullRequestUnavailable` and the Project Status formatter one level up. A cross-domain deep import is
+ * limiter's own recovery sentences and the Project Status formatter one level up. A cross-domain deep import is
  * rejected by the domain-structure test, and importing the `external-status` barrel for one pure function pulls the CLI
  * runner, the limiter, and the pull-request store along with it.
  *

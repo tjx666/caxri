@@ -1,12 +1,12 @@
 import type { FileEntry, MethodResult, MutableFileEntry } from '@caxri/protocol';
-import { errorMessage, isCaxriError } from '@caxri/protocol';
+import { isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
 import { translate } from '../../../i18n';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSelectedSession, getSessionProjectId } from '../../../stores/selectors';
-import { pushToast, tryCommand } from '../../../stores/toasts';
+import { describeFailure, pushToast, tryCommand } from '../../../stores/toasts';
 import { openFile } from '../../editor/document-commands';
 import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../../editor/document-trash';
 import { isControlledViewOperationQuery } from '../view-operation-client';
@@ -179,7 +179,7 @@ async function runDurableFileMutationAttempt<Value>(options: {
         } else {
             useFileOperationStore.getState().finish(options.id);
             if (!options.shouldPropagateFailure)
-                pushToast('error', errorMessage(error, options.errorLabel));
+                pushToast('error', describeFailure(error, options.errorLabel));
         }
         if (options.shouldPropagateFailure) throw error;
         return undefined;
@@ -316,7 +316,10 @@ export async function moveFile(
         return await attemptMove(client, sessionId, path, directory, 'reject', true);
     } catch (error) {
         if (!isCaxriError(error) || error.code !== 'CONFLICT') {
-            pushToast('error', errorMessage(error, translate('viewContainers.files.moveFailed')));
+            pushToast(
+                'error',
+                describeFailure(error, translate('viewContainers.files.moveFailed')),
+            );
             return undefined;
         }
         const name = pathBasename(path);

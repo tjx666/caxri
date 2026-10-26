@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UpdateService } from '../updates';
+import { UpdateService } from '../updates/updates';
 
 const temporaryDirectories: string[] = [];
 

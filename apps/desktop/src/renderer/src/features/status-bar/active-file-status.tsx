@@ -4,6 +4,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { useTranslation } from '../../i18n';
+import { formatDateTime } from '../../lib/locale-format';
 import { useCaxriQuery } from '../../queries/client';
 import { sessionViewScope } from '../../stores/session-view';
 import {
@@ -129,7 +130,7 @@ function ActiveFileBlame({
                             // attribute would, so the three-line author/sha/subject summary needs
                             // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
                             <span className="whitespace-pre-line">
-                                {`${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`}
+                                {`${blame.author} · ${formatDateTime(blame.authoredAt)}\n${blame.sha}\n${blame.subject}`}
                             </span>
                         )
                     }

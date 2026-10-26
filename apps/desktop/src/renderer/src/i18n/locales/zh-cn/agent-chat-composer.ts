@@ -59,7 +59,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.skill.kind': 'Skill',
     'agentChat.skill.tooltip': 'Agent 会先加载 {{name}} skill 再处理这条消息',
     'agentChat.skill.sentTooltip': '这条消息让 Agent 加载了 {{name}} skill',
-    'agentChat.add.caxriSkillDescription': '让 Agent 操作 Caxri：Session、Project 等',
+    'agentChat.add.caxriSkillDescription': '让 Agent 操作 Caxri：会话、项目等',
 
     'agentChat.goal.status.active': '进行中的目标',
     'agentChat.goal.status.paused': '已暂停的目标',
@@ -99,7 +99,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.stash.placeholder': '草稿已暂存 · Ctrl+S 恢复',
     'agentChat.slash.label': '命令和 Skill',
     'agentChat.slash.noMatches': '没有匹配的命令或 Skill',
-    'agentChat.slash.newSessionDescription': '把下一个任务交给新 Session，当前 Session 到此为止',
+    'agentChat.slash.newSessionDescription': '把下一个任务交给新会话，当前会话到此为止',
     'agentChat.slash.newSessionHint': '[下一个任务]',
     'agentChat.slash.confirmSendAsText': '没有这个命令。再按一次 Enter 作为文本发送。',
     'agentChat.slash.commands': '命令',
@@ -189,7 +189,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.permission.useAsProjectDefault': '设为项目默认',
     'agentChat.permission.projectDefault': '项目默认',
     'agentChat.permission.clearProjectDefault': '清除项目默认',
-    'agentChat.permission.clearProjectDefaultDescription': '新 Chat 将沿用启动设置',
+    'agentChat.permission.clearProjectDefaultDescription': '新对话将沿用启动设置',
     'agentChat.permission.chooseLevelForDefault': '选择一个级别后才能保存为默认',
     'agentChat.permission.changeFailed': '无法更改权限',
 

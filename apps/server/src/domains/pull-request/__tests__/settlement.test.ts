@@ -27,6 +27,7 @@ function harness(options: {
     const archive = vi.fn(() => Promise.resolve());
     const notifyMerged = vi.fn(() => Promise.resolve(options.notice ?? 'sent'));
     const write = vi.fn();
+    const onArchived = vi.fn();
     const state = {
         archiveEnabled: options.archiveEnabled ?? true,
         backgroundWork: options.backgroundWork ?? false,
@@ -38,13 +39,14 @@ function harness(options: {
         hasBackgroundWork: () => state.backgroundWork,
         isAutoArchiveEnabled: () => state.archiveEnabled,
         logger: { write },
+        onArchived,
         notifyMerged,
         now: () => clock.now,
         turnGraceMs: 20_000,
     });
     const outcomes = () =>
         write.mock.calls.map((call) => (call[2] as { fields: { outcome: string } }).fields.outcome);
-    return { archive, clock, notifyMerged, outcomes, session, settlement, state };
+    return { archive, clock, notifyMerged, onArchived, outcomes, session, settlement, state };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -71,6 +73,23 @@ describe('PullRequestSettlement', () => {
         await flush();
 
         expect(notifyMerged).toHaveBeenCalledWith('s', URL, { origin: 'detected', mergedAt: 7 });
+    });
+
+    it('reports an automatic archive with the settled state, and only once it happened', async () => {
+        const merged = harness({ notice: 'disabled' });
+        merged.settlement.observePullRequest('s', pullRequest('open'), pullRequest('merged'));
+        await flush();
+        expect(merged.onArchived).toHaveBeenCalledExactlyOnceWith('s', 'merged');
+
+        const closed = harness({ notice: 'disabled' });
+        closed.settlement.observePullRequest('s', pullRequest('open'), pullRequest('closed'));
+        await flush();
+        expect(closed.onArchived).toHaveBeenCalledExactlyOnceWith('s', 'closed');
+
+        const busy = harness({ agentState: 'running' });
+        busy.settlement.observePullRequest('s', pullRequest('open'), pullRequest('closed'));
+        await flush();
+        expect(busy.onArchived).not.toHaveBeenCalled();
     });
 
     it('waits out the notice turn, then archives once the Agent is idle again', async () => {

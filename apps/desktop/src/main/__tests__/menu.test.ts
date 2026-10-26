@@ -468,6 +468,10 @@ describe('application menu', () => {
 
         expect(help.map((item) => item.id ?? item.type)).toEqual([
             'command.help.showKeyboardShortcuts',
+            'command.help.openDocumentation',
+            'command.help.openReleaseNotes',
+            'command.help.reportIssue',
+            'command.help.revealLogs',
             'separator',
             'command.processExplorer.open',
             'command.developer.togglePerformanceMonitor',
@@ -478,7 +482,10 @@ describe('application menu', () => {
         // A two-chord binding has no native accelerator, so the menu advertises it in the label instead.
         const shortcuts = help.find((item) => item.id === 'command.help.showKeyboardShortcuts');
         expect(shortcuts?.accelerator).toBeUndefined();
-        expect(shortcuts?.label).toBe('Keyboard Shortcuts [⌘K ⌘R]');
+        expect(shortcuts?.label).toBe('Keyboard Shortcuts Reference [⌘K ⌘R]');
+        expect(
+            submenu(template, 'Caxri').some((item) => item.id === 'command.shellCommand.install'),
+        ).toBe(true);
         expect(
             submenu(template, 'Session').find((item) => item.id === 'command.session.create')
                 ?.accelerator,

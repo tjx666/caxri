@@ -197,6 +197,10 @@ export interface CommandContext {
         toggleScreencastMode(): void;
     };
     diagnostics: { export(): void };
+    help: {
+        open(page: 'documentation' | 'releaseNotes' | 'reportIssue'): void;
+        revealLogs(): void;
+    };
     updates: { check(): void };
     shellCommand: { install(): void; uninstall(): void };
     sshHost: {

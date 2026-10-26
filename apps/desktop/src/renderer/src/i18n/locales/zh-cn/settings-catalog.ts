@@ -4,6 +4,7 @@ import type { settingsCatalog as source } from '../en/settings-catalog';
 
 export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.category.general': '通用',
+    'settings.category.chat': '对话',
     'settings.category.notifications': '通知',
     'settings.category.mobile': '移动设备',
     'settings.category.terminal': '终端',
@@ -87,7 +88,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.primarySidebar.showSubagents.title': '在会话下显示子 Agent',
     'settings.primarySidebar.showSubagents.description':
-        '在主侧边栏中，把 Chat Agent 启动的子 Agent 作为缩进行列在其会话下方',
+        '在主侧边栏中，把对话中的 Agent 启动的子 Agent 作为缩进行列在其会话下方',
 
     'settings.primarySidebar.translucent.title': '半透明侧边栏',
     'settings.primarySidebar.translucent.description':
@@ -153,12 +154,12 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.terminal.idleSuspension.afterMinutes.description':
         'Agent 在你未查看的会话中等待多久后被挂起。仅在“在后台挂起空闲的 Agent”开启时生效。',
 
-    'settings.agentChat.idleCompaction.enabled.title': '在提示缓存过期前压缩空闲的 Chat',
+    'settings.agentChat.idleCompaction.enabled.title': '自动总结空闲的对话，保持回复迅速',
     'settings.agentChat.idleCompaction.enabled.description':
-        'Claude 或 Grok Build 的 Chat 上下文较大且空闲到提示缓存快要过期时，自动压缩对话，这样你下一条消息只需重新读取摘要，而不是整段对话。',
+        '较长的 Claude 或 Grok Build 对话空闲一段时间后，Caxri 会在后台为它生成摘要，这样你的下一条消息只需带上简短摘要而不是整段对话，回复更快也更省用量。',
     'settings.agentChat.autoContinueAtUsageLimit.title': '用量限额重置后自动继续',
     'settings.agentChat.autoContinueAtUsageLimit.description':
-        'Claude 或 Codex 的 Chat 因套餐用量用完而停下时，等限额重置（24 小时内）后自动继续任务。你可以在 Chat 中取消等待，或立即继续。',
+        'Claude 或 Codex 的对话因套餐用量用完而停下时，等限额重置（24 小时内）后自动继续任务。你可以在对话中取消等待，或立即继续。',
 
     'settings.terminal.osc52ClipboardWrite.title': '允许终端中的程序复制到剪贴板',
     'settings.terminal.osc52ClipboardWrite.description':
@@ -314,7 +315,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.agents.notifications.enabled.title': '系统通知',
     'settings.agents.notifications.enabled.description':
-        '后台 Agent 需要处理时发送通知；还需启用提供方的生命周期 Hook',
+        '后台 Agent 需要处理时发送通知。在终端中运行的 Agent 还需启用提供方的生命周期 Hook；对话无需启用',
 
     'settings.agents.notifications.completionThresholdSeconds.title': '已完成轮次的时长阈值',
     'settings.agents.notifications.completionThresholdSeconds.description':

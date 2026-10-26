@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { isChatTerminal, listPaneTerminalIds } from '@caxri/protocol';
-import { Code2, Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -11,7 +11,6 @@ import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { retainAgentChatComposerState } from '../agent-chat/composer-input/agent-chat-drafts';
 import { useReportViewedSession } from '../session/hooks/use-report-viewed-session';
-import { chooseProjectFolder } from '../session/session-creation-commands';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { reconcileSessionAnimations } from './hidden-session-transitions';
@@ -23,26 +22,7 @@ import {
     SESSION_KEEP_ALIVE_LIMIT,
     useSessionKeepAliveStore,
 } from './session-keep-alive';
-
-function Welcome() {
-    const { t } = useTranslation();
-    return (
-        <div className="welcome mx-auto flex h-full max-w-[540px] flex-col items-center justify-center gap-3 p-6 text-center text-muted">
-            <Code2 size={38} />
-            <h1 className="mx-0 mt-1 mb-0 text-[15px] text-foreground">
-                {t('workbench.welcome.title')}
-            </h1>
-            <p className="m-0 leading-relaxed">{t('workbench.welcome.description')}</p>
-            <Button
-                onClick={() => {
-                    void chooseProjectFolder();
-                }}
-            >
-                <Plus size={15} /> {t('workbench.welcome.addProject')}
-            </Button>
-        </div>
-    );
-}
+import { WelcomeView } from './welcome-view';
 
 /**
  * What the Workbench shows with no selected Session. Settings is normally a Session pane tab
@@ -57,7 +37,7 @@ function NoSessionSurface() {
     const requestId = useDialogStore((state) => state.settingsRequest.id);
     const dismissedId = useDialogStore((state) => state.sessionlessSettingsDismissedId);
     const [mountedRequestId] = useState(requestId);
-    if (requestId <= Math.max(mountedRequestId, dismissedId)) return <Welcome />;
+    if (requestId <= Math.max(mountedRequestId, dismissedId)) return <WelcomeView />;
     return (
         <div className="h-full min-h-0">
             <SettingsWorkbenchPage

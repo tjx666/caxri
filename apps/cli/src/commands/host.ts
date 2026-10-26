@@ -7,22 +7,23 @@ export const HOST_COMMANDS: readonly RemoteCommandDefinition[] = [
         kind: 'remote',
         path: ['host', 'status'],
         method: 'host.status',
-        summary: 'Show the selected profile Host and Desktop status.',
+        summary: 'Show the selected profile Server and Desktop status.',
         parseParams: rejectOptions,
     },
     {
         kind: 'remote',
         path: ['host', 'stop'],
         method: 'host.stop',
-        summary: 'Stop the selected profile Host and its Runtime.',
-        confirmation: 'Stop this Caxri Host and terminate its live Terminals?',
+        summary: 'Stop the selected profile Server and its Runtime.',
+        confirmation: 'Stop this Caxri Server and terminate its live Terminals?',
         usage: '[--force]',
         parseParams: (tokens) => booleanFlag(tokens, '--force', 'confirmLivePtys'),
     },
     /**
      * The entry point of the background job Desktop registers with launchd while `Keep 5-hour windows rolling` is on.
-     * It starts the Host when Caxri is closed and runs one idempotent check, which may send the one minimal request the
-     * schedule calls for. No confirmation: the user already chose the schedule, and a repeated run never sends twice.
+     * It starts the Server when Caxri is closed and runs one idempotent check, which may send the one minimal request
+     * the schedule calls for. No confirmation: the user already chose the schedule, and a repeated run never sends
+     * twice.
      */
     {
         kind: 'remote',

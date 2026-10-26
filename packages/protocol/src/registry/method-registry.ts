@@ -1,14 +1,11 @@
 import { z } from 'zod';
 
 import { agentActionMethods } from '../agent/agent-action-contract.js';
+import { agentAvailabilitySchema } from '../agent/agent-availability-contract.js';
 import { benchmarkMethods } from '../agent/agent-benchmark-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { agentChatPickedPathSchema } from '../agent/agent-chat-path-references.js';
 import { agentChatWaitingMethods } from '../agent/agent-chat-waiting-contract.js';
-import {
-    agentDelegationInternalMethods,
-    agentDelegationMethods,
-} from '../agent/agent-delegation-contract.js';
 import {
     agentDispatchInternalMethods,
     agentDispatchMethods,
@@ -29,9 +26,13 @@ import {
     commanderDataMethods,
 } from '../agent/commander/agent-commander-data-contract.js';
 import {
+    agentDelegationInternalMethods,
+    agentDelegationMethods,
+} from '../agent/delegation/agent-delegation-contract.js';
+import {
     delegationAccessInternalMethods,
     delegationAccessMethods,
-} from '../agent/delegation-access-contract.js';
+} from '../agent/delegation/delegation-access-contract.js';
 import {
     configurationSourceSchema as configSourceSchema,
     MAX_KEYBINDINGS,
@@ -56,6 +57,8 @@ import {
 import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
 import { linkFaviconDesktopMethods } from '../desktop/link-favicon-contract.js';
 import { linkPreviewDesktopMethods } from '../desktop/link-preview-contract.js';
+import { logsDesktopMethods } from '../desktop/logs-contract.js';
+import { notificationHelperDesktopMethods } from '../desktop/notification-helper.js';
 import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
 import { sshHostDesktopMethods } from '../desktop/ssh-host-contract.js';
@@ -264,7 +267,9 @@ export const methods = {
     },
     ...desktopHostMethods,
     ...argvDesktopMethods,
+    ...notificationHelperDesktopMethods,
     ...gpuDesktopMethods,
+    ...logsDesktopMethods,
     ...shellCommandDesktopMethods,
     ...sshHostDesktopMethods,
     ...contextMenuDesktopMethods,
@@ -493,6 +498,11 @@ export const methods = {
     'settings.get': { ...serverRead, params: noParameters, result: settingsResult },
     'agentHooks.get': { ...serverRead, params: noParameters, result: agentHookHealthMapSchema },
     'agentSkills.get': { ...serverRead, params: noParameters, result: agentSkillHealthSchema },
+    'agentAvailability.get': {
+        ...serverRead,
+        params: noParameters,
+        result: agentAvailabilitySchema,
+    },
     'settings.update': {
         ...serverWrite,
         params: z.object({ source: configSourceSchema }),

@@ -2,23 +2,35 @@ import type { UpdateState } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { openExternalUrl } from '../../lib/external-link';
 import { createStore } from '../../lib/store';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { resolveUpdateAnnouncement } from './update-presentation';
+import {
+    releaseNotesUrl,
+    resolveUpdateAnnouncement,
+    resolveUpdatedNotice,
+} from './update-presentation';
 
 interface UpdateStoreState {
     open: boolean;
     state?: UpdateState;
+    /**
+     * True once this Renderer lifetime raised the "Updated to Caxri X" notice.
+     */
+    hasShownUpdatedNotice: boolean;
     setOpen(isOpen: boolean): void;
     setState(state: UpdateState): void;
+    markUpdatedNoticeShown(): void;
 }
 
 export const useUpdateStore = createStore<UpdateStoreState>('update', (set) => ({
     open: false,
     state: undefined,
+    hasShownUpdatedNotice: false,
     setOpen: (isOpen) => set({ open: isOpen }),
     setState: (state) => set({ state }),
+    markUpdatedNoticeShown: () => set({ hasShownUpdatedNotice: true }),
 }));
 
 /**
@@ -118,6 +130,42 @@ export async function clearSkippedUpdateVersion(): Promise<void> {
     );
 }
 
+/**
+ * Opens a release page in the user's browser; failures surface as a toast through the shared external-link path.
+ */
+export function openReleaseNotes({
+    version,
+    releaseUrl,
+}: {
+    version: string;
+    releaseUrl?: string;
+}): void {
+    void openExternalUrl(releaseNotesUrl(version, releaseUrl), (message) => {
+        pushToast('error', message, { history: false });
+    });
+}
+
+/**
+ * Raises the one-time "Updated to Caxri X" notice, then tells Main it was shown so a reload or a second window does not
+ * repeat it. Held to once per Renderer lifetime as well, because state events arrive before the acknowledgement lands.
+ */
+function announceUpdatedVersion(state: UpdateState | undefined): void {
+    const notice = resolveUpdatedNotice(state);
+    const store = useUpdateStore.getState();
+    if (!notice || store.hasShownUpdatedNotice) return;
+    store.markUpdatedNoticeShown();
+    pushToast('info', notice.message, {
+        action: {
+            id: 'updates.releaseNotes',
+            params: { version: notice.version },
+            accessibleLabel: translate('updates.updated.releaseNotesLabel', {
+                version: notice.version,
+            }),
+        },
+    });
+    void recordAcknowledgement();
+}
+
 function announceAvailableUpdate(state: UpdateState | undefined): void {
     const announcement = resolveUpdateAnnouncement(state, skippedVersion());
     if (!announcement) return;
@@ -152,6 +200,7 @@ export function subscribeUpdateState(): () => void {
             return;
         }
         isAnnouncementDeferred = false;
+        announceUpdatedVersion(state);
         announceAvailableUpdate(state);
     }
 
@@ -173,7 +222,9 @@ export function subscribeUpdateState(): () => void {
         if (!isActive || !isAnnouncementDeferred || workbench.bootstrap === undefined) return;
         isAnnouncementDeferred = false;
         // Re-read rather than replaying the held state: a newer one may have landed while the snapshot was in flight.
-        announceAvailableUpdate(useUpdateStore.getState().state);
+        const { state } = useUpdateStore.getState();
+        announceUpdatedVersion(state);
+        announceAvailableUpdate(state);
     });
     return () => {
         isActive = false;

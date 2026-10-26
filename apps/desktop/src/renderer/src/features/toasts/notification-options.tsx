@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { settingCategoryPath } from '../settings/setting-spec-text';
 
 export function NotificationOptions({
     onMute,
@@ -32,7 +33,11 @@ export function NotificationOptions({
                 <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onMute}>
                     {t('toasts.options.mute')}
                 </Button>
-                <p className="px-2 pt-1 text-[11px] text-muted">{t('toasts.options.muteHint')}</p>
+                <p className="px-2 pt-1 text-[11px] text-muted">
+                    {t('toasts.options.muteHint', {
+                        path: settingCategoryPath(t, 'notifications.worktreeFallback'),
+                    })}
+                </p>
             </PopoverContent>
         </Popover>
     );

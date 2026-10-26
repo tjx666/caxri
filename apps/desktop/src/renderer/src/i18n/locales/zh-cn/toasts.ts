@@ -34,11 +34,13 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.action.copyDetails': '复制详细信息',
     'toasts.action.copyCommand': '复制命令',
     'toasts.action.restoreDiscardedChanges': '恢复我的更改',
+    'toasts.action.revealInFinder': '在访达中显示',
     'toasts.action.openOnGitHub': '在 GitHub 上打开',
     'toasts.action.viewDetails': '查看详细信息',
     'toasts.action.undo': '撤销',
     'toasts.action.redo': '重做',
     'toasts.action.openSettings': '打开设置',
+    'toasts.action.openSettingsFile': '打开设置文件',
     'toasts.action.turnOffHardwareAcceleration': '关闭硬件加速…',
     'toasts.action.stop': '停止',
     'toasts.action.showUpdate': '查看更新',
@@ -56,7 +58,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
 
     'toasts.options.label': '通知选项',
     'toasts.options.mute': '不再显示此类通知',
-    'toasts.options.muteHint': '适用于所有项目。可在“设置 → 通知”中恢复。',
+    'toasts.options.muteHint': '适用于所有项目。可在“{{path}}”中恢复。',
 
     'toasts.center.title': '通知',
     'toasts.center.titleUnread': '通知（{{count}} 条未读）',

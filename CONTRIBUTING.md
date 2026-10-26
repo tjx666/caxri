@@ -1,6 +1,6 @@
 # Contributing to Caxri
 
-Issues and pull requests are open for community use. The repository has one maintainer, so a
+Issues and pull requests from people and coding agents are welcome. The repository has one maintainer, so a
 submission may not receive a response and there is no review, merge, or release timeline. The
 maintainer decides whether a proposal fits the project and whether to merge it.
 
@@ -9,8 +9,8 @@ maintainer decides whether a proposal fits the project and whether to merge it.
 1. Search existing Issues and pull requests for the same request.
 2. Open an Issue for a material behavior or product change before investing in a large patch.
 3. Keep each contribution focused on one outcome.
-4. Read [AGENTS.md](AGENTS.md) for repository commands, architecture boundaries, and validation
-   requirements.
+4. If you use a coding agent, point it at [AGENTS.md](AGENTS.md): it holds the repository
+   commands, architecture boundaries, and validation requirements.
 
 Security vulnerabilities do not belong in public Issues or pull requests. Follow
 [SECURITY.md](SECURITY.md) instead.
@@ -31,7 +31,9 @@ Public upstream dependencies may be named when their public source has been veri
 
 ## Development workflow
 
-Install dependencies with `ni`, then use the repository-owned changed-file check:
+To run Caxri from source, follow [Run from source](README.md#run-from-source) in the README
+(Node.js 24+, Bun 1.3+, Xcode Command Line Tools, and `ni`). Then install dependencies with
+`ni` and use the repository-owned changed-file check:
 
 ```bash
 ni

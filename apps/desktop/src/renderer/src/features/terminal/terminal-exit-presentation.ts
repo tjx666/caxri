@@ -3,6 +3,8 @@ import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { settingCategoryPath } from '../settings/setting-spec-text';
+import type { TerminalExitInfo } from './terminal-exit-info';
+import { EARLY_EXIT_THRESHOLD_MS } from './terminal-exit-info';
 
 export interface TerminalExitPresentation {
     /**
@@ -41,10 +43,58 @@ export function suspendedDetail(): string {
     });
 }
 
+/**
+ * Names for the signals a Terminal process is realistically ended by; anything else shows its number.
+ */
+const SIGNAL_NAMES: Record<number, string> = {
+    1: 'SIGHUP',
+    2: 'SIGINT',
+    3: 'SIGQUIT',
+    4: 'SIGILL',
+    6: 'SIGABRT',
+    9: 'SIGKILL',
+    11: 'SIGSEGV',
+    13: 'SIGPIPE',
+    15: 'SIGTERM',
+};
+
+function exitReasonText(exit: TerminalExitInfo): string {
+    return exit.signal
+        ? translate('terminal.exit.reason.signal', {
+              signal: SIGNAL_NAMES[exit.signal] ?? String(exit.signal),
+          })
+        : translate('terminal.exit.reason.code', { code: exit.exitCode });
+}
+
+export interface TerminalExitContext {
+    /**
+     * Exit code, signal, and run length from the `terminal.exit` event.
+     */
+    exit?: TerminalExitInfo;
+    /**
+     * True for an Agent Terminal, which gets the "exited right after starting" wording on an early failure.
+     */
+    isAgent?: boolean;
+    /**
+     * The Terminal's launch directory, named when it is the thing that went missing.
+     */
+    cwd?: string;
+}
+
+function deadLabel(context: TerminalExitContext | undefined): string {
+    const exit = context?.exit;
+    if (!exit) return translate('terminal.exit.dead');
+    const reason = exitReasonText(exit);
+    if (context.isAgent && exit.ranForMs !== undefined && exit.ranForMs < EARLY_EXIT_THRESHOLD_MS)
+        return translate('terminal.exit.agentEarly', { reason });
+    return translate('terminal.exit.deadWithReason', { reason });
+}
+
 export function getTerminalExitPresentation(
     state: ProcessState,
     failureReason?: TerminalFailureReason,
     failureDetail?: string,
+    context?: TerminalExitContext,
 ): TerminalExitPresentation | undefined {
     switch (state) {
         case 'stopped':
@@ -58,17 +108,21 @@ export function getTerminalExitPresentation(
                 icon: 'failed',
                 label:
                     failureDetail ??
-                    translate(
-                        failureReason
-                            ? FAILURE_REASON_LABEL_KEYS[failureReason]
-                            : 'terminal.exit.failed',
-                    ),
+                    (failureReason === 'working_directory_unavailable' && context?.cwd
+                        ? translate('terminal.exit.failure.workingDirectoryUnavailableAt', {
+                              path: context.cwd,
+                          })
+                        : translate(
+                              failureReason
+                                  ? FAILURE_REASON_LABEL_KEYS[failureReason]
+                                  : 'terminal.exit.failed',
+                          )),
                 tone: 'danger',
             };
         case 'dead':
             return {
                 icon: 'unexpected',
-                label: translate('terminal.exit.dead'),
+                label: deadLabel(context),
                 tone: 'danger',
             };
         case 'interrupted':

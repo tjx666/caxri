@@ -171,6 +171,11 @@ export const commandDescriptions = {
         'End the Agent Commander’s management of the selected Session; its Agents keep running',
     'commands.description.help.showKeyboardShortcuts':
         'Show every keyboard shortcut, grouped by category',
+    'commands.description.help.openDocumentation':
+        'Open the Caxri getting started guide in your browser',
+    'commands.description.help.openReleaseNotes': 'See what changed in each Caxri release',
+    'commands.description.help.reportIssue': 'Open the Caxri issue tracker in your browser',
+    'commands.description.help.revealLogs': 'Show the Caxri log folder in Finder',
     'commands.description.processExplorer.open': 'Inspect Caxri process resource usage',
     'commands.description.developer.toggleScreencastMode':
         'Show clicks and Caxri shortcuts for external screen recording',

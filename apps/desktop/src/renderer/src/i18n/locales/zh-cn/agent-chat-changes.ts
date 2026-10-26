@@ -28,7 +28,7 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.changes.showFewerFiles': '收起文件',
     'agentChat.undo.undone': '已撤销',
     'agentChat.undo.truncatedTooltip': '有差异过大，未能完整保留，因此无法撤销此轮',
-    'agentChat.undo.partialTurnTooltip': '此轮开头已不在 Chat 中，无法完整撤销',
+    'agentChat.undo.partialTurnTooltip': '此轮开头已不在对话中，无法完整撤销',
     'agentChat.undo.tooltip': '将文件恢复到此轮之前的状态',
     'agentChat.undo.button': '撤销',
     'agentChat.review.tooltip': '在对话旁审阅此轮的更改并添加评论',

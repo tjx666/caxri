@@ -1,4 +1,5 @@
 import { useTranslation } from '../../i18n';
+import { formatTime } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 
 /**
@@ -15,7 +16,7 @@ export function ProcessFooter({
     isLive: boolean;
     sampledAt?: number;
 }) {
-    const { locale, t } = useTranslation();
+    const { t } = useTranslation();
     return (
         <footer className="flex items-center gap-1.5 border-t border-border px-3 text-[11px] text-muted">
             <span
@@ -27,9 +28,7 @@ export function ProcessFooter({
                 {sampledAt === undefined
                     ? t('processExplorer.footer.noSample')
                     : t('processExplorer.footer.updated', {
-                          time: new Date(sampledAt).toLocaleTimeString(
-                              locale === 'en' ? 'en-US' : locale,
-                          ),
+                          time: formatTime(sampledAt, { withSeconds: true }),
                       })}
             </span>
         </footer>

@@ -1,11 +1,11 @@
 import type { EditorNavigationTarget } from '@caxri/protocol';
-import { errorMessage, isCaxriError } from '@caxri/protocol';
+import { isCaxriError } from '@caxri/protocol';
 import type { ITheme, Terminal } from '@xterm/xterm';
 
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { openExternalUrl } from '../../lib/external-link';
-import { pushToast } from '../../stores/toasts';
+import { describeFailure, pushToast } from '../../stores/toasts';
 import {
     dispatchExtensionViewAction,
     executeViewCatalogShortcut,
@@ -58,7 +58,7 @@ export const onError = (message: string): void => pushToast('error', message);
  */
 export function reportTerminalOperationError(error: unknown, fallback: TranslationKey): void {
     if (isCaxriError(error) && error.code === 'CANCELLED') return;
-    onError(errorMessage(error, translate(fallback)));
+    onError(describeFailure(error, translate(fallback)));
 }
 
 /**
@@ -232,7 +232,7 @@ export function registerTerminalPaneLinks(
                 false,
             );
         } catch (error) {
-            onError(errorMessage(error, translate('terminal.links.commitLinkFailed')));
+            onError(describeFailure(error, translate('terminal.links.commitLinkFailed')));
         }
     };
     const previews = new TerminalReferencePreviewStore(loadTerminalReferencePreview);

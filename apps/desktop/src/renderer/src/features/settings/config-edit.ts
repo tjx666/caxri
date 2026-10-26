@@ -1,6 +1,8 @@
 import type { JSONPath } from 'jsonc-parser';
 import { applyEdits, modify } from 'jsonc-parser';
 
+import { formatCount } from '../../lib/locale-format';
+
 /**
  * The three configuration files editable from the Settings dialog, also used as the fixed Apply-All save order
  * (settings before keybindings before theme) so partial failures are deterministic to reproduce.
@@ -51,5 +53,5 @@ export function mebibytesToBytes(mebibytes: number): number {
  * UI never says "bytes" at the user.
  */
 export function formatByteHint(bytes: number): string {
-    return `${bytesToMebibytes(bytes).toLocaleString('en-US')} MB`;
+    return `${formatCount(bytesToMebibytes(bytes))} MB`;
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { delegationProviderSchema } from '../agent/agent-delegation-settings.js';
+import { delegationProviderSchema } from '../agent/delegation/agent-delegation-settings.js';
 import { mobileDeviceRoleSchema } from '../mobile/device-role.js';
 import type { ProtocolConnectionIdentity } from './identity.js';
 

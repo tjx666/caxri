@@ -1,12 +1,13 @@
 import { sortedCopy } from '@caxri/utils';
 
 import { filesCoreCommandDefinitions } from '../registry/core-contributions.js';
-import { agentChatCommandDefinitions } from './agent-chat-command-definitions.js';
+import { agentChatCommandDefinitions } from './command-definitions/agent-chat-command-definitions.js';
+import { gitCommandDefinitions } from './command-definitions/git-command-definitions.js';
+import { helpLinkCommandDefinitions } from './command-definitions/help-link-command-definitions.js';
+import { sessionCommandDefinitions } from './command-definitions/session-command-definitions.js';
+import { terminalCommandDefinitions } from './command-definitions/terminal-command-definitions.js';
 import type { CommandId } from './commands.js';
 import { editorCommandDefinitions } from './editor/command-definitions.js';
-import { gitCommandDefinitions } from './git-command-definitions.js';
-import { sessionCommandDefinitions } from './session-command-definitions.js';
-import { terminalCommandDefinitions } from './terminal-command-definitions.js';
 
 /**
  * Context predicates the palette can evaluate against the current window and selected Session so commands only surface
@@ -360,6 +361,7 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Open Settings',
         category: 'Preferences',
         description: 'Open Caxri Settings',
+        keywords: ['preferences', 'language', 'locale', '语言', '设置'],
         nativeMenu: { menu: 'application', group: 0, order: 0 },
     },
     {
@@ -370,7 +372,7 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'settings.openKeybindings',
-        title: 'Open Keyboard Shortcuts',
+        title: 'Edit Keyboard Shortcuts',
         category: 'Preferences',
         description: 'Edit Caxri keyboard shortcuts',
     },
@@ -388,7 +390,7 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'updates.check',
-        title: 'Check for Updates',
+        title: 'Check for Updates…',
         category: 'Preferences',
         description: 'Check for a newer Caxri release',
         nativeMenu: { menu: 'application', group: 0, order: 1 },
@@ -399,6 +401,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Shell Command',
         description: 'Link the bundled caxri CLI into /usr/local/bin so any terminal can run it',
         keywords: ['cli', 'terminal', 'symlink'],
+        nativeMenu: { menu: 'application', group: 1, order: 0 },
         when: 'localMachine',
     },
     {
@@ -462,12 +465,13 @@ export const commandDefinitions: CommandDefinition[] = [
      */
     {
         id: 'help.showKeyboardShortcuts',
-        title: 'Keyboard Shortcuts',
+        title: 'Keyboard Shortcuts Reference',
         category: 'Help',
         description: 'Show every keyboard shortcut, grouped by category',
         keywords: ['cheatsheet', 'keybindings', 'hotkeys'],
         nativeMenu: { menu: 'help', group: 0, order: 0 },
     },
+    ...helpLinkCommandDefinitions,
     {
         id: 'processExplorer.open',
         title: 'Open Process Explorer',

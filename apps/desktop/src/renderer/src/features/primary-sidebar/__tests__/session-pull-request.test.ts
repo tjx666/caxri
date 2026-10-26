@@ -160,7 +160,7 @@ describe('Session pull request row selection', () => {
         return {
             pullRequests: { 'session-a': pullRequest() },
             unavailable: {
-                'session-b': { reason: 'not-logged-in', hint: 'Sign in to the delivery CLI.' },
+                'session-b': { reason: 'not-logged-in' },
             },
             refreshedAt: 1_700_000_000_000,
             ...overrides,
@@ -175,7 +175,7 @@ describe('Session pull request row selection', () => {
 
     it('gives a Session only its own failed lookup', () => {
         expect(selectSessionPullRequest(snapshot(), 'session-b')).toEqual({
-            unavailable: { reason: 'not-logged-in', hint: 'Sign in to the delivery CLI.' },
+            unavailable: { reason: 'not-logged-in' },
         });
     });
 

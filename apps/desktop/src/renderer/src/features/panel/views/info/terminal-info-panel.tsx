@@ -8,6 +8,7 @@ import type { TranslationKey } from '../../../../i18n';
 import { useTranslation } from '../../../../i18n';
 import { resolveAgentIcon } from '../../../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../../../icons/agents/agent-identity-icon';
+import { formatDateTime } from '../../../../lib/locale-format';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
 import { useSelectedSession, useSessionTerminals } from '../../../../stores/selectors';
@@ -201,7 +202,7 @@ export function TerminalInfoPanel() {
                             <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                 <Tooltip content={new Date(terminal.createdAt).toISOString()}>
                                     <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
-                                        {new Date(terminal.createdAt).toLocaleString()}
+                                        {formatDateTime(terminal.createdAt)}
                                     </span>
                                 </Tooltip>
                             </dd>
@@ -209,7 +210,7 @@ export function TerminalInfoPanel() {
                             <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                 <Tooltip content={new Date(terminal.updatedAt).toISOString()}>
                                     <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
-                                        {new Date(terminal.updatedAt).toLocaleString()}
+                                        {formatDateTime(terminal.updatedAt)}
                                     </span>
                                 </Tooltip>
                             </dd>

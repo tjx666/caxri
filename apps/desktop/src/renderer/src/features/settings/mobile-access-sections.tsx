@@ -2,14 +2,23 @@ import QRCode from 'react-qr-code';
 
 import type { MobileAccessStatus, MobileDeviceSummary, ProjectQueryResult } from '@caxri/protocol';
 import { MOBILE_MAX_PROJECT_GRANTS } from '@caxri/protocol';
-import { Check, Clipboard, QrCode, Smartphone, Trash2 } from 'lucide-react';
+import { Check, Clipboard, ExternalLink, QrCode, Smartphone, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { openExternalUrl } from '../../lib/external-link';
+import { formatDateTime } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
+import { pushToast } from '../../stores/toasts';
+import {
+    describeMobileStatus,
+    isTailscalePairingLink,
+    MOBILE_PAIRING_MINUTES,
+    MOBILE_RELEASES_URL,
+} from './mobile-access-summary';
 import type { MobilePairingState, useMobileAccessController } from './use-mobile-access-controller';
 
 /**
@@ -46,8 +55,59 @@ const deviceStatus = (t: Translate, device: MobileDeviceSummary): string => {
     if (device.revokedAt) return t('settings.mobileAccess.devices.revoked');
     if (!device.lastConnectedAt) return t('settings.mobileAccess.devices.paired');
     return t('settings.mobileAccess.devices.lastConnected', {
-        time: new Date(device.lastConnectedAt).toLocaleString(),
+        time: formatDateTime(device.lastConnectedAt),
     });
+};
+
+/**
+ * Full card for a user with no paired phone; collapsed behind its title once a phone is paired, so it stays reachable
+ * without repeating the install steps to someone who finished them.
+ */
+const MobileGettingStartedCard = ({ isCollapsed }: { isCollapsed: boolean }) => {
+    const { t } = useTranslation();
+    const title = (
+        <span className="text-[12px] font-medium text-foreground">
+            {t('settings.mobileAccess.steps.title')}
+        </span>
+    );
+    const body = (
+        <>
+            <ol className="m-0 grid list-decimal gap-1 pl-4 text-[11px] leading-4 text-muted">
+                <li>{t('settings.mobileAccess.steps.install')}</li>
+                <li>{t('settings.mobileAccess.steps.turnOn')}</li>
+                <li>
+                    {t('settings.mobileAccess.steps.pair', { minutes: MOBILE_PAIRING_MINUTES })}
+                </li>
+            </ol>
+            <Button
+                className="w-fit"
+                onClick={() => {
+                    // openExternalUrl reports its own rejection through the callback.
+                    void openExternalUrl(MOBILE_RELEASES_URL, (message) =>
+                        pushToast('error', message),
+                    );
+                }}
+                size="sm"
+                variant="secondary"
+            >
+                <ExternalLink aria-hidden="true" size={13} />
+                {t('settings.mobileAccess.steps.download')}
+            </Button>
+        </>
+    );
+    if (isCollapsed)
+        return (
+            <details className="grid gap-2 rounded-md border border-border bg-background p-3">
+                <summary className="cursor-pointer">{title}</summary>
+                <div className="mt-2 grid gap-2">{body}</div>
+            </details>
+        );
+    return (
+        <div className="grid gap-2 rounded-md border border-border bg-background p-3">
+            <p className="m-0">{title}</p>
+            {body}
+        </div>
+    );
 };
 
 const MobileAccessStatusCard = ({
@@ -62,6 +122,7 @@ const MobileAccessStatusCard = ({
     status: MobileAccessStatus;
 }) => {
     const { t } = useTranslation();
+    const view = describeMobileStatus(status, activeDeviceCount);
     return (
         <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-background p-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -70,25 +131,10 @@ const MobileAccessStatusCard = ({
                 </span>
                 <div className="min-w-0">
                     <p className="m-0 text-[12px] font-medium text-foreground">
-                        {t(
-                            status.enabled
-                                ? 'settings.mobileAccess.status.available'
-                                : 'settings.mobileAccess.status.offByDefault',
-                        )}
+                        {t(view.titleKey)}
                     </p>
                     <p className="m-0 mt-0.5 truncate text-[11px] text-muted">
-                        {status.enabled && status.address && status.port
-                            ? t(
-                                  activeDeviceCount === 1
-                                      ? 'settings.mobileAccess.status.listeningOne'
-                                      : 'settings.mobileAccess.status.listeningOther',
-                                  {
-                                      address: status.address,
-                                      port: status.port,
-                                      count: activeDeviceCount,
-                                  },
-                              )
-                            : t('settings.mobileAccess.status.noListener')}
+                        {t(view.detailKey, view.detailParams)}
                     </p>
                 </div>
             </div>
@@ -114,18 +160,34 @@ const MobileAccessStatusCard = ({
 
 const MobileProjectAccessSection = ({
     busy,
+    onAddProject,
     onCreatePairing,
     onToggleProject,
     projects,
     selectedProjectIds,
 }: {
     busy: boolean;
+    onAddProject: () => void;
     onCreatePairing: () => void;
     onToggleProject: (projectId: string, isChecked: boolean) => void;
     projects: ProjectQueryResult['projects'];
     selectedProjectIds: Set<string>;
 }) => {
     const { t } = useTranslation();
+    if (projects.length === 0)
+        return (
+            <div className="grid justify-items-start gap-2">
+                <p className="m-0 text-[12px] font-medium text-foreground">
+                    {t('settings.mobileAccess.projects.emptyTitle')}
+                </p>
+                <p className="m-0 text-[11px] leading-4 text-muted">
+                    {t('settings.mobileAccess.projects.emptyDescription')}
+                </p>
+                <Button onClick={onAddProject} size="sm">
+                    {t('settings.mobileAccess.projects.addProject')}
+                </Button>
+            </div>
+        );
     return (
         <div className="grid gap-2">
             <p className="m-0 text-[12px] font-medium text-foreground">
@@ -181,12 +243,14 @@ const MobilePairingCard = ({
     isActive,
     now,
     onCopy,
+    onCreateNew,
     pairing,
 }: {
     copied: boolean;
     isActive: boolean;
     now: number;
     onCopy: () => void;
+    onCreateNew: () => void;
     pairing: MobilePairingState;
 }) => {
     const { t } = useTranslation();
@@ -212,27 +276,46 @@ const MobilePairingCard = ({
             </div>
             <div className="grid min-w-48 flex-1 gap-2">
                 <p className="m-0 text-[12px] font-medium text-foreground">
-                    {t('settings.mobileAccess.pairing.scan')}
+                    {t(
+                        isActive
+                            ? 'settings.mobileAccess.pairing.scan'
+                            : 'settings.mobileAccess.pairing.expiredTitle',
+                    )}
                 </p>
                 <p className="m-0 text-[11px] leading-4 text-muted">
-                    {t('settings.mobileAccess.pairing.description', {
-                        expiration: expirationLabel(t, pairing.expiresAt, now),
-                    })}
+                    {isActive
+                        ? t('settings.mobileAccess.pairing.description', {
+                              expiration: expirationLabel(t, pairing.expiresAt, now),
+                          })
+                        : t('settings.mobileAccess.pairing.expiredDescription')}
                 </p>
-                <Button
-                    className="w-fit"
-                    disabled={!isActive}
-                    onClick={onCopy}
-                    size="sm"
-                    variant="secondary"
-                >
-                    {copied ? (
-                        <Check aria-hidden="true" size={13} />
-                    ) : (
-                        <Clipboard aria-hidden="true" size={13} />
-                    )}
-                    {t(copied ? 'common.copied' : 'settings.mobileAccess.pairing.copyLink')}
-                </Button>
+                {isActive ? (
+                    <>
+                        <p className="m-0 text-[11px] leading-4 text-muted">
+                            {t('settings.mobileAccess.pairing.role', {
+                                role: t('settings.mobileAccess.devices.role.control'),
+                            })}
+                        </p>
+                        {isTailscalePairingLink(pairing.pairingLink) ? (
+                            <p className="m-0 text-[11px] leading-4 text-muted">
+                                {t('settings.mobileAccess.pairing.tailscale')}
+                            </p>
+                        ) : null}
+                        <Button className="w-fit" onClick={onCopy} size="sm" variant="secondary">
+                            {copied ? (
+                                <Check aria-hidden="true" size={13} />
+                            ) : (
+                                <Clipboard aria-hidden="true" size={13} />
+                            )}
+                            {t(copied ? 'common.copied' : 'settings.mobileAccess.pairing.copyLink')}
+                        </Button>
+                    </>
+                ) : (
+                    <Button className="w-fit" onClick={onCreateNew}>
+                        <QrCode aria-hidden="true" size={14} />
+                        {t('settings.mobileAccess.pairing.createNew')}
+                    </Button>
+                )}
             </div>
         </div>
     );
@@ -310,6 +393,8 @@ export const MobileAccessSections = ({
     status: MobileAccessStatus;
 }) => (
     <>
+        <MobileGettingStartedCard isCollapsed={controller.activeDevices.length > 0} />
+
         <MobileAccessStatusCard
             activeDeviceCount={controller.activeDevices.length}
             busy={controller.busy}
@@ -321,6 +406,7 @@ export const MobileAccessSections = ({
             <>
                 <MobileProjectAccessSection
                     busy={controller.busy}
+                    onAddProject={controller.addProject}
                     onCreatePairing={controller.createPairing}
                     onToggleProject={controller.toggleProject}
                     projects={controller.projects}
@@ -333,6 +419,7 @@ export const MobileAccessSections = ({
                         isActive={controller.isPairingActive}
                         now={controller.now}
                         onCopy={controller.copyPairingLink}
+                        onCreateNew={controller.createPairing}
                         pairing={controller.pairing}
                     />
                 ) : null}

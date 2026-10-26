@@ -43,7 +43,6 @@ export interface NotificationEntry extends NotificationInput {
     id: number;
     count: number;
     timestamp: number;
-    timeLabel: string;
     unread: boolean;
 }
 
@@ -139,10 +138,6 @@ export function recordNotification(input: NotificationInput): void {
         projectTitle: input.projectTitle?.slice(0, 256),
         id: previous?.id ?? state.sequence + 1,
         timestamp,
-        timeLabel: new Date(timestamp).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-        }),
         count: Math.min((previous?.count ?? 0) + 1, 999),
         unread: !state.isOpen && !isNotificationMuted(input),
     };

@@ -33,6 +33,11 @@ interface KeyboardShortcutEntry {
      * dash.
      */
     isRange?: boolean;
+    /**
+     * Words standing in for keycaps on a pointer gesture (`Double-click`), which no keybinding can express. Such a row
+     * has no `keys`.
+     */
+    gesture?: string;
     title: string;
     titleLabel: string;
 }
@@ -207,8 +212,95 @@ export function sidebarShortcutGroup(
     };
 }
 
+const CHAT_COMPOSER_SHORTCUT_CATEGORY = 'Chat composer';
+const MOUSE_SHORTCUT_CATEGORY = 'Mouse';
+
+/**
+ * Keys the Chat message input handles itself (`agent-chat-composer-keys.ts`, `agent-chat-prompt-history.ts`, the
+ * suggestion lists), so they are not commands and would never reach the sheet otherwise. `/`, `$` and `@` are typed
+ * characters rather than chords; the keycap shows the character that opens the list.
+ */
+export function chatComposerShortcutGroup(
+    labels: Record<
+        | 'category'
+        | 'history'
+        | 'mention'
+        | 'newLine'
+        | 'queue'
+        | 'send'
+        | 'skills'
+        | 'slash'
+        | 'stop',
+        string
+    >,
+): KeyboardShortcutGroup {
+    const entry = (command: string, title: string, keys: string[]): KeyboardShortcutEntry => ({
+        category: CHAT_COMPOSER_SHORTCUT_CATEGORY,
+        categoryLabel: labels.category,
+        command,
+        keys,
+        title,
+        titleLabel: title,
+    });
+    return {
+        category: CHAT_COMPOSER_SHORTCUT_CATEGORY,
+        label: labels.category,
+        entries: [
+            entry('chatComposer.send', labels.send, ['enter']),
+            entry('chatComposer.queue', labels.queue, ['cmd+enter']),
+            entry('chatComposer.newLine', labels.newLine, ['shift+enter']),
+            entry('chatComposer.stop', labels.stop, ['escape']),
+            entry('chatComposer.history', labels.history, ['arrowup']),
+            entry('chatComposer.slash', labels.slash, ['/']),
+            entry('chatComposer.skills', labels.skills, ['$']),
+            entry('chatComposer.mention', labels.mention, ['@']),
+        ],
+    };
+}
+
+/**
+ * Pointer gestures the app responds to, each verified against its handler: Cmd-click on a Terminal link
+ * (`terminal-link-click-guard.ts`), double-click on a Session row (`session-row-trigger.tsx`), dragging a tab onto a
+ * pane edge (`pane-drop-zone.ts`), and Option-click on a Files folder (`file-tree-item.tsx`).
+ */
+export function mouseShortcutGroup(
+    labels: Record<
+        | 'category'
+        | 'dragTab'
+        | 'dragTabGesture'
+        | 'expandAll'
+        | 'expandAllGesture'
+        | 'link'
+        | 'linkGesture'
+        | 'rename'
+        | 'renameGesture',
+        string
+    >,
+): KeyboardShortcutGroup {
+    const entry = (command: string, title: string, gesture: string): KeyboardShortcutEntry => ({
+        category: MOUSE_SHORTCUT_CATEGORY,
+        categoryLabel: labels.category,
+        command,
+        gesture,
+        keys: [],
+        title,
+        titleLabel: title,
+    });
+    return {
+        category: MOUSE_SHORTCUT_CATEGORY,
+        label: labels.category,
+        entries: [
+            entry('mouse.openLink', labels.link, labels.linkGesture),
+            entry('mouse.renameSession', labels.rename, labels.renameGesture),
+            entry('mouse.splitByDrag', labels.dragTab, labels.dragTabGesture),
+            entry('mouse.expandAll', labels.expandAll, labels.expandAllGesture),
+        ],
+    };
+}
+
 function isEntryMatching(entry: KeyboardShortcutEntry, needle: string): boolean {
     return [
+        ...(entry.gesture ? [entry.gesture] : []),
         entry.titleLabel,
         entry.title,
         entry.categoryLabel,

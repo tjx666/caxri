@@ -14,6 +14,7 @@ import { primarySidebarSettingsSpec } from './primary-sidebar-settings-spec.js';
 
 export const settingCategories = [
     { id: 'general', title: 'General' },
+    { id: 'chat', title: 'Chat' },
     { id: 'notifications', title: 'Notifications' },
     { id: 'mobile', title: 'Mobile' },
     { id: 'terminal', title: 'Terminal' },
@@ -129,7 +130,7 @@ export const settingsSpec = [
             'Starts new Agents as a Chat instead of a Terminal. Shell always opens in a Terminal. The New Session and New Terminal menus toggle this too.',
         category: 'general',
         keywords: ['chat', 'surface', 'terminal', 'claude', 'codex', 'grok', 'conversation', 'tui'],
-        default: false,
+        default: true,
     },
     ...agentChatSettingsSpec,
     {
@@ -363,7 +364,7 @@ export const settingsSpec = [
             'Look up commit author avatars on GitHub; author emails are sent to github.com. Only used in repositories with a GitHub remote.',
         category: 'security',
         keywords: ['avatar', 'github', 'commit', 'author', 'privacy', 'email'],
-        default: true,
+        default: false,
     },
     {
         kind: 'complex',
@@ -534,7 +535,7 @@ export const settingsSpec = [
         key: 'agents.notifications.enabled',
         title: 'System notifications',
         description:
-            'Notify when a background Agent needs attention; provider lifecycle hooks must also be enabled',
+            'Notify when a background Agent needs attention. Agents running in Terminals also need their provider lifecycle hooks enabled; Chats do not',
         category: 'notifications',
         keywords: ['notification', 'alert', 'background', 'attention', 'waiting', 'completed'],
         default: true,
@@ -548,7 +549,7 @@ export const settingsSpec = [
         keywords: ['notification', 'duration', 'minimum', 'completed', 'turn'],
         min: 0,
         max: 3_600,
-        default: 60,
+        default: 15,
         display: { unit: 'seconds' },
     },
 ] as const satisfies readonly SettingSpec[];

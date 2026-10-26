@@ -26,4 +26,14 @@ describe('settingsSpec', () => {
             max: MAX_AGENT_CHAT_MESSAGE_LENGTH,
         });
     });
+
+    it('ships newcomer-friendly defaults', () => {
+        const defaultOf = (key: string) => {
+            const spec = settingsSpec.find((entry) => entry.key === key);
+            return spec !== undefined && 'default' in spec ? spec.default : undefined;
+        };
+        expect(defaultOf('session.openAgentsInChat')).toBe(true);
+        expect(defaultOf('agents.notifications.completionThresholdSeconds')).toBe(15);
+        expect(defaultOf('git.fetchGitHubAvatars')).toBe(false);
+    });
 });

@@ -4,7 +4,7 @@ import {
     describeArchivedSession,
     describeRestoredSession,
     describeRestoredSessions,
-} from '../session-archive-commands';
+} from '../session-notice-copy';
 
 describe('Archived Session notice copy', () => {
     it('quotes the Session title', () => {

@@ -4,9 +4,9 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { BrowserWindow } from 'electron';
 
-import type { AgentNotificationDelivery } from './agent-notification-delivery';
 import type { CommanderInboxNotificationCoordinator } from './commander-inbox-notifications';
 import { createCommanderInboxNotificationCoordinator } from './commander-inbox-notifications';
+import type { AgentNotificationDelivery } from './notifications/agent-notification-delivery';
 import type { DesktopServerConnection } from './server-connection';
 
 interface DesktopCommanderInboxNotificationOptions {

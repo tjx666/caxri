@@ -10,6 +10,7 @@ import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
+import { formatCount } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 import { useGitDecoration } from '../../stores/git-decorations';
 import { describeFailure } from '../../stores/toasts';
@@ -171,7 +172,7 @@ export function EditorBreadcrumbPicker({
             {truncated && (
                 <div aria-live="polite" className="px-2 py-1 text-[11px] text-muted" role="status">
                     {t('editor.breadcrumbs.truncated', {
-                        count: entries.length.toLocaleString(),
+                        count: formatCount(entries.length),
                     })}
                 </div>
             )}

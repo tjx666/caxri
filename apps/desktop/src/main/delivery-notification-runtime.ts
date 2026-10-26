@@ -4,9 +4,9 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 
-import type { AgentNotificationDelivery } from './agent-notification-delivery';
 import type { DeliveryNotificationCoordinator } from './delivery-notifications';
 import { createDeliveryNotificationCoordinator } from './delivery-notifications';
+import type { AgentNotificationDelivery } from './notifications/agent-notification-delivery';
 
 interface DesktopDeliveryNotificationOptions {
     /**

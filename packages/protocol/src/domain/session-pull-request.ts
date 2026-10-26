@@ -6,6 +6,11 @@ import { projectStatusStateSchema } from './project-status-state.js';
 
 export const sessionPullRequestStateSchema = z.enum(['draft', 'open', 'merged', 'closed']);
 
+/**
+ * Why a pull request lookup failed, as a closed reason the Renderer turns into recovery copy in the interface language
+ * (and the command to run, for the CLI reasons). The Server sends no sentence: CLI stderr can carry private repository
+ * data, and a fixed English hint could not follow `workbench.language`.
+ */
 export const pullRequestUnavailableSchema = z.object({
     reason: z.enum([
         'not-found',
@@ -18,7 +23,11 @@ export const pullRequestUnavailableSchema = z.object({
         'tls',
         'other',
     ]),
-    hint: z.string(),
+    /**
+     * Epoch milliseconds when a paused lookup resumes by itself; only set for `rate-limited`. The Renderer re-checks it
+     * against its own clock, so a snapshot served after the deadline falls back to the generic sentence.
+     */
+    retryAt: z.number().int().nonnegative().optional(),
 });
 
 /**

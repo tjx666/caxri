@@ -35,11 +35,13 @@ export const toasts = {
     'toasts.action.copyDetails': 'Copy details',
     'toasts.action.copyCommand': 'Copy command',
     'toasts.action.restoreDiscardedChanges': 'Restore My Changes',
+    'toasts.action.revealInFinder': 'Reveal in Finder',
     'toasts.action.openOnGitHub': 'Open on GitHub',
     'toasts.action.viewDetails': 'View details',
     'toasts.action.undo': 'Undo',
     'toasts.action.redo': 'Redo',
     'toasts.action.openSettings': 'Open Settings',
+    'toasts.action.openSettingsFile': 'Open Settings File',
     'toasts.action.turnOffHardwareAcceleration': 'Turn off hardware acceleration…',
     'toasts.action.stop': 'Stop',
     'toasts.action.showUpdate': 'Show Update',
@@ -61,7 +63,7 @@ export const toasts = {
     // features/toasts/notification-options.tsx
     'toasts.options.label': 'Notification options',
     'toasts.options.mute': "Don't show this type again",
-    'toasts.options.muteHint': 'Applies to all Projects. Restore in Settings → Notifications.',
+    'toasts.options.muteHint': 'Applies to all Projects. Restore in {{path}}.',
 
     // features/toasts/notification-center.tsx
     'toasts.center.title': 'Notifications',

@@ -1,6 +1,7 @@
 import type { FileSearchTerminationReason } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 
 export type ProjectSearchDisplayState =
     'empty' | 'error' | 'idle' | 'incomplete' | 'results' | 'searching';
@@ -47,7 +48,7 @@ export function projectSearchTerminationMessage(
             ? 'projectSearch.termination.showingPartial'
             : 'projectSearch.termination.narrowSearch',
     );
-    const count = scannedFiles.toLocaleString();
+    const count = formatCount(scannedFiles);
     switch (reason) {
         case 'completed':
             return;

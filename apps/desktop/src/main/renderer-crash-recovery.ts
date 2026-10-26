@@ -1,7 +1,7 @@
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
-import { app, dialog } from 'electron';
+import { app, dialog, shell } from 'electron';
 
 import { decideCrashRecovery } from './crash-policy';
 import { translateMain } from './locale';
@@ -17,6 +17,10 @@ export function observeRendererCrashes(
          * Chromium child at once) is not a crash: reloading it would start a fresh Workbench against a dying Server.
          */
         isQuitting: () => boolean;
+        /**
+         * The profile's diagnostic log folder (`DesktopProfile.logDirectory`), revealed by "Reveal Logs in Finder".
+         */
+        logDirectory: string;
         logger: () => StructuredLogger | undefined;
         shutdown: () => Promise<void>;
     },
@@ -67,24 +71,31 @@ export function observeRendererCrashes(
         // relaunching or exiting cannot block this handler, so the recovery flow below is
         // deliberately fire-and-forget rather than awaited.
         (async () => {
-            const result = await dialog.showMessageBox(window, {
-                type: 'error',
-                title: translateMain('desktop.crash.title'),
-                message: translateMain('desktop.crash.message'),
-                detail: translateMain('desktop.crash.detail'),
-                buttons: [
-                    translateMain('desktop.crash.relaunch'),
-                    translateMain('desktop.crash.quit'),
-                ],
-                defaultId: 0,
-                cancelId: 1,
-            });
+            let response: number;
+            do {
+                // eslint-disable-next-line no-await-in-loop -- the dialog re-opens after Reveal Logs until a final choice
+                ({ response } = await dialog.showMessageBox(window, {
+                    type: 'error',
+                    title: translateMain('desktop.crash.title'),
+                    message: translateMain('desktop.crash.message'),
+                    detail: translateMain('desktop.crash.detail'),
+                    buttons: [
+                        translateMain('desktop.crash.relaunch'),
+                        translateMain('desktop.crash.revealLogs'),
+                        translateMain('desktop.crash.quit'),
+                    ],
+                    defaultId: 0,
+                    cancelId: 2,
+                }));
+                // eslint-disable-next-line no-await-in-loop -- sequential with the dialog
+                if (response === 1) await shell.openPath(options.logDirectory);
+            } while (response === 1);
             try {
                 await options.shutdown();
             } catch {
                 // Best-effort shutdown; the window still needs to relaunch or exit below.
             }
-            if (result.response === 0) app.relaunch();
+            if (response === 0) app.relaunch();
             app.exit(0);
             // eslint-disable-next-line unicorn/prefer-await -- see comment above
         })().catch(() => {});

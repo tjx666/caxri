@@ -152,7 +152,7 @@ export class AgentHookManager {
         if (this.requestedSettings !== requested) return;
         const installHints = new Map<AgentProvider, string>();
         for (const provider of missing) {
-            const message = `Install the ${agentProviderCatalog[provider].displayName} CLI, then restart Caxri.`;
+            const message = `Install ${provider === 'claude' ? 'Claude Code' : `the ${agentProviderCatalog[provider].displayName} CLI`}, then restart Caxri.`;
             installHints.set(provider, message);
             // Logged on the transition into the missing state only; a steady-state reconcile repeats nothing.
             if (this.health[provider].message !== message)

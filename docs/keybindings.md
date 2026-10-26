@@ -51,9 +51,18 @@ A lone modifier press is skipped entirely: typing `Cmd+K Cmd+S` by releasing and
 Command emits a bare `Meta` keydown in between, which would otherwise cancel the sequence.
 
 A Caxri-owned sequence that matches nothing is swallowed rather than released, so the second
-keystroke of an abandoned chord cannot leak into a Terminal or an input. Escape is the exception: a
-pending chord has no visible affordance, so Escape ends the sequence and still reaches whatever is
-listening; an accidental `Cmd+K` over a dialog must not also eat the press that closes it.
+keystroke of an abandoned chord cannot leak into a Terminal or an input. Escape is the exception:
+Escape ends the sequence and still reaches whatever is listening; an accidental `Cmd+K` over a
+dialog must not also eat the press that closes it.
+
+A pending chord is visible. While Caxri owns an armed sequence, a small hint above the status bar
+names the pressed chord ("was pressed. Waiting for the second key…") and lists every live binding
+that continues it with its command title, built from the same table as the Keyboard Shortcuts sheet
+(`features/keyboard-shortcuts/chord-hints.ts`), so a rebound or removed default shows correctly. The
+hint disappears when the sequence completes, on Escape, on a non-matching key, on a mouse press or
+window blur, and after 5 seconds, when the armed chord itself also expires so the hint and the
+swallowed second key never disagree. A sequence released to Monaco shows no hint: the editor draws
+its own chord feedback.
 Continuations also bypass
 the editable-surface policy (`allowInEditable`): the leading chord was already consumed by Caxri,
 and a two-chord sequence can never be text the focused surface was about to receive. That is what
@@ -101,7 +110,7 @@ Electron accelerators are one key combination, so a chord sequence has no accele
 rules in `apps/desktop/src/main/menu.ts` keep the native menu out of the chord machine:
 
 - A command bound to a sequence gets no accelerator. Its menu item advertises the binding as a label
-  hint instead: `Open Keyboard Shortcuts [⌘K ⌘S]`.
+  hint instead: `Edit Keyboard Shortcuts [⌘K ⌘S]`.
 - A command bound to a _leading chord_ also gets no accelerator. A native accelerator fires from the
   keystroke itself, so registering `Cmd+K` would consume it before the Renderer could arm the
   pending chord, and the whole `Cmd+K …` family would stop working.

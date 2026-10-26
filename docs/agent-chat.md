@@ -67,7 +67,8 @@ The service, reducer, and pane do not change.
 
 ## Surface and identity
 
-- `terminal.create` takes `surface: 'chat'`; the default is a PTY. The surface is stored in the
+- `terminal.create` takes `surface: 'chat'`; omitting it creates a PTY. The Desktop default for Agents is a Chat
+  (`session.openAgentsInChat` defaults to true). The surface is stored in the
   `terminals.surface` column; only a surface switch (below) changes it. `isChatTerminal` is the one
   predicate every surface-dependent path checks.
 - `session.create` takes the same optional `surface`, so a new Session can start with a Chat as its

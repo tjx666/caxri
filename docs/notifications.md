@@ -64,9 +64,46 @@ the lifecycle hook bridge still carries no response content. Because the read is
 Session is checked again before showing, and a banner the user has meanwhile seen is dropped with
 the `superseded` outcome.
 
-Unsigned and ad-hoc builds deliver through `alerter`, which withdraws a banner after 30 seconds and
-draws its icon unmasked, so packaged builds ship `build/notification-icon.png` (the production
-icon with the rounded macOS plate baked in) as an extra resource.
+Unsigned and ad-hoc builds deliver through `alerter` (the notification helper), which withdraws a
+banner after 30 seconds and draws its icon unmasked, so packaged builds ship
+`build/notification-icon.png` (the production icon with the rounded macOS plate baked in) as an
+extra resource.
+
+### Delivery modes and the notification helper
+
+Main picks a delivery mode for every banner from two inputs: whether the running app is signed
+(probed once per launch) and whether `alerter` can be found. The lookup tries
+`/opt/homebrew/bin/alerter`, `/usr/local/bin/alerter`, then the login shell's PATH. A found helper is
+kept for the process; a miss is trusted for 60 seconds and then looked up again, so a helper
+installed while Caxri runs takes effect on a later banner without a restart. A failed spawn also
+forgets the cached path.
+
+| Mode        | When                                          | Click focuses the Session |
+| ----------- | --------------------------------------------- | ------------------------- |
+| `native`    | Signed build (and E2E launches)               | Yes                       |
+| `alerter`   | Unsigned build, helper found                  | Yes                       |
+| `osascript` | Unsigned build, helper missing (basic banner) | No                        |
+
+The `osascript` fallback runs `/usr/bin/osascript` with a fixed script and passes the title,
+body, and subtitle as separate argv items, so notification text never becomes script source.
+Control characters are flattened to spaces and each field is capped at 1,000 characters.
+
+Main logs `agent_notifications.delivery_fallback` with a closed `mode` and `reason`
+(`unsigned_build`, `unsigned_build_no_helper`) on each change of mode, not per banner. A failed
+basic banner logs `agent_notifications.operation_failed` with `osascript_failed`; the first one per
+launch also raises the transient `notifications.helperUnavailable` event, which the Renderer turns
+into one warning toast pointing at **Settings → Notifications**.
+
+**Settings → Notifications → System notifications** shows the current mode in plain words
+(`Delivered by the notification helper`, `Notification helper not installed. Install it with:` plus a
+Copy button for `brew install vjeantet/tap/alerter`, or `Delivered by macOS notifications` for a
+signed build). **Check Again** forces a fresh helper lookup (`notifications.helperStatus` with
+`recheck`). **Send Test Notification** (`notifications.sendTest`) sends a generic banner with no
+Session content and reports only that it was handed to the backend; Focus modes and the per-app
+macOS switch can still hide it. **Open macOS Notification Settings**
+(`notifications.openSystemSettings`) opens System Settings at its Notifications pane. The
+description of the **System notifications** setting notes that lifecycle hooks are needed only for
+Agents running in Terminals, not for Chats.
 
 ## Ownership and event flow
 
@@ -121,14 +158,15 @@ History must not become a vehicle for retaining source content, Terminal output,
 
 ## Troubleshooting and maintenance
 
-| Symptom                                     | Inspect                                                                                                                                                                     |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A reminder appears only in history          | Check its typed preference in Settings → Notifications and the row's Muted label. Errors and persistent notices bypass this filter.                                         |
-| History disappeared after reload            | Expected memory lifetime; there is no disk archive or replay recovery.                                                                                                      |
-| Agent activity has no history entry         | Check the native notification settings and Main's decision outcome first. The center records only forwarded waiting/completed `shown` decisions, not all Agent transitions. |
-| Muting fails                                | Follow the `settings.patch` command failure. Do not dismiss the original popup or assume a preference was saved.                                                            |
-| A settings shortcut opens the wrong section | Follow `settings.openNotifications` into the settings dialog controller. Its scroll request must remain pending until the virtual list has measured items.                  |
-| Delivery failures group incorrectly         | Verify `projectStatus.alert` repository and branch identity before changing general history grouping.                                                                       |
+| Symptom                                     | Inspect                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A reminder appears only in history          | Check its typed preference in Settings → Notifications and the row's Muted label. Errors and persistent notices bypass this filter.                                                                                                                                                                        |
+| History disappeared after reload            | Expected memory lifetime; there is no disk archive or replay recovery.                                                                                                                                                                                                                                     |
+| No banner appears on an unsigned build      | Open Settings → Notifications → System notifications: install the helper and press Check Again, then Send Test Notification. If the test is sent but nothing shows, check macOS notification settings and Focus mode. Look for `agent_notifications.delivery_fallback` and `osascript_failed` in the logs. |
+| Agent activity has no history entry         | Check the native notification settings and Main's decision outcome first. The center records only forwarded waiting/completed `shown` decisions, not all Agent transitions.                                                                                                                                |
+| Muting fails                                | Follow the `settings.patch` command failure. Do not dismiss the original popup or assume a preference was saved.                                                                                                                                                                                           |
+| A settings shortcut opens the wrong section | Follow `settings.openNotifications` into the settings dialog controller. Its scroll request must remain pending until the virtual list has measured items.                                                                                                                                                 |
+| Delivery failures group incorrectly         | Verify `projectStatus.alert` repository and branch identity before changing general history grouping.                                                                                                                                                                                                      |
 
 Implementation entry points are
 [`stores/notifications.ts`](../apps/desktop/src/renderer/src/stores/notifications.ts),

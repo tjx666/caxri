@@ -12,7 +12,7 @@ import { unconfiguredEnvironment } from '../main-environment-methods';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
-import type { UpdateService } from '../updates';
+import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 const NOTHING_RUNNING: RunningWork = { terminals: 0, chats: 0 };

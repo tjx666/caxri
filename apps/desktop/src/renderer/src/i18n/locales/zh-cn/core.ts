@@ -88,6 +88,8 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.workbench.snapshotLoadFailed': '无法从 Server 加载项目和会话',
     'core.workbench.snapshotRefreshFailed': '无法从 Server 刷新项目和会话',
 
+    'core.configurationErrors.multiple':
+        '{{count}} 个配置文件有错误，已改用默认值。首个错误：{{first}}',
     'core.workbenchRoot.fallback': '当前 Worktree 已不可用。已返回到 {{title}}。',
     'core.workbenchRoot.followedNamed': '已切换到 Worktree“{{title}}”：有 Agent 移动到了那里。',
     'core.workbenchRoot.followed': '已切换到另一个 Worktree：有 Agent 移动到了那里。',
@@ -112,6 +114,8 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.commands.openAgentCommanderFailed': '无法打开 Agent Commander',
     'core.commands.diagnosticsExportFailed': '诊断信息导出失败',
     'core.commands.diagnosticsExported': '诊断信息已导出到 {{path}}',
+    'core.commands.revealExportFailed': '无法在访达中显示诊断文件',
+    'core.commands.revealLogsFailed': '无法在访达中显示日志文件夹',
 
     'core.usageFormat.lessThanMinute': '<1 分钟',
     'core.usageFormat.minutes': '{{minutes}} 分钟',

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChoiceMarker,
+    agentInstallHint,
     isSameNewTerminalTarget,
     newAgentSurface,
     newSessionActionLabel,
@@ -14,6 +15,7 @@ import {
     newTerminalCommandTarget,
     resolveNewTerminalAgent,
     resolveNewTerminalTarget,
+    unavailableAgentKinds,
 } from '../new-terminal-agent';
 
 const CATALOG_ORDER: TerminalKind[] = [...agentProviderIds, 'shell'];
@@ -112,7 +114,7 @@ describe('newTerminalAgentChoices', () => {
 
     it('marks the configured default and nothing else', () => {
         expect(newTerminalAgentChoices('grok', false).filter((choice) => choice.isDefault)).toEqual(
-            [{ isDefault: true, kind: 'grok', surface: 'pty' }],
+            [{ isDefault: true, isUnavailable: false, kind: 'grok', surface: 'pty' }],
         );
     });
 
@@ -214,5 +216,54 @@ describe('agentChoiceMarker', () => {
         expect(agentChoiceMarker({ isDefault: false, surface: 'chat' })).toBe('Chat');
         expect(agentChoiceMarker({ isDefault: true, surface: 'pty' })).toBe('Default');
         expect(agentChoiceMarker({ isDefault: false, surface: 'pty' })).toBeUndefined();
+    });
+});
+
+describe('Agent availability annotations', () => {
+    const availability = {
+        providers: [
+            { kind: 'claude', available: false },
+            { kind: 'codex', available: true },
+            { kind: 'grok', available: false },
+        ],
+    } as const;
+
+    it('collects only the Agents the Server could not find', () => {
+        expect([...unavailableAgentKinds({ providers: [...availability.providers] })]).toEqual([
+            'claude',
+            'grok',
+        ]);
+    });
+
+    it('annotates nothing before the query answers or when it fails', () => {
+        expect(unavailableAgentKinds(undefined).size).toBe(0);
+    });
+
+    it('keeps every Agent listed in catalog order and only flags the missing ones', () => {
+        const unavailable = unavailableAgentKinds({ providers: [...availability.providers] });
+        const choices = newTerminalAgentChoices('codex', false, unavailable);
+        expect(choices.map(({ kind }) => kind)).toEqual(CATALOG_ORDER);
+        expect(
+            choices.filter(({ isUnavailable }) => isUnavailable).map(({ kind }) => kind),
+        ).toEqual(['claude', 'grok']);
+    });
+
+    it('puts the Not installed suffix first and leaves installed rows unchanged', () => {
+        expect(agentChoiceMarker({ isDefault: false, isUnavailable: true, surface: 'pty' })).toBe(
+            'Not installed',
+        );
+        expect(agentChoiceMarker({ isDefault: true, isUnavailable: true, surface: 'chat' })).toBe(
+            'Not installed · Chat · Default',
+        );
+        expect(agentChoiceMarker({ isDefault: true, isUnavailable: false, surface: 'chat' })).toBe(
+            'Chat · Default',
+        );
+    });
+
+    it('offers an install hint for each Agent CLI and none for Shell', () => {
+        expect(agentInstallHint('claude')).toContain('Claude Code');
+        expect(agentInstallHint('codex')).toContain('@openai/codex');
+        expect(agentInstallHint('grok')).toContain('Grok Build');
+        expect(agentInstallHint('shell')).toBeUndefined();
     });
 });

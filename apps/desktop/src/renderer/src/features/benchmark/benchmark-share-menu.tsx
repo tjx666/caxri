@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { formatDate } from '../../lib/locale-format';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { judgeModelLabel, metricLabel, modelLabel, qualityLabel } from './benchmark-presentation';
 import type { ChartModel, ConfigResult, QualitySource } from './benchmark-results';
@@ -47,7 +48,7 @@ export function BenchmarkShareMenu({
                 mostEfficient: t('benchmark.chart.mostEfficient'),
                 quality: qualityLabel(t, source),
                 subtitle: [
-                    new Date(run.createdAt).toLocaleDateString(),
+                    formatDate(run.createdAt),
                     judge &&
                         t('benchmark.run.judgedBy', { model: judgeModelLabel(catalog, judge) }),
                 ]

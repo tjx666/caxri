@@ -32,14 +32,15 @@ import { openProcessExplorer } from '../features/process-explorer/process-explor
 import { unarchiveSession } from '../features/session/session-archive-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
-import { showUpdateDialog } from '../features/updates/update-commands';
+import { openReleaseNotes, showUpdateDialog } from '../features/updates/update-commands';
 import { translate } from '../i18n';
+import { caxri } from '../lib/caxri';
 import { openExternalUrl } from '../lib/external-link';
 import { openSettings } from '../stores/dialogs';
 import { getBootstrap } from '../stores/selectors';
 import type { ToastActionHandlers } from '../stores/toast-actions';
 import { copyFeedbackKey, copyWithToastFeedback } from '../stores/toast-copy-feedback';
-import { pushToast } from '../stores/toasts';
+import { pushToast, tryCommand } from '../stores/toasts';
 import { undoFollowedWorkbenchRoot } from '../stores/workbench-root-notice';
 import { executeCommand } from './execute';
 
@@ -98,6 +99,13 @@ export const toastActionHandlers: ToastActionHandlers = {
             void copyWithToastFeedback(copyFeedbackKey('diagnostics.copyFailure', text), text);
         },
     },
+    'diagnostics.revealExport': {
+        run: () => {
+            void tryCommand(translate('core.commands.revealExportFailed'), () =>
+                caxri.request('diagnostics.revealExport'),
+            );
+        },
+    },
     'editor.restoreDiscardedChanges': {
         unavailable: discardedChangesUnavailableReason,
         run: restoreDiscardedChanges,
@@ -122,6 +130,8 @@ export const toastActionHandlers: ToastActionHandlers = {
         run: ({ sessionId }) => unarchiveSession(sessionId, 'unchanged'),
     },
     'settings.open': { run: () => openSettings() },
+    'settings.openNotifications': { run: () => openSettings('notifications') },
+    'settings.openSource': { run: () => openSettings('source') },
     'settings.openHardwareAcceleration': { run: openHardwareAccelerationSettings },
     'settings.turnOffHardwareAcceleration': {
         // Fire-and-forget by the Toast contract: a follow-up is synchronous, and the confirmation plus the shared
@@ -141,6 +151,7 @@ export const toastActionHandlers: ToastActionHandlers = {
     },
     ...terminalToastActionHandlers,
     'updates.show': { run: showUpdateDialog },
+    'updates.releaseNotes': { run: openReleaseNotes },
     'workbench.undoFollowedRoot': {
         /**
          * Undo takes back one specific move, so a third root means it no longer applies: returning from somewhere the

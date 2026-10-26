@@ -10,8 +10,38 @@ and installation-contract detail an agent needs to work on the CLI safely, see
 [CLI authority and the distributed Agent guide](../.agents/skills/project-architecture/references/cli.md).
 
 The scriptable `caxri` CLI talks only to the authenticated, profile-scoped Server. It never
-reads Caxri's SQLite database, settings, or logs directly. Local help and protocol introspection
-work without a running Server:
+reads Caxri's SQLite database, settings, or logs directly.
+
+## Quick start
+
+1. Open the Caxri app, press the Command Palette shortcut, and run
+   `Shell Command: Install 'caxri' Command in PATH` (details in [Installing `caxri` on `PATH`](#installing-caxri-on-path)).
+2. Open a new terminal window so it picks up the command.
+3. Try these:
+
+```console
+$ caxri open .          # shows this folder in the Caxri app (add it first with `caxri project add .`)
+
+$ caxri project list
+ID         TITLE   PATH
+prj_8f2a1  my-app  /Users/you/code/my-app
+
+$ caxri session list
+ID         TITLE      STATE    LAST ACTIVE
+ses_41c9e  Fix login  idle     5 minutes ago
+ses_77b0d  Old spike  archived 3 days ago
+```
+
+The IDs and times above are examples. `caxri --help` lists these everyday commands first, and
+`caxri skills get caxri-cli` prints the guide your coding agents read.
+
+If Caxri is not running, the CLI says so and suggests opening the app or running
+`caxri desktop focus --launch`.
+
+## From source
+
+Contributors can build the CLI from a checkout. Local help and protocol introspection work without
+a running Server:
 
 ```bash
 bun run build:cli
@@ -49,18 +79,35 @@ and dangles only after the app is deleted.
 
 ## Output modes and safety
 
-Human TTY output is concise text. `--json` reserves stdout for one stable JSON value, while
+Human TTY output is concise text: `project`, `session`, and `terminal` `list` print a table
+(`show` and `current` print `key: value` lines), with times shown relative to now. `--json`
+reserves stdout for one stable JSON value and is unchanged by the readable output, while
 `--quiet` emits one opaque ID per line: the resource the command read or changed, such as the
 created Session, delegation, dispatch, or message. An Agent Endpoint prints as the
 `<host-id>:<endpoint-id>:<generation>` reference that other `agent` commands accept. A mutation whose result has no stable ID refuses
 `--quiet` before it runs rather than failing after its effect already happened. Supported Agent and
-CI environments default to JSON and do not prompt. Select another isolated profile with `--profile <absolute-path>`; every mutation
-requires that explicit Server selector and non-interactive confirmation with `--yes`.
+CI environments default to JSON and do not prompt.
+
+### Profiles and `--profile`
+
+The default profile is the app's own data folder (on macOS,
+`~/Library/Application Support/Caxri`). Read-only commands use it without any flag. A mutation
+(`open`, `project add`, `settings patch`, and so on) must name its profile, so a script or Agent
+can never change the wrong one by accident. The rule:
+
+- **Interactive:** a person in a terminal (stdin and stdout are both a TTY, no Agent or CI
+  environment, no `CAXRI_USER_DATA_DIR`, no endpoint credential) may omit `--profile`; the
+  mutation targets the default profile and asks for confirmation.
+- **Non-interactive:** scripts, CI, Agents, and piped output must pass `--profile <absolute-path>`
+  and `--yes`. The error prints the exact command to copy, including the resolved default profile
+  path.
+
+Select another isolated profile with `--profile <absolute-path>` at any time.
 
 ## Command surface
 
 The shared business surface includes `project list|show|current`, `session list|show|current`,
-`terminal list|show`, `settings get|validate|patch`, `logs query|follow`, `diagnostics snapshot`,
+`terminal list|show`, `project add <path>`, `host status|stop`, `settings get|validate|patch`, `logs query|follow`, `diagnostics snapshot`,
 and `events watch`. Settings writes accept repeated `--set key=value` arguments;
 `settings validate` and `settings patch --dry-run` use the authoritative Server schema without writing.
 Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
@@ -69,7 +116,7 @@ Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to 
 Desktop window commands stay behind authenticated Server and Project-root authorization:
 `desktop focus`, `open <path>`, and `reveal <path>`. Path commands accept an optional exact
 `--session <id>`; `open` supports files and directories and launches Desktop by default, while
-`--no-launch` returns `UNAVAILABLE` when no Desktop lease exists. As with every human mutation,
+`--no-launch` returns `UNAVAILABLE` when no Desktop lease exists. As with every mutation,
 non-interactive calls require `--profile`, `--yes`, and should use a stable `--request-id` when
 retried.
 

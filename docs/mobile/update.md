@@ -175,4 +175,4 @@ offers no update.
   installed before it cannot recover after a transport bump and needs one manual reinstall, for
   example with `adb`.
 - An unpaired phone, including one scanning a pairing link from a newer Desktop, cannot recover.
-- Only `arm64-v8a` is bundled. Other ABIs keep the manual flow in `APK-SIZE.md`.
+- Only `arm64-v8a` is bundled. Other ABIs keep the manual flow in `apk-size.md`.

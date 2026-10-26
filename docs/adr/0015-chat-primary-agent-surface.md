@@ -27,8 +27,10 @@ features. The PTY Terminal surface is permanent and must stay usable.
 - **Terminal remains the fallback.** Shells, Agents without `capabilities.chat`, and vendor
   features Chat has not adopted yet stay reachable through the PTY, and `terminal.switchSurface`
   keeps one conversation movable between both surfaces.
-- **The default surface is a separate decision.** This ADR does not change
-  `session.openAgentsInChat`.
+- **Agents open in Chat by default (decided 2026-10-27).** `session.openAgentsInChat` defaults to
+  true, so a new user's first Agent starts as a Chat. Shell still opens in a Terminal, an Agent
+  without `capabilities.chat` falls back to the PTY, and a user's explicit setting is never
+  rewritten; only the default changed.
 
 ## Consequences
 

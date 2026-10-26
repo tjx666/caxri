@@ -1,15 +1,15 @@
 ---
 name: caxri-cli
-description: Operate and debug the current Caxri Host through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, start a task in a new Session of any added Project and follow its result, add a folder as a Project, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, or verify which capabilities and commands are available.
+description: Operate and debug the current Caxri Server through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, start a task in a new Session of any added Project and follow its result, add a folder as a Project, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, or verify which capabilities and commands are available.
 ---
 
 # Caxri CLI
 
-Use only the bundled `caxri` binary and its authenticated local Host transport. Treat this skill as
+Use only the bundled `caxri` binary and its authenticated local Server transport. Treat this skill as
 workflow guidance; treat live introspection as the command and capability authority.
 
 Inside a Caxri Terminal or Agent Chat, the `CAXRI_CLI` environment variable names the launcher that
-matches the Host which started you. Run `"${CAXRI_CLI:-caxri}"` wherever this guide writes `caxri`:
+matches the Server which started you. Run `"${CAXRI_CLI:-caxri}"` wherever this guide writes `caxri`:
 a `caxri` found on `PATH` can belong to another installed version that lacks newer commands.
 
 <!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,commander,diagnostics.read,projects.read,projects.write,sessions.read,settings.read,settings.write,terminals.steer -->
@@ -31,7 +31,7 @@ caxri capabilities --json
 
 Read the active Endpoint's Project, Session, Terminal, exact generation, grants, capabilities, and
 negotiated commands. Use a command only when both the capability and command are present. If context
-is unavailable, the Host is incompatible, or the capability is absent, stop and report the provided
+is unavailable, the Server is incompatible, or the capability is absent, stop and report the provided
 action. Never substitute an arbitrary shell command.
 
 If context instead reports `principal.kind: delegation-client`, use its `projectIds[0]`, `sessionId`,
@@ -83,7 +83,7 @@ turn validation into a write or add `--yes` unless the user explicitly authorize
 
 ## Pull and reply to peer messages
 
-Use the Host-owned bounded Inbox. Waiting consumes a message only after the authenticated response is
+Use the Server-owned bounded Inbox. Waiting consumes a message only after the authenticated response is
 flushed; an interrupted delivery is requeued. Check once when polling is preferable:
 
 ```bash
@@ -270,7 +270,7 @@ caxri commander inbox resolve item-1 --json
 
 ## Inspect the matching skill offline
 
-Read bundled metadata or this full guide without starting the Host:
+Read bundled metadata or this full guide without starting the Server:
 
 ```bash
 caxri skills list --json

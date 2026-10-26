@@ -50,6 +50,7 @@ import {
     sendActiveFileReference,
 } from '../features/editor/send-file-reference';
 import { openUntitledEditor } from '../features/editor/untitled/commands';
+import { openHelpPage, revealLogs } from '../features/help/help-commands';
 import {
     openPerformanceMonitorWindow,
     togglePerformanceMonitor,
@@ -493,6 +494,7 @@ const commandContext: CommandContext = {
                         pushToast(
                             'success',
                             translate('core.commands.diagnosticsExported', { path: result.path }),
+                            { persist: true, action: { id: 'diagnostics.revealExport' } },
                         );
                 },
                 {
@@ -506,6 +508,7 @@ const commandContext: CommandContext = {
             );
         },
     },
+    help: { open: openHelpPage, revealLogs },
     updates: { check: checkForUpdates },
     shellCommand: { install: installShellCommand, uninstall: uninstallShellCommand },
     sshHost: {

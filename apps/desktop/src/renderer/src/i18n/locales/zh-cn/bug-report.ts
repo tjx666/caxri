@@ -53,6 +53,7 @@ export const bugReport: TranslatedNamespace<typeof source> = {
     'bugReport.preview.sessionChanged': '所选会话已变更。请复制报告或重新打开此流程。',
     'bugReport.preview.noAgentAvailable': '没有可用的运行中 Agent 或对话。你仍可复制报告。',
     'bugReport.preview.copyReport': '复制报告',
+    'bugReport.preview.openGithubIssue': '打开 GitHub Issue',
     'bugReport.preview.sending': '正在发送…',
     'bugReport.preview.sendToAgent': '发送给 Agent',
 
@@ -66,6 +67,7 @@ export const bugReport: TranslatedNamespace<typeof source> = {
     'bugReport.flow.keepDraft': '保留草稿',
     'bugReport.flow.saveScreenshotFailed': '无法保存截图文件。报告中将不包含图片路径。',
     'bugReport.flow.copied': '已复制 Bug 报告',
+    'bugReport.flow.copiedForIssue': '已复制 Bug 报告，请粘贴到新建的 GitHub issue 中。',
     'bugReport.flow.copyFailed': '无法复制 Bug 报告。',
     'bugReport.flow.agentStopped': '所选 Agent 已不再运行。请选择其他 Agent 或复制报告。',
     'bugReport.flow.sent': '已将 Bug 报告发送给 {{title}}',

@@ -135,3 +135,22 @@ export function trackWindowState(
     window.on('leave-full-screen', schedule);
     return { cancel, flush };
 }
+
+/**
+ * Reads the Workbench placement from Server Core. A failed state read falls back to {@link defaultWindowState} so a
+ * broken Server never stops the window from opening; zoom loading reports its own failures.
+ */
+export async function loadWindowPlacement(
+    loadState: () => Promise<PersistedWindowState>,
+    loadZoomLevel: () => Promise<number>,
+): Promise<WindowPlacement> {
+    const readState = async (): Promise<PersistedWindowState> => {
+        try {
+            return await loadState();
+        } catch {
+            return defaultWindowState;
+        }
+    };
+    const [state, zoomLevel] = await Promise.all([readState(), loadZoomLevel()]);
+    return { state, zoomLevel };
+}

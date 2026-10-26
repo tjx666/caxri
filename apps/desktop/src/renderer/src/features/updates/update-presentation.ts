@@ -3,7 +3,8 @@ import { isUpdateVersionSkipped } from '@caxri/protocol';
 import { formatBytes } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
-import { translate, useLocaleStore } from '../../i18n';
+import { translate } from '../../i18n';
+import { formatTime } from '../../lib/locale-format';
 
 /**
  * Everything the update surfaces decide from `UpdateState` plus the user's persisted skip, kept pure so the rules that
@@ -26,11 +27,7 @@ export function updateRetryTimeLabel(
     now: number = Date.now(),
 ): string | undefined {
     if (retryAt === undefined || !Number.isFinite(retryAt) || retryAt <= now) return undefined;
-    const { locale } = useLocaleStore.getState();
-    return new Date(retryAt).toLocaleTimeString(locale === 'en' ? 'en-US' : locale, {
-        hour: 'numeric',
-        minute: '2-digit',
-    });
+    return formatTime(retryAt);
 }
 
 export interface UpdateStatusCopy {
@@ -258,4 +255,56 @@ export function shouldExplainUnsignedInstall(state: UpdateState | undefined): bo
     if (!state) return false;
     if (state.status === 'error') return Boolean(state.version);
     return ['available', 'downloading', 'ready'].includes(state.status);
+}
+
+const RELEASES_URL = 'https://github.com/tjx666/caxri/releases';
+
+/**
+ * Where "Release Notes" opens: the release page Main read from GitHub when it has one, otherwise the tag page for the
+ * version, which GitHub serves for any published release.
+ */
+export function releaseNotesUrl(version: string, releaseUrl?: string): string {
+    return releaseUrl ?? `${RELEASES_URL}/tag/v${version}`;
+}
+
+/**
+ * The release a state is about, for the dialog's "View Release Notes" button; `undefined` for states with no version in
+ * play (checking, up to date, a failed check).
+ */
+export function releaseNotesTarget(
+    state: UpdateState | undefined,
+): { url: string; version: string } | undefined {
+    if (!state) return undefined;
+    if (state.status === 'error') {
+        return state.version
+            ? { url: releaseNotesUrl(state.version), version: state.version }
+            : undefined;
+    }
+    switch (state.status) {
+        case 'available':
+        case 'downloading':
+        case 'ready': {
+            return {
+                url: releaseNotesUrl(state.version, state.releaseUrl),
+                version: state.version,
+            };
+        }
+        default: {
+            return undefined;
+        }
+    }
+}
+
+/**
+ * The one-time "Updated to Caxri X" notice: present while Main reports that this launch replaced an older version
+ * (`updatedFrom`), and `undefined` otherwise, including on a first install where there is nothing to compare with.
+ */
+export function resolveUpdatedNotice(
+    state: UpdateState | undefined,
+): { message: string; version: string } | undefined {
+    if (!state?.updatedFrom) return undefined;
+    return {
+        version: state.currentVersion,
+        message: translate('updates.updated.message', { version: state.currentVersion }),
+    };
 }

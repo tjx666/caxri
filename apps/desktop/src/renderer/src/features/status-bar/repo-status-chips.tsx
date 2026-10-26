@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ProjectStatusOverview } from '@caxri/protocol';
 import { GitPullRequest } from 'lucide-react';
 
+import type { CopyFeedbackStatus } from '../../components/copy-feedback';
+import {
+    COPY_FEEDBACK_RESET_MS,
+    copyButtonLabel,
+    writeToClipboardWithFeedback,
+} from '../../components/copy-feedback';
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
@@ -15,7 +21,9 @@ import { MismatchDot } from './mismatch-dot';
 import {
     pullRequestAriaLabel,
     pullRequestElsewhereBranch,
+    pullRequestRecoveryCommand,
     pullRequestTooltip,
+    pullRequestUnavailableHint,
     pullRequestUnavailableLabel,
 } from './pull-request-status-label';
 import { StatusInfo } from './status-info';
@@ -60,6 +68,47 @@ function PullRequestWorktreeSwitch({ branch, sessionId }: { branch: string; sess
         >
             {t('statusBar.pullRequest.switchWorktree', { branch })}
         </Button>
+    );
+}
+
+/**
+ * The recovery sentence for a failed pull request lookup, plus a button that copies the exact terminal command when one
+ * fixes it. Lives in an interactive hover card so the button stays reachable.
+ */
+function PullRequestUnavailableHint({
+    unavailable,
+}: {
+    unavailable: NonNullable<Repo['pullRequestUnavailable']>;
+}) {
+    const { t } = useTranslation();
+    const [status, setStatus] = useState<CopyFeedbackStatus>('idle');
+    useEffect(() => {
+        if (status === 'idle') return;
+        const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_RESET_MS);
+        return () => clearTimeout(timer);
+    }, [status]);
+    const command = pullRequestRecoveryCommand(unavailable.reason);
+    return (
+        <>
+            <p className="m-0">{pullRequestUnavailableHint(unavailable, t)}</p>
+            {command && (
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mt-2 w-full"
+                    onClick={async () => {
+                        // Resolves to a status and never rejects.
+                        setStatus(await writeToClipboardWithFeedback(navigator.clipboard, command));
+                    }}
+                >
+                    {copyButtonLabel(
+                        status,
+                        t('statusBar.pullRequest.hint.copyCommand', { command }),
+                        t,
+                    )}
+                </Button>
+            )}
+        </>
     );
 }
 
@@ -141,9 +190,12 @@ export function RepoStatusChips({
                                 repo.pullRequestUnavailable.reason,
                                 t,
                             ),
-                            hint: repo.pullRequestUnavailable.hint,
+                            hint: pullRequestUnavailableHint(repo.pullRequestUnavailable, t),
                         })}
-                        title={repo.pullRequestUnavailable.hint}
+                        interactiveTitle
+                        title={
+                            <PullRequestUnavailableHint unavailable={repo.pullRequestUnavailable} />
+                        }
                         className="bg-elevated text-muted"
                         focusable
                     >

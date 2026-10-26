@@ -36,23 +36,19 @@ import {
     localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerStreamTicketReplySchema,
-    localServerWelcomeSchema,
     parseCaxriRequest,
     parseCaxriResult,
     parseServerOperationRequest,
     parseServerOperationResult,
-    protocolFeatures,
-    serverEndpointUrl,
     toWireError,
 } from '@caxri/protocol';
 import { notifyListeners, notifyListenersThenRethrow } from '@caxri/utils';
-import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
 import { BinaryStreamClient } from './binary-stream-client';
+import { openServerHandshake } from './client-handshake';
 import type { PendingRequest, ServerClientCredential } from './client-support';
 import { controlMessageText, DEFAULT_TIMEOUT_MS } from './client-support';
-import { MAX_MANIFEST_BYTES } from './discovery';
 
 // Re-exported so `@caxri/client/supervise` consumers keep importing this type from `client.js`, unchanged by the
 // `client-support.js` split.
@@ -77,122 +73,19 @@ export class ServerClient {
         timeoutMs = DEFAULT_TIMEOUT_MS,
         credential?: ServerClientCredential,
     ): Promise<ServerClient> {
-        if (manifest.protocolVersion !== CAXRI_PROTOCOL_VERSION)
-            throw new CaxriError('CONFLICT', 'Caxri Host protocol version is incompatible', {
-                clientProtocolVersion: CAXRI_PROTOCOL_VERSION,
-                hostProtocolVersion: manifest.protocolVersion,
-            });
-        const resolvedCredential: ServerClientCredential = credential ?? { kind: 'operator' };
-        const clientId =
-            resolvedCredential.kind === 'operator'
-                ? `operator:${manifest.profileId}`
-                : resolvedCredential.kind === 'agent'
-                  ? `agent:${resolvedCredential.hostId}:${resolvedCredential.endpointId}`
-                  : resolvedCredential.kind === 'delegation-client'
-                    ? `delegation-client:${resolvedCredential.clientId}`
-                    : resolvedCredential.desktopId;
-        const socket = new WebSocket(serverEndpointUrl(manifest.endpoint), {
-            maxPayload: CONTROL_TRANSPORT_MAX_FRAME_BYTES,
-        });
-        const deferredMessages: Array<{ data: RawData; isBinary: boolean }> = [];
-        let isHandshakeComplete = false;
-        let handshakeMessageListener: ((data: RawData, isBinary: boolean) => void) | undefined;
-        const handshake = await new Promise<{
-            desktopLease?: DesktopLease;
-            welcome: ProtocolWelcome;
-        }>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                socket.terminate();
-                reject(new CaxriError('TIMEOUT', 'Caxri Host handshake timed out'));
-            }, timeoutMs);
-            const fail = (): void => {
-                clearTimeout(timer);
-                reject(new CaxriError('UNAVAILABLE', 'Caxri Host is unavailable'));
-            };
-            socket.once('error', fail);
-            socket.once('close', fail);
-            handshakeMessageListener = (data, isBinary): void => {
-                if (isHandshakeComplete) {
-                    deferredMessages.push({ data, isBinary });
-                    return;
-                }
-                if (isBinary) {
-                    socket.terminate();
-                    return;
-                }
-                const source = controlMessageText(data);
-                if (Buffer.byteLength(source, 'utf8') > MAX_MANIFEST_BYTES) {
-                    socket.terminate();
-                    return;
-                }
-                try {
-                    const message = localServerWelcomeSchema.parse(JSON.parse(source));
-                    if (
-                        message.profileId !== manifest.profileId ||
-                        message.processIdentity !== manifest.processIdentity
-                    )
-                        throw new CaxriError('CONFLICT', 'Caxri Host process identity changed');
-                    const isNegotiatedDurableRecovery =
-                        message.features?.includes('durable-command-receipts-v1') === true ||
-                        message.features?.includes('durable-changefeed-v1') === true;
-                    if (
-                        isNegotiatedDurableRecovery &&
-                        (!message.connection ||
-                            message.connection.clientId !== clientId ||
-                            message.connection.bootId !== manifest.processIdentity)
-                    )
-                        throw new CaxriError(
-                            'CONFLICT',
-                            'Caxri Server durable recovery identity does not match this connection',
-                        );
-                    clearTimeout(timer);
-                    isHandshakeComplete = true;
-                    socket.pause();
-                    socket.removeListener('error', fail);
-                    socket.removeListener('close', fail);
-                    resolve({
-                        welcome: message,
-                        ...(message.desktopLease && { desktopLease: message.desktopLease }),
-                    });
-                } catch (error) {
-                    clearTimeout(timer);
-                    socket.terminate();
-                    reject(
-                        error instanceof CaxriError
-                            ? error
-                            : new CaxriError('VALIDATION', 'Caxri Host handshake was invalid'),
-                    );
-                }
-            };
-            socket.on('message', handshakeMessageListener);
-            socket.once('open', () => {
-                socket.send(
-                    JSON.stringify({
-                        type: 'hello',
-                        supportedVersions: [CAXRI_PROTOCOL_VERSION],
-                        clientId,
-                        features: protocolFeatures,
-                        profileId: manifest.profileId,
-                        credential:
-                            resolvedCredential.kind === 'operator'
-                                ? { kind: 'operator', token: manifest.operatorToken }
-                                : resolvedCredential.kind === 'agent' ||
-                                    resolvedCredential.kind === 'delegation-client'
-                                  ? resolvedCredential
-                                  : {
-                                        kind: 'desktop',
-                                        token: resolvedCredential.credential.desktopToken,
-                                        desktopId: resolvedCredential.desktopId,
-                                    },
-                    }),
-                );
-            });
-        });
+        const {
+            deferredMessages,
+            desktopLease,
+            handshakeMessageListener,
+            resolvedCredential,
+            socket,
+            welcome,
+        } = await openServerHandshake(manifest, timeoutMs, credential);
         const client = new ServerClient(
             socket,
-            handshake.welcome,
+            welcome,
             timeoutMs,
-            handshake.desktopLease,
+            desktopLease,
             resolvedCredential.kind === 'desktop'
                 ? (operation, consumeTarget) =>
                       resolvedCredential.handleCommand(operation, consumeTarget)
@@ -406,7 +299,7 @@ export class ServerClient {
     private failPending(
         error = this.closeReason === 'replaced'
             ? new CaxriError('CANCELLED', 'Caxri Desktop lease was replaced')
-            : new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'),
+            : new CaxriError('UNAVAILABLE', 'Caxri Server connection closed'),
     ): void {
         if (this.closed) return;
         this.closed = true;
@@ -445,7 +338,7 @@ export class ServerClient {
             this.socket.readyState !== WebSocket.OPEN ||
             this.socket.bufferedAmount + sourceBytes > CONTROL_TRANSPORT_MAX_FRAME_BYTES
         ) {
-            const error = new CaxriError('UNAVAILABLE', 'Caxri Host connection is unavailable');
+            const error = new CaxriError('UNAVAILABLE', 'Caxri Server connection is unavailable');
             settled?.(error);
             this.closeTransport();
             return;
@@ -461,7 +354,9 @@ export class ServerClient {
         operation: BinaryStreamOperation,
     ): Promise<BinaryStreamTicketGrant> {
         if (this.closed)
-            return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
+            return Promise.reject(
+                new CaxriError('UNAVAILABLE', 'Caxri Server connection is closed'),
+            );
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(id);
@@ -489,7 +384,9 @@ export class ServerClient {
 
     private sendRequest(id: string, method: CaxriMethod, parameters: unknown): Promise<unknown> {
         if (this.closed)
-            return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
+            return Promise.reject(
+                new CaxriError('UNAVAILABLE', 'Caxri Server connection is closed'),
+            );
         const request = parseCaxriRequest(method, parameters);
         if (this.binaryStreams?.supports(request.method))
             return this.binaryStreams.request(id, request.method, request.params);
@@ -509,7 +406,9 @@ export class ServerClient {
                 : setTimeout(() => {
                       this.pending.delete(id);
                       detachTransition?.cancel();
-                      reject(new CaxriError('TIMEOUT', `Caxri Host request timed out: ${method}`));
+                      reject(
+                          new CaxriError('TIMEOUT', `Caxri Server request timed out: ${method}`),
+                      );
                   }, this.timeoutMs);
             this.pending.set(id, {
                 parse: (value) => parseCaxriResult(method, value),
@@ -540,7 +439,9 @@ export class ServerClient {
         ...arguments_: DesktopServerOperationArguments<M>
     ): Promise<DesktopServerOperationResult<M>> {
         if (this.closed)
-            return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
+            return Promise.reject(
+                new CaxriError('UNAVAILABLE', 'Caxri Server connection is closed'),
+            );
         if (!this.desktopLease)
             return Promise.reject(new CaxriError('FORBIDDEN', 'Desktop lease is required'));
         const [parameters, timeoutOverride] = arguments_;
@@ -633,7 +534,9 @@ export class ServerClient {
      */
     markDesktopReady(): Promise<void> {
         if (this.closed)
-            return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
+            return Promise.reject(
+                new CaxriError('UNAVAILABLE', 'Caxri Server connection is closed'),
+            );
         const lease = this.desktopLease;
         if (!lease) return Promise.reject(new CaxriError('FORBIDDEN', 'Desktop lease is required'));
         return new Promise((resolve, reject) => {
@@ -656,8 +559,8 @@ export class ServerClient {
     close(options: { cancelPendingRequests?: boolean } = {}): void {
         this.failPending(
             options.cancelPendingRequests
-                ? new CaxriError('CANCELLED', 'Caxri Host client was disposed')
-                : new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'),
+                ? new CaxriError('CANCELLED', 'Caxri Server client was disposed')
+                : new CaxriError('UNAVAILABLE', 'Caxri Server connection closed'),
         );
         this.socket.close(1000);
     }

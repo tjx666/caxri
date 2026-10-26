@@ -27,7 +27,7 @@ describe('agentChatFailureMessage', () => {
         const desktop = (reason: AgentChatFailureReason) =>
             agentChatFailureMessage(reason, { providerName: 'Codex', surface: 'desktop' });
         expect(desktop('executable_not_found')).toBe(
-            'Codex is not installed or is not on your PATH. Install it, then retry.',
+            "Caxri couldn't find Codex. Install it, or set its location in Settings.",
         );
         expect(desktop('spawn_failed')).toBe(
             'Codex could not be started. Retry, or check that the Codex CLI runs in a terminal.',

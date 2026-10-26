@@ -4,7 +4,6 @@ import {
     agentActionsSettingsFileSchema,
     agentActionsSettingsSchema,
 } from '../agent/agent-action-settings.js';
-import { agentDelegationSettingsSchema } from '../agent/agent-delegation-settings.js';
 import type { AgentProvider, AgentProviderSettings } from '../agent/agents.js';
 import {
     agentProviderIds,
@@ -15,6 +14,7 @@ import {
     MAX_AGENT_OUTPUT_RECOVERY_PATTERNS,
     MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
 } from '../agent/agents.js';
+import { agentDelegationSettingsSchema } from '../agent/delegation/agent-delegation-settings.js';
 import {
     MAX_IGNORED_CHECK_LENGTH,
     MAX_IGNORED_CHECKS,

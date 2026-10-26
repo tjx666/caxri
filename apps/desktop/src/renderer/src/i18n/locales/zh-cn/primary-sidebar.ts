@@ -110,7 +110,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.sessionMenu.handOverToCommander': '转交给 Agent Commander…',
     'primarySidebar.sessionMenu.takeBackFromCommander': '从 Agent Commander 收回',
     'primarySidebar.sessionMenu.forkSession': '分叉会话',
-    'primarySidebar.sessionMenu.forkNeedsChatReason': '以 Chat 打开 Agent 后才能分叉对话',
+    'primarySidebar.sessionMenu.forkNeedsChatReason': '以对话方式打开 Agent 后才能分叉对话',
     'primarySidebar.sessionMenu.resumeAgent': '恢复 Agent',
     'primarySidebar.sessionMenu.detachAgent': '分离 Agent',
     'primarySidebar.sessionMenu.turnOffAlwaysAllow': '在此会话中关闭“始终允许”',

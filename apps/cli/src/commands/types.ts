@@ -2,14 +2,14 @@ import type { CaxriMethod, CaxriMethodDescription } from '@caxri/protocol';
 import { describeCaxriMethod } from '@caxri/protocol';
 
 export const CLI_GROUPS = [
-    { name: 'host', summary: 'Inspect and control the profile Host.' },
+    { name: 'host', summary: 'Inspect and control the profile Server.' },
     { name: 'desktop', summary: 'Inspect and focus the Desktop client.' },
     { name: 'project', summary: 'Manage added Projects.' },
     { name: 'session', summary: 'Manage Project Sessions.' },
     { name: 'terminal', summary: 'Inspect and control Terminals.' },
     { name: 'settings', summary: 'Read and update shared settings.' },
-    { name: 'logs', summary: 'Follow structured Host logs.' },
-    { name: 'events', summary: 'Watch recoverable typed Host events.' },
+    { name: 'logs', summary: 'Follow structured Server logs.' },
+    { name: 'events', summary: 'Watch recoverable typed Server events.' },
     { name: 'diagnostics', summary: 'Inspect redacted diagnostics.' },
     { name: 'agent', summary: 'Use generation-scoped Agent endpoints.' },
     { name: 'commander', summary: 'Coordinate Agents across Projects from the Agent Commander.' },

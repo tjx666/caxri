@@ -3,8 +3,11 @@ import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import type { MobileAccessStatus, MobileDeviceSummary, ProjectQueryResult } from '@caxri/protocol';
 import { MOBILE_MAX_PROJECT_GRANTS } from '@caxri/protocol';
 
+import { executeCommand } from '../../commands/execute';
 import type { TranslationKey } from '../../i18n';
-import { useTranslation } from '../../i18n';
+import { translate, useTranslation } from '../../i18n';
+import { showConfirm } from '../../stores/confirmations';
+import { pushToast } from '../../stores/toasts';
 import {
     createMobilePairing,
     listMobileDevices,
@@ -13,7 +16,12 @@ import {
     revokeMobileDevice,
     setMobileAccessEnabled,
 } from './mobile-access-client';
-import { splitGrantableProjects, summarizeProjectAccess } from './mobile-access-summary';
+import {
+    describeMobileFailure,
+    findNewlyPairedDevice,
+    splitGrantableProjects,
+    summarizeProjectAccess,
+} from './mobile-access-summary';
 
 export interface MobilePairingState {
     expiresAt: number;
@@ -59,7 +67,7 @@ export type MobileAccessAction =
     | {
           devices: MobileDeviceSummary[];
           now: number;
-          pairingCompleted: boolean;
+          isPairingCompleted: boolean;
           type: 'pairing-polled';
       }
     | {
@@ -70,7 +78,7 @@ export type MobileAccessAction =
       }
     | { isEnabled: boolean; status: MobileAccessStatus; type: 'access-applied' }
     | { isChecked: boolean; projectId: string; type: 'project-toggled' }
-    | { type: 'load-failed' }
+    | { error?: TranslationKey; type: 'load-failed' }
     | { type: 'load-started' };
 
 export const initialMobileAccessState: MobileAccessState = {
@@ -116,7 +124,7 @@ export const mobileAccessReducer = (
         case 'load-failed':
             return {
                 ...state,
-                error: 'settings.mobileAccess.error.load',
+                error: action.error ?? 'settings.mobileAccess.error.load',
                 loadState: 'error',
             };
         case 'load-started':
@@ -126,7 +134,7 @@ export const mobileAccessReducer = (
                 ...state,
                 devices: action.devices,
                 now: action.now,
-                pairing: action.pairingCompleted ? undefined : state.pairing,
+                pairing: action.isPairingCompleted ? undefined : state.pairing,
             };
         case 'pairing-created':
             return {
@@ -151,6 +159,17 @@ export const mobileAccessReducer = (
     }
 };
 
+/**
+ * Poll-time device read; a transient failure yields `undefined` so the caller needs no try/catch value block.
+ */
+const listMobileDevicesOrUndefined = async () => {
+    try {
+        return await listMobileDevices();
+    } catch {
+        return;
+    }
+};
+
 export const useMobileAccessController = () => {
     const { t } = useTranslation();
     const [state, dispatch] = useReducer(mobileAccessReducer, initialMobileAccessState);
@@ -169,8 +188,11 @@ export const useMobileAccessController = () => {
                 status,
                 type: 'loaded',
             });
-        } catch {
-            dispatch({ type: 'load-failed' });
+        } catch (error) {
+            dispatch({
+                error: describeMobileFailure(error, 'settings.mobileAccess.error.load'),
+                type: 'load-failed',
+            });
         }
     }, []);
 
@@ -189,25 +211,27 @@ export const useMobileAccessController = () => {
             if (isLoading) return;
             isLoading = true;
             const now = Date.now();
-            try {
-                const result = await listMobileDevices();
-                if (isActive) {
-                    const pairingCompleted = result.devices.some(
-                        (device) =>
-                            device.revokedAt === undefined &&
-                            !state.pairing?.knownDeviceIds.has(device.deviceId),
+            // The existing QR remains usable while a transient Desktop request retries.
+            const result = await listMobileDevicesOrUndefined();
+            if (result && isActive) {
+                const pairedName = state.pairing
+                    ? findNewlyPairedDevice(result.devices, state.pairing.knownDeviceIds)
+                    : undefined;
+                const isPairingCompleted = pairedName !== undefined;
+                if (pairedName !== undefined)
+                    pushToast(
+                        'success',
+                        translate('settings.mobileAccess.pairing.success', {
+                            device: pairedName,
+                        }),
                     );
-                    dispatch({
-                        devices: result.devices,
-                        now,
-                        pairingCompleted,
-                        type: 'pairing-polled',
-                    });
-                }
-            } catch {
-                // The existing QR remains usable while a transient Desktop request retries.
+                dispatch({
+                    devices: result.devices,
+                    now,
+                    isPairingCompleted,
+                    type: 'pairing-polled',
+                });
             }
-            // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
             isLoading = false;
         };
         const poll = (): void => {
@@ -224,14 +248,15 @@ export const useMobileAccessController = () => {
     const applyAccess = async (isEnabled: boolean): Promise<void> => {
         dispatch({ busy: true, type: 'set-busy' });
         dispatch({ error: undefined, type: 'set-error' });
+        const failureKey = isEnabled
+            ? 'settings.mobileAccess.error.enable'
+            : 'settings.mobileAccess.error.disable';
         try {
             const status = await setMobileAccessEnabled(isEnabled);
             dispatch({ isEnabled, status, type: 'access-applied' });
-        } catch {
+        } catch (error) {
             dispatch({
-                error: isEnabled
-                    ? 'settings.mobileAccess.error.enable'
-                    : 'settings.mobileAccess.error.disable',
+                error: describeMobileFailure(error, failureKey),
                 type: 'set-error',
             });
         }
@@ -267,21 +292,40 @@ export const useMobileAccessController = () => {
             } catch {
                 // A transient status refresh must not discard the already-issued pairing link.
             }
-        } catch {
-            dispatch({ error: 'settings.mobileAccess.error.createPairing', type: 'set-error' });
+        } catch (error) {
+            dispatch({
+                error: describeMobileFailure(error, 'settings.mobileAccess.error.createPairing'),
+                type: 'set-error',
+            });
         }
         // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
         dispatch({ busy: false, type: 'set-busy' });
     };
 
     const revoke = async (deviceId: string): Promise<void> => {
+        const device = state.devices.find((entry) => entry.deviceId === deviceId);
+        const deviceName = device?.displayName.trim() ?? '';
+        const isConfirmed = await showConfirm({
+            confirmLabel: t('settings.mobileAccess.devices.revokeConfirm'),
+            message: t('settings.mobileAccess.devices.revokeMessage'),
+            title: t('settings.mobileAccess.devices.revokeTitle', {
+                device:
+                    deviceName.length > 0
+                        ? deviceName
+                        : t('settings.mobileAccess.devices.revokeFallbackName'),
+            }),
+        });
+        if (!isConfirmed) return;
         dispatch({ busy: true, type: 'set-busy' });
         dispatch({ error: undefined, type: 'set-error' });
         try {
             await revokeMobileDevice({ deviceId });
             await load();
-        } catch {
-            dispatch({ error: 'settings.mobileAccess.error.revoke', type: 'set-error' });
+        } catch (error) {
+            dispatch({
+                error: describeMobileFailure(error, 'settings.mobileAccess.error.revoke'),
+                type: 'set-error',
+            });
         }
         // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
         dispatch({ busy: false, type: 'set-busy' });
@@ -322,6 +366,7 @@ export const useMobileAccessController = () => {
     return {
         ...state,
         activeDevices,
+        addProject: (): void => executeCommand('project.create'),
         applyAccess,
         copyPairingLink,
         createPairing,

@@ -7,6 +7,13 @@ export const workbench: TranslatedNamespace<typeof source> = {
     'workbench.welcome.description':
         '将一个文件夹添加为项目，然后把所有 Agent 和 Shell 会话集中放在它下面。',
     'workbench.welcome.addProject': '添加项目',
+    'workbench.welcome.returningTitle': '从上次的地方继续。',
+    'workbench.welcome.returningDescription':
+        '在“{{project}}”中开始新的会话，或添加另一个文件夹作为项目。',
+    'workbench.welcome.newSession': '在“{{project}}”中新建会话',
+    'workbench.welcome.commandPalette': '命令面板',
+    'workbench.welcome.keyboardShortcuts': '键盘快捷键',
+    'workbench.welcome.documentation': '文档',
     'workbench.closeSettings': '关闭设置',
     'workbench.resizePanel': '调整面板大小',
     'workbench.resizePrimarySidebar': '调整主侧边栏大小',

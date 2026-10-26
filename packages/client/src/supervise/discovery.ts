@@ -12,6 +12,13 @@ import { CaxriError, serverDesktopCredentialSchema, serverManifestSchema } from 
  */
 export const MAX_MANIFEST_BYTES = 16 * 1024;
 
+/**
+ * Messages the CLI matches (see `withNextStep` in apps/cli) to attach a next step. Shared so the wording of the two
+ * layers cannot drift apart silently.
+ */
+export const PROFILE_MISSING_MESSAGE = 'The selected Caxri profile does not exist';
+export const SERVER_NOT_RUNNING_MESSAGE = 'No Caxri Server is running for this profile';
+
 function fileSystemCode(error: unknown): string | undefined {
     return typeof error === 'object' && error !== null && 'code' in error
         ? String(Reflect.get(error, 'code'))
@@ -53,7 +60,7 @@ export async function discoverServerManifest(userDataPath: string): Promise<Serv
         canonicalPath = await realpath(userDataPath);
     } catch (error) {
         if (fileSystemCode(error) === 'ENOENT')
-            throw new CaxriError('NOT_FOUND', 'The selected Caxri profile does not exist');
+            throw new CaxriError('NOT_FOUND', PROFILE_MISSING_MESSAGE);
         throw error;
     }
     const directory = join(canonicalPath, 'host');
@@ -67,11 +74,11 @@ export async function discoverServerManifest(userDataPath: string): Promise<Serv
             (directoryMetadata.mode & 0o077) !== 0 ||
             (typeof process.getuid === 'function' && directoryMetadata.uid !== process.getuid())
         )
-            throw new CaxriError('PATH_DENIED', 'Caxri Host discovery directory is not private');
+            throw new CaxriError('PATH_DENIED', 'Caxri Server discovery directory is not private');
         metadata = await lstat(path);
     } catch (error) {
         if (fileSystemCode(error) === 'ENOENT')
-            throw new CaxriError('NOT_FOUND', 'No Caxri Host is running for this profile');
+            throw new CaxriError('NOT_FOUND', SERVER_NOT_RUNNING_MESSAGE);
         throw error;
     }
     if (
@@ -80,19 +87,19 @@ export async function discoverServerManifest(userDataPath: string): Promise<Serv
         (metadata.mode & 0o077) !== 0 ||
         (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
     )
-        throw new CaxriError('PATH_DENIED', 'Caxri Host discovery metadata is not private');
+        throw new CaxriError('PATH_DENIED', 'Caxri Server discovery metadata is not private');
     if (metadata.size > MAX_MANIFEST_BYTES)
-        throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is oversized');
+        throw new CaxriError('VALIDATION', 'Caxri Server discovery metadata is oversized');
     const source = await readDiscoveryJson(
         path,
-        'No Caxri Host is running for this profile',
-        'Caxri Host discovery metadata is malformed',
+        SERVER_NOT_RUNNING_MESSAGE,
+        'Caxri Server discovery metadata is malformed',
     );
     const parsed = serverManifestSchema.safeParse(source);
     if (!parsed.success)
-        throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is invalid');
+        throw new CaxriError('VALIDATION', 'Caxri Server discovery metadata is invalid');
     if (parsed.data.profileId !== profileIdFor(canonicalPath))
-        throw new CaxriError('CONFLICT', 'Caxri Host discovery profile identity does not match');
+        throw new CaxriError('CONFLICT', 'Caxri Server discovery profile identity does not match');
     return parsed.data;
 }
 
@@ -132,6 +139,6 @@ export async function discoverDesktopCredential(
         parsed.data.profileId !== manifest.profileId ||
         parsed.data.processIdentity !== manifest.processIdentity
     )
-        throw new CaxriError('CONFLICT', 'Caxri Desktop credential belongs to another Host');
+        throw new CaxriError('CONFLICT', 'Caxri Desktop credential belongs to another Server');
     return parsed.data;
 }

@@ -540,20 +540,31 @@ jobs:
           RELEASE_ANDROID_CHECKSUM: ${{ steps.artifact.outputs.android_checksum }}
         run: |
           # The DMGs are unsigned/unnotarized: browser downloads get quarantined and Gatekeeper
-          # reports the app as "damaged", so the notes lead with the terminal install path.
+          # may report the app as "damaged", so the notes spell out the one-line fix.
           android_filename="$(basename "$RELEASE_ANDROID_APK")"
           notes="## Install
 
           ### macOS (Apple Silicon)
 
-          The DMG is unsigned, so a browser download is quarantined and macOS reports the app as \"damaged\". Install from the terminal instead:
+          Requires an Apple Silicon Mac with macOS 13 or later. No clone or build tools needed:
+
+          1. Download \`Caxri-VERSION-arm64.dmg\` and its \`.sha256\` file from **Assets** below (replace VERSION with this release's version).
+          2. Verify the download from the folder that holds both files: \`shasum -a 256 -c Caxri-VERSION-arm64.dmg.sha256\`
+          3. Open the DMG and drag **Caxri** into **Applications**.
+          4. Open Caxri from Applications. Caxri is not signed by Apple yet, so macOS may ask you to confirm. If macOS says the app is damaged, run this once and open it again:
+
+          \`\`\`bash
+          xattr -dr com.apple.quarantine /Applications/Caxri.app
+          \`\`\`
+
+          See the [README install section](https://github.com/tjx666/caxri#install) for more.
+
+          #### From a source checkout
 
           \`\`\`bash
           bun run install:caxri                  # Source Map build
           bun run install:caxri -- --no-sourcemap # smaller no-map build
           \`\`\`
-
-          Already downloaded with a browser? Clear the quarantine flag once: \`xattr -dr com.apple.quarantine /Applications/Caxri.app\`
 
           ### Android (arm64)
 

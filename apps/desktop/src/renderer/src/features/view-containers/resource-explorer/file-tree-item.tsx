@@ -14,6 +14,7 @@ import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { isImeComposing } from '../../../lib/ime';
+import { formatCount } from '../../../lib/locale-format';
 import { cn } from '../../../lib/utilities';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
 import { describeFailure } from '../../../stores/toasts';
@@ -241,7 +242,7 @@ export function FileTreeNotice({
             className="px-2 py-1 text-[11px] text-muted italic"
             style={{ paddingLeft: fileTreeLeafIndent(depth) }}
         >
-            {t('viewContainers.files.truncated', { count: truncatedCount.toLocaleString() })}
+            {t('viewContainers.files.truncated', { count: formatCount(truncatedCount) })}
         </div>
     );
 }

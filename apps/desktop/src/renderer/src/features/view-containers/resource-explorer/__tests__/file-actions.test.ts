@@ -674,7 +674,7 @@ describe('moveFile conflict prompt', () => {
         await expect(moveFile(client, 'session-a', source, directory)).resolves.toBeUndefined();
 
         const errorToasts = getToasts().filter((toast) => toast.type === 'error');
-        expect(errorToasts).toEqual([expect.objectContaining({ title: 'Disk is full' })]);
+        expect(errorToasts).toMatchObject([{ title: 'Unable to move item. Disk is full.' }]);
     });
 
     it('does not leak a suppression entry after a conflict-free move succeeds', async () => {

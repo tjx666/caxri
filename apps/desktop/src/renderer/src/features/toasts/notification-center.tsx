@@ -18,6 +18,7 @@ import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { formatTime } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 import type { NotificationEntry } from '../../stores/notifications';
 import {
@@ -112,7 +113,7 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                             (entry.type ? t(notificationTypes[entry.type].titleKey) : 'Caxri')}
                     </span>
                     <time dateTime={new Date(entry.timestamp).toISOString()}>
-                        {entry.timeLabel}
+                        {formatTime(entry.timestamp, { twoDigitHour: true })}
                     </time>
                     {entry.count > 1 && (
                         <span className="tabular-nums">

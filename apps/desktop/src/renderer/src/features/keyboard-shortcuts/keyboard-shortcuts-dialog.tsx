@@ -15,10 +15,13 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import type { KeyboardShortcutGroup } from './keyboard-shortcut-groups';
 import {
     buildKeyboardShortcutGroups,
+    chatComposerShortcutGroup,
     EXTENSION_SHORTCUT_CATEGORY,
     filterKeyboardShortcutGroups,
+    mouseShortcutGroup,
     sidebarShortcutGroup,
 } from './keyboard-shortcut-groups';
+import { PendingChordHint } from './pending-chord-hint';
 
 const NO_KEYBINDINGS: never[] = [];
 
@@ -31,11 +34,15 @@ const NO_KEYBINDINGS: never[] = [];
 export function KeyboardShortcutsDialog() {
     const isOpen = useDialogStore((state) => state.keyboardShortcutsOpen);
     return (
-        <Dialog open={isOpen} onOpenChange={setKeyboardShortcutsOpen}>
-            <DialogContent className="grid h-[min(640px,calc(100vh-48px))] w-[min(760px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden">
-                <KeyboardShortcutsBody />
-            </DialogContent>
-        </Dialog>
+        <>
+            <Dialog open={isOpen} onOpenChange={setKeyboardShortcutsOpen}>
+                <DialogContent className="grid h-[min(640px,calc(100vh-48px))] w-[min(760px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden">
+                    <KeyboardShortcutsBody />
+                </DialogContent>
+            </Dialog>
+            {/* Mounted here because this host lives for the whole app and already owns the shortcut surfaces. */}
+            <PendingChordHint />
+        </>
     );
 }
 
@@ -61,6 +68,28 @@ function KeyboardShortcutsBody() {
                 collapse: t('keyboardShortcuts.sidebar.collapse'),
                 expand: t('keyboardShortcuts.sidebar.expand'),
                 move: t('keyboardShortcuts.sidebar.move'),
+            }),
+            chatComposerShortcutGroup({
+                category: t('keyboardShortcuts.composer.category'),
+                history: t('keyboardShortcuts.composer.history'),
+                mention: t('keyboardShortcuts.composer.mention'),
+                newLine: t('keyboardShortcuts.composer.newLine'),
+                queue: t('keyboardShortcuts.composer.queue'),
+                send: t('keyboardShortcuts.composer.send'),
+                skills: t('keyboardShortcuts.composer.skills'),
+                slash: t('keyboardShortcuts.composer.slash'),
+                stop: t('keyboardShortcuts.composer.stop'),
+            }),
+            mouseShortcutGroup({
+                category: t('keyboardShortcuts.mouse.category'),
+                dragTab: t('keyboardShortcuts.mouse.dragTab'),
+                dragTabGesture: t('keyboardShortcuts.mouse.dragTabGesture'),
+                expandAll: t('keyboardShortcuts.mouse.expandAll'),
+                expandAllGesture: t('keyboardShortcuts.mouse.expandAllGesture'),
+                link: t('keyboardShortcuts.mouse.link'),
+                linkGesture: t('keyboardShortcuts.mouse.linkGesture'),
+                rename: t('keyboardShortcuts.mouse.rename'),
+                renameGesture: t('keyboardShortcuts.mouse.renameGesture'),
             }),
         ],
         [contributedCommands, keybindings, t],
@@ -145,6 +174,7 @@ function KeyboardShortcutSection({ group }: { group: KeyboardShortcutGroup }) {
                     >
                         <span className="min-w-0 truncate text-foreground">{entry.titleLabel}</span>
                         <span className="flex shrink-0 items-center gap-1.5">
+                            {entry.gesture && <span className="text-muted">{entry.gesture}</span>}
                             {entry.keys.map((key, index) => (
                                 <Fragment key={key}>
                                     {entry.isRange && index > 0 && (

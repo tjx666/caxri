@@ -11,6 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { formatDateTime } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 import { BenchmarkChart } from './benchmark-chart';
 import { BenchmarkLeaderboard } from './benchmark-leaderboard';
@@ -34,7 +35,7 @@ function runCaption(
     catalog: BenchmarkCatalog | undefined,
 ): string {
     const parts = [
-        new Date(run.createdAt).toLocaleString(),
+        formatDateTime(run.createdAt),
         run.settings.workspace.kind === 'project'
             ? t('benchmark.run.inProject', {
                   project: run.projectTitle ?? t('benchmark.run.projectGone'),

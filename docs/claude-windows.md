@@ -3,7 +3,7 @@ kind: living
 status: current
 ---
 
-# Claude 5-hour windows
+# Keeping Claude 5-hour windows rolling
 
 A Claude Pro or Max subscription meters usage in rolling 5-hour windows. A window starts with the
 first request after the previous one ended, so a window that starts at 09:40 resets at 14:40, and
@@ -11,7 +11,7 @@ an idle stretch shifts every later reset. The Claude 5-hour window keeper starts
 schedule instead, so the first reset of the workday lands at a time the user chose
 (`First workday reset at`, default 10:00) and later windows follow back to back.
 
-The keeper lives in Settings › Agents › Claude as **Claude 5-hour windows**. It is on by default
+The keeper lives in Settings › Agents › Claude as **Keep 5-hour windows rolling**. It is on by default
 for a Pro account and off for Max and every other plan; the user's choice is kept per account
 across restarts and plan changes.
 

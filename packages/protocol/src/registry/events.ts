@@ -388,6 +388,20 @@ export const serverEventPayloads = {
         attentionKind: z.enum(['waiting', 'completed']),
     }),
     /**
+     * Server Core archived a Session because its pull request settled (the
+     * `projectStatus.autoArchiveOnPullRequestSettled` setting). Content-free: the Renderer names the Session from its
+     * own snapshot and offers Undo. Sent after the archive succeeded, so the Session already carries `archivedAt`.
+     */
+    'session.autoArchived': z.object({
+        sessionId: identifierSchema,
+        pullRequestState: z.enum(['merged', 'closed']),
+    }),
+    /**
+     * Main could not deliver a system banner because the notification helper is missing and the basic macOS fallback
+     * failed too. Sent at most once per launch; carries nothing about the notification that was dropped.
+     */
+    'notifications.helperUnavailable': z.object({}),
+    /**
      * One content-free notice per blocked automatic-naming launch; the Server owns deduplication.
      */
     'agent.automaticNamingUnavailable': z.object({

@@ -35,6 +35,7 @@ import { PeerApprovalChip } from './peer-approval-chip';
 import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { RepoStatusChips } from './repo-status-chips';
+import { relaunchCaxri } from './runtime-commands';
 import { ScreencastModeChip } from './screencast-mode-chip';
 import { SshHostStatus } from './ssh-host-status';
 import { StatusItem, statusItemClassName } from './status-item';
@@ -58,14 +59,19 @@ const statusStateClassName = 'statusbar-state flex-none rounded px-2 text-[10px]
  * naming Server or Runtime.
  */
 const DEGRADED_STATES: Partial<
-    Record<ServerStatus, { labelKey: TranslationKey; detailKey: TranslationKey; className: string }>
+    Record<
+        ServerStatus,
+        { labelKey: TranslationKey; detailKey: TranslationKey; className: string; relaunch?: true }
+    >
 > = {
     /**
-     * No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip.
+     * Main opens a native dialog (Relaunch Caxri, Reveal Logs, Quit) when the status turns failed; the chip is the same
+     * relaunch, kept reachable after the dialog is dismissed.
      */
     failed: {
         labelKey: 'statusBar.runtime.failed',
         detailKey: 'statusBar.runtime.failedDetail',
+        relaunch: true,
         className:
             'statusbar-state-danger bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-danger',
     },
@@ -273,9 +279,24 @@ export function StatusBar() {
             <div className="statusbar-actions ml-auto flex min-w-0 shrink items-center gap-2 overflow-x-auto">
                 {degraded && (
                     <Tooltip content={t(degraded.detailKey)}>
-                        <span className={cn(statusStateClassName, degraded.className)}>
-                            {t(degraded.labelKey)}
-                        </span>
+                        {degraded.relaunch ? (
+                            <button
+                                type="button"
+                                className={cn(
+                                    statusStateClassName,
+                                    degraded.className,
+                                    'cursor-pointer hover:bg-[color-mix(in_srgb,var(--danger)_30%,transparent)] focus-visible:shadow-[0_0_0_1px_var(--foreground)] focus-visible:outline-none',
+                                )}
+                                aria-label={t('statusBar.runtime.relaunchAction')}
+                                onClick={relaunchCaxri}
+                            >
+                                {t(degraded.labelKey)}
+                            </button>
+                        ) : (
+                            <span className={cn(statusStateClassName, degraded.className)}>
+                                {t(degraded.labelKey)}
+                            </span>
+                        )}
                     </Tooltip>
                 )}
                 <AgentChatWaitingChip />

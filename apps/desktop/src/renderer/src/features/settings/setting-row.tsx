@@ -36,6 +36,7 @@ import { IntegerControl } from './integer-control';
 import { LaunchArgumentsField } from './launch-arguments-field';
 import { LongRunningCommandsForm } from './long-running-commands-form';
 import { MobileAccessForm } from './mobile-access-form';
+import { NotificationHelperStatus } from './notification-helper-status';
 import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
@@ -143,6 +144,8 @@ function rowControl(
                     status:
                         binding.key === 'primarySidebar.translucent' ? (
                             <TranslucentSidebarStatus />
+                        ) : binding.key === 'agents.notifications.enabled' ? (
+                            <NotificationHelperStatus />
                         ) : undefined,
                     control: (
                         <Switch

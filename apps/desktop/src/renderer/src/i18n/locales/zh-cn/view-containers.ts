@@ -1,6 +1,7 @@
 import type { TranslatedNamespace } from '@caxri/protocol';
 
 import type { viewContainers as source } from '../en/view-containers';
+import { viewContainersExtensionText } from './view-containers-extension-text';
 import { viewContainersFiles } from './view-containers-files';
 import { viewContainersSourceControl } from './view-containers-source-control';
 
@@ -41,6 +42,7 @@ export const viewContainers: TranslatedNamespace<typeof source> = {
     'viewContainers.builtin.projectStatus': '项目状态',
     'viewContainers.builtin.gitActionFailed': 'Git 操作失败',
     'viewContainers.builtin.gitRefreshFailed': 'Git 刷新失败',
+    ...viewContainersExtensionText,
     ...viewContainersFiles,
     ...viewContainersSourceControl,
 };

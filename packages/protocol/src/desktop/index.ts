@@ -4,6 +4,7 @@ export * from './context-menu-contract.js';
 export * from './debug-launch.js';
 export * from './desktop-contract.js';
 export * from './desktop-launch.js';
+export * from './desktop-path-errors.js';
 export * from './desktop-server-operations.js';
 export * from './editor-prompt-contract.js';
 export * from './external-document-contract.js';
@@ -13,6 +14,8 @@ export {
     MAX_LINK_PREVIEW_TITLE_LENGTH,
     MAX_LINK_PREVIEW_URL_LENGTH,
 } from './link-preview-contract.js';
+export * from './logs-contract.js';
+export * from './notification-helper.js';
 export * from './path-browser-contract.js';
 export * from './performance-monitor-metrics.js';
 export * from './shell-command-contract.js';

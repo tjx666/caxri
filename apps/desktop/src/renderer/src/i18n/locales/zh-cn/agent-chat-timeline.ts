@@ -5,7 +5,8 @@ import type { agentChatTimeline as source } from '../en/agent-chat-timeline';
 export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.timeline.emptyDetached': '对话恢复后，消息会显示在这里。',
     'agentChat.timeline.emptyReady': '发送一条消息，开始与 {{provider}} 协作。',
-    'agentChat.timeline.emptyHint': '输入 / 或 $ 使用命令和 Skill · {{files}} · ⇧Enter 换行',
+    'agentChat.timeline.emptyHint':
+        '输入 / 或 $ 使用命令和 Skill，@ 引用文件和会话 · {{files}} · ⇧Enter 换行',
     'agentChat.timeline.emptyHintImages': '粘贴或拖入图片和文件',
     'agentChat.timeline.emptyHintPaths': '拖入文件以插入路径',
     'agentChat.timeline.resumeFailureDetail':
@@ -56,13 +57,13 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.delegated.archived': '{{title}}（已归档）',
     'agentChat.delegated.showInstruction': '显示原始指令',
     'agentChat.delegated.hideInstruction': '收起原始指令',
-    'agentChat.handoff.command': '新 Session',
-    'agentChat.handoff.noNote': '把下一个任务交给新 Session',
+    'agentChat.handoff.command': '新会话',
+    'agentChat.handoff.noNote': '把下一个任务交给新会话',
     'agentChat.handoff.continuedIn': '已转到',
     'agentChat.handoff.continuedFrom': '接续自',
-    'agentChat.handoff.fromEarlier': '接续自之前的 Session',
-    'agentChat.handoff.startIssue': '在新 Session 中开始 {{reference}}',
-    'agentChat.handoff.unavailable': '无法交接：这个 Chat 的 Session 或 Agent 未知',
+    'agentChat.handoff.fromEarlier': '接续自之前的会话',
+    'agentChat.handoff.startIssue': '在新会话中开始 {{reference}}',
+    'agentChat.handoff.unavailable': '无法交接：这个对话的会话或 Agent 未知',
     'agentChat.message.showMore': '展开',
     'agentChat.message.editFromHere': '从此处编辑',
     'agentChat.message.forkFromHere': '从此处分叉',

@@ -92,4 +92,71 @@ describe('getTerminalExitPresentation', () => {
         const title = settingCategories.find((entry) => entry.id === category)?.title;
         expect(suspendedDetail()).toContain(`Settings › ${title}.`);
     });
+
+    describe('with exit context', () => {
+        it('names the exit code of a failed process', () => {
+            expect(
+                getTerminalExitPresentation('dead', undefined, undefined, {
+                    exit: { exitCode: 2 },
+                })?.label,
+            ).toBe('Terminal stopped unexpectedly (exit code 2)');
+        });
+
+        it('names the signal that ended the process', () => {
+            expect(
+                getTerminalExitPresentation('dead', undefined, undefined, {
+                    exit: { exitCode: 0, signal: 9 },
+                })?.label,
+            ).toBe('Terminal stopped unexpectedly (signal SIGKILL)');
+            expect(
+                getTerminalExitPresentation('dead', undefined, undefined, {
+                    exit: { exitCode: 0, signal: 99 },
+                })?.label,
+            ).toBe('Terminal stopped unexpectedly (signal 99)');
+        });
+
+        it('flags an Agent that exits within seconds of launch', () => {
+            expect(
+                getTerminalExitPresentation('dead', undefined, undefined, {
+                    exit: { exitCode: 1, ranForMs: 1_200 },
+                    isAgent: true,
+                })?.label,
+            ).toBe('The Agent exited right after starting (exit code 1)');
+        });
+
+        it('does not claim an early exit for a shell, a long run, or an unseen launch', () => {
+            const early = { exitCode: 1, ranForMs: 1_200 };
+            expect(
+                getTerminalExitPresentation('dead', undefined, undefined, { exit: early })?.label,
+            ).toBe('Terminal stopped unexpectedly (exit code 1)');
+            expect(
+                getTerminalExitPresentation('dead', undefined, undefined, {
+                    exit: { exitCode: 1, ranForMs: 60_000 },
+                    isAgent: true,
+                })?.label,
+            ).toBe('Terminal stopped unexpectedly (exit code 1)');
+            expect(
+                getTerminalExitPresentation('dead', undefined, undefined, {
+                    exit: { exitCode: 1 },
+                    isAgent: true,
+                })?.label,
+            ).toBe('Terminal stopped unexpectedly (exit code 1)');
+        });
+
+        it('keeps a clean exit neutral', () => {
+            expect(
+                getTerminalExitPresentation('stopped', undefined, undefined, {
+                    exit: { exitCode: 0 },
+                }),
+            ).toEqual({ icon: 'completed', label: 'Process exited normally', tone: 'neutral' });
+        });
+
+        it('shows the missing folder when the working directory is gone', () => {
+            expect(
+                getTerminalExitPresentation('failed', 'working_directory_unavailable', undefined, {
+                    cwd: '/work/gone',
+                })?.label,
+            ).toBe('Folder no longer exists: /work/gone');
+        });
+    });
 });

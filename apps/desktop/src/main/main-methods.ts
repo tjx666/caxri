@@ -1,7 +1,3 @@
-import { Buffer } from 'node:buffer';
-import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
@@ -11,15 +7,10 @@ import type {
     RemoteDebuggingState,
     ServerEvent,
 } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    BUG_REPORT_JPEG_DATA_URL_PREFIX,
-    CaxriError,
-    isChatTerminal,
-} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
-import { app, clipboard, ClipboardItem, dialog, nativeImage, net, shell } from 'electron';
+import { dialog, net, shell } from 'electron';
 
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
@@ -28,10 +19,6 @@ import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat/p
 import { createAgentProviderStatus, createE2EStatusPageFetch } from './agent-provider-status';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import { handleBenchmarkShare, isBenchmarkShare } from './benchmark-share-methods';
-import {
-    BUG_REPORT_SCREENSHOT_DIRECTORY,
-    pruneBugReportScreenshots,
-} from './bug-report-screenshots';
 import {
     clearCommanderDataPrompt,
     deleteProjectPrompt,
@@ -57,24 +44,33 @@ import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
 import { translateMain } from './locale';
+import { handleBugReportRequest, isBugReportRequest } from './main-bug-report-methods';
 import type { MainEnvironmentMethods } from './main-environment-methods';
 import {
     handleEnvironmentRequest,
     isEnvironmentRequest,
     unconfiguredEnvironment,
 } from './main-environment-methods';
+import type { MainLogState } from './main-log-methods';
+import { handleLogRequest, isLogRequest } from './main-log-methods';
 import type { MainWindowMethodOptions } from './main-window-methods';
 import { handleWindowRequest, isWindowRequest } from './main-window-methods';
 import { diagnosticsExportDialogOptions, themeImportDialogOptions } from './native-file-dialogs';
 import { netRequestFetch, netResolveHost } from './net-request-fetch';
+import type { MainNotificationMethodOptions } from './notifications/main-notification-methods';
+import {
+    handleNotificationRequest,
+    isNotificationRequest,
+} from './notifications/main-notification-methods';
 import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
 import { installShellCommand, uninstallShellCommand } from './shell-command';
 import { createShellCommandEnvironment } from './shell-command-environment';
-import type { UpdateService } from './updates';
+import type { UpdateService } from './updates/updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
-export interface MainMethodHandlerOptions extends MainWindowMethodOptions {
+export interface MainMethodHandlerOptions
+    extends MainWindowMethodOptions, MainNotificationMethodOptions {
     /**
      * Defaults to `unconfiguredEnvironment`: a local environment without SSH Host support, which is what focused
      * handler tests need.
@@ -90,6 +86,15 @@ export interface MainMethodHandlerOptions extends MainWindowMethodOptions {
      * still holds the port it started with.
      */
     getRemoteDebugging(): RemoteDebuggingState;
+    /**
+     * Relaunches the whole app, the same path the "Caxri stopped" dialog uses.
+     */
+    relaunch?(): void;
+    /**
+     * Asked before a user-initiated relaunch: the relaunch quit runs with a non-`user` intent, which skips the quit
+     * flow's own unsaved-Editor decision. `cancel` aborts the relaunch.
+     */
+    decideUnsavedEditorsBeforeRelaunch?(): Promise<'cancel' | 'continue'>;
     getUserDataPath(): string;
     logger?(): StructuredLogger | undefined;
     getSupervisor(): DesktopServerConnection;
@@ -189,6 +194,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
 
     const externalDocuments = createExternalDocumentContext(options);
 
+    const logState: MainLogState = {};
+
     return async function handleMainMethod(request: MainRequest): Promise<unknown> {
         const supervisor = options.getSupervisor();
         if (isExternalDocumentRequest(request))
@@ -196,7 +203,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         if (isBenchmarkShare(request)) return handleBenchmarkShare(request, options.getWindow());
         if (isEnvironmentRequest(request)) return handleEnvironmentRequest(request, environment);
         if (isWindowRequest(request)) return handleWindowRequest(request, options);
+        if (isLogRequest(request))
+            return handleLogRequest(request, options.getUserDataPath(), logState);
+        if (isNotificationRequest(request)) return handleNotificationRequest(request, options);
         const mainWindow = options.getWindow();
+        if (isBugReportRequest(request))
+            return handleBugReportRequest(request, supervisor, mainWindow);
         switch (request.method) {
             case 'argv.get':
                 return {
@@ -460,122 +472,19 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return null;
             case 'contextMenu.show':
                 return showContextMenu(requestWindowOr(mainWindow), request.params);
-            case 'bugReport.send': {
-                const { chatImage, report, screenshot, sessionId, terminalId } = request.params;
-                const records = await supervisor.request('app.records', {
-                    sessionIds: [],
-                    terminalIds: [terminalId],
-                });
-                // `.find` (not index `[0]`) keeps the result typed as possibly missing: `app.records`
-                // returns an empty array, not a guaranteed match, when the Terminal no longer exists.
-                const terminal = records.terminals.find((candidate) => candidate.id === terminalId);
-                if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
-                if (terminal.sessionId !== sessionId)
-                    throw new CaxriError(
-                        'CONFLICT',
-                        'The selected Agent no longer belongs to this Session',
-                    );
-                if (!terminal.provider)
-                    throw new CaxriError(
-                        'CONFLICT',
-                        'Bug reports can only be sent to an Agent Terminal',
-                    );
-                /**
-                 * An Agent Chat has no PTY process to check and no clipboard paste path: the Server starts an idle Chat
-                 * on demand and attaches the screenshot to the message itself.
-                 */
-                if (isChatTerminal(terminal))
-                    return supervisor.request('bugReport.deliver', {
-                        images: chatImage && [chatImage],
-                        pasteImage: false,
-                        report,
-                        sessionId,
-                        terminalId,
-                    });
-                if (terminal.lastProcessState !== 'running' || terminal.processId === undefined)
-                    throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
-                const imageInput = agentProviderCatalog[terminal.provider].imageInput;
-                const isPasteImage = Boolean(screenshot && imageInput);
-                if (isPasteImage && screenshot) {
-                    const image = nativeImage.createFromDataURL(screenshot.dataUrl);
-                    if (image.isEmpty())
-                        throw new CaxriError(
-                            'VALIDATION',
-                            'Captured screenshot is not a valid image',
-                        );
-                    /**
-                     * Electron 44 removed writeImage in favor of its W3C-style asynchronous clipboard API. Await the
-                     * atomic write so the Agent cannot receive the paste command before its image is available.
-                     */
-                    const imageBytes = Uint8Array.from(image.toPNG());
-                    const imageBlob = new Blob([imageBytes], { type: 'image/png' });
-                    await clipboard.write([
-                        new ClipboardItem({
-                            'image/png': imageBlob,
-                        }),
-                    ]);
-                }
-                return supervisor.request('bugReport.deliver', {
-                    pasteImage: isPasteImage,
-                    report,
-                    sessionId,
-                    terminalId,
-                });
-            }
-            case 'bugReport.captureScreenshot': {
-                if (!mainWindow || mainWindow.isDestroyed())
-                    throw new CaxriError('UNAVAILABLE', 'The Caxri window is not available');
-                const image = await mainWindow.webContents.capturePage();
-                const { height, width } = image.getSize();
-                return {
-                    dataUrl: `${BUG_REPORT_JPEG_DATA_URL_PREFIX}${image.toJPEG(80).toString('base64')}`,
-                    height,
-                    width,
-                };
-            }
-            /**
-             * Some Agent CLIs (Claude Code among them) have no Caxri-safe way to accept a pasted clipboard image, so
-             * the report references an on-disk screenshot the Agent can open with its own file tools instead. The file
-             * is deliberately unredacted, because it is exactly the capture the user already reviewed in the bug-report
-             * preview. It therefore stays outside any Project in the OS temp directory, in a Caxri-owned folder pruned
-             * after 24 hours.
-             */
-            case 'bugReport.saveScreenshot': {
-                /**
-                 * The validated data URL already carries JPEG bytes; re-encoding through `nativeImage` would only cost
-                 * another lossy generation, and decoding a multi-megabyte capture just to learn whether it is an image
-                 * blocks the Main process for no gain. The two-byte SOI marker is the cheap equivalent: the schema has
-                 * already fixed the prefix, so this only has to reject base64 that is not actually a JPEG.
-                 */
-                const bytes = Buffer.from(
-                    request.params.dataUrl.slice(BUG_REPORT_JPEG_DATA_URL_PREFIX.length),
-                    'base64',
-                );
-                if (bytes.length < 2 || bytes[0] !== 0xff || bytes[1] !== 0xd8)
-                    throw new CaxriError('VALIDATION', 'Screenshot is not a valid JPEG image');
-                const directory = join(app.getPath('temp'), BUG_REPORT_SCREENSHOT_DIRECTORY);
-                // 0o700/0o600: the capture is unredacted, so nothing outside this user account may read it.
-                await mkdir(directory, { recursive: true, mode: 0o700 });
-                await pruneBugReportScreenshots(directory);
-                const stamp = new Date().toISOString().replaceAll(':', '-');
-                const target = join(
-                    directory,
-                    `caxri-bug-report-${stamp}-${randomBytes(4).toString('hex')}.jpg`,
-                );
-                await writeFile(target, bytes, { mode: 0o600 });
-                return { path: target };
-            }
             case 'diagnostics.export': {
                 const result = await dialog.showSaveDialog(
                     mainWindow!,
                     diagnosticsExportDialogOptions(new Date()),
                 );
                 if (result.canceled || !result.filePath) return null;
-                return supervisor.request(
+                const exported = await supervisor.request(
                     'diagnostics.exportPath',
                     { destination: result.filePath },
                     60_000,
                 );
+                logState.lastDiagnosticsExportPath = exported.path;
+                return exported;
             }
             case 'updates.getState':
                 return options.getUpdateService().getState();
@@ -589,6 +498,13 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.getUpdateService().cancel();
             case 'updates.open':
                 return options.getUpdateService().open();
+            case 'app.relaunch':
+                if (!options.relaunch)
+                    throw new CaxriError('UNAVAILABLE', 'Relaunching is not available here');
+                if ((await options.decideUnsavedEditorsBeforeRelaunch?.()) === 'cancel')
+                    return null;
+                options.relaunch();
+                return null;
             case 'shellCommand.install':
                 return installShellCommand(createShellCommandEnvironment(mainWindow));
             case 'shellCommand.uninstall':

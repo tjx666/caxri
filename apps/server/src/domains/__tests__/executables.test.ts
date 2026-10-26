@@ -68,20 +68,20 @@ describe('ExecutableResolver', () => {
             () => now,
         );
 
-        await expect(resolver.resolve('gh')).resolves.toBeUndefined();
+        await expect(resolver.resolve('caxri-fixture-cli')).resolves.toBeUndefined();
         expect(run).toHaveBeenCalledOnce();
 
-        const executable = join(newBin, 'gh');
+        const executable = join(newBin, 'caxri-fixture-cli');
         await writeFile(executable, '#!/bin/sh\nexit 0\n');
         await chmod(executable, 0o700);
         loginPath = newBin;
 
         now += 1_000;
-        await expect(resolver.resolve('gh')).resolves.toBeUndefined();
+        await expect(resolver.resolve('caxri-fixture-cli')).resolves.toBeUndefined();
         expect(run).toHaveBeenCalledOnce();
 
         now += 60_000;
-        await expect(resolver.resolve('gh')).resolves.toBe(executable);
+        await expect(resolver.resolve('caxri-fixture-cli')).resolves.toBe(executable);
         expect(run).toHaveBeenCalledTimes(2);
         await expect(resolver.environment()).resolves.toEqual(
             expect.objectContaining({ PATH: newBin }),

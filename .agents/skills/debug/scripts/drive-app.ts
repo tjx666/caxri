@@ -287,7 +287,8 @@ async function openChat(page: Page, provider: AgentProvider): Promise<void> {
     // A CDP connection does not focus the window, and the shortcut only reaches a focused document.
     await page.bringToFront();
     const dialog = page.getByRole('dialog');
-    const inChat = dialog.getByRole('switch');
+    // Named because the dialog also carries the "Always use this Agent" switch.
+    const inChat = dialog.getByRole('switch', { name: 'Always Open Agents in Chat' });
     // Right after launch the window can drop the first `Cmd+O` (the shortcut registers after the first paint), so a
     // dialog that does not show presses it again rather than failing the whole step.
     for (let attempt = 1; ; attempt += 1) {

@@ -32,7 +32,6 @@ describe('SessionPullRequestService', () => {
             unavailable: {
                 'session-1': {
                     reason: 'not-found',
-                    hint: 'GitHub CLI is not installed. Install gh, then refresh.',
                 },
             },
         });

@@ -1,4 +1,10 @@
-import type { AppSettings, TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
+import type {
+    AgentAvailability,
+    AppSettings,
+    TerminalKind,
+    TerminalRecord,
+    TerminalSurface,
+} from '@caxri/protocol';
 import { canUseAgentChat, isChatTerminal, terminalKindSchema } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
@@ -37,6 +43,12 @@ export interface NewTerminalAgentChoice {
      * marks its default profile.
      */
     isDefault: boolean;
+    /**
+     * True when the Agent's CLI could not be found. The row stays listed and selectable (the catalog is shared with the
+     * phone, and a choice that vanishes cannot explain itself); it only gains the "Not installed" suffix and an install
+     * hint.
+     */
+    isUnavailable: boolean;
     kind: TerminalKind;
     /**
      * What choosing this row creates: `chat` when the user opens Agents in Chat and this Agent supports it (ADR 0012).
@@ -143,6 +155,38 @@ export function isSameNewTerminalTarget(
     return left.kind === right.kind && left.surface === right.surface;
 }
 
+const NO_UNAVAILABLE_AGENTS: ReadonlySet<TerminalKind> = new Set();
+
+/**
+ * The Agents whose CLI the Server could not find. An unanswered or failed availability query yields an empty set: the
+ * menus then show no annotation rather than claiming an Agent is missing on no evidence.
+ */
+export function unavailableAgentKinds(
+    availability: AgentAvailability | undefined,
+): ReadonlySet<TerminalKind> {
+    if (!availability) return NO_UNAVAILABLE_AGENTS;
+    return new Set(
+        availability.providers.filter((provider) => !provider.available).map(({ kind }) => kind),
+    );
+}
+
+/**
+ * The tooltip on an unavailable Agent row: where to get the CLI and where to tell Caxri about it. Shell is always
+ * available, so it has no hint.
+ */
+export function agentInstallHint(kind: TerminalKind, t: Translate = translate): string | undefined {
+    switch (kind) {
+        case 'claude':
+            return t('terminal.new.installHint.claude');
+        case 'codex':
+            return t('terminal.new.installHint.codex');
+        case 'grok':
+            return t('terminal.new.installHint.grok');
+        default:
+            return undefined;
+    }
+}
+
 /**
  * Every kind the split button's dropdown offers, in catalog order, with the configured default marked. Each Agent
  * appears once; `surface` says whether choosing it opens a Chat under the current preference. Nothing here depends on
@@ -151,10 +195,12 @@ export function isSameNewTerminalTarget(
 export function newTerminalAgentChoices(
     defaultAgent: ConfiguredDefaultAgent,
     openInChat: OpenAgentsInChat,
+    unavailable: ReadonlySet<TerminalKind> = NO_UNAVAILABLE_AGENTS,
 ): NewTerminalAgentChoice[] {
     const configured = resolveNewTerminalAgent(defaultAgent);
     return NEW_TERMINAL_KIND_CATALOG.map((kind) => ({
         isDefault: kind === configured,
+        isUnavailable: unavailable.has(kind),
         kind,
         surface: newAgentSurface(kind, openInChat),
     }));
@@ -205,15 +251,17 @@ export function newSessionActionLabel(
 }
 
 /**
- * The one muted suffix an Agent row in the New Session and New Terminal menus carries: `Chat` when choosing it opens a
- * Chat, `Default` for the configured default Agent, `Chat · Default` for both, or nothing. One suffix rather than two
- * separate markers, so both menus mark a row the same way and the words stay text a screen reader reads.
+ * The one muted suffix an Agent row in the New Session and New Terminal menus carries: `Not installed` when the CLI was
+ * not found, `Chat` when choosing it opens a Chat, `Default` for the configured default Agent, those joined with `·`
+ * when several apply, or nothing. One suffix rather than two separate markers, so both menus mark a row the same way
+ * and the words stay text a screen reader reads.
  */
 export function agentChoiceMarker(
-    choice: Pick<NewTerminalAgentChoice, 'isDefault' | 'surface'>,
+    choice: Pick<NewTerminalAgentChoice, 'isDefault' | 'surface'> & { isUnavailable?: boolean },
     t: Translate = translate,
 ): string | undefined {
     const parts = [
+        choice.isUnavailable === true && t('terminal.new.notInstalledMarker'),
         choice.surface === 'chat' && t('terminal.new.chatMarker'),
         choice.isDefault && t('terminal.new.defaultMarker'),
     ].filter((part): part is string => typeof part === 'string');

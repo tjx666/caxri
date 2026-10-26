@@ -25,7 +25,7 @@ describe('CLI Server connector', () => {
         'never starts a Server implicitly for %s automation',
         async (automation) => {
             const connectExisting = vi.fn(() =>
-                Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Host is running')),
+                Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Server is running')),
             );
             const startServer = vi.fn(() => Promise.resolve(server()));
             const connect = createCliServerConnector({
@@ -61,7 +61,7 @@ describe('CLI Server connector', () => {
         'never starts a Server implicitly for a $kind credential without automation markers',
         async (credential) => {
             const connectExisting = vi.fn(() =>
-                Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Host is running')),
+                Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Server is running')),
             );
             const startServer = vi.fn(() => Promise.resolve(server()));
             const connect = createCliServerConnector({

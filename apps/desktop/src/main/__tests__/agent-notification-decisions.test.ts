@@ -115,7 +115,7 @@ describe('Agent notification decisions', () => {
             attentionEpoch: 1,
             hasUnread: true,
             lastAttentionKind: 'completed',
-            lastSessionActivityAt: 69_999,
+            lastSessionActivityAt: 24_999,
             lastSessionActivityReason: 'agent_completed',
         });
         await app.observe(completed);
@@ -124,7 +124,7 @@ describe('Agent notification decisions', () => {
             {
                 attentionEpoch: 1,
                 attentionKind: 'completed',
-                durationMs: 59_999,
+                durationMs: 14_999,
                 outcome: 'belowThreshold',
                 sessionId: 'session-1',
             },

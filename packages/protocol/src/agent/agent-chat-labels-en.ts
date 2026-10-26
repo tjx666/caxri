@@ -310,7 +310,7 @@ export const agentChatLabelsEn = {
 
     // Provider failure banner on Desktop (`agentChatFailureMessage`)
     'agentChat.failure.executableNotFound':
-        '{{provider}} is not installed or is not on your PATH. Install it, then retry.',
+        "Caxri couldn't find {{provider}}. Install it, or set its location in Settings.",
     'agentChat.failure.spawnFailed':
         '{{provider}} could not be started. Retry, or check that the {{provider}} CLI runs in a terminal.',
     'agentChat.failure.handshakeFailed':

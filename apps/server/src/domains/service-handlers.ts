@@ -38,6 +38,7 @@ import type { FileService } from './files';
 import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
+import { createAgentAvailabilityHandler } from './mobile';
 import { addProjectFolder, resolveOwnerProjectRoot, resolveProjectRoot } from './project';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { SessionPullRequestService } from './project-status';
@@ -155,6 +156,7 @@ type ServiceHandlerMethods =
     | 'settings.inspect'
     | 'settings.patch'
     | 'settings.delegation.import'
+    | 'agentAvailability.get'
     | 'agentHooks.get'
     | 'agentSkills.get'
     | 'usage.report'
@@ -280,6 +282,8 @@ export function createServiceHandlers(services: {
             configuration.getSettings().value['projectStatus.autoArchiveOnPullRequestSettled'],
         logger,
         notifyMerged: noticeMergedPullRequest,
+        onArchived: (sessionId, pullRequestState) =>
+            emit({ event: 'session.autoArchived', payload: { sessionId, pullRequestState } }),
     });
     settlementWiring.attach(pullRequestSettlement);
     const sessionPullRequests = new SessionPullRequestService(
@@ -541,6 +545,7 @@ export function createServiceHandlers(services: {
         'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
         'settings.delegation.import': ({ settings, dryRun }) =>
             configuration.importDelegationSettings(settings, dryRun),
+        'agentAvailability.get': createAgentAvailabilityHandler({ configuration }),
         'agentHooks.get': () => agentHooks.getHealth(),
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'usage.report': (parameters) => usage.report(parameters),

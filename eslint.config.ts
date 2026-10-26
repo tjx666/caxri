@@ -62,6 +62,31 @@ const rendererUiKitImportPattern = {
         '@lobehub/ui is accepted only as the i18n runtime; import translations from apps/desktop/src/renderer/src/i18n and use Base UI primitives for components.',
 };
 /**
+ * Renderer date and number formatting must follow the interface language (`workbench.language`), not the system locale
+ * that a bare `toLocaleString()` or `Intl.DateTimeFormat(undefined)` resolves to. See docs/i18n.md "Dates and
+ * numbers".
+ */
+const rendererLocaleFormatRestrictions = [
+    {
+        selector: 'CallExpression[callee.property.name=/^toLocale(?:Date|Time)?String$/]',
+        message:
+            'toLocaleString, toLocaleDateString, and toLocaleTimeString follow the system locale; use localeDateTimeFormat, localeNumberFormat, or formatCount from apps/desktop/src/renderer/src/lib/locale-format.ts.',
+    },
+    {
+        selector:
+            'NewExpression[callee.object.name="Intl"][callee.property.name=/^(?:DateTimeFormat|NumberFormat)$/][arguments.0.type="Identifier"][arguments.0.name="undefined"]',
+        message:
+            'Intl formatters built with an undefined locale follow the system locale; use localeDateTimeFormat or localeNumberFormat from apps/desktop/src/renderer/src/lib/locale-format.ts.',
+    },
+    {
+        selector:
+            'NewExpression[callee.object.name="Intl"][callee.property.name="NumberFormat"][arguments.length=0]',
+        message:
+            'Intl.NumberFormat() follows the system locale; use localeNumberFormat or formatCount from apps/desktop/src/renderer/src/lib/locale-format.ts.',
+    },
+];
+
+/**
  * Directories whose production/tooling code may run child processes at all (the Renderer is out of scope: it already
  * bans importing `child_process` outright via the Renderer `no-restricted-imports` config below).
  */
@@ -342,7 +367,19 @@ export default defineConfig(
                     message:
                         'target="_blank" anchors never navigate (Main denies window.open); use openExternalUrl from apps/desktop/src/renderer/src/lib/external-link.ts instead.',
                 },
+                ...rendererLocaleFormatRestrictions,
             ],
+        },
+    },
+    {
+        files: ['apps/desktop/src/renderer/**/*.ts'],
+        ignores: ['**/*.test.ts', 'apps/desktop/src/renderer/src/lib/locale-format.ts'],
+        rules: {
+            /**
+             * Scoped to `.ts` so this entry never collides with the `.tsx` entry above (flat config replaces, rather
+             * than merges, a later matching object's same-named rule).
+             */
+            'no-restricted-syntax': ['error', ...rendererLocaleFormatRestrictions],
         },
     },
     {

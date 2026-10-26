@@ -12,7 +12,7 @@ export const agentChatSettingsSpec = [
         title: 'Chat long paste threshold',
         description:
             'Longer text pasted into a Chat is saved to a local file and the message cites it, so a log or a dump does not bury the message. Raise it to paste such text as is; text that would not fit in one message is still saved to a file.',
-        category: 'general',
+        category: 'chat',
         keywords: ['chat', 'clipboard', 'paste', 'verbatim', 'file', 'context', 'tokens'],
         min: 1,
         /**
@@ -30,7 +30,7 @@ export const agentChatSettingsSpec = [
         title: 'Chat working indicator',
         description:
             'What a Chat shows while the Agent works on a reply. Buddy also takes the status line spinner and acts out the work: reading, searching, running a command. Reduce Motion stills every choice.',
-        category: 'general',
+        category: 'chat',
         keywords: ['chat', 'loading', 'spinner', 'animation', 'buddy', 'placeholder', 'motion'],
         options: [
             { value: 'buddy', label: 'Buddy' },
@@ -47,7 +47,7 @@ export const agentChatSettingsSpec = [
         title: 'Animated Chat tool icons',
         description:
             'A running tool row in a Chat animates its icon to act out the work, such as a bookworm inching along a book while it reads. Turn off to keep the still icon.',
-        category: 'general',
+        category: 'chat',
         keywords: ['chat', 'tool', 'icon', 'glyph', 'animation', 'loading', 'motion'],
         default: true,
     },
@@ -57,7 +57,7 @@ export const agentChatSettingsSpec = [
         title: 'Chat status shimmer',
         description:
             'How a light sweeps across running status text in a Chat, such as the working phrase and a running tool title.',
-        category: 'general',
+        category: 'chat',
         keywords: ['chat', 'shimmer', 'loading', 'animation', 'status', 'motion'],
         options: [
             { value: 'dwell', label: 'Sweep, then rest' },
@@ -69,9 +69,9 @@ export const agentChatSettingsSpec = [
     {
         kind: 'boolean',
         key: 'agentChat.idleCompaction.enabled',
-        title: 'Compact idle Chats before the prompt cache expires',
+        title: 'Summarize idle Chats to keep replies fast',
         description:
-            'Compacts a Claude or Grok Build Chat that holds a large context and has waited long enough that its prompt cache is about to expire, so your next message re-reads the summary instead of the whole conversation.',
+            'When a long Claude or Grok Build Chat sits idle for a while, Caxri summarizes it in the background, so your next message is sent with the short summary instead of the whole conversation, which makes the reply faster and cheaper.',
         category: 'agents',
         keywords: [
             'agent',

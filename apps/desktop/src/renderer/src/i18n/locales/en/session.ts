@@ -9,12 +9,15 @@ export const session = {
     'session.create.newSession': 'New Session',
     'session.create.newInProject': 'New Session in {{project}}',
     'session.create.actionInProject': '{{action}} in {{project}}',
-    'session.create.withoutTerminal': 'Start without a Terminal',
-    'session.createDialog.title': 'Choose the default Terminal',
+    'session.create.withoutTerminal': 'Empty Session',
+    'session.createDialog.title': 'Start a Session',
+    'session.createDialog.titleInProject': 'Start a Session in {{project}}',
     'session.createDialog.description':
-        'Create a Session. Its primary Agent Terminal provides the Session title when metadata is available.',
-    'session.createDialog.descriptionInProject':
-        'Create a Session in {{project}}. Its primary Agent Terminal provides the Session title when metadata is available.',
+        'Choose who works in this folder. You can switch between Chat and Terminal later.',
+    'session.createDialog.fullAccessNotice':
+        'Agents start with full access: they can edit files and run commands without asking. Change this in Settings > Agents.',
+    'session.createDialog.alwaysUseAgent': 'Always use this Agent',
+    'session.createDialog.makeDefaultFailed': 'Unable to change the default Agent',
     'session.openInChat.label': 'Always Open Agents in Chat',
     'session.openInChat.failed': 'Unable to change how Agents open',
 
@@ -106,6 +109,10 @@ export const session = {
     'session.notice.restoredUntitled': 'Restored Session',
     'session.notice.restoredCount': 'Restored {{count}} Sessions',
     'session.notice.undoArchive': 'Undo archiving {{title}}',
+    'session.notice.quotedName': '"{{title}}"',
+    'session.notice.autoArchivedSession': 'Session',
+    'session.notice.autoArchivedMerged': 'Archived {{session}} because its pull request was merged',
+    'session.notice.autoArchivedClosed': 'Archived {{session}} because its pull request was closed',
 
     // Agent detach, resume, and identifiers
     'session.detach.confirm': 'Stop and Detach',

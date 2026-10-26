@@ -749,7 +749,7 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
                 ?.click({ triggeredByAccelerator: false });
         });
         await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(0);
-        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveCount(0);
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveText(/\D0$/);
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);

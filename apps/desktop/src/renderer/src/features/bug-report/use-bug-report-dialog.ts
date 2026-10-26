@@ -7,6 +7,7 @@ import { pathBasename } from '@caxri/utils';
 import { translate, useTranslation } from '../../i18n';
 import { awaitThenCleanup } from '../../lib/await-then-cleanup';
 import { caxri } from '../../lib/caxri';
+import { openExternalUrl } from '../../lib/external-link';
 import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
@@ -21,6 +22,7 @@ import {
     buildBugReport,
     canAttachBugReportScreenshot,
     chooseBugReportTarget,
+    copyThenOpenGithubIssue,
 } from './bug-report';
 import {
     captureBugReportScreenshot,
@@ -469,6 +471,23 @@ export function useBugReportDialog() {
         }
     };
 
+    /**
+     * Copies the redacted report first so the user can paste it straight into the issue form; the screenshot is not
+     * part of the text report, so it is not carried over. A failed copy stops here: opening an empty issue form would
+     * look like success.
+     */
+    const openGithubIssue = async (): Promise<void> => {
+        if (!report) return;
+        await copyThenOpenGithubIssue(report, {
+            copy: (text) => navigator.clipboard.writeText(text),
+            onCopied: () => pushToast('success', t('bugReport.flow.copiedForIssue')),
+            onCopyError: (error) =>
+                updateState({ sendError: errorMessage(error, t('bugReport.flow.copyFailed')) }),
+            onOpenError: (message) => updateState({ sendError: message }),
+            open: openExternalUrl,
+        });
+    };
+
     const send = async (): Promise<void> => {
         if (!report || !source) return;
         const current = getBootstrap();
@@ -533,6 +552,7 @@ export function useBugReportDialog() {
         imageDeliveryNotice,
         isRestoredDraft,
         openAnnotator,
+        openGithubIssue,
         preview,
         previewDataUrl,
         removeScreenshot,

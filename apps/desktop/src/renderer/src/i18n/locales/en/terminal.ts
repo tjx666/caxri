@@ -32,6 +32,7 @@ export const terminal = {
     'terminal.search.invalidRegex': 'Invalid regular expression',
     'terminal.search.unavailable': 'Search unavailable',
     'terminal.exit.failure.workingDirectoryUnavailable': 'Working directory no longer exists',
+    'terminal.exit.failure.workingDirectoryUnavailableAt': 'Folder no longer exists: {{path}}',
     'terminal.exit.failure.executableNotFound': 'Agent CLI executable was not found',
     'terminal.exit.failure.spawnFailed': 'Terminal process could not be started',
     'terminal.exit.failure.agentSessionUnavailable':
@@ -41,6 +42,10 @@ export const terminal = {
     'terminal.exit.stopped': 'Process exited normally',
     'terminal.exit.failed': 'Terminal failed to start',
     'terminal.exit.dead': 'Terminal stopped unexpectedly',
+    'terminal.exit.deadWithReason': 'Terminal stopped unexpectedly ({{reason}})',
+    'terminal.exit.agentEarly': 'The Agent exited right after starting ({{reason}})',
+    'terminal.exit.reason.code': 'exit code {{code}}',
+    'terminal.exit.reason.signal': 'signal {{signal}}',
     'terminal.exit.interrupted': 'Interrupted by app shutdown — restoring',
     'terminal.exit.suspended': 'Suspended in the background, resuming',
     'terminal.exit.detached': 'Detached — resume when you are done elsewhere',
@@ -237,6 +242,13 @@ export const terminal = {
     'terminal.new.agentSession': 'New {{agent}} Session',
     'terminal.new.chatMarker': 'Chat',
     'terminal.new.defaultMarker': 'Default',
+    'terminal.new.notInstalledMarker': 'Not installed',
+    'terminal.new.installHint.claude':
+        'Claude Code was not found. Install it from claude.com/claude-code, or set its location in Settings > Agents.',
+    'terminal.new.installHint.codex':
+        'Codex was not found. Install it with "npm install -g @openai/codex", or set its location in Settings > Agents.',
+    'terminal.new.installHint.grok':
+        'Grok Build was not found. Install it from x.ai, or set its location in Settings > Agents.',
     'terminal.new.buttonWithAgent': '{{action}} ({{agent}})',
     'terminal.new.selectAgent': 'Select a different Agent',
     'terminal.surface.terminal': 'Terminal',

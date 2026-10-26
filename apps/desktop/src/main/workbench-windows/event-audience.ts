@@ -57,6 +57,8 @@ export const EVENT_AUDIENCE = {
     'externalDocument.changed': 'all',
     'editor.unsavedRequest': 'target',
     'agent.notification': 'focused',
+    'notifications.helperUnavailable': 'focused',
+    'session.autoArchived': 'focused',
     'agent.automaticNamingUnavailable': 'focused',
     'agent.permissionAutoAllowChanged': 'all',
     'gpu.recoveryRequested': 'focused',

@@ -1,5 +1,8 @@
+import { useState } from 'react';
+
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
+import { useCommandState } from 'cmdk';
 
 import { executeCommand, isCommandAvailable } from '../../commands/execute';
 import { ShortcutBadge } from '../../components/shortcut-badge';
@@ -43,8 +46,58 @@ import {
 } from './command-palette-commands';
 import type { PaletteSearchEntry } from './palette-search';
 import { paletteSearchScore } from './palette-search';
+import { loadRecentCommands, recordRecentCommand, visibleRecentCommands } from './recent-commands';
 
 const NO_RECORDS: never[] = [];
+
+/**
+ * The Recently Used group, shown only for an empty query. Once the user types, results are ranked by relevance and a
+ * second copy of a command above them would only repeat it.
+ */
+function RecentCommandsGroup({
+    commands,
+    titleContext,
+}: {
+    commands: ReadonlyArray<(typeof commandDefinitions)[number]>;
+    titleContext: CommandTitleContext;
+}) {
+    const { t } = useTranslation();
+    const search = useCommandState((state) => state.search);
+    if (search.trim() !== '' || commands.length === 0) return null;
+    return (
+        <CommandGroup heading={t('palette.group.recent')}>
+            {commands.map((command) => (
+                <CommandRow
+                    key={command.id}
+                    command={command}
+                    titleContext={titleContext}
+                    valuePrefix="recent"
+                />
+            ))}
+        </CommandGroup>
+    );
+}
+
+function PaletteFooter() {
+    const { t } = useTranslation();
+    return (
+        <div
+            className="flex items-center gap-3 border-t border-border px-3 py-1.5 text-[10px] text-muted"
+            data-palette-footer=""
+        >
+            <span className="flex items-center gap-1">
+                <ShortcutBadge compact shortcut="arrowup" />
+                <ShortcutBadge compact shortcut="arrowdown" /> {t('palette.footer.navigate')}
+            </span>
+            <span className="flex items-center gap-1">
+                <ShortcutBadge compact shortcut="enter" /> {t('palette.footer.run')}
+            </span>
+            <span className="flex items-center gap-1">
+                <ShortcutBadge compact shortcut="escape" /> {t('palette.footer.close')}
+            </span>
+        </div>
+    );
+}
 
 const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-[11px] text-muted';
 
@@ -56,17 +109,24 @@ const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-
 function CommandRow({
     command,
     titleContext,
+    valuePrefix = 'command',
 }: {
     command: (typeof commandDefinitions)[number];
     titleContext: CommandTitleContext;
+    /**
+     * Cmdk tracks the highlighted row by `value`, so the Recently Used copy of a command needs a key of its own or both
+     * rows would highlight together.
+     */
+    valuePrefix?: 'command' | 'recent';
 }) {
     const { t } = useTranslation();
     const shortcut = useCommandShortcut(command.id);
     return (
         <CommandItem
-            value={`command:${command.id}`}
+            value={`${valuePrefix}:${command.id}`}
             onSelect={() => {
                 setPaletteOpen(false);
+                recordRecentCommand(command.id);
                 executeCommand(command.id);
             }}
         >
@@ -210,6 +270,14 @@ function CommandPaletteBody() {
     );
     const extensionCommands = getPaletteExtensionCommands(catalog);
     /**
+     * Read once per open: the body only mounts while the palette is open, and a command run from here closes it.
+     */
+    const [recentIds] = useState(loadRecentCommands);
+    const recentCommands = visibleRecentCommands(
+        recentIds,
+        new Set(paletteCommands.map((command) => command.id)),
+    ).flatMap((id) => paletteCommands.filter((command) => command.id === id));
+    /**
      * Each row's `value` is a stable `kind:id` key: cmdk tracks the selected row by `value`, so two Sessions sharing a
      * title and Project must still differ. What the search matches lives here, keyed by that value.
      */
@@ -248,43 +316,52 @@ function CommandPaletteBody() {
                 <CommandInput autoFocus placeholder={t('palette.searchPlaceholder')} />
                 <CommandList>
                     <CommandEmpty>{t('palette.empty')}</CommandEmpty>
-                    <CommandGroup heading={t('palette.group.projects')}>
-                        {projectResults.map((project) => (
-                            <CommandItem
-                                key={project.id}
-                                value={`project:${project.id}`}
-                                onSelect={() => {
-                                    onOpenChange(false);
-                                    selectProject(project.id);
-                                }}
-                            >
-                                <span>{project.displayTitle}</span>
-                                <small className={commandItemMetaClassName}>
-                                    {t('palette.source.project')}
-                                </small>
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
-                    <CommandGroup heading={t('palette.group.sessions')}>
-                        {sessions.map((session) => {
-                            const project = projects.find((item) => item.id === session.projectId);
-                            return (
+                    <RecentCommandsGroup commands={recentCommands} titleContext={titleContext} />
+                    {projectResults.length > 0 && (
+                        <CommandGroup heading={t('palette.group.projects')}>
+                            {projectResults.map((project) => (
                                 <CommandItem
-                                    key={session.id}
-                                    value={`session:${session.id}`}
+                                    key={project.id}
+                                    value={`project:${project.id}`}
                                     onSelect={() => {
                                         onOpenChange(false);
-                                        void didSelectSession(session.id);
+                                        selectProject(project.id);
                                     }}
                                 >
-                                    <span>{sessionTitleForDisplay(session.displayTitle, t)}</span>
+                                    <span>{project.displayTitle}</span>
                                     <small className={commandItemMetaClassName}>
-                                        {project?.displayTitle ?? t('palette.source.session')}
+                                        {t('palette.source.project')}
                                     </small>
                                 </CommandItem>
-                            );
-                        })}
-                    </CommandGroup>
+                            ))}
+                        </CommandGroup>
+                    )}
+                    {sessions.length > 0 && (
+                        <CommandGroup heading={t('palette.group.sessions')}>
+                            {sessions.map((session) => {
+                                const project = projects.find(
+                                    (item) => item.id === session.projectId,
+                                );
+                                return (
+                                    <CommandItem
+                                        key={session.id}
+                                        value={`session:${session.id}`}
+                                        onSelect={() => {
+                                            onOpenChange(false);
+                                            void didSelectSession(session.id);
+                                        }}
+                                    >
+                                        <span>
+                                            {sessionTitleForDisplay(session.displayTitle, t)}
+                                        </span>
+                                        <small className={commandItemMetaClassName}>
+                                            {project?.displayTitle ?? t('palette.source.session')}
+                                        </small>
+                                    </CommandItem>
+                                );
+                            })}
+                        </CommandGroup>
+                    )}
                     <CommandGroup heading={t('palette.group.commands')}>
                         {paletteCommands.map((command) => (
                             <CommandRow
@@ -302,6 +379,7 @@ function CommandPaletteBody() {
                         ))}
                     </CommandGroup>
                 </CommandList>
+                <PaletteFooter />
             </Command>
         </>
     );

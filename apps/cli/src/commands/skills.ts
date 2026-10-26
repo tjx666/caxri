@@ -97,7 +97,7 @@ export const SKILL_COMMANDS: readonly LocalCommandDefinition[] = [
     {
         kind: 'local',
         path: ['skills', 'status'],
-        summary: 'Inspect bundled and installed skill compatibility without a Host.',
+        summary: 'Inspect bundled and installed skill compatibility without a running Server.',
         usage: `[--provider ${providerUsage}] [--local|--global]`,
         parseParams: statusSelection,
     },
