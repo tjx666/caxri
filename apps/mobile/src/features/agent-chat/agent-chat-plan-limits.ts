@@ -33,6 +33,10 @@ export interface AgentChatPlanLimitRow {
      * `Resets in 3h 20m`, absent for a window the provider gave no reset time.
      */
     reset: string | undefined;
+    /**
+     * Epoch milliseconds the window resets, for a surface that also names the clock time.
+     */
+    resetsAt: number | undefined;
     isWarning: boolean;
 }
 
@@ -74,6 +78,7 @@ export function agentChatPlanLimitRows(
             left: t('chat.model.limitLeft', { percent: leftPercent }),
             leftPercent,
             reset: window.resetsAt === undefined ? undefined : resetText(window.resetsAt, now, t),
+            resetsAt: window.resetsAt,
             isWarning: Math.round(window.usedPercent) >= LIMIT_WARNING_PERCENT,
         };
     });

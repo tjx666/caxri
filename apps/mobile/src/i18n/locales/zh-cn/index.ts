@@ -20,6 +20,7 @@ import { sessions } from './sessions';
 import { settings } from './settings';
 import { terminal } from './terminal';
 import { update } from './update';
+import { usage } from './usage';
 
 export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...agentChatLabelsZhCN,
@@ -41,4 +42,5 @@ export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...settings,
     ...terminal,
     ...update,
+    ...usage,
 };

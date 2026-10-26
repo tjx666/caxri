@@ -7,6 +7,7 @@ import {
     Archive,
     EllipsisVertical,
     FolderPlus,
+    Gauge,
     MessageSquareWarning,
     Settings,
     Unlink,
@@ -98,6 +99,7 @@ export const SessionHomeHeader = ({
     onOpenInbox,
     onOpenSettings,
     onOpenStatus,
+    onOpenUsage,
     projects,
     status,
     theme,
@@ -120,6 +122,10 @@ export const SessionHomeHeader = ({
      * Present only for a control device: computer status names Sessions from every Project.
      */
     onOpenStatus?: () => void;
+    /**
+     * Opens the Agent usage screen: plan limits, output speed, and API status, one tap from home.
+     */
+    onOpenUsage: () => void;
     projects: Project[];
     status: MobileConnectionStatus;
     theme: MobileTheme;
@@ -187,6 +193,14 @@ export const SessionHomeHeader = ({
                         {hostDisplayName}
                     </Text>
                 </View>
+                <IconButton
+                    accessibilityHint={t('usage.openHint')}
+                    accessibilityLabel={t('usage.open')}
+                    icon={Gauge}
+                    onPress={onOpenUsage}
+                    testID="agent-usage-action"
+                    theme={theme}
+                />
                 <View collapsable={false} ref={menuAnchor}>
                     <IconButton
                         accessibilityHint={t('sessions.home.computerMenuHint')}

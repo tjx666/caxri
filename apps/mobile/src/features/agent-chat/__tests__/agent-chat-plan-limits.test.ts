@@ -25,6 +25,7 @@ describe('agentChatPlanLimitRows', () => {
                 left: '62% left',
                 leftPercent: 62,
                 reset: 'Resets in 3h 20m',
+                resetsAt: NOW + 3 * HOUR + 20 * 60_000,
                 isWarning: false,
             },
             {
@@ -33,6 +34,7 @@ describe('agentChatPlanLimitRows', () => {
                 left: '28% left',
                 leftPercent: 28,
                 reset: 'Resets in 4d 2h',
+                resetsAt: NOW + 98 * HOUR,
                 isWarning: false,
             },
         ]);

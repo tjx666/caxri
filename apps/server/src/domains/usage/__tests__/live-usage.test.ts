@@ -122,6 +122,9 @@ describe('LiveAgentUsage', () => {
         usage.observeLimits([newer]);
         usage.observeLimits([older]);
         expect((await usage.read('terminal-1'))?.limit).toEqual(newer);
+        // A surface with no Terminal in view reads the same newest reading, one per provider.
+        usage.observeLimits([{ provider: 'codex', observedAt: T0, windows: [] }]);
+        expect(usage.limits()).toEqual([newer, { provider: 'codex', observedAt: T0, windows: [] }]);
     });
 });
 
