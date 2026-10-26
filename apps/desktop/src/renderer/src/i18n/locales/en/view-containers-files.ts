@@ -21,6 +21,7 @@ export const viewContainersFiles = {
     'viewContainers.files.menu.duplicate': 'Duplicate',
     'viewContainers.files.menu.copyPath': 'Copy Path',
     'viewContainers.files.menu.copyRelativePath': 'Copy Relative Path',
+    'viewContainers.files.menu.copyName': 'Copy Name',
     'viewContainers.files.menu.moveToTrash': 'Move to Trash',
     'viewContainers.files.busyReason': 'Busy — a file operation is in progress here',
     'viewContainers.files.nothingToPaste': 'Nothing to paste',

@@ -21,6 +21,7 @@ export function SourceControlTreeRow({
     children,
     level,
     menuItems,
+    pathMenu,
     onFocus,
     onKeyDown,
     rowId,
@@ -29,6 +30,10 @@ export function SourceControlTreeRow({
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
     level: number;
     menuItems?: readonly SourceControlRowMenuItem[];
+    /**
+     * Renderer-owned entries appended after `menuItems` when the menu opens, such as a file row's clipboard actions.
+     */
+    pathMenu?: () => ContextMenuEntries;
     rowId: string;
     /**
      * Rich hover text for a row whose own label is truncated, or whose modifier gestures need naming. Rows pass this
@@ -40,13 +45,15 @@ export function SourceControlTreeRow({
 }) {
     const { t } = useTranslation();
     const focus = useSourceControlTreeFocus();
-    const hasMenu = Boolean(menuItems?.length);
-    const menu = (): ContextMenuEntries =>
-        (menuItems ?? []).map((item) => ({
+    const hasMenu = Boolean(menuItems?.length) || Boolean(pathMenu);
+    const menu = (): ContextMenuEntries => [
+        ...(menuItems ?? []).map((item) => ({
             label: item.label,
             disabled: item.disabled,
             onSelect: item.run,
-        }));
+        })),
+        ...(pathMenu?.() ?? []),
+    ];
     const openContextMenu = useContextMenu(menu);
     const row = (
         <button

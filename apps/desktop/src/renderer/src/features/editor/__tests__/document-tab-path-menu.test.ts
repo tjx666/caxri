@@ -1,0 +1,56 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
+
+import { serializeContextMenu } from '../../../lib/context-menu';
+import { useEnvironmentStore } from '../../../stores/environment';
+import { documentTabPathMenu } from '../document-tab-path-menu';
+
+function item(entries: ReturnType<typeof documentTabPathMenu>, label: string) {
+    const { actions, items } = serializeContextMenu(entries);
+    const match = items.find(
+        (candidate) => candidate.type !== 'separator' && candidate.label === label,
+    );
+    return match && match.type !== 'separator'
+        ? { enabled: match.enabled !== false, run: actions.get(match.id!) }
+        : undefined;
+}
+
+describe('documentTabPathMenu', () => {
+    beforeEach(() => {
+        useEnvironmentStore.setState({ state: { kind: 'local' } });
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('copies the file name of a Project file and of an external document', async () => {
+        const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+        vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+        await item(
+            documentTabPathMenu({
+                resolution: { absolutePath: '/project/src/notes.ts', relativeRoot: '/project' },
+                unavailableReason: 'unavailable',
+            }),
+            'Copy Name',
+        )?.run?.();
+        expect(writeText).toHaveBeenLastCalledWith('notes.ts');
+
+        await item(
+            documentTabPathMenu({
+                resolution: { absolutePath: '/outside/guide.md' },
+                unavailableReason: 'unavailable',
+                externalDocumentId: 'external-1',
+            }),
+            'Copy Name',
+        )?.run?.();
+        expect(writeText).toHaveBeenLastCalledWith('guide.md');
+    });
+
+    it('disables Copy Name while the path is unresolved', () => {
+        expect(
+            item(documentTabPathMenu({ unavailableReason: 'unavailable' }), 'Copy Name')?.enabled,
+        ).toBe(false);
+    });
+});

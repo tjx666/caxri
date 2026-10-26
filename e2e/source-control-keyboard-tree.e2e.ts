@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -30,6 +30,7 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
     );
 
     const running = await launchCaxri({
+        clipboard: true,
         userDataDir: join(testDirectory, 'user-data'),
         testRootPath: root,
     });
@@ -95,6 +96,20 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         await tree.screenshot({ path: test.info().outputPath('tree-focus-3-file.png') });
         await running.page.keyboard.press('ArrowLeft');
         await expect(directory).toBeFocused();
+
+        // A changed file's row menu copies the same three strings as its Editor tab, after the Server actions.
+        const nestedFile = tree.locator('[data-row-id$="nested/file-00.txt"]');
+        const absolutePath = await realpath(join(root, 'nested', 'file-00.txt'));
+        const copyFromRow = async (label: string, expected: string): Promise<void> => {
+            await nestedFile.click({ button: 'right' });
+            await chooseContextMenuItem(running.app, label);
+            await expect.poll(() => running.clipboard.textEquals(expected)).toBe(true);
+            await running.clipboard.claimText(expected);
+        };
+        await copyFromRow('Copy Path', absolutePath);
+        await copyFromRow('Copy Relative Path', 'nested/file-00.txt');
+        await copyFromRow('Copy Name', 'file-00.txt');
+        await directory.focus();
 
         await running.page.keyboard.press('End');
         // End reaches the repository's collapsed `Commits` header, the last row of the tree.

@@ -21,6 +21,7 @@ export const viewContainersFiles: TranslatedNamespace<typeof source> = {
     'viewContainers.files.menu.duplicate': '创建副本',
     'viewContainers.files.menu.copyPath': '复制路径',
     'viewContainers.files.menu.copyRelativePath': '复制相对路径',
+    'viewContainers.files.menu.copyName': '复制文件名',
     'viewContainers.files.menu.moveToTrash': '移到废纸篓',
     'viewContainers.files.busyReason': '忙碌：此处正在进行文件操作',
     'viewContainers.files.nothingToPaste': '没有可粘贴的内容',

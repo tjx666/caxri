@@ -4,7 +4,7 @@ import { projectRelativePath } from '@caxri/protocol';
 import { translate } from '../../../i18n';
 import type { ContextMenuEntries } from '../../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../../lib/context-menu';
-import { copyFilePath } from '../../../lib/copy-file-path';
+import { copyFileName, copyFilePath } from '../../../lib/copy-file-path';
 import {
     openFileInTerminal,
     openFileWithDefaultApp,
@@ -131,6 +131,10 @@ export function fileTreeItemMenu({
         {
             label: translate('viewContainers.files.menu.copyRelativePath'),
             onSelect: () => copyFilePath(entry.path, projectRoot),
+        },
+        {
+            label: translate('viewContainers.files.menu.copyName'),
+            onSelect: () => copyFileName(entry.path),
         },
         CONTEXT_MENU_SEPARATOR,
         isDirectory && {

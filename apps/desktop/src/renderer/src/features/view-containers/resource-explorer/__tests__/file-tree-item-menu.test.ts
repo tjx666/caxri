@@ -60,6 +60,7 @@ describe('fileTreeItemMenu', () => {
             'Duplicate',
             'Copy Path',
             'Copy Relative Path',
+            'Copy Name',
             '---',
             'New File',
             'New Folder',

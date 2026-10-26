@@ -93,6 +93,7 @@ export const core = {
     'core.files.pathOutsideProject': 'Path is outside the selected Project',
     'core.files.relativePathCopied': 'Relative path copied',
     'core.files.pathCopied': 'Path copied',
+    'core.files.nameCopied': 'Name copied',
     'core.files.noSessionSelected': 'No Session is selected',
     'core.files.revealFailed': 'Unable to reveal item in Finder',
     'core.files.openWithDefaultAppFailed': 'Unable to open item with the default application',

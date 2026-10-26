@@ -133,6 +133,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.pathMenu.openInTerminal': '在终端中打开',
     'editor.pathMenu.copyPath': '复制路径',
     'editor.pathMenu.copyRelativePath': '复制相对路径',
+    'editor.pathMenu.copyName': '复制文件名',
     'editor.pathMenu.repositoryLoadFailed': '无法加载仓库信息',
     'editor.pathMenu.repositoryLoading': '仓库信息仍在加载',
     'editor.pathMenu.pathUnavailable': '文件路径不可用',
