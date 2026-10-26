@@ -108,6 +108,7 @@ The implemented device grants, method matrix, and cancellation behavior are docu
 /h/[hostId]/s/[sessionId] Session screen (segment: conversation | terminal | changes | panels)
 /h/[hostId]/new           New Session
 /h/[hostId]/add-project   Add Project (control devices only)
+/h/[hostId]/status        Computer status (control devices only)
 /browser?url=…            In-app browser, over whatever opened it
 ```
 

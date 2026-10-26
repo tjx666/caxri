@@ -8,4 +8,5 @@ export * from './process-table.js';
 export * from './profile-identity.js';
 export * from './secrets.js';
 export * from './single-flight.js';
+export * from './system-resources.js';
 export * from './timer.js';

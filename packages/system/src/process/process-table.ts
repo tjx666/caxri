@@ -5,7 +5,8 @@ const PROCESS_TABLE_TIMEOUT_MS = 2_000;
 const MAX_PROCESS_TABLE_BYTES = 4 * 1024 * 1024;
 
 /**
- * One row of `ps -axo pid=,ppid=,pcpu=,rss=`: the numbers a resource reading needs, and no command line.
+ * One row of `ps -axo pid=,ppid=,pcpu=,rss=`: the numbers a resource reading needs. The command line is present only
+ * when the sample asked for it (`includeCommand`).
  */
 export interface ProcessTableEntry {
     pid: number;
@@ -15,6 +16,11 @@ export interface ProcessTableEntry {
      */
     cpuPercent: number;
     rssKb: number;
+    /**
+     * The raw, unredacted command line. Callers must reduce it (for example with `processDisplayName`) before it leaves
+     * the process.
+     */
+    command?: string;
 }
 
 export interface ProcessTreeUsage {
@@ -37,6 +43,24 @@ export function parseProcessTable(output: string): ProcessTableEntry[] {
 }
 
 /**
+ * Parses `ps -axo pid=,ppid=,pcpu=,rss=,command=`. Splits on whitespace instead of one regex with a trailing unbounded
+ * command group, which would backtrack super-linearly on crafted input.
+ */
+export function parseProcessTableWithCommands(output: string): ProcessTableEntry[] {
+    return output.split('\n').flatMap((rawLine) => {
+        const line = rawLine.trim();
+        if (!line) return [];
+        const [pidText, parentPidText, cpuText, rssText, ...commandParts] = line.split(/\s+/);
+        if (commandParts.length === 0) return [];
+        const [pid, parentPid, cpuPercent, rssKb] = [pidText, parentPidText, cpuText, rssText].map(
+            Number,
+        );
+        if (![pid, parentPid, cpuPercent, rssKb].every(Number.isFinite) || pid <= 0) return [];
+        return [{ pid, parentPid, cpuPercent, rssKb, command: commandParts.join(' ') }];
+    });
+}
+
+/**
  * Indexes a sample once so many roots can be summarized against it without rebuilding the parent map per root.
  */
 export class ProcessTable {
@@ -50,6 +74,17 @@ export class ProcessTable {
             siblings.push(entry.pid);
             this.children.set(entry.parentPid, siblings);
         }
+    }
+
+    /**
+     * Every sampled process, in `ps` order.
+     */
+    entries(): ProcessTableEntry[] {
+        return this.byPid.values().toArray();
+    }
+
+    get(pid: number): ProcessTableEntry | undefined {
+        return this.byPid.get(pid);
     }
 
     /**
@@ -86,13 +121,40 @@ export class ProcessTable {
 
 /**
  * One `ps` call covering every process on the machine; callers summarize whichever trees they own from it.
+ * `includeCommand` adds each command line, for a caller that names processes; resource monitors leave it off so a
+ * sample stays a few kilobytes.
  */
-export async function sampleProcessTable(): Promise<ProcessTable> {
-    const { stdout } = await execFileAsync('/bin/ps', ['-axo', 'pid=,ppid=,pcpu=,rss='], {
+export async function sampleProcessTable(
+    options: { includeCommand?: boolean } = {},
+): Promise<ProcessTable> {
+    const columns = options.includeCommand
+        ? 'pid=,ppid=,pcpu=,rss=,command='
+        : 'pid=,ppid=,pcpu=,rss=';
+    const { stdout } = await execFileAsync('/bin/ps', ['-axo', columns], {
         encoding: 'utf8',
         env: safeProcessEnvironment(),
         maxBuffer: MAX_PROCESS_TABLE_BYTES,
         timeout: PROCESS_TABLE_TIMEOUT_MS,
     });
-    return new ProcessTable(parseProcessTable(stdout));
+    return new ProcessTable(
+        options.includeCommand ? parseProcessTableWithCommands(stdout) : parseProcessTable(stdout),
+    );
+}
+
+/**
+ * Server Core's long-lived child processes, recognized by the bundle each one runs.
+ */
+export type ServerHostRole = 'extensionHost' | 'terminalHost';
+
+const SERVER_HOST_BUNDLES: ReadonlyArray<{ marker: string; role: ServerHostRole }> = [
+    { marker: '/bundles/extension-host.js', role: 'extensionHost' },
+    { marker: '/bundles/terminal-host.js', role: 'terminalHost' },
+];
+
+/**
+ * Which Server Core host a child process is, from its command line. Callers check the parent PID themselves; a command
+ * line alone could belong to another installation's Server.
+ */
+export function serverHostRole(command: string): ServerHostRole | undefined {
+    return SERVER_HOST_BUNDLES.find(({ marker }) => command.includes(marker))?.role;
 }

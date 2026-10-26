@@ -305,6 +305,11 @@ export const SessionHome = ({
                         : undefined
                 }
                 onOpenSettings={() => router.navigate(`/h/${encodeURIComponent(hostId)}/settings`)}
+                onOpenStatus={
+                    deviceRole === 'control'
+                        ? () => router.navigate(`/h/${encodeURIComponent(hostId)}/status`)
+                        : undefined
+                }
                 projects={projects}
                 status={status}
                 theme={theme}

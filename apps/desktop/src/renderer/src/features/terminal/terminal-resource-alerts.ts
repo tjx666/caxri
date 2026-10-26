@@ -1,8 +1,7 @@
 import type { TerminalResourceAlert } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, formatCpuPercent, formatMemoryMb } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
-import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { isLocalOnlyAvailable } from '../../stores/environment';
 import { dismissToastsMatching, pushToast } from '../../stores/toasts';
 import { sessionTitleForDisplay } from '../session/session-title';

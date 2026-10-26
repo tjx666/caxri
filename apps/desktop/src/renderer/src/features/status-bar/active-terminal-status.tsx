@@ -1,4 +1,9 @@
-import { isTerminalResourceUsageHigh, TERMINAL_RESOURCE_ALERT_THRESHOLDS } from '@caxri/protocol';
+import {
+    formatCpuPercent,
+    formatMemoryMb,
+    isTerminalResourceUsageHigh,
+    TERMINAL_RESOURCE_ALERT_THRESHOLDS,
+} from '@caxri/protocol';
 import {
     CircleAlert,
     Hourglass,
@@ -14,7 +19,6 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 import { executeCommand } from '../../commands/execute';
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import { useTranslation } from '../../i18n';
-import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { cn } from '../../lib/utilities';
 import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { openHardwareAccelerationSettings } from '../gpu/gpu-commands';

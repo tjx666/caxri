@@ -89,6 +89,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.agentChat.runCommand',
     'mobile.commanderInbox.list',
     'mobile.commanderInbox.reply',
+    'mobile.host.status',
     'mobile.device.revoke.apply',
     'desktop.status',
     'desktop.focus',

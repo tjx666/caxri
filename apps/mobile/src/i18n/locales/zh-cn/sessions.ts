@@ -99,6 +99,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.home.listError': '{{error}}正在显示最后已知的状态。',
     'sessions.home.loading': '正在加载会话…',
     'sessions.home.needsYou': '需要你处理',
+    'sessions.home.computerStatus': '电脑状态',
     'sessions.home.newSessionHint': '打开新建会话界面。',
     'sessions.home.notConnected': '未连接',
     'sessions.home.savedCopy': '显示的是{{saved}}的会话。',

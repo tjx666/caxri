@@ -26,6 +26,7 @@ import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
 import { mobileHostDisplayName } from './host-display-name';
+import { HostStatusSampler } from './host-status';
 import { invokeMobilePanelRequest } from './panel-requests';
 import { createMobilePairing, invokeMobileProjectRequest } from './project-requests';
 import { mergeMobilePullRequest, readMobilePullRequest } from './pull-request-requests';
@@ -83,6 +84,12 @@ export const openMobileAccessController = async (options: {
     const hostDisplayName = mobileHostDisplayName(options.hostDisplayName ?? hostname());
     const updateRequests = createMobileUpdateRequests(options.updateDirectory);
     const accessPersistence = createMobileAccessPersistence(registry, options.logger);
+    let hostStatus: HostStatusSampler | undefined;
+    /**
+     * The domain service of the most recent computer status read, so the shared sampler never queries one that a Server
+     * restart replaced.
+     */
+    let hostStatusDomain: ServerDomainService | undefined;
     let isClosed = false;
     const assertOpen = (): void => {
         if (isClosed) throw new CaxriError('UNAVAILABLE', 'Mobile access is shutting down');
@@ -491,6 +498,21 @@ export const openMobileAccessController = async (options: {
                     return request.method === 'mobile.commanderInbox.list'
                         ? invoke()
                         : withAuthority(invoke);
+                }
+                case 'mobile.host.status': {
+                    assertOpen();
+                    currentPairedPrincipal(context.principal, request.method);
+                    hostStatusDomain = domainService;
+                    hostStatus ??= new HostStatusSampler({
+                        logger: options.logger,
+                        terminals: async () => {
+                            const domain = hostStatusDomain ?? domainService;
+                            return (await domain.request('terminal.processes', {})).terminals;
+                        },
+                    });
+                    const status = await hostStatus.status();
+                    currentPairedPrincipal(context.principal, request.method);
+                    return status;
                 }
                 case 'mobile.files.write': {
                     /**

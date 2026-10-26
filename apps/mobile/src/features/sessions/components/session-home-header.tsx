@@ -3,6 +3,7 @@ import type { HostInstance } from 'react-native';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+    Activity,
     Archive,
     EllipsisVertical,
     FolderPlus,
@@ -96,6 +97,7 @@ export const SessionHomeHeader = ({
     onOpenArchived,
     onOpenInbox,
     onOpenSettings,
+    onOpenStatus,
     projects,
     status,
     theme,
@@ -114,6 +116,10 @@ export const SessionHomeHeader = ({
      */
     onOpenInbox?: () => void;
     onOpenSettings: () => void;
+    /**
+     * Present only for a control device: computer status names Sessions from every Project.
+     */
+    onOpenStatus?: () => void;
     projects: Project[];
     status: MobileConnectionStatus;
     theme: MobileTheme;
@@ -220,6 +226,18 @@ export const SessionHomeHeader = ({
                             onOpenInbox();
                         }}
                         testID="commander-inbox-action"
+                        theme={theme}
+                    />
+                ) : null}
+                {onOpenStatus ? (
+                    <MenuAction
+                        icon={Activity}
+                        label={t('sessions.home.computerStatus')}
+                        onPress={() => {
+                            closeMenu();
+                            onOpenStatus();
+                        }}
+                        testID="computer-status-action"
                         theme={theme}
                     />
                 ) : null}
