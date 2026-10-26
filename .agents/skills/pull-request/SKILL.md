@@ -88,6 +88,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    the body instead of reading it by eye. After the final PR title and body are assembled but before
    creating or updating the PR, Call the Skill tool with "oss-confidentiality" and review that
    metadata, its links, and its referenced artifacts as public content. Read back the resulting PR.
+   GitHub ignores negation around a closing keyword: "This PR does not close #2574" closed #2574
+   on merge. Mention an issue that must stay open without a `close`/`fix`/`resolve` verb before
+   its number ("#2574 stays open"), and confirm `gh pr view --json closingIssuesReferences` lists
+   exactly the issues the PR should close.
 6. Treat queued or failed required checks, unresolved conflicts, unresolved surface-matrix proof
    rows, and active review findings as real readiness blockers, unless the diff qualifies for
    [Fast merge without CI](#fast-merge-without-ci) or a failed case qualifies for the CI-only parity
