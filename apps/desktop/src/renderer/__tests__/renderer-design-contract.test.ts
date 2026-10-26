@@ -33,6 +33,9 @@ const allowedArbitraryClasses = new Set([
     'pb-[3px]',
     'pl-[78px]',
     'pl-[84px]',
+    // Agent Chat transcript beside the message rail: DESIGN.md "Spacing and radius" keeps 16px while the centered
+    // column's margin clears the rail and grows toward 28px only as a narrow Chat loses that margin.
+    'pl-[clamp(1rem,calc(1.75rem_-_(100%_-_48rem)_/_2),1.75rem)]',
     // Session hover Pin/Archive cluster: DESIGN.md "Primary Sidebar" reserves this width so titles fade before the
     // icons instead of painting through their transparent strokes.
     'pr-[var(--session-hover-actions)]',
