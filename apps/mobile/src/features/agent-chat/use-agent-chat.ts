@@ -22,6 +22,8 @@ import {
     agentChatPendingStore,
     answerAgentChatRequestOptimistically,
 } from './agent-chat-pending';
+import type { AgentChatQueueEditTarget } from './agent-chat-queue';
+import { chatSendFaultGate } from './agent-chat-send-fault';
 import { startAgentChatReader } from './agent-chat-sync';
 
 /**
@@ -219,6 +221,8 @@ export const useAgentChat = ({
                 ...(attachments.length > 0 && { attachments: [...attachments] }),
                 ...(delivery && { delivery }),
             });
+            // Acceptance-only: fail after the request was delivered; see `agent-chat-send-fault.ts`.
+            if (chatSendFaultGate.shouldInject()) throw new Error('Acceptance chat send fault');
         },
         [request, terminalId],
     );
@@ -309,6 +313,28 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * What the user typed in a queued message, with how many images and whether references ride with it; changes
+     * nothing. A message with either is then edited in place (`editQueued`), the rest taken back (`takeQueued`).
+     */
+    const readQueued = useCallback(
+        async (id: string): Promise<AgentChatQueueEditTarget> => {
+            if (terminalId === null) throw new Error('No Chat is open');
+            return request('mobile.agentChat.readQueued', { terminalId, id });
+        },
+        [request, terminalId],
+    );
+    /**
+     * Rewrites the text the user typed in a queued message where it stands; Core keeps its images, references, and
+     * place in the queue.
+     */
+    const editQueued = useCallback(
+        async (id: string, text: string): Promise<void> => {
+            if (terminalId === null) throw new Error('No Chat is open');
+            await request('mobile.agentChat.editQueued', { terminalId, id, text });
+        },
+        [request, terminalId],
+    );
     const resumeQueue = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.resumeQueue', { terminalId });
@@ -328,6 +354,8 @@ export const useAgentChat = ({
         runCommand,
         send,
         sendQueuedNow,
+        readQueued,
+        editQueued,
         takeQueued,
     };
 };

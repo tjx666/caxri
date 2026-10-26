@@ -507,4 +507,41 @@ export const mobileAgentChatMethods = {
             ),
         }),
     },
+    /**
+     * Reads what the phone's Edit of a queued follow-up needs and changes nothing: the full text the user typed (the
+     * file, folder, and skill references a message carries ahead of it are left out, since the phone's composer has no
+     * place for them) and how many images ride with the message. A message with images or references is edited in place
+     * through `mobile.agentChat.editQueued`; any other is taken back into the draft by `mobile.agentChat.takeQueued`. A
+     * text over the 16 KiB a phone may send fails with `VALIDATION`; a message that already left the queue fails with
+     * `CONFLICT`.
+     */
+    'mobile.agentChat.readQueued': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.takeQueued'].params,
+        result: z.strictObject({
+            text: agentChatMethods['agentChat.takeQueued'].result.shape.text.refine(
+                canMobileAgentChatSend,
+                'Mobile Chat messages must be at most 16 KiB',
+            ),
+            imageCount: z.number().int().nonnegative(),
+            hasReferences: z.boolean(),
+        }),
+    },
+    /**
+     * Rewrites the text the user typed in a queued follow-up where it stands, keeping its images, its references, and
+     * its place in the queue: the phone's Edit of a message whose images or references cannot return to a composer,
+     * forwarded to `agentChat.editQueued` with the message's own reference block put back ahead of `text`. A message
+     * left with no text and no images, or a command, fails with `VALIDATION`.
+     */
+    'mobile.agentChat.editQueued': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({
+            ...agentChatMethods['agentChat.takeQueued'].params.shape,
+            text: agentChatMethods['agentChat.editQueued'].params.shape.text.refine(
+                canMobileAgentChatSend,
+                'Mobile Chat messages must be at most 16 KiB',
+            ),
+        }),
+        result: z.null(),
+    },
 } as const satisfies Record<string, MethodSpec>;

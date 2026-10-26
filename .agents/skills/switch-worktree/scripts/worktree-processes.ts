@@ -88,21 +88,30 @@ export function parseProcessTable(stdout: string, hasIdentity = false): ProcessE
  * "Caxri.app"`, `pkill -f Electron`) matches the installed `/Applications/Caxri.app`, a sibling worktree, and every
  * unrelated Electron app on the machine; an absolute path cannot.
  *
- * Three shapes count as owned: an executable inside the worktree (the dev and E2E Electron binaries), a build artifact
- * of this checkout passed to an external runtime (`node <worktree>/apps/server/dist/...`, `bun
- * <worktree>/node_modules/...`), and nothing else. Only artifact directories qualify, so an editor or a search holding
- * a source path open is never mistaken for a process this checkout started.
+ * Two shapes count as owned: an executable inside the worktree (the dev and E2E Electron binaries), and a build
+ * artifact of this checkout passed to an external runtime (`node <worktree>/apps/server/dist/...`, `bun
+ * <worktree>/node_modules/...`). A dependency in any workspace's `node_modules` counts, so Metro started from the
+ * mobile workspace (`node <worktree>/apps/mobile/node_modules/.bin/../../../../node_modules/.pnpm/expo@…/cli start`) is
+ * owned too (#2243). Only artifact directories qualify, so an editor or a search holding a source path open is never
+ * mistaken for a process this checkout started.
  *
  * @see https://github.com/tjx666/caxri/issues/802
  */
 export function isWorktreeOwnedCommand(command: string, worktreePath: string): boolean {
     const root = worktreePath.replace(/\/+$/u, '');
     if (root.length <= 1) return false;
-    return (
-        command.startsWith(`${root}/`) ||
-        command.includes(`${root}/node_modules/`) ||
-        command.includes(`${root}/apps/server/dist/`)
-    );
+    if (command.startsWith(`${root}/`)) return true;
+    const prefix = `${root}/`;
+    for (
+        let index = command.indexOf(prefix);
+        index !== -1;
+        index = command.indexOf(prefix, index + 1)
+    ) {
+        const path = command.slice(index + prefix.length).split(/\s/u, 1)[0];
+        if (/^(?:[^/]+\/)*node_modules\//u.test(path) || path.startsWith('apps/server/dist/'))
+            return true;
+    }
+    return false;
 }
 
 /**

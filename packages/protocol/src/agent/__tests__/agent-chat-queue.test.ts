@@ -49,13 +49,7 @@ describe('agentChatQueueEntry', () => {
         expect(idle.every((entry) => entry.canSendNow)).toBe(true);
     });
 
-    it('edits any message but one carrying images', () => {
-        expect(entries(true).map((entry) => entry.canEdit)).toEqual([
-            true,
-            false,
-            false,
-            true,
-            true,
-        ]);
+    it('edits any message, including one carrying images (in place)', () => {
+        expect(entries(true).every((entry) => entry.canEdit)).toBe(true);
     });
 });

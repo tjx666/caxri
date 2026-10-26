@@ -4,6 +4,7 @@ import { agentChatTextWithSessionMentions } from '../domain/session-conversation
 import {
     agentChatSessionHandoffDraft,
     parseAgentChatSessionHandoff,
+    splitAgentChatSessionHandoffNote,
 } from './agent-chat-commands.js';
 import { agentChatImageMediaTypeSchema } from './agent-chat-contract.js';
 import { MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from './agent-chat-limits.js';
@@ -142,20 +143,32 @@ export function parseAgentChatPathReferences(text: string): {
     skills: AgentChatSkillReference[];
     text: string;
 } {
-    const whole = { references: [], skills: [], ...requestWords(text) };
+    const block = splitReferenceBlock(text);
+    if (!block) return { references: [], skills: [], ...requestWords(text) };
+    const { references, rest, skills } = block;
+    return { references, skills, ...requestWords(rest) };
+}
+
+/**
+ * The reference block a message starts with, parsed, and the raw text after it. `undefined` when the message does not
+ * start with a well-formed one.
+ */
+function splitReferenceBlock(text: string):
+    | {
+          references: AgentChatPathReference[];
+          rest: string;
+          skills: AgentChatSkillReference[];
+      }
+    | undefined {
     const match = REFERENCE_BLOCK.exec(text);
-    if (!match) return whole;
+    if (!match) return undefined;
     // Both sections are optional groups, which come back `undefined` when absent; the exec type does not say so.
     const [, skillBlock, pathBlock] = match as ReadonlyArray<string | undefined>;
-    if (skillBlock === undefined && pathBlock === undefined) return whole;
+    if (skillBlock === undefined && pathBlock === undefined) return undefined;
     const skills = parseSkillLines(skillBlock);
     const references = parsePathLines(pathBlock);
-    if (!skills || !references) return whole;
-    return {
-        references,
-        skills,
-        ...requestWords(text.slice(match[0].length)),
-    };
+    if (!skills || !references) return undefined;
+    return { references, rest: text.slice(match[0].length), skills };
 }
 
 /**
@@ -173,6 +186,29 @@ export function agentChatPathReferenceName(
     reference: Pick<AgentChatPathReference, 'path'>,
 ): string {
     return referenceName(reference.path);
+}
+
+/**
+ * A queued message's text split for editing in place: the file, folder, and skill lines a message may carry ahead of
+ * what the user typed stay as they are (`prefix`), and only `body` is edited. A `/new-session` hand-off keeps its
+ * instructions in `prefix` too, so only the user's note is edited. `body` is always the raw end of `text`: the
+ * read-back form ({@link parseAgentChatPathReferences}) shows a hand-off as `/new-session <note>`, which no message ends
+ * with.
+ */
+export function agentChatQueuedTextEdit(text: string): { prefix: string; body: string } {
+    const rest = splitReferenceBlock(text)?.rest ?? text;
+    const referencePrefix = text.slice(0, text.length - rest.length);
+    const handoff = splitAgentChatSessionHandoffNote(rest);
+    return handoff
+        ? { prefix: `${referencePrefix}${handoff.instructions}`, body: handoff.note }
+        : { prefix: referencePrefix, body: rest };
+}
+
+/**
+ * The text an in-place edit saves: the edited `body` after the untouched `prefix`.
+ */
+export function agentChatQueuedTextAfterEdit(prefix: string, body: string): string {
+    return `${prefix}${body}`;
 }
 
 /**

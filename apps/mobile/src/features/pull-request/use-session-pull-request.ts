@@ -1,11 +1,21 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import type { MobilePullRequest } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
-import { pullRequestMergeErrorMessage } from './pull-request-model';
+import {
+    dismissFailedMerge,
+    overlayMerge,
+    pullRequestMergeKey,
+    pullRequestMergeStore,
+    settleCheckedMerge,
+} from './pull-request-merge-store';
+import {
+    isPullRequestMergeTransportError,
+    pullRequestMergeErrorMessage,
+} from './pull-request-model';
 
 /**
  * How often the chip re-reads while the sheet is closed: often enough that a check finishing or a merge on Desktop
@@ -18,6 +28,13 @@ const IDLE_REFRESH_MS = 120_000;
  * user watching it sees the merge button turn ready without pulling to refresh.
  */
 const WATCHING_REFRESH_MS = 15_000;
+
+/**
+ * After a merge request died in transport, how many fresh reads (and how far apart) must still show the pull request
+ * open before it counts as not merged: the Server finishes `gh pr merge` on its own, typically within seconds.
+ */
+const CHECK_ATTEMPTS = 6;
+const CHECK_INTERVAL_MS = 4_000;
 
 const isSettling = (pullRequest: MobilePullRequest | undefined): boolean =>
     pullRequest?.lifecycle === 'open' &&
@@ -39,16 +56,24 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
         [connectionScopeKey, sessionId],
     );
     const isObservable = connectionScopeKey !== null && isForeground && status === 'connected';
+    const mergeKey = pullRequestMergeKey(connectionScopeKey, sessionId);
+    const merge = useSyncExternalStore(pullRequestMergeStore.subscribe, () =>
+        pullRequestMergeStore.get(mergeKey),
+    );
+    const isChecking = merge.state === 'checking';
     const query = useQuery({
         enabled: isObservable,
         gcTime: 5 * 60_000,
         networkMode: 'always',
         queryFn: () => request('mobile.pullRequest.read', { sessionId }),
         queryKey,
+        // A merge whose answer was lost re-reads quickly until it settles; see the effect below.
         refetchInterval: (current) =>
-            isWatching && isSettling(current.state.data?.pullRequest)
-                ? WATCHING_REFRESH_MS
-                : IDLE_REFRESH_MS,
+            isChecking
+                ? CHECK_INTERVAL_MS
+                : isWatching && isSettling(current.state.data?.pullRequest)
+                  ? WATCHING_REFRESH_MS
+                  : IDLE_REFRESH_MS,
         refetchIntervalInBackground: false,
         refetchOnReconnect: true,
         refetchOnWindowFocus: false,
@@ -64,16 +89,10 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
     const refresh = useCallback(() => {
         if (isObservable) void refetch();
     }, [isObservable, refetch]);
-    const [merge, setMerge] = useState<
-        | { state: 'idle' }
-        | { state: 'merging' }
-        | { state: 'merged'; message: string; number: number }
-        | { state: 'failed'; message: string }
-    >({ state: 'idle' });
     const startMerge = useCallback(
         async (pullRequest: MobilePullRequest): Promise<void> => {
             if (!pullRequest.headSha) return;
-            setMerge({ state: 'merging' });
+            pullRequestMergeStore.set(mergeKey, { state: 'merging', number: pullRequest.number });
             try {
                 const { method } = await request('mobile.pullRequest.merge', {
                     sessionId,
@@ -81,38 +100,60 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
                     number: pullRequest.number,
                     headSha: pullRequest.headSha,
                 });
-                setMerge({
+                pullRequestMergeStore.set(mergeKey, {
                     state: 'merged',
                     message: t(`pullRequest.merged.${method}`, { number: pullRequest.number }),
                     number: pullRequest.number,
                 });
             } catch (error) {
-                // A transport failure leaves the outcome unknown; the message says so and the re-read below settles it.
-                setMerge({ state: 'failed', message: pullRequestMergeErrorMessage(error, t) });
+                // A transport failure leaves the outcome unknown (the Server keeps merging after the phone drops), so
+                // the effect below re-reads the pull request once connected instead of reporting a failure.
+                pullRequestMergeStore.set(
+                    mergeKey,
+                    isPullRequestMergeTransportError(error)
+                        ? {
+                              state: 'checking',
+                              number: pullRequest.number,
+                              lastReadAt: Date.now(),
+                              reads: 0,
+                          }
+                        : { state: 'failed', message: pullRequestMergeErrorMessage(error, t) },
+                );
             }
             // A failed merge can mean the pull request changed under the sheet; either way show what is true now.
             await queryClient.invalidateQueries({ queryKey, exact: true });
         },
-        [queryClient, queryKey, request, sessionId, t],
+        [mergeKey, queryClient, queryKey, request, sessionId, t],
     );
+    const { data, dataUpdatedAt } = query;
+    /**
+     * A merge whose request died in transport has no answer yet. The query re-reads every few seconds while it is
+     * `checking` (once connected again: a disconnected phone does not read), and each successful read settles it, so
+     * the sheet never stays on `Checking the pull request` and the chip never keeps a stale hint. A failed read is not
+     * an answer, and only a read taken after the failure counts.
+     */
+    useEffect(() => {
+        if (!isChecking || dataUpdatedAt === 0) return;
+        pullRequestMergeStore.update(mergeKey, (current) =>
+            settleCheckedMerge(
+                current,
+                { pullRequest: data?.pullRequest, readAt: dataUpdatedAt },
+                CHECK_ATTEMPTS,
+                {
+                    merged: (number) => t('pullRequest.mergedConfirmed', { number }),
+                    notCompleted: t('pullRequest.mergeNotCompleted'),
+                },
+            ),
+        );
+    }, [data, dataUpdatedAt, isChecking, mergeKey, t]);
     /**
      * Closing the sheet drops a failed attempt, so reopening it after fixing the blocker does not repeat the old error.
-     * A merge still in flight keeps its state (its outcome must survive the sheet), and a merged one keeps the overlay
-     * below until Project Status catches up.
      */
     const dismissMergeFailure = useCallback(
-        () => setMerge((current) => (current.state === 'failed' ? { state: 'idle' } : current)),
-        [],
+        () => pullRequestMergeStore.update(mergeKey, dismissFailedMerge),
+        [mergeKey],
     );
-    const read = query.data?.pullRequest;
-    /**
-     * GitHub accepted the merge, but Project Status can still answer from before it for a moment. Show the pull request
-     * as merged at once so the sheet and the chip never offer to merge it again.
-     */
-    const pullRequest =
-        read && merge.state === 'merged' && merge.number === read.number
-            ? { ...read, lifecycle: 'merged' as const, mergeBlocker: undefined }
-            : read;
+    const pullRequest = overlayMerge(query.data?.pullRequest, merge);
     return {
         isObservable,
         merge,

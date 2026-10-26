@@ -584,8 +584,8 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
   above the composer, each with Steer or Send now, Edit (back into the composer), and Delete; a
   paused queue says so in the list header with Resume. Enter (or Cmd+Enter) in an empty composer
   sends the head of the queue now, as its Steer or Send now would, and the placeholder says so while
-  one waits; a slash command at the head during a turn still waits. A phone queues the same way;
-  see [Mobile](#mobile).
+  one waits; a slash command at the head during a turn still waits. A phone steers and queues the
+  same way; see [Mobile](#mobile).
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
   `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
   `/compact` user bubble is hidden because the compaction notice already represents it.
@@ -1222,8 +1222,10 @@ planMode }`. A Codex switch during a turn says it applies to the next turn. "Use
   paging one does not re-read the transcript per chunk. The phone keeps thumbnails in memory and
   writes an opened original only to its cache directory for display.
 - Follow-up queue: `mobile.agentChat.send` forwards the phone's `delivery`, so a message sent during
-  a turn joins the queue by default, like Desktop's Enter; holding Send on the phone sends
-  `delivery: 'steer'`, the stand-in for Cmd+Enter, and so does the `Steer` button shown beside Send during a turn. The snapshot and `state` patches carry the queue
+  a turn steers it by default (`delivery: 'steer'`), like Desktop's Enter; holding the button, or
+  the `Queue` button shown beside it during a turn, sends without `delivery` so the message joins
+  the queue, the stand-in for Cmd+Enter (`agentChatComposerPressDeliveries`). With no turn running
+  a tap sends normally, and the Server still queues it while the Chat compacts or drains its queue. The snapshot and `state` patches carry the queue
   as a bounded preview (`clipAgentChatQueueForMobile`: the first 10 entries, each text and command
   argument cut to 200 characters behind `…`) plus `queuePaused` and `queueLength`, the real count
   the header shows when the queue outgrows the preview; each entry keeps its real id. The phone shows it as a card docked above its composer with Desktop's header words (`Queued · sends
@@ -1235,11 +1237,18 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   same Terminal and grant checks as `send`. The row hides at once and returns with an inline error
   when Core refuses; that error clears once its row or the whole queue is gone. Rows are named by
   `agentChatQueueEntry`, which Desktop shares. Edit gets the full text the preview cut from
-  `agentChat.takeQueued`, puts it ahead of the draft, and focuses the composer. The gateway first
+  `agentChat.takeQueued`, puts it ahead of the draft, and focuses the composer. A message with
+  images or file and folder references is edited in place instead, as on Desktop: Edit first calls
+  `mobile.agentChat.readQueued` (the full text the user typed with the reference block split off by
+  `agentChatQueuedTextEdit`, the image count, and whether references ride with it), then the row
+  becomes an editor showing only that text and "N images attached"; Save calls
+  `mobile.agentChat.editQueued`, and the gateway puts the message's own reference block back ahead
+  of the text before forwarding `agentChat.editQueued`, so references stay attached and images stay
+  on Server Core. A failed save keeps the editor open with the typed text. The gateway first
   checks the text against the 16 KiB a phone may send, so a longer message stays queued for the
   computer; that refusal, and an entry that left the queue first, show as an alert, because the
-  row is already gone from the card. While a turn runs the Send button wears the queue glyph and the placeholder reads
-  `Queue a follow-up`.
+  row is already gone from the card. While a turn runs the main button reads `Steer message` with Desktop's
+  steer glyph and the placeholder reads `Add to this turn`.
 - Background work. The snapshot and `state` patches carry the Chat's `tasks` as a bounded copy
   (`clipAgentChatTasksForMobile`: every running task up to 24, the newest started kept, and the 10
   that ended most recently, with titles and command lines cut to 300 characters and summaries to

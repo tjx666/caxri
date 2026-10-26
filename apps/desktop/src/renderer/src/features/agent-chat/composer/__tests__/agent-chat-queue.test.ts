@@ -4,8 +4,6 @@ import {
     agentChatNextQueuedId,
     agentChatQueueCardLabels,
     agentChatQueueDeleteOutcome,
-    agentChatQueuedTextAfterEdit,
-    agentChatQueuedTextEdit,
     agentChatQueueEntries,
     agentChatQueueHeader,
 } from '../agent-chat-queue';
@@ -158,22 +156,6 @@ describe('agentChatQueueCardLabels', () => {
             sendTooltip: 'Sending…',
             sendAriaLabel: 'Steer now',
         });
-    });
-});
-
-describe('agentChatQueuedTextEdit', () => {
-    it('edits only what the user typed and keeps the cited files ahead of it', () => {
-        const text =
-            '# Files mentioned by the user:\n\n## a.ts: /tmp/a.ts\n\n## My request:\nlook here';
-        const { prefix, body } = agentChatQueuedTextEdit(text);
-        expect(body).toBe('look here');
-        expect(agentChatQueuedTextAfterEdit(prefix, 'look there')).toBe(
-            '# Files mentioned by the user:\n\n## a.ts: /tmp/a.ts\n\n## My request:\nlook there',
-        );
-    });
-
-    it('treats plain text as all body', () => {
-        expect(agentChatQueuedTextEdit('plain')).toEqual({ prefix: '', body: 'plain' });
     });
 });
 

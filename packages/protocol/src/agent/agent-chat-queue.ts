@@ -26,9 +26,10 @@ export interface AgentChatQueueEntry {
      */
     canSendNow: boolean;
     /**
-     * Images stay on Server Core and never come back to a composer, so a message carrying them is deleted or sent, not
-     * edited, rather than silently losing its images. Edit takes the full text from `agentChat.takeQueued`, since the
-     * phone's queue holds only a preview.
+     * Every queued entry can be edited. Images stay on Server Core and never come back to a composer, so a message
+     * carrying them is edited in place (`agentChat.editQueued`) instead, keeping its images; any other is taken back
+     * into the composer by `agentChat.takeQueued`, which also gives the phone, whose queue holds only a preview, the
+     * full text.
      */
     canEdit: boolean;
 }
@@ -51,6 +52,6 @@ export function agentChatQueueEntry(
             imageCount === 0 ? undefined : imageCount === 1 ? '1 image' : `${imageCount} images`,
         sendNowLabel: isTurnRunning ? 'Steer' : 'Send now',
         canSendNow: !(isTurnRunning && message.command),
-        canEdit: imageCount === 0,
+        canEdit: true,
     };
 }

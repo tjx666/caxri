@@ -156,6 +156,21 @@ describe('mobile Android Acceptance cases', () => {
         ).toHaveLength(6);
     });
 
+    it('registers the Chat send-unknown and usage-guard cases', () => {
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-SEND-UNKNOWN-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
+            scenario: 'agent-chat-send-unknown',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-USAGE-GUARD-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot'],
+            recordingOwner: 'scenario',
+            scenario: 'agent-chat-usage-guard',
+        });
+    });
+
     it('accepts a stable ordered subset without duplicates', () => {
         expect(parseMobileAndroidCaseIds('MOB-FDN-01,MOB-COMPOSER-01')).toEqual([
             'MOB-FDN-01',

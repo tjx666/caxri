@@ -462,7 +462,10 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   shows its own task. A caller that is no Agent Terminal reads as a plain "Delegated task"; a record
   that is gone also loses the task, and its bubble keeps the raw pointer behind Show instruction.
   A `--handoff` task reads "Continued from" its Session (or "Continued from an earlier Session")
-  with the hand-off glyph instead. Mobile still shows only "Delegated by" and the pointer.
+  with the hand-off glyph instead. Mobile draws the same bubble: the source, then the task clamped to
+  six lines with Show more (the list owns the unfolded state, so a recycled row never keeps it), and
+  the pointer behind Show instruction only when the record is gone; it does not yet read a hand-off
+  as "Continued from".
 - **Answer.** Collection reads the turn's final assistant message from the Chat's projection instead
   of a native transcript. A Claude Code answer must match its reported digest; a Codex task
   completes once the projection shows its turn finished, checked every two seconds. An interrupted

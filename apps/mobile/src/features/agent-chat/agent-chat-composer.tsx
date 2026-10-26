@@ -29,12 +29,13 @@ import {
 } from './agent-chat-commands';
 import {
     AgentChatComposerButton,
-    AgentChatSteerButton,
+    AgentChatQueueButton,
     AttachButton,
 } from './agent-chat-composer-buttons';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
 import {
     agentChatComposerAvailability,
+    agentChatComposerPressDeliveries,
     agentChatComposerRowControls,
     agentChatComposerSubmission,
     agentChatDisabledReason,
@@ -281,9 +282,8 @@ const AgentChatComposerStatus = ({
 
 /**
  * Sends a message to a Chat. While a turn runs, a control device gets Stop in place of Send when the draft is empty,
- * matching the Desktop composer. A message sent during a turn joins the follow-up queue, as Desktop's Enter does; the
- * Steer button beside it (or holding Queue) steers the running turn instead, the phone's stand-in for Desktop's
- * ⌘Enter.
+ * matching the Desktop composer. A message sent during a turn steers it, as Desktop's Enter does; the Queue button
+ * beside it (or holding Steer) queues it for the turn's end instead, the phone's stand-in for Desktop's ⌘Enter.
  */
 export const AgentChatComposer = ({
     chat,
@@ -360,11 +360,15 @@ export const AgentChatComposer = ({
         isStopAction,
         isStopping,
     });
+    const deliveries = agentChatComposerPressDeliveries({ canSteer });
     const submit = async (): Promise<void> => {
-        if (canSubmit) await run();
+        if (canSubmit) await run(deliveries.tap === 'steer' ? 'steer' : undefined);
     };
-    const steer = async (): Promise<void> => {
-        if (canSteer) await run('steer');
+    /**
+     * A message without `delivery` joins the follow-up queue while a turn runs.
+     */
+    const queue = async (): Promise<void> => {
+        if (deliveries.hold === 'queue') await run();
     };
     const { showsAttach } = agentChatComposerRowControls({
         canAttach: deviceRole === 'reply' || deviceRole === 'control',
@@ -443,17 +447,17 @@ export const AgentChatComposer = ({
                     theme={theme}
                 />
                 {canSteer ? (
-                    <AgentChatSteerButton onSteer={steer} provider={provider} theme={theme} />
+                    <AgentChatQueueButton onQueue={queue} provider={provider} theme={theme} />
                 ) : null}
                 <AgentChatComposerButton
-                    canSteer={canSteer}
+                    canQueue={deliveries.hold === 'queue'}
                     canSubmit={canSubmit}
                     isBusy={isStopping || isRunningCommand}
                     isRunning={isRunning}
                     isStopAction={isStopAction}
                     isStopping={isStopping}
                     onPress={submit}
-                    onSteer={steer}
+                    onQueue={queue}
                     provider={provider}
                     theme={theme}
                 />

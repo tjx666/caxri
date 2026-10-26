@@ -66,9 +66,12 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.sendQueuedNow',
         'mobile.agentChat.resumeQueue',
         /**
-         * Edit takes the message out of the queue for this device to send again, so it needs the same grant.
+         * Edit takes the message out of the queue for this device to send again (or rewrites it where it stands), so it
+         * needs the same grant; reading the text to edit rides with it.
          */
         'mobile.agentChat.takeQueued',
+        'mobile.agentChat.readQueued',
+        'mobile.agentChat.editQueued',
         /**
          * A slash command is typed and sent from the composer like a message, so it carries the sending grant.
          */
@@ -100,6 +103,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.sendQueuedNow',
         'mobile.agentChat.resumeQueue',
         'mobile.agentChat.takeQueued',
+        'mobile.agentChat.readQueued',
+        'mobile.agentChat.editQueued',
         'mobile.agentChat.runCommand',
         /**
          * Approvals, answers, and Stop match `mobile.attention.answer` and `agent.control.interrupt`: control only.

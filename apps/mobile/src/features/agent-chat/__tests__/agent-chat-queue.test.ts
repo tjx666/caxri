@@ -3,11 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     agentChatQueueCardLayout,
+    agentChatQueueEditMode,
     agentChatQueueEntries,
     agentChatQueueErrorMessage,
     agentChatQueueFailure,
     agentChatQueueHeader,
+    agentChatQueueImagesAttached,
     agentChatQueueRowHints,
+    canSaveAgentChatQueueEdit,
     currentQueueError,
     didRunOptimisticQueueAction,
     prunePendingQueueIds,
@@ -196,18 +199,18 @@ describe('prunePendingQueueIds', () => {
 describe('agentChatQueueRowHints', () => {
     it('explains why a queued row cannot be sent or edited, and what Steer does', () => {
         const [text, images, , command] = agentChatQueueEntries(queue, true);
-        expect(agentChatQueueRowHints(text, 'no images')).toEqual({
+        expect(agentChatQueueRowHints(text)).toEqual({
             sendNow: 'Adds this message to the running turn now.',
             edit: undefined,
         });
-        expect(agentChatQueueRowHints(images, 'no images').edit).toBe('no images');
-        expect(agentChatQueueRowHints(command, 'no images').sendNow).toBe(
+        expect(agentChatQueueRowHints(images).edit).toBeUndefined();
+        expect(agentChatQueueRowHints(command).sendNow).toBe(
             'A command waits for the running turn to end.',
         );
         const [, pending] = agentChatQueueEntries(queue.slice(0, 1), true, new Set(), [
             { id: 'p1', text: 'Then lint', imageUris: [] },
         ]);
-        expect(agentChatQueueRowHints(pending, 'no images')).toEqual({
+        expect(agentChatQueueRowHints(pending)).toEqual({
             sendNow: 'Available once the message is queued.',
             edit: 'Available once the message is queued.',
         });
@@ -216,17 +219,48 @@ describe('agentChatQueueRowHints', () => {
 
 describe('agentChatQueueCardLayout', () => {
     it('collapses to the header while composing until expanded, and always shows rows otherwise', () => {
-        expect(agentChatQueueCardLayout({ isComposing: true, isExpanded: false })).toEqual({
+        expect(
+            agentChatQueueCardLayout({ isComposing: true, isEditing: false, isExpanded: false }),
+        ).toEqual({
             showsRows: false,
             showsToggle: true,
         });
-        expect(agentChatQueueCardLayout({ isComposing: true, isExpanded: true })).toEqual({
+        expect(
+            agentChatQueueCardLayout({ isComposing: true, isEditing: false, isExpanded: true }),
+        ).toEqual({
             showsRows: true,
             showsToggle: true,
         });
-        expect(agentChatQueueCardLayout({ isComposing: false, isExpanded: false })).toEqual({
+        expect(
+            agentChatQueueCardLayout({ isComposing: false, isEditing: false, isExpanded: false }),
+        ).toEqual({
             showsRows: true,
             showsToggle: false,
         });
+    });
+
+    it('keeps the rows while a row is edited in place, whose own keyboard would otherwise collapse it', () => {
+        expect(
+            agentChatQueueCardLayout({ isComposing: true, isEditing: true, isExpanded: false }),
+        ).toEqual({ showsRows: true, showsToggle: false });
+    });
+});
+
+describe('queued message edit', () => {
+    it('edits a message with images or references in place, and takes any other into the draft', () => {
+        expect(agentChatQueueEditMode({ imageCount: 0, hasReferences: false })).toBe('draft');
+        expect(agentChatQueueEditMode({ imageCount: 2, hasReferences: false })).toBe('inPlace');
+        expect(agentChatQueueEditMode({ imageCount: 0, hasReferences: true })).toBe('inPlace');
+    });
+
+    it('refuses to save an emptied message unless images ride with it', () => {
+        expect(canSaveAgentChatQueueEdit('  ', 0)).toBe(false);
+        expect(canSaveAgentChatQueueEdit('', 1)).toBe(true);
+        expect(canSaveAgentChatQueueEdit('fix it', 0)).toBe(true);
+    });
+
+    it('words the images note as Desktop does', () => {
+        expect(agentChatQueueImagesAttached(1)).toBe('1 image attached');
+        expect(agentChatQueueImagesAttached(3)).toBe('3 images attached');
     });
 });

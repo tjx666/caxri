@@ -57,6 +57,8 @@ export const pullRequest = {
     'pullRequest.merged.squash': 'Squashed and merged #{{number}}.',
     'pullRequest.merged.merge': 'Merged #{{number}} with a merge commit.',
     'pullRequest.merged.rebase': 'Rebased and merged #{{number}}.',
+    'pullRequest.mergedConfirmed': 'Merged #{{number}}.',
+    'pullRequest.mergeNotCompleted': 'The merge did not go through. You can try again.',
     'pullRequest.mergeFailed': 'GitHub did not merge this pull request. {{reason}}',
     'pullRequest.mergeLostConnection':
         'Lost connection before GitHub answered. Checking the pull request…',

@@ -240,6 +240,21 @@ export function parseAgentChatSessionHandoff(text: string): { note: string } | u
 }
 
 /**
+ * A hand-off message split at its note, so an edit changes only the note: `instructions` runs through the note heading
+ * and its line break (added for a note-less message, which ends at the heading), and `note` is the rest. `undefined`
+ * for any other message.
+ */
+export function splitAgentChatSessionHandoffNote(
+    text: string,
+): { instructions: string; note: string } | undefined {
+    if (!parseAgentChatSessionHandoff(text)) return undefined;
+    const noteStart = text.indexOf(`\n${NOTE_HEADING}\n`);
+    if (noteStart === -1) return { instructions: `${text}\n`, note: '' };
+    const end = noteStart + NOTE_HEADING.length + 2;
+    return { instructions: text.slice(0, end), note: text.slice(end) };
+}
+
+/**
  * What the user typed to send `text`: `/new-session <note>` for a hand-off, otherwise `text` itself. Every reading of a
  * sent message as the user's words (Copy, Edit from here, prompt history, queue rows) goes through this, so none of
  * them shows or puts back the instructions the composer wrote for the Agent.

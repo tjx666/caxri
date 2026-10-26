@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useState, useSyncExternalStore } from 'react';
 
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatQueuedTextAfterEdit, agentChatQueuedTextEdit } from '@caxri/protocol';
 import {
     CircleAlert,
     CornerDownRight,
@@ -36,8 +37,6 @@ import type { AgentChatQueueEntryView } from './agent-chat-queue';
 import {
     agentChatQueueCardLabels,
     agentChatQueueDeleteOutcome,
-    agentChatQueuedTextAfterEdit,
-    agentChatQueuedTextEdit,
     agentChatQueueEntries,
     agentChatQueueHeader,
 } from './agent-chat-queue';

@@ -91,6 +91,14 @@ describe('mobile Agent Chat queue and command requests', () => {
                 method: 'mobile.agentChat.takeQueued',
                 params: { terminalId: 'terminal-1', id: 'queued-1' },
             },
+            {
+                method: 'mobile.agentChat.readQueued',
+                params: { terminalId: 'terminal-1', id: 'queued-1' },
+            },
+            {
+                method: 'mobile.agentChat.editQueued',
+                params: { terminalId: 'terminal-1', id: 'queued-1', text: 'x' },
+            },
         ];
         await Promise.all(
             requests.flatMap((request) => [
@@ -103,6 +111,74 @@ describe('mobile Agent Chat queue and command requests', () => {
             ]),
         );
         expect(forward).not.toHaveBeenCalled();
+    });
+
+    it('reads a queued message for editing without its reference block and edits it in place with the block put back', async () => {
+        const block = '# Files mentioned by the user:\n\n## a.ts: /tmp/a.ts\n\n## My request:\n';
+        const snapshot: AgentChatSnapshot = {
+            ...chatSnapshot('ready'),
+            queue: [
+                { id: 'queued-ref', text: `${block}look here`, imageCount: 2 },
+                { id: 'queued-plain', text: 'plain' },
+                { id: 'queued-huge', text: 'y'.repeat(20_000) },
+            ],
+        };
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat', snapshot });
+        const request = (id: string) => ({ terminalId: 'terminal-1', id });
+        await expect(
+            invoke(
+                { method: 'mobile.agentChat.readQueued', params: request('queued-ref') },
+                domain,
+                forward,
+            ),
+        ).resolves.toEqual({ text: 'look here', imageCount: 2, hasReferences: true });
+        await expect(
+            invoke(
+                { method: 'mobile.agentChat.readQueued', params: request('queued-plain') },
+                domain,
+                forward,
+            ),
+        ).resolves.toEqual({ text: 'plain', imageCount: 0, hasReferences: false });
+        await expect(
+            invoke(
+                { method: 'mobile.agentChat.readQueued', params: request('queued-huge') },
+                domain,
+                forward,
+            ),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        await expect(
+            invoke(
+                { method: 'mobile.agentChat.readQueued', params: request('queued-gone') },
+                domain,
+                forward,
+            ),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(forward).not.toHaveBeenCalled();
+
+        await invoke(
+            {
+                method: 'mobile.agentChat.editQueued',
+                params: { ...request('queued-ref'), text: 'look there' },
+            },
+            domain,
+            forward,
+        );
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.editQueued',
+            params: { terminalId: 'terminal-1', id: 'queued-ref', text: `${block}look there` },
+        });
+        await expect(
+            invoke(
+                {
+                    method: 'mobile.agentChat.editQueued',
+                    params: { ...request('queued-gone'), text: 'x' },
+                },
+                domain,
+                forward,
+            ),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(forward).toHaveBeenCalledTimes(1);
     });
 
     it('takes a queued message back with its full text, checking it fits a phone send first', async () => {
@@ -218,6 +294,8 @@ describe('mobile Agent Chat queue and command requests', () => {
             'mobile.agentChat.sendQueuedNow',
             'mobile.agentChat.resumeQueue',
             'mobile.agentChat.takeQueued',
+            'mobile.agentChat.readQueued',
+            'mobile.agentChat.editQueued',
         ]) {
             expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
             expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(true);

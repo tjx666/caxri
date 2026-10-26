@@ -311,8 +311,8 @@ export const isAgentChatStopping = (
 ): boolean => activeTurnId !== undefined && stoppingTurnId === activeTurnId;
 
 /**
- * Whether the composer's one button can act now, and whether holding it steers. A pending Stop refuses further presses
- * until its turn ends; steering needs a running turn and a draft, since Stop owns the button on an empty one.
+ * Whether the composer's button can act now, and whether a tap steers the running turn. A pending Stop refuses further
+ * presses until its turn ends; steering needs a running turn and a draft, since Stop owns the button on an empty one.
  */
 export const agentChatComposerSubmission = ({
     hasDraft,
@@ -363,10 +363,24 @@ export const agentChatComposerButton = (
         };
     return {
         kind: 'send',
-        label: t(isRunning ? 'chat.composer.queueMessage' : 'chat.composer.sendMessage'),
+        label: t(isRunning ? 'chat.composer.steerMessage' : 'chat.composer.sendMessage'),
         testID: 'agent-chat-composer-send',
     };
 };
+
+/**
+ * What a tap and a hold on the composer's button deliver. While a turn runs and there is a draft, a tap steers it, as
+ * Desktop's Enter does (#2611), and a hold queues the message for the turn's end, the phone's stand-in for Desktop's
+ * Cmd+Enter. Otherwise a tap sends normally (the Server still queues it while the Chat is busy compacting or draining
+ * its queue) and a hold does nothing. A slash command never reaches this choice: the composer runs it instead of
+ * sending it.
+ */
+export const agentChatComposerPressDeliveries = ({
+    canSteer,
+}: {
+    canSteer: boolean;
+}): { hold: 'queue' | undefined; tap: 'send' | 'steer' } =>
+    canSteer ? { hold: 'queue', tap: 'steer' } : { hold: undefined, tap: 'send' };
 
 /**
  * The composer's line after a send failed. Only a write the Server explicitly refused, or one that never left the
@@ -393,7 +407,7 @@ export const agentChatSendFailureMessage = (
 
 /**
  * Which optional controls share the composer row with the input. While a turn runs and the user has typed, the row
- * already holds Steer and Queue, so the attach button steps aside to keep the input at least about 60% of the row on a
+ * already holds Queue and Steer, so the attach button steps aside to keep the input at least about 60% of the row on a
  * phone; it comes back once the draft is empty, so attaching stays one tap away before typing. Images already attached
  * stay in the strip above, and their own remove buttons still work.
  */

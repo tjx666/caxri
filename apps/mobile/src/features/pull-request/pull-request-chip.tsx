@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
+import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { PullRequestGlyph } from './pull-request-glyph';
+import { isMergeInProgress } from './pull-request-merge-store';
 import { pullRequestReadiness, pullRequestTone, pullRequestToneColor } from './pull-request-model';
 import { PullRequestSheet } from './pull-request-sheet';
 import { useSessionPullRequest } from './use-session-pull-request';
@@ -35,6 +37,7 @@ export const PullRequestChip = ({
     const state = useSessionPullRequest(sessionId, isOpen);
     const { pullRequest } = state;
     if (!pullRequest) return null;
+    const isMerging = isMergeInProgress(state.merge);
     const color = pullRequestToneColor(pullRequestTone(pullRequest), theme);
     return (
         <>
@@ -42,7 +45,9 @@ export const PullRequestChip = ({
                 accessibilityHint={t('pullRequest.chipHint')}
                 accessibilityLabel={t('pullRequest.chip', {
                     number: pullRequest.number,
-                    status: pullRequestReadiness(pullRequest, t),
+                    status: isMerging
+                        ? t('pullRequest.merging')
+                        : pullRequestReadiness(pullRequest, t),
                 })}
                 accessibilityRole="button"
                 hitSlop={CHIP_HIT_SLOP}
@@ -56,7 +61,11 @@ export const PullRequestChip = ({
                 ]}
                 testID="pull-request-chip"
             >
-                <PullRequestGlyph color={color} pullRequest={pullRequest} size={15} />
+                {isMerging ? (
+                    <Spinner color={color} size={15} testID="pull-request-chip-merging" />
+                ) : (
+                    <PullRequestGlyph color={color} pullRequest={pullRequest} size={15} />
+                )}
                 <Text style={[styles.number, { color: theme.text }]}>#{pullRequest.number}</Text>
             </Pressable>
             {isOpen ? (

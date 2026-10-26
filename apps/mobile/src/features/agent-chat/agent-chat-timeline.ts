@@ -78,7 +78,12 @@ export type AgentChatTimelineEntry =
           kind: 'delegated';
           id: string;
           /**
-           * Whether the user unfolded the raw pointer; the list owns it, like a turn's fold.
+           * What the bubble shows under its source: the task the caller wrote, clamped until unfolded, or, when the
+           * delegation record is gone, the raw pointer behind Show instruction (#2307).
+           */
+          body: { kind: 'prompt'; prompt: string } | { kind: 'pointer' };
+          /**
+           * Whether the user unfolded the task or the raw pointer; the list owns it, like a turn's fold.
            */
           isExpanded: boolean;
           text: string;
@@ -228,6 +233,9 @@ function groupEntries(
             entries.push({
                 kind: 'delegated',
                 id: item.id,
+                body: item.delegatedTask.prompt
+                    ? { kind: 'prompt', prompt: item.delegatedTask.prompt }
+                    : { kind: 'pointer' },
                 isExpanded: false,
                 text: item.text,
                 task: item.delegatedTask,

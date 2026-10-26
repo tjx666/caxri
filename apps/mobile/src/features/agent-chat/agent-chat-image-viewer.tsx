@@ -1,11 +1,16 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-/* oxlint-disable typescript/no-deprecated -- Gesture Handler 3 deprecates the `Gesture` builder but still ships it. The
-   hook API renames the end callbacks and changes composition, so the viewer moves only with on-device pinch and swipe
-   verification. */
 import type { ReactNode } from 'react';
 import { Fragment, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import {
+    GestureDetector,
+    GestureHandlerRootView,
+    useExclusiveGestures,
+    usePanGesture,
+    usePinchGesture,
+    useSimultaneousGestures,
+    useTapGesture,
+} from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -70,11 +75,13 @@ const ZoomableImage = ({
         savedX.value = 0;
         savedY.value = 0;
     };
-    const pinch = Gesture.Pinch()
-        .onUpdate((event) => {
+    // Gesture Handler 3 hook API: `onDeactivate` replaces the builder's `onEnd` (it fires when an active gesture ends,
+    // finished or cancelled), and the options move into the config object.
+    const pinch = usePinchGesture({
+        onUpdate: (event) => {
             scale.value = Math.min(MAX_SCALE, Math.max(0.8, savedScale.value * event.scale));
-        })
-        .onEnd(() => {
+        },
+        onDeactivate: () => {
             if (scale.value <= MIN_SCALE) {
                 reset();
                 return;
@@ -85,10 +92,11 @@ const ZoomableImage = ({
             savedY.value = clampZoomPan(translateY.value, scale.value, height.value);
             translateX.value = withTiming(savedX.value);
             translateY.value = withTiming(savedY.value);
-        });
-    const pan = Gesture.Pan()
-        .maxPointers(1)
-        .onUpdate((event) => {
+        },
+    });
+    const pan = usePanGesture({
+        maxPointers: 1,
+        onUpdate: (event) => {
             if (savedScale.value <= MIN_SCALE) {
                 // The fitted picture follows a drag along its main axis only, and only down for closing.
                 const isVertical = Math.abs(event.translationY) > Math.abs(event.translationX);
@@ -106,8 +114,8 @@ const ZoomableImage = ({
                 scale.value,
                 height.value,
             );
-        })
-        .onEnd((event) => {
+        },
+        onDeactivate: (event) => {
             if (savedScale.value <= MIN_SCALE) {
                 const swipe = agentChatViewerSwipe(event, {
                     width: width.value,
@@ -123,19 +131,21 @@ const ZoomableImage = ({
             }
             savedX.value = translateX.value;
             savedY.value = translateY.value;
-        });
-    const doubleTap = Gesture.Tap()
-        .numberOfTaps(2)
-        .onEnd((_event, isSuccess) => {
-            if (!isSuccess) return;
+        },
+    });
+    const doubleTap = useTapGesture({
+        numberOfTaps: 2,
+        // A tap only activates once both taps are recognized, which is what the builder's `isSuccess` guarded.
+        onActivate: () => {
             if (savedScale.value > MIN_SCALE) reset();
             else {
                 scale.value = withTiming(DOUBLE_TAP_SCALE);
                 savedScale.value = DOUBLE_TAP_SCALE;
             }
-        });
+        },
+    });
     // As in Paseo's viewport, a drag or pinch wins over the double tap instead of all three racing for one touch.
-    const gesture = Gesture.Exclusive(Gesture.Simultaneous(pan, pinch), doubleTap);
+    const gesture = useExclusiveGestures(useSimultaneousGestures(pan, pinch), doubleTap);
     const a11y = agentChatViewerAccessibility(canTurnTo, t);
     const style = useAnimatedStyle(() => ({
         transform: [
@@ -187,13 +197,14 @@ const SwipeArea = ({
 }) => {
     const width = useSharedValue(0);
     const height = useSharedValue(0);
-    const pan = Gesture.Pan()
-        .maxPointers(1)
-        .onEnd((event) => {
+    const pan = usePanGesture({
+        maxPointers: 1,
+        onDeactivate: (event) => {
             const swipe = agentChatViewerSwipe(event, { width: width.value, height: height.value });
             if (swipe === 'dismiss' || (swipe !== null && canTurnTo[swipe]))
                 scheduleOnRN(onSwipe, swipe);
-        });
+        },
+    });
     return (
         <GestureDetector gesture={pan}>
             <View

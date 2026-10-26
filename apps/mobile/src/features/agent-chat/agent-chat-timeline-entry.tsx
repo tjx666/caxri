@@ -61,6 +61,7 @@ export const AgentChatTimelineEntry = memo(
             case 'delegated': {
                 return (
                     <AgentChatDelegatedMessage
+                        body={entry.body}
                         id={entry.id}
                         isExpanded={entry.isExpanded}
                         onToggle={onToggle}

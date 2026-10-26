@@ -12,6 +12,7 @@ import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { PullRequestGlyph } from './pull-request-glyph';
+import { isMergeInProgress } from './pull-request-merge-store';
 import type { PullRequestMergeAction } from './pull-request-model';
 import {
     isConfirmablePullRequestAction,
@@ -59,7 +60,7 @@ export const PullRequestSheet = ({
     if (isConfirming && !showConfirmation) setConfirming(false);
     const tone = pullRequestToneColor(pullRequestTone(pullRequest), theme);
     const checks = pullRequestChecksSummary(pullRequest, t);
-    const isMerging = state.merge.state === 'merging';
+    const isMerging = isMergeInProgress(state.merge);
     const merge = (): void => {
         setConfirming(false);
         void state.startMerge(pullRequest);
@@ -127,6 +128,15 @@ export const PullRequestSheet = ({
                             />
                         </>
                     )}
+                    {state.merge.state === 'checking' ? (
+                        <Text
+                            accessibilityLiveRegion="polite"
+                            style={[styles.outcome, { color: theme.muted }]}
+                            testID="pull-request-merge-checking"
+                        >
+                            {t('pullRequest.mergeLostConnection')}
+                        </Text>
+                    ) : null}
                     {state.merge.state === 'merged' || state.merge.state === 'failed' ? (
                         <Text
                             accessibilityLiveRegion="polite"

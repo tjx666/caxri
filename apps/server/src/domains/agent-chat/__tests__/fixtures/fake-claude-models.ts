@@ -141,13 +141,18 @@ const HOUR = 3_600_000;
 /**
  * The fake CLI's `/usage` answer (`get_usage`) for a Max plan: a 5-hour window at 22% and a weekly window at 10% with 5
  * days 3 hours to go, which is on pace. A `plan-behind-pace` file under `FAKE_CLAUDE_CONTROL_DIR` raises the weekly
- * window to 61%, below the 73% an even pace would leave, so the composers show the pace reminder.
+ * window to 61%, below the 73% an even pace would leave, so the composers show the pace reminder. A
+ * `plan-weekly-guarded` file reports the weekly window at 99.5% with 48 hours to go, which arms the weekly usage guard;
+ * removing it returns the default answer, whose weekly window resets later and so lifts the guard.
  */
 function fakeClaudeUsage(): Record<string, unknown> {
     const controlDirectory = process.env.FAKE_CLAUDE_CONTROL_DIR;
     const isBehindPace =
         controlDirectory !== undefined &&
         fs.existsSync(path.join(controlDirectory, 'plan-behind-pace'));
+    const isGuarded =
+        controlDirectory !== undefined &&
+        fs.existsSync(path.join(controlDirectory, 'plan-weekly-guarded'));
     const now = Date.now();
     return {
         subscription_type: 'max',
@@ -155,8 +160,8 @@ function fakeClaudeUsage(): Record<string, unknown> {
         rate_limits: {
             five_hour: { utilization: 22, resets_at: new Date(now + 3 * HOUR).toISOString() },
             seven_day: {
-                utilization: isBehindPace ? 61 : 10,
-                resets_at: new Date(now + (5 * 24 + 3) * HOUR).toISOString(),
+                utilization: isGuarded ? 99.5 : isBehindPace ? 61 : 10,
+                resets_at: new Date(now + (isGuarded ? 48 : 5 * 24 + 3) * HOUR).toISOString(),
             },
         },
     };

@@ -13,6 +13,7 @@ import {
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
 import { repoContext, withRepoLock } from '../.agents/skills/switch-worktree/scripts/repo';
+import { mobileAcceptanceFaultEnvironment } from './mobile-acceptance-fault';
 import {
     cleanupFixtureImeWithRetry,
     markMobileFixtureImeRestored,
@@ -512,14 +513,7 @@ await withRepoLock(
         const acceptanceBuildEnvironment = {
             ...process.env,
             EXPO_PUBLIC_CAXRI_ACCEPTANCE: '1',
-            ...(caseIds.length === 1 &&
-                caseIds[0] === 'MOB-STORAGE-01' && {
-                    EXPO_PUBLIC_CAXRI_ACCEPTANCE_FAULT: 'storage-read-once',
-                }),
-            ...(caseIds.length === 1 &&
-                caseIds[0] === 'MOB-RENDER-01' && {
-                    EXPO_PUBLIC_CAXRI_ACCEPTANCE_FAULT: 'render-once',
-                }),
+            ...mobileAcceptanceFaultEnvironment(caseIds),
         };
         let setupFailure: unknown;
         let apkSha256: string | undefined;
