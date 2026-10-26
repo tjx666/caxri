@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentUsageReadout } from '@caxri/protocol';
+import type { AgentThroughput, AgentUsageReadout } from '@caxri/protocol';
 
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
@@ -64,11 +64,16 @@ const openAiStatusPage = {
 };
 
 /**
- * Drags the Agent usage screen up by half its height, inside the scroll area and away from the Back gesture edges.
+ * Drags the Agent usage screen up until `id` is laid out, one drag of half its height per try, inside the scroll area
+ * and away from the Back gesture edges.
  */
-async function scrollUsageScreen(serial: string): Promise<void> {
-    const screen = checkBounds(await mobileSemantics(serial), 'agent-usage-screen');
+async function scrollUsageScreenTo(serial: string, id: string, triesLeft = 6): Promise<void> {
+    const nodes = await mobileSemantics(serial);
+    const target = checkBounds(nodes, id);
+    const screen = checkBounds(nodes, 'agent-usage-screen');
     if (!screen) throw new Error('The Agent usage screen is not on screen');
+    if (target && target.bottom < screen.bottom) return;
+    if (triesLeft === 0) throw new Error(`${id} is not on screen`);
     const x = Math.floor((screen.left + screen.right) / 2);
     const height = screen.bottom - screen.top;
     await adbShell(serial, [
@@ -80,6 +85,7 @@ async function scrollUsageScreen(serial: string): Promise<void> {
         String(screen.top + Math.floor(height * 0.3)),
         '300',
     ]);
+    await scrollUsageScreenTo(serial, id, triesLeft - 1);
 }
 
 /**
@@ -115,7 +121,8 @@ export async function executeMobileAgentUsageScenario(
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         await writeFile(join(fixture.testDirectory, 'plan-behind-pace'), '');
-        await chat.send({ text: 'hi there' });
+        // `pause` paces the fake reply in 200 ms chunks, so the response lasts long enough to measure its speed.
+        await chat.send({ text: 'pause, then answer' });
         await waitForMobile(
             () => chat.read(),
             (snapshot) =>
@@ -130,16 +137,31 @@ export async function executeMobileAgentUsageScenario(
                 }),
             (current) => current?.limit?.windows.length === 2,
         );
+        await waitForMobile(
+            () =>
+                pageRequest<AgentThroughput | null>(
+                    fixture.running.page,
+                    'terminal.agentThroughput',
+                    { terminalId: chat.terminalId },
+                ),
+            (current) => (current?.recent.responseCount ?? 0) > 0,
+        );
         await fixture.pair();
         await waitForCheck(serial, 'agent-usage-action');
         await capture(environment, 'session-list-entry', artifacts);
 
         await tapMobileCheckByBounds(serial, 'agent-usage-action');
-        await waitForCheck(serial, 'agent-usage-limit-claude-300');
+        await waitForCheck(serial, 'agent-usage-limit-claude-10080');
+        await waitForCheck(serial, 'agent-usage-pace-claude');
         await waitForCheck(serial, 'agent-usage-status-claude');
-        await capture(environment, 'claude-card', artifacts);
+        await capture(environment, 'claude-limits', artifacts);
 
-        await scrollUsageScreen(serial);
+        await scrollUsageScreenTo(serial, 'agent-usage-status-page-claude');
+        await waitForCheck(serial, 'agent-usage-speed-claude');
+        await waitForCheck(serial, 'agent-usage-incident-claude');
+        await capture(environment, 'claude-speed-status', artifacts);
+
+        await scrollUsageScreenTo(serial, 'agent-usage-status-page-codex');
         await waitForCheck(serial, 'agent-usage-status-codex');
         await capture(environment, 'codex-card', artifacts);
 
