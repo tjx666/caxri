@@ -122,7 +122,6 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.request.submit': '提交答案',
     'agentChat.request.skip': '跳过',
     'agentChat.request.cwd': '位于 {{cwd}}',
-    'agentChat.waiting.label': '等待你处理',
     'agentChat.waiting.announceQuestion': '{{session}} 中的 {{provider}} 有一个问题',
     'agentChat.waiting.announceApproval': '{{session}} 中的 {{provider}} 需要你批准',
     'agentChat.waiting.openSession': '打开会话',

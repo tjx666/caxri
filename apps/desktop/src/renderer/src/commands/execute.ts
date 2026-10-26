@@ -14,6 +14,10 @@ import {
     runAgentChatComposerCommand,
 } from '../features/agent-chat/composer/agent-chat-composer-commands';
 import {
+    answerAgentChatApproval,
+    canAnswerAgentChatApproval,
+} from '../features/agent-chat/permissions/agent-chat-approval-commands';
+import {
     canFocusAgentChatWaiting,
     focusAgentChatWaiting,
 } from '../features/agent-chat/waiting/agent-chat-waiting-focus';
@@ -220,6 +224,11 @@ const commandContext: CommandContext = {
     agentChatWaiting: {
         canFocus: canFocusAgentChatWaiting,
         focus: focusAgentChatWaiting,
+    },
+    agentChatApproval: {
+        // A modal owns the keyboard; its own Cmd+Enter must not be swallowed for a card behind it.
+        canAnswer: () => !useDialogStore.getState().isModalOpen() && canAnswerAgentChatApproval(),
+        answer: answerAgentChatApproval,
     },
     agentActions: {
         canOpen: () => Boolean(activeAgentTerminal()),

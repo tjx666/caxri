@@ -25,6 +25,7 @@ import { useActivePaneTab } from '../workbench/pane-actions';
 import { ActiveFileStatus } from './active-file-status';
 import { activeFileStatusTier } from './active-file-status-target';
 import { ActiveTerminalStatus } from './active-terminal-status';
+import { AgentChatWaitingChip } from './agent-chat-waiting-chip';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
 import { CommanderInboxChip } from './commander-inbox-chip';
@@ -277,6 +278,7 @@ export function StatusBar() {
                         </span>
                     </Tooltip>
                 )}
+                <AgentChatWaitingChip />
                 <PeerApprovalChip />
                 <UpdateStatusChip />
                 {isLocalOnlyAvailable && <CommanderStatusChip />}

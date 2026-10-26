@@ -47,4 +47,22 @@ export const agentChatCommandDefinitions: CommandDefinition[] = [
         keywords: ['waiting', 'pending', 'question', 'approval', 'popup'],
         when: 'agentChatWaiting',
     },
+    {
+        id: 'agentChat.allowRequest',
+        title: 'Allow Request',
+        category: 'Chat',
+        description:
+            "Answer the focused Chat's or the waiting popup's approval with its first button, such as Run or Allow",
+        keywords: ['approve', 'accept', 'run', 'approval', 'permission'],
+        when: 'agentChatApproval',
+    },
+    {
+        id: 'agentChat.denyRequest',
+        title: 'Deny Request',
+        category: 'Chat',
+        description:
+            "Answer the focused Chat's or the waiting popup's approval with Deny, or Keep Planning for a plan",
+        keywords: ['decline', 'reject', 'approval', 'permission'],
+        when: 'agentChatApproval',
+    },
 ];

@@ -84,6 +84,10 @@ export const commandDescriptions = {
         'Ask a quick question about the active Chat beside it, without adding it to the conversation',
     'commands.description.agentChat.focusWaitingRequest':
         "Move keyboard focus into the waiting popup's question or approval, unfolding it first",
+    'commands.description.agentChat.allowRequest':
+        "Answer the focused Chat's or the waiting popup's approval with its first button, such as Run or Allow",
+    'commands.description.agentChat.denyRequest':
+        "Answer the focused Chat's or the waiting popup's approval with Deny, or Keep Planning for a plan",
     'commands.description.terminal.close': 'Close the active Terminal',
     'commands.description.workbench.closeActiveTab': 'Close the active Terminal or file tab',
     'commands.description.workbench.closeOtherTabs':

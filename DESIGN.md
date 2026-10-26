@@ -1401,8 +1401,9 @@ A pending approval titles the tool in the timeline's words (`Allow editing app.t
 create_issue from github?`), never its raw identifier, and names its buttons by outcome: Run for a
 command (Allow when it reaches a network host), Apply Changes for a file edit, Allow for any other
 tool, Start Building for a plan, then `Always Allow in This Chat`, then Deny (Keep Planning for a
-plan). Cmd+Enter approves and Cmd+Backspace denies, answering only the first card and only while the
-composer is empty, where neither chord has another meaning. A question names the provider (`Codex has a
+plan). Allow Request (Cmd+Enter) approves and Deny Request (Cmd+Backspace) denies, answering only the first card
+and only while the composer is empty, where neither chord has another meaning; both are rebindable
+in Keyboard Shortcuts, and the buttons' tooltips show the bound keys. A question names the provider (`Codex has a
 question`), and each option's description sits under its label in `meta` `--muted`, not in a
 tooltip. While the reader follows the end, the transcript stays pinned when a dock grows and
 shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 112px below the
@@ -1598,9 +1599,15 @@ one card top-center below the title bar, `min(640px, 92vw)` wide on `--elevated`
 shadow, entering on `--motion-overlay-enter` with the enter curve and leaving on
 `--motion-overlay-exit`. It is not a toast: it never expires, because the Agent stays blocked until
 someone answers. It shows one request at a time (oldest first) and a muted "N more pending" line,
-and folds into an "N waiting for you" pill that unfolds again only when a new request arrives, so folding
-means "not now" rather than "mute". It sits under dialogs (`z-40`) and never takes focus, so it
-cannot steal keystrokes from the composer the user is typing in; its keys work once focus is in it.
+and folds into an "N pending" status-bar item (default foreground, like the peer-approval chip) that
+unfolds it on click, and again on its own only when a new request arrives, so folding means "not
+now" rather than "mute"; the folded popup never floats over the Terminal or editor. It sits under
+dialogs (`z-40`) and never takes focus, so it cannot steal keystrokes from the composer the user is
+typing in; its keys work once focus is in it, and Focus Waiting Request (Cmd+Alt+W) moves focus there,
+returning it to where the user was once the last request is answered. Allow Request and Deny Request
+also answer its approval from anywhere, but only while focus rests on nothing that uses the chord
+(the document, a transcript): a text field, the composer, a Terminal or editor, a button, or a
+Session or Files row keeps its own Cmd+Enter and Cmd+Backspace. A held key answers once.
 For about 450ms after a card drops in, a click on a question's option only selects it and an
 approval's buttons ignore the pointer, because a stray click on a card that just dropped in must not
 send an answer; after that, a click answers in one step, as in the Chat's own card. Esc folds the popup on both card types; Skip stays an explicit button.

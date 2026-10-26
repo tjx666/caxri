@@ -20,6 +20,7 @@ import { openAgentChatWaiting } from './agent-chat-waiting-commands';
 export function AgentChatWaitingCard({
     chat,
     moreCount,
+    onAnswered,
     onCollapse,
 }: {
     chat: AgentChatWaitingChat;
@@ -27,6 +28,10 @@ export function AgentChatWaitingCard({
      * Requests waiting behind this one, in this Chat and others.
      */
     moreCount: number;
+    /**
+     * Runs as an answer given from inside the card takes the request away, so focus can move on to the next one.
+     */
+    onAnswered: () => void;
     onCollapse: () => void;
 }) {
     const { t } = useTranslation();
@@ -94,7 +99,7 @@ export function AgentChatWaitingCard({
                         }
                         onEscape={onCollapse}
                         linkedItem={undefined}
-                        onAnswered={() => {}}
+                        onAnswered={onAnswered}
                         projectRoot={session?.rootPath}
                         providerName={provider?.displayName ?? t('agentChat.waiting.agent')}
                         request={request}

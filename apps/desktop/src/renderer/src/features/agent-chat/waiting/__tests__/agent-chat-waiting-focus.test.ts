@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    agentChatWaitingReturnFocus,
     canFocusAgentChatWaiting,
     focusAgentChatWaiting,
     registerAgentChatWaitingFocus,
@@ -28,5 +29,13 @@ describe('agent chat waiting focus', () => {
         expect(newer).toHaveBeenCalledTimes(1);
         expect(older).not.toHaveBeenCalled();
         unregisterNewer();
+    });
+
+    it('returns focus to where the user was only while focus is lost and that element is still there', () => {
+        const editor = { isConnected: true };
+        expect(agentChatWaitingReturnFocus(editor, true)).toBe(editor);
+        expect(agentChatWaitingReturnFocus(editor, false)).toBeUndefined();
+        expect(agentChatWaitingReturnFocus({ isConnected: false }, true)).toBeUndefined();
+        expect(agentChatWaitingReturnFocus(null, true)).toBeUndefined();
     });
 });

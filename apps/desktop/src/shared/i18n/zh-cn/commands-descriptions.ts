@@ -60,6 +60,10 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.agentChat.openSideChat': '在当前对话旁快速提问，不会加入对话',
     'commands.description.agentChat.focusWaitingRequest':
         '把键盘焦点移入等待弹窗中的问题或审批，必要时先展开',
+    'commands.description.agentChat.allowRequest':
+        '用第一个按钮（如“运行”或“允许”）回答当前对话或等待弹窗中的审批',
+    'commands.description.agentChat.denyRequest':
+        '拒绝当前对话或等待弹窗中的审批；计划审批则继续规划',
     'commands.description.terminal.close': '关闭当前终端',
     'commands.description.workbench.closeActiveTab': '关闭当前终端或文件标签页',
     'commands.description.workbench.closeOtherTabs': '关闭当前窗格中的其他终端或文件标签页',

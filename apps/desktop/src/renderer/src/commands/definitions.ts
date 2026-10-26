@@ -14,7 +14,10 @@ function fromCatalog(
     id: CommandId,
     run: (context: CommandContext, arguments_?: unknown) => void,
     extra?: Partial<
-        Pick<CommandDefinition, 'allowBehindModal' | 'allowInEditable' | 'confirm' | 'when'>
+        Pick<
+            CommandDefinition,
+            'allowBehindModal' | 'allowInEditable' | 'confirm' | 'ignoresRepeat' | 'when'
+        >
     >,
 ): CommandDefinition {
     const catalog = getCommandDefinition(id);
@@ -90,6 +93,20 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('agentChat.focusWaitingRequest', (context) => context.agentChatWaiting.focus(), {
         allowInEditable: true,
         when: (context) => context.agentChatWaiting.canFocus(),
+    }),
+    /**
+     * `allowInEditable` because the empty composer under a Chat's own approval card is where these keys are pressed
+     * most; the `when` gate is what hands the chord back to a draft, a Terminal, an editor, or a tree row.
+     */
+    fromCatalog('agentChat.allowRequest', (context) => context.agentChatApproval.answer('accept'), {
+        allowInEditable: true,
+        ignoresRepeat: true,
+        when: (context) => context.agentChatApproval.canAnswer(),
+    }),
+    fromCatalog('agentChat.denyRequest', (context) => context.agentChatApproval.answer('decline'), {
+        allowInEditable: true,
+        ignoresRepeat: true,
+        when: (context) => context.agentChatApproval.canAnswer(),
     }),
     /**
      * `Cmd+O` must work from anywhere, including a focused Terminal or editor: it opens a native folder dialog and

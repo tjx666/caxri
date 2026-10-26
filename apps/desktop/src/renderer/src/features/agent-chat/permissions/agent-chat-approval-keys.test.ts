@@ -1,58 +1,52 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatApprovalKeyDecision, isAgentChatComposerEmpty } from './agent-chat-approval-keys';
+import {
+    agentChatApprovalKeyOwner,
+    isAgentChatComposerEmpty,
+    isAgentChatStaticTarget,
+} from './agent-chat-approval-keys';
 
-const key = (
-    value: string,
-    modifiers: Partial<{
-        metaKey: boolean;
-        ctrlKey: boolean;
-        shiftKey: boolean;
-        altKey: boolean;
-    }> = {},
-    flags: Partial<{ isComposing: boolean; repeat: boolean }> = {},
-) => ({
-    key: value,
-    metaKey: false,
-    ctrlKey: false,
-    shiftKey: false,
-    altKey: false,
-    isComposing: false,
-    repeat: false,
-    ...modifiers,
-    ...flags,
+const composer = (value: string) => ({ isContentEditable: true, tagName: 'DIV', value });
+
+describe('agentChatApprovalKeyOwner', () => {
+    it("answers a Chat pane's own approval from its empty composer or a control in the pane", () => {
+        expect(agentChatApprovalKeyOwner(composer(''), 'withApproval')).toBe('pane');
+        expect(agentChatApprovalKeyOwner({ tagName: 'BUTTON' }, 'withApproval')).toBe('pane');
+        expect(agentChatApprovalKeyOwner(null, 'withApproval')).toBe('pane');
+    });
+
+    it('leaves the chord to a composer holding a draft, even with an approval waiting', () => {
+        expect(agentChatApprovalKeyOwner(composer('draft'), 'withApproval')).toBeUndefined();
+        expect(agentChatApprovalKeyOwner(composer('draft'), 'withoutApproval')).toBeUndefined();
+    });
+
+    it("answers the waiting popup's approval only from a static spot outside any approval", () => {
+        expect(agentChatApprovalKeyOwner(null, 'none')).toBe('popup');
+        expect(agentChatApprovalKeyOwner({ tagName: 'DIV' }, 'none')).toBe('popup');
+        expect(agentChatApprovalKeyOwner({ tagName: 'DIV' }, 'withoutApproval')).toBe('popup');
+    });
+
+    it('keeps the chord where focus already does something with it', () => {
+        // An empty composer, a Terminal's or Editor's hidden textarea, a Session row, a Files row, a button.
+        expect(agentChatApprovalKeyOwner(composer(''), 'withoutApproval')).toBeUndefined();
+        expect(agentChatApprovalKeyOwner({ tagName: 'TEXTAREA', value: '' }, 'none')).toBe(
+            undefined,
+        );
+        expect(agentChatApprovalKeyOwner({ role: 'treeitem', tagName: 'DIV' }, 'none')).toBe(
+            undefined,
+        );
+        expect(agentChatApprovalKeyOwner({ tagName: 'BUTTON' }, 'none')).toBeUndefined();
+    });
 });
 
-describe('agentChatApprovalKeyDecision', () => {
-    const empty = { isComposerEmpty: true };
-
-    it('accepts on Cmd+Enter and denies on Cmd+Backspace while the composer is empty', () => {
-        expect(agentChatApprovalKeyDecision(key('Enter', { metaKey: true }), empty)).toBe('accept');
-        expect(agentChatApprovalKeyDecision(key('Backspace', { metaKey: true }), empty)).toBe(
-            'decline',
-        );
-    });
-
-    it('leaves plain Enter and Escape to the composer', () => {
-        expect(agentChatApprovalKeyDecision(key('Enter'), empty)).toBeUndefined();
-        expect(agentChatApprovalKeyDecision(key('Escape'), empty)).toBeUndefined();
-    });
-
-    it('never answers over a draft, a held key, an IME composition, or an extra modifier', () => {
-        const accept = key('Enter', { metaKey: true });
-        expect(agentChatApprovalKeyDecision(accept, { isComposerEmpty: false })).toBeUndefined();
-        expect(
-            agentChatApprovalKeyDecision(key('Enter', { metaKey: true }, { repeat: true }), empty),
-        ).toBeUndefined();
-        expect(
-            agentChatApprovalKeyDecision(
-                key('Enter', { metaKey: true }, { isComposing: true }),
-                empty,
-            ),
-        ).toBeUndefined();
-        expect(
-            agentChatApprovalKeyDecision(key('Enter', { metaKey: true, shiftKey: true }), empty),
-        ).toBeUndefined();
+describe('isAgentChatStaticTarget', () => {
+    it('reads nothing focused and plain elements as static, and every control as not', () => {
+        expect(isAgentChatStaticTarget(null)).toBe(true);
+        expect(isAgentChatStaticTarget({ tagName: 'SECTION', role: 'log' })).toBe(true);
+        expect(isAgentChatStaticTarget({ tagName: 'A' })).toBe(false);
+        expect(isAgentChatStaticTarget({ tagName: 'INPUT' })).toBe(false);
+        expect(isAgentChatStaticTarget({ tagName: 'DIV', role: 'radio' })).toBe(false);
+        expect(isAgentChatStaticTarget(composer(''))).toBe(false);
     });
 });
 
@@ -62,12 +56,8 @@ describe('isAgentChatComposerEmpty', () => {
         expect(isAgentChatComposerEmpty({ tagName: 'TEXTAREA', value: 'draft' })).toBe(false);
         expect(isAgentChatComposerEmpty({ tagName: 'INPUT', value: 'other' })).toBe(false);
         expect(isAgentChatComposerEmpty({ tagName: 'BUTTON' })).toBe(true);
-        expect(
-            isAgentChatComposerEmpty({ isContentEditable: true, tagName: 'DIV', value: '' }),
-        ).toBe(true);
-        expect(
-            isAgentChatComposerEmpty({ isContentEditable: true, tagName: 'DIV', value: 'draft' }),
-        ).toBe(false);
+        expect(isAgentChatComposerEmpty(composer(''))).toBe(true);
+        expect(isAgentChatComposerEmpty(composer('draft'))).toBe(false);
         expect(isAgentChatComposerEmpty({ isContentEditable: true, tagName: 'DIV' })).toBe(false);
         expect(isAgentChatComposerEmpty(null)).toBe(true);
     });

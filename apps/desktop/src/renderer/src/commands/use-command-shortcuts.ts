@@ -111,6 +111,12 @@ export function dispatchGlobalKeydown(
     const outcome = resolveKeystroke({
         editorFocus: isEditorEventTarget(event.target),
         event,
+        /**
+         * A contextual command that cannot run passes the key to the next binding for it, or, with none, leaves it
+         * untouched for the focused surface (Terminal `Cmd+F` versus Monaco's native Find widget).
+         */
+        isCommandAvailable: (command) =>
+            !getRegisteredCommand(command) || isCommandAvailable(command),
         leadingChords: state.leadingChords,
         pending: state.pending,
         shortcutMap: state.shortcutMap,
@@ -138,11 +144,6 @@ export function dispatchGlobalKeydown(
     const commandId = binding.command;
     const definition = getRegisteredCommand(commandId);
     /**
-     * A contextual shortcut must fall through untouched so the owning editor can handle the same chord (Terminal
-     * `Cmd+F` versus Monaco's native Find widget).
-     */
-    if (definition && !isCommandAvailable(commandId)) return;
-    /**
      * The terminal and the editor are editable surfaces too; only opted-in commands reach through. A chord continuation
      * is exempt: its leading chord was already consumed by Caxri, which only happens outside the editor, and a
      * two-chord sequence can never be text the focused surface was about to receive.
@@ -166,6 +167,7 @@ export function dispatchGlobalKeydown(
     if (isEditable && definition && !definition.allowInEditable) return;
     event.preventDefault();
     event.stopPropagation();
+    if (event.repeat && definition?.ignoresRepeat) return;
     if (useDialogStore.getState().isModalOpen() && !definition?.allowBehindModal) return;
     if (definition)
         runCommand(

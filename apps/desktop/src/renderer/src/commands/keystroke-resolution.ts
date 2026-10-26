@@ -1,5 +1,6 @@
 import type { Keybinding } from '@caxri/protocol';
 
+import type { KeybindingContext } from '../lib/keybindings';
 import { keyboardEventShortcut, resolveShortcutBinding } from '../lib/keybindings';
 
 /*
@@ -17,7 +18,7 @@ import { keyboardEventShortcut, resolveShortcutBinding } from '../lib/keybinding
 export function resolveKeydownBinding(
     shortcutMap: ReadonlyMap<string, readonly Keybinding[]>,
     event: KeyboardEvent,
-    context: { terminalFocus: boolean },
+    context: KeybindingContext,
 ): Keybinding | undefined {
     const exact = resolveShortcutBinding(shortcutMap, keyboardEventShortcut(event), context);
     if (exact || !event.shiftKey) return exact;
@@ -64,6 +65,7 @@ export type KeystrokeOutcome =
 interface KeystrokeInput {
     editorFocus: boolean;
     event: KeyboardEvent;
+    isCommandAvailable?: KeybindingContext['isCommandAvailable'];
     leadingChords: ReadonlySet<string>;
     pending: PendingChord | undefined;
     shortcutMap: ReadonlyMap<string, readonly Keybinding[]>;
@@ -82,12 +84,13 @@ interface KeystrokeInput {
 export function resolveKeystroke({
     editorFocus,
     event,
+    isCommandAvailable,
     leadingChords,
     pending,
     shortcutMap,
     terminalFocus,
 }: KeystrokeInput): KeystrokeOutcome {
-    const context = { terminalFocus };
+    const context = { isCommandAvailable, terminalFocus };
     if (pending) {
         if (pending.yieldToEditor) return { kind: 'yieldChordContinuation' };
         const binding = resolveShortcutBinding(

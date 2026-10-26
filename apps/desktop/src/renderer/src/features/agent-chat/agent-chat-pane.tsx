@@ -55,7 +55,7 @@ import {
 } from './messages/agent-chat-reply-navigation';
 import { AgentChatReplyPlaceholder } from './messages/agent-chat-reply-placeholder';
 import { AgentChatSelectionToolbar } from './messages/agent-chat-selection-toolbar';
-import { AGENT_CHAT_PANE_ATTRIBUTE } from './permissions/use-agent-chat-approval-keys';
+import { AGENT_CHAT_PANE_ATTRIBUTE } from './permissions/agent-chat-approval-commands';
 import { AgentChatMessageRail } from './rail/agent-chat-message-rail';
 import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
