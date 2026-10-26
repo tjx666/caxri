@@ -89,13 +89,19 @@ export const agentChatQueueHeader = (
  */
 export const agentChatQueueCardLayout = ({
     isComposing,
+    isEditing,
     isExpanded,
 }: {
     isComposing: boolean;
+    /**
+     * A row is open in the in-place editor. Its own keyboard counts as composing, so collapsing then would unmount the
+     * field being typed in, close the keyboard, and reopen it in a loop; the rows stay while it is open.
+     */
+    isEditing: boolean;
     isExpanded: boolean;
 }): { showsRows: boolean; showsToggle: boolean } => ({
-    showsRows: !isComposing || isExpanded,
-    showsToggle: isComposing,
+    showsRows: !isComposing || isExpanded || isEditing,
+    showsToggle: isComposing && !isEditing,
 });
 
 /**

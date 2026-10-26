@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { useTranslation } from '../../i18n';
@@ -70,6 +70,7 @@ export const useAgentChatQueueActions = (
     const [isResuming, setResuming] = useState(false);
     const [editing, setEditing] = useState<AgentChatQueueInPlaceEdit | null>(null);
     const [isSavingEdit, setSavingEdit] = useState(false);
+    const editingIds = useRef(new Set<string>());
     const queue = snapshot?.queue;
     // Adjusting state during render (not in an effect) drops a stale error before it paints with the next queue.
     const error = currentQueueError(storedError, queue);
@@ -139,17 +140,24 @@ export const useAgentChatQueueActions = (
     const sendNow = useCallback((id: string): Promise<boolean> => run('sendNow', id), [run]);
     const edit = useCallback(
         async (id: string): Promise<boolean> => {
+            // The row only hides once `run` takes it, after this read, so a second tap meanwhile would take it twice.
+            if (editingIds.current.has(id)) return false;
+            editingIds.current.add(id);
             setError(null);
-            let target: AgentChatQueueEditTarget;
             try {
-                target = await readQueued(id);
-            } catch (error) {
-                reportEditFailure(error, id);
-                return false;
+                let target: AgentChatQueueEditTarget;
+                try {
+                    target = await readQueued(id);
+                } catch (error) {
+                    reportEditFailure(error, id);
+                    return false;
+                }
+                if (agentChatQueueEditMode(target) === 'draft') return await run('edit', id);
+                setEditing({ id, ...target });
+                return true;
+            } finally {
+                editingIds.current.delete(id);
             }
-            if (agentChatQueueEditMode(target) === 'draft') return run('edit', id);
-            setEditing({ id, ...target });
-            return true;
         },
         [readQueued, reportEditFailure, run],
     );

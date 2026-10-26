@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { useCallback, useRef, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
@@ -25,13 +25,11 @@ import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
 import {
     agentChatQueueCardLayout,
-    agentChatQueueImagesAttached,
     agentChatQueueRowHints,
     agentChatQueueSendNowText,
-    canSaveAgentChatQueueEdit,
 } from './agent-chat-queue';
+import { AgentChatQueueEditor } from './agent-chat-queue-editor';
 import type { AgentChatController } from './use-agent-chat';
-import type { AgentChatQueueInPlaceEdit } from './use-agent-chat-queue-actions';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
 import { useIsKeyboardShown } from './use-keyboard-shown';
 
@@ -187,88 +185,6 @@ const QueueRowActions = ({
                 theme={theme}
             />
         </>
-    );
-};
-
-/**
- * Edits the text of a queued message that carries images or file references, in its own row: neither can return to the
- * composer, so the message is rewritten where it stands. Only what the user typed is shown; the references stay
- * attached, and a note says how many images ride with it, worded as Desktop's. A failed save keeps the typed text.
- */
-const QueueTextEditor = ({
-    editing,
-    isSaving,
-    onCancel,
-    onSave,
-    theme,
-}: {
-    editing: AgentChatQueueInPlaceEdit;
-    isSaving: boolean;
-    onCancel: () => void;
-    onSave: (text: string) => void;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    const [value, setValue] = useState(editing.text);
-    const canSave = !isSaving && canSaveAgentChatQueueEdit(value, editing.imageCount);
-    return (
-        <View style={styles.editor} testID="agent-chat-queue-editor">
-            <TextInput
-                accessibilityLabel={t('chat.queue.editLabel')}
-                autoFocus
-                multiline
-                onChangeText={setValue}
-                placeholderTextColor={theme.muted}
-                style={[
-                    styles.editorInput,
-                    {
-                        backgroundColor: theme.elevated,
-                        borderColor: theme.border,
-                        color: theme.text,
-                    },
-                ]}
-                testID="agent-chat-queue-editor-input"
-                value={value}
-            />
-            <View style={styles.editorFooter}>
-                <Text style={[styles.imagesText, styles.editorNote, { color: theme.muted }]}>
-                    {editing.imageCount > 0
-                        ? agentChatQueueImagesAttached(editing.imageCount, t)
-                        : ''}
-                </Text>
-                <Pressable
-                    accessibilityRole="button"
-                    disabled={isSaving}
-                    onPress={onCancel}
-                    style={styles.editorButton}
-                    testID="agent-chat-queue-editor-cancel"
-                >
-                    <Text style={[styles.resumeText, { color: theme.muted }]}>
-                        {t('chat.queue.cancelEdit')}
-                    </Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ busy: isSaving, disabled: !canSave }}
-                    disabled={!canSave}
-                    onPress={() => onSave(value)}
-                    style={[
-                        styles.editorButton,
-                        styles.editorSave,
-                        { backgroundColor: theme.primary, opacity: canSave ? 1 : 0.38 },
-                    ]}
-                    testID="agent-chat-queue-editor-save"
-                >
-                    {isSaving ? (
-                        <Spinner color={theme.primaryForeground} />
-                    ) : (
-                        <Text style={[styles.steerText, { color: theme.primaryForeground }]}>
-                            {t('chat.queue.saveEdit')}
-                        </Text>
-                    )}
-                </Pressable>
-            </View>
-        </View>
     );
 };
 
@@ -436,14 +352,18 @@ export const AgentChatQueueList = ({
     // Each time the keyboard goes down the card is whole again, so the next time the user types it starts collapsed.
     // Reset during render: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
     if (!isComposing && isExpanded) setExpanded(false);
-    const layout = agentChatQueueCardLayout({ isComposing, isExpanded });
+    const layout = agentChatQueueCardLayout({
+        isComposing,
+        isEditing: editing !== null,
+        isExpanded,
+    });
     const renderRow = useCallback(
         ({ item }: ListRenderItemInfo<AgentChatQueueRow>) => (
             <QueueRow
                 canAct={canAct}
                 editor={
                     editing?.id === item.id ? (
-                        <QueueTextEditor
+                        <AgentChatQueueEditor
                             editing={editing}
                             isSaving={isSavingEdit}
                             onCancel={cancelEdit}
@@ -572,27 +492,5 @@ const styles = StyleSheet.create({
     },
     swipeActionText: { fontSize: 13, fontWeight: '700' },
     error: { fontSize: 13, paddingBottom: 8, paddingHorizontal: 12 },
-    editor: { gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
-    editorInput: {
-        borderRadius: 10,
-        borderWidth: 1,
-        fontSize: 14,
-        lineHeight: 19,
-        maxHeight: 140,
-        minHeight: 44,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        textAlignVertical: 'top',
-    },
-    editorFooter: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    editorNote: { flex: 1 },
-    editorButton: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 40,
-        minWidth: 64,
-        paddingHorizontal: 12,
-    },
-    editorSave: { borderRadius: 20 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

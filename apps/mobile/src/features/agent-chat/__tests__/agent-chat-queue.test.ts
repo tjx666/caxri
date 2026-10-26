@@ -219,18 +219,30 @@ describe('agentChatQueueRowHints', () => {
 
 describe('agentChatQueueCardLayout', () => {
     it('collapses to the header while composing until expanded, and always shows rows otherwise', () => {
-        expect(agentChatQueueCardLayout({ isComposing: true, isExpanded: false })).toEqual({
+        expect(
+            agentChatQueueCardLayout({ isComposing: true, isEditing: false, isExpanded: false }),
+        ).toEqual({
             showsRows: false,
             showsToggle: true,
         });
-        expect(agentChatQueueCardLayout({ isComposing: true, isExpanded: true })).toEqual({
+        expect(
+            agentChatQueueCardLayout({ isComposing: true, isEditing: false, isExpanded: true }),
+        ).toEqual({
             showsRows: true,
             showsToggle: true,
         });
-        expect(agentChatQueueCardLayout({ isComposing: false, isExpanded: false })).toEqual({
+        expect(
+            agentChatQueueCardLayout({ isComposing: false, isEditing: false, isExpanded: false }),
+        ).toEqual({
             showsRows: true,
             showsToggle: false,
         });
+    });
+
+    it('keeps the rows while a row is edited in place, whose own keyboard would otherwise collapse it', () => {
+        expect(
+            agentChatQueueCardLayout({ isComposing: true, isEditing: true, isExpanded: false }),
+        ).toEqual({ showsRows: true, showsToggle: false });
     });
 });
 
