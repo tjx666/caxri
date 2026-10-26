@@ -257,9 +257,9 @@ export async function executeMobileChatComposerScenario(
         await waitForCheck(serial, 'agent-chat-question-0-option-1');
         // During a turn the main button steers (#2611); the Queue button beside it queues for the turn's end.
         await typeChatDraft(serial, LONG_QUEUED_MESSAGE);
-        await waitForCheck(serial, 'agent-chat-queue');
+        await waitForCheck(serial, 'agent-chat-composer-queue');
         await capture(environment, 'steer-and-queue', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-queue');
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-queue');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => (snapshot.queue?.length ?? 0) === 1,
@@ -279,7 +279,7 @@ export async function executeMobileChatComposerScenario(
         if (!restored.exists || !restored.textMatches)
             throw new Error('Edit did not restore the full queued text');
         await capture(environment, 'queue-edit-restored', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-queue');
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-queue');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => (snapshot.queue?.length ?? 0) === 1,

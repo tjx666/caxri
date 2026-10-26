@@ -103,7 +103,7 @@ export const AgentChatQueueButton = ({
                 queueStyles.button,
                 { borderColor: theme.primary, opacity: pressed ? 0.7 : 1 },
             ]}
-            testID="agent-chat-queue"
+            testID="agent-chat-composer-queue"
         >
             <Text style={[queueStyles.label, { color: theme.primary }]}>
                 {t('chat.composer.queue')}
