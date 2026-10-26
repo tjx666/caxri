@@ -1,14 +1,16 @@
 import { proseFileReferences, proseWebLinks } from '@caxri/markdown';
-import { agentChatImageTokenRanges } from '@caxri/protocol';
+import { agentChatImageTokenRanges, agentChatSessionReferenceRanges } from '@caxri/protocol';
 
 import { agentChatAbsolutePaths } from '../attachments/agent-chat-path-pills';
 
 /**
  * A run of a user's message: plain text, a file path that opens in the editor, an absolute path drawn as the pill the
- * composer showed for it, a web link, or the `[Image #N]` placeholder of one of the message's images.
+ * composer showed for it, a cited Session drawn as its chip, a web link, or the `[Image #N]` placeholder of one of the
+ * message's images.
  */
 export type AgentChatUserMessageSegment =
     | { kind: 'text'; text: string }
+    | { kind: 'session'; text: string; path: string; title: string }
     | { kind: 'image'; text: string; number: number; index: number }
     | { kind: 'file'; text: string; file: string }
     | { kind: 'path'; text: string; path: string; isDirectory: boolean }
@@ -30,12 +32,13 @@ export function agentChatFirstImageNumber(text: string, imageCount: number): num
 }
 
 /**
- * Splits a user's message into its text, the paths they typed or dropped in, and the URLs they pasted, in order. A
- * whole-word absolute path is a pill whether or not files can open (see `agentChatAbsolutePaths`). File paths are found
- * only when the Chat can open them. Where a path and a URL overlap (`https://a.dev/x.ts`), the run that starts first
- * wins, which is always the URL. A placeholder is an image only when it names one of the message's `imageCount` images
- * (see `agentChatFirstImageNumber`); otherwise it is what the user typed. An image segment's `index` is its image's
- * place in the message.
+ * Splits a user's message into its text, the Sessions it cites, the paths they typed or dropped in, and the URLs they
+ * pasted, in order. A cited Session wins over any path or link inside its reference text. A whole-word absolute path is
+ * a pill whether or not files can open (see `agentChatAbsolutePaths`). File paths are found only when the Chat can open
+ * them. Where a path and a URL overlap (`https://a.dev/x.ts`), the run that starts first wins, which is always the URL.
+ * A placeholder is an image only when it names one of the message's `imageCount` images (see
+ * `agentChatFirstImageNumber`); otherwise it is what the user typed. An image segment's `index` is its image's place in
+ * the message.
  */
 export function agentChatUserMessageSegments(
     text: string,
@@ -59,6 +62,11 @@ export function agentChatUserMessageSegments(
                   ]
                 : [],
         ),
+        // First: a cited Session's reference file and the sentence after it are one chip, not a path and words.
+        ...agentChatSessionReferenceRanges(text).map(({ from, path, title, to }) => ({
+            index: from,
+            segment: { kind: 'session', text: text.slice(from, to), path, title } as const,
+        })),
         // Before the file links: where both start, the path pill wins.
         ...agentChatAbsolutePaths(text).map(({ index, ...segment }) => ({
             index,

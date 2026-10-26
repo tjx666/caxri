@@ -2,13 +2,15 @@ import { useState } from 'react';
 
 import { agentChatMediaUrl } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, MessageCircle } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { resolveFileIcon } from '../../../icons/files/file-icon-resolver';
+import { cn } from '../../../lib/utilities';
 import { useCaxriQuery } from '../../../queries/client';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
+import { sessionReferenceProjectTitle } from '../../session/session-reference';
 import { useAgentChatTerminal } from '../hooks/use-agent-chat-terminal';
 import { AgentChatVideoPlayerDialog } from './agent-chat-message-videos';
 import { isAgentChatPlayableVideo, isPathInsideProject } from './agent-chat-path-pills';
@@ -155,5 +157,32 @@ function VideoPathPill({ name, path }: { name: string; path: string }) {
                 onClose={() => setPlaying(false)}
             />
         </>
+    );
+}
+
+/**
+ * A cited Session in a sent message, drawn as the chip the composer showed while it was written: the Session glyph,
+ * `@`, and its title, never the reference file or the sentence the Agent received. A long title is cut with an
+ * ellipsis; the tooltip has the whole title and, when this window cited it, its Project.
+ */
+export function AgentChatSessionReferencePill({ path, title }: { path: string; title: string }) {
+    const { t } = useTranslation();
+    const project = sessionReferenceProjectTitle(path);
+    return (
+        <Tooltip
+            content={
+                project ? t('agentChat.sessionReference.inProject', { project, title }) : title
+            }
+        >
+            <span
+                aria-label={t('agentChat.sessionReference.label', { title })}
+                className={cn(PILL_CLASS_NAME, 'max-w-64 pl-1')}
+                data-agent-chat-session-reference={title}
+                role="img"
+            >
+                <MessageCircle aria-hidden="true" className="size-3 shrink-0 text-muted" />
+                <span className="min-w-0 truncate">@{title}</span>
+            </span>
+        </Tooltip>
     );
 }

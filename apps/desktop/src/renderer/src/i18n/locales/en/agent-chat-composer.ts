@@ -45,6 +45,8 @@ export const agentChatComposer = {
     'agentChat.pathReference.openFolder': 'Open {{name}} in Finder',
     'agentChat.pathReference.revealFile': 'Show {{name}} in Finder',
     'agentChat.pathReference.openFailed': 'Could not show it in Finder',
+    'agentChat.sessionReference.label': 'Session reference: {{title}}',
+    'agentChat.sessionReference.inProject': '{{title}} in {{project}}',
 
     'agentChat.add.tooltip': 'Add files and more',
     'agentChat.add.add': 'Add',

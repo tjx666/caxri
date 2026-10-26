@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentChatTextWithSessionMentions } from '../domain/session-conversation-reference.js';
 import {
     agentChatSessionHandoffDraft,
     parseAgentChatSessionHandoff,
@@ -175,12 +176,14 @@ export function agentChatPathReferenceName(
 }
 
 /**
- * A one-line summary of a message for a queue row or the message rail: the user's words, or the names of the files and
- * folders it cites when it has no words. A preview clipped inside the reference block names the references it still
- * holds.
+ * A one-line summary of a message for a queue row or the message rail: the user's words, each cited Session as its
+ * `@title` mention, or the names of the files and folders it cites when it has no words. A preview clipped inside the
+ * reference block names the references it still holds.
  */
 export function agentChatPathReferencePreview(text: string): string {
-    const { references, skills, text: words } = parseAgentChatPathReferences(text);
+    const parsed = parseAgentChatPathReferences(text);
+    const { references, skills } = parsed;
+    const words = agentChatTextWithSessionMentions(parsed.text);
     if (references.length > 0 || skills.length > 0)
         return (
             words.trim() ||

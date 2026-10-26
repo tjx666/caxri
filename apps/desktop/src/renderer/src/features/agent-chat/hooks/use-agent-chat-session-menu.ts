@@ -154,7 +154,7 @@ export function useAgentChatSessionMenu({
         typed: string,
     ): Promise<void> => {
         setPreparing(candidate.title);
-        const reference = await prepareSessionReference(candidate.sessionId);
+        const reference = await prepareSessionReference(candidate);
         setPreparing(undefined);
         if (reference) insertText(reference, range, typed);
     };

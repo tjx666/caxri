@@ -1,5 +1,9 @@
 import { proseWebLinks } from '@caxri/markdown';
-import { agentChatImageTokenRanges, agentChatMediaUrl } from '@caxri/protocol';
+import {
+    agentChatImageTokenRanges,
+    agentChatMediaUrl,
+    agentChatSessionReferenceRanges,
+} from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
 import type { Extension, Range } from '@codemirror/state';
@@ -13,6 +17,7 @@ import {
     agentChatPathPillRanges,
     isAgentChatPlayableVideo,
 } from '../attachments/agent-chat-path-pills';
+import { agentChatSessionChips } from '../composer-input/agent-chat-session-chips';
 import type { AgentChatMarkdownMark } from './agent-chat-composer-markdown';
 import { agentChatMarkdownMarks } from './agent-chat-composer-markdown';
 import { agentChatLimitedChange } from './agent-chat-composer-view';
@@ -258,9 +263,19 @@ class PathPillWidget extends WidgetType {
 function pathPillDecorations(state: EditorState): DecorationSet {
     const { openVideo, pills } = state.facet(agentChatPathPills);
     if (pills.size === 0) return Decoration.none;
+    const text = state.doc.toString();
+    // A cited Session's reference file is part of its chip, never a pill of its own.
+    const sessions = agentChatSessionReferenceRanges(text);
     return Decoration.set(
-        agentChatPathPillRanges(state.doc.toString(), pills).map(({ from, pill, to }) =>
-            Decoration.replace({ widget: new PathPillWidget(pill, openVideo) }).range(from, to),
+        agentChatPathPillRanges(text, pills).flatMap(({ from, pill, to }) =>
+            sessions.some((session) => from < session.to && to > session.from)
+                ? []
+                : [
+                      Decoration.replace({ widget: new PathPillWidget(pill, openVideo) }).range(
+                          from,
+                          to,
+                      ),
+                  ],
         ),
     );
 }
@@ -447,6 +462,36 @@ const composerTheme = EditorView.theme({
         userSelect: 'none',
     },
     '.cm-path-pill img': { width: '14px', height: '14px' },
+    '.cm-session-chip': {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '2px',
+        maxWidth: '16rem',
+        height: '18px',
+        margin: '0 1px',
+        padding: '0 6px 0 4px',
+        borderRadius: 'var(--radius-sm)',
+        backgroundColor: CODE_BACKGROUND,
+        fontSize: '12px',
+        lineHeight: '18px',
+        verticalAlign: 'text-bottom',
+        cursor: 'default',
+        userSelect: 'none',
+    },
+    '.cm-session-chip svg': {
+        width: '12px',
+        height: '12px',
+        flexShrink: '0',
+        marginRight: '2px',
+        color: 'var(--muted)',
+    },
+    '.cm-session-chip-title': {
+        minWidth: '0',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+    },
+    '.cm-session-chip-selected': { outline: '1px solid var(--accent)' },
     '.cm-video-pill': { cursor: 'pointer' },
     '.cm-video-pill:hover': {
         backgroundColor: 'color-mix(in srgb, var(--border) 75%, transparent)',
@@ -457,7 +502,7 @@ const composerTheme = EditorView.theme({
      * block-level flex item that re-applies the negative indent and slides it over the widget's own icon (`1. ` before
      * a path pill).
      */
-    '.cm-path-pill, .cm-image-pill, .cm-link-icon': { textIndent: '0' },
+    '.cm-path-pill, .cm-image-pill, .cm-session-chip, .cm-link-icon': { textIndent: '0' },
     '.cm-web-link': { color: 'var(--accent)' },
     '.cm-link-icon': {
         display: 'inline-flex',
@@ -503,6 +548,8 @@ export function agentChatComposerExtensions(maxLength: number): Extension {
         EditorState.transactionFilter.of(
             (transaction) => agentChatLimitedChange(transaction, maxLength) ?? transaction,
         ),
+        // Ahead of the live preview: Markdown in a Session title must not style or hide part of its chip.
+        agentChatSessionChips,
         livePreview,
         imagePills,
         pathPills,

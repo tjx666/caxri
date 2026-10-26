@@ -41,7 +41,7 @@ export function useAgentActionSessionReferences({
     const insert = (candidate: SessionReferenceCandidate): void => {
         if (!terminalId) return;
         runInputSequence(async () => {
-            const reference = await prepareSessionReference(candidate.sessionId);
+            const reference = await prepareSessionReference(candidate);
             // The Agent may have exited while the file was written; the reference must not reach the Shell behind it.
             const current = getBootstrap()?.terminals.find(({ id }) => id === terminalId);
             if (reference && !isAgentProcessRunning(current?.lastAgentProcessState))

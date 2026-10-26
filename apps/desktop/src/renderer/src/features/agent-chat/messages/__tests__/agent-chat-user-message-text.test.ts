@@ -65,6 +65,23 @@ describe('agentChatUserMessageSegments', () => {
         ]);
     });
 
+    it('draws a cited Session as one chip ahead of the path and file link inside it', () => {
+        const quoted = String.raw`@"/tmp/a b/s.md" contains the conversation from Session "Fix \"login\"".`;
+        const bare = '@/tmp/refs/t.md contains the conversation from Session "修复登录".';
+        expect(
+            agentChatUserMessageSegments(`compare ${quoted} with ${bare} /repo/x.ts`, {
+                withFiles: true,
+            }),
+        ).toEqual([
+            { kind: 'text', text: 'compare ' },
+            { kind: 'session', text: quoted, path: '/tmp/a b/s.md', title: 'Fix "login"' },
+            { kind: 'text', text: ' with ' },
+            { kind: 'session', text: bare, path: '/tmp/refs/t.md', title: '修复登录' },
+            { kind: 'text', text: ' ' },
+            { kind: 'path', text: '/repo/x.ts', path: '/repo/x.ts', isDirectory: false },
+        ]);
+    });
+
     it("marks the placeholders of the message's own images", () => {
         expect(
             agentChatUserMessageSegments('compare [Image #1] with [Image #3]', {

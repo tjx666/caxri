@@ -6,7 +6,11 @@ import { dirname, join } from 'node:path';
 import type { BootstrapState } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 
-import { composerValue, expectComposerValue } from './support/agent-chat-composer.ts';
+import {
+    composerSelection,
+    composerValue,
+    expectComposerValue,
+} from './support/agent-chat-composer.ts';
 import { fakeCodexChatProvider, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -220,6 +224,73 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         await expectComposerValue(message, REFERENCE);
         const chatReference = await composerValue(message);
         await expectCondensedConversation(REFERENCE.exec(chatReference)![1]);
+        // The input shows the cited Session as one chip; the reference file and its sentence stay in the sent text only.
+        const chip = message.locator('.cm-session-chip');
+        await expect(chip).toHaveCount(1);
+        await expect(chip).toHaveText(`@${CITED_TITLE}`);
+        await expect(chip).toHaveAttribute('aria-label', `Session reference: ${CITED_TITLE}`);
+        await expect(message).not.toContainText('contains the conversation');
+        await expect(message).not.toContainText('caxri-session-references');
+        await chat.screenshot({ path: testInfo.outputPath('chat-session-chip.png') });
+        const chipEnd = chatReference.trimEnd().length;
+        // Undo brings back the typed `@word` the chip replaced, and Redo the chip, even when typing follows at once.
+        await page.keyboard.type('next');
+        await expectComposerValue(message, `${chatReference}next`);
+        await message.press('Meta+z');
+        await expectComposerValue(message, chatReference);
+        await message.press('Meta+z');
+        await expectComposerValue(message, '@log');
+        await message.press('Meta+Shift+z');
+        await expectComposerValue(message, chatReference);
+        // The caret steps over the chip in one press each way.
+        await message.press('ArrowLeft');
+        await message.press('ArrowLeft');
+        await expect.poll(() => composerSelection(message)).toEqual({ start: 0, end: 0 });
+        await message.press('ArrowRight');
+        await expect
+            .poll(() => composerSelection(message))
+            .toEqual({ start: chipEnd, end: chipEnd });
+        // Backspace removes the chip whole, and Undo restores it.
+        await message.press('Backspace');
+        await expectComposerValue(message, ' ');
+        await message.press('Meta+z');
+        await expectComposerValue(message, chatReference);
+        // A click selects the whole chip, so Delete removes it whole too.
+        await chip.click();
+        await expect.poll(() => composerSelection(message)).toEqual({ start: 0, end: chipEnd });
+        await message.press('Delete');
+        await expectComposerValue(message, ' ');
+        await message.press('Meta+z');
+        await expectComposerValue(message, chatReference);
+        // A Session switch rebuilds the draft's chip from its text.
+        const citingSessionId = (
+            await pageRequest<BootstrapState>(page, 'app.bootstrap')
+        ).terminals.find((terminal) => terminal.id === citingTerminalId)?.sessionId;
+        await pageRequest(page, 'session.select', { sessionId: shellId });
+        await expect(message).toBeHidden();
+        await pageRequest(page, 'session.select', { sessionId: citingSessionId });
+        await expect(message.locator('.cm-session-chip')).toHaveText(`@${CITED_TITLE}`);
+        // The sent message shows the same chip; the Agent still receives the whole reference sentence.
+        await message.click();
+        await message.press('End');
+        await page.keyboard.type('what changed?');
+        await message.press('Enter');
+        await expect(
+            chat.getByText(/You said: @\/\S+ contains the conversation from Session/u),
+        ).toBeVisible();
+        const sent = chat.locator('[data-agent-chat-user-bubble]').last();
+        await expect(sent.locator('[data-agent-chat-session-reference]')).toHaveText(
+            `@${CITED_TITLE}`,
+        );
+        await expect(sent).not.toContainText('contains the conversation');
+        await chat.screenshot({ path: testInfo.outputPath('chat-session-chip-sent.png') });
+        // Edit from here puts the message back into the input with its chip.
+        await sent.hover();
+        await chat.getByRole('button', { name: 'Edit from here' }).click();
+        await expect(message.locator('.cm-session-chip')).toHaveText(`@${CITED_TITLE}`);
+        await expectComposerValue(message, REFERENCE);
+        await chat.getByRole('button', { name: 'Cancel edit' }).click();
+        await message.fill('');
         // Escape dismisses the list until the draft changes.
         await message.fill('@log');
         await expect(list).toBeVisible();
@@ -229,9 +300,6 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         // is reused across Sessions, so the caret it followed before the switch must not reopen the list.
         await message.fill('@lo');
         await expect(list).toBeVisible();
-        const citingSessionId = (
-            await pageRequest<BootstrapState>(page, 'app.bootstrap')
-        ).terminals.find((terminal) => terminal.id === citingTerminalId)?.sessionId;
         await pageRequest(page, 'session.select', { sessionId: shellId });
         await expect(message).toBeHidden();
         await pageRequest(page, 'session.select', { sessionId: citingSessionId });

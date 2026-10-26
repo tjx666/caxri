@@ -1,14 +1,23 @@
+import { formatAgentChatSessionReference } from '@caxri/protocol';
+
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
-import { formatSessionReference } from './session-reference';
+import type { SessionReferenceCandidate } from './session-reference';
+import { rememberSessionReferenceProject } from './session-reference';
 
 /**
  * Asks the Server to condense another Session's conversation into a reference file and returns the text to insert, or
  * `undefined` after a toast when the Session has nothing to cite. The conversation itself never reaches the Renderer.
  */
-export function prepareSessionReference(sessionId: string): Promise<string | undefined> {
-    return tryCommand(translate('session.errors.referenceFailed'), async () =>
-        formatSessionReference(await caxri.request('session.conversationReference', { sessionId })),
-    );
+export function prepareSessionReference(
+    candidate: Pick<SessionReferenceCandidate, 'projectTitle' | 'sessionId'>,
+): Promise<string | undefined> {
+    return tryCommand(translate('session.errors.referenceFailed'), async () => {
+        const reference = await caxri.request('session.conversationReference', {
+            sessionId: candidate.sessionId,
+        });
+        rememberSessionReferenceProject(reference.filePath, candidate.projectTitle);
+        return formatAgentChatSessionReference(reference);
+    });
 }
