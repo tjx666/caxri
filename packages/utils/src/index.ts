@@ -15,6 +15,7 @@ export * from './grid-burst.js';
 export * from './launch-arguments.js';
 export * from './notify-listeners.js';
 export * from './path-basename.js';
+export * from './process-display-name.js';
 export * from './rank-path-matches.js';
 export * from './redaction.js';
 export * from './relative-time.js';

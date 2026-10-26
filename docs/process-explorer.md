@@ -90,6 +90,9 @@ Plain processes show only their executable. An interpreter shows its script too,
 `bun <script>`. The full command line, redacted for credential flags, appears in the row tooltip.
 If Server Core is unavailable, the Sessions group is empty and every process lists under Caxri.
 
+A paired phone shows a read-only summary of the same data, sampled by Server Core instead of Main;
+see [Mobile computer status](mobile/host-status.md).
+
 The grid is a treegrid with a single roving Tab stop:
 
 - Up, Down, Home, and End move between rows.

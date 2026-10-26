@@ -147,6 +147,11 @@ const mobileGatewayMethodsByRole = {
          */
         'mobile.commanderInbox.list',
         'mobile.commanderInbox.reply',
+        /**
+         * Computer status names Sessions from every Project and the Mac's busiest processes, so it stays with the role
+         * that already sees the whole Mac.
+         */
+        'mobile.host.status',
         ...mobileEveryRoleMethods,
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;

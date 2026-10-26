@@ -362,6 +362,83 @@ async function settingsPage(environment: UiAuditScenarioEnvironment, artifacts: 
 }
 
 /**
+ * Scrolls the Computer status list by most of a screen, starting inside the list and away from Android's edge-back
+ * gesture.
+ */
+async function scrollHostStatus(serial: string): Promise<void> {
+    const scroll = (await mobileSemantics(serial)).find(
+        ({ checkId }) => checkId === 'host-status-scroll',
+    );
+    const bounds = scroll && androidBounds(scroll.bounds);
+    if (!bounds) throw new Error('Computer status list is unavailable');
+    const x = Math.floor((bounds.left + bounds.right) / 2);
+    const height = bounds.bottom - bounds.top;
+    await adbShell(serial, [
+        'input',
+        'swipe',
+        String(x),
+        String(Math.floor(bounds.top + height * 0.8)),
+        String(x),
+        String(Math.floor(bounds.top + height * 0.2)),
+        '400',
+    ]);
+}
+
+/**
+ * The Computer status screen: overview with the fixture's running Session, the memory sort, the offline banner that
+ * keeps the last reading, and opening a Session from its load row.
+ */
+async function hostStatus(
+    environment: UiAuditScenarioEnvironment,
+    artifacts: string[],
+    sessionId: string,
+) {
+    const { serial } = environment;
+    const sessionRow = `host-status-session-${sessionId}`;
+    await tapMobileCheck(serial, 'forget-device-button');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'computer-status-action'));
+    await capture(environment, 'menu', artifacts, 'computer-status-action');
+    await tapMobileCheck(serial, 'computer-status-action');
+    await waitFor(
+        serial,
+        (nodes) =>
+            hasCheck(nodes, 'host-status-cpu') &&
+            hasCheck(nodes, 'host-status-memory') &&
+            hasCheck(nodes, sessionRow),
+    );
+    await capture(environment, 'overview', artifacts, sessionRow);
+    await scrollHostStatus(serial);
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'host-status-sort-memory'));
+    await capture(environment, 'processes-by-cpu', artifacts, 'host-status-processes');
+    await tapMobileCheck(serial, 'host-status-sort-memory');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'host-status-processes'));
+    await capture(environment, 'processes-by-memory', artifacts, 'host-status-processes');
+    await setMobileNetworkAvailable(serial, false);
+    try {
+        await waitFor(serial, (nodes) => hasCheck(nodes, 'host-status-stale'));
+        await capture(environment, 'offline', artifacts, 'host-status-stale');
+    } finally {
+        await setMobileNetworkAvailable(serial, true);
+    }
+    await waitFor(serial, (nodes) => !hasCheck(nodes, 'host-status-stale'));
+    await capture(environment, 'recovered', artifacts, 'host-status-processes');
+    await tapMobileCheck(serial, 'host-status-back');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'new-session-button'));
+    await tapMobileCheck(serial, 'forget-device-button');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'computer-status-action'));
+    await tapMobileCheck(serial, 'computer-status-action');
+    await waitFor(serial, (nodes) => hasCheck(nodes, sessionRow));
+    await tapMobileCheck(serial, sessionRow);
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-detail-back'));
+    await capture(environment, 'session-opened', artifacts, 'session-detail-back');
+    await finish(environment, artifacts, {
+        offline: 'last-reading-kept-with-banner',
+        sessionRow: 'opens-session',
+        status: 'passed',
+    });
+}
+
+/**
  * Runs the synthetic Acceptance cases for the page-by-page mobile UI audit.
  */
 export async function executeMobileUiAuditScenario(
@@ -403,6 +480,10 @@ export async function executeMobileUiAuditScenario(
                 break;
             case 'MOB-UI-08':
                 await renameKeyboardAvoidance(environment, artifacts, sessionId);
+                break;
+            case 'MOB-UI-09':
+            case 'MOB-UI-10':
+                await hostStatus(environment, artifacts, sessionId);
                 break;
             default:
                 throw new Error(`Unsupported UI audit Acceptance case: ${environment.caseId}`);

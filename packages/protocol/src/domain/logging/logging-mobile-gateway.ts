@@ -13,6 +13,13 @@ export const mobileGatewayLogEvents = {
      */
     terminalTeardownFailed: 'mobile_gateway.terminal_teardown_failed',
     /**
+     * A computer status read that served the phone without one of its parts, with a closed `part` (`processTable` when
+     * `ps` failed and only system figures were returned, `terminals` when Server Core's Terminal list failed and
+     * Session load was left empty, `memory` when the platform memory reading failed and the coarse total-minus-free
+     * figure was served) and the error class.
+     */
+    hostStatusSampleFailed: 'mobile_gateway.host_status_sample_failed',
+    /**
      * One record per Android update download request, with a closed `outcome`, served bytes, and duration.
      */
     updateDownload: 'mobile_gateway.update_download',

@@ -1,10 +1,10 @@
+import { formatCpuPercent, formatMemoryMb } from '@caxri/protocol';
 import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
 import { Search } from 'lucide-react';
 
 import { Input, InputGroup } from '../../components/ui/input';
 import { useTranslation } from '../../i18n';
 import { isImeComposing } from '../../lib/ime';
-import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import type { ProcessExplorerTotals } from './process-tree';
 
 function SummaryReading({ label, value }: { label: string; value: string }) {

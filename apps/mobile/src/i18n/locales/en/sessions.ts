@@ -104,6 +104,7 @@ export const sessions = {
     'sessions.home.listError': '{{error}} Showing the last known state.',
     'sessions.home.loading': 'Loading Sessions…',
     'sessions.home.needsYou': 'Needs you',
+    'sessions.home.computerStatus': 'Computer status',
     'sessions.home.newSessionHint': 'Opens the New Session screen.',
     'sessions.home.notConnected': 'Not connected',
     'sessions.home.savedCopy': 'Showing Sessions {{saved}}.',

@@ -30,6 +30,7 @@ import {
     mobileCommanderInboxMethods,
 } from './mobile-commander-inbox-contract.js';
 import { mobileFilesInternalMethods, mobileFilesMethods } from './mobile-files-contract.js';
+import { mobileHostStatusMethods } from './mobile-host-status-contract.js';
 import {
     mobileAttachmentIdSchema,
     mobileImageReadInternalParametersSchema,
@@ -53,6 +54,7 @@ export * from './mobile-changes-contract.js';
 export * from './mobile-commander-inbox-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-files-contract.js';
+export * from './mobile-host-status-contract.js';
 export * from './mobile-image-contract.js';
 export * from './mobile-panels-contract.js';
 export * from './mobile-pull-request-contract.js';
@@ -444,6 +446,7 @@ export const mobileMethods = {
     ...mobileFilesMethods,
     ...mobileUpdateMethods,
     ...mobileCommanderInboxMethods,
+    ...mobileHostStatusMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 /**

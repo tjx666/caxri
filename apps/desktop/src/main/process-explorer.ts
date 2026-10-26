@@ -1,16 +1,17 @@
 import type { TerminalProcessEntry } from '@caxri/protocol';
-import { execFileAsync } from '@caxri/system';
-import { redactCommandLine } from '@caxri/utils';
+import type { ServerHostRole } from '@caxri/system';
+import { execFileAsync, serverHostRole } from '@caxri/system';
+import { processDisplayName, redactCommandLine } from '@caxri/utils';
 
 import type { ProcessExplorerEntry, ProcessExplorerSnapshot } from '../shared/process-explorer';
 
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const MAX_PROCESS_NAME_LENGTH = 4_096;
-const SERVER_CHILD_PROCESS_MARKERS = [
-    { marker: '/bundles/extension-host.js', name: 'Extension Host' },
-    { marker: '/bundles/terminal-host.js', name: 'Terminal Host' },
-] as const;
+const SERVER_HOST_NAMES: Readonly<Record<ServerHostRole, string>> = {
+    extensionHost: 'Extension Host',
+    terminalHost: 'Terminal Host',
+};
 
 export interface ElectronProcessSample {
     cpuPercent: number;
@@ -130,33 +131,6 @@ export function selectProcessTree(
     return selected.toSorted((left, right) => left.pid - right.pid);
 }
 
-const INTERPRETERS = new Set(['bun', 'deno', 'node', 'perl', 'python', 'python3', 'ruby']);
-const INTERPRETER_SUBCOMMANDS = new Set(['exec', 'run', 'x']);
-
-function basename(path: string): string {
-    return path.slice(path.lastIndexOf('/') + 1);
-}
-
-/**
- * Names a process after what it runs instead of where it lives: `/Users/me/.local/bin/claude --resume <id>` reads as
- * `claude`, and an interpreter reads as interpreter plus script (`node agent-launcher.js`, `bun watch-pr.ts`) because
- * the interpreter alone says nothing. The full command line stays available as `command`.
- *
- * Splitting on whitespace misreads an executable path that itself contains a space; the result is then a shorter but
- * still recognizable name, and hover shows the exact command.
- */
-export function processDisplayName(command: string): string {
-    const tokens = command.trim().split(/\s+/);
-    // `ps` wraps a process that is exiting or has not exec'd yet in parentheses, e.g. `(git)`.
-    const executable = basename(tokens[0].replace(/^\((.*)\)$/, '$1')).replace(/^-/, '');
-    if (!INTERPRETERS.has(executable)) return executable || command;
-    const scriptArguments = tokens.slice(1).filter((token) => !token.startsWith('-'));
-    const script = INTERPRETER_SUBCOMMANDS.has(scriptArguments[0] ?? '')
-        ? scriptArguments[1]
-        : scriptArguments[0];
-    return script ? `${executable} ${basename(script)}` : executable;
-}
-
 const RENDERER_ROLE_NAMES: Readonly<Record<string, string>> = {
     'agent commander': 'Agent Commander',
     'performance monitor': 'Performance Monitor',
@@ -195,7 +169,8 @@ function serverProcessName(
 ): string | undefined {
     if (process.pid === serverPid) return SERVER_CORE_NAME;
     if (process.parentPid !== serverPid) return;
-    return SERVER_CHILD_PROCESS_MARKERS.find(({ marker }) => process.name.includes(marker))?.name;
+    const role = serverHostRole(process.name);
+    return role && SERVER_HOST_NAMES[role];
 }
 
 /**

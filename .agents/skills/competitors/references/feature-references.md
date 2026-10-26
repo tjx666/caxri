@@ -100,6 +100,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Chat image numbers**: `#N` badge on each attached thumbnail, matching the image's place in the message. Evidence: `docs/agent-chat.md`.
 - **Usage chip weekly window name**: Compact `wk` (Chinese `本周`) instead of `7d`, which reads as days until reset. Evidence: `apps/desktop/src/renderer/src/lib/usage-format.ts`.
 - **Chat video player**: Metadata-only preload until playback, and an unplayable state instead of a broken player. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/attachments/agent-chat-message-videos.tsx`.
+- **Mobile computer status Session load**: Per-Session sum of PTY descendant CPU and memory; 2-second poll only while visible (also: Superset, cmux). Evidence: `apps/server/src/core/mobile/host-status.ts`; `apps/mobile/src/features/host-status/host-status-model.ts`.
 
 ## Wake (MIT)
 
@@ -130,6 +131,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Chat message video tile**: A cited video shown as its poster frame with a centered play button and its name, opening a player on click. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/attachments/agent-chat-message-videos.tsx`.
 - **Portable hand-off on a used-up provider**: When a provider's usage runs out, the workbench builds the continuation brief from the visible, budgeted conversation (failed or interrupted turns included) instead of asking the source model for a summary, and never copies reasoning or tool state. Evidence: `docs/agent-usage-continuation.md`; `apps/server/src/domains/agent-chat/continuation/continuation-brief.ts`.
 - **SSH Host slow-link benchmark**: 3G link profile (400 kbps each way, 400 ms RTT) and reporting time beside bytes on the wire. Evidence: `scripts/ssh-link-benchmark.ts`; `docs/ssh-host.md` (Slow links).
+- **Mobile computer status CPU**: Whole-machine CPU from the delta between two `os.cpus()` reads. Evidence: `packages/system/src/process/system-resources.ts`.
 
 ## Paseo (Apache-2.0)
 
@@ -152,6 +154,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Activity ranking**: Attention ranked above running work. Reference: Herdr, Kero. Evidence: `docs/activity-view.md`.
 - **Terminal font loading**: Font cascade. Reference: Kero. Evidence: `apps/desktop/src/renderer/src/features/terminal/terminal-fonts.ts`.
 - **Window presence**: Stable per-window key and per-client visible and focused tracking. Reference: Superset. Evidence: `docs/adr/0017-per-window-session-presence.md`; `apps/desktop/src/main/window-presence-registry.ts`.
+- **Mobile computer status sort**: CPU and memory sort toggle for top processes; poll only while the view is visible. Reference: Superset (also cmux). Evidence: `apps/mobile/src/features/host-status/host-status-model.ts`.
 
 ## Streaming Markdown references
 
@@ -177,6 +180,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Termany
 
 - **One Session per window**: A Session belongs to one window (`PageClaims`, one page per window); opening it elsewhere focuses the owner (also: cmux, LobeHub `TopicPopupGuard`). Evidence: `docs/open-sessions.md`; `apps/server/src/domains/db/open-sessions.ts`.
+- **Mobile computer status memory**: Used memory from `vm_stat` plus swap from `sysctl vm.swapusage` (approach only; AGPL code not copied). Evidence: `packages/system/src/process/system-resources.ts`.
 
 ## Codex app and Claude Code (closed or product references)
 

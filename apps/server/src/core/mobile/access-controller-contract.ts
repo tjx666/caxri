@@ -72,6 +72,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.agentChat.runCommand'
             | 'mobile.commanderInbox.list'
             | 'mobile.commanderInbox.reply'
+            | 'mobile.host.status'
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'

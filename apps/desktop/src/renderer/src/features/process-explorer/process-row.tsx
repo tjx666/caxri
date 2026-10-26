@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from 'react';
 
+import { formatCpuPercent, formatMemoryMb } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     AppWindow,
@@ -17,7 +18,6 @@ import {
 
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
-import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { cn } from '../../lib/utilities';
 import { PROCESS_GRID_TEMPLATE } from './process-columns';
 import type { ProcessTreeNodeKind, ProcessTreeRow } from './process-tree';

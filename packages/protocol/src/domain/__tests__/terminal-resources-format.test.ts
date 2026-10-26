@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatCpuPercent, formatMemoryMb } from './resource-usage-format';
+import { formatCpuPercent, formatMemoryMb } from '../terminal-resources';
 
 describe('formatMemoryMb', () => {
     it('keeps small readings in MB with one decimal', () => {
