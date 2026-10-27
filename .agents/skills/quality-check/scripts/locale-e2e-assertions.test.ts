@@ -16,7 +16,7 @@ const LOCALE = 'apps/desktop/src/renderer/src/i18n/locales/en/example.ts';
 describe('staticFragment', () => {
     it('keeps the longest static segment around placeholders', () => {
         expect(staticFragment('{{window}} limit on track to run out: {{percent}}% left')).toBe(
-            'limit on track to run out:',
+            'limit on track to run out',
         );
     });
 
@@ -76,6 +76,30 @@ describe('staleLocaleCopyWarnings', () => {
             expect(warnings).toEqual([
                 { location: 'e2e/example.e2e.ts:1', fragment: 'limit on track to run out' },
                 { location: 'e2e/example.e2e.ts:2', fragment: 'Removed sentence still asserted' },
+            ]);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it("matches a spec regex that stops before the copy's trailing colon", async () => {
+        const { root, git } = await fixture();
+        try {
+            await write(
+                root,
+                LOCALE,
+                "export const x = { 'a': '{{window}} limit on track to run out: {{percent}}% left' };\n",
+            );
+            await write(
+                root,
+                'e2e/example.e2e.ts',
+                'await pace.getByText(/^Weekly limit on track to run out/u).hover();\n',
+            );
+            git('add', '.');
+            git('commit', '-m', 'base');
+            await write(root, LOCALE, "export const x = { 'a': '{{window}} pace is high' };\n");
+            expect(await staleLocaleCopyWarnings(root, [LOCALE], 'HEAD')).toEqual([
+                { location: 'e2e/example.e2e.ts:1', fragment: 'limit on track to run out' },
             ]);
         } finally {
             await rm(root, { recursive: true, force: true });

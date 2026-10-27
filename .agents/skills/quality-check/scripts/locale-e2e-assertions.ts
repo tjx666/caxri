@@ -58,12 +58,14 @@ export function staleLocaleValues(before: string, after: string): string[] {
 
 /**
  * Reduces a value to the longest static segment between `{{placeholder}}` interpolations, because a spec asserts the
- * rendered text and can only ever contain that static part. Returns undefined when it is too short to match reliably.
+ * rendered text and can only ever contain that static part. Edge punctuation is dropped because a spec regex often
+ * stops before it (`/^Weekly limit on track to run out/u` for "... run out: {{percent}}% left"). Returns undefined when
+ * it is too short to match reliably.
  */
 export function staticFragment(value: string): string | undefined {
     const longest = value
         .split(/\{\{[^}]*\}\}/)
-        .map((segment) => segment.trim())
+        .map((segment) => segment.replaceAll(/^[\s:;,.\-]+|[\s:;,.\-]+$/gu, ''))
         .toSorted((a, b) => b.length - a.length)[0];
     return longest && longest.length >= MIN_FRAGMENT_LENGTH ? longest : undefined;
 }
