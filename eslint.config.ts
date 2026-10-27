@@ -87,6 +87,21 @@ const rendererLocaleFormatRestrictions = [
 ];
 
 /**
+ * `navigator.clipboard` writes reject with `NotAllowedError` whenever the document lacks focus: after a native context
+ * menu closes, or when an OSC 52 copy arrives while another app is in front. Renderer copies go through Main's
+ * `clipboard.write` via `apps/desktop/src/renderer/src/lib/clipboard.ts`. Reads stay allowed: they run from a focused
+ * paste shortcut.
+ */
+const rendererClipboardWriteRestrictions = [
+    {
+        selector:
+            'MemberExpression[object.object.name="navigator"][object.property.name="clipboard"][property.name=/^write(?:Text)?$/]',
+        message:
+            'navigator.clipboard writes fail without document focus; use writeClipboardText or writeClipboardContent from apps/desktop/src/renderer/src/lib/clipboard.ts.',
+    },
+];
+
+/**
  * Directories whose production/tooling code may run child processes at all (the Renderer is out of scope: it already
  * bans importing `child_process` outright via the Renderer `no-restricted-imports` config below).
  */
@@ -368,6 +383,7 @@ export default defineConfig(
                         'target="_blank" anchors never navigate (Main denies window.open); use openExternalUrl from apps/desktop/src/renderer/src/lib/external-link.ts instead.',
                 },
                 ...rendererLocaleFormatRestrictions,
+                ...rendererClipboardWriteRestrictions,
             ],
         },
     },
@@ -379,7 +395,11 @@ export default defineConfig(
              * Scoped to `.ts` so this entry never collides with the `.tsx` entry above (flat config replaces, rather
              * than merges, a later matching object's same-named rule).
              */
-            'no-restricted-syntax': ['error', ...rendererLocaleFormatRestrictions],
+            'no-restricted-syntax': [
+                'error',
+                ...rendererLocaleFormatRestrictions,
+                ...rendererClipboardWriteRestrictions,
+            ],
         },
     },
     {

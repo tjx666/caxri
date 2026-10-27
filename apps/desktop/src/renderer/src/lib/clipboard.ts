@@ -20,6 +20,7 @@ export interface ClipboardContent {
  */
 export async function writeClipboardContent(content: ClipboardContent): Promise<void> {
     if (!hasCaxriBridge()) {
+        /* eslint-disable no-restricted-syntax -- the bridgeless windows' only clipboard; see above */
         await (content.html === undefined
             ? navigator.clipboard.writeText(content.text)
             : navigator.clipboard.write([
@@ -28,6 +29,7 @@ export async function writeClipboardContent(content: ClipboardContent): Promise<
                       'text/html': new Blob([content.html], { type: 'text/html' }),
                   }),
               ]));
+        /* eslint-enable no-restricted-syntax */
         return;
     }
     await caxri.request('clipboard.write', content);
