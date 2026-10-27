@@ -9,6 +9,7 @@ import nativeTitle from './native-title';
 import noDeclareImplicitAnyVariable from './no-declare-implicit-any-variable';
 import noSchemaVersionOffset from './no-schema-version-offset';
 import registeredColorUtilities from './registered-color-utilities';
+import relativeImportExtension from './relative-import-extension';
 import serverReadsThroughQuery from './server-reads-through-query';
 
 /**
@@ -26,6 +27,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'no-declare-implicit-any-var': noDeclareImplicitAnyVariable,
         'no-schema-version-offset': noSchemaVersionOffset,
         'registered-color-utilities': registeredColorUtilities,
+        'relative-import-extension': relativeImportExtension,
         'server-reads-through-query': serverReadsThroughQuery,
     },
 };

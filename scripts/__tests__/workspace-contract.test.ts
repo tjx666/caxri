@@ -376,21 +376,20 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.devDependencies ?? {}).not.toHaveProperty('@vscode/ripgrep-universal');
     });
 
-    it('keeps protocol source browser-safe and emitted ESM imports resolvable by Node.js', () => {
+    /**
+     * Relative `.js` extensions in every package's emitted ESM are enforced by `caxri/relative-import-extension`.
+     */
+    it('keeps protocol and utility source browser-safe', () => {
         const sourceFiles = [
             ...productionTypeScriptFiles(join(root, 'packages/protocol/src')),
             ...productionTypeScriptFiles(join(root, 'packages/utils/src')),
         ];
         const forbiddenImport =
             /(?:from\s|import\s*\()\s*['"](?:node:|electron(?:[/'"]|$)|node-pty(?:[/'"]|$)|better-sqlite3(?:[/'"]|$)|@parcel\/watcher(?:[/'"]|$))/u;
-        const relativeImport = /(?:from\s|import\s*\()\s*['"](\.{1,2}\/[^'"]+)['"]/gu;
 
         for (const file of sourceFiles) {
             const source = readFileSync(file, 'utf8');
             expect(source.match(forbiddenImport), file).toBeNull();
-            for (const match of source.matchAll(relativeImport)) {
-                expect(match[1], `${file}: relative ESM import`).toMatch(/\.js$/u);
-            }
         }
     });
 

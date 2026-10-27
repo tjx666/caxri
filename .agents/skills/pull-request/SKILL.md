@@ -69,7 +69,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    the full suite automatically, and the import graph cannot see which Electron workflows a
    Renderer or Server change reaches: when the change is user-visible, add one
    `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line naming the specs that cover it (see
-   `docs/ci-performance.md`). Set it before pushing, since the policy reads the body at push time.
+   `docs/ci-performance.md`). CI reads the body from the `pull_request` event that starts a run
+   (`opened`, `synchronize`, `ready_for_review`, and the like), and editing the body starts none: put the line in the body passed
+   to `gh pr create`, and update it before a later push, not after. A ready PR only records these
+   specs (`runE2E: false`); a skipped `e2e` job is expected, so run them locally.
    A diff that rewrites user-visible text or removes or renames a control also breaks specs that
    assert the old text or accessible name, and nothing selects them: search `e2e/` for each old
    string, then list and run every match. Rewording the return hint to "since you left" left

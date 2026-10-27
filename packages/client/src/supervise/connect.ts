@@ -1,9 +1,9 @@
 import type { ServerDesktopCredential, ServerManifest } from '@caxri/protocol';
 
-import { ServerClient } from './client';
-import type { ServerClientCredential } from './client-support';
-import { DEFAULT_TIMEOUT_MS } from './client-support';
-import { discoverDesktopCredential, discoverServerManifest } from './discovery';
+import { ServerClient } from './client.js';
+import type { ServerClientCredential } from './client-support.js';
+import { DEFAULT_TIMEOUT_MS } from './client-support.js';
+import { discoverDesktopCredential, discoverServerManifest } from './discovery.js';
 
 export async function connectToServer(
     userDataPath: string,
