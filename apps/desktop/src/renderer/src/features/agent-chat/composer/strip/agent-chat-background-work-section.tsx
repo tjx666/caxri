@@ -23,8 +23,9 @@ import {
 } from './agent-chat-strip-sections';
 
 /**
- * One glyph per running task kind (subagents, then background shells), each with its count when several kinds run, so a
- * shell running beside a subagent is never hidden behind the first task's glyph.
+ * One glyph per running task kind (subagents, then background shells), each with its count, so a shell running beside a
+ * subagent is never hidden behind the first task's glyph. The glyphs are the header's whole title: a `Background work`
+ * label or an `N running` total beside them would only repeat what they and the rows under them already show.
  */
 function RunningKindGlyphs({ kinds }: { kinds: readonly AgentChatRunningKind[] }) {
     if (kinds.length === 0) return <AgentChatTaskGlyph kind="agent" />;
@@ -33,7 +34,7 @@ function RunningKindGlyphs({ kinds }: { kinds: readonly AgentChatRunningKind[] }
             {kinds.map(({ kind, count }) => (
                 <span className="inline-flex items-center gap-0.5" data-task-kind={kind} key={kind}>
                     <AgentChatTaskGlyph kind={kind} />
-                    {kinds.length > 1 && count}
+                    {count}
                 </span>
             ))}
         </span>
@@ -267,18 +268,16 @@ function FoldableSection({
                     )}
                 </>
             }
+            ariaLabel={[t('agentChat.tasks.backgroundWork'), ...counts].join(', ')}
             glyph={<RunningKindGlyphs kinds={work.runningKinds} />}
+            isLabelHidden
             label={t('agentChat.tasks.backgroundWork')}
             meta={
-                <>
-                    {running.length > 0 && counts[0]}
-                    {failed.length > 0 && (
-                        <span className="text-danger">
-                            {running.length > 0 && ' · '}
-                            {counts.at(-1)}
-                        </span>
-                    )}
-                </>
+                failed.length > 0 && (
+                    <span className="text-danger">
+                        {t('agentChat.tasks.failedCount', { count: failed.length })}
+                    </span>
+                )
             }
             section="tasks"
             terminalId={terminalId}

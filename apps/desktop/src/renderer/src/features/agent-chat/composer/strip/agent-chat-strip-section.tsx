@@ -24,6 +24,7 @@ export function AgentChatStripSection({
     ariaLabel,
     children,
     glyph,
+    isLabelHidden = false,
     label,
     meta,
     section,
@@ -37,6 +38,10 @@ export function AgentChatStripSection({
     ariaLabel?: string;
     children: ReactNode;
     glyph: ReactNode;
+    /**
+     * Keeps `label` as the section's accessible name only, for a header whose glyphs already say what the section is.
+     */
+    isLabelHidden?: boolean;
     label: string;
     meta: ReactNode;
     section: AgentChatStripSectionName;
@@ -70,7 +75,7 @@ export function AgentChatStripSection({
                     }}
                 >
                     {glyph}
-                    <span className="shrink-0 text-foreground">{label}</span>
+                    {!isLabelHidden && <span className="shrink-0 text-foreground">{label}</span>}
                     {isCollapsed && summary && <span className="min-w-0 truncate">{summary}</span>}
                     <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
                     <ChevronRight
