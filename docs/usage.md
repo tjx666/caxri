@@ -19,13 +19,18 @@ page matches the chip. The report still attributes each conversation to the Sess
 resumed conversation appears under its owner's row in Most expensive Sessions, and unfiltered totals never count it
 twice. A Terminal outside any Session, and **Open Usage** itself, show every Session.
 
-The scope, Agent, and range filters are remembered on this device and restored the next time the page opens; a
+The range is a preset (today, 7 days, 30 days, 90 days, a year, or all time) or a custom span picked in a calendar:
+the first click sets the start, the second the end in either order, days after today are disabled, and nothing reloads
+until Apply. A custom span may end before today, so the report bounds both ends (`range: 'custom'` with inclusive
+`start` and `end`, echoed as `rangeStart` and `rangeEnd`).
+
+The scope, Agent, and range filters (with the custom span's days) are remembered on this device and restored the next time the page opens; a
 Session-narrowed open still forces all time without overwriting the remembered range. Each row in Most expensive
 Sessions has a filter button that narrows the page to that Session.
 
 ## What it shows
 
-- Range totals (7 days to all time): estimated cost, tokens, active Agent time, Sessions created and archived, pull
+- Range totals (today to all time, or a custom span): estimated cost, tokens, active Agent time, Sessions created and archived, pull
   requests created and merged with their line counts.
 - An activity heatmap over the trailing 53 weeks, with daily, weekly, and cumulative views, in tokens or cost.
 - Highlights: streaks, busiest day and weekday, peak hour, cache savings, and the burn rate for today, 7 days, and 30

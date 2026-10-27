@@ -355,8 +355,15 @@ describe('Usage page wording helpers', () => {
     });
 
     it('names the picked range and the metric the Activity card is drawn in', () => {
-        expect(usageRangeLabel(translate, '7d')).toBe('Last 7 days');
-        expect(usageRangeLabel(translate, 'all')).toBe('All time');
+        expect(usageRangeLabel(translate, '7d', undefined)).toBe('Last 7 days');
+        expect(usageRangeLabel(translate, 'all', undefined)).toBe('All time');
+        expect(usageRangeLabel(translate, 'today', undefined)).toBe('Today');
+        expect(
+            usageRangeLabel(translate, 'custom', { start: '2026-10-25', end: '2026-10-27' }),
+        ).toBe('Oct 25, 2026 to Oct 27, 2026');
+        expect(
+            usageRangeLabel(translate, 'custom', { start: '2026-10-25', end: '2026-10-25' }),
+        ).toBe('Oct 25, 2026');
         expect(activityCardLabel(translate, 'tokens')).toBe('Token activity');
         expect(activityCardLabel(translate, 'cost')).toBe('Cost activity');
     });

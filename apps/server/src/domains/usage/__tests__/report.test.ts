@@ -1,5 +1,5 @@
 import type { ProjectRecord, SessionRecord, UsageReportParameters } from '@caxri/protocol';
-import { usageReportSchema } from '@caxri/protocol';
+import { usageReportParametersSchema, usageReportSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentSessionUsageRow, ExternalAgentUsageRow, PullRequestOutcomeRow } from '../../db';
@@ -139,6 +139,64 @@ describe('buildUsageReport', () => {
                 params: { range: 'all' },
             }).totals.tokens.total,
         ).toBe(500);
+    });
+
+    it('counts only today for the today range', () => {
+        const result = report({
+            entries: [
+                { row: row({}), record: usage(NOW, 10) },
+                { row: row({ agentSessionId: 'agent-2' }), record: usage(NOW - 24 * HOUR, 20) },
+            ],
+            params: { range: 'today' },
+        });
+
+        expect(result.rangeStart).toBe('2026-03-10');
+        expect(result.rangeEnd).toBeUndefined();
+        expect(result.totals.tokens.total).toBe(10);
+    });
+
+    it('bounds a custom range on both ends and treats an end past today as today', () => {
+        const entries = [
+            { row: row({}), record: usage(NOW, 1) },
+            { row: row({ agentSessionId: 'agent-2' }), record: usage(NOW - 24 * HOUR, 10) },
+            { row: row({ agentSessionId: 'agent-3' }), record: usage(NOW - 3 * 24 * HOUR, 100) },
+        ];
+        const past = report({
+            entries,
+            params: { range: 'custom', start: '2026-03-07', end: '2026-03-09' },
+        });
+
+        expect(usageReportSchema.parse(past)).toEqual(past);
+        expect(past.rangeStart).toBe('2026-03-07');
+        expect(past.rangeEnd).toBe('2026-03-09');
+        expect(past.totals.tokens.total).toBe(110);
+        expect(past.windows.today.tokens).toBe(1);
+
+        const throughFuture = report({
+            entries,
+            params: { range: 'custom', start: '2026-03-09', end: '2026-04-01' },
+        });
+        expect(throughFuture.rangeEnd).toBeUndefined();
+        expect(throughFuture.totals.tokens.total).toBe(11);
+    });
+
+    it('rejects a custom range without ordered dates and dates on a preset', () => {
+        const base = { timeZone: 'Asia/Shanghai' };
+        expect(usageReportParametersSchema.safeParse({ ...base, range: 'custom' }).success).toBe(
+            false,
+        );
+        expect(
+            usageReportParametersSchema.safeParse({
+                ...base,
+                range: 'custom',
+                start: '2026-03-09',
+                end: '2026-03-07',
+            }).success,
+        ).toBe(false);
+        expect(
+            usageReportParametersSchema.safeParse({ ...base, range: '7d', start: '2026-03-09' })
+                .success,
+        ).toBe(false);
     });
 
     it('groups a linked worktree under its owning Project and keeps deleted Sessions', () => {

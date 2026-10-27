@@ -25,7 +25,8 @@ import { addToBreakdown, emptyTokenBreakdown, pricedUsageBuckets } from './summa
  * 53 full weeks, so the heatmap always has a complete leading column.
  */
 const ACTIVITY_DAYS = 371;
-const RANGE_DAYS: Record<UsageReportParameters['range'], number | undefined> = {
+const RANGE_DAYS: Record<Exclude<UsageReportParameters['range'], 'custom'>, number | undefined> = {
+    'today': 1,
     '7d': 7,
     '30d': 30,
     '90d': 90,
@@ -124,6 +125,26 @@ interface ModelAccumulator {
 }
 
 /**
+ * The inclusive local days a report covers. A preset ends today; a custom range keeps its own end unless that lies past
+ * today, which reads as "through today" because usage is never stamped later than today (see `localAt`).
+ */
+function reportRange(
+    parameters: UsageReportParameters,
+    today: string,
+): { rangeStart: string | undefined; rangeEnd: string | undefined } {
+    if (parameters.range === 'custom') {
+        const end =
+            parameters.end !== undefined && parameters.end < today ? parameters.end : undefined;
+        return { rangeStart: parameters.start, rangeEnd: end };
+    }
+    const rangeDays = RANGE_DAYS[parameters.range];
+    return {
+        rangeStart: rangeDays === undefined ? undefined : shiftLocalDate(today, 1 - rangeDays),
+        rangeEnd: undefined,
+    };
+}
+
+/**
  * Pure aggregation of the usage ledger into the report the Usage page renders. Usage is attributed to the Session that
  * first hosted each Agent Session and grouped under the top-level Project that owns it, so a linked worktree's spend
  * counts toward its repository.
@@ -132,12 +153,13 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
     const { params, now } = input;
     const clock = new LocalClock(params.timeZone);
     const today = clock.at(now).date;
-    const rangeDays = RANGE_DAYS[params.range];
-    const rangeStart = rangeDays === undefined ? undefined : shiftLocalDate(today, 1 - rangeDays);
+    const { rangeStart, rangeEnd } = reportRange(params, today);
     const activityStart = shiftLocalDate(today, 1 - ACTIVITY_DAYS);
     const last7Start = shiftLocalDate(today, -6);
     const last30Start = shiftLocalDate(today, -29);
-    const isInRange = (date: string) => rangeStart === undefined || date >= rangeStart;
+    const isInRange = (date: string) =>
+        (rangeStart === undefined || date >= rangeStart) &&
+        (rangeEnd === undefined || date <= rangeEnd);
 
     const sessionsById = new Map(input.sessions.map((session) => [session.id, session]));
     const projectsById = new Map(input.projects.map((project) => [project.id, project]));
@@ -463,6 +485,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         scope: input.outside ? 'all' : 'caxri',
         today,
         ...(rangeStart && { rangeStart }),
+        ...(rangeEnd && { rangeEnd }),
         totals: {
             ...totals,
             activeMs: Math.round(totals.activeMs),

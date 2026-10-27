@@ -21,6 +21,7 @@ import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useSessionById } from '../../stores/selectors';
+import type { UsageCustomRange } from './usage-custom-range';
 import type { UsageAgentFilter } from './usage-filter-store';
 import { ALL_AGENTS, rememberUsageFilters, useUsageFilterStore } from './usage-filter-store';
 import {
@@ -33,10 +34,10 @@ import {
 } from './usage-metrics';
 import { useUsagePageRequestStore } from './usage-page-request';
 import { usageSessionFilterTitle } from './usage-presentation';
+import { UsageRangePicker } from './usage-range-picker';
 import { UsageSections } from './usage-sections';
 import { useUsageReport } from './use-usage-report';
 
-const RANGES: readonly UsageRange[] = ['7d', '30d', '90d', '365d', 'all'];
 const SCOPES: ReadonlyArray<{
     value: UsageScope;
     labelKey: TranslationKey;
@@ -64,12 +65,15 @@ const LOCAL_TIME_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone || 
  * plan bills, and the page header is the one line every card sits under.
  */
 function rangeCaption(t: Translate, report: UsageReport): string {
-    const range = report.rangeStart
-        ? t('usage.caption.range', {
-              end: formatDate(t, report.today),
-              start: formatDate(t, report.rangeStart),
-          })
-        : t('usage.caption.allTime', { end: formatDate(t, report.today) });
+    const end = report.rangeEnd ?? report.today;
+    const range = !report.rangeStart
+        ? t('usage.caption.allTime', { end: formatDate(t, end) })
+        : report.rangeStart === end
+          ? formatDate(t, end)
+          : t('usage.caption.range', {
+                end: formatDate(t, end),
+                start: formatDate(t, report.rangeStart),
+            });
     const scan = usageScanCaption(t, report);
     return `${range} · ${t('usage.caption.priceBasis')}${scan ? ` · ${scan}` : ''}`;
 }
@@ -166,11 +170,13 @@ function SessionFilterButton({
  */
 function usageReportParameters({
     agent,
+    custom,
     range,
     scope,
     sessionId,
 }: {
     agent: UsageAgentFilter;
+    custom: UsageCustomRange | undefined;
     range: UsageRange;
     scope: UsageScope;
     sessionId: string | undefined;
@@ -178,6 +184,7 @@ function usageReportParameters({
     return {
         timeZone: LOCAL_TIME_ZONE,
         range,
+        ...(range === 'custom' && custom && { start: custom.start, end: custom.end }),
         scope,
         ...(agent !== ALL_AGENTS && { provider: agent }),
         ...(sessionId && { sessionId }),
@@ -225,12 +232,13 @@ function useUsageSessionFilter() {
      * Session request the page opens on the range the user last picked; the Session's all-time view is not remembered.
      */
     const rememberedRange = useUsageFilterStore((state) => state.range);
+    const custom = useUsageFilterStore((state) => state.custom);
     const [range, setPageRange] = useState<UsageRange>(
         pendingRequest?.sessionId ? 'all' : rememberedRange,
     );
-    const setRange = (next: UsageRange) => {
+    const setRange = (next: UsageRange, nextCustom?: UsageCustomRange) => {
         setPageRange(next);
-        rememberUsageFilters({ range: next });
+        rememberUsageFilters(nextCustom ? { range: next, custom: nextCustom } : { range: next });
     };
     const [sessionId, setSessionId] = useState(pendingRequest?.sessionId);
     // A request arriving while the page is open is applied during render, React's pattern for state derived from a
@@ -244,7 +252,7 @@ function useUsageSessionFilter() {
     useEffect(() => {
         if (pendingRequest) consumeRequest();
     }, [consumeRequest, pendingRequest]);
-    return { range, setRange, sessionId, setSessionId };
+    return { custom, range, setRange, sessionId, setSessionId };
 }
 
 /**
@@ -259,8 +267,8 @@ export function UsageWorkbenchPage() {
     const agent = useUsageFilterStore((state) => state.agent);
     const setScope = (next: UsageScope) => rememberUsageFilters({ scope: next });
     const setAgent = (next: UsageAgentFilter) => rememberUsageFilters({ agent: next });
-    const { range, setRange, sessionId, setSessionId } = useUsageSessionFilter();
-    const query = useUsageReport(usageReportParameters({ agent, range, scope, sessionId }));
+    const { custom, range, setRange, sessionId, setSessionId } = useUsageSessionFilter();
+    const query = useUsageReport(usageReportParameters({ agent, custom, range, scope, sessionId }));
     const report = query.data;
     /**
      * `keepPreviousData` keeps the last report on screen while a newly picked range, scope, or Agent loads, so the
@@ -290,7 +298,7 @@ export function UsageWorkbenchPage() {
                         {isShowingPreviousSelection ? (
                             <span className="inline-flex items-center gap-1.5">
                                 {t('usage.caption.updating', {
-                                    range: usageRangeLabel(t, range),
+                                    range: usageRangeLabel(t, range, custom),
                                 })}
                                 <Spinner aria-hidden="true" className="size-3" />
                             </span>
@@ -355,19 +363,7 @@ export function UsageWorkbenchPage() {
                             </Tooltip>
                         ))}
                     </ToggleGroup>
-                    <ToggleGroup
-                        aria-label={t('usage.filter.range')}
-                        value={[range]}
-                        onValueChange={(next: UsageRange[]) => {
-                            if (next[0]) setRange(next[0]);
-                        }}
-                    >
-                        {RANGES.map((item) => (
-                            <ToggleGroupItem key={item} value={item}>
-                                {t(`usage.rangeShort.${item}`)}
-                            </ToggleGroupItem>
-                        ))}
-                    </ToggleGroup>
+                    <UsageRangePicker custom={custom} range={range} onChange={setRange} />
                 </div>
             </div>
             <div
