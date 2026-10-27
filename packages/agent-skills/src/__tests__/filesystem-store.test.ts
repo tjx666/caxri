@@ -1,6 +1,9 @@
+import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import process from 'node:process';
+import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -170,6 +173,36 @@ describe('assertDirectory', () => {
 });
 
 describe('validateRelease', () => {
+    it.skipIf(process.platform === 'win32')(
+        'rejects a FIFO planted as the marker instead of blocking on open',
+        async () => {
+            const root = await isolatedDirectory('validate-release-fifo');
+            const releasePath = join(root, 'release-1');
+            await mkdir(releasePath, { recursive: true });
+            await promisify(execFile)('mkfifo', [join(releasePath, MARKER_FILE)]);
+            await writeFile(
+                join(releasePath, RELEASE_OWNER_FILE),
+                ownedRecord('caxri-cli'),
+                'utf8',
+            );
+
+            let timer: NodeJS.Timeout | undefined;
+            const timeout = new Promise<never>((_resolve, reject) => {
+                timer = setTimeout(() => reject(new Error('marker read blocked')), 2_000);
+            });
+            try {
+                await expect(
+                    Promise.race([
+                        validateRelease(releasePath, 'relative/release-1', 'caxri-cli'),
+                        timeout,
+                    ]),
+                ).rejects.toThrow('Managed skill file is missing or exceeds its size limit');
+            } finally {
+                clearTimeout(timer);
+            }
+        },
+    );
+
     it('reads back file contents, identity, and marker source for a well-formed release', async () => {
         const root = await isolatedDirectory('validate-release-ok');
         const releasePath = join(root, 'release-1');

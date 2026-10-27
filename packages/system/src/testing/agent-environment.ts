@@ -4,12 +4,12 @@ import { isAbsolute, join } from 'node:path';
 import type { AgentProvider } from '@caxri/protocol';
 import { AGENT_STATE_ENVIRONMENT_KEYS, agentProviderIds } from '@caxri/protocol';
 
-import type { E2EAgentPolicy, E2ERealAgentSurface } from './agent-policy';
+import type { E2EAgentPolicy, E2ERealAgentSurface } from './agent-policy.js';
 import {
     e2eAgentPolicyEnvironment,
     e2eAgentShellShims,
     e2eFakeExecutableEnvironmentKeys,
-} from './agent-policy';
+} from './agent-policy.js';
 
 export type E2EAgentEnvironmentMode =
     | { mode: 'blocked' }
