@@ -153,7 +153,9 @@ CAXRI_MOBILE_ACCEPTANCE_CASE_ID="MOB-E2E-01" \
 ```
 
 Case ids come from `scripts/mobile-android-cases.ts` and `scripts/mobile-android-chat-cases.ts`;
-the runner rejects any other id, and the plan item id must equal it. `MOB-E2E-01` is the main phone
+the runner rejects any other id, and the plan item id must equal it. Name a new case after its feature and
+scenario, such as `MOB-CHAT-RUNNING-OPEN-01`, instead of taking the next global number: parallel
+sessions claim the same next number and force a rename and a new Acceptance run. Keep existing ids. `MOB-E2E-01` is the main phone
 journey (pairing, Session list, Chat send, stop); `CAXRI_MOBILE_ACCEPTANCE_CASE_IDS` takes a
 comma-separated batch. The plan item must use `surface: "mobile"`, `stateIsolation.mode:
 "isolated"`, and a matching `mobileDevice` object. Include

@@ -147,6 +147,10 @@ The fixture IME draws no keyboard, yet `dumpsys input_method` still reports `mIn
 a field is focused, and the IME does not consume Back. While it is selected, never send Back to
 close a keyboard: the key reaches the app and leaves the screen (`hideChatKeyboard` checks
 `default_input_method` first).
+Because nothing is drawn, a claim about layout beside the keyboard passes with the whole screen free:
+run that step inside `withVisibleKeyboard` (`e2e/support/mobile-agent-chat-helpers.ts`), which
+selects the emulator's own keyboard for the step, and judge the capture with the keyboard visibly
+occupying the screen.
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
 swipes inside the content area, away from Android's Back gesture edges, and check the route again.
 An identifier existing in source does not prove that the current Agent, device role, and segment
