@@ -8,7 +8,12 @@ import ts from 'typescript';
 import { walkMatchingFiles } from './source-imports';
 
 const execFileAsync = promisify(execFile);
-const EN_LOCALE_FILE = /^apps\/desktop\/src\/renderer\/src\/i18n\/locales\/en\/[^/]+\.ts$/;
+/**
+ * English copy the Desktop Renderer shows: its own locale catalog and the protocol's shared Agent Chat labels, which
+ * the Renderer's locale spreads in.
+ */
+const EN_LOCALE_FILE =
+    /^(?:apps\/desktop\/src\/renderer\/src\/i18n\/locales\/en\/[^/]+|packages\/protocol\/src\/agent\/agent-chat-labels-en)\.ts$/;
 /**
  * Shorter fragments (a word or two) match unrelated spec text too often to be a useful warning.
  */

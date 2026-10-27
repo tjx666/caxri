@@ -106,6 +106,23 @@ describe('staleLocaleCopyWarnings', () => {
         }
     });
 
+    it('reads the shared Agent Chat labels as English copy too', async () => {
+        const labels = 'packages/protocol/src/agent/agent-chat-labels-en.ts';
+        const { root, git } = await fixture();
+        try {
+            await write(root, labels, "export const x = { 'a': 'Input blocked by Hook' };\n");
+            await write(root, 'e2e/example.e2e.ts', "chat.getByText('Input blocked by Hook');\n");
+            git('add', '.');
+            git('commit', '-m', 'base');
+            await write(root, labels, "export const x = { 'a': 'Hook blocked the input' };\n");
+            expect(await staleLocaleCopyWarnings(root, [labels], 'HEAD')).toEqual([
+                { location: 'e2e/example.e2e.ts:1', fragment: 'Input blocked by Hook' },
+            ]);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
     it('stays silent for unchanged locales, non-locale files, and new locale files', async () => {
         const { root, git } = await fixture();
         try {
