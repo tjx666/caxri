@@ -20,6 +20,15 @@ import { ManagedAgentLauncherServer } from '../server';
 
 const execFileAsync = promisify(execFile);
 
+function isProcessAlive(processId: number): boolean {
+    try {
+        process.kill(processId, 0);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 describe.runIf(process.platform === 'darwin')('managed Agent shell input drain', () => {
     it('keeps the launcher foreground when Host transport fails before exit acknowledgement', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-handoff-failure-'));
@@ -83,7 +92,10 @@ describe.runIf(process.platform === 'darwin')('managed Agent shell input drain',
             shell.write(`\u{1B}[200~/usr/bin/touch ${marker}\u{1B}[201~\r`);
             const sockets = Reflect.get(server, 'sockets') as Set<Socket>;
             for (const socket of sockets) socket.destroy();
-            process.kill(agentProcessId, 'SIGTERM');
+            // Losing the Host transport makes the launcher fail closed and stop the Agent itself (`failClosed` in
+            // `client.ts`). Signalling the Agent here as well raced that stop: once the child was reaped, `kill` threw
+            // ESRCH (#2437).
+            await expect.poll(() => isProcessAlive(agentProcessId)).toBe(false);
             await expect
                 .poll(() => server.isRunningExact('terminal-failure', 'launch-failure'))
                 .toBe(false);
