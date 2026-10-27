@@ -15,7 +15,7 @@ const {
     launchInPlaceInstall,
     resolveInPlaceInstallTarget,
     stageUpdateBundle,
-    willStagedUpdateResetData,
+    stagedUpdateResetReason,
 } = await import('../update-install');
 
 const directories: string[] = [];
@@ -218,7 +218,7 @@ describe('stageUpdateBundle', () => {
     });
 });
 
-describe('willStagedUpdateResetData', () => {
+describe('stagedUpdateResetReason', () => {
     /**
      * Answers `CaxriSchemaBaseline` per bundle; `undefined` makes PlistBuddy fail the way a missing key does.
      */
@@ -236,34 +236,34 @@ describe('willStagedUpdateResetData', () => {
         stagedPath: '/profile/updates/staged/Caxri.app',
     };
 
-    it('flags only an update whose database baseline is newer', async () => {
+    it('names a reset only for an update whose database baseline is newer', async () => {
         await expect(
-            willStagedUpdateResetData({
+            stagedUpdateResetReason({
                 ...paths,
                 run: baselineRunner({ installed: '39', staged: '39' }),
             }),
-        ).resolves.toBe(false);
+        ).resolves.toBeUndefined();
         await expect(
-            willStagedUpdateResetData({
+            stagedUpdateResetReason({
                 ...paths,
                 run: baselineRunner({ installed: '39', staged: '54' }),
             }),
-        ).resolves.toBe(true);
+        ).resolves.toBe('baseline-bumped');
     });
 
-    it('treats an unreadable or malformed baseline as a reset', async () => {
+    it('treats an unreadable or malformed baseline as a reset and names which side failed', async () => {
         await expect(
-            willStagedUpdateResetData({ ...paths, run: baselineRunner({ installed: '39' }) }),
-        ).resolves.toBe(true);
+            stagedUpdateResetReason({ ...paths, run: baselineRunner({ installed: '39' }) }),
+        ).resolves.toBe('staged-unreadable');
         await expect(
-            willStagedUpdateResetData({ ...paths, run: baselineRunner({ staged: '39' }) }),
-        ).resolves.toBe(true);
+            stagedUpdateResetReason({ ...paths, run: baselineRunner({ staged: '39' }) }),
+        ).resolves.toBe('installed-unreadable');
         await expect(
-            willStagedUpdateResetData({
+            stagedUpdateResetReason({
                 ...paths,
                 run: baselineRunner({ installed: '39', staged: 'x' }),
             }),
-        ).resolves.toBe(true);
+        ).resolves.toBe('staged-unreadable');
     });
 });
 

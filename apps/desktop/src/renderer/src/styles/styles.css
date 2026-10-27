@@ -112,6 +112,8 @@
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-title] {
     font-size: inherit;
     font-weight: 400;
+    /* Multi-line messages (an import listing what it skipped) keep their lines, as the notification center does. */
+    white-space: pre-line;
 }
 
 /*

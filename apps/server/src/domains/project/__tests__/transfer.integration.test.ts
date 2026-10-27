@@ -234,6 +234,84 @@ describe('Project transfer', () => {
         ]);
     });
 
+    it('removes a partly imported Project so importing the file again brings in every Session', async () => {
+        const context = await fixture();
+        const { app, gone, source } = await seedSource(context);
+        const file = join(context.directory, 'export.json');
+        await writeProjectTransfer(source, file);
+        await rm(gone, { recursive: true });
+        const target = context.open('target');
+        const createSession = target.createSession.bind(target);
+        const failSecond = vi
+            .spyOn(target, 'createSession')
+            .mockImplementationOnce(createSession)
+            .mockImplementationOnce(() => {
+                throw new Error('disk full');
+            });
+
+        await expect(importProjectTransferFile(target, file, vi.fn())).rejects.toThrow('disk full');
+        expect(target.findProjectByRootPath(app)).toBeUndefined();
+        expect(target.listSessions()).toEqual([]);
+
+        failSecond.mockRestore();
+        await expect(importProjectTransferFile(target, file, vi.fn())).resolves.toMatchObject({
+            projectCount: 1,
+            sessionCount: 2,
+        });
+        expect(
+            target
+                .listSessions()
+                .map(({ title }) => title)
+                .toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(['Feature branch', 'Fix login']);
+    });
+
+    it('brings back a Project the user removed with its earlier Sessions instead of copies from the file', async () => {
+        const context = await fixture();
+        const { app, gone, source } = await seedSource(context);
+        const file = join(context.directory, 'export.json');
+        await writeProjectTransfer(source, file);
+        await rm(gone, { recursive: true });
+        const target = context.open('target');
+        const project = target.createProject(app);
+        const earlier = target.createSession(project.id, null).session;
+        target.hideProject(project.id);
+        const emit = vi.fn();
+
+        await expect(importProjectTransferFile(target, file, emit)).resolves.toMatchObject({
+            projectCount: 0,
+            sessionCount: 0,
+            skipped: [
+                { rootPath: app, reason: 'restored' },
+                { rootPath: gone, reason: 'missing' },
+            ],
+        });
+        expect(target.listVisibleProjects().map(({ id }) => id)).toEqual([project.id]);
+        expect(target.listSessions(project.id).map(({ id }) => id)).toEqual([earlier.id]);
+        expect(emit).toHaveBeenCalledWith({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'project.import' },
+        });
+    });
+
+    it('imports into a removed Project that has no Session left to bring back', async () => {
+        const context = await fixture();
+        const { app, gone, source } = await seedSource(context);
+        const file = join(context.directory, 'export.json');
+        await writeProjectTransfer(source, file);
+        await rm(gone, { recursive: true });
+        const target = context.open('target');
+        const project = target.createProject(app);
+        target.archiveSession(target.createSession(project.id, null).session.id);
+        target.hideProject(project.id);
+
+        await expect(importProjectTransferFile(target, file, vi.fn())).resolves.toMatchObject({
+            projectCount: 1,
+            sessionCount: 2,
+        });
+        expect(target.listVisibleProjects().map(({ id }) => id)).toContain(project.id);
+    });
+
     it('rejects a file that is not a Projects and Sessions export', async () => {
         const context = await fixture();
         const file = join(context.directory, 'theme.json');
