@@ -22,6 +22,11 @@ export const usageLogEvents = {
      */
     autoContinue: 'usage.auto_continue',
     externalScan: 'usage.external_scan',
+    /**
+     * The user dismissed a provider's plan pace reminder from any Client, with `provider` and the weekly window's
+     * `usedPercent` at that moment, so how often the reminder is dismissed, and how far behind pace, is measurable.
+     */
+    planPaceDismissed: 'usage.plan_pace_dismissed',
     pricing: 'usage.pricing',
     pullRequests: 'usage.pull_requests',
     scan: 'usage.scan',

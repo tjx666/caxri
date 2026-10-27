@@ -89,6 +89,15 @@ export async function runMobileDeviceCommand(
 export const adbShell = (serial: string, arguments_: string[]): Promise<string> =>
     runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
 
+/**
+ * Kills the app and launches it again, the way the OS reclaims a backgrounded app and the next open starts it fresh:
+ * anything the app kept only in memory is gone.
+ */
+export async function coldStartMobileApp(serial: string): Promise<void> {
+    await adbShell(serial, ['am', 'force-stop', 'com.caxri.mobile']);
+    await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
+}
+
 export const pushMobileFixture = (
     serial: string,
     localPath: string,

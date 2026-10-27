@@ -155,9 +155,13 @@ composers show a warning row above the input: `Weekly limit on track to run out:
 leaves `remaining time / window length` of the limit, so 5 of 7 days to go should leave about 71%. The row appears
 only when what is left is at least `LIMIT_PACE_MARGIN_PERCENT` (5) points below that, so one long task early in the
 week does not trigger it. Hiding it lasts for the rest of the local
-day, across restarts (`features/usage/plan-pace-dismissals.ts`, stored in `localStorage`), and also drops the status
-bar chip's pace warning for that day; a window at 90% used still turns the chip `--warning`. The rule is `limitPaceShortfall` in
-`packages/protocol/src/domain/usage-format.ts`, shared by Desktop and the phone.
+day on every Client and across restarts: the Server keeps when each provider's reminder was dismissed (`app_state`
+`planPaceDismissals`, written by `usage.dismissPlanPace` or the phone's `mobile.agentChat.dismissPlanPace`) and
+returns it as `UsageLimit.paceDismissedAt`, and each device hides the reminder while that time falls on its own local
+day (`isPlanPaceDismissed`). Dismissing on Desktop hides the phone's reminder within one read, and the reverse. It also
+drops the status bar chip's pace warning for that day; a window at `LIMIT_WARNING_PERCENT` (90%) used still turns the
+chip `--warning`. The rule is `limitPaceShortfall` in `packages/protocol/src/domain/usage-format.ts`, shared by
+Desktop and the phone.
 
 ## Reuse for live readouts
 

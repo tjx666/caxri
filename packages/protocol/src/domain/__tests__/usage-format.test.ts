@@ -5,6 +5,7 @@ import {
     formatPercent,
     formatTokens,
     formatUsd,
+    isPlanPaceDismissed,
     limitPaceShortfall,
     localDateWeekday,
     remainingLimitPercent,
@@ -121,5 +122,26 @@ describe('limitPaceShortfall', () => {
     it('starts projecting once a tenth of the window has elapsed', () => {
         // 0.8 of 7 days elapsed is past 10%: 14% used projects about 123%.
         expect(limitPaceShortfall(weekly(14, 6.2), NOW)?.window.usedPercent).toBe(14);
+    });
+});
+
+describe('isPlanPaceDismissed', () => {
+    it('holds a dismissal until the next local midnight', () => {
+        const evening = new Date(2026, 9, 27, 23, 0).getTime();
+        const limit = { paceDismissedAt: evening };
+        expect(isPlanPaceDismissed(limit, evening + 30 * 60_000)).toBe(true);
+        expect(isPlanPaceDismissed(limit, new Date(2026, 9, 28, 0, 1).getTime())).toBe(false);
+    });
+
+    it('treats a dismissal from before today as stale and a missing one as not dismissed', () => {
+        const now = new Date(2026, 9, 28, 9, 0).getTime();
+        expect(
+            isPlanPaceDismissed({ paceDismissedAt: new Date(2026, 9, 27, 12, 0).getTime() }, now),
+        ).toBe(false);
+        expect(
+            isPlanPaceDismissed({ paceDismissedAt: new Date(2026, 9, 28, 0, 0).getTime() }, now),
+        ).toBe(true);
+        expect(isPlanPaceDismissed({}, now)).toBe(false);
+        expect(isPlanPaceDismissed(undefined, now)).toBe(false);
     });
 });

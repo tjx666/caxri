@@ -133,3 +133,26 @@ export function limitPaceShortfall(
     }
     return worst;
 }
+
+/**
+ * The share used at which a plan window reads in the warning tone (bar, status bar chip, phone limit row), whether or
+ * not its pace reminder was dismissed.
+ */
+export const LIMIT_WARNING_PERCENT = 90;
+
+/**
+ * Whether the user dismissed the provider's pace reminder today: the Server keeps when it was dismissed
+ * (`UsageLimit.paceDismissedAt`, set by `usage.dismissPlanPace` from any Client), and each device compares it with its
+ * own local midnight, so the reminder comes back on the next local day and two devices in different time zones each
+ * judge "today" by their own clock.
+ */
+export function isPlanPaceDismissed(
+    limit: Pick<UsageLimit, 'paceDismissedAt'> | null | undefined,
+    now: number,
+): boolean {
+    const dismissedAt = limit?.paceDismissedAt;
+    if (dismissedAt === undefined) return false;
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
+    return dismissedAt >= midnight.getTime();
+}

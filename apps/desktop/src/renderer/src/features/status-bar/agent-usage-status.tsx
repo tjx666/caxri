@@ -5,6 +5,7 @@ import {
     defaultAppSettings,
     formatTokens,
     formatUsd,
+    isPlanPaceDismissed,
     remainingLimitPercent,
 } from '@caxri/protocol';
 import { ChartColumn } from 'lucide-react';
@@ -18,7 +19,6 @@ import { useTranslation } from '../../i18n';
 import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
-import { isPlanPaceDismissed, usePlanPaceDismissals } from '../usage/plan-pace-dismissals';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
 import {
     agentUsageCostLabel,
@@ -67,7 +67,6 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const limitObservedAgo = useRelativeTime(readout?.limit?.observedAt);
     const now = useAgentUsageClock(readout?.limit);
     const settings = useSettings();
-    const paceDismissals = usePlanPaceDismissals((state) => state.dismissedOn);
     if (!readout) return null;
     const chipOptions = {
         showFiveHourLimit:
@@ -79,7 +78,7 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const { tokens } = readout;
     const cost = agentUsageCostLabel(readout);
     const limitWindows = currentLimitWindows(readout.limit, now);
-    const isPaceDismissed = isPlanPaceDismissed(paceDismissals, readout.provider, now);
+    const isPaceDismissed = isPlanPaceDismissed(readout.limit, now);
     const limitTone = agentUsageLimitTone(readout, now, chipOptions, isPaceDismissed);
     // The pace note explains why the chip warns; once the user dismisses that warning the tooltip stops repeating it.
     const paceNote = isPaceDismissed ? undefined : agentUsagePaceNote(readout, now, t);

@@ -2,6 +2,7 @@
 import type {
     AgentChatHistoryPage,
     AgentChatSnapshot,
+    AgentProvider,
     AgentUsageReadout,
     Principal,
 } from '@caxri/protocol';
@@ -45,6 +46,7 @@ export const chatSnapshot = (status: AgentChatSnapshot['status']): AgentChatSnap
 
 export function domainFixture(options: {
     surface?: 'chat';
+    provider?: AgentProvider;
     snapshot?: AgentChatSnapshot;
     terminals?: number;
     original?: string;
@@ -72,6 +74,7 @@ export function domainFixture(options: {
                                       title: 'Codex',
                                       lastProcessState: 'running',
                                       ...(options.surface && { surface: options.surface }),
+                                      ...(options.provider && { provider: options.provider }),
                                   },
                               ],
                 };

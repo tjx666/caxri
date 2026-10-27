@@ -59,6 +59,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.agentChat.readTask'
             | 'mobile.agentChat.readHistory'
             | 'mobile.agentChat.readUsage'
+            | 'mobile.agentChat.dismissPlanPace'
             | 'mobile.agentChat.send'
             | 'mobile.agentChat.interrupt'
             | 'mobile.agentChat.stopTask'

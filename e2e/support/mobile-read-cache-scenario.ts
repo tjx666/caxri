@@ -10,7 +10,7 @@ import {
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import {
-    adbShell,
+    coldStartMobileApp,
     mobileSemantics,
     setMobileNetworkAvailable,
     tapMobileCheck,
@@ -21,11 +21,6 @@ import {
  * The read cache writes one second after the live view settles; this leaves room for that write before the app dies.
  */
 const READ_CACHE_SETTLE_MS = 2_500;
-
-const coldStart = async (serial: string): Promise<void> => {
-    await adbShell(serial, ['am', 'force-stop', 'com.caxri.mobile']);
-    await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-};
 
 /**
  * `MOB-CHAT-06`: a phone that read the Session list and one Chat online is cold-started without a network. It shows the
@@ -71,7 +66,7 @@ export async function executeMobileReadCacheScenario(
 
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
-        await coldStart(serial);
+        await coldStartMobileApp(serial);
         await waitForCheck(serial, 'session-list-saved', 60_000);
         await waitForCheck(serial, 'connection-stale-banner', 60_000);
         const offlineList = await mobileSemantics(serial);

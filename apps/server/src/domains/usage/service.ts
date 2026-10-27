@@ -19,6 +19,7 @@ import type { ExternalStatusRunner } from '../external-status';
 import { UsageKeyIndex } from './key-index';
 import { LiveAgentUsage } from './live-usage';
 import { PlanLimitRefresh } from './plan-limit-refresh';
+import { PlanPaceDismissals } from './plan-pace-dismissals';
 import { ModelPricing } from './pricing';
 import {
     fetchPullRequestOutcomes,
@@ -152,6 +153,7 @@ export class UsageService {
     private readonly staleOutsideRows = new Set<string>();
     private readonly live: LiveAgentUsage;
     private readonly planLimits: PlanLimitRefresh;
+    private readonly paceDismissals: PlanPaceDismissals;
 
     constructor(private readonly options: UsageServiceOptions) {
         this.pricing = new ModelPricing({
@@ -168,6 +170,9 @@ export class UsageService {
         );
         this.planLimits = new PlanLimitRefresh(options.readPlanLimits, (limits) =>
             this.live.observeLimits(limits),
+        );
+        this.paceDismissals = new PlanPaceDismissals(options.database, options.logger, () =>
+            this.now(),
         );
     }
 
@@ -507,8 +512,22 @@ export class UsageService {
     async readTerminal(terminalId: string): Promise<AgentUsageReadout | null> {
         await this.loadPricing();
         const readout = await this.live.read(terminalId);
-        if (readout) this.planLimits.request(readout.provider, terminalId);
-        return readout;
+        if (!readout) return readout;
+        this.planLimits.request(readout.provider, terminalId);
+        return readout.limit
+            ? { ...readout, limit: this.paceDismissals.attach(readout.limit) }
+            : readout;
+    }
+
+    /**
+     * Hides the provider's pace reminder for the rest of the day on every Client; answers `usage.dismissPlanPace`.
+     */
+    dismissPlanPace(provider: AgentProvider): null {
+        this.paceDismissals.dismiss(
+            provider,
+            this.live.limits().find((limit) => limit.provider === provider),
+        );
+        return null;
     }
 
     /**
@@ -524,7 +543,7 @@ export class UsageService {
             if (rateLimits) ledger.push({ provider: row.provider, ...rateLimits });
         }
         this.live.observeLimits(ledger);
-        return this.live.limits();
+        return this.live.limits().map((limit) => this.paceDismissals.attach(limit));
     }
 
     /**
@@ -571,6 +590,9 @@ export class UsageService {
         });
         // Plan limits are account-wide: the status bar's live reading should never trail what this page just saw.
         this.live.observeLimits(report.limits);
-        return report;
+        return {
+            ...report,
+            limits: report.limits.map((limit) => this.paceDismissals.attach(limit)),
+        };
     }
 }

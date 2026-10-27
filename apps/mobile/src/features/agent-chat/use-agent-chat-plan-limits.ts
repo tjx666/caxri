@@ -1,7 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
+
+import type { UsageLimit } from '@caxri/protocol';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { AGENT_CHAT_PLAN_LIMITS_POLL_MS } from './agent-chat-plan-limits';
+
+const planLimitsKey = (connectionScopeKey: string | null, terminalId: string) =>
+    ['mobile', 'agentChatPlanLimits', connectionScopeKey, terminalId] as const;
 
 /**
  * The provider's plan limits for the open model sheet, read while the app is in the foreground and connected and
@@ -16,7 +22,7 @@ export const useAgentChatPlanLimits = (terminalId: string) => {
         gcTime: 60_000,
         networkMode: 'always',
         queryFn: () => request('mobile.agentChat.readUsage', { terminalId }),
-        queryKey: ['mobile', 'agentChatPlanLimits', connectionScopeKey, terminalId],
+        queryKey: planLimitsKey(connectionScopeKey, terminalId),
         refetchInterval: isObservable ? AGENT_CHAT_PLAN_LIMITS_POLL_MS : false,
         refetchIntervalInBackground: false,
         refetchOnReconnect: false,
@@ -25,4 +31,26 @@ export const useAgentChatPlanLimits = (terminalId: string) => {
         staleTime: 0,
     });
     return query.data ?? undefined;
+};
+
+/**
+ * The pace reminder's close button: the Server keeps the dismissal for the Chat's provider
+ * (`mobile.agentChat.dismissPlanPace`), so the reminder stays hidden for the rest of the day after the OS kills and
+ * relaunches the app, and on Desktop too. The cached limit takes the dismissal at once, so the row disappears before
+ * the next read; a failed request leaves the next read to bring the reminder back.
+ */
+export const useDismissAgentChatPlanPace = (terminalId: string) => {
+    const { connectionScopeKey, request } = useMobileClient();
+    const queryClient = useQueryClient();
+    return useCallback(async (): Promise<void> => {
+        queryClient.setQueryData<UsageLimit | null>(
+            planLimitsKey(connectionScopeKey, terminalId),
+            (limit) => (limit ? { ...limit, paceDismissedAt: Date.now() } : limit),
+        );
+        try {
+            await request('mobile.agentChat.dismissPlanPace', { terminalId });
+        } catch {
+            // The next read takes the Server's answer and shows the reminder again.
+        }
+    }, [connectionScopeKey, queryClient, request, terminalId]);
 };

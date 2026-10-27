@@ -177,6 +177,11 @@ export const usageLimitSchema = z.object({
     observedAt: count,
     planType: z.string().max(64).optional(),
     windows: z.array(usageLimitWindowSchema).max(4),
+    /**
+     * When the user last dismissed this provider's pace reminder (`usage.dismissPlanPace`), from any Client. Clients
+     * hide the reminder while it falls on their current local day (`isPlanPaceDismissed`).
+     */
+    paceDismissedAt: count.optional(),
 });
 export type UsageLimit = z.infer<typeof usageLimitSchema>;
 
@@ -315,6 +320,16 @@ export const usageMethods = {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({}),
         result: z.array(usageLimitSchema).max(agentProviderIds.length),
+    },
+    /**
+     * Hides the provider's plan pace reminder for the rest of the day on every Client: the Server keeps the time in
+     * `app_state` and returns it as `UsageLimit.paceDismissedAt`, so a restart or another device does not bring it
+     * back.
+     */
+    'usage.dismissPlanPace': {
+        ...commandPolicy('server', 'write'),
+        params: z.strictObject({ provider: agentProvider }),
+        result: z.null(),
     },
     /**
      * Null when the Terminal has no bound Agent session, its transcript is not found, or it recorded no usage yet.

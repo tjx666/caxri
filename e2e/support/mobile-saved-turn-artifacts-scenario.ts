@@ -11,7 +11,7 @@ import {
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import {
-    adbShell,
+    coldStartMobileApp,
     mobileSemantics,
     setMobileNetworkAvailable,
     startMobileFramebufferRecording,
@@ -33,11 +33,6 @@ const READ_CACHE_SETTLE_MS = 2_500;
  * How long the reopened Chat is filmed after the live read replaced the saved copy, so a late card would be caught.
  */
 const LIVE_SETTLE_MS = 3_000;
-
-const coldStart = async (serial: string): Promise<void> => {
-    await adbShell(serial, ['am', 'force-stop', 'com.caxri.mobile']);
-    await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-};
 
 const isIdle = (snapshot: AgentChatSnapshot): boolean =>
     !snapshot.activeTurnId && snapshot.turns.every((turn) => turn.status !== 'running');
@@ -119,7 +114,7 @@ export async function executeMobileSavedTurnArtifactsScenario(
         recording = environment.remoteVideoPath
             ? await startMobileFramebufferRecording(serial, environment.remoteVideoPath)
             : undefined;
-        await coldStart(serial);
+        await coldStartMobileApp(serial);
         await waitForCheck(serial, row, 60_000);
         await tapMobileCheck(serial, row);
         await waitForCheck(serial, latest, 60_000);
@@ -139,7 +134,7 @@ export async function executeMobileSavedTurnArtifactsScenario(
         // Offline: the saved copy leaves out the turn its limit would split rather than showing it without cards.
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
-        await coldStart(serial);
+        await coldStartMobileApp(serial);
         await waitForCheck(serial, row, 60_000);
         await tapMobileCheck(serial, row);
         await waitForCheck(serial, 'agent-chat-saved', 60_000);

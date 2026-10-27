@@ -1,4 +1,4 @@
-import { limitPaceShortfall, remainingLimitPercent } from '@caxri/protocol';
+import { isPlanPaceDismissed, limitPaceShortfall, remainingLimitPercent } from '@caxri/protocol';
 import { TrendingUp, X } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
@@ -7,18 +7,15 @@ import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { localizedLimitReset, localizedLimitWindowName } from '../../../lib/usage-format';
-import {
-    dismissPlanPace,
-    isPlanPaceDismissed,
-    usePlanPaceDismissals,
-} from '../../usage/plan-pace-dismissals';
+import { dismissPlanPace } from '../../usage/plan-pace-client';
 import { useClockTick } from '../hooks/use-clock-tick';
 
 /**
  * A composer strip row warning that the plan's weekly limit is running ahead of an even pace (`limitPaceShortfall`):
  * `Weekly limit ahead of pace: 40% left, resets in 4d 2h`. It reads the same `terminal.agentUsage` poll as the status
  * bar's usage chip, so it adds no request, and like the context notices it gives way to the activity and edit rows.
- * Dismissing it hides it for the rest of the local day for that provider, across restarts (`plan-pace-dismissals`).
+ * Dismissing it hides it for the rest of the local day for that provider, on every Client and across restarts: the
+ * Server keeps the dismissal (`plan-pace-client`).
  */
 export function AgentChatPlanPaceAlert({
     isShown,
@@ -38,10 +35,8 @@ export function AgentChatPlanPaceAlert({
         { label: 'terminal.agentUsage', intervalMs: 2_000, staleTime: 1_000, retry: false },
     );
     const provider = readout?.provider;
-    const dismissedOn = usePlanPaceDismissals((state) => state.dismissedOn);
     const shortfall = limitPaceShortfall(readout?.limit, now);
-    if (!isShown || !provider || !shortfall || isPlanPaceDismissed(dismissedOn, provider, now))
-        return null;
+    if (!isShown || !provider || !shortfall || isPlanPaceDismissed(readout.limit, now)) return null;
     const { window, evenPacePercent } = shortfall;
     const windowName = localizedLimitWindowName(window.windowMinutes, t);
     return (
@@ -74,7 +69,9 @@ export function AgentChatPlanPaceAlert({
                     className="-mr-1.5 ml-auto size-6 shrink-0 rounded-md text-muted enabled:hover:text-foreground"
                     size="icon"
                     variant="ghost"
-                    onClick={() => dismissPlanPace(provider, now)}
+                    onClick={async () => {
+                        await dismissPlanPace(terminalId, provider);
+                    }}
                 >
                     <X aria-hidden className="size-3.5" />
                 </Button>
