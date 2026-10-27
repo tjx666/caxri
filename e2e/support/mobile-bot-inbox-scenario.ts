@@ -5,7 +5,7 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck } from './mobile-agent-chat-helpers';
-import { tapMobileCheckByBounds } from './mobile-android';
+import { tapMobileCheck, tapMobileCheckByBounds } from './mobile-android';
 
 /**
  * Two open questions Caxri Bot raised, each with one reply from the user: Caxri Bot already read the first reply and
@@ -55,9 +55,9 @@ async function seedBotInbox(userData: string): Promise<{ readId: string; unreadI
 }
 
 /**
- * `MOB-CHAT-33` and `MOB-CHAT-34`: a control phone opens the Bot Inbox ("Needs you") from the Session list header. Each
- * card names Caxri Bot in its reply read state ("Read by Caxri Bot", "Delivered to Caxri Bot"), and the reply
- * composer's placeholder addresses Caxri Bot, in the case's app language.
+ * `MOB-CHAT-33` and `MOB-CHAT-34`: a control phone opens the Bot Inbox ("Needs you") from the computer menu. Each card
+ * names Caxri Bot in its reply read state ("Read by Caxri Bot", "Delivered to Caxri Bot"), and the reply composer's
+ * placeholder addresses Caxri Bot, in the case's app language.
  */
 export async function executeMobileBotInboxScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -68,8 +68,11 @@ export async function executeMobileBotInboxScenario(
     try {
         const { readId, unreadId } = await seedBotInbox(join(fixture.testDirectory, 'user-data'));
         await fixture.pair();
+        // "Needs you" sits in the computer menu next to Archived Sessions.
+        await waitForCheck(serial, 'forget-device-button');
+        await tapMobileCheck(serial, 'forget-device-button');
         await waitForCheck(serial, 'bot-inbox-action');
-        await tapMobileCheckByBounds(serial, 'bot-inbox-action');
+        await tapMobileCheck(serial, 'bot-inbox-action');
         await waitForCheck(serial, `bot-inbox-reply-state-${readId}`);
         await waitForCheck(serial, `bot-inbox-reply-state-${unreadId}`);
         await capture(environment, 'reply-states', artifacts);
