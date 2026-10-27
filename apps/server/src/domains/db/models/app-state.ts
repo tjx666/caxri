@@ -4,6 +4,7 @@ import {
     agentProviderSchema,
     agentUsageGuardSchema,
     agentUsageLimitWindowSchema,
+    airplaneModeStateSchema,
     auxiliaryWindowStateSchema,
     botAgentSchema,
     botHandoverSchema,
@@ -62,6 +63,11 @@ const appStateValueSchemas = {
      * Mobile gateway preferences beside `mobile_devices`: the owner left access on (the next Server start reopens the
      * gateway without another click) and the last port it listened on.
      */
+    /**
+     * Airplane Mode survives a restart: its dialog stays up and the Sessions it parked stay offered for resume. See
+     * `session/airplane-mode.ts`.
+     */
+    airplaneMode: airplaneModeStateSchema.omit({ compaction: true }),
     mobileGateway: z.strictObject({
         accessEnabled: z.literal(true).optional(),
         preferredPort: z.number().int().min(1).max(65_535).optional(),

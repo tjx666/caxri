@@ -6,6 +6,8 @@ import type { ServerEvent } from '@caxri/protocol';
  *
  * - `agent.permissionAutoAllowChanged` (issue caxri#1295) goes to `subscribeRuntimeQueryInvalidation` in
  *   `queries/invalidation.ts`, which refreshes the Session row menu's `session.permissionAutoAllowStatus` read.
+ * - `session.airplaneModeChanged` goes to `subscribeRuntimeQueryInvalidation`, which writes the state into the
+ *   `session.airplaneModeStatus` read behind the Airplane Mode dialog.
  * - `gitReview.changed` (issue caxri#1294) likewise refreshes `gitReview.list` and `gitReview.pending`.
  * - `agentChat.patch` and `agentChat.taskPatch` update cached snapshots through `subscribeAgentChatPatches`.
  * - `botInbox.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the `bot.inbox.list` read behind the
@@ -27,6 +29,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'agent.message.receipt',
     'agent.messaging.changed',
     'agent.permissionAutoAllowChanged',
+    'session.airplaneModeChanged',
     'agentChat.patch',
     'agentChat.taskPatch',
     'caxriBot.commandPaletteRequested',

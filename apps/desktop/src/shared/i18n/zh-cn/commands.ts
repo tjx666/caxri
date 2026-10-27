@@ -34,6 +34,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.session.delete': '删除会话',
     'commands.session.archive': '归档会话',
     'commands.session.compactWarm': '压缩最近空闲的会话',
+    'commands.session.enterAirplaneMode': '进入飞行模式',
     'commands.session.detach': '分离 Agent',
     'commands.session.resume': '恢复 Agent',
     'commands.session.openPullRequest': '打开 Pull Request',

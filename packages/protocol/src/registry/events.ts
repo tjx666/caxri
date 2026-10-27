@@ -22,6 +22,7 @@ import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { fileWatchLimitAlertSchema } from '../domain/file-watch.js';
 import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
+import { airplaneModeStateSchema } from '../domain/session/session-airplane-mode.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
 import { terminalResourceAlertSchema } from '../domain/terminal-resources.js';
 import { updateStateSchema } from '../domain/update-state.js';
@@ -421,6 +422,11 @@ export const serverEventPayloads = {
      * reconnects gets the current state from `session.permissionAutoAllowStatus` / `mobile.attention.list`'s
      * `autoAllow` field instead of a replayed event.
      */
+    /**
+     * Every Airplane Mode phase change and compaction progress tick. Transient: a client that reconnects reads the
+     * current state from `session.airplaneModeStatus`.
+     */
+    'session.airplaneModeChanged': airplaneModeStateSchema,
     'agent.permissionAutoAllowChanged': permissionAutoAllowStatusSchema.extend({
         sessionId: identifierSchema,
     }),

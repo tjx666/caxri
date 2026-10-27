@@ -142,6 +142,30 @@ export const session = {
     'session.compaction.outcome.failed': '{{count}} delivery failed',
     'session.compaction.outcome.delivery_unknown': '{{count}} delivery unconfirmed',
 
+    // Airplane Mode
+    'session.airplaneMode.enterFailed': 'Could not enter Airplane Mode',
+    'session.airplaneMode.exitFailed': 'Could not leave Airplane Mode',
+    'session.airplaneMode.title.busy': 'Entering Airplane Mode',
+    'session.airplaneMode.title.on': 'Airplane Mode is on',
+    'session.airplaneMode.description.compacting':
+        'Compacting idle conversations first, so they resume from a short summary. Every Agent stops once they finish.',
+    'session.airplaneMode.description.parking': 'Stopping every Agent. Conversations are kept.',
+    'session.airplaneMode.description.on':
+        'Every Agent is stopped, so none retries requests while you are offline. When you are back online, choose the Sessions to resume.',
+    'session.airplaneMode.description.resuming': 'Resuming the Sessions you chose.',
+    'session.airplaneMode.progress.compacting': 'Checking which Sessions to compact…',
+    'session.airplaneMode.progress.parking': 'Stopping Agents…',
+    'session.airplaneMode.progress.resuming': 'Resuming…',
+    'session.airplaneMode.compactionPending':
+        '{{pending}} of {{submitted}} compactions still running…',
+    'session.airplaneMode.skipCompaction': 'Stop Agents Now',
+    'session.airplaneMode.listLabel': 'Sessions to resume',
+    'session.airplaneMode.none': 'No Agent was running, so there is nothing to resume.',
+    'session.airplaneMode.unlisted': 'Session not in the sidebar',
+    'session.airplaneMode.resumeOne': 'Resume {{count}} Session',
+    'session.airplaneMode.resumeOther': 'Resume {{count}} Sessions',
+    'session.airplaneMode.exitWithoutResume': 'Leave Without Resuming',
+
     // Command failure toasts
     'session.errors.selectFailed': 'Session selection failed',
     'session.errors.reorderProjectFailed': 'Project reordering failed',

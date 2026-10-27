@@ -56,6 +56,34 @@ export async function parkSessions(
 }
 
 /**
+ * Stops a Session's Agents as `detached`: its PTY Agents through the restart barrier and its live Chats, keeping every
+ * record and bound Agent session. Shell tabs keep running. Selecting the Session does not relaunch them; only
+ * `session.resume` (or Airplane Mode's exit) does. Shared by `session.detach` and Airplane Mode so both park the same
+ * way under the Session lock.
+ */
+export function detachSessionAgents(
+    options: Pick<
+        SessionParkingOptions,
+        'agentChat' | 'mobileTerminalMutations' | 'terminalRestores' | 'terminalSuspension'
+    >,
+    sessionId: string,
+): Promise<void> {
+    const { agentChat, mobileTerminalMutations, terminalRestores, terminalSuspension } = options;
+    return mobileTerminalMutations.runSessions([sessionId], async () => {
+        /**
+         * A queued restore could relaunch the Agent right after it was handed over; drop it first. One already past PTY
+         * spawn is awaited, as in `parkSessions`, so the detach finds its process. Any other Agent launch still in
+         * flight is handed over by `detachSession` itself.
+         */
+        terminalRestores.cancel(sessionId);
+        await terminalRestores.settled(sessionId);
+        await terminalSuspension.detachSession(sessionId);
+        // Durable like a detached PTY: a later read must not resume the conversation another client now holds.
+        await agentChat.closeSession(sessionId, 'detached');
+    });
+}
+
+/**
  * Archive and detach park a Session's live Terminals and Chats without deleting anything. An archived Session resumes
  * them when it is selected again; a detached one has handed its Agent Sessions to another client and takes them back
  * only through `session.resume`. Unarchiving returns Sessions to the list; their Terminals resume on selection.
@@ -70,8 +98,7 @@ function createSessionParkingHandlers(
     | 'session.unarchive'
     | 'session.unarchiveMany'
 > {
-    const { agentChat, database, mobileTerminalMutations, terminalRestores, terminalSuspension } =
-        options;
+    const { database, mobileTerminalMutations } = options;
     const unarchiveSessions = (
         sessionIds: readonly string[],
         placement: SessionRestorePlacement,
@@ -96,23 +123,15 @@ function createSessionParkingHandlers(
             return { sessionId };
         },
         'session.archive': ({ sessionId }) => archiveSession(sessionId),
-        'session.detach': ({ sessionId }) =>
-            mobileTerminalMutations.runSessions([sessionId], async () => {
-                if (!database.getSession(sessionId))
-                    throw new CaxriError('NOT_FOUND', 'Session not found');
-                /**
-                 * A queued restore could relaunch the Agent right after it was handed over; drop it first. One already
-                 * past PTY spawn is awaited, as in `parkSessions`, so the detach finds its process. Any other Agent
-                 * launch still in flight is handed over by `detachSession` itself.
-                 */
-                terminalRestores.cancel(sessionId);
-                await terminalRestores.settled(sessionId);
-                await terminalSuspension.detachSession(sessionId);
-                // Durable like a detached PTY: a later read must not resume the conversation another client now holds.
-                await agentChat.closeSession(sessionId, 'detached');
-                options.sendFullStateChange('session.detach');
-                return database.getSession(sessionId)!;
-            }),
+        'session.detach': async ({ sessionId }) => {
+            if (!database.getSession(sessionId))
+                throw new CaxriError('NOT_FOUND', 'Session not found');
+            await detachSessionAgents(options, sessionId);
+            const session = database.getSession(sessionId);
+            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+            options.sendFullStateChange('session.detach');
+            return session;
+        },
         'session.unarchive': ({ placement, sessionId }) =>
             unarchiveSessions([sessionId], placement)[0],
         'session.unarchiveMany': ({ placement, sessionIds }) =>

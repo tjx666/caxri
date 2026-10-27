@@ -51,6 +51,7 @@ export async function fixture(
         sessionInstructions?: () => string | null;
         onAgentStateChanged?: AgentChatServiceOptions['onAgentStateChanged'];
         delegation?: AgentChatServiceOptions['delegation'];
+        isStartFenced?: AgentChatServiceOptions['isStartFenced'];
         /**
          * Also receives every lifecycle signal, after `signals` records it, as the Server's coordinator would.
          */
@@ -142,6 +143,7 @@ export async function fixture(
             sessionInstructions: options.sessionInstructions ?? (() => null),
             onAgentStateChanged: options.onAgentStateChanged,
             delegation: options.delegation,
+            isStartFenced: options.isStartFenced,
             usage,
             usageLimitWaits,
         });

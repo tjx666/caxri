@@ -45,6 +45,7 @@ export interface CommandContext {
     session: {
         archiveSelected(): void;
         compactWarm(): void;
+        enterAirplaneMode(): void;
         canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;
         deleteSelected(): void;

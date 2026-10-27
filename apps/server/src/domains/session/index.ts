@@ -1,5 +1,6 @@
 export { SessionAgentHistoryService } from './agent-history';
 export { createSessionAgentRuntimeHandlers } from './agent-runtime-handlers';
+export { AirplaneMode, isAirplaneModeHolding } from './airplane-mode';
 export { SessionAutoNamingService } from './auto-naming';
 export { createBackgroundSession, discardEmptySession } from './background';
 export { SessionCompaction } from './compaction';
