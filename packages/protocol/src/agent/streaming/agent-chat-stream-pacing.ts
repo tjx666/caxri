@@ -62,11 +62,29 @@ const ARRIVAL_SMOOTHING = 0.3;
  */
 const MAX_FOLLOWED_RATE_PER_MS = 0.4;
 
+/**
+ * How much of the shown text's end must reappear in a target that no longer starts with it for the reveal to resume
+ * there. The phone's Chat window keeps only a long reply's tail behind a clip marker, so a window re-read moves the
+ * reply's start while its end still continues what is shown; long enough that ordinary prose never matches by chance.
+ */
+const REALIGN_ANCHOR_LENGTH = 80;
+
+/**
+ * The prefix of `target` that ends where `shown` ends, or `undefined` for a real rewrite.
+ */
+function realign(shown: string, target: string): string | undefined {
+    if (shown.length < REALIGN_ANCHOR_LENGTH) return undefined;
+    const anchor = shown.slice(-REALIGN_ANCHOR_LENGTH);
+    const index = target.lastIndexOf(anchor);
+    return index === -1 ? undefined : target.slice(0, index + anchor.length);
+}
+
 export interface AgentChatStreamPacer {
     /**
      * The part of `target`, the reply received so far, to show at `now` (a monotonic millisecond clock such as
-     * `requestAnimationFrame`'s timestamp). A `target` that does not extend what is shown (a rewound or edited reply)
-     * is shown whole at once.
+     * `requestAnimationFrame`'s timestamp). A `target` whose text still continues the end of what is shown (a clipped
+     * reply whose window moved) keeps easing in after that point; any other `target` that does not extend what is shown
+     * (a rewound or edited reply) is shown whole at once.
      */
     next(target: string, now: number): string;
 }
@@ -100,11 +118,16 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
     return {
         next(target, now) {
             if (!target.startsWith(shown)) {
-                shown = target;
-                carry = 0;
-                lastFrameAt = undefined;
+                const aligned = realign(shown, target);
+                // The arrival lengths measured the old text; the learned cadence still describes the link.
                 lastArrival = undefined;
-                return shown;
+                if (aligned === undefined) {
+                    shown = target;
+                    carry = 0;
+                    lastFrameAt = undefined;
+                    return shown;
+                }
+                shown = aligned;
             }
             noteArrival(target.length, now);
             const backlog = target.length - shown.length;
