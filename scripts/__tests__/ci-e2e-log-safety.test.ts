@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
 import { execFileAsync } from '../exec';
+import { isCiE2ELogSafetyScanPath } from '../reporters/ci-e2e-log-safety-scope';
 
 const root = new URL('../../', import.meta.url);
 const repoRoot = fileURLToPath(root);
@@ -17,14 +18,8 @@ interface ExecutableSource {
     source: string;
 }
 
-const executableSourcePattern =
-    /(?:^|\/)(?:[^/]+\.(?:cjs|js|json|mjs|sh|toml|ts|tsx|yaml|yml)|Dockerfile)$/u;
 const playwrightCommandPattern = /\bplaywright\s+test\b|['"`]playwright['"`]\s*,\s*['"`]test['"`]/u;
 const alternateConfigPattern = /--config|(?:^|[\s'"`])-c(?:$|[\s'"`,=])/mu;
-
-function isTestSource(path: string): boolean {
-    return path.includes('/__tests__/') || /(?:^|\/)[^/]+\.(?:spec|test)\.[^/]+$/u.test(path);
-}
 
 async function executableSources(): Promise<ExecutableSource[]> {
     const { stdout } = await execFileAsync(
@@ -32,9 +27,7 @@ async function executableSources(): Promise<ExecutableSource[]> {
         ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
         { cwd: repoRoot },
     );
-    const paths = stdout
-        .split('\0')
-        .filter((path) => path && executableSourcePattern.test(path) && !isTestSource(path));
+    const paths = stdout.split('\0').filter((path) => path && isCiE2ELogSafetyScanPath(path));
     const sources = await Promise.all(
         paths.map(async (path) => {
             try {
