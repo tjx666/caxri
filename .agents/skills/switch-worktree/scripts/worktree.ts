@@ -192,6 +192,29 @@ async function inspectOne(
     desktop: Awaited<ReturnType<typeof inspectDesktopLease>>,
     orphans?: ReadonlyMap<string, readonly ProcessEntry[]>,
 ): Promise<WorktreeStatus> {
+    const desktopLease =
+        desktop.state === 'free'
+            ? 'free'
+            : desktop.lease.worktreePath === worktree.path
+              ? desktop.state
+              : desktop.state === 'active'
+                ? 'active-other'
+                : 'stale-other';
+    // A registration whose directory is gone has nothing to probe, and a `git status` there fails to spawn; report it
+    // as prunable instead of failing the whole list.
+    if (!(await isPathPresent(worktree.path)))
+        return {
+            ...worktree,
+            prunable: worktree.prunable ?? 'directory is missing',
+            ahead: null,
+            behind: null,
+            dependencies: 'missing',
+            desktopLease,
+            devProcess: 'none',
+            dirty: false,
+            managed: false,
+            orphanProcesses: [],
+        };
     const orphanMap = orphans ?? (await orphansByWorktree(await listWorktrees(context)));
     const identity = await worktreeIdentity(worktree.path, false);
     const processRecord = await readDevelopmentProcess(context, identity);
@@ -205,14 +228,7 @@ async function inspectOne(
         ...counts,
         cdpPort: processRecord?.cdpPort,
         dependencies: await dependencyState(worktree.path),
-        desktopLease:
-            desktop.state === 'free'
-                ? 'free'
-                : desktop.lease.worktreePath === worktree.path
-                  ? desktop.state
-                  : desktop.state === 'active'
-                    ? 'active-other'
-                    : 'stale-other',
+        desktopLease,
         devProcess: processRecord ? (isProcessActive ? 'active' : 'stale') : 'none',
         dirty: Boolean(
             (
