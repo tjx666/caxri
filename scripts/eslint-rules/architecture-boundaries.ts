@@ -8,6 +8,8 @@ import {
     appBoundaries,
     browserUnsafeImports,
     legacyOwnershipRoots,
+    netSocketImporters,
+    netSocketRoots,
     packageBoundaries,
     transitionalImportAllowances,
 } from '../architecture-boundaries';
@@ -145,6 +147,12 @@ function isAllowedTransition(importer: string, specifier: string): boolean {
     );
 }
 
+function isForbiddenNetSocketImport(importer: string, specifier: string): boolean {
+    if (specifier !== 'node:net' && specifier !== 'net') return false;
+    if (isTestSource(importer) || netSocketImporters.includes(importer)) return false;
+    return netSocketRoots.some((root) => isPathInside(root, importer));
+}
+
 function isBrowserConsumer(path: string): boolean {
     if (isTestSource(path)) return false;
     return (
@@ -210,6 +218,8 @@ const rule: Rule.RuleModule = {
                 "Browser code must not import '{{specifier}}'; @caxri/client/supervise is platform-only.",
             serverLayerImport:
                 "Server layer '{{importer}}' must not import '{{target}}'; Core is the only composition layer allowed to cross Server process and Domain boundaries.",
+            netSocketImport:
+                "'{{specifier}}' is reserved for the Mobile gateway and preview proxy; Server Core and the Client supervisor must not open another socket.",
             testOnlyPackageImport:
                 "Production source must not import test-only package entry '{{specifier}}'.",
         },
@@ -220,6 +230,10 @@ const rule: Rule.RuleModule = {
 
         function inspect(node: Node, specifier: string): void {
             if (isAllowedTransition(importer, specifier)) return;
+            if (isForbiddenNetSocketImport(importer, specifier)) {
+                context.report({ node, messageId: 'netSocketImport', data: { specifier } });
+                return;
+            }
 
             const resolvedTarget = targetPath(importer, specifier);
             if (resolvedTarget && isForbiddenServerLayerImport(importer, resolvedTarget)) {

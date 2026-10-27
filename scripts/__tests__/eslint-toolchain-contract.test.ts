@@ -389,6 +389,27 @@ describe('shared ESLint preset toolchain contract', () => {
         );
     });
 
+    it('reserves node:net in Server Core and the Client supervisor for the Mobile gateway', async () => {
+        const [rejected, bare, supervisor, gateway, preview, test] = await Promise.all([
+            lintSource('apps/server/src/core/control-socket.ts', "import 'node:net';"),
+            lintSource('apps/server/src/core/control-socket.ts', "import 'net';"),
+            lintSource('packages/client/src/supervise/control-socket.ts', "import 'node:net';"),
+            lintSource('apps/server/src/core/mobile/gateway/gateway.ts', "import 'node:net';"),
+            lintSource('apps/server/src/core/mobile/preview/proxy.ts', "import 'node:net';"),
+            lintSource(
+                'apps/server/src/core/__tests__/control-socket.test.ts',
+                "import 'node:net';",
+            ),
+        ]);
+        const boundaryIds = (result: ESLint.LintResult) =>
+            result.messages.map(({ ruleId }) => ruleId);
+
+        for (const result of [rejected, bare, supervisor])
+            expect(boundaryIds(result)).toContain('caxri/architecture-boundaries');
+        for (const result of [gateway, preview, test])
+            expect(boundaryIds(result)).not.toContain('caxri/architecture-boundaries');
+    });
+
     it('keeps test-only package seams out of production source', async () => {
         const result = await lintSource(
             'scripts/fixtures/eslint/architecture/apps/server/src/test-only-import.ts',
