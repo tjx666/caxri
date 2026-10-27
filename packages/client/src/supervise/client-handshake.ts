@@ -12,9 +12,9 @@ import {
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
-import type { ServerClientCredential } from './client-support';
-import { controlMessageText } from './client-support';
-import { MAX_MANIFEST_BYTES } from './discovery';
+import type { ServerClientCredential } from './client-support.js';
+import { controlMessageText } from './client-support.js';
+import { MAX_MANIFEST_BYTES } from './discovery.js';
 
 /**
  * Result of a completed Server Core handshake. The socket is paused and the message listener is still attached so the

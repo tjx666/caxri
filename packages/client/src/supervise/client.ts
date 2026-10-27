@@ -45,14 +45,14 @@ import {
 import { notifyListeners, notifyListenersThenRethrow } from '@caxri/utils';
 import WebSocket from 'ws';
 
-import { BinaryStreamClient } from './binary-stream-client';
-import { openServerHandshake } from './client-handshake';
-import type { PendingRequest, ServerClientCredential } from './client-support';
-import { controlMessageText, DEFAULT_TIMEOUT_MS } from './client-support';
+import { BinaryStreamClient } from './binary-stream-client.js';
+import { openServerHandshake } from './client-handshake.js';
+import type { PendingRequest, ServerClientCredential } from './client-support.js';
+import { controlMessageText, DEFAULT_TIMEOUT_MS } from './client-support.js';
 
 // Re-exported so `@caxri/client/supervise` consumers keep importing this type from `client.js`, unchanged by the
 // `client-support.js` split.
-export type { ServerClientCredential } from './client-support';
+export type { ServerClientCredential } from './client-support.js';
 
 /**
  * Interval between background Desktop lease renewals. Kept well under Server Core's `DESKTOP_LEASE_MS` (60s,

@@ -153,6 +153,7 @@
                     "scripts/fixtures/eslint/color-utilities/**/*.ts",
                     "scripts/fixtures/eslint/listener-fanout/**/*.ts",
                     "scripts/fixtures/eslint/schema-version-offset/**/*.ts",
+                    "scripts/fixtures/eslint/relative-import-extension/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
                     "scripts/run-e2e-pools.ts",
                     "scripts/surface-matrix.ts"

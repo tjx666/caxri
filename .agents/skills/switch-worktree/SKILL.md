@@ -109,6 +109,13 @@ Use `--base <ref>` only when the task explicitly requires another baseline. Allo
 prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new name that already
 exists on `origin` is refused, since its push would be rejected or overwrite that branch.
 
+`create` holds the shared repository lock while it fetches and adds the worktree, and another
+session waits for it only 10 seconds before failing with `Timed out waiting for switch-worktree
+operation PID <pid>`. That failure created nothing: confirm the PID is a sibling's live
+`switch-worktree` (`ps -o pid=,command= -p <pid>`), let it finish, and rerun the same `create`.
+Running `create` in the background only avoids the calling tool's own timeout; it does not extend
+the 10-second lock wait.
+
 Resolve an existing branch or worktree path with:
 
 ```bash
