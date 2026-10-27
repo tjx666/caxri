@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestAgentService } from '../../__tests__/create-test-domain-services';
 import { clearExecutableCache, discoverExecutable } from '../discovery';
 import type { AgentAdapter } from '../service';
-import { AgentService, SLOW_AGENT_PROBE_MS } from '../service';
+import { AgentService, createLocalAgentAdapters, SLOW_AGENT_PROBE_MS } from '../service';
 
 const temporaryDirectories: string[] = [];
 const loggers: StructuredLogger[] = [];
@@ -30,9 +30,20 @@ describe('Agent adapter fallback', () => {
     it('returns unknown without failing when a CLI cannot be discovered', async () => {
         vi.stubEnv('PATH', '');
         vi.stubEnv('SHELL', '/usr/bin/false');
+        /**
+         * An executable name no machine installs: discovery also searches well-known install directories that do not
+         * depend on PATH or HOME (`/opt/homebrew/bin`, `/usr/local/bin`), so the real `claude` name would be found on a
+         * developer machine that has Claude Code installed.
+         */
+        const adapters = createLocalAgentAdapters(undefined, () => ({
+            executable: 'caxri-test-missing-claude',
+            args: [],
+        }));
 
         await expect(
-            new AgentService().snapshot('claude', { rootPath: '/definitely/missing' }),
+            new AgentService(undefined, adapters).snapshot('claude', {
+                rootPath: '/definitely/missing',
+            }),
         ).resolves.toMatchObject({
             provider: 'claude',
             status: 'unknown',
