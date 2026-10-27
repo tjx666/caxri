@@ -256,7 +256,7 @@ const BURST_STREAM_DELTAS = [
 ];
 
 /**
- * The `burststream clip` lead-in: 32 numbered lines of about 150 characters, which carry the reply past the phone's
+ * The `burststreamclip` lead-in: 32 numbered lines of about 150 characters, which carry the reply past the phone's
  * 4,000-character clip before {@link CLIPPED_STREAM_LANDING} arrives.
  */
 const CLIPPED_STREAM_LEAD_IN = Array.from(
@@ -282,7 +282,7 @@ const CLIPPED_STREAM_LANDING = Array.from(
 const OVERSIZED_COMMAND_OUTPUT = `${'build output line\n'.repeat(3_500)}`;
 
 /**
- * The `burststream` turn: {@link BURST_STREAM_DELTAS} 400ms apart. With `isClipped` (`burststream clip`, #2682), the
+ * The `burststream` turn: {@link BURST_STREAM_DELTAS} 400ms apart. With `isClipped` (`burststreamclip`, #2682), the
  * reply first passes the phone's clip; then a command's output too large for one phone frame lands beside a long
  * paragraph of the reply, so the phone re-reads a window whose clipped reply starts later than the one it shows.
  */

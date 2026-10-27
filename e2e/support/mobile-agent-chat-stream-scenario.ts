@@ -15,7 +15,7 @@ import { startMobileFramebufferRecording, tapMobileCheck, waitForMobile } from '
 const BURST_STREAM_END = 'after the Agent has stopped.';
 
 /**
- * The `burststream clip` reply's landing paragraph, the text still easing in when the phone re-reads its window.
+ * The `burststreamclip` reply's landing paragraph, the text still easing in when the phone re-reads its window.
  */
 const CLIPPED_STREAM_LANDING_END = 'Sentence 8 of the landing paragraph';
 
@@ -25,7 +25,7 @@ const CLIPPED_STREAM_LANDING_END = 'Sentence 8 of the landing paragraph';
  * the recording is the evidence; the stream runs with animations on, and no semantics are read while it runs because
  * UIAutomator finds no idle window on a moving screen. The pacer's numbers are pinned by its unit test.
  *
- * `MOB-CHAT-CLIP-REREAD-01` (`clipped`, #2682) runs the `burststream clip` variant: once the reply is past the phone's
+ * `MOB-CHAT-CLIP-REREAD-01` (`clipped`, #2682) runs the `burststreamclip` variant: once the reply is past the phone's
  * 4,000-character clip, a command's output too large for one frame makes the phone re-read its window while a long
  * paragraph eases in. The recording shows that paragraph keep typing across the re-read instead of appearing whole.
  */
@@ -46,7 +46,7 @@ export async function executeMobileChatBurstStreamScenario(
         recording = environment.remoteVideoPath
             ? await startMobileFramebufferRecording(serial, environment.remoteVideoPath)
             : undefined;
-        await sendFromPhone(serial, variant === 'clipped' ? 'burststream clip' : 'burststream');
+        await sendFromPhone(serial, variant === 'clipped' ? 'burststreamclip' : 'burststream');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => Boolean(snapshot.activeTurnId) && agentText(snapshot).length > 0,
