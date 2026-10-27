@@ -6,8 +6,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { assertBuildOutputsFresh } from '@caxri/system';
-
+import { verifyBuildReceipt } from '../../../../scripts/build-receipt';
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
     acquireDesktopLease,
@@ -72,50 +71,6 @@ const ELECTRON_PATH = join(PROJECT_ROOT, 'node_modules', '.bin', 'electron');
 const ELECTRON_APP_PATH = join(PROJECT_ROOT, 'node_modules', 'electron', 'dist', 'Electron.app');
 const BUILT_MAIN_PATH = join(PROJECT_ROOT, 'out', 'main', 'index.js');
 const STALE_BUILD_MESSAGE = 'Build output is stale; run `bun run build` before Acceptance';
-const BUILD_INPUT_PATHS = [
-    join(PROJECT_ROOT, 'apps', 'desktop', 'package.json'),
-    join(PROJECT_ROOT, 'apps', 'desktop', 'src'),
-    join(PROJECT_ROOT, 'apps', 'desktop', 'tsconfig.node.json'),
-    join(PROJECT_ROOT, 'apps', 'desktop', 'tsconfig.web.json'),
-    join(PROJECT_ROOT, 'apps', 'server', 'package.json'),
-    join(PROJECT_ROOT, 'apps', 'server', 'scripts'),
-    join(PROJECT_ROOT, 'apps', 'server', 'src'),
-    join(PROJECT_ROOT, 'apps', 'server', 'vite.config.ts'),
-    join(PROJECT_ROOT, 'electron.vite.config.ts'),
-    join(PROJECT_ROOT, 'package.json'),
-    join(PROJECT_ROOT, 'apps', 'cli', 'package.json'),
-    join(PROJECT_ROOT, 'apps', 'cli', 'scripts'),
-    join(PROJECT_ROOT, 'apps', 'cli', 'src'),
-    join(PROJECT_ROOT, 'apps', 'cli', 'tsconfig.build.json'),
-    join(PROJECT_ROOT, 'apps', 'cli', 'tsconfig.json'),
-    join(PROJECT_ROOT, 'packages'),
-    join(PROJECT_ROOT, 'pnpm-lock.yaml'),
-    join(PROJECT_ROOT, 'pnpm-workspace.yaml'),
-    join(PROJECT_ROOT, 'tsconfig.node.json'),
-    join(PROJECT_ROOT, 'tsconfig.web.json'),
-];
-const BUILD_OUTPUT_PATHS = [
-    BUILT_MAIN_PATH,
-    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'metadata', 'manifest.json'),
-    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'server-core.js'),
-    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'extension-host.js'),
-    join(PROJECT_ROOT, 'out', 'preload', 'index.cjs'),
-    join(PROJECT_ROOT, 'out', 'preload', 'process-explorer.cjs'),
-    join(PROJECT_ROOT, 'out', 'renderer', 'index.html'),
-    join(PROJECT_ROOT, 'out', 'renderer', 'process-explorer.html'),
-];
-const WATCHED_BUILD_INPUT_EXTENSIONS = new Set([
-    '.css',
-    '.html',
-    '.json',
-    '.png',
-    '.svg',
-    '.ts',
-    '.tsx',
-    '.ttf',
-    '.woff',
-    '.woff2',
-]);
 const OWNED_PROCESS_DISCOVERY_TIMEOUT_MS = 10_000;
 
 interface ElectronLaunchSpecInput {
@@ -488,12 +443,9 @@ async function main(): Promise<void> {
     let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {
         await access(ELECTRON_APP_PATH);
-        await assertBuildOutputsFresh({
-            inputPaths: BUILD_INPUT_PATHS,
-            outputPaths: BUILD_OUTPUT_PATHS,
-            staleMessage: STALE_BUILD_MESSAGE,
-            watchedDirectoryExtensions: WATCHED_BUILD_INPUT_EXTENSIONS,
-        });
+        const buildReceipt = await verifyBuildReceipt(PROJECT_ROOT, { purpose: 'launch' });
+        if (!buildReceipt.isValid)
+            throw new Error(`${STALE_BUILD_MESSAGE} (${buildReceipt.reason})`);
         const inheritedOwnedProcesses = await removeStaleRuntime(
             defaultStaleRuntimeDependencies,
             caseMode === 'restart' && reuseUserDataDirectory

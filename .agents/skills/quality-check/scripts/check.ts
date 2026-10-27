@@ -6,6 +6,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
+import { verifyBuildReceipt } from '../../../../scripts/build-receipt';
 import { affectedTestArguments } from '../../../../scripts/run-ci-unit-tests';
 import {
     acquireDesktopLease,
@@ -436,10 +437,11 @@ async function runE2E(
     specs: string[],
     grep?: string,
     waitSeconds = 0,
-): Promise<number> {
+): Promise<string> {
     /**
-     * A focused Electron run must never exercise stale output. Capturing both successful commands keeps the standard
-     * check result compact while runCapture still exposes complete failures.
+     * A focused Electron run must never exercise stale output, and it rebuilds only when the build receipt no longer
+     * matches the current inputs and output trees (`scripts/build-receipt.ts`). Capturing both successful commands
+     * keeps the standard check result compact while runCapture still exposes complete failures.
      */
     const parentToken = process.env.CAXRI_DESKTOP_COORDINATOR_TOKEN;
     if (parentToken) {
@@ -467,9 +469,12 @@ async function runE2E(
         CAXRI_DESKTOP_COORDINATOR_TOKEN: parentToken ?? lease!.token,
     };
     try {
-        await runCapture('bun', ['run', 'build'], root, environment);
+        // Checked under the lease, so no sibling `check --e2e` in this worktree rewrites the output between the receipt
+        // check and the Playwright launch.
+        const receipt = await verifyBuildReceipt(root, { purpose: 'reuse' });
+        if (!receipt.isValid) await runCapture('bun', ['run', 'build'], root, environment);
         await runTool(root, 'playwright', playwrightArguments(specs, grep), environment);
-        return specs.length;
+        return receipt.isValid ? `${specs.length} (build reused)` : `${specs.length}`;
     } finally {
         if (lease) await releaseDesktopLease(lease);
     }
