@@ -12,10 +12,16 @@
  *
  * Fake Claude reads its control files from `<task>/control`, so a file created there switches on the same scenario an
  * E2E spec does: `touch /tmp/<task>/control/plan-behind-pace` makes `/usage` report a week ahead of pace.
+ *
+ * `--script <absolute path>` hands fake Claude or Codex a JSON file of scripted turns (`fake-claude-script.ts`,
+ * `fake-codex-script.ts`), for a reply with exact content such as a long code block. Exporting `FAKE_CLAUDE_SCRIPT` in
+ * the shell does nothing: the Agent process environment is an allowlist, so the path is baked into the fake's
+ * launcher.
  */
 import { mkdir } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import process from 'node:process';
+import { parseArgs } from 'node:util';
 
 import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
 
@@ -56,20 +62,33 @@ export function fakeAgentDevelopmentExports(
 export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]): {
     directory: string;
     provider: FakeChatProvider;
+    scriptPath?: string;
 } {
-    const [directory, flag, value] = arguments_;
-    if (!directory || !isAbsolute(directory))
+    const { positionals, values } = parseArgs({
+        args: [...arguments_],
+        allowPositionals: true,
+        options: { provider: { type: 'string' }, script: { type: 'string' } },
+    });
+    const [directory] = positionals;
+    if (!directory || positionals.length !== 1 || !isAbsolute(directory))
         throw new Error(
-            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok]',
+            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok] [--script <absolute path>]',
         );
-    if (arguments_.length === 1) return { directory, provider: 'claude' };
-    if (flag !== '--provider' || !PROVIDERS.includes(value as FakeChatProvider))
+    const provider = values.provider ?? 'claude';
+    if (!PROVIDERS.includes(provider as FakeChatProvider))
         throw new Error('--provider must be one of claude, codex, grok');
-    return { directory, provider: value as FakeChatProvider };
+    const scriptPath = values.script;
+    if (scriptPath !== undefined && !isAbsolute(scriptPath))
+        throw new Error('--script must be an absolute path');
+    if (provider === 'grok' && scriptPath !== undefined)
+        throw new Error('--script supports only fake claude and codex');
+    return { directory, provider: provider as FakeChatProvider, ...(scriptPath && { scriptPath }) };
 }
 
 async function main(): Promise<void> {
-    const { directory, provider } = parseFakeAgentDevelopmentArguments(process.argv.slice(2));
+    const { directory, provider, scriptPath } = parseFakeAgentDevelopmentArguments(
+        process.argv.slice(2),
+    );
     const userData = join(directory, 'user-data');
     const projectRoot = join(directory, 'project');
     await mkdir(projectRoot, { recursive: true });
@@ -77,9 +96,9 @@ async function main(): Promise<void> {
     await mkdir(controlDirectory, { recursive: true });
     const mode =
         provider === 'claude'
-            ? await fakeClaudeChatAgentMode(userData, controlDirectory)
+            ? await fakeClaudeChatAgentMode(userData, controlDirectory, scriptPath)
             : provider === 'codex'
-              ? await fakeCodexChatAgentMode(directory, userData)
+              ? await fakeCodexChatAgentMode(directory, userData, { scriptPath })
               : await fakeGrokChatAgentMode(directory, userData);
     const environment = await createE2EAgentEnvironment({
         fixtureRoot: join(userData, 'e2e-agents'),

@@ -32,4 +32,32 @@ describe('parseFakeAgentDevelopmentArguments', () => {
             parseFakeAgentDevelopmentArguments(['/tmp/task', '--provider', 'gpt']),
         ).toThrow(/claude, codex, grok/u);
     });
+
+    it('accepts an absolute script for fake Claude or Codex in either flag order', () => {
+        expect(
+            parseFakeAgentDevelopmentArguments([
+                '/tmp/task',
+                '--script',
+                '/tmp/task/script.json',
+                '--provider',
+                'codex',
+            ]),
+        ).toEqual({
+            directory: '/tmp/task',
+            provider: 'codex',
+            scriptPath: '/tmp/task/script.json',
+        });
+        expect(() =>
+            parseFakeAgentDevelopmentArguments(['/tmp/task', '--script', 'script.json']),
+        ).toThrow(/absolute/u);
+        expect(() =>
+            parseFakeAgentDevelopmentArguments([
+                '/tmp/task',
+                '--provider',
+                'grok',
+                '--script',
+                '/tmp/task/script.json',
+            ]),
+        ).toThrow(/claude and codex/u);
+    });
 });

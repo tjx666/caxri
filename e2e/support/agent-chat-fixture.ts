@@ -19,12 +19,14 @@ export function fakeCodexChatProvider(
     directory: string,
     nativeUsageHome?: string,
     shouldWriteRollouts?: boolean,
+    scriptPath?: string,
 ) {
     return {
         executableSource: fakeCodexChatExecutableSource({
             stateDirectory: join(directory, 'codex-threads'),
             nativeUsageHome,
             shouldWriteRollouts,
+            scriptPath,
         }),
     };
 }
@@ -37,7 +39,13 @@ export function fakeCodexChatProvider(
 export function fakeCodexChatAgentMode(
     directory: string,
     userData: string,
-    options: { shouldWriteRollouts?: boolean } = {},
+    options: {
+        /**
+         * Scripted turns (`fake-codex-script.ts`) that replace the canned replies for matching prompts.
+         */
+        scriptPath?: string;
+        shouldWriteRollouts?: boolean;
+    } = {},
 ) {
     return createFakeAgentMode({
         userDataDir: userData,
@@ -46,6 +54,7 @@ export function fakeCodexChatAgentMode(
                 directory,
                 join(userData, 'e2e-agents', 'codex'),
                 options.shouldWriteRollouts,
+                options.scriptPath,
             ),
         },
     });
@@ -53,14 +62,19 @@ export function fakeCodexChatAgentMode(
 
 /**
  * A fake Claude Code driven through the Claude Agent SDK. Its transcripts live under the fake agent home;
- * `controlDirectory` is where the spec drops the fake's control files (`FAKE_CLAUDE_CONTROL_DIR`).
+ * `controlDirectory` is where the spec drops the fake's control files (`FAKE_CLAUDE_CONTROL_DIR`); `scriptPath` names
+ * scripted turns (`fake-claude-script.ts`) that replace the canned replies for matching prompts.
  */
-export function fakeClaudeChatAgentMode(userData: string, controlDirectory?: string) {
+export function fakeClaudeChatAgentMode(
+    userData: string,
+    controlDirectory?: string,
+    scriptPath?: string,
+) {
     return createFakeAgentMode({
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: fakeClaudeChatExecutableSource({ controlDirectory }),
+                executableSource: fakeClaudeChatExecutableSource({ controlDirectory, scriptPath }),
             },
         },
     });
