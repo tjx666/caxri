@@ -89,8 +89,9 @@ memory use. A delivered command proceeds in the provider independently of the ba
 
 A primary Agent Chat on Claude Code or Grok Build is compacted automatically when it sits idle long
 enough that its prompt cache is about to expire, so the next message re-reads a summary instead of the
-whole conversation. This mirrors Claude Code's own idle compaction, which covers its terminal sessions
-and therefore PTY Agents; Caxri does not compact PTY Terminals itself.
+whole conversation. Caxri does not compact PTY Terminals. Claude Code has an idle compaction of its
+own, but an upstream remote flag decides whether it runs, so a PTY Agent may get no idle compaction at
+all and Caxri cannot guarantee one.
 
 `ChatIdleCompaction` (`apps/server/src/domains/session/idle-compaction.ts`) sweeps live Chats every 30
 seconds. A Chat is due when `agentChatIdleCompactionAt` (`packages/protocol/src/agent/agent-chat-usage.ts`)

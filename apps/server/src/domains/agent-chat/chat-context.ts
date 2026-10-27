@@ -9,8 +9,9 @@ import type { AgentChatServiceOptions } from './service-options';
 /**
  * The Context tab's report for one Chat. The request history is replayed from the provider's on-disk record, so a Chat
  * whose process is not running still shows how its cache held up; the composition needs the live process and is left
- * out without one, because reading a report must never spawn a provider. Only Claude Code writes a record with
- * per-request cache usage and answers a context query.
+ * out without one, because reading a report must never spawn a provider. Only Claude Code answers a context query and
+ * records each request's cache writes alongside its reads. Codex records input and cache-hit tokens per request, but no
+ * cache writes, window composition, or prefix changes, so the report would have nothing to show for it.
  */
 export async function readChatContext(
     options: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'>,
