@@ -39,6 +39,8 @@ In scope:
 - Composer with image attachments, `/` actions, `@` file completion, and a Stop action.
 - Claude Code permission and question cards in Conversation, scoped to the exact blocking hook.
 - Creating a Session in a granted Project, and adding a Project from a `control` device.
+- Previewing a Session's local web page (a dev server) in the in-app browser from a `control`
+  device; see [Mobile page preview](preview.md).
 - Phone layout plus a tablet split layout.
 
 Current implementation boundary: live Terminal observation and control are Android-only. iOS

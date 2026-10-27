@@ -33,9 +33,9 @@ import type { MobileDeviceSummary } from '../device-registry';
 import type { MobileUpdateSource } from '../update-bundle';
 import { selectMobileGatewayAddresses } from './address-selection';
 import {
+    admitMobileTcpConnection,
     isAllowedMobilePeer,
     MAXIMUM_MOBILE_CONNECTIONS,
-    mobileTcpAdmissionFailure,
     mobileUpgradeFailure,
 } from './admission';
 import { hasMobileAttentionRecipient } from './attention-recipient';
@@ -193,19 +193,23 @@ export class MobileGateway {
     }
 
     /**
-     * Issues a download URL on the same address and port the requesting phone is connected through.
+     * The local address the requesting phone reached this gateway on, which plain-HTTP side channels (update downloads,
+     * previews) must reuse so the phone can reach them on the same network path.
      */
-    prepareUpdateDownload(
-        context: CommandExecutionContext,
-        source: MobileUpdateSource,
-    ): { expiresAt: number; url: string } {
-        const session = this.#authenticatedSession(context);
-        if (!this.#port || !session.localAddress)
+    connectionAddress(context: CommandExecutionContext): string {
+        const { localAddress } = this.#authenticatedSession(context);
+        if (!localAddress || !this.#port)
             throw new CaxriError('UNAVAILABLE', 'Mobile access is disabled');
+        return localAddress;
+    }
+
+    prepareUpdateDownload(context: CommandExecutionContext, source: MobileUpdateSource) {
+        const address = this.connectionAddress(context);
+        const { deviceId, generation } = this.#authenticatedSession(context);
         return this.#updateDownloads.issue(
-            { deviceId: session.deviceId, generation: session.generation },
+            { deviceId, generation },
             source,
-            `http://${session.localAddress}:${this.#port}`,
+            `http://${address}:${this.#port}`,
         );
     }
 
@@ -236,20 +240,13 @@ export class MobileGateway {
         server.on('drop', () => this.#diagnostics.failure('admissionCapacity'));
         server.on('connection', (socket) => {
             const remoteAddress = sourceAddress(socket);
-            const rejection = mobileTcpAdmissionFailure(
+            admitMobileTcpConnection(socket, {
+                canAdmitSource: () => this.#sourceAttempts.admit(remoteAddress ?? 'unknown'),
+                onRejected: (reason) => this.#diagnostics.failure(reason),
                 remoteAddress,
-                socket.localAddress,
-                this.#tcpSockets.size,
-                () => this.#sourceAttempts.admit(remoteAddress ?? 'unknown'),
-            );
-            if (rejection) {
-                this.#diagnostics.failure(rejection);
-                socket.destroy();
-                return;
-            }
-            this.#tcpSockets.add(socket);
-            socket.setTimeout(this.#handshakeTimeoutMs, () => socket.destroy());
-            socket.once('close', () => this.#tcpSockets.delete(socket));
+                sockets: this.#tcpSockets,
+                timeoutMs: this.#handshakeTimeoutMs,
+            });
         });
         server.on('upgrade', (request, socket, head) => {
             const rejection = mobileUpgradeFailure(

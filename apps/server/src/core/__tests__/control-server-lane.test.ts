@@ -203,6 +203,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.timeline.unwatchInternal': 'ordered',
     'mobile.timeline.watchInternal': 'ordered',
     'mobile.update.prepare': 'ordered',
+    'mobile.preview.open': 'ordered',
     'notifications.openSystemSettings': 'ordered',
     'notifications.sendTest': 'ordered',
     'pathBrowser.close': 'ordered',

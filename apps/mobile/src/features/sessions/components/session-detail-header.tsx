@@ -21,6 +21,7 @@ import type { Translate, TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
+import { PreviewChip } from '../../browser/preview-chip';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
@@ -266,6 +267,7 @@ export const SessionDetailHeader = ({
                             theme={theme}
                         />
                     </View>
+                    <PreviewChip deviceRole={deviceRole} sessionId={session.id} theme={theme} />
                     <PullRequestChip
                         deviceRole={deviceRole}
                         isConnected={isConnected}

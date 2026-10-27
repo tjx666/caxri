@@ -96,6 +96,8 @@ const CORE_ROUTED_METHODS = [
     'mobile.botInbox.list',
     'mobile.botInbox.reply',
     'mobile.host.status',
+    'mobile.preview.list',
+    'mobile.preview.open',
     'mobile.device.revoke.apply',
     'desktop.status',
     'desktop.focus',

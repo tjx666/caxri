@@ -66,6 +66,7 @@ import {
     executeMobileSessionSwipeScenario,
 } from './mobile-session-groups-scenario';
 import { executeMobileSessionPinScenario } from './mobile-session-pin-scenario';
+import { executeMobileSessionPreviewScenario } from './mobile-session-preview-scenario';
 
 /**
  * Waits for the answered question list's `index`th answer to read `answer`.
@@ -547,6 +548,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileBotInboxScenario(environment, artifacts);
         case 'MOB-CHAT-35':
             return executeMobileChatMessageActionsScenario(environment, artifacts);
+        case 'MOB-CHAT-36':
+            return executeMobileSessionPreviewScenario(environment, artifacts);
         case 'MOB-CHAT-SEND-UNKNOWN-01':
             return executeMobileChatSendUnknownScenario(environment, artifacts);
         case 'MOB-CHAT-USAGE-GUARD-01':

@@ -173,6 +173,12 @@ const mobileGatewayMethodsByRole = {
          * that already sees the whole Mac.
          */
         'mobile.host.status',
+        /**
+         * A preview proxies every HTTP method to a local web server, so it can change that server's state like a
+         * browser on the computer; it stays with the role that already drives Terminals.
+         */
+        'mobile.preview.list',
+        'mobile.preview.open',
         ...mobileEveryRoleMethods,
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;

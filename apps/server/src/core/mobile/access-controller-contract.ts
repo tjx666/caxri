@@ -78,6 +78,8 @@ export type MobileControlRequest = Extract<
             | 'mobile.botInbox.list'
             | 'mobile.botInbox.reply'
             | 'mobile.host.status'
+            | 'mobile.preview.list'
+            | 'mobile.preview.open'
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'

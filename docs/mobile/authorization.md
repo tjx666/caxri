@@ -16,7 +16,7 @@ dispatcher also grants only the capabilities for that role.
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, `mobile.agentChat.readTask`, `mobile.pullRequest.read`, and `mobile.agentUsage.read` |
 | `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.{takeQueued,readQueued,editQueued}`, and `mobile.agentChat.runCommand`                          |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, and `mobile.pullRequest.merge`                                  |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, `mobile.botInbox.{list,reply}`, `mobile.host.status`, `mobile.preview.{list,open}`, and `mobile.pullRequest.merge`    |
 
 `mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
 effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a
@@ -199,3 +199,10 @@ the `control` role. Merge and Dismiss have no mobile method. See
 `mobile.host.status` is `control`-only for the same reason as the Inbox: its Session load list spans
 every Project on the computer, not only the device's grant. It reads only; there is no mobile method
 to stop a Terminal or process. See [Mobile computer status](host-status.md).
+
+## Page preview from mobile
+
+`mobile.preview.list` and `mobile.preview.open` are `control`-only: the preview proxy forwards every
+HTTP method to a local web server, so it can change that server's state like a browser on the
+computer. Every proxied request re-checks the device's generation and role. See
+[Mobile page preview](preview.md).

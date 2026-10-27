@@ -22,6 +22,8 @@ import {
 } from '@caxri/system';
 import { processDisplayName } from '@caxri/utils';
 
+import type { ServerDomainService } from '../domain-service';
+
 /**
  * Several paired phones may poll at once; within this window they share one sample instead of each running `ps`.
  */
@@ -257,3 +259,21 @@ export class HostStatusSampler {
         return this.inFlight;
     }
 }
+
+/**
+ * One lazily created sampler shared by every phone. Each read records the caller's domain service, so the sampler never
+ * queries one that a Server restart replaced.
+ */
+export const createMobileHostStatusReader = (logger?: Pick<StructuredLogger, 'write'>) => {
+    let sampler: HostStatusSampler | undefined;
+    let current: ServerDomainService | undefined;
+    return (domainService: ServerDomainService): Promise<MobileHostStatus> => {
+        current = domainService;
+        sampler ??= new HostStatusSampler({
+            ...(logger && { logger }),
+            terminals: async () =>
+                (await (current ?? domainService).request('terminal.processes', {})).terminals,
+        });
+        return sampler.status();
+    };
+};

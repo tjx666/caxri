@@ -28,6 +28,15 @@ export const mobileGatewayLogEvents = {
      * `outcome`.
      */
     updateRecovery: 'mobile_gateway.update_recovery',
+    /**
+     * A phone asked to preview a Session's local web server, with `listener` `started` or `reused`.
+     */
+    previewOpened: 'mobile_gateway.preview_opened',
+    /**
+     * One record per preview listener lifetime: its closed `reason` (`idle`, `cleared`, `evicted`), `durationMs`,
+     * proxied `requests` and `upgrades`, `upstreamErrors`, and refused requests by closed cause. No URL or content.
+     */
+    previewClosed: 'mobile_gateway.preview_closed',
     enabled: 'mobile_gateway.enabled',
     disabled: 'mobile_gateway.disabled',
     /**
