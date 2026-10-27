@@ -46,7 +46,11 @@ import {
     REQUEST_QUEUE_WARN_MS,
     REQUEST_TOTAL_WARN_MS,
 } from './control-request-timing';
-import { delegationRequestLogFields, shouldLogSuccessfulRequest } from './request-observability';
+import {
+    delegationRequestLogFields,
+    runAsControlLoggedRequest,
+    shouldLogSuccessfulRequest,
+} from './request-observability';
 
 export type { OrderedQueueTiming } from './control-request-timing';
 
@@ -228,7 +232,9 @@ export function observeControlRequest<T>(
     request: { id: string; method: string; params?: unknown },
     action: () => T,
 ): T {
-    return runWithObservationContext(observationContextForRequest(request, state.context), action);
+    return runWithObservationContext(observationContextForRequest(request, state.context), () =>
+        runAsControlLoggedRequest(request.method, action),
+    );
 }
 
 /**
