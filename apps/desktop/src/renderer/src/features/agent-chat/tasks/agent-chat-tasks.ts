@@ -40,8 +40,9 @@ export function agentChatTaskLinkForItem(
 }
 
 /**
- * A subagent a finished turn started, which the turn's `Worked for` row opens directly (issue caxri#1613). `title` is
- * unset for a subagent the live task list no longer knows (a resumed conversation).
+ * A subagent a finished turn started, which the turn's `Worked for` row opens directly (issue caxri#1613). `title`
+ * falls back to the spawning row's summary for a subagent the live task list no longer knows (an evicted task or a
+ * resumed conversation), and is unset only when neither names it.
  */
 export interface AgentChatTurnSubagent {
     taskId: string;
@@ -68,11 +69,14 @@ export function agentChatTurnSubagents(
     for (const item of items) {
         const link = agentChatTaskLinkForItem(item, tasksByItem);
         if (!link || link.task?.kind === 'shell' || subagents.has(link.taskId)) continue;
-        const title = link.task?.title;
+        // The live task list drops the oldest ended tasks past `MAX_AGENT_CHAT_TASKS` and is not rebuilt for a resumed
+        // conversation, so a subagent it no longer knows is named by the description its spawning tool call carries.
+        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty title or summary names nothing
+        const title = link.task?.title || (item.type === 'toolCall' && item.summary) || undefined;
         subagents.set(link.taskId, {
             taskId: link.taskId,
             itemId: item.id,
-            title: title === '' ? undefined : title,
+            title,
             isRunning: link.task?.status === 'running',
         });
     }

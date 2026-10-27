@@ -22,8 +22,14 @@ function task(overrides: Partial<AgentChatTask> & Pick<AgentChatTask, 'id'>): Ag
     };
 }
 
-function toolCall(id: string, name: string): AgentChatItem {
-    return { id, type: 'toolCall', name, status: 'completed' };
+function toolCall(id: string, name: string, summary?: string): AgentChatItem {
+    return {
+        id,
+        type: 'toolCall',
+        name,
+        status: 'completed',
+        ...(summary !== undefined && { summary }),
+    };
 }
 
 describe('agentChatTaskLinkForItem', () => {
@@ -108,6 +114,21 @@ describe('agentChatTurnSubagents', () => {
                 isRunning: true,
             },
         ]);
+    });
+    it('names a subagent the live task list no longer knows by the description it was started with', () => {
+        const byItem = agentChatTasksByItem([
+            task({ id: 'agent-1', itemId: 'toolu-1', title: 'Survey the project' }),
+        ]);
+        expect(
+            agentChatTurnSubagents(
+                [
+                    toolCall('toolu-1', 'Agent', 'Older description'),
+                    toolCall('toolu-2', 'Agent', 'Review the billing plan'),
+                    toolCall('toolu-3', 'Agent', ''),
+                ],
+                byItem,
+            ).map((subagent) => subagent.title),
+        ).toEqual(['Survey the project', 'Review the billing plan', undefined]);
     });
 });
 
