@@ -132,7 +132,7 @@ Renderer performance scenario still emits a receipt, while the retired cross-run
 unarmed until enough same-image GitHub-hosted samples support recalibration.
 
 The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI reads exact
-Node and pnpm versions from `mise.toml`, installs them through `actions/setup-node` and `pnpm/setup`,
+Node and pnpm versions from `mise.toml`, installs them through `actions/setup-node` and `pnpm/setup` (retried once after a failed first download),
 and pins Bun through `.bun-version`, without changing the user's interactive installations. Hosted
 jobs install Bun explicitly and keep pnpm, Electron, Playwright, and ESLint state below
 `RUNNER_TEMP`; they never require a prewarmed `RUNNER_TOOL_CACHE/caxri/bun` or persistent

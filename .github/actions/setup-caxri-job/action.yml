@@ -61,8 +61,30 @@ runs:
         node-version: ${{ steps.tool_versions.outputs.node }}
         package-manager-cache: false
 
-    - name: Install exact pnpm
+    # pnpm/setup downloads pnpm from the npm registry and has no retry of its own, so one transient network error
+    # failed the whole job (https://github.com/tjx666/caxri/issues/2424). The first attempt may fail without failing
+    # the job; one retry with identical inputs follows, and a second failure fails the job. Keep both steps' `uses`
+    # pin and `with` inputs identical (composite actions have no YAML anchors); the toolchain contract test enforces it.
+    - id: pnpm_first_attempt
+      name: Install exact pnpm
       if: inputs.setup-toolchain == 'true'
+      continue-on-error: true
+      uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
+      with:
+        version: ${{ steps.tool_versions.outputs.pnpm }}
+        dest: ${{ runner.temp }}/caxri-pnpm
+        install: false
+        cache: false
+
+    - name: Wait before retrying the pnpm install
+      if: inputs.setup-toolchain == 'true' && steps.pnpm_first_attempt.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning::pnpm/setup failed on the first attempt; retrying once"
+        sleep 15
+
+    - name: Install exact pnpm (retry)
+      if: inputs.setup-toolchain == 'true' && steps.pnpm_first_attempt.outcome == 'failure'
       uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
       with:
         version: ${{ steps.tool_versions.outputs.pnpm }}

@@ -11,12 +11,14 @@ import { parse } from 'yaml';
 import { execFileAsync } from '../exec';
 
 interface ActionStep {
-    env?: Record<string, string>;
-    id?: string;
-    name?: string;
-    run?: string;
-    uses?: string;
-    with?: Record<string, string>;
+    'continue-on-error'?: boolean;
+    'env'?: Record<string, string>;
+    'id'?: string;
+    'if'?: string;
+    'name'?: string;
+    'run'?: string;
+    'uses'?: string;
+    'with'?: Record<string, string>;
 }
 
 interface ActionDocument {
@@ -155,6 +157,23 @@ describe('toolchain contract', () => {
 
     it('places the standalone pnpm tool ahead of Node Corepack shims', () => {
         expect(mise.search(/^pnpm = /mu)).toBeLessThan(mise.search(/^node = /mu));
+    });
+
+    it('retries the pnpm download once so a transient network failure does not fail the job', () => {
+        const pnpmSteps = setupActionDocument.runs.steps.filter((step) =>
+            step.uses?.startsWith('pnpm/setup@'),
+        );
+
+        expect(pnpmSteps).toHaveLength(2);
+        const [first, retry] = pnpmSteps as [ActionStep, ActionStep];
+
+        expect(retry.uses).toBe(first.uses);
+        expect(retry.with).toEqual(first.with);
+        expect(first.id).toBeTruthy();
+        expect(first['continue-on-error']).toBe(true);
+        expect(retry['continue-on-error']).toBeUndefined();
+        expect(retry.if).toContain(`steps.${first.id}.outcome == 'failure'`);
+        expect(retry.if).toContain("inputs.setup-toolchain == 'true'");
     });
 
     it('loads the exact Node.js and pnpm versions from mise.toml without action-local copies', async () => {
