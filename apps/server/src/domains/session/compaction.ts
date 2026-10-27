@@ -14,7 +14,12 @@ import {
 
 import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator, AgentEnvironment, CompactionReadiness } from '../agents';
-import { inspectContextCache, readAgentTranscript } from '../agents';
+import {
+    hasForeverCodexCache,
+    inspectContextCache,
+    readAgentTranscript,
+    readCodexAuthMode,
+} from '../agents';
 import type { CaxriDatabase } from '../db';
 import { isPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
@@ -122,11 +127,17 @@ export class SessionCompaction {
         const observation = inspectContextCache(
             target.terminal.provider!,
             transcript?.content ?? '',
+            {
+                codexCacheForever:
+                    target.terminal.provider === 'codex' &&
+                    hasForeverCodexCache(await readCodexAuthMode(this.options.environment)),
+            },
         );
         if (observation.status !== 'measured') return observation.status;
         const { activityAt, ttlMinutes } = observation.usage;
         const age = (this.options.now?.() ?? Date.now()) - activityAt;
-        if (age < 0 || age >= ttlMinutes * 60_000) return 'cache_expired';
+        if (age < 0 || (ttlMinutes !== undefined && age >= ttlMinutes * 60_000))
+            return 'cache_expired';
         const current = this.target(sessionId);
         if (
             typeof current === 'string' ||

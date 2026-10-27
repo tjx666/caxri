@@ -3,7 +3,16 @@ import type { AgentProvider } from '@caxri/protocol';
 interface ContextCacheUsage {
     activityAt: number;
     contextTokens: number;
-    ttlMinutes: number;
+    /**
+     * Minutes the cache survives idle; `undefined` means it never expires (a ChatGPT-signed-in Codex).
+     */
+    ttlMinutes?: number;
+}
+export interface ContextCacheOptions {
+    /**
+     * The Codex sign-in keeps its prompt cache with no expiry; see `hasForeverCodexCache`.
+     */
+    codexCacheForever?: boolean;
 }
 export type ContextCacheObservation =
     | { status: 'measured'; usage: ContextCacheUsage }
@@ -33,7 +42,10 @@ function parseLine(line: string): RecordValue {
  * Codex records each request's own usage on `token_count` events, so the newest measurable one is the answer and any
  * compaction marker seen first means nothing current survived it.
  */
-function inspectCodexRequests(lines: readonly string[]): ContextCacheObservation {
+function inspectCodexRequests(
+    lines: readonly string[],
+    options: ContextCacheOptions,
+): ContextCacheObservation {
     for (let index = lines.length - 1; index >= 0; index -= 1) {
         const entry = parseLine(lines[index]);
         const payload = record(entry.payload);
@@ -47,7 +59,14 @@ function inspectCodexRequests(lines: readonly string[]): ContextCacheObservation
         const contextTokens = tokens(usage.input_tokens) || tokens(usage.total_tokens);
         const activityAt = timestamp(entry.timestamp);
         if (contextTokens > 0 && Number.isFinite(activityAt))
-            return { status: 'measured', usage: { activityAt, contextTokens, ttlMinutes: 30 } };
+            return {
+                status: 'measured',
+                usage: {
+                    activityAt,
+                    contextTokens,
+                    ...(!options.codexCacheForever && { ttlMinutes: 30 }),
+                },
+            };
     }
     return { status: 'usage_unavailable' };
 }
@@ -94,7 +113,7 @@ function inspectClaudeRequests(lines: readonly string[]): ContextCacheObservatio
  */
 const contextCacheInspectors: Record<
     AgentProvider,
-    ((lines: readonly string[]) => ContextCacheObservation) | null
+    ((lines: readonly string[], options: ContextCacheOptions) => ContextCacheObservation) | null
 > = {
     claude: inspectClaudeRequests,
     codex: inspectCodexRequests,
@@ -105,16 +124,18 @@ const contextCacheInspectors: Record<
 };
 
 /**
- * Reads the last request, never cumulative usage. Estimates match the native cache guard policy: Codex 30 minutes;
- * Claude uses explicit cache-creation lifetime, falling back to one hour when the transcript omits it. These are
- * selection heuristics, not cache-hit guarantees. A compaction boundary invalidates all earlier request usage.
+ * Reads the last request, never cumulative usage. Estimates match the native cache guard policy: Codex 30 minutes, or
+ * no expiry when `codexCacheForever` says the ChatGPT sign-in keeps its cache; Claude uses explicit cache-creation
+ * lifetime, falling back to one hour when the transcript omits it. These are selection heuristics, not cache-hit
+ * guarantees. A compaction boundary invalidates all earlier request usage.
  * https://developers.openai.com/api/docs/guides/prompt-caching
  * https://platform.claude.com/docs/en/build-with-claude/prompt-caching
  */
 export function inspectContextCache(
     provider: AgentProvider,
     content: string,
+    options: ContextCacheOptions = {},
 ): ContextCacheObservation {
     const inspect = contextCacheInspectors[provider];
-    return inspect ? inspect(content.split('\n')) : { status: 'usage_unavailable' };
+    return inspect ? inspect(content.split('\n'), options) : { status: 'usage_unavailable' };
 }

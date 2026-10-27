@@ -37,6 +37,13 @@ describe('prompt cache selection evidence', () => {
             usage: { activityAt, contextTokens: 120_000, ttlMinutes: 30 },
         });
     });
+    it('reports no expiry for a Codex sign-in that keeps its cache forever', () => {
+        const observation = inspectContextCache('codex', codex(), { codexCacheForever: true });
+        expect(observation).toEqual({
+            status: 'measured',
+            usage: { activityAt, contextTokens: 120_000 },
+        });
+    });
     it('retains the native zero-input fallback', () => {
         expect(inspectContextCache('codex', codex(0))).toMatchObject({
             usage: { contextTokens: 100 },
