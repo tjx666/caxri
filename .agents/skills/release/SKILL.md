@@ -105,21 +105,10 @@ beyond the packaged application itself.
   commit, opening its pull request, and merging it still require explicit user authorization because
   the merge triggers the remote release. After the merge, `bun run scripts/watch-ci.ts --sha <merge commit>`
   follows the CI run and the Release run it triggers to completion in one watcher.
-- After the GitHub Release publishes successfully, install it locally by default with
-  `bun run install:caxri` (standing owner preference) and report the installed version. Skip only
-  when the user asked not to install or the release itself failed.
-- Treat an explicit install request as authorization to end every task owned by the installed
-  `/Applications/Caxri.app`, stop its Host, and force-terminate only its exact bundle processes if
-  graceful shutdown fails. Do not pause for separate permission when active tasks or the native
-  quit confirmation are detected: `install:caxri` uses the installed version-matched CLI first so
-  task shutdown is non-interactive, then applies the exact-path signal fallback before replacement.
-- When the agent itself runs inside the installed Caxri (`CAXRI_MANAGED_AGENT` is set), that quit
-  ends the agent's own Session and every child it started, so a foreground `install:caxri` dies at
-  "Quitting the running Caxri…" and leaves the old version installed. Finish every other step and
-  the report first, then launch the install as the last action, detached into its own session with
-  a relaunch afterwards, for example
-  `nohup perl -MPOSIX -e 'setsid; exec @ARGV' zsh -c 'bun run install:caxri > /tmp/caxri-install.log 2>&1 && open -a /Applications/Caxri.app' >/dev/null 2>&1 &`,
-  and tell the user it will restart Caxri. Verify the installed version in the next turn.
+- Do not install a published release locally. The owner updates through the in-app updater, so the
+  release ends with the Release URL and its assets in the report. Run `install:caxri` only on the
+  user's explicit request, and never from an Agent Session inside the installed Caxri: quitting
+  Caxri ends that Session together with the install it started, leaving the old version in place.
 
 ## Existing-release Android backfill
 
