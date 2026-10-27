@@ -74,6 +74,8 @@ function applySystemRecord(state: HistoryState, record: Json): void {
             type: 'notice',
             kind: 'compacted',
             ...(compaction && { compaction }),
+            // A compaction bounds the fold segments around it, so a replayed one keeps its time for their durations.
+            ...recordTime(record),
         });
         return;
     }
