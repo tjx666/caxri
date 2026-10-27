@@ -125,9 +125,13 @@ const CUSTOM_THEME_ROLE_LITERAL = {
  * chrome. Recovering the preset's own value keeps identity and contrast intact. A genuinely custom theme has no catalog
  * entry to recover from and borrows the nearest role it already carries (see {@link CUSTOM_THEME_ROLE_SOURCE}).
  *
- * Only the absent keys are filled, for built-in snapshots too. A built-in snapshot whose other colors have drifted from
- * the current catalog is not refreshed: it fails `findMatchingBuiltinTheme` and `normalizeBuiltinTheme` demotes it to
- * `custom-*` with its saved colors. Following the catalog would be a compatibility layer for older unpublished builds.
+ * A built-in theme follows the app's catalog when a release adds a color role: a `source: 'builtin'` snapshot missing
+ * any of these roles gets its whole `colors` block replaced by the catalog's, not just the absent keys. Settings save a
+ * full snapshot of the chosen preset, and a release that adds a role often retunes existing ones too; backfilling only
+ * the new keys would leave the preset failing `findMatchingBuiltinTheme`, silently downgrading the user to `custom-*`
+ * and pinning them to the old colors. This is a standing product behavior, not a compatibility path for unpublished
+ * builds (issue #2604): it fires again on every release that adds a role. A retune that adds no role is not followed;
+ * that snapshot is demoted to `custom-*` by `normalizeBuiltinTheme`.
  *
  * Anything that is not a theme-shaped object passes through untouched so the schema still owns rejection.
  */
@@ -139,6 +143,8 @@ export function upgradeThemeColors(value: unknown): unknown {
     const missing = UPGRADABLE_COLOR_ROLES.filter((role) => !(role in colors));
     if (missing.length === 0) return value;
     const preset = builtinThemes.find((candidate) => candidate.id === theme.id);
+    if (preset && theme.source === 'builtin')
+        return { ...theme, colors: structuredClone(preset.colors) };
     const existing = colors as Record<string, unknown>;
     const recovered: Record<string, unknown> = { ...existing };
     for (const role of missing) {
