@@ -5,7 +5,13 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { beginBuild, recordBuild, REQUIRED_OUTPUTS, verifyBuildReceipt } from '../build-receipt';
+import {
+    beginBuild,
+    computeBuildSourceKey,
+    recordBuild,
+    REQUIRED_OUTPUTS,
+    verifyBuildReceipt,
+} from '../build-receipt';
 import { execFileAsync } from '../exec';
 
 const temporaryDirectories: string[] = [];
@@ -150,5 +156,21 @@ describe('build receipt', () => {
             isValid: false,
             reason: 'missing',
         });
+    });
+
+    it('derives the same source key under Bun as under Node', async () => {
+        const root = await createBuiltRepo();
+        const modulePath = join(import.meta.dirname, '..', 'build-receipt.ts');
+        const { stdout } = await execFileAsync(
+            'bun',
+            [
+                '-e',
+                `const { computeBuildSourceKey } = await import(${JSON.stringify(modulePath)}); console.log(await computeBuildSourceKey(${JSON.stringify(root)}));`,
+            ],
+            { encoding: 'utf8' },
+        );
+
+        // `check --e2e` decides under Bun while Playwright workers verify under Node.
+        expect(stdout.trim()).toBe(await computeBuildSourceKey(root));
     });
 });
