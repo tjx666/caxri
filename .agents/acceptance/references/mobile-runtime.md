@@ -47,6 +47,12 @@ surface procedure stays in `.agents/skills/acceptance/surfaces/`.
   `adb shell content call --method scan_volume --uri content://media --arg external_primary`, and
   use the scan screen's Choose from Photos action. Camera optics still need a real device.
 
+## Text selection
+
+- On the acceptance emulator, the system text-selection toolbar is a popup that the UIAutomator dump
+  does not list, so `mobileNativeControlBounds` cannot find it. Wait for the selection to settle,
+  capture the framebuffer, and judge the toolbar by eye; a finished wait is not an assertion.
+
 ## Current product limitation
 
 Phase one stores the Mac addresses captured during pairing. When the Mac changes networks or its

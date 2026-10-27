@@ -158,6 +158,9 @@ asserting observing behavior. For pinch claims, inject one native two-pointer ge
 and inspect the resulting framebuffer; parallel single-pointer swipes do not establish pinch behavior.
 Keep injected render failures active until the error screen's explicit retry action clears them;
 a one-shot mutation during render can be consumed by React's automatic replay without showing the boundary.
+A selectable `<Text>` is not clickable, so the `tap` helper's long press refuses it. Read its
+bounds from fresh semantics and long-press inside them with a same-point `input swipe x y x y 900`,
+then judge the selection from a screenshot (`MOB-CHAT-35`).
 For metadata cases such as Session title updates, select Project before capturing the detail page.
 A fallback shell may display the host account and machine name even inside an isolated Project;
 Terminal evidence requires a synthetic shell or Agent fixture instead.
