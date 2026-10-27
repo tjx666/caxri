@@ -53,9 +53,11 @@ by itself once the limit resets (issue #2220). Owner: `continuation/chat-usage-l
 - **What it sends.** Nothing the user wrote. Claude Code gets a fixed hidden prompt asking it to pick
   up where it left off; its uuid carries a marker (`queued-prompt-uuid.ts`) so a history replay
   hides it too. Codex starts a turn with empty input, which runs the model on the thread as it
-  stands; the empty user item it echoes is dropped. Before sending, a Claude Chat reads its plan
-  limits: a window still used up with a later reset moves the wait there instead of failing a turn
-  into it.
+  stands; the empty user item it echoes is dropped. Before sending, the Chat reads its plan limits
+  (Claude Code's `/usage` reading; Codex's `account/rateLimits/read`, whose general `codex` limit
+  is read with `excludeResetCreditDetails` and a 10-second timeout): a window still used up with a
+  later reset moves the wait there (logged as `rescheduled`) instead of failing a turn into it. A
+  read that fails or times out continues as planned.
 - **Attempts.** Each continuation that fails into the limit again counts toward
   `AGENT_CHAT_AUTO_CONTINUE_MAX_ATTEMPTS` (3); the last one is `skipped` with `attemptsUsed`.
   Human input resets the count.

@@ -358,7 +358,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('table')) {
         await runMarkdownTable(io, turn);
     } else if (text.includes('usage exhausted')) {
-        failOnUsageLimit(io, turn);
+        failOnUsageLimit(io, turn, text);
     } else if (text.includes('fail')) {
         turn.status = 'failed';
         turn.error = { message: 'Fake provider failure' };
